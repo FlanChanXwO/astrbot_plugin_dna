@@ -64,11 +64,11 @@
 
 ### Task 8：集中检查-debug（阶段 2）
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：复核 Task 5-7 的入口契约、命令清单、配置 schema、资源边界、AstrBot 加载和完整门禁；补修复 task 并保留可回滚提交。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：按入口 AST、动态命名空间、公开 decorator、registry/manifest、typed settings、AstrBotConfig、metadata/logo/changelog、资源 Git 参数边界和敏感信息扫描逐项复核。确认 `main.py` 只保留 Star、bootstrap 和动态命令安装，新入口无 `gsuid_core`/`gsucore`、`MASTER_PATTERN`、legacy `Sender/EventContext/MessageSegment` 或全局 dispatch；确认未实现命令仍不注册。发现并修复 Git 错误脱敏仅覆盖 URL userinfo 的缺口，现同时覆盖常见 query token 和 Bearer 值；补充对应回归测试。发现 legacy `review.md`/`final_report.md` 会被误读为 rewrite 当前结论，增加历史存档说明并新增 `docs/porting/review-v0.1.md` 阶段审查报告。未发现需要追加 repair task 的 P0/P1 问题。
+- 验证证据：staging runtime（临时 `data/plugins/astrbot_plugin_dnaby` symlink 指向 worktree）全量 `73 passed, 1 warning`；系统 Ruff、runtime Ruff 0.16.1、Pyright（0 errors/0 warnings/0 informations）、`python3 -m compileall -q .`、`pre-commit run --all-files`、`git diff --check` 均通过。动态包手工断言 `data.plugins.astrbot_plugin_dnaby.main.DnabyPlugin.handle_help` 为 async-generator，`__module__` 正确且 filters 为 `RegexFilter` + `PermissionTypeFilter`；schema/metadata/logo 一致性通过；tracked 敏感路径/凭据模式扫描 clean。参考区 `legacy-reference` 与重构区最终均 clean，未执行外部仓库创建、推送或发布。提交：`3756188`。
+- 剩余风险/下一步：私有 `dnaby_resources` 尚未建立，实际认证、远端和完整资源内容仍待部署者提供私有仓库与 credential helper；当前只做注入式 Git fixture。当前仅有 `帮助`，legacy 目录仍是后续迁移参考；旧配置/SQLite 不迁移。Alembic/SQLAlchemy async 由后续 Task 9 开始，不能将本阶段审查视为数据层完成。下一轮进入 Task 9。
 
 ## 阶段 3：`v0.2.0` 账号与隐私
 
