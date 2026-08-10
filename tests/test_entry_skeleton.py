@@ -5,6 +5,12 @@ from astrbot.api.star import Star
 
 from main import DnabyPlugin
 from src.entry.lifecycle import PluginLifecycle
+from src.entry.response import (
+    ChainResponse,
+    ImageResponse,
+    PlainTextResponse,
+    ResponseFactory,
+)
 from src.entry.web import WebRegistrar, WebRoute
 
 
@@ -25,11 +31,11 @@ class FakeContext:
 
 
 @pytest.mark.asyncio
-async def test_empty_plugin_can_initialize_and_terminate_without_registrations():
-    """空能力 v0.1 入口可被 AstrBot 加载和卸载，且不注册尚未实现的入口。"""
+async def test_plugin_can_initialize_and_terminate_without_web_registrations():
+    """v0.1 入口可被 AstrBot 加载和卸载，且不注册尚未实现的 Web 入口。"""
 
     context = FakeContext()
-    plugin = DnabyPlugin(context, {})
+    plugin = DnabyPlugin(context)
 
     assert isinstance(plugin, Star)
 
@@ -88,3 +94,24 @@ async def test_web_registrar_maps_routes_to_astrbot_once():
     await registrar.initialize()
 
     assert context.web_apis == [("/test", handler, ["GET", "POST"], "测试路由")]
+
+
+def test_response_factory_converts_framework_free_dtos():
+    """text/chain/image DTO 都只在 response 边界触碰 AstrBot event。"""
+
+    class Event:
+        def plain_result(self, text: str) -> tuple[str, object]:
+            return ("plain", text)
+
+        def chain_result(self, components: object) -> tuple[str, object]:
+            return ("chain", components)
+
+        def image_result(self, image: object) -> tuple[str, object]:
+            return ("image", image)
+
+    event = Event()
+    factory = ResponseFactory()
+
+    assert factory.build(event, PlainTextResponse("文本")) == ("plain", "文本")
+    assert factory.build(event, ChainResponse(["链"])) == ("chain", ["链"])
+    assert factory.build(event, ImageResponse(b"image")) == ("image", b"image")

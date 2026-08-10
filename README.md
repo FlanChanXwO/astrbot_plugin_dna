@@ -2,7 +2,7 @@
 
 二重螺旋（DNA）Bot 插件 —— AstrBot 原生移植版。由 GsCore 插件 [DNAUID](https://github.com/tyql688/DNAUID)（私有镜像 `FlanChanXwO/DNAUID`）全面移植而来。
 
-> 重构说明：`rewrite/v0.1` 当前只提供新的入口骨架和空能力 runtime。下方功能清单描述 legacy-reference/目标能力，不代表该重构阶段已经在新入口注册；完整迁移按 `goal-1/tasks.md` 分阶段完成。
+> 重构说明：`rewrite/v0.1` 已提供新的薄入口、显式 `CommandSpec` registry 和 `帮助` use case；下方功能清单描述 legacy-reference/目标能力，不代表历史命令已经在新入口注册。完整迁移按 `goal-1/tasks.md` 分阶段完成。
 
 ## 功能
 
@@ -21,7 +21,7 @@
 
 ## 使用
 
-所有命令为自然语言正则触发，命令清单见 `commands.json` 与 [docs/usage/commands.md](docs/usage/commands.md)。发送 `帮助` 可查看命令卡片。
+已迁移命令使用独立的自然语言正则 handler；当前只有 `帮助`。命令清单见 `commands.json` 与 [docs/usage/commands.md](docs/usage/commands.md)。
 
 ## 配置
 

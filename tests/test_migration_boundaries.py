@@ -70,6 +70,7 @@ def test_http_poll_surfaces_network_failure(monkeypatch):
 
     import httpx
     import pytest
+
     from dnaby.dna_user import transport
 
     class FailingClient:

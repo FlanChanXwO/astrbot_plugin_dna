@@ -3,9 +3,10 @@
 import asyncio
 from io import BytesIO
 
+from PIL import Image as PILImage
+
 from dnaby.utils.segments import MessageSegment
 from dnaby.utils.session import EventContext, Sender
-from PIL import Image as PILImage
 
 
 def _img() -> bytes:

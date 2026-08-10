@@ -13,8 +13,21 @@ from astrbot.core import AstrBotConfig
 
 if __package__:
     from .src.bootstrap import PluginRuntime, build_runtime
+    from .src.entry.commands import (
+        CommandRegistry,
+        install_command_handlers,
+        load_command_registry,
+    )
 else:
     from src.bootstrap import PluginRuntime, build_runtime
+    from src.entry.commands import (
+        CommandRegistry,
+        install_command_handlers,
+        load_command_registry,
+    )
+
+
+COMMAND_REGISTRY: CommandRegistry = load_command_registry()
 
 
 class DnabyPlugin(Star):
@@ -25,11 +38,15 @@ class DnabyPlugin(Star):
     def __init__(
         self,
         context: Context,
-        config: AstrBotConfig | dict[str, Any] | None,
+        config: AstrBotConfig | dict[str, Any] | None = None,
     ) -> None:
         super().__init__(context, config)
         self.config = config
-        self._runtime: PluginRuntime = build_runtime(context, config)
+        self._runtime: PluginRuntime = build_runtime(
+            context,
+            config,
+            command_registry=COMMAND_REGISTRY,
+        )
 
     async def initialize(self) -> None:
         """由 AstrBot 调用，启动插件 runtime。"""
@@ -40,3 +57,9 @@ class DnabyPlugin(Star):
         """由 AstrBot 调用，停止插件 runtime。"""
 
         await self._runtime.terminate()
+
+
+install_command_handlers(DnabyPlugin, COMMAND_REGISTRY)
+
+
+__all__ = ["COMMAND_REGISTRY", "DnabyPlugin"]

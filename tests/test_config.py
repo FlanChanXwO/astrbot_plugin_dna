@@ -5,6 +5,7 @@ import os
 os.environ.setdefault("DNABY_DATA_DIR", "/tmp/dnaby-test-data")
 
 import pytest
+
 from dnaby.dna_config import generate_astrbot_schema
 from dnaby.dna_config.dna_config import DNAConfig, DNASignConfig
 

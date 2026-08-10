@@ -1,12 +1,21 @@
 # 命令
 
-见根目录 `commands.json`（唯一事实源）。发送 `帮助` 查看命令卡片。
+当前 `rewrite/v0.1` 只注册真正实现的 `帮助`。命令声明位于
+`src/modules/index.py` 引用的模块中，`commands.json` 是由
+`scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `帮助` 查看同一
+registry 的帮助文本。
 
-## 分组
-- 绑定账号 / 皎皎角登录 / 密函 / 信息查询 / 隐私控制 / 签到服务 / 群管理员功能 / bot主人功能 / 面板图管理。
-- 附加：兑换码、公告、原图、下载全部资源、帮助。
+未迁移的 legacy 命令仍保留在重构区作为参考，但不会被新入口注册或展示。历史完整
+清单和原行为见 `legacy-reference` 分支及 `docs/porting/`。
+
+## 清单字段
+
+每条命令由 `CommandSpec` 提供：`id`、`pattern`、`group`、`name`、`description`、
+`examples`、`permission`、`use_case`。registry 会校验权限、正则、示例、重复 id/
+pattern 和重复模块加载。
 
 ## 权限
-- `user`：所有用户。
-- `admin`：AstrBot 全局管理员或群管理员角色（公告订阅、群隐私管理）。
-- `owner`：bot 主人（更新记录、全部签到、别名、面板图管理）。
+
+- `user`：AstrBot `PermissionType.MEMBER`。
+- `admin`：AstrBot `PermissionType.ADMIN`。
+- `owner`：当前沿用 AstrBot 公共 `ADMIN` 边界；bot-owner 专属语义待对应 use case 迁移时实现。

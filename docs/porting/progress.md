@@ -2,7 +2,7 @@
 
 > 更新于 2026-08-09。superpowers 迁移记录；完整审查见 [review.md](review.md)，交付结论见 [final_report.md](final_report.md)。
 
-> 重构区说明：本文记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1` 已切换为 `main.py` + `src/` 薄入口骨架，尚未在新入口注册历史命令、Web 路由或业务生命周期；后续进度以重构区 `goal-1/tasks.md` 为准。
+> 重构区说明：本文记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1` 已切换为 `main.py` + `src/` 薄入口，只有代码 registry 中实现的 `帮助` 命令进入新入口；历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ## 当前状态
 

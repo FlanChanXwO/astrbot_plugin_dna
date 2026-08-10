@@ -12,6 +12,7 @@ from typing import Any
 from astrbot.api.star import Context
 from astrbot.core import AstrBotConfig
 
+from .entry.commands import CommandRegistry, load_command_registry
 from .entry.event import EmptyEventEntryPoint, EventEntryPoint
 from .entry.lifecycle import PluginLifecycle
 from .entry.response import ResponseFactory
@@ -29,6 +30,7 @@ class PluginRuntime:
     lifecycle: PluginLifecycle
     events: EventEntryPoint
     responses: ResponseFactory
+    commands: CommandRegistry
 
     async def initialize(self) -> None:
         """启动 runtime 扩展点。"""
@@ -41,8 +43,12 @@ class PluginRuntime:
         await self.lifecycle.terminate()
 
 
-def build_runtime(context: Context, config: PluginConfig) -> PluginRuntime:
-    """为一个 AstrBot 插件实例组装 v0.1 空能力 runtime。"""
+def build_runtime(
+    context: Context,
+    config: PluginConfig,
+    command_registry: CommandRegistry | None = None,
+) -> PluginRuntime:
+    """为一个 AstrBot 插件实例组装代码 registry runtime。"""
 
     web = WebRegistrar(context)
     lifecycle = PluginLifecycle(start_hooks=(web.initialize,))
@@ -52,5 +58,9 @@ def build_runtime(context: Context, config: PluginConfig) -> PluginRuntime:
         lifecycle=lifecycle,
         events=EmptyEventEntryPoint(),
         responses=ResponseFactory(),
+        commands=(
+            command_registry
+            if command_registry is not None
+            else load_command_registry()
+        ),
     )
-
