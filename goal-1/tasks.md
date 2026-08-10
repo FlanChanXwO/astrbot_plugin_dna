@@ -14,11 +14,11 @@
 
 ### Task 2：建立参考区 `legacy-reference` Git 基线
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：仅在参考区完成必要的 Git 初始化/状态确认，加入 `.worktrees/` 忽略规则，提交完整且可识别的 `legacy-reference` 基线；不覆盖用户已有改动。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：保留原有运行期/缓存忽略规则，补充 `.worktrees/` 和 `pyrightconfig.json.agent-lsp-backup` 忽略项；在参考区执行 `git init -b legacy-reference`，将当前源码、资源、文档、测试和 `goal-1/` 记录纳入独立本地仓库。未删除或覆盖任何已有文件；`data/`、`tests/.data/` 等运行期数据继续留在磁盘但不进入版本库。
+- 验证证据：根提交 `4201be6`（`legacy-reference: capture plugin baseline`），提交统计为 485 个文件；commit hook 中的 `ruff check` 通过。提交后 `git status --short --branch` 仅显示干净的 `## legacy-reference`；`git ls-files` 未发现 `data/`、`plugin_data`、`tests/.data`、数据库/日志、Cookie/token/secret、`.DS_Store` 或 LSP backup 路径；`git worktree list` 当前仅列参考区。
+- 剩余风险/下一步：参考区已冻结在 `legacy-reference`，下一轮 Task 3 从该提交创建 `/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/data/plugins/astrbot_plugin_dnaby/.worktrees/rewrite-v0.1`，并验证基线与隔离状态。
 
 ### Task 3：创建 `rewrite/v0.1` 独立 worktree 并冻结参考区
 
