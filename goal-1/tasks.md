@@ -56,11 +56,11 @@
 
 ### Task 7：实现 typed 配置、schema 生成、资源入口和版本元数据
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：按领域建立 Pydantic settings 与 `_conf_schema.json` 生成，落地私有资源下载接口、manifest 校验、`logo.png`、`CHANGELOG.md`；明确资源 Git 同步的失败可见性和不覆盖策略。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：在 `src/infrastructure/config/` 建立 `DnabySettings` 及 login/network/sign_in/notifications/display 五个 Pydantic 分组；`schema.py` 和 `scripts/generate_config_schema.py` 从同一份 model fields 生成 AstrBot 4.27.x 可递归解析的 `_conf_schema.json`，共享密钥使用 `SecretStr` 且 schema 默认值为空；bootstrap 在入口边界把 AstrBot 配置转换为 typed settings。`src/infrastructure/resources/` 增加 `ResourceManifest` 路径/版本校验、运行期 `StarTools.get_data_dir()` 资源路径、`ResourceSynchronizer` 和 `download_all_resources()`：首次 `git clone --depth 1`，后续只在干净 worktree 上 `git pull --ff-only`，检查 origin/worktree/manifest，Git/远端/认证/非快进/manifest/本地修改错误均显露且不强制覆盖。新增 v0.1.0 metadata、复用 `ICON.png` 生成 256x256 `logo.png`、`CHANGELOG.md`，并同步 README、AGENTS、usage/project/porting 文档。未创建或推送外部私有资源仓库。
+- 验证证据：TDD 新增 `tests/test_config_resources.py`，定向 `7 passed`；临时 staging runtime（`data/plugins/astrbot_plugin_dnaby` symlink 指向 worktree）全量 `73 passed, 1 warning`，警告为 AstrBot 依赖的 `audioop` 弃用提示。系统 Ruff、runtime venv Ruff 0.16.1、Pyright（0 errors/0 warnings/0 informations）、`python3 -m compileall -q .`、`pre-commit run --all-files` 和 `git diff --check` 均通过；生成脚本后的 `_conf_schema.json` 与 `generate_astrbot_schema()` 一致；`git worktree list` 显示参考区仍为 `legacy-reference` 且未执行外部网络发布。提交：`65d23ed`。
+- 剩余风险/下一步：资源仓库尚未建立，实际 clone/pull/认证只能在部署者提供私有 origin 和凭据 helper 后验证；当前只用注入式 Git fixture 验证，不泄露凭据。`download_all_resources()` 是同步基础设施接口，后续异步命令调用时需放入合适的线程/生命周期边界；旧配置与 SQLite 不自动迁移，属于 v0.1 破坏性边界。下一轮执行 Task 8 阶段 2 集中检查-debug。
 
 ### Task 8：集中检查-debug（阶段 2）
 
