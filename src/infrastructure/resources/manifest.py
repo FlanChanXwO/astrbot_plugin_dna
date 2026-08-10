@@ -26,6 +26,7 @@ class ResourceManifest(BaseModel):
     @field_validator("format_version")
     @classmethod
     def _check_format_version(cls, value: int) -> int:
+        # 当前插件只实现 manifest v1；未知格式必须显式失败，不能按旧格式猜测。
         if value != 1:
             raise ValueError("仅支持 resource_manifest.json format_version=1")
         return value
@@ -94,4 +95,3 @@ class ResourceManifest(BaseModel):
 
 
 __all__ = ["ResourceManifest", "ResourceManifestError"]
-

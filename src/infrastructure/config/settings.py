@@ -16,6 +16,8 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr
 class _SettingsModel(BaseModel):
     """所有配置分组共用的校验策略。"""
 
+    # 下方 port、并发和时间边界沿用 legacy 配置定义中已有的
+    # max_value/平台端口范围；它们只拒绝越界配置，不截断输出、不增加重试或超时。
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
@@ -191,4 +193,3 @@ class DnabySettings(_SettingsModel):
         """将 AstrBot 的嵌套配置字典转换为 typed settings。"""
 
         return cls.model_validate(dict(config) if config is not None else {})
-

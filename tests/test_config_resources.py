@@ -208,9 +208,12 @@ def test_resource_sync_reports_local_changes_without_pull(tmp_path: Path) -> Non
 def test_git_error_does_not_echo_embedded_credentials() -> None:
     error = GitCommandError(
         "pull",
-        "fatal: could not read https://user:token@example.test/private.git",
+        "fatal: could not read https://user:token@example.test/private.git?access_token=query-secret\n"
+        "Authorization: Bearer bearer-secret",
     )
-    assert "token" not in str(error)
+    assert "user:token@" not in str(error)
+    assert "query-secret" not in str(error)
+    assert "bearer-secret" not in str(error)
     assert "凭据" in str(error)
 
 

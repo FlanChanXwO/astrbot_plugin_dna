@@ -32,12 +32,24 @@ class GitUnavailableError(ResourceSyncError):
 
 
 def _redact_git_detail(detail: str) -> str:
-    """移除常见 URL 中的 userinfo，避免 Git 错误回显凭据。"""
+    """移除 URL userinfo、常见 query token 和 Bearer 值，避免错误回显凭据。"""
 
-    return re.sub(
+    safe_detail = re.sub(
         r"(https?://)[^/@\s]+@",
         r"\1<redacted>@",
         detail,
+        flags=re.IGNORECASE,
+    )
+    safe_detail = re.sub(
+        r"([?&](?:access_token|token|password|secret)=)[^&\s]+",
+        r"\1<redacted>",
+        safe_detail,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(
+        r"(Bearer\s+)[^\s]+",
+        r"\1<redacted>",
+        safe_detail,
         flags=re.IGNORECASE,
     )
 
