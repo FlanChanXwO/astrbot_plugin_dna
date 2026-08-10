@@ -22,11 +22,11 @@
 
 ### Task 3：创建 `rewrite/v0.1` 独立 worktree 并冻结参考区
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：创建指定重构 worktree，确认分支、路径、状态和基线一致；后续所有编辑/测试/runtime 命令显式以重构区为工作目录。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：从参考区 `legacy-reference` 创建 `.worktrees/rewrite-v0.1`，分支名为 `rewrite/v0.1`；后续代码、测试、运行时和文档编辑均以该绝对路径为工作目录，参考区只做读取、`git show`、差异和 worktree 管理。
+- 验证证据：参考区与重构区均为 485 个 tracked 文件；两边 HEAD 均为 `664b6775ca7ca88f4c83876880338d57e2b986b6`；在重构区执行 `git diff --quiet legacy-reference...rewrite/v0.1` 通过；重构区 `git status --short --branch` 为干净的 `## rewrite/v0.1`；`git worktree list --porcelain` 同时列出两个指定路径；goal 三份文件在重构区存在。
+- 剩余风险/下一步：重构区尚未进入业务实现；下一轮只执行 Task 4，对 Task 1-3 的隔离、门禁和未决风险做集中检查-debug。
 
 ### Task 4：集中检查-debug（阶段 1）
 
