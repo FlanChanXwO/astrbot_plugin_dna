@@ -1,0 +1,506 @@
+{
+  "绑定账号": {
+    "desc": "在执行查询之前请绑定账号",
+    "data": [
+      {
+        "name": "绑定UID",
+        "desc": "绑定UID",
+        "eg": "绑定123456",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "切换UID",
+        "desc": "切换绑定的账户",
+        "eg": "切换123456",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "删除UID",
+        "desc": "删除UID",
+        "eg": "删除123456",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "查看UID列表",
+        "desc": "查看绑定的UID列表（不受UID隐藏影响）",
+        "eg": "查看",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "删除全部UID",
+        "desc": "查看绑定的UID列表",
+        "eg": "删除全部UID",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "皎皎角登录": {
+    "desc": "在执行查询之前请皎皎角登录",
+    "data": [
+      {
+        "name": "推荐->登录页登录",
+        "desc": "登录页登录",
+        "eg": "登录",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "token登录",
+        "desc": "绑定自己的皎皎角token",
+        "eg": "登录token",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "退出登录",
+        "desc": "退出当前的皎皎角登录",
+        "eg": "退出登录",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "获取绑定的token",
+        "desc": "获取绑定的token",
+        "eg": "获取token",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "密函":{
+    "desc": "密函功能",
+    "data": [
+      {
+        "name": "查看当前密函",
+        "desc": "查看当前密函",
+        "eg": "密函",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "所有密函列表",
+        "desc": "所有密函列表",
+        "eg": "密函列表",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "订阅指定密函推送",
+        "desc": "订阅指定密函推送",
+        "eg": "订阅驱逐密函",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "订阅角色密函推送",
+        "desc": "订阅角色密函推送",
+        "eg": "订阅角色驱逐密函",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "取消订阅密函",
+        "desc": "取消订阅密函",
+        "eg": "取消订阅驱逐密函",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "取消全部订阅密函",
+        "desc": "取消全部订阅密函",
+        "eg": "取消订阅全部密函",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "订阅密函推送周期",
+        "desc": "订阅密函推送周期",
+        "eg": "订阅密函时间17:23",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "我的密函订阅",
+        "desc": "我的密函订阅",
+        "eg": "我的密函",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "订阅密函图片",
+        "desc": "订阅密函图片",
+        "eg": "订阅密函图片",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "订阅密函文本",
+        "desc": "订阅密函文本",
+        "eg": "订阅密函文本",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "信息查询": {
+    "desc": "信息查询功能",
+    "data": [
+      {
+        "name": "基本信息卡片",
+        "desc": "查询基本信息",
+        "eg": "卡片",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "角色面板",
+        "desc": "查询角色面板",
+        "eg": "松露面板",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "角色攻略",
+        "desc": "查询角色攻略",
+        "eg": "菲娜攻略",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      },
+       {
+        "name": "日常",
+        "desc": "日常查询",
+        "eg": "日常",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "日历",
+        "desc": "日历",
+        "eg": "日历",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "周报",
+        "desc": "查询本周/上周资源获取统计",
+        "eg": "周报 / 上周周报",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "隐私控制": {
+    "desc": "设置个人在群中的隐私权限",
+    "data": [
+      {
+        "name": "开偷窥",
+        "desc": "允许被其它人查看自己的游戏信息",
+        "eg": "开偷窥",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "防偷窥",
+        "desc": "禁止被其它人查看自己的游戏信息",
+        "eg": "防偷窥",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "隐藏UID",
+        "desc": "在生成的卡片中隐藏自己的UID",
+        "eg": "隐藏UID",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "显示UID",
+        "desc": "在生成的卡片中显示自己的UID",
+        "eg": "显示UID",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "签到服务": {
+    "desc": "该配置项仅针对个人使用",
+    "data": [
+      {
+        "name": "签到",
+        "desc": "签到",
+        "eg": "签到",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "开启自动签到",
+        "desc": "开启每天的自动签到功能",
+        "eg": "开启自动签到",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "关闭自动签到",
+        "desc": "关闭每天的自动签到功能",
+        "eg": "关闭自动签到",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      },
+      {
+        "name": "签到日历",
+        "desc": "签到日历",
+        "eg": "签到日历",
+        "need_ck": true,
+        "need_sk": false,
+        "need_admin": false
+      }
+    ]
+  },
+  "群管理员功能": {
+    "pm": 3,
+    "desc": "群管理员功能",
+    "data": [
+      {
+        "name": "订阅公告",
+        "desc": "订阅公告",
+        "eg": "订阅公告",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "取消订阅公告",
+        "desc": "取消订阅公告",
+        "eg": "取消订阅公告",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+       {
+        "name": "指定开偷窥",
+        "desc": "允许会话中被艾特的玩家被其它人查看该玩家的游戏信息",
+        "eg": "指定开偷窥",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "指定防偷窥",
+        "desc": "禁止会话中被艾特的玩家被其它人查看该玩家的游戏信息",
+        "eg": "指定防偷窥",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "全体开偷窥",
+        "desc": "允许会话中所有玩家相互查看自己的游戏信息",
+        "eg": "全体开偷窥",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "全体防偷窥",
+        "desc": "禁止会话中所有玩家相互查看自己的游戏信息",
+        "eg": "全体防偷窥",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+        {
+        "name": "取消全体偷窥",
+        "desc": "取消全体偷窥设置，恢复个人设置",
+        "eg": "取消全体偷窥",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "指定隐藏UID",
+        "desc": "为会话中被艾特的玩家开启UID隐藏",
+        "eg": "指定隐藏UID",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "指定显示UID",
+        "desc": "为会话中被艾特的玩家关闭UID隐藏",
+        "eg": "指定显示UID",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "全体隐藏UID",
+        "desc": "强制会话中所有玩家隐藏UID",
+        "eg": "全体隐藏UID",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "全体显示UID",
+        "desc": "强制会话中所有玩家显示UID",
+        "eg": "全体显示UID",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "取消全体UID隐藏",
+        "desc": "取消全体UID隐藏设置，恢复个人设置",
+        "eg": "取消全体UID隐藏",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      }
+    ]
+  },
+  "bot主人功能": {
+    "pm": 1,
+    "desc": "bot主人功能",
+    "data": [
+      {
+        "name": "git更新记录",
+        "desc": "更新记录",
+        "eg": "更新记录",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "全部重新签到",
+        "desc": "全部重新签到所有人",
+        "eg": "全部签到",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "订阅自动签到结果",
+        "desc": "订阅自动签到结果",
+        "eg": "订阅签到结果",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "添加/删除角色别名",
+        "desc": "添加/删除角色别名",
+        "eg": "添加妮弗尔夫人别名夫人",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "添加/删除武器别名",
+        "desc": "添加/删除武器别名",
+        "eg": "添加武器失乡的獠牙别名獠牙",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "(强制)?恢复别名",
+        "desc": "(强制)?恢复别名",
+        "eg": "恢复别名",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      }
+    ]
+  },
+  "面板图管理": {
+    "pm": 0,
+    "desc": "角色面板图管理",
+    "data": [
+      {
+        "name": "上传角色面板图",
+        "desc": "上传指定角色的自定义面板图",
+        "eg": "上传菲娜面板图",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "角色面板图列表",
+        "desc": "查看指定角色已上传的面板图和ID",
+        "eg": "菲娜面板图列表",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "删除指定面板图",
+        "desc": "按列表中的ID删除指定角色的一张面板图",
+        "eg": "删除菲娜面板图imageid",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "删除全部面板图",
+        "desc": "删除指定角色的全部面板图",
+        "eg": "删除菲娜全部面板图",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "原图删除",
+        "desc": "引用角色面板图，删除对应的上传原图",
+        "eg": "原图删除",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      },
+      {
+        "name": "压缩面板图",
+        "desc": "压缩已上传的角色面板图",
+        "eg": "压缩面板图",
+        "need_ck": false,
+        "need_sk": false,
+        "need_admin": true
+      }
+    ]
+  }
+}

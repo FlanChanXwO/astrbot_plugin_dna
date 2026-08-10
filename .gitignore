@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Runtime data (never commit)
+data/
+tests/.data/
+*.db
+*.sqlite3
+
+# Goal worktrees (keep the reference checkout independent)
+.worktrees/
+
+# Env / IDE
+.env
+.venv/
+venv/
+.idea/
+.vscode/
+pyrightconfig.json.agent-lsp-backup
+
+# macOS
+.DS_Store
+
+# AstrBot managed
+_scratch/

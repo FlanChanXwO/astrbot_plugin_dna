@@ -1,0 +1,7 @@
+name: astrbot_plugin_dnaby
+display_name: DNAUID（二重螺旋）
+desc: 二重螺旋全功能 AstrBot 插件：皎皎角登录/绑定、签到与社区任务、信息查询（角色面板/伤害/日常/日历/周报）、密函、公告、攻略、图鉴、兑换码、别名与自定义面板图等。由 gsuid_core 插件 DNAUID 原生移植。
+version: v1.0.0
+author: FlanChanXwO
+repo: https://github.com/FlanChanXwO/astrbot_plugin_dnaby
+astrbot_version: ">=4.24.0"

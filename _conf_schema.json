@@ -1,0 +1,248 @@
+{
+  "DNAUID配置": {
+    "description": "DNAUID配置",
+    "type": "object",
+    "items": {
+      "DNAAnnGroups": {
+        "type": "object",
+        "description": "二重螺旋公告推送群组",
+        "default": {},
+        "items": {}
+      },
+      "DNAAnnIds": {
+        "type": "list",
+        "description": "二重螺旋公告推送ID列表",
+        "default": []
+      },
+      "DNAAnnOpen": {
+        "type": "bool",
+        "description": "二重螺旋公告推送总开关",
+        "default": true
+      },
+      "AnnMinuteCheck": {
+        "type": "int",
+        "description": "公告推送时间检测（单位min）",
+        "default": 10
+      },
+      "DNALoginUrl": {
+        "type": "string",
+        "description": "local 模式：登录页对外地址；留空则使用内置登录服务地址。外置模式：必填 dna-login 服务的 base URL",
+        "default": ""
+      },
+      "DNALoginBindHost": {
+        "type": "string",
+        "description": "local 模式内置登录服务监听的地址；默认仅本机可访问，局域网访问可填写 0.0.0.0",
+        "default": "127.0.0.1"
+      },
+      "DNALoginPort": {
+        "type": "int",
+        "description": "local 模式内置登录服务端口，默认 6189；填写 0 可由系统分配临时端口",
+        "default": 6189
+      },
+      "DNALoginTransport": {
+        "type": "string",
+        "description": "local = Core 进程内嵌登录；http_poll / sse / ws = 走外置 dna-login 服务（EdgeOne 部署只支持 http_poll）",
+        "default": "local",
+        "options": [
+          "local",
+          "http_poll",
+          "sse",
+          "ws"
+        ]
+      },
+      "DNALoginSecret": {
+        "type": "string",
+        "description": "外置模式下与 dna-login 服务的 SHARED_SECRET 一致；HMAC 校验，留空则不签名",
+        "default": ""
+      },
+      "DNATencentWord": {
+        "type": "bool",
+        "description": "腾讯文档",
+        "default": false
+      },
+      "DNAQRLogin": {
+        "type": "bool",
+        "description": "开启后，登录链接变成二维码",
+        "default": false
+      },
+      "DNALoginForward": {
+        "type": "bool",
+        "description": "开启后，登录链接变为转发消息",
+        "default": false
+      },
+      "MaxBindNum": {
+        "type": "int",
+        "description": "绑定UID限制数量（未登录）",
+        "default": 2
+      },
+      "MHSubscribe": {
+        "type": "list",
+        "description": "private=私聊;group=群聊",
+        "default": [
+          "group"
+        ],
+        "options": [
+          "private",
+          "group"
+        ]
+      },
+      "MHPushSubscribe": {
+        "type": "string",
+        "description": "每小时推送一次密函【分钟:秒】，重启生效",
+        "default": "00:30"
+      },
+      "MHCache": {
+        "type": "bool",
+        "description": "每整点缓存一次，缓存后将不再请求API，直接读取缓存数据",
+        "default": true
+      },
+      "Guide": {
+        "type": "list",
+        "description": "使用DNA角色攻略时选择的提供方",
+        "default": [
+          "all"
+        ],
+        "options": [
+          "all",
+          "狩月庭攻略组",
+          "猫冬"
+        ]
+      },
+      "DNAUrlProxyUrl": {
+        "type": "string",
+        "description": "二重螺旋API代理地址",
+        "default": ""
+      },
+      "LocalProxyUrl": {
+        "type": "string",
+        "description": "本地代理地址",
+        "default": ""
+      },
+      "NeedProxyFunc": {
+        "type": "list",
+        "description": "需要代理的函数",
+        "default": [],
+        "options": [
+          "all",
+          "get_sms_code",
+          "login"
+        ]
+      },
+      "NoNeedProxyFunc": {
+        "type": "list",
+        "description": "这个优先级会更高",
+        "default": []
+      },
+      "WebSocketContinueTime": {
+        "type": "int",
+        "description": "保证每小时都活跃的话，可以设置>3600秒, 更改后立即生效",
+        "default": 300
+      },
+      "WebSocketWaitTime": {
+        "type": "int",
+        "description": "等待WebSocket连接建立完成的时间(秒)",
+        "default": 5
+      },
+      "RoleInfoCard": {
+        "type": "bool",
+        "description": "开启就显示全部，关闭只显示已拥有的角色和武器",
+        "default": true
+      },
+      "RoleOriginalImage": {
+        "type": "bool",
+        "description": "开启后，可以引用角色面板图获取上传原图",
+        "default": true
+      },
+      "MHSimplePicture": {
+        "type": "bool",
+        "description": "是否使用简单密函图片",
+        "default": false
+      },
+      "AllowAtQuery": {
+        "type": "bool",
+        "description": "开启后，可以通过@他人查询对方的角色面板等信息；关闭时，无论是否AT都只能查看自己的信息",
+        "default": true
+      }
+    }
+  },
+  "DNAUID签到配置": {
+    "description": "DNAUID签到配置",
+    "type": "object",
+    "items": {
+      "DNASignin": {
+        "type": "bool",
+        "description": "二重螺旋游戏签到开关",
+        "default": false
+      },
+      "DNABBSSignin": {
+        "type": "bool",
+        "description": "皎皎角社区任务开关",
+        "default": false
+      },
+      "DNABBSLink": {
+        "type": "list",
+        "description": "皎皎角社区任务列表",
+        "default": [
+          "bbs_sign",
+          "bbs_detail",
+          "bbs_like",
+          "bbs_share",
+          "bbs_reply"
+        ],
+        "options": [
+          "bbs_sign",
+          "bbs_detail",
+          "bbs_like",
+          "bbs_share",
+          "bbs_reply"
+        ]
+      },
+      "SigninMaster": {
+        "type": "bool",
+        "description": "开启后自动帮登录的人签到",
+        "default": false
+      },
+      "DNASchedSignin": {
+        "type": "bool",
+        "description": "定时签到开关",
+        "default": false
+      },
+      "SignTime": {
+        "type": "string",
+        "description": "每晚二重螺旋签到时间设置",
+        "default": [
+          0,
+          5
+        ]
+      },
+      "SigninConcurrentNum": {
+        "type": "int",
+        "description": "自动签到并发数量",
+        "default": 1
+      },
+      "SigninConcurrentNumInterval": {
+        "type": "list",
+        "description": "自动签到并发数量间隔，默认3-5秒",
+        "default": [
+          "3",
+          "5"
+        ]
+      },
+      "PrivateSignReport": {
+        "type": "bool",
+        "description": "关闭后将不再给任何人推送当天签到任务完成情况",
+        "default": false
+      },
+      "GroupSignReport": {
+        "type": "bool",
+        "description": "关闭后将不再给任何群推送当天签到任务完成情况",
+        "default": false
+      },
+      "GroupSignReportPic": {
+        "type": "bool",
+        "description": "签到以图片形式报告",
+        "default": false
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# astrbot_plugin_dnaby 文档
+
+索引页，只放目录与阅读路径，不展开内容。每个概念只在一个最具体文档里出现。
+
+## 阅读路径
+
+- **从零了解** → [porting/design.md](porting/design.md)（移植设计 + 决策）
+- **开发流程** → [dev/setup.md](dev/setup.md)、[dev/testing.md](dev/testing.md)、[dev/maintenance.md](dev/maintenance.md)
+- **命令与配置** → [usage/commands.md](usage/commands.md)、[usage/configuration.md](usage/configuration.md)、[usage/login.md](usage/login.md)
+- **架构与数据** → [project/architecture.md](project/architecture.md)、[project/data-model.md](project/data-model.md)
+- **移植过程交付物** → [porting/progress.md](porting/progress.md)（当前进度/已知问题）、[porting/plan.md](porting/plan.md)、[porting/review.md](porting/review.md)、[porting/final_report.md](porting/final_report.md)
+- **原 GsCore 登录排查档案** → [legacy/](legacy/README.md)（01..09 + 安全设计-存档，来自上游 DNAUID）
+
+## 目录结构
+
+```
+docs/
+  README.md        # 本索引
+  porting/         # 移植设计、计划、评审、最终报告（superpowers 交付物）
+  dev/             # 过程：setup / testing / maintenance
+  usage/           # 使用：commands / configuration / login
+  project/         # 事实：architecture / data-model
+  legacy/          # 原 DNAUID 登录排查档案
+```
