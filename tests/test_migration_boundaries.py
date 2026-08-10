@@ -1,5 +1,6 @@
 """迁移边界回归测试。"""
 
+import asyncio
 import importlib
 import sys
 from pathlib import Path
@@ -111,20 +112,20 @@ def test_plugin_entrypoint_imports_in_astrbot_namespace():
     assert module.DnabyPlugin.__name__ == "DnabyPlugin"
 
 
-def test_dynamic_plugin_registers_web_apis_from_package_namespace():
-    """动态命名空间下的初始化必须使用包内路径注册 Web API。"""
+def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
+    """动态命名空间下的入口必须能组装 v0.1 空 runtime。"""
     import types
 
     module = importlib.import_module("data.plugins.astrbot_plugin_dnaby.main")
     registered = []
-    plugin = object.__new__(module.DnabyPlugin)
-    plugin.context = types.SimpleNamespace(
+    context = types.SimpleNamespace(
         register_web_api=lambda *args: registered.append(args),
     )
 
-    plugin._register_web_apis()
+    runtime = module.build_runtime(context, {})
+    asyncio.run(runtime.initialize())
 
-    assert registered
+    assert registered == []
 
 
 def test_mh_list_order_is_stable():
