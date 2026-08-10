@@ -12,7 +12,9 @@ ruff check .
   parameters、动态 async-generator handler、AstrBot 公开正则/权限过滤器和帮助输出。
 - `test_commands.py` — `commands.json` 与代码 registry 生成投影一致；legacy 分发器回归单独保留在
   `test_dispatch.py`，不属于 rewrite 入口。
-- `test_config.py` — `_conf_schema.json` 生成、默认值、`get_config/set_config`。
+- `test_config.py` — legacy 配置 wrapper 的兼容回归。
+- `test_config_resources.py` — Pydantic 分组配置、生成 schema 的 AstrBotConfig 递归解析、
+  resource manifest 路径校验、私有 Git clone/pull 失败可见性和本地修改保护。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。
 - `test_database.py` — 5 表 CRUD + 迁移（临时 sqlite 文件）。
 - `test_subscriptions.py` — 订阅增删改查 + 目标解析。

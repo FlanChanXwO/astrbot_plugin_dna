@@ -33,10 +33,10 @@ astrbot_plugin_dnaby/
 │   ├── modules/           # 显式索引的已实现 use case
 │   └── infrastructure/    # 配置、持久化、HTTP、资源、渲染
 ├── metadata.yaml / _conf_schema.json / commands.json / requirements.txt
-├── AGENTS.md / CLAUDE.md / docs/ / tests/ / ICON.png / LICENSE
+├── AGENTS.md / CLAUDE.md / docs/ / tests/ / ICON.png / logo.png / CHANGELOG.md / LICENSE
 ├── dnaby/                 # 内部业务包（保留 dna_* 布局，rename 自 DNAUID）
 │   ├── dna_*/             # 命令处理器 + 纯逻辑（draw_*/service/api）
-│   └── utils/             # resource/config/database/image/fonts/notify/subscriptions/dna_api/constants
+│   └── utils/             # legacy resource/config/database/image/fonts/notify/subscriptions/dna_api/constants
 └── templates/             # 登录页（dnaby/templates）
 ```
 
@@ -67,7 +67,7 @@ astrbot_plugin_dnaby/
 |---|---|---|
 | 触发 | `SV`+`on_*` | 代码 `CommandSpec` + 独立 `@filter.regex` handler |
 | 发送 | `bot.send` | response DTO → `yield event.*_result` |
-| 配置 | `StringConfig`/`Gs*Config` | `AstrBotConfig` + `_conf_schema.json`；保留 `.get_config("Key").data` 读法 |
+| 配置 | `StringConfig`/`Gs*Config` | `Pydantic DnabySettings` + `_conf_schema.json` 生成；legacy `.get_config("Key").data` 仅作参考 |
 | 数据目录 | `get_res_path()` | `StarTools.get_data_dir(name)` |
 | DB | gsucore base_models/exec_list | 本地 `utils/database/base.py`（sqlmodel+aiosqlite 私有 engine） |
 | 订阅/推送 | `gs_subscribe`/`gss.target_send` | `utils/subscriptions.py` + `context.send_message(umo, chain)` |
@@ -80,5 +80,6 @@ astrbot_plugin_dnaby/
 
 - 内部包名沿用 `dnaby`（原 `DNAUID`），`dna_*` 布局保留以最小化路径改动。
 - 旧 GsCore 部署（`atri`）的数据不迁移，全新开始。
-- wiki/guide 素材（~33MB）随包带上；后续可选惰性下载/CDN。
+- fonts/wiki/guide/panel/image 素材放入插件外的私有 `FlanChanXwO/dnaby_resources`；插件只通过
+  manifest + Git fast-forward-only 同步接口读取，建立/推送资源仓库需独立授权。
 - 数据目录：`data/plugin_data/astrbot_plugin_dnaby/`。

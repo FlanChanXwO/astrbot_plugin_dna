@@ -17,6 +17,7 @@ from .entry.event import EmptyEventEntryPoint, EventEntryPoint
 from .entry.lifecycle import PluginLifecycle
 from .entry.response import ResponseFactory
 from .entry.web import WebRegistrar
+from .infrastructure.config import DnabySettings
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
 
@@ -31,6 +32,7 @@ class PluginRuntime:
     events: EventEntryPoint
     responses: ResponseFactory
     commands: CommandRegistry
+    settings: DnabySettings
 
     async def initialize(self) -> None:
         """启动 runtime 扩展点。"""
@@ -63,4 +65,5 @@ def build_runtime(
             if command_registry is not None
             else load_command_registry()
         ),
+        settings=DnabySettings.from_config(config),
     )

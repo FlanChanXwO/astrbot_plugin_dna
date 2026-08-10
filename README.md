@@ -17,7 +17,7 @@
 
 ## 安装
 
-将本插件目录放入 AstrBot 的 `data/plugins/` 后，在 Dashboard 启用并重启；或在 AstrBot 插件市场中搜索安装。
+当前 v0.1 仅面向私有源码 checkout：将本插件目录放入 AstrBot 的 `data/plugins/` 后，在 Dashboard 启用并重启。暂不发布 Marketplace 或公开 Release。
 
 ## 使用
 
@@ -25,7 +25,7 @@
 
 ## 配置
 
-插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），含登录方式、密函推送时间、签到时间、公告轮询间隔等。
+插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），由 `src/infrastructure/config` 的 Pydantic 定义生成，按登录、网络、签到、通知和显示分组。资源仓库使用私有 Git origin，首次同步浅克隆，后续只允许 fast-forward 更新；详见 [docs/usage/resources.md](docs/usage/resources.md)。
 
 ## 开发
 

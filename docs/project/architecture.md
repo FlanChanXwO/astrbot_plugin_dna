@@ -16,6 +16,12 @@
 - Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；当前 v0.1 没有业务路由，因此不会注册 Web API。
 - 事件边界：`src/entry/event.py` 暂只保留非命令事件的显式空入口；消息命令由每个
   动态 handler 的 AstrBot 正则过滤器接管。
+- 配置：`src/infrastructure/config/settings.py` 定义按领域分组的 Pydantic settings；
+  `schema.py` 从同一份字段定义生成 `_conf_schema.json`，bootstrap 将 AstrBot 配置转换为
+  `DnabySettings`。
+- 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
+  `pull --ff-only`，同步前后检查 origin、干净 worktree 和 `resource_manifest.json`；不强制
+  覆盖本地修改。资源仓库在插件运行期数据目录下，不写入源码 `data/`。
 - 当前阶段：`rewrite/v0.1` 只注册真正实现的 `帮助` use case；旧功能不会在新入口中隐式注册。
 
 ## `legacy-reference` 迁移参考

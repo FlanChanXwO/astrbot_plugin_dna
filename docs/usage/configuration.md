@@ -1,10 +1,20 @@
 # 配置
 
-插件配置在 AstrBot Dashboard 插件配置页（schema 见 `_conf_schema.json`）。配置键源自原 DNAUID 的 `config_default.py` / `config_sign.py`，读法保持 `DNAConfig.get_config("Key").data`。
+插件配置在 AstrBot Dashboard 插件配置页。根目录 `_conf_schema.json` 由
+`src/infrastructure/config` 中的 Pydantic 模型生成；修改配置定义后运行
+`python3 scripts/generate_config_schema.py` 同步 schema，不手工维护两份字段定义。
 
-## 主要项
-- 登录：`DNALoginTransport`(local/http_poll/sse/ws)、`DNALoginUrl`、`DNALoginBindHost`、`DNALoginPort`、`DNALoginSecret`、`DNAQRLogin`、`DNALoginForward`。
-- 密函：`MHSubscribe`、`MHPushSubscribe`(分钟:秒)、`MHCache`、`MHSimplePicture`。
-- 签到：`DNASignin`、`DNABBSSignin`、`DNABBSLink`、`SigninMaster`、`DNASchedSignin`、`SignTime`。
-- 公告：`DNAAnnOpen`、`AnnMinuteCheck`。
-- 其它：`MaxBindNum`、`Guide`、`RoleInfoCard`、`RoleOriginalImage`、`AllowAtQuery`、`DNAUrlProxyUrl` 等。
+## 分组
+
+- `login`：登录 URL、监听地址/端口、接入方式、共享密钥、二维码/转发登录和未登录绑定数量。
+- `network`：API/本地代理、需要或不需要代理的函数、WebSocket 保活和连接等待时间。
+- `sign_in`：游戏/社区签到、任务列表、定时签到时间、并发间隔和签到报告。
+- `notifications`：公告轮询与密函订阅、缓存、推送时间和图片模式。
+- `display`：攻略来源、未拥有角色展示、角色原图和 AT 查询。
+
+新入口在 bootstrap 边界将 AstrBot 配置转换为 `DnabySettings`；use case 不直接读取
+未类型化字典。legacy `dnaby/dna_config` 的 `DNAConfig.get_config("Key").data` 语义
+仅为迁移参考，旧 SQLite 和旧配置不会在本阶段自动迁移。
+
+共享密钥使用 Pydantic `SecretStr`，schema 默认值保持为空；不得把实际密钥写入
+Git、日志、异常或用户可见响应。
