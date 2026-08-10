@@ -74,11 +74,11 @@
 
 ### Task 9：建立 SQLAlchemy async 持久化和 Alembic 初始结构
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：使用 `sqlite+aiosqlite`、SQLAlchemy 2 async、repository/事务边界和 Alembic 初始 revision；凭据字段私有化并确保日志/异常/DTO 脱敏；不迁移旧数据库。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：在 `src/infrastructure/persistence/` 建立 SQLAlchemy 2 `DeclarativeBase`、五张 normalized 表（`account_bindings`、`credential_records`、`sign_records`、`privacy_settings`、`group_privacy_settings`）及同名 metadata indexes。`AsyncDatabase` 使用 `sqlite+aiosqlite`、`async_sessionmaker(expire_on_commit=False)`，提供显式 `session()` 和统一提交/回滚的 `transaction()`；`from_data_dir()` 固定新文件名 `dnaby.sqlite3`，不触碰 legacy `dnaby.db`。五类 repository 均显式接收 `AsyncSession`，不创建全局 session 或隐式提交。`CredentialRecord` 将 App/Web Cookie、token、refresh token、设备标识和 d_num 保留在私有 ORM 字段中，`repr`/`redacted_snapshot()` 仅返回标识、状态和凭据存在性。新增 `alembic.ini`、async `alembic/env.py`、模板和 `0001_initial` 初始 revision，并声明 `alembic>=1.13.0`；同步更新数据模型、架构、测试说明、阶段审查和 CHANGELOG。
+- 验证证据：实现提交 `1130cd0`；Task 9 定向测试 `6 passed, 1 skipped`；staging runtime 全量 pytest `79 passed, 1 skipped, 1 warning`，唯一 warning 为 AstrBot 依赖的 `audioop` 弃用提示。系统 Ruff、runtime venv Ruff `0.16.1`、Pyright（`0 errors, 0 warnings, 0 informations`）、`python3 -m compileall -q .`、`pre-commit run --all-files`、`git diff --check` 均通过；新 persistence 包 AST 检查无 `sqlmodel` import，旧 `dnaby.db` fixture 内容保持不变。
+- 剩余风险/下一步：当前 runtime 与全局 Python 均未安装 Alembic，真实 `command.upgrade/downgrade` 测试按设计显式 skip；依赖已声明但未擅自安装，部署环境需安装后补跑真实 migration 往返。初始 revision 不迁移旧数据库，SQLite 中可空 `group_id` 的唯一性语义和业务 upsert/删除策略留给后续账号/隐私 use case；下一轮执行 Task 10。
 
 ### Task 10：实现账号登录、退出、UID 绑定/切换/删除与凭据查询
 
