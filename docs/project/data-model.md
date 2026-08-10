@@ -1,6 +1,34 @@
 # 数据模型
 
-SQLModel 5 表（`dnaby/utils/database/models.py`），DB 文件：`data/plugin_data/astrbot_plugin_dnaby/dnaby.db`。
+## rewrite/v0.1 新数据库
+
+新入口使用 SQLAlchemy 2 async、`sqlite+aiosqlite` 和 Alembic。运行期数据库文件为
+`StarTools.get_data_dir()` 下的 `dnaby.sqlite3`；它与 legacy 的 `dnaby.db` 是两个
+独立路径，v0.1 不读取、不改写、也不迁移旧数据库。
+
+初始 revision 为 `alembic/versions/0001_initial.py`，从空库创建以下五张 normalized
+表：
+
+| 表 | 用途 | 关键字段 |
+|---|---|---|
+| `account_bindings` | 用户↔Bot↔UID 绑定 | user_id, bot_id, group_id, uid, is_active |
+| `credential_records` | 私有登录凭据 | user_id, bot_id, uid, app_*/web_* |
+| `sign_records` | 按 UID 和日期保存签到状态 | uid, date, game_sign, bbs_sign, bbs_detail, bbs_like, bbs_share, bbs_reply |
+| `privacy_settings` | 个人/群组作用域隐私 | user_id, bot_id, group_id, allow_peek, uid_hidden |
+| `group_privacy_settings` | 群组强制隐私 | group_id, bot_id, force_allow_peek, force_uid_hidden |
+
+`src/infrastructure/persistence/repositories.py` 的方法必须接收调用方提供的
+`AsyncSession`；提交和回滚由 `AsyncDatabase.transaction()` 统一负责。生产 schema
+变更走 Alembic，`create_schema_for_tests()` 仅用于隔离测试。
+
+`credential_records` 的 Cookie、refresh token、设备标识和 d_num 只在私有 SQLite
+字段中保存。`CredentialRecord.__repr__()` 与 `redacted_snapshot()` 只返回标识、状态
+和是否存在凭据，不返回 secret 值；日志、异常和 DTO 仍必须沿用同一脱敏边界。
+
+## legacy-reference 迁移参考
+
+旧 SQLModel 5 表（`dnaby/utils/database/models.py`）及其 DB 文件
+`data/plugin_data/astrbot_plugin_dnaby/dnaby.db` 仅供后续行为迁移参考：
 
 | 表 | 用途 | 关键字段 |
 |---|---|---|
@@ -10,4 +38,5 @@ SQLModel 5 表（`dnaby/utils/database/models.py`），DB 文件：`data/plugin_
 | `DNAPrivacy` | 个人隐私 | user_id, bot_id, group_id, allow_peek, uid_hidden |
 | `DNAGroupPrivacy` | 群隐私 | group_id, bot_id, force_allow_peek, force_uid_hidden |
 
-订阅数据存 JSON（`data/plugin_data/astrbot_plugin_dnaby/subscriptions.json`）。
+订阅数据仍是 legacy 参考实现中的 JSON（`data/plugin_data/astrbot_plugin_dnaby/subscriptions.json`）；
+新订阅模型不在 Task 9 范围内。

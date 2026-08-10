@@ -30,7 +30,9 @@ Pydantic 配置/schema、私有资源 Git 同步接口、版本元数据和 Astr
 - `download_all_resources()` 是同步基础设施接口；后续异步命令接入时必须安排在线程/生命周期边界，
   当前未注册下载命令，也没有在导入或插件初始化时隐式同步资源。
 - 新 typed 配置和旧 SQLite 不做自动迁移，已在 `CHANGELOG.md`、配置文档和任务记录中声明。
-- Alembic/SQLAlchemy async 属于后续 Task 9 的持久化边界，尚未被本阶段伪装成已完成。
+- 本审查记录的是 Task 5–8 阶段快照；当时 Alembic/SQLAlchemy async 尚属后续 Task 9 边界。
+  Task 9 已在后续提交中建立新五表 schema、显式 async transaction/repository 和初始 revision；
+  当前数据层事实以 [data-model.md](../project/data-model.md) 与后续任务记录为准。
 
 ## 发布与回滚
 

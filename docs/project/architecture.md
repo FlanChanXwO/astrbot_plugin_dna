@@ -19,6 +19,10 @@
 - 配置：`src/infrastructure/config/settings.py` 定义按领域分组的 Pydantic settings；
   `schema.py` 从同一份字段定义生成 `_conf_schema.json`，bootstrap 将 AstrBot 配置转换为
   `DnabySettings`。
+- 持久化：`src/infrastructure/persistence/` 使用 SQLAlchemy 2 async 和
+  `sqlite+aiosqlite`；`AsyncDatabase.transaction()` 是唯一的提交/回滚边界，repository
+  显式接收 `AsyncSession`。Alembic 初始 revision 只创建新五表 schema，运行期文件为
+  `dnaby.sqlite3`，不触碰 legacy `dnaby.db`；凭据模型提供脱敏 repr/快照。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和 `resource_manifest.json`；不强制
   覆盖本地修改。资源仓库在插件运行期数据目录下，不写入源码 `data/`。
