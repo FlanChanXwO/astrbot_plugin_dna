@@ -48,11 +48,11 @@
 
 ### Task 6：建立显式 `CommandSpec` registry、帮助和命令生成链路
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：定义命令规格与模块索引，生成真正的 async-generator 类方法并应用 AstrBot 4.27.x 公共装饰器；帮助只展示已实现命令，验证权限、重复加载、正则命名参数和无全局 dispatch/registry 修改。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：在 `src/entry/commands/` 建立冻结的 `CommandSpec`、typed `CommandRequest`、只读 `CommandRegistry`、重复模块/id/pattern/权限/示例校验和 manifest 投影；在 `src/modules/index.py` 建立唯一显式命令模块索引，当前只登记 `src/modules/help.py` 的 `帮助` use case。`main.py` 从 registry 为每个 spec 生成真实 async-generator `handle_<id>` class method，先设置运行时 module path，再应用 AstrBot 4.27.1 公开的 `filter.regex` 与 `filter.permission_type` decorator；handler 自己重跑 pattern、提取 named groups 并交给 `CommandRequest`，没有引入 `MASTER_PATTERN`、全局循环 dispatch、legacy `Sender/EventContext/MessageSegment` 或内部 registry API。`src/entry/response.py` 新增 text/chain/image DTO 到 AstrBot 原生结果的转换；帮助直接读取 runtime registry。新增 `scripts/generate_commands_manifest.py`，并生成新 schema 的 `commands.json`；尚未迁移的 55 条历史命令不注册、不展示。同步更新命令、架构、测试和移植设计文档；另以 runtime Ruff 机械整理 5 个既有测试 import-order 基线项。
+- 验证证据：TDD targeted `tests/test_command_registry.py tests/test_commands.py tests/test_entry_skeleton.py` 为 `18 passed, 1 warning`；按目标 staging runtime（临时 `data/plugins/astrbot_plugin_dnaby` symlink 指向 worktree，`PYTHONPATH` 注入 staging root）执行全量 `.../.venv/bin/python -m pytest -q` 为 `66 passed, 1 warning`。`python3 -m compileall .` 通过；系统 Ruff 通过，runtime Ruff `0.16.1` 通过，`pyright --project pyrightconfig.json` 为 `0 errors, 0 warnings, 0 informations`，`pre-commit run --all-files` 通过。运行 manifest generator 后 `commands.json` 与 `manifest_records(COMMAND_REGISTRY)` 测试一致；包命名空间检查确认 `data.plugins.astrbot_plugin_dnaby.main.DnabyPlugin.handle_help` 是 async-generator，handler module path 正确且 filters 为 `RegexFilter` + `PermissionTypeFilter`。实现提交为 `76399db`。
+- 剩余风险/下一步：当前帮助响应是纯文本 DTO，尚未复刻 legacy PIL 帮助卡片；这是 rewrite/v0.1 的明确可见差异。`owner` 当前映射到 AstrBot 公共 `ADMIN` 边界，bot-owner 细分语义待对应 use case 迁移时实现；只有 `帮助` 已实现，Task 7 进入 typed 配置、schema、私有资源入口和版本元数据。
 
 ### Task 7：实现 typed 配置、schema 生成、资源入口和版本元数据
 
