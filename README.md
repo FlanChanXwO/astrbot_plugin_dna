@@ -2,6 +2,8 @@
 
 二重螺旋（DNA）Bot 插件 —— AstrBot 原生移植版。由 GsCore 插件 [DNAUID](https://github.com/tyql688/DNAUID)（私有镜像 `FlanChanXwO/DNAUID`）全面移植而来。
 
+> 重构说明：`rewrite/v0.1` 当前只提供新的入口骨架和空能力 runtime。下方功能清单描述 legacy-reference/目标能力，不代表该重构阶段已经在新入口注册；完整迁移按 `goal-1/tasks.md` 分阶段完成。
+
 ## 功能
 
 - **皎皎角登录**：Web/App 短信登录页、token 登录、短信验证码命令登录、QR 二维码、退出登录、获取 token

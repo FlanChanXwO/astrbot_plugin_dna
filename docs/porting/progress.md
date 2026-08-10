@@ -2,6 +2,8 @@
 
 > 更新于 2026-08-09。superpowers 迁移记录；完整审查见 [review.md](review.md)，交付结论见 [final_report.md](final_report.md)。
 
+> 重构区说明：本文记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1` 已切换为 `main.py` + `src/` 薄入口骨架，尚未在新入口注册历史命令、Web 路由或业务生命周期；后续进度以重构区 `goal-1/tasks.md` 为准。
+
 ## 当前状态
 
 `astrbot_plugin_dnaby` 已完成从 GsCore DNAUID 到原生 AstrBot 的代码层移植。当前入口可被 AstrBot 以 `data.plugins.astrbot_plugin_dnaby.main` 动态加载，56 条命令、18 个功能模块、5 张 SQLModel 表、登录 Web 路由和 4 个定时任务均已接入。
