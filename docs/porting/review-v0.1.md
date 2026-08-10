@@ -34,7 +34,7 @@ Pydantic 配置/schema、私有资源 Git 同步接口、版本元数据和 Astr
 
 ## 发布与回滚
 
-本阶段提交 `65d23ed`（实现）与 `939a856`（任务记录），分支为 `rewrite/v0.1`；参考区保持
-`legacy-reference`。未合并、推送、发布 Marketplace 或创建公开 Release。出现问题时可回滚到
-`fe9db5b`/`939a856` 之前的阶段提交，不对参考区执行 destructive reset。
-
+Task 7 基线提交为 `65d23ed`（实现）与 `939a856`（任务记录），本轮审查修复提交为
+`3756188`，分支为 `rewrite/v0.1`；参考区保持 `legacy-reference`。未合并、推送、发布
+Marketplace 或创建公开 Release。出现问题时可回滚到 `fe9db5b` 之前的阶段提交，不对参考区
+执行 destructive reset。
