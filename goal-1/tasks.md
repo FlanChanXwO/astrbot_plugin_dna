@@ -30,11 +30,11 @@
 
 ### Task 4：集中检查-debug（阶段 1）
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：复核 Task 1-3 的需求偏离、Git 隔离、参考区污染、环境证据、回滚点和未决阻塞；发现问题则追加修复 task。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：复核目标范围、参考区冻结、worktree 路径/分支、忽略规则、提交回滚点和敏感数据边界；未发现业务文件越界、参考区污染、`gsuid_core`/`gsucore` import 或未授权外部发布动作。直接从嵌套 worktree 执行 pytest 时发现 2 个旧动态命名空间测试的 runtime root 层级假设；按 objective 建立临时 staging runtime root，并将 `data/plugins/astrbot_plugin_dnaby` symlink 到重构区后验证通过，因此不追加代码修复 task。
+- 验证证据：参考区与重构区均 clean；`legacy-reference...rewrite/v0.1` 相对差异仅为 `goal-1/tasks.md`；两分支 tracked 路径均无 `data/`、`tests/.data`、数据库/日志、Cookie/token/secret、`.DS_Store` 或 LSP backup，且无禁用框架 import。重构区 runtime `compileall` 退出码 0；staging runtime + `PYTHONPATH` 执行 `/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m pytest -q` 为 `55 passed, 1 warning`；`pyright` 为 `0 errors, 0 warnings, 0 informations`；`pre-commit run --all-files` 通过。系统 `ruff check .` 由 pre-commit 通过；runtime venv 的 ruff `0.16.1` 仍报告基线已有的 5 个 `I001`，属于工具版本差异，未改动测试格式。
+- 剩余风险/下一步：后续测试命令必须以重构区为工作目录，并按 staging runtime + symlink 验证动态命名空间；继续记录系统 ruff 与 runtime venv ruff 的版本差异。阶段 1 无已知高风险问题，下一轮进入 Task 5（`v0.1.0` 骨架）。
 
 ## 阶段 2：`v0.1.0` 骨架
 
