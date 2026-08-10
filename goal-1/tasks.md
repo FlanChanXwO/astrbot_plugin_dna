@@ -40,11 +40,11 @@
 
 ### Task 5：落地 `src` 分层骨架与入口生命周期
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：建立目标目录、`DnabyPlugin`、bootstrap、生命周期、web 注册边界和可测试的 AstrBot 入口；`main.py` 不承载业务编排；先覆盖加载/卸载和空能力路径。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：用 TDD 建立 `src/`、`src/bootstrap.py`、`src/entry/{lifecycle,web,event,response}.py`；将 `main.py` 收敛为 `DnabyPlugin(Star)`、runtime 组装和生命周期转发，移除旧的全局 regex/dispatch、DB、订阅、登录 Web server 和定时任务编排。`PluginLifecycle` 提供启动顺序、停止逆序和幂等；`WebRegistrar` 将 `WebRoute` 转换为 AstrBot `Context.register_web_api`；v0.1 显式使用空事件入口，不隐式注册旧命令。同步更新 `pyrightconfig.json`、架构文档、README 重构说明和 progress 历史状态提示；新增入口骨架契约测试，并将动态包测试改为验证空 runtime。
+- 验证证据：RED 阶段旧入口初始化因依赖 `context.get_config()` 失败；GREEN 后 `tests/test_entry_skeleton.py` 的 3 条测试通过。按 Task 4 的 staging runtime（临时 `data/plugins/astrbot_plugin_dnaby` symlink 指向 worktree，`PYTHONPATH` 注入 staging root）执行 targeted 测试为 `13 passed, 1 warning`，全量为 `58 passed, 1 warning`；runtime `python3 -m compileall .` 通过；`pyright --project pyrightconfig.json` 为 `0 errors, 0 warnings, 0 informations`；系统 `ruff check .`、`pre-commit run --all-files` 和两个提交 hook 均通过。提交：`a747873 task-5: introduce thin runtime entry skeleton`、`3b37076 docs: describe rewrite v0.1 entry skeleton`。
+- 剩余风险/下一步：新入口当前没有命令 registry、业务 Web 路由、配置/数据库/资源初始化，这是 v0.1 分阶段边界，分别由 Task 6–7 和后续阶段加入；runtime venv `ruff 0.16.1` 仍复现基线 5 个 `I001`，canonical system ruff/pre-commit 通过。下一轮只执行 Task 6，建立显式 `CommandSpec` registry、帮助和命令生成链路。
 
 ### Task 6：建立显式 `CommandSpec` registry、帮助和命令生成链路
 
