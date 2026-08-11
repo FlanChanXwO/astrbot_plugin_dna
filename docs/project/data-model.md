@@ -34,8 +34,18 @@
 - 退出登录只删除当前 active UID 的绑定和凭据，保留其他绑定；删除当前 UID 后会从
   剩余记录中确定性选择新的当前 UID。
 - 凭据查询只返回 UID 与 App/Web 是否保存的状态，不提供 Cookie、token、refresh token、
-  设备码或 d_num 导出接口。Task 11 完成前，绑定列表仍是未遮罩的离线行为，不能当作
-  隐私策略已完成。
+  设备码或 d_num 导出接口。`查看UID` 只展示调用者自己的绑定列表，沿用 legacy 列表
+  语义；UID 隐藏策略由后续角色卡片/查询渲染 use case 调用。
+
+## 隐私 use case 约束
+
+- `PrivacySetting` 的个人命令沿用 legacy 行为，按 user_id+bot_id 保存全局个人设置；
+  repository 仍支持可选 group_id 作用域，读取群组作用域时回退到全局个人值。
+- `GroupPrivacySetting` 按 group_id+bot_id 保存两个可独立清除的强制字段。查询 UID 隐藏
+  和偷窥权限时，群强制字段优先；对应字段清除后恢复个人值。
+- `display.allow_mention_query` 关闭时，@ 他人的查询解析回调用者；查询自己不受该开关和
+  目标个人防偷窥设置影响。群强制防偷窥或目标个人 `allow_peek=False` 时同样解析回调用者。
+- 指定隐私写入只检查目标是否存在任意 user+bot UID 绑定，不向响应或异常暴露目标 UID。
 
 ## legacy-reference 迁移参考
 

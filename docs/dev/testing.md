@@ -22,6 +22,9 @@ ruff check .
   摘要和网络/状态码/服务端错误脱敏。
 - `test_account_commands.py` — AstrBot 事件 fixture 到 typed actor、named UID 参数和 runtime
   service 注入边界。
+- `test_privacy.py` — 个人/群组隐私默认值、字段优先级、取消恢复、目标绑定和 AT 查询解析；
+  所有隐私写入均使用隔离 SQLite。
+- `test_privacy_commands.py` — 14 条隐私命令的 registry 权限、公开 `At` 目标提取和缺失目标边界。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。
 - `test_database.py` — 5 表 CRUD + 迁移（临时 sqlite 文件）。
 - `test_subscriptions.py` — 订阅增删改查 + 目标解析。
@@ -35,5 +38,5 @@ ruff check .
 ## AstrBot 集成边界
 
 当前阶段只用 AstrBot 本地 SDK、fake Context、事件 fixture 和原生响应构造方法验证
-插件加载、handler 注册和响应结果。账号写入只在隔离 SQLite 中执行；不执行真实 NapCat、
-OneBot、手机号验证码、token 或外部登录服务。
+插件加载、handler 注册和响应结果。账号与隐私写入只在隔离 SQLite 中执行；不执行真实
+NapCat、OneBot、手机号验证码、token 或外部登录服务。

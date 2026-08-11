@@ -1,5 +1,21 @@
 # Changelog
 
+## rewrite Task 11 — 个人/群组隐私 use case
+
+### Added
+
+- 增加个人开关、群强制开关和指定目标隐私命令，共 14 条；群管理员命令由
+  AstrBot `PermissionType.ADMIN` 过滤器保护。
+- 增加 `PrivacyService` 的个人/群组策略查询、AT 查询解析、目标绑定校验和显式事务写入；
+  群强制值按字段优先于个人设置，取消后恢复个人设置。
+- 命令 handler 使用 AstrBot 公开消息链的 `At` 组件提取目标，不依赖 legacy `ctx.at`。
+
+### Security
+
+- 指定隐私写入要求群聊、有效 `@` 和目标已有 UID 绑定；个人写入遇到群强制设置时会拒绝且不改变个人记录。
+- 隐私写入只在隔离 SQLite 测试中执行；用户可见文案集中在 privacy message 层，未把
+  Cookie、token、UID 查询目标或旧消息段类型带入新入口。
+
 ## rewrite Task 10 — 账号 use case
 
 ### Added

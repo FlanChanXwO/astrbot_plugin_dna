@@ -1,13 +1,16 @@
 """事件入口边界。
 
 框架事件只在 entry 层被读取。业务模块接收 EventActor 这样的值对象，
-不会持有 AstrBot event，也不会依赖 legacy Sender/EventContext。
+不会持有 AstrBot event，也不会依赖 legacy 事件适配类型。
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+from astrbot.api.message_components import At, AtAll
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +55,29 @@ def actor_from_event(event: Any) -> EventActor | None:
         bot_id=str(bot_id),
         group_id=None if group_id is None else str(group_id),
     )
+
+
+def target_user_from_event(
+    event: Any,
+    *,
+    bot_id: str | None = None,
+) -> str | None:
+    """从 AstrBot 公开消息链提取第一个有效 @ 用户。"""
+
+    get_messages = getattr(event, "get_messages", None)
+    if not callable(get_messages):
+        return None
+    messages = get_messages()
+    if not isinstance(messages, Iterable):
+        return None
+    for component in messages:
+        if isinstance(component, AtAll) or not isinstance(component, At):
+            continue
+        target_user_id = str(component.qq).strip()
+        if not target_user_id or target_user_id == "all" or target_user_id == bot_id:
+            continue
+        return target_user_id
+    return None
 
 
 class EventEntryPoint(Protocol):

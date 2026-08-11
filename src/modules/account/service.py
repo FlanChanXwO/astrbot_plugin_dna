@@ -381,7 +381,7 @@ class AccountService:
         return PlainTextResponse(messages.LOGOUT_SUCCESS)
 
     async def list_bindings(self, actor: AccountActor) -> PlainTextResponse:
-        """列出当前作用域绑定的 UID；隐私遮罩由 Task 11 负责。"""
+        """列出调用者自己的 UID；沿用 legacy 查看列表不做隐私遮罩。"""
 
         async with self.database.session() as session:
             bindings = await AccountBindingRepository.list(

@@ -57,6 +57,20 @@ def test_explicit_registry_loads_only_implemented_commands():
         "account_delete",
         "account_list",
         "account_credentials",
+        "privacy_enable_peek_personal",
+        "privacy_disable_peek_personal",
+        "privacy_enable_uid_hidden",
+        "privacy_disable_uid_hidden",
+        "privacy_enable_peek_admin",
+        "privacy_disable_peek_admin",
+        "privacy_enable_peek_all",
+        "privacy_disable_peek_all",
+        "privacy_cancel_peek_all",
+        "privacy_enable_uid_hidden_admin",
+        "privacy_disable_uid_hidden_admin",
+        "privacy_enable_uid_hidden_all",
+        "privacy_disable_uid_hidden_all",
+        "privacy_cancel_uid_hidden_all",
     ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
@@ -210,6 +224,20 @@ def test_commands_manifest_is_generated_from_registry():
         "account_delete",
         "account_list",
         "account_credentials",
+        "privacy_enable_peek_personal",
+        "privacy_disable_peek_personal",
+        "privacy_enable_uid_hidden",
+        "privacy_disable_uid_hidden",
+        "privacy_enable_peek_admin",
+        "privacy_disable_peek_admin",
+        "privacy_enable_peek_all",
+        "privacy_disable_peek_all",
+        "privacy_cancel_peek_all",
+        "privacy_enable_uid_hidden_admin",
+        "privacy_disable_uid_hidden_admin",
+        "privacy_enable_uid_hidden_all",
+        "privacy_disable_uid_hidden_all",
+        "privacy_cancel_uid_hidden_all",
     }
 
 

@@ -7,6 +7,7 @@ repository 只接收调用方明确传入的 ``AsyncSession``，不创建全局 
 from __future__ import annotations
 
 from datetime import date
+from typing import cast
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +59,25 @@ class AccountBindingRepository:
             AccountBinding.uid == uid,
         )
         return await session.scalar(statement)
+
+    @staticmethod
+    async def exists(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+    ) -> bool:
+        """检查用户是否有任意 UID 绑定，不把目标 UID 暴露给调用方。"""
+
+        statement = (
+            select(AccountBinding.id)
+            .where(
+                AccountBinding.user_id == user_id,
+                AccountBinding.bot_id == bot_id,
+            )
+            .limit(1)
+        )
+        return (await session.scalar(statement)) is not None
 
     @staticmethod
     async def list(
@@ -435,7 +455,46 @@ class PrivacySettingRepository:
             if group_id is None
             else PrivacySetting.group_id == group_id
         )
+        statement = statement.order_by(PrivacySetting.id.desc())
         return await session.scalar(statement)
+
+    @staticmethod
+    async def set(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+        group_id: str | None = None,
+        allow_peek: bool | None = None,
+        uid_hidden: bool | None = None,
+    ) -> PrivacySetting:
+        """按作用域更新设置；``None`` 字段表示保留已有值。"""
+
+        record = await PrivacySettingRepository.get(
+            session,
+            user_id=user_id,
+            bot_id=bot_id,
+            group_id=group_id,
+        )
+        if record is None:
+            return await PrivacySettingRepository.add(
+                session,
+                user_id=user_id,
+                bot_id=bot_id,
+                group_id=group_id,
+                allow_peek=True if allow_peek is None else allow_peek,
+                uid_hidden=False if uid_hidden is None else uid_hidden,
+            )
+
+        if allow_peek is not None:
+            record.allow_peek = allow_peek
+        if uid_hidden is not None:
+            record.uid_hidden = uid_hidden
+        await session.flush()
+        return record
+
+
+_NO_CHANGE = object()
 
 
 class GroupPrivacySettingRepository:
@@ -472,6 +531,45 @@ class GroupPrivacySettingRepository:
             GroupPrivacySetting.bot_id == bot_id,
         )
         return await session.scalar(statement)
+
+    @staticmethod
+    async def set(
+        session: AsyncSession,
+        *,
+        group_id: str,
+        bot_id: str,
+        force_allow_peek: bool | None | object = _NO_CHANGE,
+        force_uid_hidden: bool | None | object = _NO_CHANGE,
+    ) -> GroupPrivacySetting:
+        """按字段更新群强制策略；传入 ``None`` 会清除对应强制值。"""
+
+        record = await GroupPrivacySettingRepository.get(
+            session,
+            group_id=group_id,
+            bot_id=bot_id,
+        )
+        if record is None:
+            record = await GroupPrivacySettingRepository.add(
+                session,
+                group_id=group_id,
+                bot_id=bot_id,
+                force_allow_peek=cast(
+                    bool | None,
+                    None if force_allow_peek is _NO_CHANGE else force_allow_peek,
+                ),
+                force_uid_hidden=cast(
+                    bool | None,
+                    None if force_uid_hidden is _NO_CHANGE else force_uid_hidden,
+                ),
+            )
+            return record
+
+        if force_allow_peek is not _NO_CHANGE:
+            record.force_allow_peek = cast(bool | None, force_allow_peek)
+        if force_uid_hidden is not _NO_CHANGE:
+            record.force_uid_hidden = cast(bool | None, force_uid_hidden)
+        await session.flush()
+        return record
 
 
 __all__ = [

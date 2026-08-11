@@ -107,5 +107,173 @@
     ],
     "permission": "user",
     "use_case": "src.modules.account.commands.account_credentials_use_case"
+  },
+  {
+    "id": "privacy_enable_peek_personal",
+    "pattern": "^(?:开偷窥|关闭偷窥防护)$",
+    "group": "隐私控制",
+    "name": "开偷窥",
+    "description": "允许被其它人查看自己的游戏信息",
+    "examples": [
+      "开偷窥"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.privacy.commands.privacy_enable_peek_personal_use_case"
+  },
+  {
+    "id": "privacy_disable_peek_personal",
+    "pattern": "^(?:防偷窥|开启偷窥防护)$",
+    "group": "隐私控制",
+    "name": "防偷窥",
+    "description": "禁止被其它人查看自己的游戏信息",
+    "examples": [
+      "防偷窥"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.privacy.commands.privacy_disable_peek_personal_use_case"
+  },
+  {
+    "id": "privacy_enable_uid_hidden",
+    "pattern": "^(?:隐藏UID|隐藏uid)$",
+    "group": "隐私控制",
+    "name": "隐藏UID",
+    "description": "在生成的卡片中隐藏自己的UID",
+    "examples": [
+      "隐藏UID"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.privacy.commands.privacy_enable_uid_hidden_use_case"
+  },
+  {
+    "id": "privacy_disable_uid_hidden",
+    "pattern": "^(?:显示UID|显示uid)$",
+    "group": "隐私控制",
+    "name": "显示UID",
+    "description": "在生成的卡片中显示自己的UID",
+    "examples": [
+      "显示UID"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.privacy.commands.privacy_disable_uid_hidden_use_case"
+  },
+  {
+    "id": "privacy_enable_peek_admin",
+    "pattern": "^指定开偷窥$",
+    "group": "群管理员功能",
+    "name": "指定开偷窥",
+    "description": "允许会话中被艾特的玩家被其它人查看该玩家的游戏信息",
+    "examples": [
+      "指定开偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_enable_peek_admin_use_case"
+  },
+  {
+    "id": "privacy_disable_peek_admin",
+    "pattern": "^指定防偷窥$",
+    "group": "群管理员功能",
+    "name": "指定防偷窥",
+    "description": "禁止会话中被艾特的玩家被其它人查看该玩家的游戏信息",
+    "examples": [
+      "指定防偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_disable_peek_admin_use_case"
+  },
+  {
+    "id": "privacy_enable_peek_all",
+    "pattern": "^全体开偷窥$",
+    "group": "群管理员功能",
+    "name": "全体开偷窥",
+    "description": "允许会话中所有玩家相互查看自己的游戏信息",
+    "examples": [
+      "全体开偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_enable_peek_all_use_case"
+  },
+  {
+    "id": "privacy_disable_peek_all",
+    "pattern": "^全体防偷窥$",
+    "group": "群管理员功能",
+    "name": "全体防偷窥",
+    "description": "禁止会话中所有玩家相互查看自己的游戏信息",
+    "examples": [
+      "全体防偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_disable_peek_all_use_case"
+  },
+  {
+    "id": "privacy_cancel_peek_all",
+    "pattern": "^取消全体偷窥$",
+    "group": "群管理员功能",
+    "name": "取消全体偷窥",
+    "description": "取消全体偷窥设置，恢复个人设置",
+    "examples": [
+      "取消全体偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_cancel_peek_all_use_case"
+  },
+  {
+    "id": "privacy_enable_uid_hidden_admin",
+    "pattern": "^指定隐藏UID$",
+    "group": "群管理员功能",
+    "name": "指定隐藏UID",
+    "description": "为会话中被艾特的玩家开启UID隐藏",
+    "examples": [
+      "指定隐藏UID"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_enable_uid_hidden_admin_use_case"
+  },
+  {
+    "id": "privacy_disable_uid_hidden_admin",
+    "pattern": "^指定显示UID$",
+    "group": "群管理员功能",
+    "name": "指定显示UID",
+    "description": "为会话中被艾特的玩家关闭UID隐藏",
+    "examples": [
+      "指定显示UID"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_disable_uid_hidden_admin_use_case"
+  },
+  {
+    "id": "privacy_enable_uid_hidden_all",
+    "pattern": "^全体隐藏UID$",
+    "group": "群管理员功能",
+    "name": "全体隐藏UID",
+    "description": "强制会话中所有玩家隐藏UID",
+    "examples": [
+      "全体隐藏UID"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_enable_uid_hidden_all_use_case"
+  },
+  {
+    "id": "privacy_disable_uid_hidden_all",
+    "pattern": "^全体显示UID$",
+    "group": "群管理员功能",
+    "name": "全体显示UID",
+    "description": "强制会话中所有玩家显示UID",
+    "examples": [
+      "全体显示UID"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_disable_uid_hidden_all_use_case"
+  },
+  {
+    "id": "privacy_cancel_uid_hidden_all",
+    "pattern": "^取消全体UID隐藏$",
+    "group": "群管理员功能",
+    "name": "取消全体UID隐藏",
+    "description": "取消全体UID隐藏设置，恢复个人设置",
+    "examples": [
+      "取消全体UID隐藏"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_cancel_uid_hidden_all_use_case"
   }
 ]

@@ -24,6 +24,7 @@ from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.resources.paths import PLUGIN_NAME
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
+from .modules.privacy import PrivacyService
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
 
@@ -76,9 +77,14 @@ def build_runtime(
         account_transport or DnaApiAccountTransport(),
         max_bind_count=settings.login.max_bind_count,
     )
+    privacy_service = PrivacyService(
+        runtime_database,
+        allow_mention_query=settings.display.allow_mention_query,
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
+        "privacy_service": privacy_service,
     }
     if services is not None:
         resolved_services.update(services)
