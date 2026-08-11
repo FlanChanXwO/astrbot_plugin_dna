@@ -129,11 +129,30 @@
 
 ### Task 12：集中检查-debug（阶段 3）
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：复核账号/隐私行为、鉴权、事务、凭据泄露、异常显露、测试覆盖和文档；修正已知问题并更新任务记录。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `cc88186`。复核冻结 `legacy-reference` 的账号登录/退出/绑定/隐私行为和
+  AstrBot 入口权限；按 TDD 修复 5 个问题：恢复 legacy 登录参数清理、重复登录默认角色的
+  current UID 与成功文案优先级、绑定/切换/删除空参数路由、transport 响应结构异常归类，
+  以及 SQLite 隐私全局 upsert 竞态。后者增加 `AsyncDatabase` runtime 内写锁、
+  `privacy_settings` 的 SQLite 部分唯一索引和增量 Alembic `0002_privacy_global_identity`，
+  不改写已发布的 `0001_initial`，也不自动删除历史重复数据。新增账号事务回滚、默认角色、
+  空参数、transport 脱敏、并发隐私和数据库唯一性测试；同步 `commands.json`、CHANGELOG、
+  数据模型/配置/测试文档和 `docs/porting/review-v0.2-debug.md`。
+- 验证证据：先以失败测试复现默认角色未切换、token 内嵌空格未清理、空参数 handler 不触发、
+  transport `TypeError` 原文外泄边界和 16 个并发隐私写入产生 13 条以上重复全局记录；修复后
+  同组新测试通过。目标 staging runtime（临时 `data/plugins/astrbot_plugin_dnaby` symlink
+  指向 rewrite worktree）全量 pytest 为 `109 passed, 1 skipped, 1 warning`；warning 仅为
+  AstrBot 依赖的 `audioop` 弃用提示。`ruff check .`、`pyright --project pyrightconfig.json`
+  （0/0/0）、runtime `python -m compileall -q .`、`pre-commit run --all-files`、
+  `git diff --check` 和 23 条命令 manifest 一致性均通过。参考区 `legacy-reference` clean，
+  worktree 列表和分支隔离保持不变。
+- 剩余风险/下一步：Alembic 已在 `requirements.txt` 声明但当前本地 runtime 未安装，真实
+  migration round-trip 继续按既有测试契约 skip；bootstrap 不自动执行测试建表逻辑，首次
+  部署前必须按 `docs/usage/configuration.md` 执行 `alembic upgrade head`，否则账号/隐私命令
+  会遇到缺表异常。若已有新 schema 中存在重复全局隐私行，`0002` 会显式失败且不自动清理。
+  UID 隐藏的后续角色卡片/详情消费者、真实多平台 `@` 和 page provider 留待后续任务；下一轮
+  进入 Task 13，保持参考区只读。
 
 ## 阶段 4：`v0.3.0` 查询与百科
 
