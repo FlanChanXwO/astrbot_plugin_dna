@@ -104,11 +104,28 @@
 
 ### Task 11：实现个人/群组隐私能力和权限边界
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：迁移隐私查询与修改、群组/个人作用域和权限判断；写入行为只在隔离测试执行，用户可见文案统一由 notify 层提供。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `ffccb6d`。新增 `src/modules/privacy/` 的 typed `PrivacyService`、策略快照、
+  查询解析和集中式用户文案；补齐个人偷窥/UID 开关、群组全体强制/取消、指定目标设置共
+  14 条 `CommandSpec`，管理员命令声明为 `admin` 并映射 AstrBot `PermissionType.ADMIN`。
+  指定操作要求群聊、有效公开 `At` 目标和目标已有 UID 绑定；个人操作遇到对应群强制字段
+  时显式拒绝且不写入。持久化 repository 增加存在性查询、个人按作用域 upsert 和群强制字段
+  清除语义；`CommandRequest` 增加可选 target user，旧 positional 字段顺序保持不变。
+  同步生成 `commands.json`，更新 README、usage/project/dev 文档和
+  `docs/porting/review-v0.2-privacy.md`。
+- 验证证据：TDD 聚焦集合 `tests/test_privacy.py tests/test_privacy_commands.py
+  tests/test_command_registry.py tests/test_commands.py tests/test_persistence.py` 为 `25 passed,
+  1 warning`；账号/隐私/命令/持久化联合集合为 `43 passed, 1 skipped, 1 warning`。按目标 staging
+  runtime（临时 `data/plugins/astrbot_plugin_dnaby` symlink 指向 rewrite worktree）执行全量
+  `.venv/bin/python -m pytest -q` 为 `102 passed, 1 skipped, 1 warning`，唯一 warning 为
+  AstrBot 依赖的 `audioop` 弃用提示。系统 Ruff、Pyright（`0 errors, 0 warnings, 0 informations`）、
+  `python3 -m compileall -q .`、`pre-commit run --all-files`、`git diff --check` 和 manifest
+  一致性均通过；参考区 `legacy-reference` 保持 clean。
+- 剩余风险/下一步：UID 隐藏策略已提供查询接口，但角色卡片/详情等后续渲染 use case 尚未
+  接入，不能据此宣称所有历史输出都已自动脱敏；真实 AstrBot/OneBot 群管理员与多平台
+  `@` 行为未执行，只验证本地 SDK 和事件 fixture。下一轮只执行 Task 12，集中复核账号/隐私
+  鉴权、事务、敏感信息和文档门禁；Task 9 的 Alembic 未安装 skip 仍保持原记录。
 
 ### Task 12：集中检查-debug（阶段 3）
 
