@@ -25,8 +25,9 @@ registry 的帮助文本。
 - `<角色名>面板`、`<角色名>信息`、`<角色名>详情`、`<角色名>面包`、`<角色名>🍞`：读取
   角色属性、技能、溯源、魔之楔、武器和伤害结果；可追加一把近战和一把远程武器，
   例如 `角色名面板 +近战名 +远程名`。
-- `原图`：引用角色详情图后读取已登记的原始面板图。没有有效引用或平台消息 ID
-  未登记时返回明确提示，不把合成详情图冒充原图。
+- `原图`：设计上引用角色详情图后读取对应的原始面板图。当前审查确认 AstrBot 公共结果
+  边界没有接入已发送消息 ID，且默认资源没有装载面板原图；它目前只有离线缓存契约，不能
+  作为可用的平台回复功能。详见 [v0.3 集中审查](../porting/review-v0.3-debug.md)。
 
 玩家图片由 `ImageResponse` 交给 AstrBot 公共 `image_result`，实际 PNG 写入
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/rendered/`。概览/详情渲染保留所有
@@ -48,6 +49,9 @@ registry 的帮助文本。
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录
 写入或下载素材。图像语义、已知差异和 fixture 边界见
 [v0.3 资料查询行为矩阵](../porting/review-v0.3-encyclopedia.md)。
+
+资源同步接口当前不等于资源已接入：角色/武器图鉴、攻略、别名和玩家素材在 Task 16.1
+完成前仍只能视为 fixture/待实测，不能将 placeholder 图片或“未找到”解释为真实资源验收。
 
 ## 隐私控制命令
 

@@ -34,9 +34,10 @@ rewrite registry 生成，不从旧 `dispatch.py` 扫描。
    数据目录后返回路径，替代 legacy `Sender.send(PIL.Image)`。
 2. 入口只传递 `EventActor`、目标用户和引用消息 ID；不再把 `EventContext`、`Sender`
    或 `MessageSegment` 传入业务层。服务层把隐私解析出的目标用户作为独立的
-   `credential_user_id` 传给 transport，调用者身份仍保留在 `EventActor` 中。原图缓存提供显式 `remember(message_ids, path)`
-   接口，后续发送回调可用平台返回的消息 ID登记；未登记的引用会给出可见“未找到”
-   响应，不把详情图误当原图。
+   `credential_user_id` 传给 transport，调用者身份仍保留在 `EventActor` 中。原图缓存的
+   `remember(message_ids, path)` 仅有离线接口；Task 16 审查确认当前 AstrBot 公共结果路径
+   没有发送后消息 ID 登记点，故回复取原图尚未形成可用运行期能力，不能把“未找到”视为
+   已验证的正常行为。
 3. rewrite 默认 transport 只复用 legacy 的纯请求签名、API/model 和伤害计算逻辑，
    真实账户行为留给 Task 15 的只读矩阵；fixture transport 覆盖成功、完整输出和
    服务端失败路径。

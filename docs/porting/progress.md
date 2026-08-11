@@ -1,8 +1,8 @@
 # 移植进度（progress.md）
 
-> 更新于 2026-08-11。superpowers 迁移记录；当前 rewrite 阶段审查见
+> 更新于 2026-08-12。superpowers 迁移记录；当前 rewrite 阶段审查见
 > [review-v0.2-debug.md](review-v0.2-debug.md)、[review-v0.3-player.md](review-v0.3-player.md) 和
-> [review-v0.3-encyclopedia.md](review-v0.3-encyclopedia.md)，legacy 完整审查见 [review.md](review.md)，
+> [review-v0.3-encyclopedia.md](review-v0.3-encyclopedia.md)、[review-v0.3-debug.md](review-v0.3-debug.md)，legacy 完整审查见 [review.md](review.md)，
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
@@ -25,6 +25,15 @@
 - 新旧 API 的 typed transport、运行期资源索引和动态 PNG 渲染均通过隔离 fixture 验证；有效兑换码
   保留各自截止时间，图片不截断合法资料项。
 - 详细行为矩阵、可见差异和资源边界见 [review-v0.3-encyclopedia.md](review-v0.3-encyclopedia.md)。
+
+### rewrite Task 16 — 查询/百科集中审查 ⚠️
+
+- Task 15 的结构实测、动态字段 mask 和未接受视觉差异保持明确状态；图片/资源/时间敏感
+  项没有因 fixture 或 placeholder 被标为通过。
+- 审查发现原图没有生产消息 ID 登记路径、玩家/百科资源契约未接入、伤害失败可能回显上游
+  内容，以及生成 PNG 没有事件期清理。后续先执行 Task 16.1 和 Task 16.2，再恢复对这些能力
+  的功能性主张。
+- 完整证据和修复边界见 [review-v0.3-debug.md](review-v0.3-debug.md)。
 
 ## 当前状态
 

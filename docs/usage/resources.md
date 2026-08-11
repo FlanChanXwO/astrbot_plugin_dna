@@ -17,6 +17,11 @@
 `required_dirs` 由资源仓库 manifest 声明，插件会校验目录均存在且不能通过相对路径
 逃逸仓库根目录。`resource_version` 只作为经过校验的资源版本返回。
 
+> 当前审查限制：上述同步/manifest 示例尚未与 v0.3 的 `alias/`、`weekly_item/`、
+> `calendar/`、玩家面板和 renderer 字体形成完整生产接线。同步成功不能证明图鉴、攻略、
+> 别名、原图或视觉素材已可用；Task 16.1 会统一目录契约与运行期注入，详见
+> [v0.3 集中审查](../porting/review-v0.3-debug.md)。
+
 同步规则：
 
 - 目标目录不存在时执行 `git clone --depth 1`。
@@ -26,4 +31,3 @@
 
 本阶段只提供同步接口和 fixture 契约测试，不创建或推送外部私有仓库，也不在真实
 NapCat 或真实账号上执行资源更新。
-
