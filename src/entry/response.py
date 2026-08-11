@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from astrbot.api.message_components import Image as AstrImage
@@ -28,6 +29,8 @@ class ImageResponse:
     """图片 use case 响应。"""
 
     image: Any
+    temporary: bool = False
+    """仅限本次事件结束后可删除的合成文件。"""
 
 
 CommandResponse = PlainTextResponse | ChainResponse | ImageResponse
@@ -39,6 +42,14 @@ class ResponseFactory:
     业务 use case 不应直接依赖 ``plain_result``/``chain_result``；后续命令层
     只把框架无关 DTO 交给此类转换。
     """
+
+    def __init__(self, *, temporary_roots: tuple[str | Path, ...] = ()) -> None:
+        """限定可交给事件清理的合成文件根目录。"""
+
+        self._temporary_roots = tuple(
+            Path(root).expanduser().resolve()
+            for root in temporary_roots
+        )
 
     @staticmethod
     def plain(event: Any, text: str) -> Any:
@@ -72,16 +83,45 @@ class ResponseFactory:
 
         return event.image_result(image)
 
-    @classmethod
-    def build(cls, event: Any, response: CommandResponse) -> Any:
+    def _temporary_path(self, image: Any) -> Path:
+        """验证临时图片是已存在且位于受控渲染目录中的普通文件。"""
+
+        try:
+            path = Path(str(image)).resolve(strict=True)
+        except OSError as error:
+            raise ValueError("临时图片路径不可用") from error
+        if not path.is_file():
+            raise ValueError("临时图片路径不是文件")
+        if not any(path.is_relative_to(root) for root in self._temporary_roots):
+            raise ValueError("临时图片不在受控渲染目录中")
+        return path
+
+    def _track_temporary_images(self, event: Any, response: CommandResponse) -> None:
+        """将明确标记的合成图片交给 AstrBot 事件生命周期清理。"""
+
+        tracker = getattr(event, "track_temporary_local_file", None)
+        if not callable(tracker):
+            # 单元测试中的最小 event 只验证 result 构造；真实 AstrBot event 提供该公开方法。
+            return
+        if isinstance(response, ImageResponse):
+            if response.temporary:
+                tracker(str(self._temporary_path(response.image)))
+            return
+        if isinstance(response, ChainResponse) and isinstance(response.components, (list, tuple)):
+            for component in response.components:
+                if isinstance(component, ImageResponse) and component.temporary:
+                    tracker(str(self._temporary_path(component.image)))
+
+    def build(self, event: Any, response: CommandResponse) -> Any:
         """将框架无关 DTO 转换为 AstrBot 原生结果。"""
 
+        self._track_temporary_images(event, response)
         if isinstance(response, PlainTextResponse):
-            return cls.plain(event, response.text)
+            return self.plain(event, response.text)
         if isinstance(response, ChainResponse):
-            return cls.chain(event, response.components)
+            return self.chain(event, response.components)
         if isinstance(response, ImageResponse):
-            return cls.image(event, response.image)
+            return self.image(event, response.image)
         raise TypeError(f"未知命令响应类型: {type(response).__name__}")
 
 

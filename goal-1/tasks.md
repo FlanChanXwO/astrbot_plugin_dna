@@ -202,10 +202,13 @@
 
 ### Task 16.1：修复运行期资源契约、渲染资产接线与临时图片生命周期
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：以现有私有资源同步根为唯一运行期来源，收敛 manifest、资源目录文档和 `EncyclopediaResourceStore` 的实际目录契约；为玩家/百科 renderer 注入运行期字体、面板和图片资源，移除对插件源码内旧字体/空 `ResourceMap` 的生产依赖。使用 AstrBot 4.27.x 公共临时文件生命周期接口处理已发送的合成 PNG，不对原图资产施加无依据的时间或数量限制。不得创建、推送或联网同步私有资源仓库。
 - 验证要求：先以资源目录 fixture 覆盖 manifest 到 bootstrap 的完整接线，验证角色/武器/魔灵图鉴、攻略和别名能解析到已提供资源，周报/日历/角色面板在已提供时具有 `provided` 语义；覆盖缺失资源的明确失败/placeholder；验证图片响应文件在事件生命周期结束后清理而需要长期引用的原图资产不被误删；同步资源/命令/架构文档并跑全量门禁。
 - 风险：资源仓库尚未获授权创建，测试只能使用隔离 fixture；不得把同步成功误写为真实私有资源或视觉等价已验收。
+- 实际完成：将 `fonts`、`images`、`panel`、`alias`、`wiki/{role,weapon,spirit}`、`guide`、`weekly_item`、`calendar` 设为同步和 bootstrap 共同校验的运行期 manifest 布局；bootstrap 从唯一 `resources/` 根注入 `ResourceMap` 和 `EncyclopediaResourceStore`。玩家/百科 renderer 只读取该根的字体、图片和面板，不再读取源码 legacy 字体，并在 PNG metadata 中区分 `provided`、`placeholder` 与 `fallback`。概览、详情、便笺、周报和日历生成的 `rendered/*.png` 标记为临时响应；响应边界仅登记受控渲染根内的现存普通文件到 AstrBot 4.27.x 公开事件清理接口，原图、wiki 和攻略资源保持非临时。
+- 验证证据：TDD 先确认缺少完整布局校验、bootstrap 资源注入和临时图片标记时测试失败，随后以隔离资源 fixture 覆盖 manifest/sync/bootstrap、角色/武器/魔灵图鉴、攻略、别名、周报、日历、面板和缺失 placeholder；以 `AstrMessageEvent` fixture 验证事件结束删除合成图且保留原始资源，并拒绝越界临时路径。完整 staging runtime 测试为 `144 passed, 1 skipped, 1 warning`（第三方 `audioop` 弃用警告）；`ruff check .`、`pyright --project pyrightconfig.json`（0 errors）、runtime `compileall`、`pre-commit run --all-files` 和 `git diff --check` 均通过。未创建、推送或联网同步任何资源仓库，未执行真实 NapCat 或真实账户。
+- 剩余风险/下一步：fixture 接线不代表私有资源内容、同步成功或视觉等价已验收，仍由 Task 30 以只读矩阵审查；平台原图引用映射和伤害失败输出边界仍待下一轮 Task 16.2。
 
 ### Task 16.2：修复原图引用映射与详情失败输出边界
 

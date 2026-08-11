@@ -8,6 +8,21 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 
+RUNTIME_RESOURCE_DIRECTORIES: tuple[str, ...] = (
+    "fonts",
+    "images",
+    "panel",
+    "alias",
+    "wiki/role",
+    "wiki/weapon",
+    "wiki/spirit",
+    "guide",
+    "weekly_item",
+    "calendar",
+)
+"""v0.3 renderer 与资料索引共同消费的私有资源目录。"""
+
+
 class ResourceManifestError(ValueError):
     """资源 manifest 不可读或不符合插件契约。"""
 
@@ -93,5 +108,25 @@ class ResourceManifest(BaseModel):
                 )
         return self
 
+    def validate_runtime_layout(self, root: str | Path) -> ResourceManifest:
+        """确认 manifest 完整声明当前运行期会读取的资源目录。"""
 
-__all__ = ["ResourceManifest", "ResourceManifestError"]
+        self.validate_root(root)
+        declared = set(self.required_dirs)
+        missing = tuple(
+            relative
+            for relative in RUNTIME_RESOURCE_DIRECTORIES
+            if relative not in declared
+        )
+        if missing:
+            raise ResourceManifestError(
+                "资源 manifest 缺少运行期目录声明: " + ", ".join(missing),
+            )
+        return self
+
+
+__all__ = [
+    "RUNTIME_RESOURCE_DIRECTORIES",
+    "ResourceManifest",
+    "ResourceManifestError",
+]

@@ -1,5 +1,22 @@
 # Changelog
 
+## rewrite Task 16.1 — 运行期资源与临时图片生命周期
+
+### Fixed
+
+- 资源 manifest 现要求玩家/百科实际消费的完整目录布局；同步器和 bootstrap 均拒绝已有但
+  不完整的资源根。玩家与百科 renderer 从同一私有运行期根加载字体、图片、面板、wiki、攻略、
+  别名、周报和日历资源，不再从插件源码读取 legacy 字体。
+- 合成 `rendered/*.png` 通过 `ImageResponse.temporary` 交给 AstrBot 当前事件的临时文件
+  生命周期；响应边界只登记受控渲染目录内的已生成文件，原图/wiki/攻略资源不会被删除。
+
+### Verification boundary
+
+- 使用隔离资源目录、Pillow、AstrBot 本地 SDK 和 event fixture 验证 manifest、bootstrap、
+  provided/placeholder metadata 与事件清理；未创建/同步外部私有资源仓库，未执行真实 NapCat
+  或真实账户。
+- 资源接线完成不代表实际私有资源或图像视觉差异已经验收；这些结论仍留待 Task 30。
+
 ## rewrite Task 14 — 资料读取
 
 ### Added

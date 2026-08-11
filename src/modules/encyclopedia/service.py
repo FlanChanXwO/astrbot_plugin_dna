@@ -85,7 +85,7 @@ class EncyclopediaService:
         except EncyclopediaTransportError as error:
             return self._transport_response(error)
         rendered = self.renderer.render_stamina(snapshot)
-        return ImageResponse(str(rendered.path))
+        return ImageResponse(str(rendered.path), temporary=True)
 
     async def weekly_report(self, request: EncyclopediaRequest):
         """读取并渲染本周/上周周报。"""
@@ -107,7 +107,7 @@ class EncyclopediaService:
         except EncyclopediaTransportError as error:
             return self._transport_response(error)
         rendered = self.renderer.render_weekly_report(report)
-        return ImageResponse(str(rendered.path))
+        return ImageResponse(str(rendered.path), temporary=True)
 
     async def calendar(self, request: EncyclopediaRequest):
         """读取并渲染活动日历。"""
@@ -117,7 +117,7 @@ class EncyclopediaService:
         except EncyclopediaTransportError as error:
             return self._transport_response(error)
         rendered = self.renderer.render_calendar(snapshot)
-        return ImageResponse(str(rendered.path))
+        return ImageResponse(str(rendered.path), temporary=True)
 
     async def wiki(self, request: EncyclopediaRequest):
         """按角色、武器、魔灵别名读取本地图鉴素材。"""

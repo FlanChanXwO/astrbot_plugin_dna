@@ -113,7 +113,7 @@ class PlayerService:
             uid_hidden=uid_hidden,
             show_unowned=self.show_unowned_roles,
         )
-        return ImageResponse(str(rendered.path))
+        return ImageResponse(str(rendered.path), temporary=True)
 
     @staticmethod
     def _find_role(overview: RoleOverview, input_name: str) -> RoleItem | None:
@@ -265,7 +265,7 @@ class PlayerService:
             uid_hidden=uid_hidden,
         )
         self.last_original_image = rendered.original_image_path
-        return ImageResponse(str(rendered.path))
+        return ImageResponse(str(rendered.path), temporary=True)
 
     async def original_image(self, request: PlayerCommandRequest):
         """按引用消息 ID返回明确登记的原始面板图。"""

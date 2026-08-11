@@ -91,6 +91,7 @@ class EncyclopediaResourceStore:
     guide_assets: Mapping[str, tuple[GuideAsset, ...]] = field(default_factory=dict)
     weekly_assets: Mapping[int, Path] = field(default_factory=dict)
     calendar_assets: Mapping[str, Path] = field(default_factory=dict)
+    font_path: Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -119,6 +120,8 @@ class EncyclopediaResourceStore:
             "calendar_assets",
             {str(name): Path(path) for name, path in self.calendar_assets.items()},
         )
+        if self.font_path is not None:
+            object.__setattr__(self, "font_path", Path(self.font_path))
 
     @staticmethod
     def _read_alias_file(path: Path) -> dict[str, tuple[str, ...]]:
@@ -197,7 +200,16 @@ class EncyclopediaResourceStore:
             guide_assets={name: tuple(items) for name, items in guides.items()},
             weekly_assets=weekly_assets,
             calendar_assets=calendar_assets,
+            font_path=(root_path / "fonts" / "dna_fonts.ttf")
+            if (root_path / "fonts" / "dna_fonts.ttf").is_file()
+            else None,
         )
+
+    @property
+    def font_status(self) -> str:
+        """暴露字体资源状态，供 renderer 记录资源差异。"""
+
+        return "provided" if self.font_path is not None and self.font_path.is_file() else "fallback"
 
     def wiki_asset(self, name: str) -> tuple[str, Path] | None:
         """按角色、武器、魔灵顺序返回已存在的图鉴素材。"""

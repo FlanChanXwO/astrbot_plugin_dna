@@ -22,8 +22,7 @@ from ...modules.encyclopedia.contracts import (
     WeeklyReport,
 )
 from ..resources.encyclopedia import EncyclopediaResourceStore
-
-_FONT_PATH = Path(__file__).resolve().parents[3] / "dnaby" / "utils" / "fonts" / "dna_fonts.ttf"
+from .fonts import load_runtime_font
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,12 +35,6 @@ class RenderedEncyclopediaImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
-
-
-def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    if _FONT_PATH.is_file():
-        return ImageFont.truetype(str(_FONT_PATH), size=size)
-    return ImageFont.load_default()
 
 
 def _value(value: object) -> str:
@@ -58,6 +51,17 @@ class EncyclopediaRenderer:
     def __init__(self, output_dir: str | Path, resources: EncyclopediaResourceStore) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
+
+    def _font(self, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+        return load_runtime_font(self.resources.font_path, size)
+
+    def _font_resource(self) -> dict[str, str]:
+        return {
+            "kind": "font",
+            "key": "dna_fonts",
+            "status": self.resources.font_status,
+            "source": "fonts/dna_fonts.ttf" if self.resources.font_path is not None else "",
+        }
 
     @staticmethod
     def _lines_for_role(role: Any) -> list[str]:
@@ -101,19 +105,16 @@ class EncyclopediaRenderer:
             sections=tuple(sections),
         )
 
-    @staticmethod
-    def _header(draw: ImageDraw.ImageDraw, title: str) -> None:
-        draw.text((48, 36), title, fill=(255, 215, 145, 255), font=_font(36))
+    def _header(self, draw: ImageDraw.ImageDraw, title: str) -> None:
+        draw.text((48, 36), title, fill=(255, 215, 145, 255), font=self._font(36))
 
-    @staticmethod
-    def _section(draw: ImageDraw.ImageDraw, y: int, title: str) -> None:
+    def _section(self, draw: ImageDraw.ImageDraw, y: int, title: str) -> None:
         draw.rounded_rectangle((36, y, 1164, y + 44), radius=10, fill=(64, 79, 113, 255))
-        draw.text((56, y + 22), title, fill=(250, 250, 250, 255), font=_font(24), anchor="lm")
+        draw.text((56, y + 22), title, fill=(250, 250, 250, 255), font=self._font(24), anchor="lm")
 
-    @staticmethod
-    def _draw_lines(draw: ImageDraw.ImageDraw, lines: list[str], y: int, *, color=(224, 230, 240, 255)) -> int:
+    def _draw_lines(self, draw: ImageDraw.ImageDraw, lines: list[str], y: int, *, color=(224, 230, 240, 255)) -> int:
         for line in lines:
-            draw.text((60, y), line, fill=color, font=_font(21))
+            draw.text((60, y), line, fill=color, font=self._font(21))
             y += 34
         return y
 
@@ -142,6 +143,7 @@ class EncyclopediaRenderer:
         draw = ImageDraw.Draw(image)
         self._header(draw, lines[0])
         resources = [
+            self._font_resource(),
             {
                 "kind": "stamina_card",
                 "key": "background",
@@ -179,7 +181,7 @@ class EncyclopediaRenderer:
         lines = [label, f"{report.start_date} ~ {report.end_date}"]
         lines.extend(self._lines_for_role(report.role_overview))
         sections: list[dict[str, Any]] = []
-        resources: list[dict[str, str]] = []
+        resources: list[dict[str, str]] = [self._font_resource()]
         for category in report.categories:
             lines.append(category.category_name)
             for item in category.items:
@@ -206,7 +208,7 @@ class EncyclopediaRenderer:
             start = y
             y = self._draw_lines(draw, role_lines, y + 62)
             sections.append({"name": "角色概览", "start": start, "height": y - start})
-        draw.text((60, y + 8), f"周期: {report.start_date} ~ {report.end_date}", fill=(224, 230, 240, 255), font=_font(22))
+        draw.text((60, y + 8), f"周期: {report.start_date} ~ {report.end_date}", fill=(224, 230, 240, 255), font=self._font(22))
         y += 50
         for category in report.categories:
             self._section(draw, y, category.category_name)
@@ -229,7 +231,7 @@ class EncyclopediaRenderer:
         """渲染完整活动日历；缺失时间只显示已有字段。"""
 
         lines = ["二重螺旋 · 活动日历"]
-        resources: list[dict[str, str]] = []
+        resources: list[dict[str, str]] = [self._font_resource()]
         for event in snapshot.events:
             lines.append(
                 f"{event.title}: {_value(event.start_at)} ~ {_value(event.end_at)}"

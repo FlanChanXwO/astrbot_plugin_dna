@@ -179,7 +179,7 @@ class ResourceSynchronizer:
     def _validate_manifest(self) -> ResourceManifest:
         return ResourceManifest.load(
             self.repository / "resource_manifest.json"
-        ).validate_root(self.repository)
+        ).validate_runtime_layout(self.repository)
 
     def validate(self) -> ResourceManifest:
         """检查 Git 状态、origin 和 manifest，但不拉取远端。"""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from shutil import copyfile
 from pathlib import Path
 
 import pytest
@@ -346,6 +347,7 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(tmp_p
     )
 
     assert isinstance(response, ImageResponse)
+    assert response.temporary is True
     image_path = Path(response.image)
     assert image_path.parent == tmp_path / "rendered"
     with Image.open(image_path) as image:
@@ -396,6 +398,7 @@ async def test_player_query_uses_target_account_credentials(tmp_path: Path) -> N
     )
 
     assert isinstance(response, ImageResponse)
+    assert response.temporary is True
     await database.dispose()
 
 
@@ -428,6 +431,7 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
     )
 
     assert isinstance(response, ImageResponse)
+    assert response.temporary is True
     with Image.open(Path(response.image)) as image:
         assert image.width == 1000
         assert image.height > 1500
@@ -457,7 +461,59 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
     )
     assert isinstance(original_response, ImageResponse)
     assert original_response.image == str(original)
+    assert original_response.temporary is False
     await database.dispose()
+
+
+def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_path: Path) -> None:
+    """玩家图片的资源 metadata 必须区分私有根提供的素材与 placeholder。"""
+
+    resource_root = tmp_path / "resources"
+    font_source = Path(__file__).resolve().parents[1] / "dnaby" / "utils" / "fonts" / "dna_fonts.ttf"
+    font = resource_root / "fonts" / "dna_fonts.ttf"
+    avatar = resource_root / "images" / "role_avatar" / "101.png"
+    paint = resource_root / "images" / "role_paint" / "101.png"
+    panel = resource_root / "panel" / "101.png"
+    for path, color in ((avatar, "red"), (paint, "blue"), (panel, "purple")):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (17, 19), color).save(path)
+    font.parent.mkdir(parents=True, exist_ok=True)
+    copyfile(font_source, font)
+    renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap.from_root(resource_root))
+
+    overview = renderer.render_overview(
+        _overview_fixture(),
+        uid=UID,
+        uid_hidden=False,
+    )
+    detail = renderer.render_detail(
+        _detail_fixture(),
+        [("近战", _weapon_fixture())],
+        DamageCalculation.success(_damage_fixture()),
+        uid=UID,
+        uid_hidden=False,
+    )
+
+    assert any(
+        item["kind"] == "font" and item["status"] == "provided"
+        for item in overview.resources
+    )
+    assert any(
+        item["kind"] == "role_avatar" and item["key"] == "101" and item["status"] == "provided"
+        for item in overview.resources
+    )
+    assert any(
+        item["kind"] == "role_avatar" and item["key"] == "102" and item["status"] == "placeholder"
+        for item in overview.resources
+    )
+    assert any(
+        item["kind"] == "role_paint" and item["status"] == "provided"
+        for item in detail.resources
+    )
+    assert any(
+        item["kind"] == "original_panel" and item["status"] == "provided"
+        for item in detail.resources
+    )
 
 
 @pytest.mark.asyncio

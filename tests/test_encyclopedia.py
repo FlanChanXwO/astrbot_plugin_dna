@@ -276,6 +276,42 @@ def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(tmp_path: Path
     )
 
 
+def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(tmp_path: Path) -> None:
+    """周报和日历必须在图片 metadata 中显式区分提供素材与 placeholder。"""
+
+    root = tmp_path / "resources"
+    weekly = root / "weekly_item" / "item_100.png"
+    calendar = root / "calendar" / "a.png"
+    for path, color in ((weekly, "yellow"), (calendar, "orange")):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (31, 37), color).save(path)
+    renderer = EncyclopediaRenderer(tmp_path / "rendered", EncyclopediaResourceStore.from_root(root))
+
+    weekly_image = renderer.render_weekly_report(_weekly())
+    calendar_image = renderer.render_calendar(_calendar())
+
+    assert any(
+        item["kind"] == "font" and item["status"] == "fallback"
+        for item in weekly_image.resources
+    )
+    assert any(
+        item["kind"] == "weekly_item" and item["key"] == "100" and item["status"] == "provided"
+        for item in weekly_image.resources
+    )
+    assert any(
+        item["kind"] == "weekly_item" and item["key"] == "101" and item["status"] == "placeholder"
+        for item in weekly_image.resources
+    )
+    assert any(
+        item["kind"] == "calendar" and item["key"] == "活动甲" and item["status"] == "provided"
+        for item in calendar_image.resources
+    )
+    assert any(
+        item["kind"] == "calendar" and item["key"] == "活动乙" and item["status"] == "placeholder"
+        for item in calendar_image.resources
+    )
+
+
 def _service(
     database: AsyncDatabase,
     transport: FixtureEncyclopediaTransport,
@@ -319,6 +355,8 @@ async def test_stamina_and_weekly_images_preserve_full_typed_output(tmp_path: Pa
 
     assert isinstance(stamina, ImageResponse)
     assert isinstance(weekly, ImageResponse)
+    assert stamina.temporary is True
+    assert weekly.temporary is True
     for response, expected in (
         (stamina, ("资料玩家", "额外统计: 完整保留", "测试矿石", "完成材料")),
         (weekly, ("上周周报", "完整资源分类", "资源6-完整名称", "空分类")),
@@ -364,6 +402,7 @@ async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
     )
 
     assert isinstance(calendar, ImageResponse)
+    assert calendar.temporary is True
     with Image.open(Path(calendar.image)) as image:
         assert "活动甲" in image.info["dnaby.text"]
         assert "活动乙" in image.info["dnaby.text"]

@@ -29,9 +29,10 @@ from .infrastructure.rendering import (
     EncyclopediaRenderer,
     OriginalImageCache,
     PlayerRenderer,
+    ResourceMap,
 )
-from .infrastructure.resources import EncyclopediaResourceStore
-from .infrastructure.resources.paths import PLUGIN_NAME
+from .infrastructure.resources import EncyclopediaResourceStore, ResourceManifest
+from .infrastructure.resources.paths import PLUGIN_NAME, resource_repository_dir
 from .modules.account import AccountService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
@@ -97,18 +98,22 @@ def build_runtime(
         runtime_database,
         allow_mention_query=settings.display.allow_mention_query,
     )
+    resource_root = resource_repository_dir(runtime_database.path.parent)
+    if resource_root.exists():
+        ResourceManifest.load(
+            resource_root / "resource_manifest.json",
+        ).validate_runtime_layout(resource_root)
+    player_resources = ResourceMap.from_root(resource_root)
+    encyclopedia_resources = EncyclopediaResourceStore.from_root(resource_root)
     original_images = OriginalImageCache()
     player_service = PlayerService(
         runtime_database,
         player_transport or DnaApiPlayerTransport(runtime_database),
         privacy_service,
-        PlayerRenderer(runtime_database.path.parent / "rendered"),
+        PlayerRenderer(runtime_database.path.parent / "rendered", player_resources),
         original_images,
         show_unowned_roles=settings.display.show_unowned_roles,
         role_original_image=settings.display.role_original_image,
-    )
-    encyclopedia_resources = EncyclopediaResourceStore.from_root(
-        runtime_database.path.parent / "resources",
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,
@@ -124,6 +129,8 @@ def build_runtime(
         "privacy_service": privacy_service,
         "player_service": player_service,
         "original_image_cache": original_images,
+        "resource_root": resource_root,
+        "player_resources": player_resources,
         "encyclopedia_service": encyclopedia_service,
         "encyclopedia_resources": encyclopedia_resources,
     }
@@ -140,7 +147,9 @@ def build_runtime(
         config=config,
         lifecycle=lifecycle,
         events=EmptyEventEntryPoint(),
-        responses=ResponseFactory(),
+        responses=ResponseFactory(
+            temporary_roots=(runtime_database.path.parent / "rendered",),
+        ),
         commands=(
             command_registry
             if command_registry is not None

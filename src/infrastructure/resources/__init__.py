@@ -19,7 +19,11 @@ from .encyclopedia import (
     EncyclopediaResourceStore,
     GuideAsset,
 )
-from .manifest import ResourceManifest, ResourceManifestError
+from .manifest import (
+    RUNTIME_RESOURCE_DIRECTORIES,
+    ResourceManifest,
+    ResourceManifestError,
+)
 from .paths import (
     PLUGIN_NAME,
     RESOURCE_REPOSITORY_NAME,
@@ -39,6 +43,7 @@ __all__ = [
     "GitCommandResult",
     "GitUnavailableError",
     "ResourceLocalChangesError",
+    "RUNTIME_RESOURCE_DIRECTORIES",
     "ResourceManifest",
     "ResourceManifestError",
     "ResourceRemoteMismatchError",

@@ -1,6 +1,9 @@
 """v0.1 入口骨架的 AstrBot 集成契约测试。"""
 
+from pathlib import Path
+
 import pytest
+from astrbot.api.event import AstrMessageEvent
 from astrbot.api.star import Star
 
 from main import DnabyPlugin
@@ -115,3 +118,62 @@ def test_response_factory_converts_framework_free_dtos():
     assert factory.build(event, PlainTextResponse("文本")) == ("plain", "文本")
     assert factory.build(event, ChainResponse(["链"])) == ("chain", ["链"])
     assert factory.build(event, ImageResponse(b"image")) == ("image", b"image")
+
+
+def test_response_factory_tracks_only_generated_images_for_event_cleanup(tmp_path: Path):
+    """合成图片交给 AstrBot 事件清理，原始资源不能被一并删除。"""
+
+    class Event(AstrMessageEvent):
+        def __init__(self) -> None:
+            self._temporary_local_files: list[str] = []
+
+        def image_result(self, image: object) -> tuple[str, object]:
+            return ("image", image)
+
+        def chain_result(self, components: object) -> tuple[str, object]:
+            return ("chain", components)
+
+    rendered_dir = tmp_path / "rendered"
+    generated = rendered_dir / "rendered.png"
+    original = tmp_path / "resources" / "original-panel.png"
+    rendered_dir.mkdir()
+    original.parent.mkdir()
+    generated.write_bytes(b"generated")
+    original.write_bytes(b"original")
+    event = Event()
+
+    ResponseFactory(temporary_roots=(rendered_dir,)).build(
+        event,
+        ChainResponse(
+            (
+                ImageResponse(str(generated), temporary=True),
+                ImageResponse(str(original)),
+            ),
+        ),
+    )
+    event.cleanup_temporary_local_files()
+
+    assert not generated.exists()
+    assert original.exists()
+
+
+def test_response_factory_rejects_temporary_image_outside_rendered_root(tmp_path: Path):
+    """临时标记不能使事件清理器删除运行期渲染目录之外的文件。"""
+
+    class Event:
+        def track_temporary_local_file(self, _path: str) -> None:
+            raise AssertionError("越界路径不能登记到事件清理器")
+
+    rendered_dir = tmp_path / "rendered"
+    rendered_dir.mkdir()
+    original = tmp_path / "resources" / "original-panel.png"
+    original.parent.mkdir()
+    original.write_bytes(b"original")
+
+    with pytest.raises(ValueError, match="受控渲染目录"):
+        ResponseFactory(temporary_roots=(rendered_dir,)).build(
+            Event(),
+            ImageResponse(str(original), temporary=True),
+        )
+
+    assert original.exists()

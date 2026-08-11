@@ -35,15 +35,18 @@
   值按字段优先。指定命令要求 AstrBot admin 权限、群聊、有效 `At` 和目标绑定。
 - 玩家查询：`src/modules/player/` 通过 typed transport 读取角色/武器展柜、角色详情
   和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，并以
-  `OriginalImageCache` 维护详情图与原始面板图的显式消息 ID关系。默认 API 适配器只在
-  transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。
+  `OriginalImageCache` 保留离线的详情图/原始面板路径关联。平台发送后的消息 ID 映射仍由
+  Task 16.2 处理；默认 API 适配器只在 transport 边界复用 legacy 纯请求、model 和伤害
+  计算逻辑。
 - 资料读取：`src/modules/encyclopedia/` 协调便签、周报、日历、图鉴、攻略、兑换码和只读
   别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
   snapshot 生成可审查的 PNG，不按资料条目截断。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
-  `pull --ff-only`，同步前后检查 origin、干净 worktree 和 `resource_manifest.json`；不强制
-  覆盖本地修改。资源仓库在插件运行期数据目录下，不写入源码 `data/`。
+  `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
+  强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与
+  `EncyclopediaResourceStore`，字体不再从源码读取。生成 PNG 仅在受控 `rendered/` 根登记给
+  AstrBot 事件期清理，资源资产不会被登记为临时文件。
 - 当前阶段：`rewrite/v0.1` 已注册 `帮助`、Task 10 账号、Task 11 隐私、Task 13 玩家
   查询和 Task 14 资料读取 use case，共 35 条命令；其余旧功能不会在新入口中隐式注册。
 

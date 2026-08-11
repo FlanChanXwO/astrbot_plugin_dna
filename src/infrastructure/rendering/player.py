@@ -26,8 +26,7 @@ from ...modules.player.contracts import (
     WeaponDetail,
     WeaponItem,
 )
-
-_FONT_PATH = Path(__file__).resolve().parents[3] / "dnaby" / "utils" / "fonts" / "dna_fonts.ttf"
+from .fonts import load_runtime_font
 
 
 @dataclass(slots=True)
@@ -40,6 +39,38 @@ class ResourceMap:
 
     images: dict[str, Image.Image | Path] = field(default_factory=dict)
     original_panels: dict[str, Path] = field(default_factory=dict)
+    font_path: Path | None = None
+
+    @classmethod
+    def from_root(cls, root: str | Path) -> ResourceMap:
+        """从私有运行期资源根加载图片、面板和字体，不读取插件源码素材。"""
+
+        root_path = Path(root).expanduser().resolve()
+        images: dict[str, Image.Image | Path] = {}
+        image_root = root_path / "images"
+        if image_root.is_dir():
+            for kind_root in sorted(image_root.iterdir()):
+                if not kind_root.is_dir():
+                    continue
+                for path in sorted(kind_root.iterdir()):
+                    if not path.is_file() or path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+                        continue
+                    images[f"{kind_root.name}:{path.stem}"] = path
+                    images.setdefault(path.stem, path)
+
+        panels: dict[str, Path] = {}
+        panel_root = root_path / "panel"
+        if panel_root.is_dir():
+            for path in sorted(panel_root.iterdir()):
+                if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                    panels[path.stem] = path
+
+        font_path = root_path / "fonts" / "dna_fonts.ttf"
+        return cls(
+            images=images,
+            original_panels=panels,
+            font_path=font_path if font_path.is_file() else None,
+        )
 
     def load(self, kind: str, key: str, source: str | None) -> Image.Image | None:
         """读取一个已注入的资源副本，不在渲染层发起网络请求。"""
@@ -62,6 +93,12 @@ class ResourceMap:
         path = self.original_panels.get(str(char_id))
         return path if path is not None and path.is_file() else None
 
+    @property
+    def font_status(self) -> str:
+        """暴露字体资源状态，供渲染 metadata 和差异审查使用。"""
+
+        return "provided" if self.font_path is not None and self.font_path.is_file() else "fallback"
+
 
 @dataclass(frozen=True, slots=True)
 class RenderedPlayerImage:
@@ -74,12 +111,6 @@ class RenderedPlayerImage:
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
     original_image_path: Path | None = None
-
-
-def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    if _FONT_PATH.is_file():
-        return ImageFont.truetype(str(_FONT_PATH), size=size)
-    return ImageFont.load_default()
 
 
 def _text_value(value: object) -> str:
@@ -113,6 +144,17 @@ class PlayerRenderer:
 
     def _new_image(self, width: int, height: int, color: tuple[int, int, int, int]) -> Image.Image:
         return Image.new("RGBA", (width, height), color)
+
+    def _font(self, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+        return load_runtime_font(self.resources.font_path, size)
+
+    def _font_resource(self) -> dict[str, str]:
+        return {
+            "kind": "font",
+            "key": "dna_fonts",
+            "status": self.resources.font_status,
+            "source": "fonts/dna_fonts.ttf" if self.resources.font_path is not None else "",
+        }
 
     def _resource_image(
         self,
@@ -149,10 +191,9 @@ class PlayerRenderer:
         paste_y = y + (height - fitted.height) // 2
         image.alpha_composite(fitted, (paste_x, paste_y))
 
-    @staticmethod
-    def _draw_section_title(draw: ImageDraw.ImageDraw, y: int, title: str) -> None:
+    def _draw_section_title(self, draw: ImageDraw.ImageDraw, y: int, title: str) -> None:
         draw.rounded_rectangle((30, y, 970, y + 52), radius=12, fill=(64, 79, 113, 255))
-        draw.text((52, y + 26), title, fill=(250, 250, 250, 255), font=_font(26), anchor="lm")
+        draw.text((52, y + 26), title, fill=(250, 250, 250, 255), font=self._font(26), anchor="lm")
 
     def render_overview(
         self,
@@ -198,23 +239,23 @@ class PlayerRenderer:
         height += 48
         image = self._new_image(1200, height, (25, 31, 48, 255))
         draw = ImageDraw.Draw(image)
-        draw.text((40, 42), "二重螺旋 · 角色总览", fill=(255, 215, 145, 255), font=_font(34))
-        draw.text((40, 92), overview.role_name, fill=(255, 255, 255, 255), font=_font(30))
+        draw.text((40, 42), "二重螺旋 · 角色总览", fill=(255, 215, 145, 255), font=self._font(34))
+        draw.text((40, 92), overview.role_name, fill=(255, 255, 255, 255), font=self._font(30))
         draw.text(
             (40, 135),
             f"UID {'***' if uid_hidden else uid}    Lv.{_text_value(overview.level)}    总成就数 {overview.achievement_total}",
             fill=(210, 220, 232, 255),
-            font=_font(20),
+            font=self._font(20),
         )
         draw.text(
             (800, 42),
             " | ".join(f"{item.param_key}: {item.param_value}" for item in overview.params),
             fill=(214, 199, 145, 255),
-            font=_font(16),
+            font=self._font(16),
             anchor="ra",
         )
 
-        resource_records: list[dict[str, str]] = []
+        resource_records: list[dict[str, str]] = [self._font_resource()]
         section_records: list[dict[str, Any]] = []
         y = 175
         for name, items, kind in filtered_sections:
@@ -240,14 +281,14 @@ class PlayerRenderer:
                     (x + 88, item_y + 20),
                     item.name,
                     fill=(255, 255, 255, 255) if unlocked else (144, 151, 166, 255),
-                    font=_font(19),
+                    font=self._font(19),
                 )
                 level = item.level if item.level > 0 else "未解锁"
                 draw.text(
                     (x + 88, item_y + 54),
                     f"Lv.{level}",
                     fill=(220, 205, 155, 255),
-                    font=_font(17),
+                    font=self._font(17),
                 )
             section_height = 66 + rows * 120
             section_records.append(
@@ -352,7 +393,7 @@ class PlayerRenderer:
         height = 30 + sum(section_heights) + 40
         image = self._new_image(1000, height, (24, 30, 46, 255))
         draw = ImageDraw.Draw(image)
-        resource_records: list[dict[str, str]] = []
+        resource_records: list[dict[str, str]] = [self._font_resource()]
         y = 20
         for index, ((name, section), section_height) in enumerate(zip(section_lines, section_heights)):
             self._draw_section_title(draw, y, name)
@@ -363,7 +404,7 @@ class PlayerRenderer:
                     (45, y + line_index * 48),
                     line,
                     fill=(238, 240, 246, 255),
-                    font=_font(19),
+                    font=self._font(19),
                 )
             if index == 0:
                 self._resource_image(
