@@ -158,11 +158,11 @@
 
 ### Task 13：实现玩家角色查询、详情/伤害和原图能力
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：迁移角色概览、详情、伤害计算、原图等读取型 use case 与渲染；保留完整合法输出，图像验证记录尺寸、消息类型、布局、文本和资源语义。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `6f2ad31`。新增 `src/modules/player/` typed contracts、玩家 service、3 条显式 `CommandSpec` 和集中式文案；新增 legacy API/model/伤害纯逻辑的 `DnaApiPlayerTransport`，transport 按隐私解析出的 `credential_user_id` 读取目标账号凭据，业务层不接触旧事件/数据库/消息段。新增 `PlayerRenderer`、`ResourceMap` 和 `OriginalImageCache`：概览宽度为 1200、详情宽度为 1000，动态高度遍历完整角色/武器/属性/技能/溯源/魔之楔/伤害字段；图片返回运行期 PNG 路径并写入非敏感 `dnaby.text`、`dnaby.layout`、`dnaby.resources` 元数据。原图仅接受显式登记的引用消息 ID；同律武器读取失败不再静默省略，而是返回可见服务错误。同步生成 `commands.json`，更新命令、架构、测试、进度、CHANGELOG 和 `docs/porting/review-v0.3-player.md` 行为矩阵。
+- 验证证据：先以 fixture 复现 transport 缺少凭据所有者、legacy user 身份错位和同律武器错误静默降级，再修复并通过对应回归。玩家/transport 聚焦测试最终为 `10 passed, 1 warning`；含玩家命令、registry 和 transport 的聚焦集合为 `19 passed, 1 warning`。目标 staging runtime 全量 pytest 为 `123 passed, 1 skipped, 1 warning`，唯一 warning 为 AstrBot 依赖的 `audioop` 弃用提示。`ruff check .`、`pyright --project pyrightconfig.json`（0 errors/0 warnings/0 informations）、runtime `python -m compileall -q .`、`pre-commit run --all-files`、`git diff --check` 均通过；manifest 生成后 26 条命令一致，源码/测试无 `gsuid_core` 或 `gsucore` import，未跟踪文件审计未发现数据库、日志或敏感凭据。
+- 剩余风险/下一步：未执行真实 gscore 只读行为矩阵，留待 Task 15；未执行真实 NapCat。默认 `ResourceMap` 只使用注入资源，缺失资源显式绘制 placeholder，私有资源 provider 留待资源阶段。平台发送详情图后仍需由发送回调调用 `PlayerService.remember_original_image(message_ids)` 才能建立原图引用缓存；未登记引用会显式提示。通用角色/武器别名读取属于 Task 14，Task 9 的 Alembic 未安装 skip 仍保持原记录；下一轮只执行 Task 14。
 
 ### Task 14：实现便签、周报、日历、wiki、攻略、兑换码和别名读取
 
