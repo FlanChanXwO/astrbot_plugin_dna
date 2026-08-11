@@ -27,7 +27,7 @@
   全量删除、凭据摘要和输入解析；9 条通过。
 - `tests/test_account_commands.py`：事件 actor、named UID 参数、缺少 actor 的显式错误、
   无参数登录和 bootstrap service 注入；4 条通过。
-- 账号/命令定向集合：26 条通过。
+- 账号/命令定向集合：28 条通过。
 - staging runtime（临时 `data/plugins/astrbot_plugin_dnaby` symlink 指向 rewrite
   worktree）全量 pytest：`92 passed, 1 skipped, 1 warning`；唯一 warning 是 AstrBot
   依赖的 `audioop` 弃用提示。

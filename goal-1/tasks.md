@@ -82,11 +82,25 @@
 
 ### Task 10：实现账号登录、退出、UID 绑定/切换/删除与凭据查询
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：在隔离 transport/SQLite/事件 fixture 下迁移账号用例，使用 typed request/框架无关 DTO；覆盖成功、取消、网络/状态码/服务端错误和敏感信息脱敏。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `8e32029`。新增 `src/modules/account/` 的 typed actor、token/SMS request、
+  role/credential/result contract、可注入 transport 错误分类、事务化 `AccountService` 和
+  集中文案；补齐 AccountBinding/Credential repository 的 list/current/set_active/save/delete
+  CRUD。bootstrap 为每个 runtime 注入独立 database/account service，handler 从 AstrBot
+  公开事件方法提取 actor。新增登录页启动、token/SMS 登录、退出、绑定/切换/删除/删除全部、
+  绑定列表和凭据状态命令，使用独立 regex/use case 生成 `commands.json`；新增 legacy 纯 API
+  adapter，但未复用旧事件/数据库/消息段。同步 README、命令/登录/配置/数据模型/架构/测试
+  文档及 `docs/porting/review-v0.2-account.md`。
+- 验证证据：`tests/test_account.py` 9 条、`tests/test_account_commands.py` 4 条；账号与命令
+  定向集合共 28 条通过。staging runtime（临时 `data/plugins/astrbot_plugin_dnaby` symlink
+  指向 rewrite worktree）全量 pytest `92 passed, 1 skipped, 1 warning`；warning 为 AstrBot
+  依赖的 `audioop` 弃用提示。system/runtime Ruff、Pyright（0 errors/0 warnings/0 informations）、
+  `python3 -m compileall -q .`、`pre-commit run --all-files`、`git diff --check` 和 manifest
+  生成一致性测试均通过。Alembic 仍未安装，Task 9 的真实 migration round-trip skip 保持不变。
+- 剩余风险/下一步：当前 rewrite runtime 尚未注册本地登录 Web route；默认 transport 无 page
+  provider 时显式返回服务未配置错误，实际 page provider/外部登录服务需后续明确接入。Task 11
+  尚未实现个人/群组隐私遮罩和权限策略，因此绑定列表仅是当前离线账号行为，不代表隐私已交付。
 
 ### Task 11：实现个人/群组隐私能力和权限边界
 
