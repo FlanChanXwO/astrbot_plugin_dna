@@ -13,13 +13,14 @@ import json
 import keyword
 import re
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
 from astrbot.api.event import AstrMessageEvent, filter
 
+from ..event import EventActor, actor_from_event
 from ..response import CommandResponse, PlainTextResponse
 
 PermissionName = str
@@ -37,6 +38,8 @@ class CommandRequest:
     command_id: str
     text: str
     parameters: Mapping[str, Any]
+    actor: EventActor | None = None
+    services: Mapping[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,12 +289,14 @@ def _make_handler(spec: CommandSpec, plugin_module: str, handler_name: str):
             return
         parameters = dict(match.groupdict())
         parameters.update(provided_parameters)
+        runtime = self._runtime
         request = CommandRequest(
             command_id=spec.id,
             text=message,
             parameters=parameters,
+            actor=actor_from_event(event),
+            services=getattr(runtime, "services", {}),
         )
-        runtime = self._runtime
         async for result in execute_use_case(
             spec,
             request,

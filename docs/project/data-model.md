@@ -1,6 +1,6 @@
 # 数据模型
 
-## rewrite/v0.1 新数据库
+## rewrite 当前新数据库
 
 新入口使用 SQLAlchemy 2 async、`sqlite+aiosqlite` 和 Alembic。运行期数据库文件为
 `StarTools.get_data_dir()` 下的 `dnaby.sqlite3`；它与 legacy 的 `dnaby.db` 是两个
@@ -24,6 +24,18 @@
 `credential_records` 的 Cookie、refresh token、设备标识和 d_num 只在私有 SQLite
 字段中保存。`CredentialRecord.__repr__()` 与 `redacted_snapshot()` 只返回标识、状态
 和是否存在凭据，不返回 secret 值；日志、异常和 DTO 仍必须沿用同一脱敏边界。
+
+## 账号 use case 约束
+
+- `account_bindings` 是按 user_id、bot_id、uid 归一化的一行一 UID 记录；当前 UID
+  用 `is_active` 表示，切换在同一个显式事务中先取消其他记录再激活目标。
+- 登录返回的每个角色会在同一事务中写入绑定和 App/Web 凭据；达到 typed 配置中的
+  `login.max_bind_count` 时整笔登录回滚，不留下半套记录。
+- 退出登录只删除当前 active UID 的绑定和凭据，保留其他绑定；删除当前 UID 后会从
+  剩余记录中确定性选择新的当前 UID。
+- 凭据查询只返回 UID 与 App/Web 是否保存的状态，不提供 Cookie、token、refresh token、
+  设备码或 d_num 导出接口。Task 11 完成前，绑定列表仍是未遮罩的离线行为，不能当作
+  隐私策略已完成。
 
 ## legacy-reference 迁移参考
 

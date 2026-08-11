@@ -1,5 +1,22 @@
 # Changelog
 
+## rewrite Task 10 — 账号 use case
+
+### Added
+
+- 增加 typed actor/login/role/credential DTO、可注入账号 transport 和显式错误类别。
+- 增加登录、退出、UID 绑定/切换/删除/列表及凭据状态命令；命令清单与帮助均由同一
+  registry 生成。
+- 增加 normalized account repository CRUD；登录、退出、删除和凭据更新均使用显式
+  SQLAlchemy async transaction。
+
+### Security
+
+- 用户响应、异常字符串、DTO repr 和凭据状态查询不返回 Cookie、token、refresh token、
+  设备码或 d_num。
+- 账号写入只在隔离 SQLite/fake transport 测试中验证；默认 runtime 未配置真实登录页
+  provider 时显式报错，不发送伪造地址。
+
 ## v0.1.0 — 2026-08-11
 
 ### Changed

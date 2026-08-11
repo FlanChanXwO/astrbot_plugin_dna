@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
@@ -58,6 +58,102 @@ class AccountBindingRepository:
             AccountBinding.uid == uid,
         )
         return await session.scalar(statement)
+
+    @staticmethod
+    async def list(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+    ) -> list[AccountBinding]:
+        """按绑定建立顺序返回一个用户在 Bot 下的全部 UID。"""
+        statement = (
+            select(AccountBinding)
+            .where(
+                AccountBinding.user_id == user_id,
+                AccountBinding.bot_id == bot_id,
+            )
+            .order_by(AccountBinding.id)
+        )
+        return list((await session.scalars(statement)).all())
+
+    @staticmethod
+    async def current(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+    ) -> AccountBinding | None:
+        """返回当前 active UID；数据异常时按最新记录确定性选择。"""
+        statement = (
+            select(AccountBinding)
+            .where(
+                AccountBinding.user_id == user_id,
+                AccountBinding.bot_id == bot_id,
+                AccountBinding.is_active.is_(True),
+            )
+            .order_by(AccountBinding.id.desc())
+        )
+        return await session.scalar(statement)
+
+    @staticmethod
+    async def set_active(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+        uid: str,
+    ) -> bool:
+        """在同一 session 中保证一个 Bot 作用域只有一个当前 UID。"""
+        records = await AccountBindingRepository.list(
+            session,
+            user_id=user_id,
+            bot_id=bot_id,
+        )
+        target = next((record for record in records if record.uid == uid), None)
+        if target is None:
+            return False
+        for record in records:
+            record.is_active = record is target
+        await session.flush()
+        return True
+
+    @staticmethod
+    async def delete(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+        uid: str,
+    ) -> bool:
+        """删除一个 UID 绑定，并显式返回是否命中记录。"""
+        record = await AccountBindingRepository.get(
+            session,
+            user_id=user_id,
+            bot_id=bot_id,
+            uid=uid,
+        )
+        if record is None:
+            return False
+        await session.delete(record)
+        await session.flush()
+        return True
+
+    @staticmethod
+    async def delete_all(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+    ) -> int:
+        """删除一个用户在 Bot 下的全部绑定。"""
+        result = await session.execute(
+            delete(AccountBinding).where(
+                AccountBinding.user_id == user_id,
+                AccountBinding.bot_id == bot_id,
+            )
+        )
+        return int(result.rowcount or 0)
 
 
 class CredentialRepository:
@@ -114,6 +210,144 @@ class CredentialRepository:
             CredentialRecord.uid == uid,
         )
         return await session.scalar(statement)
+
+    @staticmethod
+    async def list(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+    ) -> list[CredentialRecord]:
+        """按记录建立顺序返回凭据状态；调用方不得直接序列化 secret 字段。"""
+        statement = (
+            select(CredentialRecord)
+            .where(
+                CredentialRecord.user_id == user_id,
+                CredentialRecord.bot_id == bot_id,
+            )
+            .order_by(CredentialRecord.id)
+        )
+        return list((await session.scalars(statement)).all())
+
+    @staticmethod
+    async def save_app(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+        uid: str,
+        token: str,
+        device_code: str,
+        d_num: str = "",
+        refresh_token: str = "",
+        status: str = "",
+    ) -> CredentialRecord:
+        """保存 App 凭据并保留同一 UID 的 Web 凭据。"""
+        record = await CredentialRepository.get(
+            session,
+            user_id=user_id,
+            bot_id=bot_id,
+            uid=uid,
+        )
+        if record is None:
+            record = await CredentialRepository.add(
+                session,
+                user_id=user_id,
+                bot_id=bot_id,
+                uid=uid,
+                app_cookie=token,
+                app_device_code=device_code,
+                app_d_num=d_num,
+                app_refresh_token=refresh_token,
+                app_status=status,
+            )
+            return record
+        record.app_cookie = token
+        record.app_device_code = device_code
+        record.app_d_num = d_num
+        record.app_refresh_token = refresh_token
+        record.app_status = status
+        await session.flush()
+        return record
+
+    @staticmethod
+    async def save_web(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+        uid: str,
+        token: str,
+        device_code: str,
+        d_num: str = "",
+        refresh_token: str = "",
+        status: str = "",
+    ) -> CredentialRecord:
+        """保存 Web 凭据并保留同一 UID 的 App 凭据。"""
+        record = await CredentialRepository.get(
+            session,
+            user_id=user_id,
+            bot_id=bot_id,
+            uid=uid,
+        )
+        if record is None:
+            record = await CredentialRepository.add(
+                session,
+                user_id=user_id,
+                bot_id=bot_id,
+                uid=uid,
+                web_token=token,
+                web_device_code=device_code,
+                web_d_num=d_num,
+                web_refresh_token=refresh_token,
+                web_status=status,
+            )
+            return record
+        record.web_token = token
+        record.web_device_code = device_code
+        record.web_d_num = d_num
+        record.web_refresh_token = refresh_token
+        record.web_status = status
+        await session.flush()
+        return record
+
+    @staticmethod
+    async def delete(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+        uid: str,
+    ) -> bool:
+        """删除一个 UID 的全部凭据。"""
+        record = await CredentialRepository.get(
+            session,
+            user_id=user_id,
+            bot_id=bot_id,
+            uid=uid,
+        )
+        if record is None:
+            return False
+        await session.delete(record)
+        await session.flush()
+        return True
+
+    @staticmethod
+    async def delete_all(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        bot_id: str,
+    ) -> int:
+        """删除一个用户在 Bot 下的全部渠道凭据。"""
+
+        result = await session.execute(
+            delete(CredentialRecord).where(
+                CredentialRecord.user_id == user_id,
+                CredentialRecord.bot_id == bot_id,
+            )
+        )
+        return int(result.rowcount or 0)
 
 
 class SignRecordRepository:

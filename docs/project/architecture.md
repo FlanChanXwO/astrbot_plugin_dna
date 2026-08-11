@@ -8,14 +8,16 @@
 - 命令：`src/entry/commands/` 定义 `CommandSpec`、只读 `CommandRegistry` 和 handler
   生成器；`src/modules/index.py` 是唯一显式模块索引。每个 spec 都成为一个独立的
   async-generator class method，并应用 AstrBot 公开的 `filter.regex` 与权限 decorator。
-- 输入/输出：handler 将自己的正则 named groups 封装成 `CommandRequest`；use case
-  返回框架无关 DTO；`src/entry/response.py` 再转换为 AstrBot 原生 text/chain/image result。
+- 输入/输出：handler 将自己的正则 named groups、`EventActor` 和 runtime service
+  视图封装成 `CommandRequest`；use case 返回框架无关 DTO；
+  `src/entry/response.py` 再转换为 AstrBot 原生 text/chain/image result。
 - 清单/帮助：`commands.json` 由 `scripts/generate_commands_manifest.py` 从代码 registry
   生成，帮助 use case 读取同一 registry。未迁移命令不会注册，也不会出现在帮助中。
 - 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；异常向上暴露，不伪造成功。
 - Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；当前 v0.1 没有业务路由，因此不会注册 Web API。
-- 事件边界：`src/entry/event.py` 暂只保留非命令事件的显式空入口；消息命令由每个
-  动态 handler 的 AstrBot 正则过滤器接管。
+- 事件边界：`src/entry/event.py` 只通过 AstrBot 公开的 sender/self/group 方法提取
+  `EventActor`；消息命令由每个动态 handler 的 AstrBot 正则过滤器接管，业务 use case
+  不持有原始 event。
 - 配置：`src/infrastructure/config/settings.py` 定义按领域分组的 Pydantic settings；
   `schema.py` 从同一份字段定义生成 `_conf_schema.json`，bootstrap 将 AstrBot 配置转换为
   `DnabySettings`。
@@ -23,10 +25,15 @@
   `sqlite+aiosqlite`；`AsyncDatabase.transaction()` 是唯一的提交/回滚边界，repository
   显式接收 `AsyncSession`。Alembic 初始 revision 只创建新五表 schema，运行期文件为
   `dnaby.sqlite3`，不触碰 legacy `dnaby.db`；凭据模型提供脱敏 repr/快照。
+- 账号：`src/modules/account/` 提供 token/短信 typed 登录、登录页 transport 边界、
+  退出、UID 绑定/切换/删除/列表和凭据状态摘要；`AccountService` 在显式事务内协调
+  normalized repository，`DnaApiAccountTransport` 只复用 legacy 纯 API，不复用旧事件、
+  数据库或消息段类型。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和 `resource_manifest.json`；不强制
   覆盖本地修改。资源仓库在插件运行期数据目录下，不写入源码 `data/`。
-- 当前阶段：`rewrite/v0.1` 只注册真正实现的 `帮助` use case；旧功能不会在新入口中隐式注册。
+- 当前阶段：`rewrite/v0.1` 已注册 `帮助` 和 Task 10 的账号 use case；个人/群组隐私
+  仍未实现，旧功能不会在新入口中隐式注册。
 
 ## `legacy-reference` 迁移参考
 

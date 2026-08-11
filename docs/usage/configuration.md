@@ -16,5 +16,9 @@
 未类型化字典。legacy `dnaby/dna_config` 的 `DNAConfig.get_config("Key").data` 语义
 仅为迁移参考，旧 SQLite 和旧配置不会在本阶段自动迁移。
 
+Task 10 的 `AccountService` 使用 `login.max_bind_count` 约束新增 UID；login URL、
+transport、监听和二维码字段仍保留为 typed 配置，但当前 rewrite 尚未注册本地登录
+Web 路由。未注入实际 page provider 时，无参数登录会显式报告服务未配置。
+
 共享密钥使用 Pydantic `SecretStr`，schema 默认值保持为空；不得把实际密钥写入
 Git、日志、异常或用户可见响应。

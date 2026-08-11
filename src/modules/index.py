@@ -7,8 +7,9 @@
 from types import ModuleType
 
 from . import help as help_module
+from .account import commands as account_module
 
-COMMAND_MODULES: tuple[ModuleType, ...] = (help_module,)
+COMMAND_MODULES: tuple[ModuleType, ...] = (help_module, account_module)
 
 
 __all__ = ["COMMAND_MODULES"]

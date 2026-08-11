@@ -1,11 +1,26 @@
 # 命令
 
-当前 `rewrite/v0.1` 只注册真正实现的 `帮助`。命令声明位于
+当前 `rewrite/v0.1` 注册 `帮助` 和账号/UID use case。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `帮助` 查看同一
 registry 的帮助文本。
 
-未迁移的 legacy 命令仍保留在重构区作为参考，但不会被新入口注册或展示。历史完整
+## 当前账号命令
+
+- `登录`、`dna登录`、`DNA登录`、`login`：调用注入的登录页 transport。
+- `登录` 加 40 个字符以上 token：执行 token 登录；例如 `登录<token>`。
+- `登录手机号,验证码`：执行手机号验证码登录，例如 `登录13800138000,1234`。
+- `退出登录`、`登出`、`logout`：退出当前 active UID 的登录。
+- `绑定<13位UID>`、`切换<13位UID>`、`删除<13位UID>`：管理单个 UID。
+- `删除全部UID`、`查看UID`：删除全部或查看当前作用域的绑定。
+- `获取ck`、`获取Token` 等别名：只查询 App/Web 凭据保存状态，严格不返回原始凭据。
+
+默认 runtime 的账号 transport 没有内置登录页 provider 时，`登录` 会返回明确的
+服务未配置错误；不会发送一个不存在的链接。测试使用 fake transport，部署集成需注入
+实际的页面/外部登录服务。
+
+未迁移的 legacy 命令仍保留在重构区作为参考，但不会被新入口注册或展示。隐私命令
+仍待 Task 11，不能把 `查看UID` 的当前离线列表当作群组隐私控制。历史完整
 清单和原行为见 `legacy-reference` 分支及 `docs/porting/`。
 
 ## 清单字段

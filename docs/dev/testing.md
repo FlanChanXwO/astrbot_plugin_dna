@@ -18,6 +18,10 @@ ruff check .
 - `test_persistence.py` — SQLAlchemy async SQLite 路径、repository 显式事务提交/回滚、五表
   metadata、凭据脱敏和 Alembic 初始 revision；Alembic 未安装时真实 upgrade/downgrade 测试会
   显式 skip，静态 revision 契约仍执行。
+- `test_account.py` — typed 登录输入、fake transport、账号事务、绑定生命周期、凭据状态
+  摘要和网络/状态码/服务端错误脱敏。
+- `test_account_commands.py` — AstrBot 事件 fixture 到 typed actor、named UID 参数和 runtime
+  service 注入边界。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。
 - `test_database.py` — 5 表 CRUD + 迁移（临时 sqlite 文件）。
 - `test_subscriptions.py` — 订阅增删改查 + 目标解析。
@@ -31,5 +35,5 @@ ruff check .
 ## AstrBot 集成边界
 
 当前阶段只用 AstrBot 本地 SDK、fake Context、事件 fixture 和原生响应构造方法验证
-插件加载、handler 注册和响应结果。不执行真实 NapCat、OneBot、登录、签到或写入型
-账号测试；进入后续行为回归阶段时，按 `goal-1/tasks.md` 的只读/隔离边界补充证据。
+插件加载、handler 注册和响应结果。账号写入只在隔离 SQLite 中执行；不执行真实 NapCat、
+OneBot、手机号验证码、token 或外部登录服务。

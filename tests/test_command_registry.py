@@ -47,7 +47,17 @@ def _spec(
 def test_explicit_registry_loads_only_implemented_commands():
     """显式模块索引只暴露已实现的 use case。"""
 
-    assert [spec.id for spec in COMMAND_REGISTRY] == ["help"]
+    assert [spec.id for spec in COMMAND_REGISTRY] == [
+        "help",
+        "account_login",
+        "account_logout",
+        "account_bind",
+        "account_switch",
+        "account_delete_all",
+        "account_delete",
+        "account_list",
+        "account_credentials",
+    ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
 
@@ -190,7 +200,17 @@ def test_commands_manifest_is_generated_from_registry():
         manifest = json.load(file)
 
     assert manifest == manifest_records(COMMAND_REGISTRY)
-    assert {item["id"] for item in manifest} == {"help"}
+    assert {item["id"] for item in manifest} == {
+        "help",
+        "account_login",
+        "account_logout",
+        "account_bind",
+        "account_switch",
+        "account_delete_all",
+        "account_delete",
+        "account_list",
+        "account_credentials",
+    }
 
 
 @pytest.mark.asyncio
@@ -210,3 +230,4 @@ async def test_help_shows_implemented_commands_only():
     assert len(result) == 1
     assert "帮助" in result[0]
     assert "签到" not in result[0]
+    assert "登录" in result[0]
