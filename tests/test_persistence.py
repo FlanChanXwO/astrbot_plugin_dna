@@ -175,6 +175,27 @@ def test_alembic_initial_revision_is_explicit_and_covers_metadata_tables():
         assert table_name in migration_text
 
 
+def test_alembic_privacy_identity_revision_is_incremental():
+    """隐私唯一性修复使用新 revision，不改写已发布的初始 revision。"""
+    migration_path = Path("alembic/versions/0002_privacy_global_identity.py")
+    migration_text = migration_path.read_text(encoding="utf-8")
+    tree = ast.parse(migration_text)
+    assignments = {
+        node.targets[0].id: ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in {"revision", "down_revision"}
+    }
+
+    assert assignments == {
+        "revision": "0002_privacy_global_identity",
+        "down_revision": "0001_initial",
+    }
+    assert "uq_privacy_settings_global_identity" in migration_text
+
+
 def test_alembic_is_declared_without_hardcoded_runtime_database_path():
     """Alembic 配置只声明脚本位置，运行期数据库路径由环境注入。"""
     requirements = Path("requirements.txt").read_text(encoding="utf-8").splitlines()

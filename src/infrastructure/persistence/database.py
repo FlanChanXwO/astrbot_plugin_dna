@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -28,6 +29,9 @@ class AsyncDatabase:
             class_=AsyncSession,
             expire_on_commit=False,
         )
+        # SQLite 的可空作用域需要应用内串行化 upsert；并发 SELECT 后 INSERT
+        # 会绕过普通三列 UNIQUE（多个 NULL 可共存），实测会留下重复全局隐私行。
+        self._write_lock = asyncio.Lock()
 
     @property
     def url(self) -> str:
@@ -48,17 +52,18 @@ class AsyncDatabase:
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[AsyncSession]:
         """统一处理一次事务的提交、回滚和 session 释放。"""
-        session = self.session_factory()
-        try:
-            async with session.begin():
-                yield session
-        except BaseException:
-            # session.begin 已覆盖通常异常；这里显式处理取消等 BaseException，确保
-            # 未来新增的事务调用点不会把半成品事务留给连接池。
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        async with self._write_lock:
+            session = self.session_factory()
+            try:
+                async with session.begin():
+                    yield session
+            except BaseException:
+                # session.begin 已覆盖通常异常；这里显式处理取消等 BaseException，确保
+                # 未来新增的事务调用点不会把半成品事务留给连接池。
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     async def create_schema_for_tests(self) -> None:
         """仅为隔离测试建立 metadata schema，生产变更必须走 Alembic。"""

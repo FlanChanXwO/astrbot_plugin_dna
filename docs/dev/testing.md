@@ -20,10 +20,10 @@ ruff check .
   显式 skip，静态 revision 契约仍执行。
 - `test_account.py` — typed 登录输入、fake transport、账号事务、绑定生命周期、凭据状态
   摘要和网络/状态码/服务端错误脱敏。
-- `test_account_commands.py` — AstrBot 事件 fixture 到 typed actor、named UID 参数和 runtime
-  service 注入边界。
-- `test_privacy.py` — 个人/群组隐私默认值、字段优先级、取消恢复、目标绑定和 AT 查询解析；
-  所有隐私写入均使用隔离 SQLite。
+- `test_account_commands.py` — AstrBot 事件 fixture 到 typed actor、named/空 UID 参数和
+  runtime service 注入边界。
+- `test_privacy.py` — 个人/群组隐私默认值、字段优先级、取消恢复、目标绑定、AT 查询解析、
+  并发 upsert 和 SQLite 全局作用域唯一性；所有隐私写入均使用隔离 SQLite。
 - `test_privacy_commands.py` — 14 条隐私命令的 registry 权限、公开 `At` 目标提取和缺失目标边界。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。
 - `test_database.py` — 5 表 CRUD + 迁移（临时 sqlite 文件）。
@@ -34,6 +34,8 @@ ruff check .
 - 先写失败测试（Red）→ 最小实现（Green）→ Refactor。
 - 用 mock 构造 `AstrMessageEvent`，不依赖真机。
 - 生产 schema 变更走 Alembic；`create_schema_for_tests()` 只用于隔离测试，不能替代部署迁移。
+- `AsyncDatabase.transaction()` 的 runtime 内写锁只用于保护 SQLite 事务一致性，没有固定
+  超时、重试或静默降级；首次部署仍须先执行 Alembic `upgrade head`。
 
 ## AstrBot 集成边界
 

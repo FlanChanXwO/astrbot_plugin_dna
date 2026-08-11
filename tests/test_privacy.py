@@ -1,12 +1,20 @@
-"""Task 11 隐私设置、群组强制策略和查询解析的隔离测试。"""
+"""Task 11/12 隐私设置、群组强制策略和查询解析的隔离测试。"""
 
+import asyncio
 from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from src.entry.event import EventActor
-from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
+from src.infrastructure.persistence import (
+    AccountBindingRepository,
+    AsyncDatabase,
+    PrivacySetting,
+    PrivacySettingRepository,
+)
 from src.modules.privacy.service import PrivacyService
 
 
@@ -144,3 +152,53 @@ async def test_uid_and_peek_group_settings_are_scoped_by_bot_and_group(database)
     assert await service.is_peek_allowed("user-1", "bot-1", "group-2") is True
     assert await service.is_uid_hidden("user-1", "bot-1", "group-2") is False
     assert await service.is_peek_allowed("user-1", "bot-2", "group-1") is True
+
+
+@pytest.mark.asyncio
+async def test_concurrent_personal_upserts_keep_one_global_record(database):
+    """并发个人写入不得因 SQLite NULL 唯一性产生重复全局记录。"""
+    service = PrivacyService(database)
+    actor = _actor()
+
+    responses = await asyncio.gather(
+        *(service.set_personal_peek(actor, index % 2 == 0) for index in range(16)),
+    )
+
+    assert all(response.text in {
+        "已允许他人查看你的游戏信息~",
+        "已禁止他人查看你的游戏信息~",
+    } for response in responses)
+    async with database.session() as session:
+        records = list(
+            (
+                await session.scalars(
+                    select(PrivacySetting).where(
+                        PrivacySetting.user_id == "user-1",
+                        PrivacySetting.bot_id == "bot-1",
+                        PrivacySetting.group_id.is_(None),
+                    ),
+                )
+            ).all()
+        )
+    assert len(records) == 1
+
+
+@pytest.mark.asyncio
+async def test_global_privacy_identity_is_unique_in_sqlite(database):
+    """数据库约束也要阻止绕过 repository 的重复全局隐私记录。"""
+    async with database.transaction() as session:
+        await PrivacySettingRepository.add(
+            session,
+            user_id="user-1",
+            bot_id="bot-1",
+            group_id=None,
+        )
+
+    with pytest.raises(IntegrityError):
+        async with database.transaction() as session:
+            await PrivacySettingRepository.add(
+                session,
+                user_id="user-1",
+                bot_id="bot-1",
+                group_id=None,
+            )

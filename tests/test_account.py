@@ -7,6 +7,7 @@ import pytest_asyncio
 
 from src.infrastructure.http.account import (
     AccountTransportError,
+    DnaApiAccountTransport,
     TransportErrorKind,
 )
 from src.infrastructure.persistence import (
@@ -108,6 +109,92 @@ async def test_login_success_persists_roles_and_credentials_without_leaking_secr
     assert credential.app_cookie == app_cookie
     assert credential.app_refresh_token == refresh_token
     assert app_cookie not in repr(credential)
+
+
+@pytest.mark.asyncio
+async def test_login_default_role_becomes_current_even_when_bindings_exist(database):
+    """重复登录时沿用 legacy：服务端默认角色切换为当前 UID。"""
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            bot_id="bot-1",
+            uid="1234567890123",
+            group_id="group-1",
+            is_active=True,
+        )
+
+    transport = FakeAccountTransport(
+        LoginResult.success(
+            LoginCredentials(
+                channel=LoginChannel.APP,
+                token="cookie-default-role-fixture",
+                dev_code="device-default-role-fixture",
+            ),
+            roles=(
+                RoleInfo(uid="1234567890123", name="旧当前角色"),
+                RoleInfo(uid="2234567890123", name="默认角色", is_default=True),
+            ),
+        ),
+    )
+    service = AccountService(database, transport, max_bind_count=3)
+
+    response = await service.login(
+        _actor(),
+        LoginAttempt.from_token("token-default-role-fixture"),
+    )
+
+    assert "登录成功" in response.text
+    assert response.text.index("2234567890123") < response.text.index("1234567890123")
+    async with database.session() as session:
+        bindings = await AccountBindingRepository.list(
+            session,
+            user_id="user-1",
+            bot_id="bot-1",
+        )
+    assert [(binding.uid, binding.is_active) for binding in bindings] == [
+        ("1234567890123", False),
+        ("2234567890123", True),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_login_rolls_back_bindings_when_credential_write_fails(database, monkeypatch):
+    """凭据写入异常时，登录事务不得留下孤立绑定。"""
+    transport = FakeAccountTransport(
+        LoginResult.success(
+            LoginCredentials(
+                channel=LoginChannel.APP,
+                token="cookie-rollback-fixture",
+                dev_code="device-rollback-fixture",
+            ),
+            roles=(RoleInfo(uid="1234567890123", name="事务角色"),),
+        ),
+    )
+
+    async def fail_save_app(*_args, **_kwargs):
+        raise RuntimeError("credential-write-fixture")
+
+    monkeypatch.setattr(CredentialRepository, "save_app", fail_save_app)
+    service = AccountService(database, transport, max_bind_count=2)
+
+    with pytest.raises(RuntimeError, match="credential-write-fixture"):
+        await service.login(
+            _actor(),
+            LoginAttempt.from_token("token-rollback-fixture"),
+        )
+
+    async with database.session() as session:
+        assert await AccountBindingRepository.list(
+            session,
+            user_id="user-1",
+            bot_id="bot-1",
+        ) == []
+        assert await CredentialRepository.list(
+            session,
+            user_id="user-1",
+            bot_id="bot-1",
+        ) == []
 
 
 @pytest.mark.asyncio
@@ -288,5 +375,31 @@ def test_login_input_is_typed_and_rejects_ambiguous_values():
     """命令解析只产生 typed attempt，不把任意输入直接交给 transport。"""
     assert parse_login_attempt("t" * 40).mode == "token"
     assert parse_login_attempt("13800138000,1234").mode == "sms"
+    spaced_token = parse_login_attempt("t" * 20 + " " + "t" * 20)
+    assert spaced_token.token == "t" * 40
     with pytest.raises(ValueError, match="登录参数"):
         parse_login_attempt("not-a-token")
+
+
+@pytest.mark.asyncio
+async def test_legacy_transport_maps_response_shape_errors_without_raw_detail():
+    """legacy API 结构异常要归类为服务端错误，不把异常原文带出边界。"""
+    class BrokenApi:
+        async def login_app(self, _mobile, _code, _dev_code):
+            raise TypeError("token=transport-shape-secret")
+
+    from dnaby.utils.api.model import DNALoginRes
+
+    transport = DnaApiAccountTransport()
+    with pytest.raises(AccountTransportError) as raised:
+        await transport._authenticate_sms(
+            BrokenApi(),
+            DNALoginRes,
+            lambda _channel: "device-shape-fixture",
+            LoginAttempt.from_sms("13800138000", "1234"),
+        )
+
+    error = raised.value
+    assert error.kind is TransportErrorKind.SERVER
+    assert "transport-shape-secret" not in str(error)
+    assert "transport-shape-secret" not in repr(error)

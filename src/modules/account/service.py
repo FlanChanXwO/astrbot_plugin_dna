@@ -35,7 +35,7 @@ class _BindingLimitReached(Exception):
 def _normalize_login_text(text: str) -> str:
     """沿用 legacy 登录命令的空白、引号和中文逗号清理规则。"""
 
-    return text.strip().strip("\"'").strip().replace("，", ",")
+    return re.sub(r'["\n\t ]+', "", text.strip()).replace("，", ",")
 
 
 def parse_login_attempt(text: str) -> LoginAttempt:
@@ -199,11 +199,12 @@ class AccountService:
                             refresh_token=result.credentials.refresh_token,
                         )
 
-                if current is None:
-                    target = next(
-                        (role for role in roles if role.is_default),
-                        roles[0],
-                    )
+                default_role = next(
+                    (role for role in reversed(roles) if role.is_default),
+                    None,
+                )
+                if current is None or default_role is not None:
+                    target = default_role or roles[0]
                     await AccountBindingRepository.set_active(
                         session,
                         user_id=actor.user_id,

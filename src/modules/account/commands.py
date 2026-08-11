@@ -165,7 +165,7 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="account_bind",
-        pattern=r"^绑定\s*(?P<uid>\S+)$",
+        pattern=r"^绑定\s*(?P<uid>\S*)$",
         group="绑定账号",
         name="绑定UID",
         description="绑定一个 UID",
@@ -175,7 +175,7 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="account_switch",
-        pattern=r"^切换\s*(?P<uid>\S+)$",
+        pattern=r"^切换\s*(?P<uid>\S*)$",
         group="绑定账号",
         name="切换UID",
         description="切换当前 UID",
@@ -195,7 +195,7 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="account_delete",
-        pattern=r"^删除\s*(?P<uid>(?!全部(?:UID|uid)?$)\S+)$",
+        pattern=r"^删除\s*(?P<uid>(?!全部(?:UID|uid)?$)\S*)$",
         group="绑定账号",
         name="删除UID",
         description="删除一个 UID",

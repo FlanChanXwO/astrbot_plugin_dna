@@ -19,7 +19,11 @@
 
 `src/infrastructure/persistence/repositories.py` 的方法必须接收调用方提供的
 `AsyncSession`；提交和回滚由 `AsyncDatabase.transaction()` 统一负责。生产 schema
-变更走 Alembic，`create_schema_for_tests()` 仅用于隔离测试。
+变更走 Alembic，`create_schema_for_tests()` 仅用于隔离测试。每个 runtime 的写事务
+还会串行化，以避免 SQLite 在可空 `group_id` 上发生并发 `SELECT`→`INSERT` upsert
+竞态；`privacy_settings` 通过 `0002_privacy_global_identity` SQLite 部分唯一索引约束
+全局 `(user_id, bot_id)`。该 revision 不会自动删除已有重复记录，遇到历史脏数据会显式
+失败，需部署者先审查并处理。
 
 `credential_records` 的 Cookie、refresh token、设备标识和 d_num 只在私有 SQLite
 字段中保存。`CredentialRecord.__repr__()` 与 `redacted_snapshot()` 只返回标识、状态
@@ -31,6 +35,8 @@
   用 `is_active` 表示，切换在同一个显式事务中先取消其他记录再激活目标。
 - 登录返回的每个角色会在同一事务中写入绑定和 App/Web 凭据；达到 typed 配置中的
   `login.max_bind_count` 时整笔登录回滚，不留下半套记录。
+- 角色结果带有服务端默认标记时，默认角色会成为当前 UID；没有默认标记时，只有首次
+  登录才以结果中的第一个角色作为当前 UID。
 - 退出登录只删除当前 active UID 的绑定和凭据，保留其他绑定；删除当前 UID 后会从
   剩余记录中确定性选择新的当前 UID。
 - 凭据查询只返回 UID 与 App/Web 是否保存的状态，不提供 Cookie、token、refresh token、

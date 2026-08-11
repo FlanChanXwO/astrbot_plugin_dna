@@ -38,6 +38,9 @@
 
 - rewrite runtime 当前没有本地登录 Web route；实际 page provider/外部登录服务需后续
   在明确的 Web/transport task 中接入，测试已验证未配置时会显露失败。
+- 账号/隐私命令首次运行前仍须由部署者执行 Alembic schema 初始化；bootstrap 不把
+  `create_schema_for_tests()` 当作生产迁移替代。当前本地环境未安装 Alembic，真实
+  upgrade/downgrade 仍按 Task 9 约定 skip。
 - Task 11 尚未实现 UID 隐私遮罩、个人/群组权限和跨群查询策略，因此当前绑定列表只
   是离线账号 use case，不代表隐私能力已交付。
 - Alembic 依赖仍未安装；Task 9 已记录真实 migration round-trip 的 skip，本轮未把

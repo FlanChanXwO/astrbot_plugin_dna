@@ -43,7 +43,9 @@ def login_success(roles: Iterable[RoleInfo], channel: LoginChannel) -> str:
     """只展示角色标识和名称，不展示 transport 凭据。"""
 
     lines = ["登录成功，已为您绑定以下角色："]
-    for role in roles:
+    # legacy 将默认角色放在成功文案最前面；排序保持同一优先级下的 transport 顺序。
+    ordered_roles = sorted(roles, key=lambda role: not role.is_default)
+    for role in ordered_roles:
         name = role.name or "未命名角色"
         lines.append(f"- 名字：{name}，UID：{role.uid}")
     if channel is LoginChannel.WEB:

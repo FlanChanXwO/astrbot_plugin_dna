@@ -254,6 +254,13 @@ class PrivacySetting(Base):
     __tablename__ = "privacy_settings"
     __table_args__ = (
         Index("ix_privacy_settings_lookup", "user_id", "bot_id"),
+        Index(
+            "uq_privacy_settings_global_identity",
+            "user_id",
+            "bot_id",
+            unique=True,
+            sqlite_where=text("group_id IS NULL"),
+        ),
         UniqueConstraint(
             "user_id",
             "bot_id",

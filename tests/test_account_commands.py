@@ -90,6 +90,36 @@ async def test_account_handler_extracts_actor_and_named_uid() -> None:
 
 
 @pytest.mark.asyncio
+async def test_account_bind_handler_keeps_legacy_empty_argument_route() -> None:
+    """缺少 UID 时仍进入 typed service，由业务层返回明确格式错误。"""
+
+    class GeneratedEmptyBindPlugin:
+        __module__ = "tests.generated_empty_bind_plugin"
+
+    registry = CommandRegistry(
+        (spec for spec in load_command_registry() if spec.id == "account_bind"),
+    )
+    install_command_handlers(GeneratedEmptyBindPlugin, registry)
+    service = FakeAccountService()
+    plugin = GeneratedEmptyBindPlugin()
+    object.__setattr__(
+        plugin,
+        "_runtime",
+        SimpleNamespace(
+            commands=registry,
+            responses=ResponseFactory(),
+            services={"account_service": service},
+        ),
+    )
+
+    handler = getattr(plugin, "handle_account_bind")
+    result = [item async for item in handler(Event("绑定"))]
+
+    assert result == ["绑定成功"]
+    assert service.calls[0][2] == ""
+
+
+@pytest.mark.asyncio
 async def test_account_handler_requires_event_actor() -> None:
     """没有可定位作用域时显式返回错误，不把账号操作落到默认用户。"""
 

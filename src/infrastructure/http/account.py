@@ -181,7 +181,7 @@ class DnaApiAccountTransport:
                 TransportErrorKind.NETWORK,
                 detail=f"login request failed: {type(exc).__name__}",
             ) from None
-        except ValueError as exc:
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
             raise AccountTransportError(
                 TransportErrorKind.SERVER,
                 detail=f"login response parsing failed: {type(exc).__name__}",
@@ -220,7 +220,7 @@ class DnaApiAccountTransport:
                         detail=f"token request failed: {type(exc).__name__}",
                     ),
                 )
-            except ValueError as exc:
+            except (AttributeError, KeyError, TypeError, ValueError) as exc:
                 errors.append(
                     AccountTransportError(
                         TransportErrorKind.SERVER,

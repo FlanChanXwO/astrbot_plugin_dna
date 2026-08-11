@@ -17,6 +17,21 @@
 未类型化字典。legacy `dnaby/dna_config` 的 `DNAConfig.get_config("Key").data` 语义
 仅为迁移参考，旧 SQLite 和旧配置不会在本阶段自动迁移。
 
+## 新数据库首次初始化
+
+账号和隐私 use case 使用 `StarTools.get_data_dir("astrbot_plugin_dnaby")/dnaby.sqlite3`。
+生产 runtime 不调用测试专用的 `create_schema_for_tests()`；首次启用或 schema 版本变更前，
+部署者须在安装了项目依赖的环境中执行 Alembic 初始迁移，并通过环境变量提供目标 URL：
+
+```bash
+DNABY_DATABASE_URL="sqlite+aiosqlite:////绝对路径/dnaby.sqlite3" \
+  alembic -c /绝对路径/astrbot_plugin_dnaby/alembic.ini upgrade head
+```
+
+迁移失败应停止部署并保留原错误；不要把旧 `dnaby.db` 改名或交给新 schema 直接打开。
+当前本地验证环境未安装 Alembic，隔离 migration round-trip 按测试约定显式 skip；这不等同于
+生产 schema 已完成迁移。
+
 Task 10 的 `AccountService` 使用 `login.max_bind_count` 约束新增 UID；login URL、
 transport、监听和二维码字段仍保留为 typed 配置，但当前 rewrite 尚未注册本地登录
 Web 路由。未注入实际 page provider 时，无参数登录会显式报告服务未配置。

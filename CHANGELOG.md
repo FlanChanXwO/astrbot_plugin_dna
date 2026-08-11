@@ -1,5 +1,23 @@
 # Changelog
 
+## rewrite Task 12 — 阶段 3 集中检查-debug
+
+### Fixed
+
+- 登录参数清理恢复 legacy 对空格、换行、制表符和双引号的处理；重复登录收到服务端
+  默认角色时会切换到该默认 UID，并在成功文案中优先展示。
+- 绑定、切换和删除命令保留 legacy 缺少参数时的 handler 路由，由业务层返回明确错误，
+  不再静默无响应。
+- SQLite 隐私全局设置增加部分唯一索引，并让同一 runtime 的写事务串行化，避免并发
+  upsert 产生重复 `(user_id, bot_id, group_id=NULL)` 记录。
+- legacy account transport 将响应结构的 `AttributeError`、`KeyError` 和 `TypeError`
+  归类为服务端错误；异常字符串和 repr 仍不包含原始 detail。
+
+### Verification boundary
+
+- 新数据库仍须部署者通过 Alembic 初始化；本地环境未安装 Alembic，migration round-trip
+  继续显式 skip，不能把测试 schema 当作生产迁移。
+
 ## rewrite Task 11 — 个人/群组隐私 use case
 
 ### Added
