@@ -186,11 +186,11 @@
 
 ### Task 15：建立 gscore 只读探测与命令行为差异矩阵
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：通过 `ssh atri` 只读探测 gscore 入口/存储格式；在凭据不落盘的前提下选择完整账户，逐项记录 DNAUID 与迁移后读取输出及图像临时对比资料；不得执行写入型命令。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：只读确认 gscore 的容器化 GsCore 入口、SQLite 数据格式和 DNAUID App 读取候选条件；以进程内 `candidate-A` 对照原插件与 rewrite 的角色概览、角色详情、便签、本周周报和上周周报。凭据只经受保护 stdin 从远端读取进程传给本地 staging 进程，未写入 worktree、临时 SQLite、日志或 Git。新增 `tests/e2e/command-matrix.md`，分别记录实测结构、临时图片资料、资源/平台未测项和未接受差异；旧 handler 的结构图禁用了下载与发送副作用，只使用真实读取 payload。
+- 验证证据：原插件的角色概览、便签、两种周报和角色详情均返回 `200` 并通过 legacy Pydantic 模型；rewrite 的 `RoleOverview` / `RoleDetail` / `PlayerShortNote` / `WeeklyReport` 与同一选择条件的账号响应在已记录计数上相同。生成 worktree 外的本地 rewrite PNG 与 gscore 容器内 legacy 结构 PNG，矩阵记录了画布、布局、placeholder 和动态 UID mask。每个短进程结束前关闭 HTTP session 与签名 WebSocket；未执行真实 NapCat、登录、签到、绑定、订阅、隐私或资源写入。
+- 剩余风险/下一步：图像尺寸、布局和资源 placeholder 的可见差异尚未人工接受；角色详情仍缺少真实伤害/武器/原图引用全链路，日历、图鉴、攻略、兑换码和别名仍是 fixture/资源语义证据。下一轮仅执行 Task 16，复核矩阵、动态字段 mask、资源来源、网络错误和未审查差异。
 
 ### Task 16：集中检查-debug（阶段 4）
 
