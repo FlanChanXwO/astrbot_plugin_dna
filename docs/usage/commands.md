@@ -1,6 +1,6 @@
 # 命令
 
-当前 `rewrite/v0.1` 注册 `帮助`、账号/UID 和隐私 use case。命令声明位于
+当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询和隐私 use case。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `帮助` 查看同一
 registry 的帮助文本。
@@ -18,6 +18,20 @@ registry 的帮助文本。
 默认 runtime 的账号 transport 没有内置登录页 provider 时，`登录` 会返回明确的
 服务未配置错误；不会发送一个不存在的链接。测试使用 fake transport，部署集成需注入
 实际的页面/外部登录服务。
+
+## 玩家查询命令
+
+- `查询`、`卡片`、`角色`、`信息`：读取当前 UID 的角色、近战武器和远程武器总览。
+- `<角色名>面板`、`<角色名>信息`、`<角色名>详情`、`<角色名>面包`、`<角色名>🍞`：读取
+  角色属性、技能、溯源、魔之楔、武器和伤害结果；可追加一把近战和一把远程武器，
+  例如 `角色名面板 +近战名 +远程名`。
+- `原图`：引用角色详情图后读取已登记的原始面板图。没有有效引用或平台消息 ID
+  未登记时返回明确提示，不把合成详情图冒充原图。
+
+玩家图片由 `ImageResponse` 交给 AstrBot 公共 `image_result`，实际 PNG 写入
+`StarTools.get_data_dir("astrbot_plugin_dnaby")/rendered/`。概览/详情渲染保留所有
+合法角色、武器、技能、魔之楔和伤害字段；图片 PNG 元数据只用于离线布局/资源语义回归。
+真实账户只读矩阵留待后续阶段，见 [v0.3 玩家行为矩阵](../porting/review-v0.3-player.md)。
 
 ## 隐私控制命令
 

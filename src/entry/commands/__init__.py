@@ -20,7 +20,12 @@ from typing import Any, cast
 
 from astrbot.api.event import AstrMessageEvent, filter
 
-from ..event import EventActor, actor_from_event, target_user_from_event
+from ..event import (
+    EventActor,
+    actor_from_event,
+    reply_id_from_event,
+    target_user_from_event,
+)
 from ..response import CommandResponse, PlainTextResponse
 
 PermissionName = str
@@ -41,6 +46,7 @@ class CommandRequest:
     actor: EventActor | None = None
     services: Mapping[str, object] = field(default_factory=dict)
     target_user_id: str | None = None
+    reply_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,6 +307,7 @@ def _make_handler(spec: CommandSpec, plugin_module: str, handler_name: str):
                 event,
                 bot_id=actor.bot_id if actor is not None else None,
             ),
+            reply_id=reply_id_from_event(event),
             services=getattr(runtime, "services", {}),
         )
         async for result in execute_use_case(

@@ -8,9 +8,15 @@ from types import ModuleType
 
 from . import help as help_module
 from .account import commands as account_module
+from .player import commands as player_module
 from .privacy import commands as privacy_module
 
-COMMAND_MODULES: tuple[ModuleType, ...] = (help_module, account_module, privacy_module)
+COMMAND_MODULES: tuple[ModuleType, ...] = (
+    help_module,
+    account_module,
+    player_module,
+    privacy_module,
+)
 
 
 __all__ = ["COMMAND_MODULES"]

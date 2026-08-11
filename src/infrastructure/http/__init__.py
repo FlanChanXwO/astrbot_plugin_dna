@@ -5,9 +5,11 @@ from .account import (
     DnaApiAccountTransport,
     TransportErrorKind,
 )
+from .player import DnaApiPlayerTransport
 
 __all__ = [
     "AccountTransportError",
     "DnaApiAccountTransport",
+    "DnaApiPlayerTransport",
     "TransportErrorKind",
 ]

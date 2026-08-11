@@ -1,5 +1,23 @@
 # Changelog
 
+## rewrite Task 13 — 玩家角色查询、详情/伤害和原图
+
+### Added
+
+- 增加 `role_info_card`、`role_detail_card` 和 `role_original_image` 三条显式 registry
+  命令；角色详情正则、可选武器参数和原图输入保持 legacy 语义。
+- 增加 `PlayerService`、typed role/weapon/damage contracts、可注入 fixture transport 和
+  legacy 纯 API 适配器；读取链路按隐私策略解析目标用户并从新 SQLAlchemy schema 读取
+  当前 UID。
+- 增加运行期 PNG renderer、完整列表遍历、动态画布和 `OriginalImageCache`；图片通过
+  AstrBot `ImageResponse`/`image_result` 返回，PNG 元数据为离线布局与资源语义审查服务。
+
+### Verification boundary
+
+- Task 13 使用隔离 SQLite、fake player transport、临时图片资源和 AstrBot 本地 SDK 验证；
+  未执行真实 gscore 账户读取。真实账户只读命令矩阵由 Task 15 处理。
+- 生成图片写入运行期 plugin data 的 `rendered/`；未写入插件源码目录、参考区或 Git。
+
 ## rewrite Task 12 — 阶段 3 集中检查-debug
 
 ### Fixed

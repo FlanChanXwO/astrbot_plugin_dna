@@ -109,6 +109,42 @@
     "use_case": "src.modules.account.commands.account_credentials_use_case"
   },
   {
+    "id": "role_info_card",
+    "pattern": "^(?:查询|卡片|角色|信息)$",
+    "group": "信息查询",
+    "name": "基本信息卡片",
+    "description": "查询基本信息",
+    "examples": [
+      "卡片"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_role_overview_use_case"
+  },
+  {
+    "id": "role_detail_card",
+    "pattern": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:面板|信息|详情|面包|🍞)(?:\\s*[+＋]\\s*(?P<weapon_name_1>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?(?:\\s*[+＋]\\s*(?P<weapon_name_2>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?$",
+    "group": "角色信息",
+    "name": "角色详情卡片",
+    "description": "查询角色面板/伤害详情",
+    "examples": [
+      "角色名面板"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_role_detail_use_case"
+  },
+  {
+    "id": "role_original_image",
+    "pattern": "^原图$",
+    "group": "角色信息",
+    "name": "角色原图",
+    "description": "获取所引用面板图的原图",
+    "examples": [
+      "原图"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_original_image_use_case"
+  },
+  {
     "id": "privacy_enable_peek_personal",
     "pattern": "^(?:开偷窥|关闭偷窥防护)$",
     "group": "隐私控制",

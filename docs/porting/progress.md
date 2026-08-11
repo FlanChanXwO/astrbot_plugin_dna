@@ -5,8 +5,17 @@
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号和隐私共 23 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私和玩家查询共 26 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
+
+### rewrite Task 13 — 玩家查询 ✅
+
+- 已登记 `role_info_card`、`role_detail_card` 和 `role_original_image`；新增 typed
+  `PlayerService`、可注入 player transport、legacy 纯 API/model/伤害适配和 Reply 消息 ID
+  边界。
+- 概览和详情渲染在运行期 plugin data 生成动态 PNG，完整保留合法角色、武器、技能、魔之楔、
+  溯源和伤害字段；`OriginalImageCache` 只按显式消息 ID返回原面板图。
+- 详细行为矩阵、已知差异和图像验证格式见 [review-v0.3-player.md](review-v0.3-player.md)。
 
 ## 当前状态
 

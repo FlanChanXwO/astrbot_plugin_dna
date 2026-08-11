@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from astrbot.api.message_components import At, AtAll
+from astrbot.api.message_components import At, AtAll, Reply
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +77,23 @@ def target_user_from_event(
         if not target_user_id or target_user_id == "all" or target_user_id == bot_id:
             continue
         return target_user_id
+    return None
+
+
+def reply_id_from_event(event: Any) -> str | None:
+    """从 AstrBot 公共消息链提取第一条 Reply 的平台消息 ID。"""
+
+    get_messages = getattr(event, "get_messages", None)
+    if not callable(get_messages):
+        return None
+    messages = get_messages()
+    if not isinstance(messages, Iterable):
+        return None
+    for component in messages:
+        if not isinstance(component, Reply):
+            continue
+        reply_id = str(component.id).strip()
+        return reply_id or None
     return None
 
 

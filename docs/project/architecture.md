@@ -16,8 +16,9 @@
 - 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；异常向上暴露，不伪造成功。
 - Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；当前 v0.1 没有业务路由，因此不会注册 Web API。
 - 事件边界：`src/entry/event.py` 只通过 AstrBot 公开的 sender/self/group 方法提取
-  `EventActor`，并从公开消息链的 `At` 组件提取可选 `target_user_id`；消息命令由每个
-  动态 handler 的 AstrBot 正则过滤器接管，业务 use case 不持有原始 event。
+  `EventActor`，从公开消息链的 `At` 和 `Reply` 组件分别提取可选目标用户与引用消息
+  ID；消息命令由每个动态 handler 的 AstrBot 正则过滤器接管，业务 use case 不持有原始
+  event。
 - 配置：`src/infrastructure/config/settings.py` 定义按领域分组的 Pydantic settings；
   `schema.py` 从同一份字段定义生成 `_conf_schema.json`，bootstrap 将 AstrBot 配置转换为
   `DnabySettings`。
@@ -32,11 +33,15 @@
 - 隐私：`src/modules/privacy/` 提供个人偷窥/UID 开关、群强制设置、指定目标设置和
   查询解析；个人设置按 user+Bot 全局记录保存，群强制设置按 group+Bot 独立保存，群强制
   值按字段优先。指定命令要求 AstrBot admin 权限、群聊、有效 `At` 和目标绑定。
+- 玩家查询：`src/modules/player/` 通过 typed transport 读取角色/武器展柜、角色详情
+  和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，并以
+  `OriginalImageCache` 维护详情图与原始面板图的显式消息 ID关系。默认 API 适配器只在
+  transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和 `resource_manifest.json`；不强制
   覆盖本地修改。资源仓库在插件运行期数据目录下，不写入源码 `data/`。
-- 当前阶段：`rewrite/v0.1` 已注册 `帮助`、Task 10 账号 use case 和 Task 11 隐私 use case；
-  其余旧功能不会在新入口中隐式注册。
+- 当前阶段：`rewrite/v0.1` 已注册 `帮助`、Task 10 账号、Task 11 隐私和 Task 13 玩家
+  查询 use case，共 26 条命令；其余旧功能不会在新入口中隐式注册。
 
 ## `legacy-reference` 迁移参考
 
