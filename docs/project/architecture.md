@@ -37,11 +37,15 @@
   和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，并以
   `OriginalImageCache` 维护详情图与原始面板图的显式消息 ID关系。默认 API 适配器只在
   transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。
+- 资料读取：`src/modules/encyclopedia/` 协调便签、周报、日历、图鉴、攻略、兑换码和只读
+  别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
+  `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
+  snapshot 生成可审查的 PNG，不按资料条目截断。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和 `resource_manifest.json`；不强制
   覆盖本地修改。资源仓库在插件运行期数据目录下，不写入源码 `data/`。
-- 当前阶段：`rewrite/v0.1` 已注册 `帮助`、Task 10 账号、Task 11 隐私和 Task 13 玩家
-  查询 use case，共 26 条命令；其余旧功能不会在新入口中隐式注册。
+- 当前阶段：`rewrite/v0.1` 已注册 `帮助`、Task 10 账号、Task 11 隐私、Task 13 玩家
+  查询和 Task 14 资料读取 use case，共 35 条命令；其余旧功能不会在新入口中隐式注册。
 
 ## `legacy-reference` 迁移参考
 

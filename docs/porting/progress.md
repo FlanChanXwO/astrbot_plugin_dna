@@ -1,11 +1,12 @@
 # 移植进度（progress.md）
 
 > 更新于 2026-08-11。superpowers 迁移记录；当前 rewrite 阶段审查见
-> [review-v0.2-debug.md](review-v0.2-debug.md)，legacy 完整审查见 [review.md](review.md)，
+> [review-v0.2-debug.md](review-v0.2-debug.md)、[review-v0.3-player.md](review-v0.3-player.md) 和
+> [review-v0.3-encyclopedia.md](review-v0.3-encyclopedia.md)，legacy 完整审查见 [review.md](review.md)，
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私和玩家查询共 26 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询和资料读取共 35 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -16,6 +17,14 @@
 - 概览和详情渲染在运行期 plugin data 生成动态 PNG，完整保留合法角色、武器、技能、魔之楔、
   溯源和伤害字段；`OriginalImageCache` 只按显式消息 ID返回原面板图。
 - 详细行为矩阵、已知差异和图像验证格式见 [review-v0.3-player.md](review-v0.3-player.md)。
+
+### rewrite Task 14 — 资料读取 ✅
+
+- 已登记日常便笺、周报、日历、图鉴、攻略、兑换码和只读别名共 9 条命令；新入口只读取
+  新 SQLAlchemy schema 中的当前 UID/凭据，写入型别名能力仍未注册。
+- 新旧 API 的 typed transport、运行期资源索引和动态 PNG 渲染均通过隔离 fixture 验证；有效兑换码
+  保留各自截止时间，图片不截断合法资料项。
+- 详细行为矩阵、可见差异和资源边界见 [review-v0.3-encyclopedia.md](review-v0.3-encyclopedia.md)。
 
 ## 当前状态
 

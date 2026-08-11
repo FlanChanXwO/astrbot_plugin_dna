@@ -19,11 +19,22 @@ from .entry.lifecycle import PluginLifecycle
 from .entry.response import ResponseFactory
 from .entry.web import WebRegistrar
 from .infrastructure.config import DnabySettings
-from .infrastructure.http import DnaApiAccountTransport, DnaApiPlayerTransport
+from .infrastructure.http import (
+    DnaApiAccountTransport,
+    DnaApiEncyclopediaTransport,
+    DnaApiPlayerTransport,
+)
 from .infrastructure.persistence import AsyncDatabase
-from .infrastructure.rendering import OriginalImageCache, PlayerRenderer
+from .infrastructure.rendering import (
+    EncyclopediaRenderer,
+    OriginalImageCache,
+    PlayerRenderer,
+)
+from .infrastructure.resources import EncyclopediaResourceStore
 from .infrastructure.resources.paths import PLUGIN_NAME
 from .modules.account import AccountService
+from .modules.encyclopedia.contracts import EncyclopediaTransport
+from .modules.encyclopedia.service import EncyclopediaService
 from .modules.account.contracts import AccountTransport
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
@@ -64,6 +75,7 @@ def build_runtime(
     database: AsyncDatabase | None = None,
     account_transport: AccountTransport | None = None,
     player_transport: PlayerTransport | None = None,
+    encyclopedia_transport: EncyclopediaTransport | None = None,
     services: Mapping[str, object] | None = None,
 ) -> PluginRuntime:
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
@@ -95,12 +107,25 @@ def build_runtime(
         show_unowned_roles=settings.display.show_unowned_roles,
         role_original_image=settings.display.role_original_image,
     )
+    encyclopedia_resources = EncyclopediaResourceStore.from_root(
+        runtime_database.path.parent / "resources",
+    )
+    encyclopedia_service = EncyclopediaService(
+        runtime_database,
+        encyclopedia_transport or DnaApiEncyclopediaTransport(runtime_database),
+        privacy_service,
+        EncyclopediaRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+        encyclopedia_resources,
+        guide_providers=tuple(settings.display.guide_providers),
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
         "privacy_service": privacy_service,
         "player_service": player_service,
         "original_image_cache": original_images,
+        "encyclopedia_service": encyclopedia_service,
+        "encyclopedia_resources": encyclopedia_resources,
     }
     if services is not None:
         resolved_services.update(services)

@@ -5,11 +5,14 @@ from .account import (
     DnaApiAccountTransport,
     TransportErrorKind,
 )
+from .encyclopedia import DEFAULT_CODE_URL, DnaApiEncyclopediaTransport
 from .player import DnaApiPlayerTransport
 
 __all__ = [
     "AccountTransportError",
+    "DEFAULT_CODE_URL",
     "DnaApiAccountTransport",
+    "DnaApiEncyclopediaTransport",
     "DnaApiPlayerTransport",
     "TransportErrorKind",
 ]

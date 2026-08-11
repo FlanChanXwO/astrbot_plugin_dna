@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from astrbot.api.message_components import Image as AstrImage
+from astrbot.api.message_components import Plain as AstrPlain
+
 
 @dataclass(frozen=True, slots=True)
 class PlainTextResponse:
@@ -47,6 +50,20 @@ class ResponseFactory:
     def chain(event: Any, components: Any) -> Any:
         """构造 AstrBot 原生消息链结果。"""
 
+        if isinstance(components, (list, tuple)):
+            converted: list[Any] = []
+            changed = False
+            for component in components:
+                if isinstance(component, PlainTextResponse):
+                    converted.append(AstrPlain(component.text))
+                    changed = True
+                elif isinstance(component, ImageResponse):
+                    converted.append(AstrImage(str(component.image)))
+                    changed = True
+                else:
+                    converted.append(component)
+            if changed:
+                components = converted
         return event.chain_result(components)
 
     @staticmethod

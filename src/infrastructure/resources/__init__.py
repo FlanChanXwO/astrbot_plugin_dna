@@ -13,6 +13,12 @@ from .git import (
     download_all_resources,
     run_git,
 )
+from .encyclopedia import (
+    AliasCatalog,
+    EncyclopediaResourceError,
+    EncyclopediaResourceStore,
+    GuideAsset,
+)
 from .manifest import ResourceManifest, ResourceManifestError
 from .paths import (
     PLUGIN_NAME,
@@ -23,6 +29,10 @@ from .paths import (
 
 __all__ = [
     "DEFAULT_RESOURCE_REMOTE",
+    "AliasCatalog",
+    "EncyclopediaResourceError",
+    "EncyclopediaResourceStore",
+    "GuideAsset",
     "PLUGIN_NAME",
     "RESOURCE_REPOSITORY_NAME",
     "GitCommandError",

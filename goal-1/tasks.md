@@ -166,11 +166,23 @@
 
 ### Task 14：实现便签、周报、日历、wiki、攻略、兑换码和别名读取
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：迁移读取型百科/资料能力、资源语义和别名列表；建立 API fixture、素材 fixture、命令归属和响应 DTO 测试。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：新增 `src/modules/encyclopedia/` typed use case、9 条显式命令和集中用户文案；新增
+  legacy API transport，迁移便签、周报、活动日历与兑换码读取，并将角色/武器/魔灵图鉴、攻略和只读别名
+  收敛为运行期资源索引。新增动态 PNG renderer，完整遍历合法便签、周报和日历资料项；日历轮换公式在新
+  transport 内以纯逻辑实现，不导入旧 renderer。攻略消息链按作者组插入一次作者文案后保留该作者全部图片。
+  兑换码 DTO/响应链保留每个有效码的独立截止时间，未注册写入型别名命令。同步生成 `commands.json`，更新 README、usage、architecture、progress、CHANGELOG 和
+  `docs/porting/review-v0.3-encyclopedia.md` 行为矩阵。
+- 验证证据：按 TDD 先复现了“逐码截止时间丢失”和“同作者多图重复作者文案”两个失败路径，修复后新增
+  对应 public response 契约，并验证日历 transport 不导入 legacy renderer。资料/命令/registry 聚焦集合在 staging runtime 为 `29 passed, 1 warning`；
+  staging runtime 全量为 `137 passed, 1 skipped, 1 warning`（skip 是未安装 Alembic 的既有真实 migration
+  round-trip 边界，warning 是 AstrBot 依赖 `audioop` 弃用）。`ruff check .`、runtime
+  `python -m compileall -q .`、`pyright --project pyrightconfig.json`（0/0/0）、`git diff --check` 和
+  `pre-commit run --all-files` 均通过；LSP 已重索引百科 service/测试，未返回诊断。
+- 剩余风险/下一步：未执行真实 gscore 只读矩阵、真实私有资源仓库认证或 NapCat；图像只按尺寸、消息类型、
+  完整文本、布局和资源 metadata 用 fixture 验证。下一轮只执行 Task 15，通过 `ssh atri` 做只读探测并建立
+  `tests/e2e/command-matrix.md`，不得执行登录、签到、绑定、订阅或其他写入型命令。
 
 ### Task 15：建立 gscore 只读探测与命令行为差异矩阵
 

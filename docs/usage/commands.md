@@ -1,6 +1,6 @@
 # 命令
 
-当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询和隐私 use case。命令声明位于
+当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询、资料读取和隐私 use case。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `帮助` 查看同一
 registry 的帮助文本。
@@ -32,6 +32,22 @@ registry 的帮助文本。
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/rendered/`。概览/详情渲染保留所有
 合法角色、武器、技能、魔之楔和伤害字段；图片 PNG 元数据只用于离线布局/资源语义回归。
 真实账户只读矩阵留待后续阶段，见 [v0.3 玩家行为矩阵](../porting/review-v0.3-player.md)。
+
+## 资料读取命令
+
+- `每日`、`mr`、`便笺`、`体力`、`日常` 等：读取实时便笺和锻造状态。
+- `周报`、`本周周报`、`上周周报`：读取对应周期的资源获取统计。
+- `日历`：读取活动日历；它不读取或修改账号数据。
+- `<名称>图鉴`、`<名称>wiki`：按角色、武器或魔灵的运行期资源索引返回图鉴图片。
+- `<角色名>攻略`：按已配置的攻略作者返回单图，或每位作者一条文案后跟随其全部图片的消息链。
+- `兑换码`、`cdk`、`code`：读取 provider 中所有有效兑换码；不同截止时间会与各自兑换码一同显示。
+- `<角色/武器名>别名`：查看只读别名列表，沿用 legacy 的 `owner` 权限。
+- `角色列表`、`武器列表`：查看运行期资源中已索引的 canonical 名称，使用 `user` 权限。
+
+资料读取的图片与索引只使用
+`StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录
+写入或下载素材。图像语义、已知差异和 fixture 边界见
+[v0.3 资料查询行为矩阵](../porting/review-v0.3-encyclopedia.md)。
 
 ## 隐私控制命令
 

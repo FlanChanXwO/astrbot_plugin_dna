@@ -74,6 +74,15 @@ def test_explicit_registry_loads_only_implemented_commands():
         "privacy_enable_uid_hidden_all",
         "privacy_disable_uid_hidden_all",
         "privacy_cancel_uid_hidden_all",
+        "stamina",
+        "weekly_report_current",
+        "weekly_report_last",
+        "calendar",
+        "dna_wiki",
+        "dna_guide",
+        "dna_code",
+        "alias_list",
+        "alias_all_list",
     ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
@@ -244,6 +253,15 @@ def test_commands_manifest_is_generated_from_registry():
         "privacy_enable_uid_hidden_all",
         "privacy_disable_uid_hidden_all",
         "privacy_cancel_uid_hidden_all",
+        "stamina",
+        "weekly_report_current",
+        "weekly_report_last",
+        "calendar",
+        "dna_wiki",
+        "dna_guide",
+        "dna_code",
+        "alias_list",
+        "alias_all_list",
     }
 
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## rewrite Task 14 — 资料读取
+
+### Added
+
+- 增加日常便笺、本周/上周周报、日历、角色/武器/魔灵图鉴、角色攻略、兑换码和只读别名共 9 条
+  显式 registry 命令；未迁移的别名写入命令不注册、不展示。
+- 增加 `EncyclopediaService`、typed 资料 DTO、legacy API transport、运行期资源索引和动态 PNG
+  renderer。便签、周报和日历完整遍历合法资料项，PNG 元数据仅用于离线布局/资源语义审查。
+- 兑换码 provider 的每个有效码保留独立截止时间；当日期不同，响应链逐码显示对应截止时间，避免
+  只展示首项造成数据丢失。
+
+### Verification boundary
+
+- Task 14 只使用隔离 SQLite、fake transport、临时运行期资源、Pillow 和 AstrBot 本地 SDK 验证；
+  未执行真实 gscore 账户读取、真实 NapCat 或任何写入型别名操作。
+- 所有资料图片写入运行期 plugin data 的 `rendered/`，资源从运行期 `resources/` 索引读取；不写入
+  插件源码目录、参考区或 Git。
+
 ## rewrite Task 13 — 玩家角色查询、详情/伤害和原图
 
 ### Added

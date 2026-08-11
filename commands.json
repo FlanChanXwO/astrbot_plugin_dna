@@ -311,5 +311,113 @@
     ],
     "permission": "admin",
     "use_case": "src.modules.privacy.commands.privacy_cancel_uid_hidden_all_use_case"
+  },
+  {
+    "id": "stamina",
+    "pattern": "^(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$",
+    "group": "信息查询",
+    "name": "日常便签",
+    "description": "查询实时便笺/体力",
+    "examples": [
+      "日常"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.stamina_use_case"
+  },
+  {
+    "id": "weekly_report_current",
+    "pattern": "^(?:本周周报|周报)$",
+    "group": "信息查询",
+    "name": "本周周报",
+    "description": "查询本周资源获取统计",
+    "examples": [
+      "周报"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.weekly_report_current_use_case"
+  },
+  {
+    "id": "weekly_report_last",
+    "pattern": "^上周周报$",
+    "group": "信息查询",
+    "name": "上周周报",
+    "description": "查询上周资源获取统计",
+    "examples": [
+      "上周周报"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.weekly_report_last_use_case"
+  },
+  {
+    "id": "calendar",
+    "pattern": "^日历$",
+    "group": "信息查询",
+    "name": "日历",
+    "description": "日历",
+    "examples": [
+      "日历"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.calendar_use_case"
+  },
+  {
+    "id": "dna_wiki",
+    "pattern": "^(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:图鉴|wiki|Wiki|WIKI)$",
+    "group": "图鉴",
+    "name": "角色图鉴",
+    "description": "查看角色图鉴",
+    "examples": [
+      "角色名图鉴"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.wiki_use_case"
+  },
+  {
+    "id": "dna_guide",
+    "pattern": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)攻略$",
+    "group": "攻略",
+    "name": "角色攻略",
+    "description": "查看角色攻略图",
+    "examples": [
+      "角色名攻略"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.guide_use_case"
+  },
+  {
+    "id": "dna_code",
+    "pattern": "^(?:兑换码|cdk|CDK|code)$",
+    "group": "兑换码",
+    "name": "兑换码",
+    "description": "查看当前可用的兑换码",
+    "examples": [
+      "兑换码"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.code_use_case"
+  },
+  {
+    "id": "alias_list",
+    "pattern": "^(?P<alias_type>角色|武器)?(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)别名(列表)?$",
+    "group": "bot主人功能",
+    "name": "别名列表",
+    "description": "查看角色/武器别名列表",
+    "examples": [
+      "角色名别名"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.encyclopedia.commands.alias_list_use_case"
+  },
+  {
+    "id": "alias_all_list",
+    "pattern": "^(?:角色列表|武器列表)$",
+    "group": "bot主人功能",
+    "name": "角色/武器列表",
+    "description": "查看全部角色或武器列表",
+    "examples": [
+      "角色列表"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.alias_all_list_use_case"
   }
 ]

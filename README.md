@@ -2,8 +2,8 @@
 
 二重螺旋（DNA）Bot 插件 —— AstrBot 原生移植版。由 GsCore 插件 [DNAUID](https://github.com/tyql688/DNAUID)（私有镜像 `FlanChanXwO/DNAUID`）全面移植而来。
 
-> 重构说明：`rewrite/v0.1` 已提供新的薄入口、显式 `CommandSpec` registry、帮助、账号和隐私
-> use case；下方未列入当前命令清单的能力仍是 legacy-reference/目标能力。完整迁移按
+> 重构说明：`rewrite/v0.1` 已提供新的薄入口、显式 `CommandSpec` registry、帮助、账号、隐私、
+> 玩家查询和资料读取 use case；下方未列入当前命令清单的能力仍是 legacy-reference/目标能力。完整迁移按
 > `goal-1/tasks.md` 分阶段完成。
 
 ## 功能
@@ -24,7 +24,8 @@
 ## 使用
 
 已迁移命令使用独立的自然语言正则 handler；当前包括 `帮助`、登录/退出、UID 绑定/
-切换/删除/查看、脱敏凭据状态查询、个人隐私开关和群管理员隐私控制。命令清单见 `commands.json` 与
+切换/删除/查看、脱敏凭据状态查询、个人隐私开关和群管理员隐私控制，以及角色卡片/详情/原图、
+日常便笺、周报、日历、图鉴、攻略、兑换码和只读别名查询。命令清单见 `commands.json` 与
 [docs/usage/commands.md](docs/usage/commands.md)。
 
 ## 配置
