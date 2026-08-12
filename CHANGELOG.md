@@ -1,5 +1,23 @@
 # Changelog
 
+## rewrite Task 29 — 历史 56 项能力盘点与补齐
+
+### Added
+
+- 盘点 legacy 56 条命令：50 条已映射到 rewrite id，`user_login/logout/get_ck` 为重命名
+  （`account_*`）、`user_bind` 拆分为 5 条显式命令，均覆盖；补齐唯一缺失的别名写入能力。
+- 新增 `src/modules/operations/alias_service.py`：`alias_add_delete`（添加/删除角色/武器
+  别名，原子写资源根 `alias/{char,weapon}_alias.json`，去重/未找到可见）与 `alias_recover`
+  （恢复内置别名并刷新 catalog）。
+- 注册 `alias_add_delete`/`alias_recover` 2 条 owner 命令；`commands.json` 重新生成共 61
+  条命令。
+- 新增 4 条别名写入测试并纳入写入契约审计。
+
+### Changed
+
+- 别名写入会修改 git 管理的资源文件：下一次 `下载全部资源` 的 `pull --ff-only` 会因本地
+  修改拒绝（安全边界），作为记录差异。
+
 ## rewrite Task 28 — 运维与面板阶段集中审查
 
 ### Fixed
