@@ -248,11 +248,11 @@
 
 ### Task 20：集中检查-debug（阶段 5）
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：复核签到状态机、调度取消、订阅边界、写入隔离、并发/事务和全量门禁；发现问题追加修复 task。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `503deba`。复核 Task 17-19（`c25354c..b5503d8`）并修复 4 项边界问题：① 移除 `CheckinService.enable_all_users` 死参数，门控语义移交 `SignScheduler`（定时自动签到需 `scheduled_enabled and enable_all_users`，承担 legacy `SigninMaster` 对全账号自动签到的语义，owner 手动 `全部签到` 不受影响）；② 社区启用但 API 未返回启用任务时从误报「帖子列表为空」改为明确 `CHECKIN_TASKS_EMPTY`；③ `subscribe_sign_result` 在订阅文件损坏时返回可见 `SIGN_RESULT_STORE_UNAVAILABLE`，不再让 handler 崩溃；④ 移除 `CheckinSummary.lines` 死字段。完整审查记录见 `docs/porting/review-v0.4-checkin.md`。
+- 验证证据：新增回归测试（无启用任务显式文案、损坏订阅文件可见错误、`enable_all_users` 门控只保留清理任务）3 条，相关聚焦集合通过；staging runtime 全量 pytest 为 `213 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过；参考区 `legacy-reference` 冻结在 `664b677`，`git worktree list` 只列参考区与重构区。
+- 剩余风险/下一步：同一 UID 并发签到可能在保存前重复执行写操作（`_save_snapshot` 写锁只保证 (uid, date) 唯一冲突不爆，不串行化整个读-检-签-存周期），记录收敛为「已签」，与 legacy 行为一致，作为接受边界记录在 review-v0.4-checkin.md；真实平台写入/推送行为仍未验收（Task 30）。下一轮执行 Task 21（密函、公告和活动日历读取，v0.5.0 通知）。
 
 ## 阶段 6：`v0.5.0` 通知
 
