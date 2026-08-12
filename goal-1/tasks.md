@@ -326,11 +326,11 @@
 
 ### Task 29：盘点并补齐历史 56 项能力
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：以原命令清单、目标 registry、行为矩阵和测试为依据逐项盘点；实现缺失能力，未实现命令不注册、不展示，记录任何不可避免差异。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `c417397` + `33ae184`。对 legacy 56 条命令逐项盘点：50 条已映射到 rewrite id；`user_login`/`user_logout`/`user_get_ck` 为重命名（`account_login`/`account_logout`/`account_credentials`，正则一致），`user_bind` 拆分为 `account_bind`/`account_switch`/`account_delete`/`account_delete_all`/`account_list` 五条显式命令（覆盖绑定/切换/删除/查看全部动作），均无缺失。唯一缺失为别名写入命令，本轮补齐：新增 `src/modules/operations/alias_service.py` 的 `AliasService`——`alias_add_delete`（添加/删除角色/武器别名，原子写资源根 `alias/{char,weapon}_alias.json`，去重/未找到/空输入可见）与 `alias_recover`（恢复内置别名并刷新 catalog）；注册 `alias_add_delete`/`alias_recover` 2 条 owner 命令（别名管理组），`commands.json` 重新生成共 61 条命令。
+- 验证证据：新增 `tests/test_operations.py` 别名测试（添加/重复/删除/未找到/恢复/空输入）4 条；`tests/test_write_contracts.py` 将 2 条 owner 别名命令纳入权限与离线契约审计；`tests/test_command_registry.py` 同步。staging runtime 全量 pytest 为 `293 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过。
+- 剩余风险/下一步：别名写入修改 git 管理的资源文件，下一次 `pull --ff-only` 会因本地修改拒绝（安全边界，记录差异）；真实别名写入未执行，仅离线契约覆盖。历史 56 项能力已全部映射或补齐，未实现命令不注册不展示。下一轮执行 Task 30（全量行为差异审查与只读回归验收）。
 
 ### Task 30：完成全量行为差异审查与只读回归验收
 
