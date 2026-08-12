@@ -300,11 +300,11 @@
 
 ### Task 26：实现资源更新、下载日志与更新日志展示
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：实现私有资源仓库浅克隆/`git pull --ff-only` 的检查和可见失败，更新日志读取，确认 Git 缺失、认证失败、远端失败、非快进和本地修改均不自动覆盖。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `f240bfb`。新增 `src/modules/operations/resource_service.py`：`ResourceUpdateService` 复用既有 `ResourceSynchronizer`（浅克隆/`git pull --ff-only` + manifest 校验），下载全部私有资源；Git 缺失（`GitUnavailableError`）、远端不匹配（`ResourceRemoteMismatchError`）、本地修改（`ResourceLocalChangesError`，不自动覆盖）、非快进/认证/远端失败（`GitCommandError`）均映射为可见错误文案；`update_log` 经 `git log` 读取插件仓库最近提交，Git 不可用/非仓库返回可见失败。注册 `download_resource`（下载全部资源）与 `update_log`（更新记录/更新日志）2 条 owner 命令，`commands.json` 重新生成共 59 条命令。
+- 验证证据：新增 `tests/test_resource_service.py`（下载成功克隆/更新分支、Git 缺失/远端不匹配/本地修改/同步失败可见错误、更新日志有/无提交）共 6 条；`tests/test_write_contracts.py` 将 2 条 owner 命令纳入权限与离线契约审计；`tests/test_command_registry.py` 同步。同步器自身的凭据脱敏与 Git 边界由既有 `test_config_resources.py` 覆盖。staging runtime 全量 pytest 为 `288 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过。
+- 剩余风险/下一步：真实私有资源仓库未联网同步，只使用隔离 runner/fake synchronize 验证；私有资源仓库创建/推送属独立外部步骤，需用户授权。下一轮执行 Task 27（同步 v0.6 文档、配置和迁移限制）。
 
 ### Task 27：同步 v0.6 文档、配置和迁移限制
 
