@@ -224,11 +224,11 @@
 
 ### Task 17：实现游戏/社区签到与日历结果
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：在 fake transport、隔离 DB 和事件 fixture 中迁移游戏/社区签到、日历、批量结果；保持错误可见，不凭空新增超时、重试或静默降级。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `c25354c`。新增 `src/modules/checkin/`：typed `CheckinTransport` 契约、`CheckinService`（manual_sign/sign_calendar/sign_all）和 `CheckinRenderer`（1300 宽日历 PNG）。`sign`（签到/社区签到/每日任务/社区任务/库街区签到/sign）、`sign_calendar`（签到日历/签到记录/签到历史）和 `sign_all`（全部签到，owner）三条显式 CommandSpec，注册进 `src/modules/index.py` 并重新生成 `commands.json`（38 条）。当天签到计数经 `SignRecordRepository.save` upsert 写入新 schema `sign_records` 表；`AccountBindingRepository.list_all` 供 owner 批量读取全部绑定。`DnaApiCheckinTransport` 只在 transport 边界组装 legacy `DNAUser` 并复用纯 API（sign_calendar/game_sign/bbs_sign/get_task_process/have_sign_in/get_post_list/get_post_detail/do_like/do_share/do_reply），服务层不接触旧事件/数据库/消息段；已签到(code 711)、社区已签(code 10000)、日历精简、帖子遍历失败等均映射为稳定状态或受控文案，不回显上游 `msg`/URL/凭据样式内容。
+- 验证证据：新增 `tests/test_checkin.py`（成功落盘、已签到跳过且不调用 transport、仅游戏、双关闭、transport 失败脱敏、日历精简失败、bbs_detail 帖子遍历计数、bbs_like 连续失败显式错误、日历渲染 1300 宽 PNG 布局/资源语义、批量聚合 1 成功 1 失败、无绑定、防偷窥）共 13 条；`tests/test_checkin_commands.py`（归属/正则/权限/缺 service/生成 handler）3 条；`tests/test_checkin_transport.py`（payload 映射、精简字段允许缺失、code 711/10000、错误脱敏）5 条。staging runtime 全量 pytest 为 `173 passed, 1 skipped, 1 warning`（skip 为既有 Alembic 未安装 round-trip，warning 为 AstrBot `audioop` 弃用）；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过；`commands.json` 由 registry 生成且与分发表一致（test_command_registry 断言已补 sign 三条）。
+- 剩余风险/下一步：真实写操作（游戏/社区签到、浏览/点赞/分享/回复）只在 fake transport + 隔离 SQLite + 事件 fixture 中验证，未执行真实 NapCat 或真实账户写入；订阅签到结果（`sign_result_subscribe`）、计划任务/自动签到（`scheduled_enabled`/`enable_all_users`）和生命周期取消仍属 Task 18，签到写入型的完整离线契约与权限测试由 Task 19 补齐。下一轮只执行 Task 18（计划任务、结果订阅与生命周期取消）。
 
 ### Task 18：实现计划任务、结果订阅与生命周期取消
 
