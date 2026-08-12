@@ -266,11 +266,11 @@
 
 ### Task 22：实现通知订阅推送和取消订阅
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：使用原生订阅替代实现推送与取消，覆盖个人/群组作用域、去重、生命周期清理、权限和失败日志；写入操作仅在隔离环境执行。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `18a73ad`。扩展 `SubscriptionStore`（`Subscription` 增加 `uid/extra_message/extra_data`，store 增加作用域过滤 `get` 与 `update`）；注册 `mh_subscribe`/`mh_subscribe_by_name`/`mh_subscribe_cycle`/`mh_pic_subscribe`/`mh_text_subscribe`/`mh_test`/`ann_sub`/`ann_unsub` 8 条订阅命令（user/admin/owner 权限与 legacy 一致），`commands.json` 重新生成共 50 条。`NoticesService` 新增密函按名订阅/取消（按 user+会话作用域去重、禁止订阅全部、推送时间窗口 `订阅密函时间HH:HH`）、图片/文本会话作用域开关（admin）、owner 密函测试推送、公告群订阅/取消（admin，仅群聊去重），以及计划任务 `push_mh_now`（文本/图片推送）与 `poll_ann_now`（`AnnStateStore` 记录已知公告 id，只推送新条目）。新增 `src/infrastructure/notices_scheduler.py`：每小时按 `secret_push_time` 推送密函、按 `announcement_check_minutes` 轮询公告，幂等 start/stop 接入生命周期；推送闭包把 str/Path 载荷映射为 Plain/Image 组件并经 `Context.send_message` 发送。`get_mh_any` 用任意可用账号凭据读取密函供计划任务（区别于读取命令的调用者账号）。
+- 验证证据：新增 `tests/test_notices_subscriptions.py`（订阅增删/去重/禁全部/时间窗口/图片文本开关/公告群订阅/计划推送/公告轮询去重/owner 测试）12 条、`tests/test_notices_scheduler.py`（幂等 start/stop、配置解析）2 条；`tests/test_write_contracts.py` 将 7 条通知订阅写入命令纳入权限与离线契约审计；`tests/test_notices_commands.py`/`test_command_registry.py` 同步断言。staging runtime 全量 pytest 为 `250 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过；未检出 `gsuid_core`/`gsucore` import。
+- 剩余风险/下一步：订阅/推送只写入隔离 SubscriptionStore 并由注入 push fixture 验证，真实平台推送未执行，真实密函/公告内容与视觉等价未验收（Task 30）；通知失败日志/事件响应测试与脱敏由 Task 23 完善。下一轮执行 Task 23。
 
 ### Task 23：完善通知脱敏、可观测错误和事件响应测试
 
