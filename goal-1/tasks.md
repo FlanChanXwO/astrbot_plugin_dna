@@ -292,11 +292,11 @@
 
 ### Task 25：实现面板图管理和运行期资源状态
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：迁移面板图查询/管理、资源状态、manifest 和本地数据目录边界；上传、删除、压缩等写操作只在隔离 fixture 验证，不操作真实账户或参考区。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `f369e14`。新增 `src/modules/operations/`：`PanelService` 管理运行期数据目录 `panel_custom/` 的自定义面板图——上传（保存 WebP、按内容 sha1 去重）、列表（文本+图片链 ChainResponse）、按 ID/全部删除、压缩为 WebP（复用 legacy `compress_to_webp`）；`原图删除` 因公开结果边界无原图引用缓存显式报告暂不支持（与 Task 16.2 一致）；`resource_status` 展示私有资源仓库目录、`ResourceManifest` 格式/资源版本/必需目录存在数与本地面板数量。注册 `upload_panel_img`/`list_panel_imgs`/`delete_panel_img_by_id`/`delete_all_panel_imgs`/`delete_original_panel_img`/`compress_panel_imgs`/`resource_status` 7 条 owner 命令，`commands.json` 重新生成共 57 条。命令层 `CommandRequest` 增加 `images` 字段，经 `images_from_event` 从 AstrBot 公开消息链提取图片载荷（本地路径/base64/URL）。
+- 验证证据：新增 `tests/test_operations.py`（上传 WebP/sha1 去重/无图/未知角色/坏字节失败/列表链/按 ID 删除/全部删除/压缩/资源状态 manifest）共 10 条、`tests/test_operations_commands.py`（归属 owner/正则/`images_from_event` 提取/缺 service/生成 handler）4 条；`tests/test_write_contracts.py` 将 7 条面板/资源 owner 写命令纳入权限与离线契约审计；`tests/test_command_registry.py` 同步。staging runtime 全量 pytest 为 `280 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过。
+- 剩余风险/下一步：面板上传/删除/压缩只操作隔离目录 fixture，未操作真实账户或参考区；真实平台面板上传行为未执行，仅离线契约覆盖。资源更新（下载全部资源/更新日志）与 `download_resource` 命令属 Task 26。下一轮执行 Task 26。
 
 ### Task 26：实现资源更新、下载日志与更新日志展示
 
