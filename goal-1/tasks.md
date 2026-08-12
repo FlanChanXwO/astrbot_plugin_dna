@@ -308,11 +308,11 @@
 
 ### Task 27：同步 v0.6 文档、配置和迁移限制
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：更新 README、`docs/`、配置/schema、数据目录、资源依赖、未实现能力和私有发布边界；保持 `AGENTS.md` 与 `CLAUDE.md` 镜像且不超 100 行，长文拆入 docs。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `a8a82d3`。`AGENTS.md` 同步为当前 rewrite 结构（`src/entry`/`src/modules`/`src/infrastructure` 布局、`operations`/`notices`/`checkin` 领域、订阅/调度路径），补充运行期数据目录边界（`dnaby.sqlite3`/`subscriptions.json`/`ann_state.json`/`rendered/`/`panel_custom/`）与文案层约定（legacy `dnaby/utils/msgs/notify.py` vs rewrite `src/modules/*/messages.py`），保持 61 行（≤100）；`CLAUDE.md` 维持 `@AGENTS.md` 镜像指针。`docs/README.md` 索引补入 `review-v0.4-checkin.md`/`review-v0.5-notices.md`/`offline-write-contracts.md`；`docs/usage/resources.md` 新增「运行期数据目录边界」小节；`docs/porting/progress.md`「当前状态」明确描述 legacy 移植、rewrite 状态见 Task 记录。核实 `_conf_schema.json` 重新生成无 diff（v0.6 未新增配置），registry 与 manifest 均为 59 条命令一致。
+- 验证证据：`python scripts/generate_config_schema.py` 后 `git diff _conf_schema.json` 为空；`load_command_registry()` 与 `commands.json` 均为 59 条且一致；`wc -l AGENTS.md` = 61、`CLAUDE.md` = 1；staging runtime 全量 pytest 为 `288 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过。
+- 剩余风险/下一步：私有资源仓库创建/推送与真实同步仍是独立外部步骤（需用户授权）；`dna_status` Dashboard 指标按设计保留统计函数不注册。下一轮执行 Task 28（阶段 7 集中检查-debug）。
 
 ### Task 28：集中检查-debug（阶段 7）
 
