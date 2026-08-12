@@ -1,5 +1,16 @@
 # Changelog
 
+## 本地离线渲染对比工具（Task 30 前置）
+
+### Added
+
+- `scripts/compare_renders.py`：本地离线双渲染器对比（不启动 gscore）——同源密函 fixture
+  喂给 legacy `draw_mh_simple` 与 rewrite `render_mh`，输出画布尺寸、rewrite 文本/布局/
+  资源元数据与像素弱信号（直方图余弦距离、resize 后相同率/差异 bbox）；动态字段固定时钟
+  mask；对比图入临时目录不入 Git。
+- 首次对比报告 `docs/porting/render-compare-mh.md`：结构性差异（legacy 横向卡片 vs
+  rewrite 纵向 1300 宽），绘制内容同源，视觉等价待人工确认。
+
 ## rewrite Task 29 — 历史 56 项能力盘点与补齐
 
 ### Added
