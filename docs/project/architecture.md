@@ -42,6 +42,10 @@
   别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
   snapshot 生成可审查的 PNG，不按资料条目截断。
+- 签到：`src/modules/checkin/` 通过 `CheckinTransport` 协调游戏/社区签到、签到日历和
+  owner 批量签到；当天计数落到 `sign_records` 表（Task 9 的 `SignRecordRepository`）。
+  真实写操作只走注入 transport（默认 `DnaApiCheckinTransport` 复用 legacy 纯 API），
+  服务层不接触旧事件/数据库/消息段；`CheckinRenderer` 生成 1300 宽日历 PNG。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
   强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与

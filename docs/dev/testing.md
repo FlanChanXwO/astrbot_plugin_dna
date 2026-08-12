@@ -29,6 +29,10 @@ ruff check .
   结果、并发详情各自的原面板引用和伤害失败内容脱敏。
 - `test_player_commands.py` — 玩家命令正则、显式 registry、AstrBot `Reply` 消息 ID提取和
   service 缺失边界。
+- `test_checkin.py` — 签到成功/已签到/关闭/transport 失败/日历精简/帖子遍历/批量聚合，
+  隔离 SQLite 记录落盘与 1300 宽日历 PNG。
+- `test_checkin_commands.py` — 签到命令归属、正则、权限和生成 handler 的纯文本结果。
+- `test_checkin_transport.py` — legacy 签到 payload 映射、code 711/10000 语义和错误脱敏。
 - `test_player_transport.py` — legacy role API payload 到 typed overview 的映射和 transport
   错误脱敏。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。

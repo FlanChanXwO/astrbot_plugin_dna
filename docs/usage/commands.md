@@ -1,6 +1,6 @@
 # 命令
 
-当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询、资料读取和隐私 use case。命令声明位于
+当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询、资料读取、隐私和签到 use case。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `帮助` 查看同一
 registry 的帮助文本。
@@ -47,6 +47,17 @@ registry 的帮助文本。
 - `兑换码`、`cdk`、`code`：读取 provider 中所有有效兑换码；不同截止时间会与各自兑换码一同显示。
 - `<角色/武器名>别名`：查看只读别名列表，沿用 legacy 的 `owner` 权限。
 - `角色列表`、`武器列表`：查看运行期资源中已索引的 canonical 名称，使用 `user` 权限。
+
+## 签到命令
+
+- `签到`、`社区签到`、`每日任务`、`社区任务`、`库街区签到`、`sign`：对当前 active
+  UID 执行游戏签到和启用的社区任务（签到/浏览/点赞/分享/回复），返回逐项状态；
+  今日已完成直接提示重复签到。真实写操作只通过注入的 `CheckinTransport` 执行，
+  测试使用 fake transport。
+- `签到日历`、`签到记录`、`签到历史`：渲染签到日历（皎皎积分、社区/游戏累计签到、
+  社区任务进度和逐日奖励），使用 `user` 权限。
+- `全部签到`：对所有已绑定账号执行签到并按并发/间隔聚合成功/失败结果，使用 `owner`
+  权限。真实账户不执行批量写操作，仅离线 fixture 覆盖契约。
 
 资料读取的图片与索引只使用
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录

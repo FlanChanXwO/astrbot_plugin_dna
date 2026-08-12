@@ -83,6 +83,9 @@ def test_explicit_registry_loads_only_implemented_commands():
         "dna_code",
         "alias_list",
         "alias_all_list",
+        "sign",
+        "sign_calendar",
+        "sign_all",
     ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
@@ -262,6 +265,9 @@ def test_commands_manifest_is_generated_from_registry():
         "dna_code",
         "alias_list",
         "alias_all_list",
+        "sign",
+        "sign_calendar",
+        "sign_all",
     }
 
 
@@ -281,5 +287,6 @@ async def test_help_shows_implemented_commands_only():
 
     assert len(result) == 1
     assert "帮助" in result[0]
-    assert "签到" not in result[0]
+    assert "签到：每日签到" in result[0]
+    assert "签到日历：查看签到日历" in result[0]
     assert "登录" in result[0]

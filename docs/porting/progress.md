@@ -6,7 +6,7 @@
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询和资料读取共 35 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取和签到共 38 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -37,6 +37,17 @@
   结果边界无消息 ID 交付点，显式报告未支持；伤害失败文案收敛为受控文本，不回显上游
   正文或凭据样式内容。真实平台原图引用能力的验收边界仍记入 Task 30。
 - 完整证据和修复边界见 [review-v0.3-debug.md](review-v0.3-debug.md)。
+
+### rewrite Task 17 — 签到 ✅
+
+- 已登记 `sign`（签到/社区签到/每日任务/社区任务/库街区签到/sign）、`sign_calendar`
+  （签到日历/签到记录/签到历史）和 `sign_all`（全部签到，owner）三条命令。
+- `CheckinService` 通过 `CheckinTransport` 协调游戏签到、社区任务（签到/浏览/点赞/分享/
+  回复）、签到日历和批量签到；当天计数落到 `sign_records` 表，未注册订阅/计划任务
+  （Task 18）。写操作只走注入 transport，默认 `DnaApiCheckinTransport` 复用 legacy 纯 API；
+  服务层不接触旧事件/数据库/消息段，transport 错误只映射稳定类别。
+- 成功、已签到跳过、关闭、transport 失败、日历精简、帖子遍历失败和批量聚合均由隔离
+  fixture 覆盖；签到日历渲染 1300 宽运行期 PNG 并记录布局/资源语义。
 
 ## 当前状态
 

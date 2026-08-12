@@ -98,6 +98,19 @@ class AccountBindingRepository:
         return list((await session.scalars(statement)).all())
 
     @staticmethod
+    async def list_all(
+        session: AsyncSession,
+        *,
+        bot_id: str | None = None,
+    ) -> list[AccountBinding]:
+        """返回全部绑定；供 owner 批量签到读取，不在此处暴露凭据。"""
+        statement = select(AccountBinding)
+        if bot_id is not None:
+            statement = statement.where(AccountBinding.bot_id == bot_id)
+        statement = statement.order_by(AccountBinding.id)
+        return list((await session.scalars(statement)).all())
+
+    @staticmethod
     async def current(
         session: AsyncSession,
         *,
@@ -412,6 +425,46 @@ class SignRecordRepository:
             SignRecord.date == record_date,
         )
         return await session.scalar(statement)
+
+    @staticmethod
+    async def save(
+        session: AsyncSession,
+        *,
+        uid: str,
+        record_date: date,
+        game_sign: int,
+        bbs_sign: int,
+        bbs_detail: int,
+        bbs_like: int,
+        bbs_share: int,
+        bbs_reply: int,
+    ) -> SignRecord:
+        """按 UID+日期 upsert 当天签到计数，返回持久化记录。"""
+        record = await SignRecordRepository.get(
+            session,
+            uid=uid,
+            record_date=record_date,
+        )
+        if record is None:
+            return await SignRecordRepository.add(
+                session,
+                uid=uid,
+                record_date=record_date,
+                game_sign=game_sign,
+                bbs_sign=bbs_sign,
+                bbs_detail=bbs_detail,
+                bbs_like=bbs_like,
+                bbs_share=bbs_share,
+                bbs_reply=bbs_reply,
+            )
+        record.game_sign = game_sign
+        record.bbs_sign = bbs_sign
+        record.bbs_detail = bbs_detail
+        record.bbs_like = bbs_like
+        record.bbs_share = bbs_share
+        record.bbs_reply = bbs_reply
+        await session.flush()
+        return record
 
 
 class PrivacySettingRepository:

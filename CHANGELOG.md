@@ -1,5 +1,32 @@
 # Changelog
 
+## rewrite Task 17 — 游戏/社区签到、日历与批量结果
+
+### Added
+
+- 新增 `src/modules/checkin/`：typed `CheckinTransport` 契约、`CheckinService`（游戏签到、
+  社区任务、签到日历、owner 批量签到）和 `CheckinRenderer`（1300 宽日历 PNG）。
+- 注册 `sign`（签到/社区签到/每日任务/社区任务/库街区签到/sign）、`sign_calendar`
+  （签到日历/签到记录/签到历史）和 `sign_all`（全部签到，owner）；`commands.json` 由
+  registry 重新生成，共 38 条命令。
+- 新增 `DnaApiCheckinTransport` 复用 legacy 纯 API（sign_calendar/game_sign/bbs_sign/
+  get_task_process/have_sign_in/get_post_list/get_post_detail/do_like/do_share/do_reply），
+  只在 transport 边界组装 legacy `DNAUser`，不接触旧事件/数据库/消息段。
+- 当天签到计数写入新 schema `sign_records` 表（新增 `SignRecordRepository.save` upsert）；
+  不迁移旧数据库。
+
+### Changed
+
+- `AccountBindingRepository.list_all` 供 owner 批量签到读取全部绑定，不暴露凭据字段。
+- 签到结果按 legacy 语义展示逐项状态（签到状态/社区任务/错误信息），失败只映射受控文案，
+  不回显上游 `msg`/URL/凭据样式内容；日历/批量结果保留全部合法数据。
+
+### Verification boundary
+
+- 真实写操作（游戏签到、社区签到、浏览/点赞/分享/回复）只在 fake transport + 隔离
+  SQLite + 事件 fixture 中验证；未执行真实 NapCat 或真实账户写入。批量签到/写入型能力
+  的完整离线契约与权限测试继续由 Task 19 覆盖。
+
 ## rewrite Task 16.2 — 原图引用映射与伤害失败输出边界
 
 ### Changed

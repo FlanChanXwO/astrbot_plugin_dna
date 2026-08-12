@@ -21,11 +21,13 @@ from .entry.web import WebRegistrar
 from .infrastructure.config import DnabySettings
 from .infrastructure.http import (
     DnaApiAccountTransport,
+    DnaApiCheckinTransport,
     DnaApiEncyclopediaTransport,
     DnaApiPlayerTransport,
 )
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
+    CheckinRenderer,
     EncyclopediaRenderer,
     PlayerRenderer,
     ResourceMap,
@@ -34,6 +36,8 @@ from .infrastructure.resources import EncyclopediaResourceStore, ResourceManifes
 from .infrastructure.resources.paths import PLUGIN_NAME, resource_repository_dir
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
+from .modules.checkin.contracts import CheckinTransport
+from .modules.checkin.service import CheckinService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
 from .modules.player.contracts import PlayerTransport
@@ -76,6 +80,7 @@ def build_runtime(
     account_transport: AccountTransport | None = None,
     player_transport: PlayerTransport | None = None,
     encyclopedia_transport: EncyclopediaTransport | None = None,
+    checkin_transport: CheckinTransport | None = None,
     services: Mapping[str, object] | None = None,
 ) -> PluginRuntime:
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
@@ -119,6 +124,18 @@ def build_runtime(
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
     )
+    checkin_service = CheckinService(
+        runtime_database,
+        checkin_transport or DnaApiCheckinTransport(runtime_database),
+        privacy_service,
+        CheckinRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+        game_enabled=settings.sign_in.game_enabled,
+        community_enabled=settings.sign_in.community_enabled,
+        community_tasks=tuple(settings.sign_in.community_tasks),
+        enable_all_users=settings.sign_in.enable_all_users,
+        concurrency=settings.sign_in.concurrency,
+        interval_range=settings.sign_in.concurrency_interval_seconds,
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
@@ -128,6 +145,7 @@ def build_runtime(
         "player_resources": player_resources,
         "encyclopedia_service": encyclopedia_service,
         "encyclopedia_resources": encyclopedia_resources,
+        "checkin_service": checkin_service,
     }
     if services is not None:
         resolved_services.update(services)

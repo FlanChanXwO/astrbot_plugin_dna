@@ -8,6 +8,7 @@ from types import ModuleType
 
 from . import help as help_module
 from .account import commands as account_module
+from .checkin import commands as checkin_module
 from .encyclopedia import commands as encyclopedia_module
 from .player import commands as player_module
 from .privacy import commands as privacy_module
@@ -18,6 +19,7 @@ COMMAND_MODULES: tuple[ModuleType, ...] = (
     player_module,
     privacy_module,
     encyclopedia_module,
+    checkin_module,
 )
 
 
