@@ -232,11 +232,11 @@
 
 ### Task 18：实现计划任务、结果订阅与生命周期取消
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：迁移签到计划、结果订阅和 `initialize()`/`terminate()` 中的 asyncio 任务启动与取消；验证资源释放、并发事务和重复初始化。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `d0d764c`。新增 `src/infrastructure/subscriptions/` 框架无关 JSON 订阅存储（type+会话去重、原子落盘、损坏文件显式失败），注册 `sign_result_subscribe`（订阅/取消订阅签到结果，owner）；`commands.json` 重新生成共 39 条命令。新增 `src/infrastructure/scheduler.py` 的 `SignScheduler`：每日自动签到（`sign_in.sign_time`）与 2 天前签到记录清理两个 asyncio 任务，`initialize()` 创建、`terminate()` 取消，重复 start/stop 幂等，`scheduled_enabled` 关闭时只保留清理任务。`CheckinService` 新增 `subscribe_sign_result`/`auto_sign_all`/`clear_sign_records_before`（自动签到摘要按 legacy 语义区分游戏/社区成功数），`sign_all` 重构共享 `_run_all_signs`；`EventActor` 增加 `unified_msg_origin`（AstrBot 公开属性）用于订阅目标。生命周期钩子改为 start: web → scheduler，stop: scheduler → database.dispose；推送闭包绑定 `Context.send_message` 公开 API。
+- 验证证据：新增 `tests/test_subscription_store.py`（持久化/去重/显式删除/损坏可见失败）3 条、`tests/test_scheduler.py`（幂等 start/stop、定时关闭只保留清理任务、自动签到推送订阅者、2 天前清理且不真实睡眠）5 条；`tests/test_checkin.py` 新增订阅/取消/缺 origin/auto_sign_all/清理 5 条；`tests/test_checkin_commands.py` 新增订阅命令归属与生成 handler 测试；`tests/test_command_registry.py`/`test_migration_boundaries.py` 同步 sign_result_subscribe 与生命周期 terminate 断言。staging runtime 全量 pytest 为 `184 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过；未检出 `gsuid_core`/`gsucore` import（仅 docstring 提及替代关系）。
+- 剩余风险/下一步：计划任务与推送只在隔离订阅存储 + fake checkin + 注入 push/now/sleep fixture 中验证，未执行真实 NapCat 或真实账户写入；订阅/登录/绑定/隐私写入的完整离线契约与权限测试由 Task 19 补齐，密函/公告轮询调度仍属 Task 22。下一轮只执行 Task 19。
 
 ### Task 19：补齐写入型能力的离线契约与权限测试
 
