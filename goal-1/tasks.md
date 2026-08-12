@@ -282,11 +282,11 @@
 
 ### Task 24：集中检查-debug（阶段 6）
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：复核通知读取/推送、订阅数据一致性、并发去重、敏感信息和完整门禁；将未解决问题留在清单中。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `81fa461`。复核 Task 21-23（`ca78c4a..0733789`）并修复 3 项订阅一致性问题：① `SubscriptionStore.add/delete/update` 改为按 `(type, origin, uid)` 精确匹配——同一会话内不同用户的个人密函订阅互不覆盖，删除/更新不再误伤同会话其他记录；② 密函订阅/取消/查看改为按当前会话 `unified_msg_origin` 取目标，多会话用户读写各自会话订阅，不串扰；③ 取消订阅后剩余列表为空时直接删除记录，清理死数据。完整审查记录见 `docs/porting/review-v0.5-notices.md`。
+- 验证证据：新增 4 条回归测试（同会话多用户去重 `test_add_dedupes_by_uid_within_same_origin`、按 uid 删除 `test_delete_is_scoped_by_uid`、跨会话作用域 `test_mh_subscription_is_scoped_per_conversation`、双用户同会话 `test_mh_subscription_keeps_two_users_in_same_conversation`）全部通过；staging runtime 全量 pytest 为 `259 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过；参考区冻结在 `664b677`。
+- 剩余风险/下一步：真实密函/公告内容、图片与视觉等价未验收（Task 30 只读矩阵）；真实平台推送未执行，仅注入 push fixture 覆盖契约。下一轮执行 Task 25（面板图管理和运行期资源状态，v0.6.0 运维与面板）。
 
 ## 阶段 7：`v0.6.0` 运维与面板
 
