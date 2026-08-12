@@ -215,3 +215,25 @@ async def test_resource_status_reports_manifest_state(tmp_path: Path) -> None:
     with_status = await service2.resource_status(_request("资源状态"))
     assert "manifest: v1" in with_status.text
     assert "必需目录: 1/2 存在" in with_status.text
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_path_escaping_char_id(tmp_path: Path) -> None:
+    """角色目录解析越界时拒绝写入，不逃逸 panel_root。"""
+
+    evil = PanelService(
+        tmp_path / "panel_custom",
+        resource_root=tmp_path / "resources",
+        resolve_char_id=lambda name: {"角色甲": "101"}.get(name),
+        panel_dir_for=lambda char_id: "../escape",
+    )
+    source = _png(tmp_path)
+
+    response = await evil.upload_panel_img(
+        _request("上传角色甲面板图", {"char_name": "角色甲"}, images=(str(source),)),
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert "角色别名【角色甲】" in response.text
+    assert not (tmp_path / "escape").exists()
+    assert not (tmp_path / "panel_custom" / ".." / "escape").exists()

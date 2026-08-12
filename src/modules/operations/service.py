@@ -54,12 +54,16 @@ class PanelService:
         self.panel_dir_for = panel_dir_for
 
     def _char_panel_dir(self, char_name: str) -> Path | None:
-        """解析角色 canonical 名与 CharId，返回其面板目录。"""
+        """解析角色 canonical 名与 CharId，返回其面板目录（限定在 panel_root 内）。"""
 
         char_id = self.resolve_char_id(char_name)
         if char_id is None:
             return None
-        return self.panel_root / self.panel_dir_for(char_id)
+        resolved = (self.panel_root / self.panel_dir_for(char_id)).resolve()
+        if not str(resolved).startswith(str(self.panel_root.resolve()) + "/"):
+            # 防御性拒绝路径逃逸；正常 CharId 来自内置/资源数据，不产生相对路径。
+            return None
+        return resolved
 
     def _panel_files(self, char_dir: Path) -> list[Path]:
         if not char_dir.is_dir():

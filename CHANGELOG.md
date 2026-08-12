@@ -1,5 +1,18 @@
 # Changelog
 
+## rewrite Task 28 — 运维与面板阶段集中审查
+
+### Fixed
+
+- `PanelService._char_panel_dir` 增加路径越界守卫：解析结果必须位于运行期 `panel_custom/`
+  目录内，越界拒绝写入（防御性拒绝路径逃逸）。
+- 新增 `test_upload_rejects_path_escaping_char_id` 回归测试。
+
+### Documentation
+
+- 新增 [review-v0.6-operations.md](docs/porting/review-v0.6-operations.md)：阶段 7 集中审查的
+  修复、复查结论（Git 边界/日志脱敏/配置契约/文档同步）与门禁证据。
+
 ## rewrite Task 26 — 资源更新、下载日志与更新日志展示
 
 ### Added
