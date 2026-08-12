@@ -84,6 +84,8 @@ WRITE_COMMANDS: dict[str, str] = {
     "resource_status": "owner",
     "download_resource": "owner",
     "update_log": "owner",
+    "alias_add_delete": "owner",
+    "alias_recover": "owner",
 }
 
 # 每条写入型命令对应的离线契约测试文件与其代表性用例（审计注册的覆盖）。
@@ -222,6 +224,14 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     "update_log": (
         "test_resource_service.py",
         ("test_update_log_shows_commits_or_visible_failure",),
+    ),
+    "alias_add_delete": (
+        "test_operations.py",
+        ("test_alias_add_delete_and_recover",),
+    ),
+    "alias_recover": (
+        "test_operations.py",
+        ("test_alias_add_delete_and_recover",),
     ),
 }
 

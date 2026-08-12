@@ -237,3 +237,47 @@ async def test_upload_rejects_path_escaping_char_id(tmp_path: Path) -> None:
     assert "角色别名【角色甲】" in response.text
     assert not (tmp_path / "escape").exists()
     assert not (tmp_path / "panel_custom" / ".." / "escape").exists()
+
+
+@pytest.mark.asyncio
+async def test_alias_add_delete_and_recover(tmp_path: Path) -> None:
+    """别名写入在隔离目录 fixture 中可增删并刷新。"""
+
+    refreshed = []
+    from src.modules.operations.alias_service import AliasService
+
+    service = AliasService(tmp_path / "alias", refresh=lambda: refreshed.append(True))
+    add = await service.add_delete_alias(
+        _request("添加角色辛西娅别名小辛", {"action": "添加", "alias_type": "角色", "name": "辛西娅", "new_alias": "小辛"}),
+    )
+    dup = await service.add_delete_alias(
+        _request("添加角色辛西娅别名小辛", {"action": "添加", "alias_type": "角色", "name": "辛西娅", "new_alias": "小辛"}),
+    )
+    delete = await service.add_delete_alias(
+        _request("删除角色辛西娅别名小辛", {"action": "删除", "alias_type": "角色", "name": "辛西娅", "new_alias": "小辛"}),
+    )
+    missing = await service.add_delete_alias(
+        _request("删除角色辛西娅别名小辛", {"action": "删除", "alias_type": "角色", "name": "辛西娅", "new_alias": "小辛"}),
+    )
+    recover = await service.recover_alias(None)
+
+    assert messages.ALIAS_ADDED.format(name="辛西娅", alias="小辛") in add.text
+    assert messages.ALIAS_DUPLICATE.format(name="辛西娅", alias="小辛") in dup.text
+    assert messages.ALIAS_DELETED.format(name="辛西娅", alias="小辛") in delete.text
+    assert messages.ALIAS_NOT_FOUND.format(name="辛西娅", alias="小辛") in missing.text
+    assert recover.text == messages.ALIAS_RECOVERED
+    assert len(refreshed) == 3  # 添加 + 删除 + 恢复各刷新一次
+    assert (tmp_path / "alias" / "char_alias.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_alias_input_empty_is_visible(tmp_path: Path) -> None:
+    """别名名称/别名为空返回显式提示。"""
+
+    from src.modules.operations.alias_service import AliasService
+
+    service = AliasService(tmp_path / "alias")
+    response = await service.add_delete_alias(
+        _request("添加角色别名", {"action": "添加", "alias_type": "角色", "name": "", "new_alias": ""}),
+    )
+    assert response.text == messages.ALIAS_INPUT_EMPTY

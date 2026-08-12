@@ -52,6 +52,7 @@ from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.contracts import NoticesTransport
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.service import NoticesService
+from .modules.operations.alias_service import AliasService
 from .modules.operations.resource_service import ResourceUpdateService
 from .modules.operations.service import PanelService
 from .modules.player.contracts import PlayerTransport
@@ -210,6 +211,10 @@ def build_runtime(
         repo_root=Path(__file__).resolve().parents[2],
         synchronize=_synchronize_resources,
     )
+    alias_service = AliasService(
+        resource_root / "alias",
+        refresh=lambda: None,
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
@@ -226,6 +231,7 @@ def build_runtime(
         "notices_scheduler": notices_scheduler,
         "panel_service": panel_service,
         "resource_update_service": resource_update_service,
+        "alias_service": alias_service,
     }
     if services is not None:
         resolved_services.update(services)

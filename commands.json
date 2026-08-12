@@ -709,5 +709,29 @@
     ],
     "permission": "owner",
     "use_case": "src.modules.operations.commands.resource_update_log_use_case"
+  },
+  {
+    "id": "alias_add_delete",
+    "pattern": "^(?P<action>添加|删除)(?P<alias_type>角色|武器)?(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)别名(?P<new_alias>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)$",
+    "group": "别名管理",
+    "name": "添加/删除别名",
+    "description": "添加或删除角色/武器别名",
+    "examples": [
+      "添加角色辛西娅别名小辛"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.alias_add_delete_use_case"
+  },
+  {
+    "id": "alias_recover",
+    "pattern": "^(?:恢复别名|强制恢复别名)$",
+    "group": "别名管理",
+    "name": "恢复别名",
+    "description": "恢复/强制恢复内置别名",
+    "examples": [
+      "恢复别名"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.alias_recover_use_case"
   }
 ]

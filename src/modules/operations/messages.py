@@ -26,6 +26,12 @@ RESOURCE_SYNC_FAILED = "资源同步失败：{detail}"
 RESOURCE_DOWNLOADED = "资源{action}完成，版本 {version}"
 UPDATE_LOG_UNAVAILABLE = "无法读取更新记录（Git 不可用或当前目录不是仓库）"
 UPDATE_LOG_TITLE = "更新记录："
+ALIAS_INPUT_EMPTY = "名称或别名不能为空"
+ALIAS_ADDED = "已添加别名【{name}】→ {alias}"
+ALIAS_DELETED = "已删除别名【{name}】→ {alias}"
+ALIAS_DUPLICATE = "别名【{name}】→ {alias} 已存在"
+ALIAS_NOT_FOUND = "别名【{name}】→ {alias} 不存在"
+ALIAS_RECOVERED = "已恢复内置别名"
 
 
 def resource_status_line(label: str, value: str) -> str:
@@ -33,6 +39,12 @@ def resource_status_line(label: str, value: str) -> str:
 
 
 __all__ = [
+    "ALIAS_ADDED",
+    "ALIAS_DELETED",
+    "ALIAS_DUPLICATE",
+    "ALIAS_INPUT_EMPTY",
+    "ALIAS_NOT_FOUND",
+    "ALIAS_RECOVERED",
     "OPERATIONS_CONTEXT_UNAVAILABLE",
     "OPERATIONS_SERVICE_UNAVAILABLE",
     "PANEL_CHAR_ID_NOT_FOUND",

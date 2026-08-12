@@ -107,6 +107,8 @@ def test_explicit_registry_loads_only_implemented_commands():
         "resource_status",
         "download_resource",
         "update_log",
+        "alias_add_delete",
+        "alias_recover",
     ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
@@ -310,6 +312,8 @@ def test_commands_manifest_is_generated_from_registry():
         "resource_status",
         "download_resource",
         "update_log",
+        "alias_add_delete",
+        "alias_recover",
     }
 
 

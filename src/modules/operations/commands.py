@@ -9,6 +9,7 @@ from ...entry.commands import CommandRegistry, CommandRequest, CommandSpec
 from ...entry.response import PlainTextResponse
 from ..player.commands import PATTERN
 from . import messages
+from .alias_service import AliasService
 from .resource_service import ResourceUpdateService
 from .service import PanelCommandRequest, PanelService
 
@@ -107,6 +108,41 @@ async def resource_update_log_use_case(request: CommandRequest, _registry: Comma
     return await service.update_log(None)
 
 
+def _alias_service(request: CommandRequest) -> AliasService | PlainTextResponse:
+    if request.actor is None:
+        return PlainTextResponse(messages.OPERATIONS_CONTEXT_UNAVAILABLE)
+    service = request.services.get("alias_service")
+    if service is None or not all(
+        callable(getattr(service, method, None))
+        for method in ("add_delete_alias", "recover_alias")
+    ):
+        return PlainTextResponse(messages.OPERATIONS_SERVICE_UNAVAILABLE)
+    return cast(AliasService, service)
+
+
+async def alias_add_delete_use_case(request: CommandRequest, _registry: CommandRegistry, **_parameters: Any):
+    service = _alias_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    from .service import PanelCommandRequest
+
+    assert request.actor is not None
+    return await service.add_delete_alias(
+        PanelCommandRequest(
+            actor=request.actor,
+            parameters={key: str(value) for key, value in request.parameters.items()},
+            text=request.text,
+        ),
+    )
+
+
+async def alias_recover_use_case(request: CommandRequest, _registry: CommandRegistry, **_parameters: Any):
+    service = _alias_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.recover_alias(None)
+
+
 _COMMON = dict(
     group="面板图管理",
     permission="owner",
@@ -196,11 +232,33 @@ COMMAND_SPECS = (
         permission="owner",
         use_case=cast(Any, resource_update_log_use_case),
     ),
+    CommandSpec(
+        id="alias_add_delete",
+        pattern=rf"^(?P<action>添加|删除)(?P<alias_type>角色|武器)?(?P<name>{PATTERN})别名(?P<new_alias>{PATTERN})$",
+        group="别名管理",
+        name="添加/删除别名",
+        description="添加或删除角色/武器别名",
+        examples=("添加角色辛西娅别名小辛",),
+        permission="owner",
+        use_case=cast(Any, alias_add_delete_use_case),
+    ),
+    CommandSpec(
+        id="alias_recover",
+        pattern=r"^(?:恢复别名|强制恢复别名)$",
+        group="别名管理",
+        name="恢复别名",
+        description="恢复/强制恢复内置别名",
+        examples=("恢复别名",),
+        permission="owner",
+        use_case=cast(Any, alias_recover_use_case),
+    ),
 )
 
 
 __all__ = [
     "COMMAND_SPECS",
+    "alias_add_delete_use_case",
+    "alias_recover_use_case",
     "panel_compress_use_case",
     "panel_delete_all_use_case",
     "panel_delete_by_id_use_case",
