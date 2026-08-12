@@ -258,11 +258,11 @@
 
 ### Task 21：实现密函、公告和活动日历读取
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：迁移通知读取用例、API fixture、文本/图片/chain 响应和命令帮助；与真实账户只读矩阵对齐。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `ca78c4a`。新增 `src/modules/notices/`：typed `NoticesTransport` 契约、`NoticesService`（mh/mh_list/ann 列表与详情）和 `NoticesRenderer`（1300 宽 PNG，公告图片块标记为 placeholder 资源）。注册 `mh`（密函/委托密函/mh）、`mh_list`（密函列表）和 `ann`（公告/公告 序号，命名参数 `index`）三条读取型命令，`commands.json` 重新生成共 42 条。`DnaApiNoticesTransport` 复用 legacy `get_default_role_for_tool` 的 `instanceInfo`（密函分节）与公共 BBS 的 `get_ann_list`/`get_post_detail`（HTML 清洗/时间解析复用 `dnaby/dna_ann/utils` 纯逻辑）。活动日历（`日历`）已由 Task 14 提供，不重复注册。密函用调用者 active UID 凭据读取（区别于 legacy 随机账号 quirk，作为记录差异）；公告无需账号。
+- 验证证据：新增 `tests/test_notices.py`（密函渲染 1300 宽 PNG/空数据/无绑定/transport 失败脱敏/密函列表/公告列表图/公告序号详情/序号无效/空列表）共 9 条、`tests/test_notices_commands.py`（归属/正则命名参数/缺 service/生成 handler）4 条、`tests/test_notices_transport.py`（instanceInfo 映射、公告列表/详情复用纯逻辑、错误脱敏）3 条；staging runtime 全量 pytest 为 `229 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过；未检出 `gsuid_core`/`gsucore` import。
+- 剩余风险/下一步：真实密函/公告内容、图片与视觉等价未验收（Task 30 只读矩阵）；通知订阅/推送与轮询属 Task 22，密函/公告订阅命令（mh_subscribe/ann_sub/ann_unsub 等）暂未注册。下一轮执行 Task 22。
 
 ### Task 22：实现通知订阅推送和取消订阅
 
