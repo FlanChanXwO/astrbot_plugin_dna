@@ -212,10 +212,13 @@
 
 ### Task 16.2：修复原图引用映射与详情失败输出边界
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：消除 `PlayerService.last_original_image` 的实例级共享状态，令原图路径随单个详情响应传递，避免并发详情串图。先核实 AstrBot 4.27.x 是否存在可用的公开发送结果/消息 ID 交付点；只有确实拿到平台消息 ID 后才登记缓存。若公开 API 无法支撑引用映射，必须让命令/帮助/矩阵明确显示未支持或不注册，不能把永久不可命中的缓存伪装成“未找到”。同时将伤害失败的用户可见内容收敛为受控文案，不回显上游 `msg`、URL、Authorization 或任意凭据样式。
 - 验证要求：用事件/响应 fixture 覆盖两次并发详情各自对应的原图、无原图和发送失败路径；覆盖真实 handler 到公开结果边界的登记/未支持分支；以多种 token/cookie/dev code/Authorization/Bearer/URL 形式的失败 payload 断言 PNG 元数据和用户响应均不泄露；同步命令、矩阵和阶段文档并跑全量门禁。
 - 风险：禁止真实 NapCat，不能用平台私有接口或真实发送副作用替代公开 SDK/fixture 证据；实现后仍须在 Task 30 记录真实平台引用能力的验收边界。
+- 实际完成：提交 `6e93de8`。核实 AstrBot 4.27.1 公开边界：`AstrMessageEvent.send()` 返回 `None`、`MessageEventResult` 无消息 ID 字段、`ResponseFactory` 无交付回调——无发送后消息 ID 交付点，因此不登记任何缓存；移除 `OriginalImageCache`/`last_original_image`/`remember_original_image` 实例级共享状态与死模块 `src/infrastructure/rendering/original.py`，原图路径随单个 `ImageResponse.original_image_path` 传递，并发详情各自关联自己的原始面板。`原图` 命令更名为“角色原图（暂不支持）”，回复受控文案 `PLAYER_ORIGINAL_UNSUPPORTED`。伤害失败正文收敛为 `PLAYER_DAMAGE_FAILED` 受控文案（transport/service/renderer 三层），不再回显上游 `msg`/URL/Authorization/Bearer/token/cookie/dev code。移除 `display.role_original_image` 配置，重新生成 `commands.json` 与 `_conf_schema.json`；同步 README、usage、architecture、命令矩阵、progress、CHANGELOG，并在 `.gitignore` 忽略 `data.bak-*` 陈旧运行期残留。
+- 验证证据：新增 fixture 覆盖并发详情原图各自对应（`test_concurrent_role_details_keep_their_related_original_paths`）、无原图（`original_image_path is None`）、6 种凭据样式失败 payload 不进入 PNG 文本/布局/资源元数据（`test_damage_failure_payload_never_reaches_detail_image`）和真实生成 handler 的未支持分支（`test_original_image_handler_explicitly_reports_public_boundary_unsupported`）；回归原详情/概览/同律武器失败/无绑定测试。staging runtime（临时根 symlink 指向 worktree）全量 pytest 为 `152 passed, 1 skipped, 1 warning`（skip 为既有 Alembic 未安装 round-trip，warning 为 AstrBot `audioop` 弃用）；`ruff check .`（全局 0.15.12，pre-commit 同源）、`pyright --project pyrightconfig.json`（0/0/0）、runtime `python -m compileall -q .`、`pre-commit run --all-files`、`git diff --check` 均通过。注意：全量 pytest 必须从 staging 临时根运行（`python -m pytest` 的 cwd 进入 sys.path[0]，从 worktree 内直接跑会被本地 gitignored `data/` 目录遮蔽 `data.plugins` 命名空间，造成 test_migration_boundaries 假失败）；worktree 内既有陈旧 `data/` 已改名 `data.bak-stale` 并忽略。
+- 剩余风险/下一步：fixture 证据不等于真实平台原图引用能力，Task 30 需记录该验收边界；venv ruff 0.16.1 对更早 task 文件（encyclopedia/resources/privacy/账号测试）仍有 0.16 新增规则告警（I001/RUF022/UP035/DTZ007 等），与本 task 无关，门禁以 pre-commit 同源全局 ruff 为准。下一轮只执行 Task 17（v0.4.0 签到）。
 
 ## 阶段 5：`v0.4.0` 签到
 
