@@ -36,6 +36,9 @@ ruff check .
 - `test_subscription_store.py` — 订阅 JSON 持久化、type+会话去重、显式删除和损坏文件可见失败。
 - `test_scheduler.py` — 计划任务幂等 start/stop、定时关闭只保留清理任务、自动签到推送订阅者和
   2 天前记录清理。
+- `test_write_contracts.py` — 写入型命令权限审计、每条写入命令离线分发契约和
+  “只调用注入 transport”边界（离线验证 ≠ 真实行为已验证，见
+  [offline-write-contracts](../porting/offline-write-contracts.md)）。
 - `test_player_transport.py` — legacy role API payload 到 typed overview 的映射和 transport
   错误脱敏。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。

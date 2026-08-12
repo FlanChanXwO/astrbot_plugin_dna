@@ -1,5 +1,25 @@
 # Changelog
 
+## rewrite Task 19 — 写入型能力的离线契约与权限审计
+
+### Added
+
+- 新增 `tests/test_write_contracts.py`：集中审计 23 条写入型命令的权限边界
+  （user/admin/owner）与离线契约覆盖；每条写入命令都能在 fake transport + 隔离 SQLite +
+  模拟事件下通过生成后的 handler 离线分发并产出框架无关响应。
+- 新增 [docs/porting/offline-write-contracts.md](docs/porting/offline-write-contracts.md)：
+  明确“离线验证不等于真实行为已验证”，逐能力列出离线覆盖与未覆盖边界。
+
+### Changed
+
+- `sign` 离线写路径新增断言：只调用注入 transport 的 `get_sign_calendar/game_sign/
+  get_task_process/bbs_sign`，不触碰真实网络边界。
+
+### Verification boundary
+
+- 真实账户不执行登录/签到/绑定/订阅/隐私写入；面板/资源/别名等未注册写入能力的真实平台
+  验收边界由 Task 25/26/30 记录。
+
 ## rewrite Task 18 — 计划任务、结果订阅与生命周期
 
 ### Added

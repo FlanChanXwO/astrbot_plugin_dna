@@ -61,6 +61,16 @@
 - 全部行为由隔离订阅存储、fake checkin 与注入 push/now/sleep fixture 覆盖；真实推送只走
   `Context.send_message` 公开 API，未执行真实 NapCat。
 
+### rewrite Task 19 — 写入型能力的离线契约与权限 ✅
+
+- 新增 `tests/test_write_contracts.py`：集中审计 23 条写入型命令（登录/退出/绑定/切换/删除/
+  隐私个人与群管理/签到/批量签到/订阅）的权限边界（user/admin/owner）与离线契约覆盖
+  （每条命令映射到 `test_account.py`/`test_privacy*.py`/`test_checkin*.py` 的代表性用例）。
+- 每条写入命令都能通过生成后的 handler 在 fake transport + 隔离 SQLite + 模拟事件下离线
+  分发并产出框架无关响应；`sign` 路径额外断言只调用注入 transport，不触碰真实网络边界。
+- 新增 [offline-write-contracts.md](offline-write-contracts.md)：明确“离线验证 ≠ 真实行为
+  已验证”，面板/资源/别名等未注册写入能力及其真实平台验收边界仍由后续阶段与 Task 30 记录。
+
 ## 当前状态
 
 `astrbot_plugin_dnaby` 已完成从 GsCore DNAUID 到原生 AstrBot 的代码层移植。当前入口可被 AstrBot 以 `data.plugins.astrbot_plugin_dnaby.main` 动态加载，56 条命令、18 个功能模块、5 张 SQLModel 表、登录 Web 路由和 4 个定时任务均已接入。
