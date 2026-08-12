@@ -6,7 +6,7 @@
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 57 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 59 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -139,6 +139,17 @@
   （`images_from_event`）从公开消息链提取图片载荷。
 - 写操作全部在隔离目录 fixture 验证，不操作真实账户或参考区；staging runtime 全量
   pytest `280 passed, 1 skipped, 1 warning`，全部门禁通过。
+
+### rewrite Task 26 — 资源更新、下载日志与更新日志 ✅
+
+- 新增 `src/modules/operations/resource_service.py`：`ResourceUpdateService` 复用
+  `ResourceSynchronizer`（浅克隆/`git pull --ff-only`），把 Git 缺失/认证/远端失败/非快进/
+  本地修改映射为可见错误，不自动覆盖本地修改；`update_log` 读取插件仓库最近提交。
+- 注册 `download_resource`（下载全部资源）与 `update_log`（更新记录/更新日志）2 条 owner
+  命令（59 条命令）。
+- `ResourceSynchronizer`/`GitCommandError` 的凭据脱敏已由既有 `test_config_resources.py`
+  覆盖；新增资源下载成功/失败分支与更新日志测试。staging runtime 全量 pytest
+  `288 passed, 1 skipped, 1 warning`，全部门禁通过。
 
 ## 当前状态
 

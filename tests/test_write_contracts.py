@@ -82,6 +82,8 @@ WRITE_COMMANDS: dict[str, str] = {
     "delete_original_panel_img": "owner",
     "compress_panel_imgs": "owner",
     "resource_status": "owner",
+    "download_resource": "owner",
+    "update_log": "owner",
 }
 
 # 每条写入型命令对应的离线契约测试文件与其代表性用例（审计注册的覆盖）。
@@ -212,6 +214,14 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     "resource_status": (
         "test_operations.py",
         ("test_resource_status_reports_manifest_state",),
+    ),
+    "download_resource": (
+        "test_resource_service.py",
+        ("test_download_all_reports_clone_and_update", "test_download_all_failures_are_visible"),
+    ),
+    "update_log": (
+        "test_resource_service.py",
+        ("test_update_log_shows_commits_or_visible_failure",),
     ),
 }
 

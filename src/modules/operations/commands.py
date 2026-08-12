@@ -9,6 +9,7 @@ from ...entry.commands import CommandRegistry, CommandRequest, CommandSpec
 from ...entry.response import PlainTextResponse
 from ..player.commands import PATTERN
 from . import messages
+from .resource_service import ResourceUpdateService
 from .service import PanelCommandRequest, PanelService
 
 
@@ -80,6 +81,32 @@ async def panel_resource_status_use_case(request: CommandRequest, _registry: Com
     return await _call(request, "resource_status")
 
 
+def _resource_service(request: CommandRequest) -> ResourceUpdateService | PlainTextResponse:
+    if request.actor is None:
+        return PlainTextResponse(messages.OPERATIONS_CONTEXT_UNAVAILABLE)
+    service = request.services.get("resource_update_service")
+    if service is None or not all(
+        callable(getattr(service, method, None))
+        for method in ("download_all", "update_log")
+    ):
+        return PlainTextResponse(messages.OPERATIONS_SERVICE_UNAVAILABLE)
+    return cast(ResourceUpdateService, service)
+
+
+async def resource_download_use_case(request: CommandRequest, _registry: CommandRegistry, **_parameters: Any):
+    service = _resource_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.download_all(None)
+
+
+async def resource_update_log_use_case(request: CommandRequest, _registry: CommandRegistry, **_parameters: Any):
+    service = _resource_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.update_log(None)
+
+
 _COMMON = dict(
     group="面板图管理",
     permission="owner",
@@ -149,6 +176,26 @@ COMMAND_SPECS = (
         use_case=cast(Any, panel_resource_status_use_case),
         **_COMMON,
     ),
+    CommandSpec(
+        id="download_resource",
+        pattern=r"^下载全部资源$",
+        group="资源管理",
+        name="下载全部资源",
+        description="下载全部资源",
+        examples=("下载全部资源",),
+        permission="owner",
+        use_case=cast(Any, resource_download_use_case),
+    ),
+    CommandSpec(
+        id="update_log",
+        pattern=r"^(?:更新记录|更新日志)$",
+        group="资源管理",
+        name="更新记录",
+        description="查看插件更新记录",
+        examples=("更新记录",),
+        permission="owner",
+        use_case=cast(Any, resource_update_log_use_case),
+    ),
 )
 
 
@@ -161,4 +208,6 @@ __all__ = [
     "panel_list_use_case",
     "panel_resource_status_use_case",
     "panel_upload_use_case",
+    "resource_download_use_case",
+    "resource_update_log_use_case",
 ]

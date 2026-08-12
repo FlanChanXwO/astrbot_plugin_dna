@@ -105,6 +105,8 @@ def test_explicit_registry_loads_only_implemented_commands():
         "delete_original_panel_img",
         "compress_panel_imgs",
         "resource_status",
+        "download_resource",
+        "update_log",
     ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
@@ -306,6 +308,8 @@ def test_commands_manifest_is_generated_from_registry():
         "delete_original_panel_img",
         "compress_panel_imgs",
         "resource_status",
+        "download_resource",
+        "update_log",
     }
 
 

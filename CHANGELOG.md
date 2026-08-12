@@ -1,5 +1,21 @@
 # Changelog
 
+## rewrite Task 26 — 资源更新、下载日志与更新日志展示
+
+### Added
+
+- 新增 `src/modules/operations/resource_service.py`：`ResourceUpdateService` 复用
+  `ResourceSynchronizer`（浅克隆/`git pull --ff-only`），下载全部私有资源并校验 manifest；
+  Git 缺失、认证失败、远端失败、非快进和本地修改均映射为可见错误，不自动覆盖本地修改。
+- `update_log` 读取插件仓库最近提交；Git 不可用返回可见失败。
+- 注册 `download_resource`（下载全部资源）与 `update_log`（更新记录/更新日志）2 条 owner
+  命令；`commands.json` 重新生成共 59 条命令。
+
+### Verification boundary
+
+- 真实私有资源仓库未联网同步，只使用隔离 runner/fake synchronize 验证；同步器自身的
+  凭据脱敏与 Git 边界已由 `test_config_resources.py` 覆盖。
+
 ## rewrite Task 25 — 面板图管理与运行期资源状态
 
 ### Added

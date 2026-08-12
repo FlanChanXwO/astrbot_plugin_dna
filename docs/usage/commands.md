@@ -98,6 +98,12 @@ registry 的帮助文本。
 - `资源状态`：展示私有资源仓库目录、manifest 版本/必需目录和自定义面板数量。
 - 上传/删除/压缩等写操作只在隔离 fixture 验证，不操作真实账户或参考区。
 
+## 资源管理命令（owner）
+
+- `下载全部资源`：浅克隆或 `git pull --ff-only` 同步私有资源仓库并校验 manifest；Git
+  缺失、认证失败、远端失败、非快进和本地修改均返回可见错误，不自动覆盖本地修改。
+- `更新记录`、`更新日志`：读取插件仓库最近提交。
+
 资料读取的图片与索引只使用
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录
 写入或下载素材。图像语义、已知差异和 fixture 边界见

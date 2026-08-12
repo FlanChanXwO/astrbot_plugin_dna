@@ -52,6 +52,7 @@ from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.contracts import NoticesTransport
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.service import NoticesService
+from .modules.operations.resource_service import ResourceUpdateService
 from .modules.operations.service import PanelService
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
@@ -199,6 +200,16 @@ def build_runtime(
         resolve_char_id=_resolve_char_id,
         panel_dir_for=_panel_dir_for,
     )
+
+    def _synchronize_resources():
+        from .infrastructure.resources import download_all_resources
+
+        return download_all_resources(data_dir=runtime_database.path.parent)
+
+    resource_update_service = ResourceUpdateService(
+        repo_root=Path(__file__).resolve().parents[2],
+        synchronize=_synchronize_resources,
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
@@ -214,6 +225,7 @@ def build_runtime(
         "notices_service": notices_service,
         "notices_scheduler": notices_scheduler,
         "panel_service": panel_service,
+        "resource_update_service": resource_update_service,
     }
     if services is not None:
         resolved_services.update(services)

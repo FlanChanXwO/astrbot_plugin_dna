@@ -63,6 +63,9 @@
   引用缓存显式报告不支持；`resource_status` 展示私有资源仓库 manifest/必需目录与面板数量。
   写操作只在隔离 fixture 验证；命令层经 `CommandRequest.images` 从 AstrBot 公开消息链提取
   图片载荷（`images_from_event`）。
+  资源更新经 `ResourceUpdateService` 复用 `ResourceSynchronizer`（浅克隆/`pull --ff-only`），
+  `下载全部资源` 与 `更新记录` 把 Git 缺失/认证/远端/非快进/本地修改映射为可见错误，不自动
+  覆盖本地修改。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
   强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与

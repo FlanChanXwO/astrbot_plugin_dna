@@ -51,6 +51,8 @@ ruff check .
   状态（隔离目录 fixture）。
 - `test_operations_commands.py` — 面板/资源命令归属、正则、`images_from_event` 提取与生成
   handler。
+- `test_resource_service.py` — 资源下载成功（克隆/更新）、Git 缺失/远端不匹配/本地修改/
+  同步失败可见错误与更新日志读取。
 - `test_player_transport.py` — legacy role API payload 到 typed overview 的映射和 transport
   错误脱敏。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。
