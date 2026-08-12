@@ -58,6 +58,11 @@
   公告按群聊作用域，`extra_message`/`extra_data` 存密函名称与推送时间）；`NoticesScheduler`
   每小时推送密函、按分钟轮询公告（`AnnStateStore` 记录已知公告 id），推送经注入闭包绑定
   `Context.send_message`，文本/图片载荷分别映射为 Plain/Image 组件。
+- 面板与资源状态：`src/modules/operations/` 管理运行期数据目录 `panel_custom/` 的自定义
+  面板图（上传 WebP/sha1 去重、列表、按 ID/全部删除、压缩），原图删除因公开结果边界无
+  引用缓存显式报告不支持；`resource_status` 展示私有资源仓库 manifest/必需目录与面板数量。
+  写操作只在隔离 fixture 验证；命令层经 `CommandRequest.images` 从 AstrBot 公开消息链提取
+  图片载荷（`images_from_event`）。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
   强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与

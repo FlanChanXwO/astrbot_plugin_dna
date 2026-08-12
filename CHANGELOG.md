@@ -1,5 +1,25 @@
 # Changelog
 
+## rewrite Task 25 — 面板图管理与运行期资源状态
+
+### Added
+
+- 新增 `src/modules/operations/`：`PanelService` 管理运行期数据目录 `panel_custom/` 的
+  自定义面板图——上传（保存 WebP、按内容 sha1 去重）、列表（文本+图片链）、按 ID/全部
+  删除、压缩；`原图删除` 因公开结果边界无原图引用缓存显式报告不支持。
+- 新增 `resource_status` 命令展示私有资源仓库目录、manifest 格式/资源版本/必需目录与
+  自定义面板数量。
+- 注册 7 条 owner 命令（`upload_panel_img`/`list_panel_imgs`/`delete_panel_img_by_id`/
+  `delete_all_panel_imgs`/`delete_original_panel_img`/`compress_panel_imgs`/
+  `resource_status`）；`commands.json` 重新生成共 57 条命令。
+- 命令层 `CommandRequest` 增加 `images` 字段，经 `images_from_event` 从 AstrBot 公开消息链
+  提取图片载荷（本地路径/base64/URL）。
+
+### Verification boundary
+
+- 上传/删除/压缩等写操作只在隔离目录 fixture 验证，不操作真实账户或参考区；真实平台
+  面板上传行为未执行，仅离线契约覆盖。
+
 ## rewrite Task 24 — 通知阶段集中审查
 
 ### Fixed

@@ -87,6 +87,17 @@ registry 的帮助文本。
   `notifications.announcement_check_minutes` 轮询公告并推送新条目；真实推送只走注入的
   `context.send_message`，离线测试用 fixture 验证。
 
+## 面板图与资源状态命令（owner）
+
+- `上传<角色>面板图`：随命令附带图片上传角色自定义面板图（保存为 WebP 到运行期数据目录
+  `panel_custom/`，按内容 sha1 去重）。
+- `<角色>面板图列表`：列出已上传面板图（文本标题 + 图片链）。
+- `删除<角色>面板图<ID>`、`删除<角色>全部面板图`：按 ID 或全部删除。
+- `压缩面板图`：把全部自定义面板图压缩为 WebP。
+- `原图删除`：公开结果边界无原图引用缓存，显式报告暂不支持。
+- `资源状态`：展示私有资源仓库目录、manifest 版本/必需目录和自定义面板数量。
+- 上传/删除/压缩等写操作只在隔离 fixture 验证，不操作真实账户或参考区。
+
 资料读取的图片与索引只使用
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录
 写入或下载素材。图像语义、已知差异和 fixture 边界见

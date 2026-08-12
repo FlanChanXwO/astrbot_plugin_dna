@@ -98,6 +98,13 @@ def test_explicit_registry_loads_only_implemented_commands():
         "mh_test",
         "ann_sub",
         "ann_unsub",
+        "upload_panel_img",
+        "list_panel_imgs",
+        "delete_panel_img_by_id",
+        "delete_all_panel_imgs",
+        "delete_original_panel_img",
+        "compress_panel_imgs",
+        "resource_status",
     ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
@@ -292,6 +299,13 @@ def test_commands_manifest_is_generated_from_registry():
         "mh_test",
         "ann_sub",
         "ann_unsub",
+        "upload_panel_img",
+        "list_panel_imgs",
+        "delete_panel_img_by_id",
+        "delete_all_panel_imgs",
+        "delete_original_panel_img",
+        "compress_panel_imgs",
+        "resource_status",
     }
 
 

@@ -47,6 +47,10 @@ ruff check .
 - `test_notices_subscriptions.py` — 密函订阅增删/去重/推送时间、图片/文本会话开关、公告
   群订阅、计划任务文本/图片推送与公告轮询去重。
 - `test_notices_scheduler.py` — 通知计划任务幂等 start/stop 与配置解析。
+- `test_operations.py` — 面板图上传（WebP/sha1 去重/失败计数）、列表、删除、压缩和资源
+  状态（隔离目录 fixture）。
+- `test_operations_commands.py` — 面板/资源命令归属、正则、`images_from_event` 提取与生成
+  handler。
 - `test_player_transport.py` — legacy role API payload 到 typed overview 的映射和 transport
   错误脱敏。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。

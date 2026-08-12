@@ -6,7 +6,7 @@
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到和通知共 50 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 57 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -126,6 +126,19 @@
   `unified_msg_origin` 取目标（多会话不串扰）；取消订阅后空列表直接删除记录（生命周期清理）。
 - 新增 4 条回归测试（同会话多用户去重、按 uid 删除、跨会话作用域、双用户同会话）。
 - staging runtime 全量 pytest `259 passed, 1 skipped, 1 warning`；全部门禁通过。
+
+### rewrite Task 25 — 面板图管理与运行期资源状态 ✅
+
+- 新增 `src/modules/operations/`：`PanelService` 管理运行期数据目录 `panel_custom/` 的
+  自定义面板图（上传 WebP/sha1 去重、列表、按 ID/全部删除、压缩），原图删除因公开结果
+  边界无引用缓存显式报告不支持；`resource_status` 展示私有资源仓库 manifest/必需目录与
+  面板数量。
+- 注册 `upload_panel_img`/`list_panel_imgs`/`delete_panel_img_by_id`/
+  `delete_all_panel_imgs`/`delete_original_panel_img`/`compress_panel_imgs`/
+  `resource_status` 7 条 owner 命令（57 条命令）；命令层经 `CommandRequest.images`
+  （`images_from_event`）从公开消息链提取图片载荷。
+- 写操作全部在隔离目录 fixture 验证，不操作真实账户或参考区；staging runtime 全量
+  pytest `280 passed, 1 skipped, 1 warning`，全部门禁通过。
 
 ## 当前状态
 

@@ -85,6 +85,37 @@ def target_user_from_event(
     return None
 
 
+def images_from_event(event: Any) -> tuple[str, ...]:
+    """从 AstrBot 公开消息链提取图片载荷（本地路径 / base64 / URL）。"""
+
+    from urllib.parse import unquote, urlparse
+
+    from astrbot.api.message_components import Image
+
+    get_messages = getattr(event, "get_messages", None)
+    if not callable(get_messages):
+        return ()
+    messages = get_messages()
+    if not isinstance(messages, Iterable):
+        return ()
+    sources: list[str] = []
+    for component in messages:
+        if not isinstance(component, Image):
+            continue
+        file_value = str(getattr(component, "file", "") or "")
+        if file_value.startswith("base64://"):
+            sources.append(file_value)
+        elif file_value.startswith("file:"):
+            sources.append(unquote(urlparse(file_value).path))
+        elif file_value.startswith(("http://", "https://")):
+            sources.append(file_value)
+        else:
+            path = str(getattr(component, "path", "") or "")
+            if path:
+                sources.append(path)
+    return tuple(sources)
+
+
 def reply_id_from_event(event: Any) -> str | None:
     """从 AstrBot 公共消息链提取第一条 Reply 的平台消息 ID。"""
 

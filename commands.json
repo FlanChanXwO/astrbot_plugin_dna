@@ -601,5 +601,89 @@
     ],
     "permission": "admin",
     "use_case": "src.modules.notices.commands.notices_ann_unsub_use_case"
+  },
+  {
+    "id": "upload_panel_img",
+    "pattern": "^上传(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图$",
+    "group": "面板图管理",
+    "name": "上传面板图",
+    "description": "上传角色自定义面板图",
+    "examples": [
+      "上传角色面板图"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_upload_use_case"
+  },
+  {
+    "id": "list_panel_imgs",
+    "pattern": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图列表$",
+    "group": "面板图管理",
+    "name": "面板图列表",
+    "description": "查看角色已上传的面板图",
+    "examples": [
+      "角色面板图列表"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_list_use_case"
+  },
+  {
+    "id": "delete_panel_img_by_id",
+    "pattern": "^删除(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图(?P<image_id>\\S+)$",
+    "group": "面板图管理",
+    "name": "删除面板图",
+    "description": "按 ID 删除角色面板图",
+    "examples": [
+      "删除角色面板图abc"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_delete_by_id_use_case"
+  },
+  {
+    "id": "delete_all_panel_imgs",
+    "pattern": "^删除(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)全部面板图$",
+    "group": "面板图管理",
+    "name": "删除全部面板图",
+    "description": "删除角色全部面板图",
+    "examples": [
+      "删除角色全部面板图"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_delete_all_use_case"
+  },
+  {
+    "id": "delete_original_panel_img",
+    "pattern": "^原图删除$",
+    "group": "面板图管理",
+    "name": "删除原图",
+    "description": "删除引用面板图对应的原图",
+    "examples": [
+      "原图删除"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_delete_original_use_case"
+  },
+  {
+    "id": "compress_panel_imgs",
+    "pattern": "^压缩面板图$",
+    "group": "面板图管理",
+    "name": "压缩面板图",
+    "description": "压缩全部自定义面板图",
+    "examples": [
+      "压缩面板图"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_compress_use_case"
+  },
+  {
+    "id": "resource_status",
+    "pattern": "^资源状态$",
+    "group": "面板图管理",
+    "name": "资源状态",
+    "description": "查看私有资源仓库与自定义面板状态",
+    "examples": [
+      "资源状态"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_resource_status_use_case"
   }
 ]

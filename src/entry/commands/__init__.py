@@ -23,6 +23,7 @@ from astrbot.api.event import AstrMessageEvent, filter
 from ..event import (
     EventActor,
     actor_from_event,
+    images_from_event,
     reply_id_from_event,
     target_user_from_event,
 )
@@ -47,6 +48,7 @@ class CommandRequest:
     services: Mapping[str, object] = field(default_factory=dict)
     target_user_id: str | None = None
     reply_id: str | None = None
+    images: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +311,7 @@ def _make_handler(spec: CommandSpec, plugin_module: str, handler_name: str):
             ),
             reply_id=reply_id_from_event(event),
             services=getattr(runtime, "services", {}),
+            images=images_from_event(event),
         )
         async for result in execute_use_case(
             spec,

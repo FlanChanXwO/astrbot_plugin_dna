@@ -52,6 +52,7 @@ from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.contracts import NoticesTransport
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.service import NoticesService
+from .modules.operations.service import PanelService
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
@@ -181,6 +182,23 @@ def build_runtime(
         push_time=settings.notifications.secret_push_time,
         poll_minutes=settings.notifications.announcement_check_minutes,
     )
+
+    def _resolve_char_id(char_name: str) -> str | None:
+        from dnaby.utils.name_convert import char_name_to_char_id
+
+        return char_name_to_char_id(char_name)
+
+    def _panel_dir_for(char_id: str) -> str:
+        from dnaby.utils.master_char_const import get_master_char_panel_dir
+
+        return get_master_char_panel_dir(char_id)
+
+    panel_service = PanelService(
+        runtime_database.path.parent / "panel_custom",
+        resource_root=resource_root,
+        resolve_char_id=_resolve_char_id,
+        panel_dir_for=_panel_dir_for,
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
@@ -195,6 +213,7 @@ def build_runtime(
         "sign_scheduler": sign_scheduler,
         "notices_service": notices_service,
         "notices_scheduler": notices_scheduler,
+        "panel_service": panel_service,
     }
     if services is not None:
         resolved_services.update(services)

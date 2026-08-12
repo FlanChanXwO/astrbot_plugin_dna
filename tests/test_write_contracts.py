@@ -38,6 +38,7 @@ from src.modules.checkin.service import CheckinService
 from src.modules.notices.ann_state import AnnStateStore
 from src.modules.notices.contracts import AnnDetail, AnnSnapshot, MhSnapshot
 from src.modules.notices.service import NoticesService
+from src.modules.operations.service import PanelService
 from src.modules.privacy.service import PrivacyService
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -74,6 +75,13 @@ WRITE_COMMANDS: dict[str, str] = {
     "mh_test": "owner",
     "ann_sub": "admin",
     "ann_unsub": "admin",
+    "upload_panel_img": "owner",
+    "list_panel_imgs": "owner",
+    "delete_panel_img_by_id": "owner",
+    "delete_all_panel_imgs": "owner",
+    "delete_original_panel_img": "owner",
+    "compress_panel_imgs": "owner",
+    "resource_status": "owner",
 }
 
 # 每条写入型命令对应的离线契约测试文件与其代表性用例（审计注册的覆盖）。
@@ -176,6 +184,34 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     "ann_unsub": (
         "test_notices_subscriptions.py",
         ("test_ann_sub_unsub_group_scoped",),
+    ),
+    "upload_panel_img": (
+        "test_operations.py",
+        ("test_upload_panel_img_saves_webp_and_reports_count",),
+    ),
+    "list_panel_imgs": (
+        "test_operations.py",
+        ("test_list_panel_imgs_returns_chain_with_images",),
+    ),
+    "delete_panel_img_by_id": (
+        "test_operations.py",
+        ("test_delete_panel_img_by_id",),
+    ),
+    "delete_all_panel_imgs": (
+        "test_operations.py",
+        ("test_delete_all_panel_imgs_removes_directory",),
+    ),
+    "delete_original_panel_img": (
+        "test_operations.py",
+        ("test_delete_original_panel_img_reports_unsupported",),
+    ),
+    "compress_panel_imgs": (
+        "test_operations.py",
+        ("test_compress_panel_imgs",),
+    ),
+    "resource_status": (
+        "test_operations.py",
+        ("test_resource_status_reports_manifest_state",),
     ),
 }
 
@@ -370,6 +406,12 @@ async def _services(db: AsyncDatabase, tmp_path) -> dict[str, object]:
         "privacy_service": await _privacy_service(db),
         "checkin_service": await _checkin_service(db, tmp_path),
         "notices_service": await _notices_service(db, tmp_path),
+        "panel_service": PanelService(
+            tmp_path / "panel_custom",
+            resource_root=tmp_path / "resources",
+            resolve_char_id=lambda name: "101",
+            panel_dir_for=lambda char_id: f"role-{char_id}",
+        ),
     }
 
 
