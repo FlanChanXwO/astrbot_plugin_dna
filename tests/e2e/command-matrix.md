@@ -41,7 +41,8 @@
 
 ## 临时图片资料
 
-临时 PNG 都在 worktree 外、权限为仅当前用户可读写的目录中生成，未纳入 Git。为避免
+对比图已归置到 worktree 根 `output/gscore/`（legacy，取回自 gsuid_core 容器）与
+`output/astrbot/`（rewrite，本机生成），目录见 `output/README.md`；不入 Git。为避免
 legacy handler 下载缺失头像/图标或向平台发送消息，legacy 图片使用真实只读 API payload，
 但将头像、图标下载、头像标题和 `Bot.send` 替换为内存实现。因而这些资料适合核对画布、
 动态高度和区域数量，不适合主张像素等价。两侧都对 UID 使用显式 mask。
