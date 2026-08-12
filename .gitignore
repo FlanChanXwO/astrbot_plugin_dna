@@ -10,6 +10,7 @@ htmlcov/
 
 # Runtime data (never commit)
 data/
+data.bak-*/
 tests/.data/
 *.db
 *.sqlite3

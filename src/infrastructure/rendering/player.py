@@ -26,6 +26,7 @@ from ...modules.player.contracts import (
     WeaponDetail,
     WeaponItem,
 )
+from ...modules.player.messages import PLAYER_DAMAGE_FAILED
 from .fonts import load_runtime_font
 
 
@@ -367,7 +368,7 @@ class PlayerRenderer:
 
         damage_lines: list[str] = []
         if damage.data is None:
-            damage_lines.append(f"伤害计算: {damage.message}")
+            damage_lines.append(f"伤害计算: {PLAYER_DAMAGE_FAILED}")
         else:
             for skill in damage.data.skills:
                 damage_lines.append(f"伤害技能: {skill.name} (id={skill.id})")

@@ -136,8 +136,8 @@
     "id": "role_original_image",
     "pattern": "^原图$",
     "group": "角色信息",
-    "name": "角色原图",
-    "description": "获取所引用面板图的原图",
+    "name": "角色原图（暂不支持）",
+    "description": "当前平台暂不支持通过引用获取角色原图",
     "examples": [
       "原图"
     ],

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from shutil import copyfile
 from pathlib import Path
+from shutil import copyfile
 
 import pytest
 from PIL import Image
@@ -12,11 +13,8 @@ from PIL import Image
 from src.entry.event import EventActor
 from src.entry.response import ImageResponse, PlainTextResponse
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
-from src.infrastructure.rendering import (
-    OriginalImageCache,
-    PlayerRenderer,
-    ResourceMap,
-)
+from src.infrastructure.rendering import PlayerRenderer, ResourceMap
+from src.modules.player import messages
 from src.modules.player.contracts import (
     AttributeBag,
     DamageCalculation,
@@ -335,7 +333,6 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(tmp_p
         transport,
         PrivacyService(database),
         renderer,
-        OriginalImageCache(),
         show_unowned_roles=True,
     )
 
@@ -387,7 +384,6 @@ async def test_player_query_uses_target_account_credentials(tmp_path: Path) -> N
         transport,
         PrivacyService(database),
         PlayerRenderer(tmp_path / "rendered", ResourceMap()),
-        OriginalImageCache(),
     )
 
     response = await service.role_overview(
@@ -419,7 +415,6 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
         transport,
         PrivacyService(database),
         renderer,
-        OriginalImageCache(),
     )
 
     response = await service.role_detail(
@@ -432,6 +427,7 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
 
     assert isinstance(response, ImageResponse)
     assert response.temporary is True
+    assert response.original_image_path == original
     with Image.open(Path(response.image)) as image:
         assert image.width == 1000
         assert image.height > 1500
@@ -450,8 +446,6 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
         "伤害",
     ]
     assert any(item["kind"] == "original_panel" and item["status"] == "provided" for item in resources)
-    assert service.last_original_image == original
-    service.remember_original_image(("message-detail",))
     original_response = await service.original_image(
         PlayerCommandRequest(
             actor=EventActor("user-1", "bot-1"),
@@ -459,9 +453,184 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
             reply_id="message-detail",
         ),
     )
-    assert isinstance(original_response, ImageResponse)
-    assert original_response.image == str(original)
-    assert original_response.temporary is False
+    assert isinstance(original_response, PlainTextResponse)
+    assert original_response.text == messages.PLAYER_ORIGINAL_UNSUPPORTED
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_role_details_keep_their_related_original_paths(tmp_path: Path) -> None:
+    """同一 service 的并发详情响应必须各自关联自己的原始面板。"""
+
+    class ConcurrentTransport(FixturePlayerTransport):
+        async def get_role_detail(
+            self,
+            actor: EventActor,
+            uid: str,
+            char_id: int,
+            char_eid: str,
+            *,
+            credential_user_id: str,
+        ) -> RoleDetail:
+            await asyncio.sleep(0)
+            assert actor.user_id == "user-1"
+            assert uid == UID
+            assert credential_user_id == "user-1"
+            assert char_eid == f"char-eid-{char_id}"
+            detail = _detail_fixture()
+            return detail.model_copy(
+                update={
+                    "char_id": char_id,
+                    "char_name": "角色甲" if char_id == 101 else "角色乙",
+                    "paint": f"paint://{char_id}",
+                    "icon": f"role://{char_id}",
+                },
+            )
+
+        async def calculate_damage(
+            self,
+            actor: EventActor,
+            uid: str,
+            role_detail: RoleDetail,
+            con_weapon: WeaponDetail | None,
+            close_weapon: WeaponDetail | None,
+            ranged_weapon: WeaponDetail | None,
+            *,
+            credential_user_id: str,
+        ) -> DamageCalculation:
+            await asyncio.sleep(0)
+            assert actor.user_id == "user-1"
+            assert uid == UID
+            assert role_detail.char_id in {101, 102}
+            assert con_weapon is not None
+            assert close_weapon is not None
+            assert ranged_weapon is None
+            assert credential_user_id == "user-1"
+            return DamageCalculation.success(_damage_fixture())
+
+    original_one = tmp_path / "original-101.png"
+    original_two = tmp_path / "original-102.png"
+    Image.new("RGBA", (37, 53), "purple").save(original_one)
+    Image.new("RGBA", (37, 53), "teal").save(original_two)
+    overview = _overview_fixture().model_copy(
+        update={
+            "role_chars": [
+                _overview_fixture().role_chars[0],
+                RoleItem(
+                    char_id=102,
+                    char_eid="char-eid-102",
+                    element_icon="element://ice",
+                    icon="role://102",
+                    level=70,
+                    name="角色乙",
+                    grade_level=5,
+                    unlocked=True,
+                ),
+            ],
+        },
+    )
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        ConcurrentTransport(overview, _detail_fixture(), _weapon_fixture()),
+        PrivacyService(database),
+        PlayerRenderer(
+            tmp_path / "rendered",
+            ResourceMap(original_panels={"101": original_one, "102": original_two}),
+        ),
+    )
+
+    first, second = await asyncio.gather(
+        service.role_detail(
+            PlayerCommandRequest(
+                actor=EventActor("user-1", "bot-1", "group-1"),
+                target_user_id=None,
+                parameters={"char_name": "角色甲", "weapon_name_1": "近战甲"},
+            ),
+        ),
+        service.role_detail(
+            PlayerCommandRequest(
+                actor=EventActor("user-1", "bot-1", "group-1"),
+                target_user_id=None,
+                parameters={"char_name": "角色乙", "weapon_name_1": "近战甲"},
+            ),
+        ),
+    )
+
+    assert isinstance(first, ImageResponse)
+    assert isinstance(second, ImageResponse)
+    assert first.original_image_path == original_one
+    assert second.original_image_path == original_two
+    assert not hasattr(service, "last_original_image")
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "upstream_message",
+    (
+        "token=secret-token-001",
+        "Cookie: session=secret-cookie-002",
+        "dev_code=secret-device-003",
+        "Authorization: Bearer secret-auth-004",
+        "Bearer secret-bearer-005",
+        "https://api.example.test/damage?token=secret-url-006",
+    ),
+)
+async def test_damage_failure_payload_never_reaches_detail_image(
+    tmp_path: Path,
+    upstream_message: str,
+) -> None:
+    """伤害失败的上游正文不得进入用户图片或 PNG 文本元数据。"""
+
+    class SensitiveDamageTransport(FixturePlayerTransport):
+        async def calculate_damage(
+            self,
+            actor: EventActor,
+            uid: str,
+            role_detail: RoleDetail,
+            con_weapon: WeaponDetail | None,
+            close_weapon: WeaponDetail | None,
+            ranged_weapon: WeaponDetail | None,
+            *,
+            credential_user_id: str,
+        ) -> DamageCalculation:
+            assert actor.user_id == "user-1"
+            assert uid == UID
+            assert role_detail.char_id == 101
+            assert con_weapon is not None
+            assert close_weapon is not None
+            assert ranged_weapon is None
+            assert credential_user_id == "user-1"
+            return DamageCalculation.failure(upstream_message)
+
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        SensitiveDamageTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture()),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.role_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={"char_name": "角色甲", "weapon_name_1": "近战甲"},
+        ),
+    )
+
+    assert isinstance(response, ImageResponse)
+    assert response.original_image_path is None
+    assert upstream_message not in repr(response)
+    with Image.open(Path(response.image)) as image:
+        text = image.info["dnaby.text"]
+        layout = image.info["dnaby.layout"]
+        resources = image.info["dnaby.resources"]
+    assert messages.PLAYER_DAMAGE_FAILED in text
+    assert upstream_message not in text
+    assert upstream_message not in layout
+    assert upstream_message not in resources
     await database.dispose()
 
 
@@ -531,7 +700,6 @@ async def test_role_detail_exposes_con_weapon_failure(tmp_path: Path) -> None:
         ),
         PrivacyService(database),
         PlayerRenderer(tmp_path / "rendered", ResourceMap()),
-        OriginalImageCache(),
     )
 
     response = await service.role_detail(
@@ -548,21 +716,15 @@ async def test_role_detail_exposes_con_weapon_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_original_image_uses_quoted_message_cache(tmp_path: Path) -> None:
-    """原图命令只返回显式缓存的原图，不把详情合成图冒充原图。"""
+async def test_original_image_reports_unsupported_without_public_delivery_id(tmp_path: Path) -> None:
+    """没有发送后消息 ID 时，原图命令必须显式报告未支持。"""
 
-    original = tmp_path / "original.png"
-    Image.new("RGB", (11, 13), "blue").save(original)
     database = await _database_with_binding(tmp_path)
-    cache = OriginalImageCache()
-    cache.remember(("message-101",), original)
-    renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())
     service = PlayerService(
         database,
         FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture()),
         PrivacyService(database),
-        renderer,
-        cache,
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
     )
 
     response = await service.original_image(
@@ -573,8 +735,8 @@ async def test_original_image_uses_quoted_message_cache(tmp_path: Path) -> None:
         ),
     )
 
-    assert isinstance(response, ImageResponse)
-    assert response.image == str(original)
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.PLAYER_ORIGINAL_UNSUPPORTED
     await database.dispose()
 
 
@@ -589,7 +751,6 @@ async def test_player_query_errors_are_visible_and_typed(tmp_path: Path) -> None
         FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture()),
         PrivacyService(database),
         PlayerRenderer(tmp_path / "rendered", ResourceMap()),
-        OriginalImageCache(),
     )
 
     response = await service.role_overview(

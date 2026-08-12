@@ -10,8 +10,9 @@
 - `network`：API/本地代理、需要或不需要代理的函数、WebSocket 保活和连接等待时间。
 - `sign_in`：游戏/社区签到、任务列表、定时签到时间、并发间隔和签到报告。
 - `notifications`：公告轮询与密函订阅、缓存、推送时间和图片模式。
-- `display`：攻略来源、未拥有角色展示、角色原图和 AT 查询开关；
-  `allow_mention_query` 控制是否允许查询被 @ 的他人。
+- `display`：攻略来源、未拥有角色展示和 AT 查询开关；
+  `allow_mention_query` 控制是否允许查询被 @ 的他人。（角色原图引用因公开结果边界
+  无消息 ID 交付点暂不支持，不再提供开关。）
 
 新入口在 bootstrap 边界将 AstrBot 配置转换为 `DnabySettings`；use case 不直接读取
 未类型化字典。legacy `dnaby/dna_config` 的 `DNAConfig.get_config("Key").data` 语义

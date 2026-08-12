@@ -166,10 +166,6 @@ class DisplaySettings(_SettingsModel):
         default=True,
         description="是否在角色信息卡片中显示未拥有的角色和武器。",
     )
-    role_original_image: bool = Field(
-        default=True,
-        description="是否允许引用角色面板图获取原图。",
-    )
     allow_mention_query: bool = Field(
         default=True,
         description="是否允许通过 @ 查询他人的角色信息。",

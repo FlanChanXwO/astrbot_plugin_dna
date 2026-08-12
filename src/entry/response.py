@@ -31,6 +31,8 @@ class ImageResponse:
     image: Any
     temporary: bool = False
     """仅限本次事件结束后可删除的合成文件。"""
+    original_image_path: Path | None = None
+    """与本次详情响应关联的原图；没有公开发送 ID 时不得据此登记缓存。"""
 
 
 CommandResponse = PlainTextResponse | ChainResponse | ImageResponse

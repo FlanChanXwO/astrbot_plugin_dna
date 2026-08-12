@@ -15,7 +15,8 @@
   `PlayerService`、可注入 player transport、legacy 纯 API/model/伤害适配和 Reply 消息 ID
   边界。
 - 概览和详情渲染在运行期 plugin data 生成动态 PNG，完整保留合法角色、武器、技能、魔之楔、
-  溯源和伤害字段；`OriginalImageCache` 只按显式消息 ID返回原面板图。
+  溯源和伤害字段；详情响应携带 per-response 的 `original_image_path` 原面板引用，不依赖
+  实例级共享缓存（Task 16.2）。
 - 详细行为矩阵、已知差异和图像验证格式见 [review-v0.3-player.md](review-v0.3-player.md)。
 
 ### rewrite Task 14 — 资料读取 ✅
@@ -32,8 +33,9 @@
   项没有因 fixture 或 placeholder 被标为通过。
 - Task 16.1 已让同步 manifest、bootstrap、玩家/百科资源索引和 renderer 使用同一私有
   运行期根，并把合成 PNG 限定为 AstrBot 事件期临时文件；真实资源内容和视觉差异仍未接受。
-- 原图没有生产消息 ID 登记路径、伤害失败可能回显上游内容仍待 Task 16.2 修复，不能恢复
-  对原图平台能力的功能性主张。
+- Task 16.2 已移除实例级原图共享缓存（原图路径随单个详情响应传递），`原图` 命令在公开
+  结果边界无消息 ID 交付点，显式报告未支持；伤害失败文案收敛为受控文本，不回显上游
+  正文或凭据样式内容。真实平台原图引用能力的验收边界仍记入 Task 30。
 - 完整证据和修复边界见 [review-v0.3-debug.md](review-v0.3-debug.md)。
 
 ## 当前状态

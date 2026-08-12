@@ -31,7 +31,7 @@
 | --- | --- | --- | --- | --- |
 | `role_info_card` / `卡片` | `defaultRoleForTool` 角色、近战与远程武器展柜 | `200`，`DNARoleForToolRes`：角色 31（解锁 19）、近战 30（解锁 18）、远程 34（解锁 16）、参数 9 | `RoleOverview` 的同四组计数一致 | `结构已实测`；图片布局见下表，仍为 `差异待审查`。 |
 | `role_detail_card` / `<已拥有角色>面板` | 展柜内首个有 `charEid` 的已拥有角色详情 | `200`，`DNARoleDetailRes`：属性字段 12、技能 3、溯源 6、魔之楔 9、无同律武器 | `RoleDetail` 的同五项结构一致 | `结构已实测`；没有运行伤害计算、武器组合和详情图完整链路。 |
-| `role_original_image` / `原图` | 回复消息 ID 与原图缓存 | 原实现依赖已发送面板图与引用消息 | rewrite `OriginalImageCache` 已有 fixture 契约 | `fixture/待实测`；禁止真实平台消息，不能声明缓存命中等价。 |
+| `role_original_image` / `原图` | 回复消息 ID 与原图缓存 | 原实现依赖已发送面板图与引用消息 | rewrite 无公开发送 ID 交付点，命令显式报告未支持；原图路径随单个详情响应传递（fixture 验证） | `fixture/待实测`；未执行真实平台消息，不能声明原图引用能力等价或命中。 |
 | `stamina` / `日常` | `shortNoteInfo` 与角色概览 | `200`，`DNARoleShortNoteRes` 有 9 个顶层字段和 `draftInfo` | `PlayerShortNote` 成功映射，角色概览存在，进行中锻造槽位为 0 | `结构已实测`；进度值、时间文本和完整视觉内容未做逐字接受。 |
 | `weekly_report_current` / `周报` | `itemWeeklyReport(weekType=1)` 与角色概览 | `200`，`DNAItemWeeklyReportRes`：周类型匹配、分类 1、资源项 5 | `WeeklyReport`：周类型 1、分类 1、资源项 5、角色概览存在 | `结构已实测`；图片布局见下表。 |
 | `weekly_report_last` / `上周周报` | `itemWeeklyReport(weekType=2)` 与角色概览 | `200`，`DNAItemWeeklyReportRes`：周类型匹配、分类 1、资源项 5 | `WeeklyReport`：周类型 2、分类 1、资源项 5、角色概览存在 | `结构已实测`；图片布局见下表。 |

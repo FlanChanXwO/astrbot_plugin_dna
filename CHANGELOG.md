@@ -1,5 +1,24 @@
 # Changelog
 
+## rewrite Task 16.2 — 原图引用映射与伤害失败输出边界
+
+### Changed
+
+- 移除 `OriginalImageCache` 与 `PlayerService.last_original_image` 实例级共享状态：原图路径
+  改为随单个 `ImageResponse.original_image_path` 传递，并发详情响应各自关联自己的原始面板。
+- `原图` 命令在 AstrBot 4.27.x 公共结果边界没有已发送消息 ID 交付点（`AstrMessageEvent.send()`
+  返回 `None`，`MessageEventResult` 无消息 ID 字段），因此显式更名为“角色原图（暂不支持）”，
+  回复受控文案 `PLAYER_ORIGINAL_UNSUPPORTED`；不再维护永久不可命中的缓存并伪装成“未找到”。
+- 伤害计算失败的用户可见内容收敛为 `PLAYER_DAMAGE_FAILED` 受控文案：transport、renderer 均
+  不回显上游 `msg`、URL、Authorization/Bearer、token/cookie/dev code 等凭据样式内容。
+- 移除 `display.role_original_image` 配置项；`_conf_schema.json` 与 `commands.json` 由同一
+  registry/settings 定义重新生成。
+
+### Verification boundary
+
+- Task 16.2 只使用事件/响应 fixture：并发详情、无原图、发送失败与未支持分支均在隔离环境验证；
+  未执行真实 NapCat，未使用平台私有接口。真实平台原图引用能力的验收边界仍记入 Task 30。
+
 ## rewrite Task 16.1 — 运行期资源与临时图片生命周期
 
 ### Fixed
@@ -44,7 +63,8 @@
 - 增加 `PlayerService`、typed role/weapon/damage contracts、可注入 fixture transport 和
   legacy 纯 API 适配器；读取链路按隐私策略解析目标用户并从新 SQLAlchemy schema 读取
   当前 UID。
-- 增加运行期 PNG renderer、完整列表遍历、动态画布和 `OriginalImageCache`；图片通过
+- 增加运行期 PNG renderer、完整列表遍历和动态画布；详情响应携带
+  `original_image_path` 原面板引用（后续 Task 16.2 取代实例级缓存）；图片通过
   AstrBot `ImageResponse`/`image_result` 返回，PNG 元数据为离线布局与资源语义审查服务。
 
 ### Verification boundary

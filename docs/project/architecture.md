@@ -34,10 +34,10 @@
   查询解析；个人设置按 user+Bot 全局记录保存，群强制设置按 group+Bot 独立保存，群强制
   值按字段优先。指定命令要求 AstrBot admin 权限、群聊、有效 `At` 和目标绑定。
 - 玩家查询：`src/modules/player/` 通过 typed transport 读取角色/武器展柜、角色详情
-  和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，并以
-  `OriginalImageCache` 保留离线的详情图/原始面板路径关联。平台发送后的消息 ID 映射仍由
-  Task 16.2 处理；默认 API 适配器只在 transport 边界复用 legacy 纯请求、model 和伤害
-  计算逻辑。
+  和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，详情响应携带
+  per-response 的 `original_image_path` 原面板引用。AstrBot 4.27.x 公开结果边界没有
+  已发送消息 ID 交付点，`原图` 命令显式报告未支持（Task 16.2）；默认 API 适配器只在
+  transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。
 - 资料读取：`src/modules/encyclopedia/` 协调便签、周报、日历、图鉴、攻略、兑换码和只读
   别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed

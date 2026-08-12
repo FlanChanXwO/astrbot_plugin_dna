@@ -53,18 +53,6 @@ def _response_data(response: Any, *, resource: str) -> Any:
     return data
 
 
-def _safe_damage_message(message: object) -> str:
-    """保留可诊断的伤害失败原因，但拒绝明显的凭据/URL原文。"""
-
-    normalized = str(message).strip()
-    lowered = normalized.lower()
-    if not normalized or any(secret_word in lowered for secret_word in ("token", "cookie", "devcode", "refresh")):
-        return "伤害计算服务响应异常"
-    if "http://" in lowered or "https://" in lowered:
-        return "伤害计算服务响应异常"
-    return normalized
-
-
 class DnaApiPlayerTransport:
     """用已保存凭据调用 legacy 纯 API 方法的读取 transport。"""
 
@@ -266,7 +254,7 @@ class DnaApiPlayerTransport:
                 ),
             )
             if not response.is_success:
-                return DamageCalculation.failure(_safe_damage_message(response.msg))
+                return DamageCalculation.failure("伤害计算服务响应异常")
             if response.data is None:
                 return DamageCalculation.failure("伤害计算服务响应异常")
             return DamageCalculation.success(

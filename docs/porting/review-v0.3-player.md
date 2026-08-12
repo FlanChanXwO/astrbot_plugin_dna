@@ -10,7 +10,7 @@
 | --- | --- | --- | --- | --- |
 | `role_info_card` | `查询`、`卡片`、`角色`、`信息` | 当前/被允许查询的用户、当前 UID、`defaultRoleForTool` | 角色总览图；角色、近战武器、远程武器按配置显示已拥有或完整展柜 | `PlayerService.role_overview` → typed snapshot → `ImageResponse` |
 | `role_detail_card` | `<角色名>(面板\|信息\|详情\|面包\|🍞)`，可追加 0–2 个 `+<武器名>` | 展柜、角色详情、同律武器、选定武器、伤害配置/计算接口 | 动态高度详情图，包含属性、技能、魔之楔、武器和伤害结果 | `PlayerService.role_detail` → typed detail/loadout/damage → `ImageResponse` |
-| `role_original_image` | `原图` | 引用消息 ID、面板图原图缓存、配置开关 | 返回详情图使用的原始面板图文件 | `OriginalImageCache` → `ImageResponse` |
+| `role_original_image` | `原图` | 无（公开结果边界无已发送消息 ID） | 显式报告当前平台暂不支持引用获取原图 | `PlainTextResponse(PLAYER_ORIGINAL_UNSUPPORTED)` |
 
 角色详情的正则、可选武器参数和上述 key 与 legacy 保持一致；`commands.json` 由
 rewrite registry 生成，不从旧 `dispatch.py` 扫描。
@@ -34,10 +34,10 @@ rewrite registry 生成，不从旧 `dispatch.py` 扫描。
    数据目录后返回路径，替代 legacy `Sender.send(PIL.Image)`。
 2. 入口只传递 `EventActor`、目标用户和引用消息 ID；不再把 `EventContext`、`Sender`
    或 `MessageSegment` 传入业务层。服务层把隐私解析出的目标用户作为独立的
-   `credential_user_id` 传给 transport，调用者身份仍保留在 `EventActor` 中。原图缓存的
-   `remember(message_ids, path)` 仅有离线接口；Task 16 审查确认当前 AstrBot 公共结果路径
-   没有发送后消息 ID 登记点，故回复取原图尚未形成可用运行期能力，不能把“未找到”视为
-   已验证的正常行为。
+   `credential_user_id` 传给 transport，调用者身份仍保留在 `EventActor` 中。Task 16.2 后
+   原图路径随单个 `ImageResponse.original_image_path` 传递，不再有实例级共享缓存；AstrBot
+   4.27.x 公共结果路径没有发送后消息 ID 交付点（`AstrMessageEvent.send()` 返回 `None`），
+   `原图` 命令因此显式报告未支持，不维护永久不可命中的缓存。
 3. rewrite 默认 transport 只复用 legacy 的纯请求签名、API/model 和伤害计算逻辑，
    真实账户行为留给 Task 15 的只读矩阵；fixture transport 覆盖成功、完整输出和
    服务端失败路径。

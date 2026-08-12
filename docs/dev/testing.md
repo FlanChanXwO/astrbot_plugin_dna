@@ -26,7 +26,7 @@ ruff check .
   并发 upsert 和 SQLite 全局作用域唯一性；所有隐私写入均使用隔离 SQLite。
 - `test_privacy_commands.py` — 14 条隐私命令的 registry 权限、公开 `At` 目标提取和缺失目标边界。
 - `test_player.py` — 角色概览/详情 fixture、动态图片尺寸、完整文本/布局/资源元数据、伤害
-  结果和引用原图缓存。
+  结果、并发详情各自的原面板引用和伤害失败内容脱敏。
 - `test_player_commands.py` — 玩家命令正则、显式 registry、AstrBot `Reply` 消息 ID提取和
   service 缺失边界。
 - `test_player_transport.py` — legacy role API payload 到 typed overview 的映射和 transport

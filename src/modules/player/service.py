@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from pathlib import Path
 
 from ...entry.response import ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
-from ...infrastructure.rendering import OriginalImageCache, PlayerRenderer
+from ...infrastructure.rendering import PlayerRenderer
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (
@@ -46,19 +45,14 @@ class PlayerService:
         transport: PlayerTransport,
         privacy: PrivacyService,
         renderer: PlayerRenderer,
-        original_images: OriginalImageCache,
         *,
         show_unowned_roles: bool = True,
-        role_original_image: bool = True,
     ) -> None:
         self.database = database
         self.transport = transport
         self.privacy = privacy
         self.renderer = renderer
-        self.original_images = original_images
         self.show_unowned_roles = show_unowned_roles
-        self.role_original_image = role_original_image
-        self.last_original_image: Path | None = None
 
     async def _resolve_uid(self, request: PlayerCommandRequest) -> tuple[str, str] | PlainTextResponse:
         """解析目标用户和当前绑定 UID，先应用隐私策略再读取账号。"""
@@ -251,6 +245,9 @@ class PlayerService:
             )
         except PlayerTransportError as error:
             damage = DamageCalculation.failure(messages.transport_error(error.kind.value))
+        if damage.data is None:
+            # 任何 transport 的失败正文都不是用户可见契约，避免进入 PNG 文本元数据。
+            damage = DamageCalculation.failure(messages.PLAYER_DAMAGE_FAILED)
 
         uid_hidden = await self.privacy.is_uid_hidden(
             target_user_id,
@@ -264,32 +261,16 @@ class PlayerService:
             uid=uid,
             uid_hidden=uid_hidden,
         )
-        self.last_original_image = rendered.original_image_path
-        return ImageResponse(str(rendered.path), temporary=True)
-
-    async def original_image(self, request: PlayerCommandRequest):
-        """按引用消息 ID返回明确登记的原始面板图。"""
-
-        if not self.role_original_image:
-            return PlainTextResponse(messages.PLAYER_ORIGINAL_DISABLED)
-        if request.reply_id is None:
-            return PlainTextResponse(messages.PLAYER_ORIGINAL_REPLY_REQUIRED)
-        image_path = self.original_images.get(request.reply_id)
-        if image_path is None:
-            return PlainTextResponse(messages.PLAYER_ORIGINAL_NOT_FOUND)
-        return ImageResponse(str(image_path))
-
-    def remember_original_image(
-        self,
-        message_ids: Iterable[str],
-        image_path: Path | None = None,
-    ) -> None:
-        """在平台发送回调拿到消息 ID 后登记最近详情图对应的原图。"""
-
-        self.original_images.remember(
-            message_ids,
-            self.last_original_image if image_path is None else image_path,
+        return ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            original_image_path=rendered.original_image_path,
         )
+
+    async def original_image(self, _request: PlayerCommandRequest):
+        """明确报告当前公开 AstrBot 结果边界不支持原图引用。"""
+
+        return PlainTextResponse(messages.PLAYER_ORIGINAL_UNSUPPORTED)
 
 
 __all__ = ["PlayerService"]

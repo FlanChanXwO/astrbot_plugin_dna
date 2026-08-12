@@ -251,11 +251,6 @@
         "description": "是否在角色信息卡片中显示未拥有的角色和武器。",
         "default": true
       },
-      "role_original_image": {
-        "type": "bool",
-        "description": "是否允许引用角色面板图获取原图。",
-        "default": true
-      },
       "allow_mention_query": {
         "type": "bool",
         "description": "是否允许通过 @ 查询他人的角色信息。",
