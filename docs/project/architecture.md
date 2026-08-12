@@ -51,6 +51,10 @@
   `initialize()` 创建每日自动签到与记录清理任务、`terminate()` 取消，重复初始化幂等。
   自动签到摘要经注入的推送闭包（绑定 `Context.send_message`）发给订阅者；`sleep/now`
   可注入，离线测试不依赖真实时钟。
+- 通知读取：`src/modules/notices/` 通过 `NoticesTransport` 读取密函（角色/武器/魔之楔分节，
+  复用 legacy `get_default_role_for_tool` 的 `instanceInfo`）、公告列表与详情（公共 BBS，
+  HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）；`NoticesRenderer` 生成 1300 宽 PNG，
+  公告图片块标记为 placeholder 资源。通知订阅/轮询推送在 Task 22 接入。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
   强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与

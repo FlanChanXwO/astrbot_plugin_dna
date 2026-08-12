@@ -7,6 +7,7 @@ from .account import (
 )
 from .checkin import DnaApiCheckinTransport
 from .encyclopedia import DEFAULT_CODE_URL, DnaApiEncyclopediaTransport
+from .notices import DnaApiNoticesTransport
 from .player import DnaApiPlayerTransport
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "DnaApiAccountTransport",
     "DnaApiCheckinTransport",
     "DnaApiEncyclopediaTransport",
+    "DnaApiNoticesTransport",
     "DnaApiPlayerTransport",
     "TransportErrorKind",
 ]

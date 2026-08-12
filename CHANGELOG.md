@@ -1,5 +1,27 @@
 # Changelog
 
+## rewrite Task 21 — 密函、公告与活动日历读取
+
+### Added
+
+- 新增 `src/modules/notices/`：typed `NoticesTransport` 契约、`NoticesService`（密函/
+  密函列表/公告列表/公告详情）与 `NoticesRenderer`（1300 宽 PNG，公告图片块为 placeholder）。
+- 注册 `mh`、`mh_list`、`ann` 三条读取型命令；`commands.json` 由 registry 重新生成，
+  共 42 条命令。
+- 新增 `DnaApiNoticesTransport`：密函复用 legacy `get_default_role_for_tool` 的
+  `instanceInfo`；公告列表/详情走公共 BBS（无需凭据），HTML 清洗复用
+  `dnaby/dna_ann/utils` 纯逻辑。
+
+### Changed
+
+- 密函改用调用者 active UID 凭据读取（区别于 legacy 随机账号 quirk，作为记录差异）；
+  活动日历（`日历`）由 Task 14 资料读取提供，不重复注册。
+
+### Verification boundary
+
+- 密函/公告读取只在 fake transport + 隔离 SQLite + 事件 fixture 中验证；真实公告/密函
+  内容与视觉等价仍待 Task 30 只读矩阵。通知订阅/推送与轮询在 Task 22 接入。
+
 ## rewrite Task 20 — 签到阶段集中审查
 
 ### Fixed

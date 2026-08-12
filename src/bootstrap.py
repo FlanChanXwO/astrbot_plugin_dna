@@ -25,12 +25,14 @@ from .infrastructure.http import (
     DnaApiAccountTransport,
     DnaApiCheckinTransport,
     DnaApiEncyclopediaTransport,
+    DnaApiNoticesTransport,
     DnaApiPlayerTransport,
 )
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
     CheckinRenderer,
     EncyclopediaRenderer,
+    NoticesRenderer,
     PlayerRenderer,
     ResourceMap,
 )
@@ -44,6 +46,8 @@ from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
+from .modules.notices.contracts import NoticesTransport
+from .modules.notices.service import NoticesService
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
@@ -85,6 +89,7 @@ def build_runtime(
     player_transport: PlayerTransport | None = None,
     encyclopedia_transport: EncyclopediaTransport | None = None,
     checkin_transport: CheckinTransport | None = None,
+    notices_transport: NoticesTransport | None = None,
     services: Mapping[str, object] | None = None,
 ) -> PluginRuntime:
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
@@ -151,6 +156,12 @@ def build_runtime(
             MessageChain(chain=[Plain(text)]),
         ),
     )
+    notices_service = NoticesService(
+        runtime_database,
+        notices_transport or DnaApiNoticesTransport(runtime_database),
+        privacy_service,
+        NoticesRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
@@ -163,6 +174,7 @@ def build_runtime(
         "checkin_service": checkin_service,
         "subscriptions": subscriptions,
         "sign_scheduler": sign_scheduler,
+        "notices_service": notices_service,
     }
     if services is not None:
         resolved_services.update(services)

@@ -467,5 +467,42 @@
     ],
     "permission": "owner",
     "use_case": "src.modules.checkin.commands.checkin_sign_result_subscribe_use_case"
+  },
+  {
+    "id": "mh",
+    "pattern": "^(?:密函|委托密函|mh)$",
+    "group": "密函",
+    "name": "密函",
+    "description": "查看当前小时段密函委托",
+    "examples": [
+      "密函"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_mh_use_case"
+  },
+  {
+    "id": "mh_list",
+    "pattern": "^密函列表$",
+    "group": "密函",
+    "name": "密函列表",
+    "description": "查看全部密函委托名称",
+    "examples": [
+      "密函列表"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_mh_list_use_case"
+  },
+  {
+    "id": "ann",
+    "pattern": "^公告(?:\\s+(?P<index>\\d+))?$",
+    "group": "公告",
+    "name": "公告",
+    "description": "查看公告列表；带序号时查看公告详情",
+    "examples": [
+      "公告",
+      "公告 1"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_ann_use_case"
   }
 ]

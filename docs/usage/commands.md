@@ -1,6 +1,6 @@
 # 命令
 
-当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询、资料读取、隐私和签到 use case。命令声明位于
+当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询、资料读取、隐私、签到和通知 use case。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `帮助` 查看同一
 registry 的帮助文本。
@@ -62,6 +62,17 @@ registry 的帮助文本。
   `sign_in.sign_time` 由计划任务执行全账号自动签到，并把摘要推送给订阅者；订阅按
   type+会话去重，使用 `owner` 权限。真实推送只走注入的 `context.send_message`，
   离线测试用 fixture 验证。
+
+## 通知命令
+
+- `密函`、`委托密函`、`mh`：读取当前小时段的密函委托（角色/武器/魔之楔分节），渲染
+  1300 宽运行期 PNG；需要调用者 active UID 的凭据。
+- `密函列表`、`mh_list`：返回 legacy 密函委托名称清单，无需账号。
+- `公告`：渲染公告列表图；`公告 序号`（如 `公告 1`）读取对应公告详情图，图片块标记为
+  资源 placeholder。公告列表/详情无需账号凭据。
+- 活动日历（`日历`）已在资料读取命令中提供，本阶段不重复注册。
+
+通知订阅（密函/公告推送）与计划轮询留待 Task 22。
 
 资料读取的图片与索引只使用
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录

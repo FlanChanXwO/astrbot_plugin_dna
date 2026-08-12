@@ -6,7 +6,7 @@
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取和签到共 39 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到和通知共 42 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -81,6 +81,18 @@
   死字段。新增对应回归测试。
 - staging runtime 全量 pytest `213 passed, 1 skipped, 1 warning`；全部门禁通过；
   参考区保持冻结。
+
+### rewrite Task 21 — 密函、公告与活动日历读取 ✅
+
+- 注册 `mh`（密函/委托密函/mh）、`mh_list`（密函列表）和 `ann`（公告/公告 序号）三条
+  读取型命令；活动日历（`日历`）已由 Task 14 的资料读取提供，不重复注册。
+- `NoticesService` 通过 `NoticesTransport` 读取密函（复用 legacy
+  `get_default_role_for_tool` 的 `instanceInfo` 分节）与公告列表/详情（公共 BBS，
+  HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）；`NoticesRenderer` 生成 1300 宽 PNG，
+  公告图片块标记为 placeholder 资源。
+- 密函需要调用者 active UID 凭据（区别于 legacy 随机账号，作为记录差异）；公告无需账号。
+- 全部读取由 fake transport + 隔离 SQLite + 事件 fixture 覆盖；staging runtime 全量
+  pytest `229 passed, 1 skipped, 1 warning`，全部门禁通过。
 
 ## 当前状态
 
