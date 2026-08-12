@@ -117,6 +117,16 @@
   结构变化分别映射稳定类别，不伪造成功。
 - staging runtime 全量 pytest `255 passed, 1 skipped, 1 warning`；全部门禁通过。
 
+### rewrite Task 24 — 通知阶段集中审查 ✅
+
+- 复核 Task 21-23（`ca78c4a..0733789`）：通知读取/推送、订阅数据一致性、并发去重、
+  敏感信息与全量门禁；完整结论见 [review-v0.5-notices.md](review-v0.5-notices.md)。
+- 修复 3 项：`SubscriptionStore` 去重/删除/更新改为按 `(type, origin, uid)` 精确匹配
+  （同一会话多用户个人订阅不再互相覆盖）；密函订阅/取消/查看按当前会话
+  `unified_msg_origin` 取目标（多会话不串扰）；取消订阅后空列表直接删除记录（生命周期清理）。
+- 新增 4 条回归测试（同会话多用户去重、按 uid 删除、跨会话作用域、双用户同会话）。
+- staging runtime 全量 pytest `259 passed, 1 skipped, 1 warning`；全部门禁通过。
+
 ## 当前状态
 
 `astrbot_plugin_dnaby` 已完成从 GsCore DNAUID 到原生 AstrBot 的代码层移植。当前入口可被 AstrBot 以 `data.plugins.astrbot_plugin_dnaby.main` 动态加载，56 条命令、18 个功能模块、5 张 SQLModel 表、登录 Web 路由和 4 个定时任务均已接入。

@@ -140,7 +140,7 @@ class NoticesService:
         return origin, ""
 
     async def subscribe_mh(self, request: NoticeRequest):
-        """按名称订阅密函委托（user）。"""
+        """按名称订阅密函委托（user，按会话作用域）。"""
 
         if self.subscriptions is None:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
@@ -156,12 +156,18 @@ class NoticesService:
         keys = _mh_keys(mh_name, mh_type)
 
         try:
-            subs = await self.subscriptions.get(
-                messages.MH_SUBSCRIBE,
-                user_id=request.actor.user_id,
-                bot_id=request.actor.bot_id,
+            target = next(
+                (
+                    sub
+                    for sub in await self.subscriptions.get(
+                        messages.MH_SUBSCRIBE,
+                        user_id=request.actor.user_id,
+                        bot_id=request.actor.bot_id,
+                    )
+                    if sub.unified_msg_origin == origin and sub.uid == request.actor.user_id
+                ),
+                None,
             )
-            target = next((sub for sub in subs if sub.uid == request.actor.user_id), None)
             if target is None or not target.extra_message:
                 await self.subscriptions.add(
                     messages.MH_SUBSCRIBE,
@@ -181,6 +187,7 @@ class NoticesService:
             await self.subscriptions.update(
                 messages.MH_SUBSCRIBE,
                 origin,
+                uid=request.actor.user_id,
                 extra_message=",".join(merged),
             )
             return PlainTextResponse(
@@ -190,7 +197,7 @@ class NoticesService:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
 
     async def unsubscribe_mh(self, request: NoticeRequest):
-        """按名称取消订阅密函委托；全部 时删除整条订阅（user）。"""
+        """按名称取消订阅密函委托；全部 时删除当前会话的订阅（user）。"""
 
         if self.subscriptions is None:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
@@ -200,22 +207,40 @@ class NoticesService:
         mh_name = str(request.parameters.get("mh_name", "")).strip()
         mh_type = str(request.parameters.get("mh_type") or "").strip() or None
         try:
-            subs = await self.subscriptions.get(
-                messages.MH_SUBSCRIBE,
-                user_id=request.actor.user_id,
-                bot_id=request.actor.bot_id,
+            target = next(
+                (
+                    sub
+                    for sub in await self.subscriptions.get(
+                        messages.MH_SUBSCRIBE,
+                        user_id=request.actor.user_id,
+                        bot_id=request.actor.bot_id,
+                    )
+                    if sub.unified_msg_origin == origin and sub.uid == request.actor.user_id
+                ),
+                None,
             )
-            target = next((sub for sub in subs if sub.uid == request.actor.user_id), None)
             if target is None or not target.extra_message:
                 return PlainTextResponse(messages.MH_NOT_SUBSCRIBED)
             if mh_name == "全部":
-                await self.subscriptions.delete(messages.MH_SUBSCRIBE, origin)
+                await self.subscriptions.delete(
+                    messages.MH_SUBSCRIBE,
+                    origin,
+                    uid=request.actor.user_id,
+                )
                 return PlainTextResponse(messages.MH_UNSUBSCRIBED_ALL)
             keys = _mh_keys(mh_name, mh_type)
             remaining = [item for item in target.extra_message.split(",") if item and item not in keys]
+            if not remaining:
+                await self.subscriptions.delete(
+                    messages.MH_SUBSCRIBE,
+                    origin,
+                    uid=request.actor.user_id,
+                )
+                return PlainTextResponse(messages.MH_UNSUBSCRIBED.format(name=mh_name))
             await self.subscriptions.update(
                 messages.MH_SUBSCRIBE,
                 origin,
+                uid=request.actor.user_id,
                 extra_message=",".join(remaining),
             )
             return PlainTextResponse(
@@ -225,16 +250,25 @@ class NoticesService:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
 
     async def mh_subscriptions(self, request: NoticeRequest):
-        """查看当前密函订阅与推送时间（user）。"""
+        """查看当前会话的密函订阅与推送时间（user）。"""
 
         if self.subscriptions is None:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
-        subs = await self.subscriptions.get(
-            messages.MH_SUBSCRIBE,
-            user_id=request.actor.user_id,
-            bot_id=request.actor.bot_id,
+        origin, error = await self._origin(request.actor)
+        if error:
+            return PlainTextResponse(error)
+        target = next(
+            (
+                sub
+                for sub in await self.subscriptions.get(
+                    messages.MH_SUBSCRIBE,
+                    user_id=request.actor.user_id,
+                    bot_id=request.actor.bot_id,
+                )
+                if sub.unified_msg_origin == origin and sub.uid == request.actor.user_id
+            ),
+            None,
         )
-        target = next((sub for sub in subs if sub.uid == request.actor.user_id), None)
         if target is None or not target.extra_message:
             return PlainTextResponse(messages.MH_NOT_SUBSCRIBED)
         lines = [messages.MH_CURRENT.format(names=target.extra_message)]
@@ -264,6 +298,7 @@ class NoticesService:
         updated = await self.subscriptions.update(
             messages.MH_SUBSCRIBE,
             origin,
+            uid=request.actor.user_id,
             extra_data=f"{start}:{end}",
         )
         if not updated:

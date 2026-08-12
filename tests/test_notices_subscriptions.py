@@ -340,3 +340,62 @@ async def test_test_mh_push_sends_to_current_session(tmp_path: Path) -> None:
     assert response.text == messages.MH_TEST_SENT
     assert pushed == [("platform:group:g1", "密函测试推送")]
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_mh_subscription_is_scoped_per_conversation(tmp_path: Path) -> None:
+    """同一用户在不同会话的密函订阅互不串扰。"""
+
+    database = await _database_with_binding(tmp_path)
+    service = _service(database, FakeNoticesTransport(), tmp_path)
+    await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}, actor=_actor(origin="platform:group:a")))
+    await service.subscribe_mh(_request("订阅追缉密函", {"mh_name": "追缉"}, actor=_actor(origin="platform:group:b")))
+
+    view_b = await service.mh_subscriptions(_request("我的密函", actor=_actor(origin="platform:group:b")))
+    unsub_a = await service.unsubscribe_mh(
+        _request("取消订阅拆解密函", {"mh_name": "拆解"}, actor=_actor(origin="platform:group:a")),
+    )
+
+    assert "追缉" in view_b.text
+    assert "拆解" not in view_b.text
+    assert "成功取消订阅密函【拆解】" in unsub_a.text
+    subscriptions = service.subscriptions
+    assert subscriptions is not None
+    subs = await subscriptions.get(
+        messages.MH_SUBSCRIBE,
+        user_id="user-1",
+        bot_id="bot-1",
+    )
+    assert len(subs) == 1  # a 会话已删除，b 会话保留
+    assert subs[0].unified_msg_origin == "platform:group:b"
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_mh_subscription_keeps_two_users_in_same_conversation(tmp_path: Path) -> None:
+    """同一会话内两个用户订阅互不覆盖。"""
+
+    database = await _database_with_binding(tmp_path)
+    service = _service(database, FakeNoticesTransport(), tmp_path)
+
+    async def subscribe(user_id: str, name: str) -> None:
+        from src.modules.notices.contracts import NoticeRequest
+
+        await service.subscribe_mh(
+            NoticeRequest(
+                actor=EventActor(user_id, "bot-1", "group-1", unified_msg_origin="platform:group:g1"),
+                target_user_id=None,
+                text=f"订阅{name}密函",
+                parameters={"mh_name": name},
+            ),
+        )
+
+    await subscribe("user-1", "拆解")
+    await subscribe("user-2", "追缉")
+
+    subscriptions = service.subscriptions
+    assert subscriptions is not None
+    subs = await subscriptions.get(messages.MH_SUBSCRIBE)
+    assert len(subs) == 2
+    assert {sub.uid for sub in subs} == {"user-1", "user-2"}
+    await database.dispose()

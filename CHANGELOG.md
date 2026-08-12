@@ -1,5 +1,21 @@
 # Changelog
 
+## rewrite Task 24 — 通知阶段集中审查
+
+### Fixed
+
+- `SubscriptionStore.add/delete/update` 改为按 `(type, origin, uid)` 精确匹配：同一会话内
+  不同用户的个人密函订阅互不覆盖，删除/更新不再误伤同会话其他记录。
+- 密函订阅/取消/查看按当前会话 `unified_msg_origin` 取目标：多会话用户读写各自会话的
+  订阅，不串扰。
+- 取消订阅后空列表直接删除订阅记录，清理死数据。
+- 新增同会话多用户去重、按 uid 删除、跨会话作用域与双用户同会话 4 条回归测试。
+
+### Documentation
+
+- 新增 [review-v0.5-notices.md](docs/porting/review-v0.5-notices.md)：阶段 6 集中审查的
+  修复、复查结论（错误分类/并发去重/生命周期/推送日志）与门禁证据。
+
 ## rewrite Task 23 — 通知脱敏、可观测错误与事件响应
 
 ### Added

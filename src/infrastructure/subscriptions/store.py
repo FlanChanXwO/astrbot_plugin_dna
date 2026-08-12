@@ -96,7 +96,11 @@ class SubscriptionStore:
         extra_message: str = "",
         extra_data: str = "",
     ) -> Subscription:
-        """新增订阅；同一 type+origin 只保留最新一条。"""
+        """新增订阅；同一 type+origin+uid 只保留最新一条。
+
+        个人作用域订阅（如密函）以 ``uid`` 区分同会话内不同用户的记录，避免互相覆盖；
+        会话级订阅（图片/文本/公告/签到结果）不传 uid，退化为 type+origin 去重。
+        """
 
         async with self._lock:
             await self.load()
@@ -114,21 +118,34 @@ class SubscriptionStore:
             self._subs = [
                 sub
                 for sub in self._subs
-                if not (sub.type == sub_type and sub.unified_msg_origin == origin)
+                if not (
+                    sub.type == sub_type
+                    and sub.unified_msg_origin == origin
+                    and sub.uid == uid
+                )
             ]
             self._subs.append(subscription)
             self._save_unlocked()
         return subscription
 
-    async def delete(self, sub_type: str, origin: str) -> bool:
-        """删除一条订阅；返回是否命中。"""
+    async def delete(
+        self,
+        sub_type: str,
+        origin: str,
+        uid: str = "",
+    ) -> bool:
+        """删除一条订阅（type+origin+uid 精确匹配）；返回是否命中。"""
 
         async with self._lock:
             await self.load()
             remaining = [
                 sub
                 for sub in self._subs
-                if not (sub.type == sub_type and sub.unified_msg_origin == origin)
+                if not (
+                    sub.type == sub_type
+                    and sub.unified_msg_origin == origin
+                    and sub.uid == uid
+                )
             ]
             if len(remaining) == len(self._subs):
                 return False
@@ -141,15 +158,24 @@ class SubscriptionStore:
         sub_type: str,
         origin: str,
         *,
+        uid: str = "",
         extra_message: str | None = None,
         extra_data: str | None = None,
     ) -> bool:
-        """更新一条订阅的附加数据；返回是否命中。"""
+        """更新一条订阅（type+origin+uid 精确匹配）的附加数据；返回是否命中。"""
 
         async with self._lock:
             await self.load()
             target = next(
-                (sub for sub in self._subs if sub.type == sub_type and sub.unified_msg_origin == origin),
+                (
+                    sub
+                    for sub in self._subs
+                    if (
+                        sub.type == sub_type
+                        and sub.unified_msg_origin == origin
+                        and sub.uid == uid
+                    )
+                ),
                 None,
             )
             if target is None:
@@ -166,7 +192,11 @@ class SubscriptionStore:
                     extra_message=extra_message if extra_message is not None else sub.extra_message,
                     extra_data=extra_data if extra_data is not None else sub.extra_data,
                 )
-                if sub.type == sub_type and sub.unified_msg_origin == origin
+                if (
+                    sub.type == sub_type
+                    and sub.unified_msg_origin == origin
+                    and sub.uid == uid
+                )
                 else sub
                 for sub in self._subs
             ]
