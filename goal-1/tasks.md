@@ -274,11 +274,11 @@
 
 ### Task 23：完善通知脱敏、可观测错误和事件响应测试
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：验证 Cookie/token 不进入日志、异常和用户响应；区分用户取消、网络失败、状态码错误、服务端异常和页面结构变化，不伪造成功。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `5fbe57d`。强化 `tests/test_notices_transport.py`：新增 5 条测试覆盖网络失败（`aiohttp.ClientError` → NETWORK）、状态码错误（`code=403` → STATUS）、密函页面结构变化（缺 `instanceInfo` → SERVER）、公告详情结构变化（`postContent` 非列表 → 显式抛错），并断言 Cookie/token 与上游 `msg` 原文（`token=secret-*`）不进异常 str/repr；成功路径确认使用调用者/任意账号凭据。错误分类统一：用户取消（`订阅密函时间` 越界）返回格式提示，网络/状态码/服务端/结构变化分别映射稳定类别，用户响应只含受控文案，不伪造成功。
+- 验证证据：`tests/test_notices_transport.py` 现 8 条全部通过；staging runtime 全量 pytest 为 `255 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过。
+- 剩余风险/下一步：真实密函/公告内容、图片与视觉等价仍未验收（Task 30 只读矩阵）；事件响应由写入契约 dispatch 与生成 handler 测试覆盖。下一轮执行 Task 24（阶段 6 集中检查-debug）。
 
 ### Task 24：集中检查-debug（阶段 6）
 
