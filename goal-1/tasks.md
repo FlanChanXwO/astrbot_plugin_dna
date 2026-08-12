@@ -240,11 +240,11 @@
 
 ### Task 19：补齐写入型能力的离线契约与权限测试
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：为真实账户禁止执行的登录/签到/绑定/订阅/隐私写入等建立 fake transport、隔离 SQLite、模拟事件和旧逻辑 fixture 契约；明确“离线验证”不等于真实行为已验证。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `877a13d`。新增 `tests/test_write_contracts.py`：集中审计 23 条写入型命令的权限边界（`account_*` 与个人隐私与 `sign` 为 user，群管理隐私 10 条为 admin，`sign_all`/`sign_result_subscribe` 为 owner）与离线契约覆盖（`CONTRACT_COVERAGE` 映射到 `test_account.py`/`test_privacy.py`/`test_privacy_commands.py`/`test_checkin.py` 的代表性用例并断言文件与函数存在）。每条写入命令都能通过生成后的 AstrBot handler（mock 公开事件 API）在 fake transport + 隔离 SQLite 下离线分发并产出框架无关响应；`sign` 写路径额外断言只调用注入 transport 的 `get_sign_calendar/game_sign/get_task_process/bbs_sign`，不触碰真实网络边界。新增 `docs/porting/offline-write-contracts.md` 明确“离线验证 ≠ 真实行为已验证”，逐能力列出离线覆盖、未注册写入能力（面板/别名/资源）与 Task 30 验收边界。
+- 验证证据：`tests/test_write_contracts.py` 共 26 条（权限审计 1 + 契约文件审计 1 + 23 条离线分发 + sign 只调注入 transport 1）全部通过；staging runtime 全量 pytest 为 `210 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过；未检出 `gsuid_core`/`gsucore` import。
+- 剩余风险/下一步：离线分发契约只证明命令链路可用，不代表真实账户写入行为已验证；面板上传/删除/压缩、别名修改、资源更新等写入命令尚未注册，其实平台验收边界留待 Task 25/26 与 Task 30。下一轮执行 Task 20（阶段 5 集中检查-debug）。
 
 ### Task 20：集中检查-debug（阶段 5）
 
