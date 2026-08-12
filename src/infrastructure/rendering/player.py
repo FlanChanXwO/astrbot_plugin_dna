@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass, field
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -303,6 +304,75 @@ class PlayerRenderer:
             resources=resource_records,
             sections=section_records,
         )
+
+    async def render_overview_legacy(
+        self,
+        overview: RoleOverview,
+        *,
+        uid: str,
+        uid_hidden: bool,
+        show_unowned: bool = True,
+    ) -> RenderedPlayerImage:
+        """按 legacy 绘制核心渲染角色总览（视觉与 DNAUID 逐像素一致）。
+
+        复用 ``draw_role_info_card_core``（同一段绘制代码 + 同一素材缓存）；素材
+        下载/缓存走 legacy ``RESOURCE_PATH``（``DNABY_DATA_DIR`` 可指向插件数据
+        目录）。``dnaby.*`` 元数据仍由本 renderer 附加，供离线审查。
+        """
+
+        from dnaby.dna_role.draw_role_info_card import draw_role_info_card_core
+        from dnaby.utils.api.model import RoleShowForTool
+
+        role_show = RoleShowForTool.model_validate(
+            {
+                "roleId": overview.role_id,
+                "roleName": overview.role_name,
+                "level": overview.level,
+                "params": [item.model_dump(by_alias=True) for item in overview.params],
+                "roleAchv": {"total": overview.achievement_total},
+                "roleChars": [item.model_dump(by_alias=True) for item in overview.role_chars],
+                "closeWeapons": [item.model_dump(by_alias=True) for item in overview.close_weapons],
+                "langRangeWeapons": [item.model_dump(by_alias=True) for item in overview.ranged_weapons],
+            }
+        )
+        image_bytes = await draw_role_info_card_core(
+            role_show,
+            uid_hidden=uid_hidden,
+            show_none=show_unowned,
+            ev_stub=None,
+        )
+        image = Image.open(BytesIO(image_bytes)).convert("RGBA")
+        lines = [
+            overview.role_name,
+            f"UID {'***' if uid_hidden else uid}",
+            f"等级: {_text_value(overview.level)}",
+        ]
+        lines.extend(f"{item.param_key}: {item.param_value}" for item in overview.params)
+        sections = [
+            {"name": "角色信息", "items": len(overview.role_chars)},
+            {"name": "近战武器", "items": len(overview.close_weapons)},
+            {"name": "远程武器", "items": len(overview.ranged_weapons)},
+        ]
+        resources = [self._font_resource()]
+        resources.extend(
+            {
+                "kind": "role_avatar",
+                "key": str(item.char_id),
+                "source": item.icon,
+                "status": "legacy_download",
+            }
+            for item in overview.role_chars
+        )
+        resources.extend(
+            {
+                "kind": "weapon_icon",
+                "key": str(item.weapon_id),
+                "source": item.icon,
+                "status": "legacy_download",
+            }
+            for item in (*overview.close_weapons, *overview.ranged_weapons)
+        )
+        return self._write(image, lines=lines, resources=resources, sections=sections)
 
     def render_detail(
         self,

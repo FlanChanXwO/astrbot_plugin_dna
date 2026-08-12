@@ -101,7 +101,7 @@ class PlayerService:
             request.actor.bot_id,
             request.actor.group_id,
         )
-        rendered = self.renderer.render_overview(
+        rendered = await self.renderer.render_overview_legacy(
             overview,
             uid=uid,
             uid_hidden=uid_hidden,

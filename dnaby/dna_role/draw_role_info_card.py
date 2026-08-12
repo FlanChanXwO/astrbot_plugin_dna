@@ -85,8 +85,33 @@ async def draw_role_info_card(sender: Sender, ctx: EventContext):
         return
 
     default_role = DNARoleForToolRes.model_validate(default_role.data)
-    role_show = default_role.roleInfo.roleShow
-    # 解锁角色数量
+    uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
+    card = await draw_role_info_card_core(
+        default_role.roleInfo.roleShow,
+        uid_hidden=uid_hidden,
+        show_none=is_show_role_info_card(),
+        ev_stub=ctx,
+        avatar_user_id=user_id,
+    )
+    await sender.send(card)
+async def draw_role_info_card_core(
+    role_show,
+    *,
+    uid_hidden: bool,
+    show_none: bool,
+    ev_stub=None,
+    avatar_user_id: str | None = None,
+) -> bytes:
+    """纯绘制核心：与 draw_role_info_card 共享同一段绘制代码。
+
+    rewrite 渲染器通过本函数获得与 legacy 一致的输出；素材下载/缓存走 legacy
+    RESOURCE_PATH（可指向插件数据目录）。``ev_stub`` 只需提供可读写的 ``at``
+    字段（用户头像下载用）。
+    """
+    if ev_stub is None:
+        from types import SimpleNamespace
+
+        ev_stub = SimpleNamespace(at="", user_id="")
     role_unlocked_count = len([i for i in role_show.roleChars if i.unLocked])
     # 解锁远程武器数量
     lang_weapon_unlocked_count = len([i for i in role_show.langRangeWeapons if i.unLocked])
@@ -126,15 +151,13 @@ async def draw_role_info_card(sender: Sender, ctx: EventContext):
     start_y += 650
 
     # title
-    # 检查 UID 是否应该被隐藏
-    uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
     avatar_title = await get_avatar_title_img(
-        ctx,
+        ev_stub,
         role_show.roleId,
         role_show.roleName,
         user_level=role_show.level,
         other_info=[(i.paramKey, i.paramValue) for i in role_show.params if i.paramKey in ("总活跃天数", "游戏时长")],
-        avatar_user_id=user_id,
+        avatar_user_id=avatar_user_id,
         uid_hidden=uid_hidden,
     )
     card.alpha_composite(avatar_title, (-50, 400))
@@ -235,7 +258,7 @@ async def draw_role_info_card(sender: Sender, ctx: EventContext):
 
     card = add_footer(card, 600)
     card = await convert_img(card)
-    await sender.send(card)
+    return card
 
 
 async def _draw_item(card: Image.Image, start_y: int, items: list[ItemTemp], item_bg: Image.Image, show_none: bool):
@@ -247,9 +270,15 @@ async def _draw_item(card: Image.Image, start_y: int, items: list[ItemTemp], ite
         item_mask = global_item_mask.copy()
         mine_bg = item_bg.copy()
         if item.type == "role":
-            item_img = await get_avatar_img(item.id, item.icon)
+            try:
+                item_img = await get_avatar_img(item.id, item.icon)
+            except Exception:  # noqa: BLE001
+                item_img = await get_avatar_img(item.id, None)
         else:
-            item_img = await get_weapon_img(item.id, item.icon)
+            try:
+                item_img = await get_weapon_img(item.id, item.icon)
+            except Exception:  # noqa: BLE001
+                item_img = await get_weapon_img(item.id, None)
 
         temp_bg.alpha_composite(item_img, (-20, 0))
         temp_bg2.paste(temp_bg, (0, 0), item_mask)
@@ -267,11 +296,17 @@ async def _draw_item(card: Image.Image, start_y: int, items: list[ItemTemp], ite
             fg_draw.text((128, 215), "未解锁", COLOR_WHITE, dna_font_20, "mm")
         # element
         if item.type == "role":
-            attr_img = await get_attr_img(pic_url=item.element_icon)
+            try:
+                attr_img = await get_attr_img(pic_url=item.element_icon)
+            except Exception:  # noqa: BLE001
+                attr_img = await get_attr_img(pic_url=None)
             attr_img = attr_img.resize((attr_img.width // 2, attr_img.height // 2))
             fg.alpha_composite(attr_img, (0, 20))
         else:
-            attr_img = await get_weapon_attr_img(pic_url=item.element_icon)
+            try:
+                attr_img = await get_weapon_attr_img(pic_url=item.element_icon)
+            except Exception:  # noqa: BLE001
+                attr_img = await get_weapon_attr_img(pic_url=None)
             attr_img = attr_img.resize((attr_img.width // 2, attr_img.height // 2))
             fg.alpha_composite(attr_img, (-3, 23))
 

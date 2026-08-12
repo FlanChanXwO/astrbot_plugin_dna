@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from shutil import copyfile
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -41,6 +41,27 @@ from src.modules.privacy import PrivacyService
 
 UID = "1234567890123"
 TARGET_UID = "9876543210987"
+
+
+def _preseed_legacy_assets() -> None:
+    """预置 legacy 素材缓存（命中即不下载），使离线渲染可复现。"""
+
+    from dnaby.utils.resource import RESOURCE_PATH
+
+    assets = {
+        RESOURCE_PATH.AVATAR_PATH / "avatar_101.png": (180, 60, 60),
+        RESOURCE_PATH.AVATAR_PATH / "avatar_102.png": (60, 120, 180),
+        RESOURCE_PATH.WEAPON_PATH / "weapon_201.png": (160, 140, 40),
+        RESOURCE_PATH.WEAPON_PATH / "weapon_202.png": (80, 160, 80),
+        RESOURCE_PATH.ATTR_PATH / "attr_fire.png": (200, 90, 40),
+        RESOURCE_PATH.ATTR_PATH / "attr_ice.png": (70, 140, 210),
+        RESOURCE_PATH.WEAPON_ATTR_PATH / "attr_close.png": (140, 80, 160),
+        RESOURCE_PATH.WEAPON_ATTR_PATH / "attr_ranged.png": (60, 170, 130),
+    }
+    for path, color in assets.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            Image.new("RGBA", (64, 64), color).save(path)
 
 
 class FixturePlayerTransport:
@@ -325,6 +346,7 @@ async def _database_with_binding(
 async def test_role_overview_returns_runtime_image_and_preserves_all_items(tmp_path: Path) -> None:
     """概览图是 ImageResponse，合法角色/武器和元数据不能被截断。"""
 
+    _preseed_legacy_assets()
     database = await _database_with_binding(tmp_path)
     transport = FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture())
     renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())
@@ -349,21 +371,21 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(tmp_p
     assert image_path.parent == tmp_path / "rendered"
     with Image.open(image_path) as image:
         assert image.width == 1200
-        assert image.height > 800
+        assert image.height > 1500  # legacy 布局：头部 800 + 3 分区 × (320+70)
         text = image.info["dnaby.text"]
         layout = json.loads(image.info["dnaby.layout"])
         resources = json.loads(image.info["dnaby.resources"])
-    assert "角色甲" in text
-    assert "未解锁角色" in text
-    assert "近战甲" in text
-    assert "远程甲" in text
+    assert "测试玩家" in text
+    assert "UID 1234567890123" in text
+    assert "总活跃天数: 99" in text
     assert "自定义成就: 完整保留" in text
     assert [section["name"] for section in layout["sections"]] == [
         "角色信息",
         "近战武器",
         "远程武器",
     ]
-    assert any(item["status"] == "placeholder" for item in resources)
+    assert any(item["kind"] == "role_avatar" and item["status"] == "legacy_download" for item in resources)
+    assert any(item["kind"] == "weapon_icon" and item["status"] == "legacy_download" for item in resources)
     await database.dispose()
 
 
@@ -371,6 +393,7 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(tmp_p
 async def test_player_query_uses_target_account_credentials(tmp_path: Path) -> None:
     """@ 他人查询时 transport 必须使用目标用户的凭据所有者。"""
 
+    _preseed_legacy_assets()
     database = await _database_with_binding(tmp_path, user_id="target-1", uid=TARGET_UID)
     transport = FixturePlayerTransport(
         _overview_fixture(),
