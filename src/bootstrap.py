@@ -136,7 +136,6 @@ def build_runtime(
         game_enabled=settings.sign_in.game_enabled,
         community_enabled=settings.sign_in.community_enabled,
         community_tasks=tuple(settings.sign_in.community_tasks),
-        enable_all_users=settings.sign_in.enable_all_users,
         concurrency=settings.sign_in.concurrency,
         interval_range=settings.sign_in.concurrency_interval_seconds,
     )
@@ -146,6 +145,7 @@ def build_runtime(
         subscriptions,
         sign_time=settings.sign_in.sign_time,
         scheduled_enabled=settings.sign_in.scheduled_enabled,
+        enable_all_users=settings.sign_in.enable_all_users,
         push=lambda origin, text: context.send_message(
             origin,
             MessageChain(chain=[Plain(text)]),

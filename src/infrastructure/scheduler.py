@@ -67,6 +67,7 @@ class SignScheduler:
         sign_time: tuple[int, int] = (0, 5),
         cleanup_time: tuple[int, int] = (0, 5),
         scheduled_enabled: bool = True,
+        enable_all_users: bool = False,
         sleep: SleepCallable = asyncio.sleep,
         now: NowCallable | None = None,
         push: PushCallable | None = None,
@@ -76,6 +77,7 @@ class SignScheduler:
         self.sign_time = _parse_hhmm(sign_time)
         self.cleanup_time = _parse_hhmm(cleanup_time)
         self.scheduled_enabled = scheduled_enabled
+        self.enable_all_users = enable_all_users
         self._sleep = sleep
         self._now = now if now is not None else lambda: datetime.now(TZ)
         self._push = push
@@ -107,7 +109,13 @@ class SignScheduler:
         if self._started:
             return
         tasks: list[asyncio.Task] = []
-        if self.scheduled_enabled and (self.checkin.game_enabled or self.checkin.community_enabled):
+        # 自动签到需要「定时开启 + 全部账号授权」；新 schema 没有 per-user 签到开关，
+        # enable_all_users 承担 legacy SigninMaster 对全账号自动签到的门控语义。
+        if (
+            self.scheduled_enabled
+            and self.enable_all_users
+            and (self.checkin.game_enabled or self.checkin.community_enabled)
+        ):
             tasks.append(
                 asyncio.create_task(
                     self._run_daily(

@@ -658,3 +658,52 @@ async def test_clear_sign_records_before_deletes_old_records(tmp_path: Path) -> 
         )
     assert remaining is not None
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_manual_sign_reports_tasks_empty_when_no_enabled_task(tmp_path: Path) -> None:
+    """社区启用但 API 未返回启用任务时，显示明确文案而非帖子列表为空。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeCheckinTransport(
+        task_process=TaskProcess(
+            daily_tasks=(
+                CommunityTask(
+                    mark_name="bbs_like",
+                    remark="点赞",
+                    complete_times=0,
+                    times=5,
+                    process=0.0,
+                ),
+            ),
+        ),
+    )
+    service = _service(database, transport, community_tasks=("bbs_detail",))
+
+    response = await service.manual_sign(_request())
+
+    assert isinstance(response, PlainTextResponse)
+    assert messages.CHECKIN_TASKS_EMPTY in response.text
+    assert "bbs_like" not in transport.calls
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_subscribe_sign_result_surfaces_corrupt_store(tmp_path: Path) -> None:
+    """订阅文件损坏时返回可见错误，不让 handler 崩溃。"""
+
+    database = await _database_with_binding(tmp_path)
+    path = tmp_path / "subscriptions.json"
+    path.write_text("{ not json", encoding="utf-8")
+    subscriptions = SubscriptionStore(path)
+    transport = FakeCheckinTransport()
+    service = _service(database, transport, subscriptions=subscriptions)
+    actor = EventActor("user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1")
+
+    response = await service.subscribe_sign_result(
+        _request(actor=actor, text="订阅签到结果"),
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.SIGN_RESULT_STORE_UNAVAILABLE
+    await database.dispose()

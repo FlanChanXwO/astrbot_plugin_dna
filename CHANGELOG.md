@@ -1,5 +1,23 @@
 # Changelog
 
+## rewrite Task 20 — 签到阶段集中审查
+
+### Fixed
+
+- 移除 `CheckinService.enable_all_users` 死参数；定时自动签到任务改为要求
+  `scheduled_enabled and enable_all_users` 才创建（承担 legacy `SigninMaster` 对全账号
+  自动签到的门控语义），owner 手动的 `全部签到` 不受影响。
+- 社区启用但 API 未返回启用任务时改为明确文案 `CHECKIN_TASKS_EMPTY`，不再误报
+  「帖子列表为空」。
+- `subscribe_sign_result` 在订阅文件损坏时返回可见的 `SIGN_RESULT_STORE_UNAVAILABLE`，
+  不让命令 handler 崩溃。
+- 移除 `CheckinSummary.lines` 死字段。
+
+### Documentation
+
+- 新增 [review-v0.4-checkin.md](docs/porting/review-v0.4-checkin.md)：阶段 5 集中审查的
+  修复、复查结论（状态机/调度取消/订阅边界/写入隔离/并发事务）与门禁证据。
+
 ## rewrite Task 19 — 写入型能力的离线契约与权限审计
 
 ### Added

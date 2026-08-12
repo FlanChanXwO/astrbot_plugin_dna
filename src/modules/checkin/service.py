@@ -53,7 +53,6 @@ class CheckinService:
         game_enabled: bool = True,
         community_enabled: bool = True,
         community_tasks: tuple[str, ...] = ("bbs_sign", "bbs_detail", "bbs_like", "bbs_share", "bbs_reply"),
-        enable_all_users: bool = False,
         concurrency: int = 1,
         interval_range: tuple[int, int] = (0, 0),
         subscriptions: SubscriptionStore | None = None,
@@ -65,7 +64,6 @@ class CheckinService:
         self.game_enabled = game_enabled
         self.community_enabled = community_enabled
         self.community_tasks = community_tasks
-        self.enable_all_users = enable_all_users
         self.concurrency = max(1, concurrency)
         self.interval_range = interval_range
         self.subscriptions = subscriptions
@@ -231,7 +229,7 @@ class CheckinService:
             task for task in task_process.daily_tasks if task.mark_name in self.community_tasks
         )
         if not tasks:
-            return SignStatus.FAILED, (), messages.CHECKIN_POSTS_EMPTY
+            return SignStatus.FAILED, (), messages.CHECKIN_TASKS_EMPTY
 
         for task in tasks:
             mark_name = task.mark_name
@@ -506,17 +504,21 @@ class CheckinService:
         origin = request.actor.unified_msg_origin if request.actor is not None else None
         if not origin:
             return PlainTextResponse(messages.SIGN_RESULT_ORIGIN_MISSING)
-        if "取消" in request.text:
-            await self.subscriptions.delete(messages.SIGN_RESULT_SUBSCRIBE, origin)
-            return PlainTextResponse(messages.SIGN_RESULT_UNSUBSCRIBED)
-        await self.subscriptions.add(
-            messages.SIGN_RESULT_SUBSCRIBE,
-            origin=origin,
-            user_id=request.actor.user_id,
-            group_id=request.actor.group_id or "",
-            bot_id=request.actor.bot_id,
-            user_type="group" if request.actor.group_id else "direct",
-        )
+        try:
+            if "取消" in request.text:
+                await self.subscriptions.delete(messages.SIGN_RESULT_SUBSCRIBE, origin)
+                return PlainTextResponse(messages.SIGN_RESULT_UNSUBSCRIBED)
+            await self.subscriptions.add(
+                messages.SIGN_RESULT_SUBSCRIBE,
+                origin=origin,
+                user_id=request.actor.user_id,
+                group_id=request.actor.group_id or "",
+                bot_id=request.actor.bot_id,
+                user_type="group" if request.actor.group_id else "direct",
+            )
+        except RuntimeError:
+            # 订阅文件损坏时转为用户可见错误，不让 handler 崩溃。
+            return PlainTextResponse(messages.SIGN_RESULT_STORE_UNAVAILABLE)
         return PlainTextResponse(messages.SIGN_RESULT_SUBSCRIBED)
 
     async def clear_sign_records_before(self, record_date: date) -> int:

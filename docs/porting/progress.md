@@ -71,6 +71,17 @@
 - 新增 [offline-write-contracts.md](offline-write-contracts.md)：明确“离线验证 ≠ 真实行为
   已验证”，面板/资源/别名等未注册写入能力及其真实平台验收边界仍由后续阶段与 Task 30 记录。
 
+### rewrite Task 20 — 签到阶段集中审查 ✅
+
+- 复核 Task 17-19（`c25354c..b5503d8`）：签到状态机、调度取消、订阅边界、写入隔离、
+  并发/事务与全量门禁；完整结论见 [review-v0.4-checkin.md](review-v0.4-checkin.md)。
+- 修复 4 项：`enable_all_users` 死参数移交 `SignScheduler` 门控（承担 legacy
+  `SigninMaster` 语义）；社区无启用任务误报「帖子列表为空」改为 `CHECKIN_TASKS_EMPTY`；
+  `subscribe_sign_result` 订阅文件损坏时转可见错误不崩溃；移除 `CheckinSummary.lines`
+  死字段。新增对应回归测试。
+- staging runtime 全量 pytest `213 passed, 1 skipped, 1 warning`；全部门禁通过；
+  参考区保持冻结。
+
 ## 当前状态
 
 `astrbot_plugin_dnaby` 已完成从 GsCore DNAUID 到原生 AstrBot 的代码层移植。当前入口可被 AstrBot 以 `data.plugins.astrbot_plugin_dnaby.main` 动态加载，56 条命令、18 个功能模块、5 张 SQLModel 表、登录 Web 路由和 4 个定时任务均已接入。

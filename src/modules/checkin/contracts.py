@@ -173,7 +173,6 @@ class CheckinSummary:
     failed: int = 0
     game_success: int = 0
     bbs_success: int = 0
-    lines: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

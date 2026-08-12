@@ -43,6 +43,7 @@ async def test_scheduler_start_is_idempotent_and_stop_cancels_tasks(tmp_path: Pa
     scheduler = SignScheduler(
         checkin,
         SubscriptionStore(tmp_path / "subscriptions.json"),
+        enable_all_users=True,
         sleep=_noop_sleep,
     )
 
@@ -56,6 +57,24 @@ async def test_scheduler_start_is_idempotent_and_stop_cancels_tasks(tmp_path: Pa
     assert scheduler.started is False
     assert scheduler._tasks == []
     assert all(task.done() or task.cancelled() for task in [])
+
+
+@pytest.mark.asyncio
+async def test_scheduler_requires_enable_all_users_for_sign_task(tmp_path: Path) -> None:
+    """未授权全部账号时，定时签到任务不创建，只保留清理任务。"""
+
+    scheduler = SignScheduler(
+        _FakeCheckin(),
+        SubscriptionStore(tmp_path / "subscriptions.json"),
+        scheduled_enabled=True,
+        enable_all_users=False,
+        sleep=_noop_sleep,
+    )
+
+    await scheduler.start()
+    assert len(scheduler._tasks) == 1
+    assert scheduler._tasks[0].get_name() == "dnaby_sign_cleanup"
+    await scheduler.stop()
 
 
 @pytest.mark.asyncio
