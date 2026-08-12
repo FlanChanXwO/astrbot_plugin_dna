@@ -12,6 +12,8 @@ from typing import Any
 
 from astrbot.api.star import Context
 from astrbot.core import AstrBotConfig
+from astrbot.core.message.components import Plain
+from astrbot.core.message.message_event_result import MessageChain
 
 from .entry.commands import CommandRegistry, load_command_registry
 from .entry.event import EmptyEventEntryPoint, EventEntryPoint
@@ -34,6 +36,8 @@ from .infrastructure.rendering import (
 )
 from .infrastructure.resources import EncyclopediaResourceStore, ResourceManifest
 from .infrastructure.resources.paths import PLUGIN_NAME, resource_repository_dir
+from .infrastructure.scheduler import SignScheduler
+from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
 from .modules.checkin.contracts import CheckinTransport
@@ -136,6 +140,17 @@ def build_runtime(
         concurrency=settings.sign_in.concurrency,
         interval_range=settings.sign_in.concurrency_interval_seconds,
     )
+    subscriptions = SubscriptionStore(runtime_database.path.parent / "subscriptions.json")
+    sign_scheduler = SignScheduler(
+        checkin_service,
+        subscriptions,
+        sign_time=settings.sign_in.sign_time,
+        scheduled_enabled=settings.sign_in.scheduled_enabled,
+        push=lambda origin, text: context.send_message(
+            origin,
+            MessageChain(chain=[Plain(text)]),
+        ),
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
@@ -146,14 +161,16 @@ def build_runtime(
         "encyclopedia_service": encyclopedia_service,
         "encyclopedia_resources": encyclopedia_resources,
         "checkin_service": checkin_service,
+        "subscriptions": subscriptions,
+        "sign_scheduler": sign_scheduler,
     }
     if services is not None:
         resolved_services.update(services)
 
     web = WebRegistrar(context)
     lifecycle = PluginLifecycle(
-        start_hooks=(web.initialize,),
-        stop_hooks=(runtime_database.dispose,),
+        start_hooks=(web.initialize, sign_scheduler.start),
+        stop_hooks=(sign_scheduler.stop, runtime_database.dispose),
     )
     return PluginRuntime(
         context=context,

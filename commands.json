@@ -455,5 +455,17 @@
     ],
     "permission": "owner",
     "use_case": "src.modules.checkin.commands.checkin_sign_all_use_case"
+  },
+  {
+    "id": "sign_result_subscribe",
+    "pattern": "^(订阅|取消订阅)签到结果$",
+    "group": "签到",
+    "name": "订阅签到结果",
+    "description": "订阅/取消订阅签到结果推送",
+    "examples": [
+      "订阅签到结果"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.checkin.commands.checkin_sign_result_subscribe_use_case"
   }
 ]

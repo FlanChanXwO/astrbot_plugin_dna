@@ -6,7 +6,7 @@
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取和签到共 38 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取和签到共 39 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -48,6 +48,18 @@
   服务层不接触旧事件/数据库/消息段，transport 错误只映射稳定类别。
 - 成功、已签到跳过、关闭、transport 失败、日历精简、帖子遍历失败和批量聚合均由隔离
   fixture 覆盖；签到日历渲染 1300 宽运行期 PNG 并记录布局/资源语义。
+
+### rewrite Task 18 — 计划任务、结果订阅与生命周期 ✅
+
+- 注册 `sign_result_subscribe`（订阅/取消订阅签到结果，owner），订阅写入
+  `src/infrastructure/subscriptions/` 的 JSON 存储（type+会话去重，损坏文件可见失败）。
+- `SignScheduler` 在 `initialize()` 创建每日自动签到（`sign_in.sign_time`）与记录清理
+  （2 天前）两个 asyncio 任务、`terminate()` 取消，重复 start/stop 幂等；`scheduled_enabled`
+  关闭时只保留清理任务。自动签到摘要区分游戏/社区成功数，并经注入推送闭包发给订阅者。
+- 生命周期钩子顺序为 start: web → scheduler，stop: scheduler → database.dispose；
+  `EventActor` 增加 `unified_msg_origin`（AstrBot 公开属性）用于订阅目标。
+- 全部行为由隔离订阅存储、fake checkin 与注入 push/now/sleep fixture 覆盖；真实推送只走
+  `Context.send_message` 公开 API，未执行真实 NapCat。
 
 ## 当前状态
 

@@ -124,7 +124,12 @@ def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
     )
 
     runtime = module.build_runtime(context, {})
-    asyncio.run(runtime.initialize())
+
+    async def lifecycle() -> None:
+        await runtime.initialize()
+        await runtime.terminate()
+
+    asyncio.run(lifecycle())
 
     assert registered == []
 

@@ -19,6 +19,7 @@ from src.infrastructure.persistence import (
 )
 from src.infrastructure.rendering import CheckinRenderer
 from src.infrastructure.resources import EncyclopediaResourceStore
+from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.checkin import messages
 from src.modules.checkin.contracts import (
     CheckinCommandRequest,
@@ -203,6 +204,7 @@ def _service(
     concurrency: int = 1,
     interval_range: tuple[int, int] = (0, 0),
     allow_mention_query: bool = True,
+    subscriptions: SubscriptionStore | None = None,
 ) -> CheckinService:
     return CheckinService(
         database,
@@ -217,6 +219,7 @@ def _service(
         community_tasks=community_tasks,
         concurrency=concurrency,
         interval_range=interval_range,
+        subscriptions=subscriptions,
     )
 
 
@@ -527,4 +530,131 @@ async def test_manual_sign_peek_blocked_visible(tmp_path: Path) -> None:
     assert isinstance(response, PlainTextResponse)
     assert response.text == messages.CHECKIN_PEEK_BLOCKED
     assert transport.calls == []
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_subscribe_sign_result_adds_and_dedupes(tmp_path: Path) -> None:
+    """订阅签到结果写入订阅存储并按会话去重。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    transport = FakeCheckinTransport()
+    service = _service(database, transport, subscriptions=subscriptions)
+    actor = EventActor("user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1")
+
+    response = await service.subscribe_sign_result(
+        _request(actor=actor, text="订阅签到结果"),
+    )
+    again = await service.subscribe_sign_result(
+        _request(actor=actor, text="订阅签到结果"),
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.SIGN_RESULT_SUBSCRIBED
+    assert isinstance(again, PlainTextResponse)
+    assert again.text == messages.SIGN_RESULT_SUBSCRIBED
+    subs = await subscriptions.get(messages.SIGN_RESULT_SUBSCRIBE)
+    assert len(subs) == 1
+    assert subs[0].unified_msg_origin == "platform:group:g1"
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_sign_result_removes_subscription(tmp_path: Path) -> None:
+    """取消订阅删除对应会话的订阅。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    transport = FakeCheckinTransport()
+    service = _service(database, transport, subscriptions=subscriptions)
+    actor = EventActor("user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1")
+    await service.subscribe_sign_result(_request(actor=actor, text="订阅签到结果"))
+
+    response = await service.subscribe_sign_result(
+        _request(actor=actor, text="取消订阅签到结果"),
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.SIGN_RESULT_UNSUBSCRIBED
+    assert await subscriptions.get(messages.SIGN_RESULT_SUBSCRIBE) == ()
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_subscribe_sign_result_without_origin_is_visible(tmp_path: Path) -> None:
+    """无法定位会话时不写入订阅并显式提示。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    transport = FakeCheckinTransport()
+    service = _service(database, transport, subscriptions=subscriptions)
+
+    response = await service.subscribe_sign_result(
+        _request(actor=EventActor("user-1", "bot-1", "group-1"), text="订阅签到结果"),
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.SIGN_RESULT_ORIGIN_MISSING
+    assert await subscriptions.get(messages.SIGN_RESULT_SUBSCRIBE) == ()
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_auto_sign_all_summary_counts_game_and_community(tmp_path: Path) -> None:
+    """自动签到摘要区分游戏/社区成功数。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeCheckinTransport()
+    service = _service(database, transport)
+
+    text = await service.auto_sign_all()
+
+    assert "[二重螺旋]自动任务" in text
+    assert "今日成功游戏签到 1 个账号" in text
+    assert "今日社区签到 1 个账号" in text
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_sign_records_before_deletes_old_records(tmp_path: Path) -> None:
+    """清理早于指定日期的签到记录并返回条数。"""
+
+    database = await _database_with_binding(tmp_path)
+    async with database.transaction() as session:
+        await SignRecordRepository.save(
+            session,
+            uid=UID,
+            record_date=date(2026, 8, 9),
+            game_sign=1,
+            bbs_sign=1,
+            bbs_detail=0,
+            bbs_like=0,
+            bbs_share=0,
+            bbs_reply=0,
+        )
+        await SignRecordRepository.save(
+            session,
+            uid=UID,
+            record_date=date(2026, 8, 11),
+            game_sign=1,
+            bbs_sign=1,
+            bbs_detail=0,
+            bbs_like=0,
+            bbs_share=0,
+            bbs_reply=0,
+        )
+    transport = FakeCheckinTransport()
+    service = _service(database, transport)
+
+    deleted = await service.clear_sign_records_before(date(2026, 8, 11))
+
+    assert deleted == 1
+    async with database.session() as session:
+        remaining = await SignRecordRepository.get(
+            session,
+            uid=UID,
+            record_date=date(2026, 8, 11),
+        )
+    assert remaining is not None
     await database.dispose()

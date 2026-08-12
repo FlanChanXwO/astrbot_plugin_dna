@@ -33,6 +33,9 @@ ruff check .
   隔离 SQLite 记录落盘与 1300 宽日历 PNG。
 - `test_checkin_commands.py` — 签到命令归属、正则、权限和生成 handler 的纯文本结果。
 - `test_checkin_transport.py` — legacy 签到 payload 映射、code 711/10000 语义和错误脱敏。
+- `test_subscription_store.py` — 订阅 JSON 持久化、type+会话去重、显式删除和损坏文件可见失败。
+- `test_scheduler.py` — 计划任务幂等 start/stop、定时关闭只保留清理任务、自动签到推送订阅者和
+  2 天前记录清理。
 - `test_player_transport.py` — legacy role API payload 到 typed overview 的映射和 transport
   错误脱敏。
 - `test_session.py` — `EventContext` 映射（mock `AstrMessageEvent`）、`Sender` 累积与结果转换。

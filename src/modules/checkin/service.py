@@ -20,6 +20,7 @@ from ...infrastructure.persistence import (
     SignRecordRepository,
 )
 from ...infrastructure.rendering import CheckinRenderer
+from ...infrastructure.subscriptions import SubscriptionStore
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (
@@ -27,6 +28,7 @@ from .contracts import (
     CheckinCommandRequest,
     CheckinOutcome,
     CheckinSnapshot,
+    CheckinSummary,
     CheckinTransport,
     CheckinTransportError,
     CommunityPost,
@@ -54,6 +56,7 @@ class CheckinService:
         enable_all_users: bool = False,
         concurrency: int = 1,
         interval_range: tuple[int, int] = (0, 0),
+        subscriptions: SubscriptionStore | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -65,6 +68,7 @@ class CheckinService:
         self.enable_all_users = enable_all_users
         self.concurrency = max(1, concurrency)
         self.interval_range = interval_range
+        self.subscriptions = subscriptions
 
     async def _resolve_uid(
         self,
@@ -415,29 +419,24 @@ class CheckinService:
         rendered = self.renderer.render_calendar(data)
         return ImageResponse(str(rendered.path), temporary=True)
 
-    async def sign_all(self, request: CheckinCommandRequest):
-        """为所有已绑定账号执行签到并按并发/间隔聚合结果。"""
+    async def _run_all_signs(self, *, bot_id: str | None = None) -> CheckinSummary:
+        """为全部已绑定账号执行签到并按并发/间隔聚合结果。"""
 
-        if not self.game_enabled and not self.community_enabled:
-            return PlainTextResponse(messages.CHECKIN_DISABLED)
         async with self.database.session() as session:
-            bindings = await AccountBindingRepository.list_all(
-                session,
-                bot_id=request.actor.bot_id if request.actor is not None else None,
-            )
+            bindings = await AccountBindingRepository.list_all(session, bot_id=bot_id)
         if not bindings:
-            return PlainTextResponse(messages.CHECKIN_NO_USERS)
+            return CheckinSummary()
 
-        lines = [messages.CHECKIN_ALL_STARTED]
         success = 0
         failed = 0
-
+        game_success = 0
+        bbs_success = 0
         semaphore = asyncio.Semaphore(self.concurrency)
 
         async def process(binding) -> CheckinOutcome:
             async with semaphore:
                 return await self._sign_one(
-                    request.actor,
+                    EventActor(binding.user_id, binding.bot_id, None),
                     binding.uid,
                     binding.user_id,
                 )
@@ -447,19 +446,84 @@ class CheckinService:
             batch = tasks[i : i + self.concurrency]
             results = await asyncio.gather(*batch, return_exceptions=True)
             for result in results:
-                if isinstance(result, CheckinOutcome):
-                    if result.success:
-                        success += 1
-                    else:
-                        failed += 1
+                if not isinstance(result, CheckinOutcome):
+                    failed += 1
+                    continue
+                if result.success:
+                    success += 1
                 else:
                     failed += 1
+                if result.game_status in (SignStatus.DONE, SignStatus.SKIP):
+                    game_success += 1
+                if result.bbs_status in (SignStatus.DONE, SignStatus.SKIP):
+                    bbs_success += 1
             if self.interval_range[1] > 0:
                 await asyncio.sleep(random.uniform(*self.interval_range))
 
-        lines.append(messages.CHECKIN_ALL_DONE)
-        lines.append(f"今日成功签到 {success} 个账号，失败 {failed} 个账号")
+        return CheckinSummary(
+            success=success,
+            failed=failed,
+            game_success=game_success,
+            bbs_success=bbs_success,
+        )
+
+    async def sign_all(self, request: CheckinCommandRequest):
+        """为所有已绑定账号执行签到并按并发/间隔聚合结果。"""
+
+        if not self.game_enabled and not self.community_enabled:
+            return PlainTextResponse(messages.CHECKIN_DISABLED)
+        summary = await self._run_all_signs(
+            bot_id=request.actor.bot_id if request.actor is not None else None,
+        )
+        if summary.success == 0 and summary.failed == 0:
+            return PlainTextResponse(messages.CHECKIN_NO_USERS)
+        lines = [
+            messages.CHECKIN_ALL_STARTED,
+            messages.CHECKIN_ALL_DONE,
+            f"今日成功签到 {summary.success} 个账号，失败 {summary.failed} 个账号",
+        ]
         return PlainTextResponse("\n".join(lines))
+
+    async def auto_sign_all(self) -> str:
+        """供计划任务调用的全账号自动签到，返回可推送摘要。"""
+
+        if not self.game_enabled and not self.community_enabled:
+            return f"[二重螺旋]自动任务\n{messages.CHECKIN_DISABLED}"
+        summary = await self._run_all_signs()
+        if summary.success == 0 and summary.failed == 0:
+            return f"[二重螺旋]自动任务\n{messages.CHECKIN_NO_USERS}"
+        return (
+            f"[二重螺旋]自动任务\n"
+            f"今日成功游戏签到 {summary.game_success} 个账号\n"
+            f"今日社区签到 {summary.bbs_success} 个账号"
+        )
+
+    async def subscribe_sign_result(self, request: CheckinCommandRequest):
+        """订阅/取消订阅签到结果推送（owner）。"""
+
+        if self.subscriptions is None:
+            return PlainTextResponse(messages.CHECKIN_SERVICE_UNAVAILABLE)
+        origin = request.actor.unified_msg_origin if request.actor is not None else None
+        if not origin:
+            return PlainTextResponse(messages.SIGN_RESULT_ORIGIN_MISSING)
+        if "取消" in request.text:
+            await self.subscriptions.delete(messages.SIGN_RESULT_SUBSCRIBE, origin)
+            return PlainTextResponse(messages.SIGN_RESULT_UNSUBSCRIBED)
+        await self.subscriptions.add(
+            messages.SIGN_RESULT_SUBSCRIBE,
+            origin=origin,
+            user_id=request.actor.user_id,
+            group_id=request.actor.group_id or "",
+            bot_id=request.actor.bot_id,
+            user_type="group" if request.actor.group_id else "direct",
+        )
+        return PlainTextResponse(messages.SIGN_RESULT_SUBSCRIBED)
+
+    async def clear_sign_records_before(self, record_date: date) -> int:
+        """清理指定日期之前的签到记录，返回删除条数。"""
+
+        async with self.database.transaction() as session:
+            return await SignRecordRepository.delete_before(session, record_date)
 
 
 __all__ = ["CheckinService"]

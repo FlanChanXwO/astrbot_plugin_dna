@@ -46,6 +46,11 @@
   owner 批量签到；当天计数落到 `sign_records` 表（Task 9 的 `SignRecordRepository`）。
   真实写操作只走注入 transport（默认 `DnaApiCheckinTransport` 复用 legacy 纯 API），
   服务层不接触旧事件/数据库/消息段；`CheckinRenderer` 生成 1300 宽日历 PNG。
+- 订阅与计划任务：`src/infrastructure/subscriptions/` 提供框架无关的 JSON 订阅存储
+  （按 type+会话去重）；`src/infrastructure/scheduler.py` 的 `SignScheduler` 在
+  `initialize()` 创建每日自动签到与记录清理任务、`terminate()` 取消，重复初始化幂等。
+  自动签到摘要经注入的推送闭包（绑定 `Context.send_message`）发给订阅者；`sleep/now`
+  可注入，离线测试不依赖真实时钟。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
   强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与

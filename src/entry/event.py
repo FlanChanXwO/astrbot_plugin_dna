@@ -20,6 +20,7 @@ class EventActor:
     user_id: str
     bot_id: str
     group_id: str | None = None
+    unified_msg_origin: str | None = None
 
     def __post_init__(self) -> None:
         """拒绝无法定位账号数据的空作用域。"""
@@ -33,6 +34,9 @@ class EventActor:
         if self.group_id is not None:
             group_id = self.group_id.strip()
             object.__setattr__(self, "group_id", group_id or None)
+        if self.unified_msg_origin is not None:
+            origin = self.unified_msg_origin.strip()
+            object.__setattr__(self, "unified_msg_origin", origin or None)
 
 
 def actor_from_event(event: Any) -> EventActor | None:
@@ -54,6 +58,7 @@ def actor_from_event(event: Any) -> EventActor | None:
         user_id=str(user_id),
         bot_id=str(bot_id),
         group_id=None if group_id is None else str(group_id),
+        unified_msg_origin=getattr(event, "unified_msg_origin", None),
     )
 
 

@@ -1,5 +1,30 @@
 # Changelog
 
+## rewrite Task 18 — 计划任务、结果订阅与生命周期
+
+### Added
+
+- 新增 `src/infrastructure/subscriptions/`：框架无关 JSON 订阅存储（type+会话去重、
+  原子落盘、损坏文件可见失败），替代旧 `dnaby/utils/subscriptions.py` 与 gsucore
+  `gs_subscribe` 的签到结果订阅路径。
+- 注册 `sign_result_subscribe`（订阅/取消订阅签到结果，owner）；`commands.json` 由
+  registry 重新生成，共 39 条命令。
+- 新增 `src/infrastructure/scheduler.py` 的 `SignScheduler`：每日自动签到
+  （`sign_in.sign_time`）与 2 天前记录清理，`initialize()` 创建、`terminate()` 取消，
+  重复初始化幂等；`EventActor` 增加 `unified_msg_origin`（AstrBot 公开属性）。
+
+### Changed
+
+- `CheckinService` 新增 `subscribe_sign_result`/`auto_sign_all`/`clear_sign_records_before`；
+  自动签到摘要按 legacy 语义区分游戏/社区成功数。`sign_all` 重构为共享 `_run_all_signs`。
+- 生命周期钩子改为 start: web → scheduler，stop: scheduler → database.dispose；
+  推送闭包绑定 `Context.send_message` 公开 API。
+
+### Verification boundary
+
+- 计划任务与推送只在隔离订阅存储 + fake checkin + 注入 push/now/sleep fixture 中验证；
+  未执行真实 NapCat。订阅写入型能力的完整离线契约与权限测试继续由 Task 19 覆盖。
+
 ## rewrite Task 17 — 游戏/社区签到、日历与批量结果
 
 ### Added

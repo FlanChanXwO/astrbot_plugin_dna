@@ -58,6 +58,10 @@ registry 的帮助文本。
   社区任务进度和逐日奖励），使用 `user` 权限。
 - `全部签到`：对所有已绑定账号执行签到并按并发/间隔聚合成功/失败结果，使用 `owner`
   权限。真实账户不执行批量写操作，仅离线 fixture 覆盖契约。
+- `订阅签到结果`、`取消订阅签到结果`：在 `sign_in.scheduled_enabled` 开启时，每日
+  `sign_in.sign_time` 由计划任务执行全账号自动签到，并把摘要推送给订阅者；订阅按
+  type+会话去重，使用 `owner` 权限。真实推送只走注入的 `context.send_message`，
+  离线测试用 fixture 验证。
 
 资料读取的图片与索引只使用
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录

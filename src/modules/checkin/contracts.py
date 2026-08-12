@@ -169,8 +169,10 @@ class CheckinOutcome:
 class CheckinSummary:
     """批量签到的聚合结果。"""
 
-    success: int
-    failed: int
+    success: int = 0
+    failed: int = 0
+    game_success: int = 0
+    bbs_success: int = 0
     lines: tuple[str, ...] = ()
 
 

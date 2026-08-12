@@ -86,6 +86,7 @@ def test_explicit_registry_loads_only_implemented_commands():
         "sign",
         "sign_calendar",
         "sign_all",
+        "sign_result_subscribe",
     ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
@@ -268,6 +269,7 @@ def test_commands_manifest_is_generated_from_registry():
         "sign",
         "sign_calendar",
         "sign_all",
+        "sign_result_subscribe",
     }
 
 

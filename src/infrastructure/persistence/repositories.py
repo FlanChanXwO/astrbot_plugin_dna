@@ -466,6 +466,17 @@ class SignRecordRepository:
         await session.flush()
         return record
 
+    @staticmethod
+    async def delete_before(
+        session: AsyncSession,
+        record_date: date,
+    ) -> int:
+        """删除指定日期（不含）之前的签到记录，返回删除条数。"""
+        result = await session.execute(
+            delete(SignRecord).where(SignRecord.date < record_date)
+        )
+        return int(result.rowcount or 0)
+
 
 class PrivacySettingRepository:
     """个人隐私设置的基础读写入口。"""

@@ -18,6 +18,13 @@ CHECKIN_DETAIL_FAILED = "社区任务：浏览帖子失败次数过多，请稍�
 CHECKIN_LIKE_FAILED = "社区任务：帖子点赞失败次数过多，请稍后重试"
 CHECKIN_REPLY_FAILED = "社区任务：帖子回复失败次数过多，请稍后重试"
 
+SIGN_RESULT_SUBSCRIBE = "订阅二重螺旋签到结果"
+SIGN_RESULT_SUBSCRIBED = "已订阅签到结果推送"
+SIGN_RESULT_UNSUBSCRIBED = "已取消订阅签到结果推送"
+SIGN_RESULT_ORIGIN_MISSING = "无法定位当前会话，无法订阅签到结果"
+SIGN_RESULT_EMPTY = "今日暂无自动签到结果"
+SIGN_RESULT_CLEANED = "已清理过期签到记录"
+
 SIGN_STATUS_TEXT = {
     SignStatus.DONE: "✅ 已完成",
     SignStatus.SKIP: "🚫 请勿重复签到",
@@ -80,6 +87,12 @@ __all__ = [
     "CHECKIN_REPLY_FAILED",
     "CHECKIN_SERVICE_UNAVAILABLE",
     "CHECKIN_UID_INVALID",
+    "SIGN_RESULT_CLEANED",
+    "SIGN_RESULT_EMPTY",
+    "SIGN_RESULT_ORIGIN_MISSING",
+    "SIGN_RESULT_SUBSCRIBE",
+    "SIGN_RESULT_SUBSCRIBED",
+    "SIGN_RESULT_UNSUBSCRIBED",
     "community_label",
     "community_target",
     "sign_status",
