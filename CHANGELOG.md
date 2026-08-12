@@ -1,5 +1,20 @@
 # Changelog
 
+## rewrite Task 23 — 通知脱敏、可观测错误与事件响应
+
+### Added
+
+- `tests/test_notices_transport.py` 新增 5 条脱敏/错误观测测试：网络失败映射 NETWORK、
+  状态码错误映射 STATUS、密函/公告页面结构变化映射 SERVER 或显式抛错（不伪造空成功），
+  并断言 Cookie/token 与上游 `msg` 原文不进异常 str/repr。
+- 错误分类统一：用户取消（`订阅密函时间` 越界等）返回格式提示；网络/状态码/服务端/
+  结构变化分别映射稳定类别，用户响应只含受控文案。
+
+### Verification boundary
+
+- 通知读取/订阅/推送的 Cookie/token 脱敏与错误可见性由隔离 fixture 验证；真实平台
+  内容与视觉等价仍待 Task 30 只读矩阵。
+
 ## rewrite Task 22 — 通知订阅推送与取消订阅
 
 ### Added
