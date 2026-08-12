@@ -35,3 +35,6 @@ _scratch/
 # 本地离线渲染对比产物（不入库，对比资料见 docs/porting/render-compare-mh.md）
 legacy_mh_simple.png
 rewrite_mh_render.png
+
+# 对比图片输出目录（真实账号图，不入库）
+output/
