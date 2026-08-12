@@ -153,6 +153,9 @@
 
 ## 当前状态
 
+> 本节描述的是 `legacy-reference` 的历史移植状态；`rewrite/v0.1` 的当前状态见上方各 Task
+> 记录与 `commands.json`（59 条命令）。
+
 `astrbot_plugin_dnaby` 已完成从 GsCore DNAUID 到原生 AstrBot 的代码层移植。当前入口可被 AstrBot 以 `data.plugins.astrbot_plugin_dnaby.main` 动态加载，56 条命令、18 个功能模块、5 张 SQLModel 表、登录 Web 路由和 4 个定时任务均已接入。
 
 硬约束已核对：源码不 import `gsuid_core` / `gsucore`；运行期数据库、订阅和资源写入 AstrBot `plugin_data` 数据目录；`commands.json` 与分发表同步；入口不承载业务编排。
