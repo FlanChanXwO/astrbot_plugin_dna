@@ -316,11 +316,11 @@
 
 ### Task 28：集中检查-debug（阶段 7）
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：复核面板/资源更新的安全性、路径和 Git 边界、日志脱敏、配置契约、文档同步和门禁；追加必要修复 task。
-- 实际完成：
-- 验证证据：
-- 剩余风险/下一步：
+- 实际完成：提交 `ad46eeb`。复核 Task 25-27（`f369e14..0446508`）并修复 1 项安全边界：`PanelService._char_panel_dir` 原直接用 `panel_root / panel_dir_for(char_id)`，若 `resolve_char_id`/`panel_dir_for` 返回含 `../` 的 CharId 可逃逸 `panel_custom/`；现对解析结果 `.resolve()` 并校验必须位于 `panel_root` 内，越界返回不可用（防御性拒绝）。资源同步 Git 边界与凭据脱敏由既有 `test_config_resources.py` 覆盖（origin 校验、本地修改拒绝、URL token 脱敏）；`ResourceUpdateService` 失败类别映射为可见文案；配置契约 `_conf_schema.json` 无 diff；文档（AGENTS.md 61 行/CLAUDE.md 1 行）同步。完整审查记录见 `docs/porting/review-v0.6-operations.md`。
+- 验证证据：新增 `test_upload_rejects_path_escaping_char_id`（越界 CharId 拒绝写入且不产生逃逸文件）通过；staging runtime 全量 pytest 为 `289 passed, 1 skipped, 1 warning`；`ruff check .`、`pyright --project pyrightconfig.json`（0/0/0）、runtime `compileall`、`pre-commit run --all-files`、`git diff --check` 均通过；参考区冻结在 `664b677`。
+- 剩余风险/下一步：私有资源仓库创建/推送与真实同步仍是独立外部步骤（需用户授权）；`dna_status` Dashboard 指标按设计保留统计函数不注册；真实平台面板上传/资源更新行为未执行，仅离线契约覆盖。下一轮执行 Task 29（盘点并补齐历史 56 项能力，v1.0.0）。
 
 ## 阶段 8：`v1.0.0` 补齐与终审
 
