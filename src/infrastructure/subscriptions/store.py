@@ -1,9 +1,10 @@
 """框架无关的订阅存储。
 
 替代旧 ``dnaby/utils/subscriptions.py`` 与 gsucore ``gs_subscribe``：以 JSON 持久化
-到运行期数据目录，按 ``type`` + ``unified_msg_origin`` 去重。业务层只读写
-``Subscription`` 值对象，推送目标统一由 ``unified_msg_origin`` 表示，发送动作由
-调用方（scheduler/bootstrap）注入，本模块不接触 AstrBot 事件或消息段。
+到运行期数据目录，按 ``type`` + ``unified_msg_origin``（+ 个人作用域的 ``uid`` 语义
+字段）去重。业务层只读写 ``Subscription`` 值对象，推送目标统一由
+``unified_msg_origin`` 表示，发送动作由调用方（scheduler/bootstrap）注入，本模块不
+接触 AstrBot 事件或消息段。
 """
 
 from __future__ import annotations
@@ -24,6 +25,9 @@ class Subscription:
     group_id: str = ""
     bot_id: str = ""
     user_type: str = "group"
+    uid: str = ""
+    extra_message: str = ""
+    extra_data: str = ""
 
 
 class SubscriptionStore:
@@ -36,7 +40,7 @@ class SubscriptionStore:
         self._loaded = False
 
     async def load(self) -> None:
-        """幂等加载既有 JSON；损坏数据按空订阅处理，不抛出。"""
+        """幂等加载既有 JSON；损坏数据显式失败，不静默清空。"""
 
         if self._loaded:
             return
@@ -55,6 +59,9 @@ class SubscriptionStore:
                     group_id=str(item.get("group_id", "")),
                     bot_id=str(item.get("bot_id", "")),
                     user_type=str(item.get("user_type", "group")),
+                    uid=str(item.get("uid", "")),
+                    extra_message=str(item.get("extra_message", "")),
+                    extra_data=str(item.get("extra_data", "")),
                 )
                 for item in raw
                 if isinstance(item, dict) and item.get("type") and item.get("unified_msg_origin")
@@ -85,6 +92,9 @@ class SubscriptionStore:
         group_id: str = "",
         bot_id: str = "",
         user_type: str = "group",
+        uid: str = "",
+        extra_message: str = "",
+        extra_data: str = "",
     ) -> Subscription:
         """新增订阅；同一 type+origin 只保留最新一条。"""
 
@@ -97,6 +107,9 @@ class SubscriptionStore:
                 group_id=group_id,
                 bot_id=bot_id,
                 user_type=user_type,
+                uid=uid,
+                extra_message=extra_message,
+                extra_data=extra_data,
             )
             self._subs = [
                 sub
@@ -123,11 +136,72 @@ class SubscriptionStore:
             self._save_unlocked()
             return True
 
-    async def get(self, sub_type: str) -> tuple[Subscription, ...]:
-        """按订阅类型返回全部目标。"""
+    async def update(
+        self,
+        sub_type: str,
+        origin: str,
+        *,
+        extra_message: str | None = None,
+        extra_data: str | None = None,
+    ) -> bool:
+        """更新一条订阅的附加数据；返回是否命中。"""
+
+        async with self._lock:
+            await self.load()
+            target = next(
+                (sub for sub in self._subs if sub.type == sub_type and sub.unified_msg_origin == origin),
+                None,
+            )
+            if target is None:
+                return False
+            self._subs = [
+                Subscription(
+                    type=sub.type,
+                    unified_msg_origin=sub.unified_msg_origin,
+                    user_id=sub.user_id,
+                    group_id=sub.group_id,
+                    bot_id=sub.bot_id,
+                    user_type=sub.user_type,
+                    uid=sub.uid,
+                    extra_message=extra_message if extra_message is not None else sub.extra_message,
+                    extra_data=extra_data if extra_data is not None else sub.extra_data,
+                )
+                if sub.type == sub_type and sub.unified_msg_origin == origin
+                else sub
+                for sub in self._subs
+            ]
+            self._save_unlocked()
+            return True
+
+    async def get(
+        self,
+        sub_type: str,
+        *,
+        user_id: str | None = None,
+        bot_id: str | None = None,
+        group_id: str | None = None,
+        user_type: str | None = None,
+        uid: str | None = None,
+    ) -> tuple[Subscription, ...]:
+        """按订阅类型返回目标，支持个人/群组作用域过滤。"""
 
         await self.load()
-        return tuple(sub for sub in self._subs if sub.type == sub_type)
+        result = []
+        for sub in self._subs:
+            if sub.type != sub_type:
+                continue
+            if user_id is not None and sub.user_id != user_id:
+                continue
+            if bot_id is not None and sub.bot_id != bot_id:
+                continue
+            if group_id is not None and sub.group_id != group_id:
+                continue
+            if user_type is not None and sub.user_type != user_type:
+                continue
+            if uid is not None and sub.uid != uid:
+                continue
+            result.append(sub)
+        return tuple(result)
 
     async def list_all(self) -> tuple[Subscription, ...]:
         """返回全部订阅（供生命周期清理与测试核对）。"""

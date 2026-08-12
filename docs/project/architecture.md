@@ -54,7 +54,10 @@
 - 通知读取：`src/modules/notices/` 通过 `NoticesTransport` 读取密函（角色/武器/魔之楔分节，
   复用 legacy `get_default_role_for_tool` 的 `instanceInfo`）、公告列表与详情（公共 BBS，
   HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）；`NoticesRenderer` 生成 1300 宽 PNG，
-  公告图片块标记为 placeholder 资源。通知订阅/轮询推送在 Task 22 接入。
+  公告图片块标记为 placeholder 资源。订阅复用 `SubscriptionStore`（密函按 user+会话、
+  公告按群聊作用域，`extra_message`/`extra_data` 存密函名称与推送时间）；`NoticesScheduler`
+  每小时推送密函、按分钟轮询公告（`AnnStateStore` 记录已知公告 id），推送经注入闭包绑定
+  `Context.send_message`，文本/图片载荷分别映射为 Plain/Image 组件。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
   强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from astrbot.api.star import Context
 from astrbot.core import AstrBotConfig
+from astrbot.core.message.components import Image as AstrImage
 from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
 
@@ -29,6 +31,7 @@ from .infrastructure.http import (
     DnaApiPlayerTransport,
 )
 from .infrastructure.persistence import AsyncDatabase
+from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.rendering import (
     CheckinRenderer,
     EncyclopediaRenderer,
@@ -47,6 +50,7 @@ from .modules.checkin.service import CheckinService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.contracts import NoticesTransport
+from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.service import NoticesService
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
@@ -161,6 +165,21 @@ def build_runtime(
         notices_transport or DnaApiNoticesTransport(runtime_database),
         privacy_service,
         NoticesRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+        subscriptions=subscriptions,
+        ann_state=AnnStateStore(runtime_database.path.parent / "ann_state.json"),
+        push=lambda origin, payload: context.send_message(
+            origin,
+            MessageChain(
+                chain=[
+                    Plain(str(payload)) if not isinstance(payload, Path) else AstrImage(str(payload)),
+                ],
+            ),
+        ),
+    )
+    notices_scheduler = NoticesScheduler(
+        notices_service,
+        push_time=settings.notifications.secret_push_time,
+        poll_minutes=settings.notifications.announcement_check_minutes,
     )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
@@ -175,14 +194,15 @@ def build_runtime(
         "subscriptions": subscriptions,
         "sign_scheduler": sign_scheduler,
         "notices_service": notices_service,
+        "notices_scheduler": notices_scheduler,
     }
     if services is not None:
         resolved_services.update(services)
 
     web = WebRegistrar(context)
     lifecycle = PluginLifecycle(
-        start_hooks=(web.initialize, sign_scheduler.start),
-        stop_hooks=(sign_scheduler.stop, runtime_database.dispose),
+        start_hooks=(web.initialize, sign_scheduler.start, notices_scheduler.start),
+        stop_hooks=(notices_scheduler.stop, sign_scheduler.stop, runtime_database.dispose),
     )
     return PluginRuntime(
         context=context,

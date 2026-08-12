@@ -127,6 +127,10 @@ class NoticesTransport(Protocol):
         """读取当前小时段的密函数据。"""
         ...
 
+    async def get_mh_any(self) -> MhSnapshot:
+        """使用任意可用账号凭据读取密函（供计划任务推送）。"""
+        ...
+
     async def get_ann_list(self) -> AnnSnapshot:
         """读取公告列表。"""
         ...

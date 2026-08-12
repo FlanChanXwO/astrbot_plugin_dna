@@ -6,7 +6,7 @@
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到和通知共 42 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到和通知共 50 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -93,6 +93,20 @@
 - 密函需要调用者 active UID 凭据（区别于 legacy 随机账号，作为记录差异）；公告无需账号。
 - 全部读取由 fake transport + 隔离 SQLite + 事件 fixture 覆盖；staging runtime 全量
   pytest `229 passed, 1 skipped, 1 warning`，全部门禁通过。
+
+### rewrite Task 22 — 通知订阅推送与取消订阅 ✅
+
+- 扩展 `SubscriptionStore`（`extra_message`/`extra_data`、作用域过滤、update）；注册
+  `mh_subscribe`/`mh_subscribe_by_name`/`mh_subscribe_cycle`/`mh_pic_subscribe`/
+  `mh_text_subscribe`/`mh_test`/`ann_sub`/`ann_unsub` 共 8 条订阅命令（50 条命令）。
+- `NoticesService` 新增密函按名订阅/取消（去重、禁全部、推送时间窗口）、图片/文本会话
+  开关、owner 测试推送、公告群订阅/取消与 `push_mh_now`/`poll_ann_now`（`AnnStateStore`
+  记录已知公告 id，只推送新条目）。
+- `NoticesScheduler` 每小时按 `secret_push_time` 推送密函、按
+  `announcement_check_minutes` 轮询公告，`initialize()` 启动/`terminate()` 取消，幂等；
+  推送闭包把 str/Path 分别映射为 Plain/Image 组件绑定 `Context.send_message`。
+- 全部订阅/推送只在隔离 SubscriptionStore + fake transport + 注入 push 下验证；
+  staging runtime 全量 pytest `250 passed, 1 skipped, 1 warning`，全部门禁通过。
 
 ## 当前状态
 

@@ -15,7 +15,11 @@ from typing import Any
 import aiohttp
 
 from ...entry.event import EventActor
-from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
+from ...infrastructure.persistence import (
+    AccountBindingRepository,
+    AsyncDatabase,
+    CredentialRepository,
+)
 from ...modules.notices.contracts import (
     AnnBlock,
     AnnDetail,
@@ -180,6 +184,45 @@ class DnaApiNoticesTransport:
             response = await dna_api.get_default_role_for_tool(
                 await self._legacy_user(actor, uid, credential_user_id),
             )
+            return self._mh_snapshot(_response_data(response, resource="密函数据"))
+        except NoticesTransportError:
+            raise
+        except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
+            raise NoticesTransportError(NoticesFailureKind.NETWORK, resource="密函数据") from None
+        except (AttributeError, KeyError, TypeError, ValueError):
+            raise NoticesTransportError(NoticesFailureKind.SERVER, resource="密函数据") from None
+
+    async def get_mh_any(self) -> MhSnapshot:
+        """用任意可用账号凭据读取密函（计划任务推送用，区别于读取命令的调用者账号）。"""
+
+        async with self.database.session() as session:
+            bindings = await AccountBindingRepository.list_all(session)
+            records = []
+            for binding in bindings:
+                record = await CredentialRepository.get(
+                    session,
+                    user_id=binding.user_id,
+                    bot_id=binding.bot_id,
+                    uid=binding.uid,
+                )
+                if record is not None and record.app_status != "无效":
+                    records.append((binding, record))
+        if not records:
+            raise NoticesTransportError(
+                NoticesFailureKind.CREDENTIAL,
+                resource="密函数据",
+                detail="no usable credential for scheduled push",
+            )
+        binding, record = records[0]
+        try:
+            from dnaby.utils import dna_api
+
+            user = await self._legacy_user(
+                EventActor(binding.user_id, binding.bot_id, None),
+                binding.uid,
+                binding.user_id,
+            )
+            response = await dna_api.get_default_role_for_tool(user)
             return self._mh_snapshot(_response_data(response, resource="密函数据"))
         except NoticesTransportError:
             raise

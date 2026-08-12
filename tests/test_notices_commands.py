@@ -15,7 +15,7 @@ from src.entry.commands import (
 from src.entry.response import ImageResponse, PlainTextResponse, ResponseFactory
 from src.modules.notices import messages
 
-NOTICES_SPEC_IDS = {"mh", "mh_list", "ann"}
+NOTICES_SPEC_IDS = {"mh", "mh_list", "ann", "mh_subscribe", "mh_subscribe_by_name", "mh_subscribe_cycle", "mh_pic_subscribe", "mh_text_subscribe", "mh_test", "ann_sub", "ann_unsub"}
 
 
 def test_notices_commands_are_registered_with_legacy_semantics() -> None:
@@ -29,6 +29,13 @@ def test_notices_commands_are_registered_with_legacy_semantics() -> None:
     assert specs["mh_list"].permission == "user"
     assert specs["ann"].pattern == r"^公告(?:\s+(?P<index>\d+))?$"
     assert specs["ann"].permission == "user"
+    assert specs["mh_subscribe_by_name"].permission == "user"
+    assert specs["mh_subscribe_cycle"].permission == "user"
+    assert specs["mh_pic_subscribe"].permission == "admin"
+    assert specs["mh_text_subscribe"].permission == "admin"
+    assert specs["mh_test"].permission == "owner"
+    assert specs["ann_sub"].permission == "admin"
+    assert specs["ann_unsub"].permission == "admin"
 
 
 def test_ann_pattern_extracts_named_index() -> None:
@@ -76,6 +83,33 @@ async def test_generated_ann_handler_yields_image_response() -> None:
 
         async def ann(self, _request: object) -> ImageResponse:
             return ImageResponse("rendered.png")
+
+        async def subscribe_mh(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def unsubscribe_mh(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def mh_subscriptions(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def set_mh_push_time(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def toggle_mh_pic(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def toggle_mh_text(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def test_mh_push(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def subscribe_ann(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def unsubscribe_ann(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
 
     class GeneratedNoticesPlugin:
         __module__ = "tests.generated_notices_plugin"

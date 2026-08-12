@@ -20,7 +20,7 @@ from src.entry.commands import (
 )
 from src.entry.response import ResponseFactory
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
-from src.infrastructure.rendering import CheckinRenderer
+from src.infrastructure.rendering import CheckinRenderer, NoticesRenderer
 from src.infrastructure.resources import EncyclopediaResourceStore
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.account.contracts import AccountActor, LoginAttempt, LoginResult
@@ -35,6 +35,9 @@ from src.modules.checkin.contracts import (
     TaskProcess,
 )
 from src.modules.checkin.service import CheckinService
+from src.modules.notices.ann_state import AnnStateStore
+from src.modules.notices.contracts import AnnDetail, AnnSnapshot, MhSnapshot
+from src.modules.notices.service import NoticesService
 from src.modules.privacy.service import PrivacyService
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -64,6 +67,13 @@ WRITE_COMMANDS: dict[str, str] = {
     "sign": "user",
     "sign_all": "owner",
     "sign_result_subscribe": "owner",
+    "mh_subscribe_by_name": "user",
+    "mh_subscribe_cycle": "user",
+    "mh_pic_subscribe": "admin",
+    "mh_text_subscribe": "admin",
+    "mh_test": "owner",
+    "ann_sub": "admin",
+    "ann_unsub": "admin",
 }
 
 # 每条写入型命令对应的离线契约测试文件与其代表性用例（审计注册的覆盖）。
@@ -138,6 +148,34 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
             "test_subscribe_sign_result_adds_and_dedupes",
             "test_unsubscribe_sign_result_removes_subscription",
         ),
+    ),
+    "mh_subscribe_by_name": (
+        "test_notices_subscriptions.py",
+        ("test_subscribe_mh_adds_names_and_dedupes", "test_unsubscribe_mh_removes_names"),
+    ),
+    "mh_subscribe_cycle": (
+        "test_notices_subscriptions.py",
+        ("test_mh_subscriptions_shows_time_window",),
+    ),
+    "mh_pic_subscribe": (
+        "test_notices_subscriptions.py",
+        ("test_toggle_mh_pic_and_text_are_session_scoped",),
+    ),
+    "mh_text_subscribe": (
+        "test_notices_subscriptions.py",
+        ("test_toggle_mh_pic_and_text_are_session_scoped",),
+    ),
+    "mh_test": (
+        "test_notices_subscriptions.py",
+        ("test_test_mh_push_sends_to_current_session",),
+    ),
+    "ann_sub": (
+        "test_notices_subscriptions.py",
+        ("test_ann_sub_unsub_group_scoped", "test_ann_sub_requires_group"),
+    ),
+    "ann_unsub": (
+        "test_notices_subscriptions.py",
+        ("test_ann_sub_unsub_group_scoped",),
     ),
 }
 
@@ -295,11 +333,43 @@ async def _checkin_service(db: AsyncDatabase, tmp_path) -> CheckinService:
     )
 
 
+class FakeNoticesTransport:
+    """不触碰网络的密函/公告 transport fixture。"""
+
+    async def get_mh(self, actor, uid, *, credential_user_id) -> MhSnapshot:
+        return MhSnapshot()
+
+    async def get_mh_any(self) -> MhSnapshot:
+        return MhSnapshot()
+
+    async def get_ann_list(self) -> AnnSnapshot:
+        return AnnSnapshot()
+
+    async def get_ann_detail(self, post_id: str) -> AnnDetail:
+        return AnnDetail(post_id=post_id, title="", blocks=())
+
+
+async def _notices_service(db: AsyncDatabase, tmp_path) -> NoticesService:
+    return NoticesService(
+        db,
+        FakeNoticesTransport(),
+        PrivacyService(db, allow_mention_query=True),
+        NoticesRenderer(
+            tmp_path / "rendered",
+            EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+        ),
+        subscriptions=SubscriptionStore(tmp_path / "subscriptions.json"),
+        ann_state=AnnStateStore(tmp_path / "ann_state.json"),
+        push=None,
+    )
+
+
 async def _services(db: AsyncDatabase, tmp_path) -> dict[str, object]:
     return {
         "account_service": await _account_service(db),
         "privacy_service": await _privacy_service(db),
         "checkin_service": await _checkin_service(db, tmp_path),
+        "notices_service": await _notices_service(db, tmp_path),
     }
 
 

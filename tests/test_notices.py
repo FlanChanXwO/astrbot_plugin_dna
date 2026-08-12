@@ -88,6 +88,10 @@ class FakeNoticesTransport:
         assert credential_user_id == "user-1"
         return self.mh
 
+    async def get_mh_any(self) -> MhSnapshot:
+        self._maybe_fail("get_mh_any")
+        return self.mh
+
     async def get_ann_list(self) -> AnnSnapshot:
         self._maybe_fail("get_ann_list")
         return self.ann_list

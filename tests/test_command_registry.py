@@ -90,6 +90,14 @@ def test_explicit_registry_loads_only_implemented_commands():
         "mh",
         "mh_list",
         "ann",
+        "mh_subscribe",
+        "mh_subscribe_by_name",
+        "mh_subscribe_cycle",
+        "mh_pic_subscribe",
+        "mh_text_subscribe",
+        "mh_test",
+        "ann_sub",
+        "ann_unsub",
     ]
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
@@ -276,6 +284,14 @@ def test_commands_manifest_is_generated_from_registry():
         "mh",
         "mh_list",
         "ann",
+        "mh_subscribe",
+        "mh_subscribe_by_name",
+        "mh_subscribe_cycle",
+        "mh_pic_subscribe",
+        "mh_text_subscribe",
+        "mh_test",
+        "ann_sub",
+        "ann_unsub",
     }
 
 

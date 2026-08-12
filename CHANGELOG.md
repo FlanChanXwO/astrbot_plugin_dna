@@ -1,5 +1,33 @@
 # Changelog
 
+## rewrite Task 22 — 通知订阅推送与取消订阅
+
+### Added
+
+- 扩展 `src/infrastructure/subscriptions/`：`Subscription` 增加 `uid/extra_message/
+  extra_data`，store 增加作用域过滤 `get` 与 `update`。
+- 注册 `mh_subscribe`/`mh_subscribe_by_name`/`mh_subscribe_cycle`/`mh_pic_subscribe`/
+  `mh_text_subscribe`/`mh_test`/`ann_sub`/`ann_unsub` 8 条订阅命令；`commands.json`
+  重新生成共 50 条命令。
+- `NoticesService` 新增密函按名订阅/取消（去重、禁止订阅全部、推送时间窗口）、图片/文本
+  会话作用域开关、owner 测试推送、公告群订阅/取消，以及计划任务 `push_mh_now`/
+  `poll_ann_now`；`AnnStateStore` 记录已知公告 id，只推送新条目。
+- 新增 `src/infrastructure/notices_scheduler.py`：每小时密函推送 + 周期公告轮询，
+  `initialize()` 启动/`terminate()` 取消，幂等；推送闭包把文本/图片载荷映射为
+  Plain/Image 组件并经 `Context.send_message` 发送。
+
+### Changed
+
+- 生命周期钩子扩展为 start: web → sign → notices scheduler；stop: notices → sign →
+  database.dispose。
+- `get_mh_any` 使用任意可用账号凭据读取密函供计划任务推送（区别于读取命令的调用者账号）。
+
+### Verification boundary
+
+- 订阅/推送只写入隔离 SubscriptionStore 并由注入 push fixture 验证；真实平台推送未执行，
+  仅离线契约覆盖（写入型命令纳入 `test_write_contracts` 审计）。密函/公告真实内容与视觉
+  等价仍待 Task 30 只读矩阵。
+
 ## rewrite Task 21 — 密函、公告与活动日历读取
 
 ### Added
