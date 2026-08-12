@@ -31,3 +31,7 @@ pyrightconfig.json.agent-lsp-backup
 
 # AstrBot managed
 _scratch/
+
+# 本地离线渲染对比产物（不入库，对比资料见 docs/porting/render-compare-mh.md）
+legacy_mh_simple.png
+rewrite_mh_render.png
