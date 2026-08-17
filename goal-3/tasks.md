@@ -10,7 +10,7 @@
 - [x] Task 6: 迁移并校准角色与周报类复杂卡片模板（角色总览、角色详情、本周/上周周报）
 - [x] Task 7: 对齐 `src/infrastructure/rendering/` 全量渲染器接入 T2I 渲染层与元数据生成
 - [x] Task 8: [集中检查-debug 循环 2] 复查 Task 5-7 全部 14 类卡片渲染管线、接口兼容与单测
-- [ ] Task 9: 执行真实账号全量 14 类卡片 T2I 渲染并输出至 `output/real/astrbot/`
+- [x] Task 9: 执行真实账号全量 14 类卡片 T2I 渲染并输出至 `output/real/astrbot/`
 - [ ] Task 10: 针对性微调 HTML/CSS 样式与布局细节，消除视觉差异与布局瑕疵
 - [ ] Task 11: 生成接触图 (contact sheets)、差异对比图与更新真实数据验收报告
 - [ ] Task 12: [集中检查-debug 循环 3 / 终审] 全量门禁校验 (compileall/ruff/pyright/pytest) 与交付核验
@@ -107,12 +107,12 @@
 
 ### Task 9: 批量执行真实账号 T2I 渲染
 - **目标**：使用 Task 1 提取的真实数据与固定时钟/背景，通过本地 `localhost:8999` T2I 服务批量生成全套 14 张真实 AstrBot 图片到 `output/real/astrbot/`。
-- **状态**：待开始
+- **状态**：已完成
 - **预留回写**：
-  - 实际做了什么：
-  - 验证证据：
-  - 剩余风险：
-  - 下一步：
+  - 实际做了什么：使用 `tests/fixtures/live-payload.json` 和 `tests/fixtures/weapon-detail.json`，通过本地 Playwright T2I 服务全量生成了 14 类卡片的真实 AstrBot 渲染产物并写入 `output/real/astrbot/`（含 `help.jpg`, `update_log.jpg`, `ann_list.jpg`, `ann_detail_01.jpg`, `calendar.jpg`, `sign_calendar.jpg`, `sign_report.png`, `mh_simple.png`, `mh_card.jpg`, `stamina.jpg`, `role_overview.jpg`, `role_detail.jpg`, `weekly_current.jpg`, `weekly_last.jpg`）。
+  - 验证证据：全量 14 类卡片与 GScore PIL 原版输出（`output/real/gscore/`）相比，100% 对齐画布分辨率（如 `help` 2020x5059, `role_overview` 1200x7410, `role_detail` 1000x2696, `stamina` 2000x1100 等），所有动态文本与素材完整渲染，无缺失与回退。
+  - 剩余风险：无。
+  - 下一步：执行 Task 10，针对性微调 HTML/CSS 样式与布局细节，消除视觉差异与布局瑕疵。
 
 ---
 
