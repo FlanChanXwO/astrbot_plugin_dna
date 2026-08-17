@@ -20,10 +20,11 @@ import sys
 from io import BytesIO
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+from PIL import Image
 
-from PIL import Image  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 FIXED_NOW = None  # 由脚本按固定时间设置
 
@@ -97,7 +98,6 @@ def _render_legacy(output_dir: Path) -> Image.Image:
     """用固定时钟渲染 legacy 密函简单卡片。"""
 
     import dnaby.utils as dna_utils
-
     from dnaby.dna_mh.draw_mh import draw_mh_simple
 
     original = dna_utils.get_datetime
@@ -132,8 +132,8 @@ def _histogram_distance(left: Image.Image, right: Image.Image) -> float:
     import math
 
     def hist(image: Image.Image) -> list[float]:
-        from typing import cast
         from collections.abc import Iterable
+        from typing import cast
 
         data = cast(Iterable[tuple[int, int, int]], image.convert("RGB").getdata())
         bins = [0.0] * (32 * 3)
@@ -184,8 +184,10 @@ def _report(legacy: Image.Image, rewrite: Image.Image, rewrite_path: Path, out: 
     lines = [
         "# 本地离线渲染对比：密函（legacy draw_mh_simple vs rewrite render_mh）",
         "",
-        f"- 数据源：同源 fixture（角色/武器/魔之楔 3 类型，8 个委托），固定时钟"
-        f" `{_fixed_datetime().isoformat()}`，刷新倒计时 1800s（动态字段已 mask）。",
+        (
+            "- 数据源：同源 fixture（角色/武器/魔之楔 3 类型，8 个委托），固定时钟"
+            f" `{_fixed_datetime().isoformat()}`，刷新倒计时 1800s（动态字段已 mask）。"
+        ),
         f"- 对比资料（不入 Git）：`{Path(rewrite_path).parent}`",
         "",
         "## 画布尺寸",
@@ -219,10 +221,14 @@ def _report(legacy: Image.Image, rewrite: Image.Image, rewrite_path: Path, out: 
         "",
         "## 结论",
         "",
-        "- 结构性对比：两图绘制内容同源（角色/武器/魔之楔 + 委托名逐一对应），但画布尺寸与"
-        " 布局方式不同（legacy 横向卡片 vs rewrite 纵向 1300 宽），**结构性差异**。",
-        "- rewrite 侧文本/布局/资源语义可由元数据自动核对；legacy 侧文本画入图内，需人工"
-        " 查看 `legacy_mh_simple.png` 核对角色名/委托名/轮换时间文案。",
+        (
+            "- 结构性对比：两图绘制内容同源（角色/武器/魔之楔 + 委托名逐一对应），但画布尺寸与"
+            " 布局方式不同（legacy 横向卡片 vs rewrite 纵向 1300 宽），**结构性差异**。"
+        ),
+        (
+            "- rewrite 侧文本/布局/资源语义可由元数据自动核对；legacy 侧文本画入图内，需人工"
+            " 查看 `legacy_mh_simple.png` 核对角色名/委托名/轮换时间文案。"
+        ),
         "- 像素相似度低属于布局差异的必然结果，不设通过阈值；视觉等价由人工确认。",
         "",
     ]

@@ -50,6 +50,7 @@ async def _draw_stamina_card(
     role_show: RoleShowForTool,
     short_note_info: DNARoleShortNoteRes,
     uid_hidden: bool = False,
+    bg_path: Path | None = None,
 ) -> bytes:
     other_info = [
         (item.paramKey, item.paramValue)
@@ -104,7 +105,7 @@ async def _draw_stamina_card(
     return await _RENDERER.render(
         "cards/stamina.html.j2",
         {
-            "background": image_data_uri(get_bg_list()),
+            "background": image_data_uri(bg_path or get_bg_list()),
             "drafts": drafts,
             "divider": image_data_uri(TEXT_PATH / "div.png"),
             "foreground": image_data_uri(TEXT_PATH / "fg.png"),

@@ -102,13 +102,14 @@ async def draw_mh_card(
     mh_result: list[DNARoleForToolInstanceInfo],
     remaining_seconds: int,
     subscribe_list: list[str] | None = None,
+    bg_name: str | None = None,
 ) -> bytes:
     """渲染旧 1700×900 密函卡片，随机背景仍由业务层选择。"""
 
     return await _RENDERER.render(
         "cards/mh_card.html.j2",
         {
-            "background": image_data_uri(TEXT_PATH / random.choice(bg_list)),
+            "background": image_data_uri(TEXT_PATH / (bg_name or random.choice(bg_list))),
             "bar": image_data_uri(TEXT_PATH / "bar.png"),
             "cards": _mh_payload(mh_result, subscribe_list),
             "card_background": image_data_uri(TEXT_PATH / "card.png"),

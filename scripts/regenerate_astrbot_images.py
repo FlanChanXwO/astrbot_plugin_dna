@@ -10,10 +10,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+from PIL import Image
 
-from PIL import Image  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 OUT = ROOT / "output" / "astrbot"
 
@@ -38,7 +39,12 @@ def _preseed_legacy_assets() -> None:
 
 
 def _overview_fixture():
-    from src.modules.player.contracts import RoleAchievement, RoleItem, RoleOverview, WeaponItem
+    from src.modules.player.contracts import (
+        RoleAchievement,
+        RoleItem,
+        RoleOverview,
+        WeaponItem,
+    )
 
     return RoleOverview(
         role_id="role-1",
@@ -83,7 +89,11 @@ def _short_note_fixture():
 
 
 def _weekly_fixture(week_type: int):
-    from src.modules.encyclopedia.contracts import WeeklyReport, WeeklyReportCategory, WeeklyReportItem
+    from src.modules.encyclopedia.contracts import (
+        WeeklyReport,
+        WeeklyReportCategory,
+        WeeklyReportItem,
+    )
 
     return WeeklyReport(
         week_type=week_type,
@@ -105,7 +115,11 @@ def _weekly_fixture(week_type: int):
 def main() -> int:
     import asyncio
 
-    from src.infrastructure.rendering import EncyclopediaRenderer, PlayerRenderer, ResourceMap
+    from src.infrastructure.rendering import (
+        EncyclopediaRenderer,
+        PlayerRenderer,
+        ResourceMap,
+    )
     from src.infrastructure.resources import EncyclopediaResourceStore
 
     OUT.mkdir(parents=True, exist_ok=True)
