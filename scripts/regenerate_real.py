@@ -127,7 +127,7 @@ async def main() -> None:
 
     # 6. 密函卡片
     print("[6/14] 渲染 mh_card.jpg ...")
-    mh_card_bytes = await draw_mh_card(mh_objs, remaining_seconds=3599, subscribe_list=[], bg_name="bg1.jpg")
+    mh_card_bytes = await draw_mh_card(mh_objs, remaining_seconds=3599, subscribe_list=[], bg_name="bg3.jpg")
     (ASTRBOT_DIR / "mh_card.jpg").write_bytes(mh_card_bytes)
     print(f"       -> mh_card.jpg 完成: {len(mh_card_bytes):,} 字节")
 
