@@ -10,12 +10,15 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw, ImageFont
 from PIL.PngImagePlugin import PngInfo
 
+from ...entry.event import EventActor
 from ...modules.encyclopedia.contracts import (
     CalendarSnapshot,
     PlayerShortNote,
@@ -23,6 +26,8 @@ from ...modules.encyclopedia.contracts import (
 )
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from .fonts import load_runtime_font
+
+SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,8 +46,28 @@ def _value(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, datetime):
-        return value.astimezone().strftime("%Y-%m-%d %H:%M") if value.tzinfo else value.strftime("%Y-%m-%d %H:%M")
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=SHANGHAI_TZ)
+        else:
+            value = value.astimezone(SHANGHAI_TZ)
+        return value.strftime("%Y-%m-%d %H:%M")
     return str(value)
+
+
+def _timestamp(value: datetime | None) -> str:
+    """按 legacy 锻造模型恢复秒时间戳字符串。"""
+
+    return "" if value is None else str(int(value.timestamp()))
+
+
+def _legacy_role_payload(role: Any) -> dict[str, Any]:
+    """把共用 RoleOverview 还原成 DNARoleForToolRes 的嵌套结构。"""
+
+    role_show = role.model_dump(by_alias=True)
+    role_show.pop("achievementTotal", None)
+    role_show["roleId"] = role.role_id
+    role_show["roleAchv"] = {"total": role.achievement_total}
+    return {"roleInfo": {"roleShow": role_show}}
 
 
 class EncyclopediaRenderer:
@@ -95,7 +120,12 @@ class EncyclopediaRenderer:
             "dnaby.resources",
             json.dumps(resources, ensure_ascii=False, separators=(",", ":")),
         )
-        image.convert("RGBA").save(path, format="PNG", pnginfo=metadata)
+        # legacy GsCore 先以 JPEG quality=85 编码再转回 PNG；保留该有损往返以匹配像素。
+        jpeg_buffer = BytesIO()
+        image.convert("RGB").save(jpeg_buffer, format="JPEG", quality=85)
+        jpeg_buffer.seek(0)
+        with Image.open(jpeg_buffer) as decoded:
+            decoded.convert("RGBA").save(path, format="PNG", pnginfo=metadata)
         return RenderedEncyclopediaImage(
             path=path,
             width=image.width,
@@ -118,8 +148,69 @@ class EncyclopediaRenderer:
             y += 34
         return y
 
-    def render_stamina(self, snapshot: PlayerShortNote) -> RenderedEncyclopediaImage:
-        """渲染便签，完整保留角色参数和所有锻造槽位。"""
+    async def render_stamina(
+        self,
+        snapshot: PlayerShortNote,
+        *,
+        actor: EventActor,
+        target_user_id: str | None = None,
+        uid: str,
+        uid_hidden: bool,
+    ) -> RenderedEncyclopediaImage:
+        """把 typed 快照无损还原到 legacy 便签绘制模型。"""
+
+        from dnaby.dna_stamina.draw_stamina import draw_stamina_card
+        from dnaby.utils.api.model import DNARoleForToolRes, DNARoleShortNoteRes
+        from dnaby.utils.session import EventContext
+
+        role = snapshot.role_overview
+        if role is None:
+            raise ValueError("便签缺少角色概览，无法绘制 legacy 卡片")
+
+        short_note = DNARoleShortNoteRes.model_validate(
+            {
+                "rougeLikeRewardCount": snapshot.rouge_like_reward_count,
+                "rougeLikeRewardTotal": snapshot.rouge_like_reward_total,
+                "currentTaskProgress": snapshot.current_task_progress,
+                "maxDailyTaskProgress": snapshot.max_daily_task_progress,
+                "hardBossRewardCount": snapshot.hard_boss_reward_count,
+                "hardBossRewardTotal": snapshot.hard_boss_reward_total,
+                "dungeonReward": snapshot.dungeon_reward,
+                "dungeonRewardTotal": snapshot.dungeon_reward_total,
+                "draftInfo": {
+                    "draftDoingInfo": [
+                        {
+                            "draftCompleteNum": draft.draft_complete_num,
+                            "draftDoingNum": draft.draft_doing_num,
+                            "startTime": _timestamp(draft.start_at),
+                            "endTime": _timestamp(draft.end_at),
+                            "productName": draft.product_name or None,
+                        }
+                        for draft in snapshot.drafts
+                    ],
+                    "draftDoingNum": snapshot.draft_doing_num,
+                    "draftMaxNum": snapshot.draft_max_num,
+                },
+            },
+        )
+        role_info = DNARoleForToolRes.model_validate(
+            _legacy_role_payload(role),
+        )
+        resolved_user_id = target_user_id or actor.user_id
+        ctx = EventContext(
+            user_id=resolved_user_id,
+            bot_id=actor.bot_id,
+            group_id=actor.group_id or "",
+            at=resolved_user_id,
+            unified_msg_origin=actor.unified_msg_origin or "",
+        )
+        image = await draw_stamina_card(
+            short_note,
+            role_info,
+            ctx=ctx,
+            avatar_user_id=resolved_user_id,
+            uid_hidden=uid_hidden,
+        )
 
         lines = ["二重螺旋 · 实时便签"]
         lines.extend(self._lines_for_role(snapshot.role_overview))
@@ -138,44 +229,91 @@ class EncyclopediaRenderer:
             for draft in snapshot.drafts
         )
 
-        height = max(620, 150 + len(lines) * 34)
-        image = Image.new("RGBA", (1200, height), (25, 31, 48, 255))
-        draw = ImageDraw.Draw(image)
-        self._header(draw, lines[0])
         resources = [
             self._font_resource(),
             {
                 "kind": "stamina_card",
                 "key": "background",
-                "source": "",
-                "status": "generated",
+                "source": "dnaby/dna_stamina/texture2d",
+                "status": "legacy",
             },
         ]
-        y = 100
-        sections: list[dict[str, Any]] = []
-        role_lines = self._lines_for_role(snapshot.role_overview)
-        if role_lines:
-            self._section(draw, y, "角色概览")
-            start = y
-            y = self._draw_lines(draw, role_lines, y + 62)
-            sections.append({"name": "角色概览", "start": start, "height": y - start})
-        self._section(draw, y, "便签进度")
-        start = y
-        y = self._draw_lines(draw, [f"{name}: {current}/{total}" for name, current, total in progress], y + 62)
-        sections.append({"name": "便签进度", "start": start, "height": y - start})
-        self._section(draw, y, "锻造")
-        start = y
-        draft_lines = [
-            f"{draft.product_name}: {_value(draft.start_at)} ~ {_value(draft.end_at)} · "
-            f"{'已完成' if draft.completed else '进行中'}"
-            for draft in snapshot.drafts
-        ] or ["暂无锻造记录"]
-        y = self._draw_lines(draw, draft_lines, y + 62)
-        sections.append({"name": "锻造", "start": start, "height": y - start})
+        sections = [
+            {"name": "角色概览", "items": 1},
+            {"name": "便签进度", "items": len(progress)},
+            {"name": "锻造", "items": len(snapshot.drafts)},
+        ]
         return self._write(image, lines=lines, resources=resources, sections=sections)
 
-    def render_weekly_report(self, report: WeeklyReport) -> RenderedEncyclopediaImage:
-        """渲染周报，遍历所有分类和资源项，不截断名称。"""
+    async def render_weekly_report(
+        self,
+        report: WeeklyReport,
+        *,
+        actor: EventActor,
+        target_user_id: str | None = None,
+        uid: str,
+        uid_hidden: bool,
+    ) -> RenderedEncyclopediaImage:
+        """把 typed 周报无损还原到 legacy 动态素材卡片。"""
+
+        from dnaby.dna_weekly_report.draw_weekly_report import draw_weekly_report_card
+        from dnaby.utils.api.model import DNAItemWeeklyReportRes, DNARoleForToolRes
+        from dnaby.utils.session import EventContext
+
+        role = report.role_overview
+        if role is None:
+            raise ValueError("周报缺少角色概览，无法绘制 legacy 卡片")
+
+        legacy_report = DNAItemWeeklyReportRes.model_validate(
+            {
+                "categories": [
+                    {
+                        "categoryName": category.category_name,
+                        "isBase": category.is_base,
+                        "type": category.category_type,
+                        "items": [
+                            {
+                                "icon": item.icon,
+                                "itemId": item.item_id,
+                                "itemName": item.item_name,
+                                "quality": item.quality,
+                                "totalNum": item.total_num,
+                            }
+                            for item in category.items
+                        ],
+                    }
+                    for category in report.categories
+                ],
+                "startDate": report.start_date,
+                "endDate": report.end_date,
+                "weekType": report.week_type,
+            },
+        )
+        role_show = DNARoleForToolRes.model_validate(
+            _legacy_role_payload(role),
+        ).roleInfo.roleShow
+        resolved_user_id = target_user_id or actor.user_id
+        ctx = EventContext(
+            user_id=resolved_user_id,
+            bot_id=actor.bot_id,
+            group_id=actor.group_id or "",
+            at=resolved_user_id,
+            unified_msg_origin=actor.unified_msg_origin or "",
+        )
+        item_assets = {
+            item.item_id: asset
+            for category in report.categories
+            for item in category.items
+            if (asset := self.resources.weekly_asset(item.item_id)) is not None
+        }
+        image = await draw_weekly_report_card(
+            legacy_report,
+            role_show,
+            ctx=ctx,
+            avatar_user_id=resolved_user_id,
+            uid_hidden=uid_hidden,
+            item_assets=item_assets,
+        )
 
         label = "本周周报" if report.week_type == 1 else "上周周报"
         lines = [label, f"{report.start_date} ~ {report.end_date}"]
@@ -196,43 +334,60 @@ class EncyclopediaRenderer:
                     },
                 )
 
-        item_rows = sum(max(1, len(category.items)) for category in report.categories)
-        height = max(520, 190 + len(report.categories) * 70 + item_rows * 62)
-        image = Image.new("RGBA", (1200, height), (25, 31, 48, 255))
-        draw = ImageDraw.Draw(image)
-        self._header(draw, f"二重螺旋 · {label}")
-        y = 100
-        role_lines = self._lines_for_role(report.role_overview)
-        if role_lines:
-            self._section(draw, y, "角色概览")
-            start = y
-            y = self._draw_lines(draw, role_lines, y + 62)
-            sections.append({"name": "角色概览", "start": start, "height": y - start})
-        draw.text((60, y + 8), f"周期: {report.start_date} ~ {report.end_date}", fill=(224, 230, 240, 255), font=self._font(22))
-        y += 50
+        cursor_y = 400
         for category in report.categories:
-            self._section(draw, y, category.category_name)
-            start = y
-            item_lines = [f"{item.item_name}: × {item.total_num}" for item in category.items]
-            if not item_lines:
-                item_lines = ["本周暂无相关资源获取"]
-            y = self._draw_lines(draw, item_lines, y + 62)
+            rows = max(1, (len(category.items) + 4) // 5)
+            category_height = 70 + rows * 230 + 20
             sections.append(
                 {
                     "name": category.category_name,
-                    "start": start,
-                    "height": y - start,
+                    "start": cursor_y,
+                    "height": category_height,
                     "items": len(category.items),
                 },
             )
+            cursor_y += category_height
         return self._write(image, lines=lines, resources=resources, sections=sections)
 
-    def render_calendar(self, snapshot: CalendarSnapshot) -> RenderedEncyclopediaImage:
-        """渲染完整活动日历；缺失时间只显示已有字段。"""
+    async def render_calendar(
+        self,
+        snapshot: CalendarSnapshot,
+        *,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
+    ) -> RenderedEncyclopediaImage:
+        """把 typed 日历无损还原到 legacy 双栏活动卡。"""
+
+        from dnaby.dna_calendar.draw_calendar_card import (
+            CalendarContent,
+            draw_calendar_card,
+        )
+
+        del actor, target_user_id
+        content = [
+            CalendarContent(
+                title=event.title,
+                pic=event.pic,
+                start_time=_value(event.start_at),
+                end_time=_value(event.end_at),
+            )
+            for event in snapshot.events
+        ]
+        calendar_assets = {
+            event.pic: asset
+            for event in snapshot.events
+            if (asset := self.resources.calendar_asset(event.pic)) is not None
+        }
+        image = await draw_calendar_card(
+            content,
+            calendar_assets=calendar_assets,
+        )
 
         lines = ["二重螺旋 · 活动日历"]
         resources: list[dict[str, str]] = [self._font_resource()]
-        for event in snapshot.events:
+        sections: list[dict[str, Any]] = []
+        event_start_y = 780
+        for index, event in enumerate(snapshot.events):
             lines.append(
                 f"{event.title}: {_value(event.start_at)} ~ {_value(event.end_at)}"
             )
@@ -245,25 +400,13 @@ class EncyclopediaRenderer:
                     "status": "provided" if asset is not None else "placeholder",
                 },
             )
-
-        height = max(430, 130 + max(1, len(snapshot.events)) * 92)
-        image = Image.new("RGBA", (1200, height), (25, 31, 48, 255))
-        draw = ImageDraw.Draw(image)
-        self._header(draw, lines[0])
-        y = 100
-        sections: list[dict[str, Any]] = []
-        for event in snapshot.events:
-            self._section(draw, y, event.title)
-            start = y
-            detail = [
-                f"开始: {_value(event.start_at)}" if event.start_at is not None else "开始: 未提供",
-                f"结束: {_value(event.end_at)}" if event.end_at is not None else "结束: 未提供",
-                f"素材: {event.pic}" if event.pic else "素材: 未提供",
-            ]
-            y = self._draw_lines(draw, detail, y + 62)
-            sections.append({"name": event.title, "start": start, "height": y - start})
-        if not snapshot.events:
-            y = self._draw_lines(draw, ["暂无活动数据"], y + 62)
+            sections.append(
+                {
+                    "name": event.title,
+                    "start": event_start_y + index // 2 * 170,
+                    "height": 170,
+                },
+            )
         return self._write(image, lines=lines, resources=resources, sections=sections)
 
 

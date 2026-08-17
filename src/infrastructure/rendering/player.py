@@ -18,6 +18,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from PIL.PngImagePlugin import PngInfo
 
+from ...entry.event import EventActor
 from ...modules.player.contracts import (
     AttributeBag,
     DamageCalculation,
@@ -309,6 +310,8 @@ class PlayerRenderer:
         self,
         overview: RoleOverview,
         *,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
         uid: str,
         uid_hidden: bool,
         show_unowned: bool = True,
@@ -322,6 +325,7 @@ class PlayerRenderer:
 
         from dnaby.dna_role.draw_role_info_card import draw_role_info_card_core
         from dnaby.utils.api.model import RoleShowForTool
+        from dnaby.utils.session import EventContext
 
         role_show = RoleShowForTool.model_validate(
             {
@@ -339,7 +343,18 @@ class PlayerRenderer:
             role_show,
             uid_hidden=uid_hidden,
             show_none=show_unowned,
-            ev_stub=None,
+            ev_stub=(
+                None
+                if actor is None
+                else EventContext(
+                    user_id=target_user_id or actor.user_id,
+                    bot_id=actor.bot_id,
+                    group_id=actor.group_id or "",
+                    at=target_user_id or actor.user_id,
+                    unified_msg_origin=actor.unified_msg_origin or "",
+                )
+            ),
+            avatar_user_id=target_user_id or (actor.user_id if actor is not None else uid),
         )
         image = Image.open(BytesIO(image_bytes)).convert("RGBA")
         lines = [
@@ -374,7 +389,7 @@ class PlayerRenderer:
         )
         return self._write(image, lines=lines, resources=resources, sections=sections)
 
-    def render_detail(
+    async def render_detail(
         self,
         role_detail: RoleDetail,
         weapon_sections: list[tuple[str, WeaponDetail]],
@@ -382,8 +397,11 @@ class PlayerRenderer:
         *,
         uid: str,
         uid_hidden: bool,
+        overview: RoleOverview | None = None,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
     ) -> RenderedPlayerImage:
-        """渲染动态高度详情图，完整遍历详情和伤害数据。"""
+        """通过 legacy 纯绘图核心渲染角色详情，保留 GsCore 原布局。"""
 
         lines: list[str] = [
             role_detail.char_name,
@@ -459,67 +477,78 @@ class PlayerRenderer:
         section_lines.append(("伤害", damage_lines))
         lines.extend(damage_lines)
 
-        section_records: list[dict[str, Any]] = []
-        section_heights = [max(78, 60 + len(section) * 48) for _name, section in section_lines]
-        height = 30 + sum(section_heights) + 40
-        image = self._new_image(1000, height, (24, 30, 46, 255))
-        draw = ImageDraw.Draw(image)
-        resource_records: list[dict[str, str]] = [self._font_resource()]
-        y = 20
-        for index, ((name, section), section_height) in enumerate(zip(section_lines, section_heights)):
-            self._draw_section_title(draw, y, name)
-            section_start = y
-            y += 62
-            for line_index, line in enumerate(section):
-                draw.text(
-                    (45, y + line_index * 48),
-                    line,
-                    fill=(238, 240, 246, 255),
-                    font=self._font(19),
-                )
-            if index == 0:
-                self._resource_image(
-                    image,
-                    resource_records,
-                    kind="role_paint",
-                    key=str(role_detail.char_id),
-                    source=role_detail.paint,
-                    box=(735, section_start + 66, 210, max(50, section_height - 80)),
-                )
-            elif name == "技能":
-                for skill_index, skill in enumerate(role_detail.skills):
-                    self._resource_image(
-                        image,
-                        resource_records,
-                        kind="skill_icon",
-                        key=str(skill.skill_id),
-                        source=skill.icon,
-                        box=(750, y - 45 + skill_index * 48, 35, 35),
-                    )
-            elif name == "武器":
-                for weapon_index, (_label, weapon) in enumerate(weapon_sections):
-                    self._resource_image(
-                        image,
-                        resource_records,
-                        kind="weapon_icon",
-                        key=str(weapon.weapon_id),
-                        source=weapon.icon,
-                        box=(750, y - 45 + weapon_index * 48, 35, 35),
-                    )
-            elif name == "魔之楔":
-                for mode_index, mode in enumerate(role_detail.modes):
-                    self._resource_image(
-                        image,
-                        resource_records,
-                        kind="mode_icon",
-                        key=str(mode.id),
-                        source=mode.icon,
-                        box=(750, y - 45 + mode_index * 48, 35, 35),
-                    )
-            y = section_start + section_height
-            section_records.append(
-                {"name": name, "start": section_start, "height": section_height, "items": len(section)},
+        from dnaby.dna_detail.draw_role_card import render_role_card_image
+        from dnaby.utils.api.damage_model import CharacterCalculateData
+        from dnaby.utils.api.model import RoleDetail as LegacyRoleDetail
+        from dnaby.utils.api.model import WeaponDetail as LegacyWeaponDetail
+
+        legacy_role = LegacyRoleDetail.model_validate(role_detail.model_dump(by_alias=True))
+        legacy_weapons = [
+            (label, LegacyWeaponDetail.model_validate(detail.model_dump(by_alias=True)))
+            for label, detail in weapon_sections
+        ]
+        legacy_damage = (
+            CharacterCalculateData.model_validate(damage.data.model_dump(by_alias=True))
+            if damage.data is not None
+            else None
+        )
+        avatar_title = None
+        if overview is not None and actor is not None:
+            from dnaby.utils.image import get_avatar_title_img
+            from dnaby.utils.session import EventContext
+
+            context = EventContext(
+                user_id=target_user_id or actor.user_id,
+                bot_id=actor.bot_id,
+                group_id=actor.group_id or "",
+                at=target_user_id or actor.user_id,
+                unified_msg_origin=actor.unified_msg_origin or "",
             )
+            avatar_title = await get_avatar_title_img(
+                context,
+                overview.role_id,
+                overview.role_name,
+                user_level=overview.level,
+                other_info=[
+                    (item.param_key, item.param_value)
+                    for item in overview.params
+                    if item.param_key in ("总活跃天数", "游戏时长")
+                ],
+                avatar_user_id=target_user_id or actor.user_id,
+                uid_hidden=uid_hidden,
+            )
+        image = await render_role_card_image(
+            legacy_role,
+            legacy_weapons,
+            legacy_damage,
+            uid=uid,
+            uid_hidden=uid_hidden,
+            avatar_title=avatar_title,
+            damage_message=damage.message or PLAYER_DAMAGE_FAILED,
+        )
+        section_records = [
+            {"name": name, "items": len(section)} for name, section in section_lines
+        ]
+        resource_records: list[dict[str, str]] = [self._font_resource()]
+        resource_records.append(
+            {
+                "kind": "role_paint",
+                "key": str(role_detail.char_id),
+                "status": "provided"
+                if self.resources.load("role_paint", str(role_detail.char_id), role_detail.paint) is not None
+                else "legacy_download",
+                "source": role_detail.paint,
+            },
+        )
+        resource_records.extend(
+            {
+                "kind": "weapon_icon",
+                "key": str(weapon.weapon_id),
+                "status": "legacy_download",
+                "source": weapon.icon,
+            }
+            for _label, weapon in weapon_sections
+        )
 
         original_path = self.resources.original_panel(role_detail.char_id)
         if original_path is not None:

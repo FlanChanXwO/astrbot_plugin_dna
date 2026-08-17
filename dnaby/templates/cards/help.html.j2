@@ -1,0 +1,27 @@
+{% from "cards/macros/layout.html.j2" import card_shell %}
+{% call card_shell(width, 5059, background=background, class_name="help-card") %}
+<style>
+  @font-face { font-family: "DNAUnicode"; src: url("{{ font }}") format("woff2"); }
+  .help-card { position: relative; width: 2020px; height: 5059px; font-family: "DNAUnicode", sans-serif; font-weight: 630; }
+  .help-card__banner { position: absolute; top: 0; left: 0; width: 2020px; height: 784px; object-fit: fill; }
+  .help-card__icon { position: absolute; top: 507px; left: 116px; width: 167px; height: 167px; border-radius: 50%; object-fit: cover; }
+  .help-card__title { position: absolute; top: 559px; left: 343px; margin: 0; color: #fff; font-size: 65px; font-weight: 630; line-height: 65px; transform: translateY(-50%); }
+  .help-card__subtitle { position: absolute; top: 631px; left: 343px; margin: 0; color: #cecece; font-size: 39px; line-height: 39px; transform: translateY(-50%); }
+  .help-card__badge { position: absolute; top: 513px; left: 760px; padding: 8px 24px; border-radius: 24px; background: #fc4545; color: #fff; font-size: 39px; font-weight: 630; }
+  .help-card__section { position: absolute; left: 0; width: 2020px; height: 360px; }
+  .help-card__section-bar { position: absolute; top: 0; left: 0; width: 2020px; height: 130px; object-fit: fill; }
+  .help-card__section-heading { position: absolute; top: 65px; left: 178px; display: flex; align-items: center; height: 59px; transform: translateY(-50%); }
+  .help-card__section-title { margin: 0; color: #fff; font-size: 59px; font-weight: 630; line-height: 59px; }
+  .help-card__section-desc { position: relative; top: 7px; margin: 0 0 0 20px; color: #cecece; font-size: 39px; line-height: 39px; }
+  .help-card__items { position: absolute; top: 119px; left: 45px; width: 1960px; }
+  .help-card__item { position: absolute; width: 490px; height: 175px; overflow: hidden; background: url("{{ item_background }}") center/490px 175px no-repeat; }
+  .help-card__item-icon { position: absolute; top: 12px; left: 6px; width: 150px; height: 150px; object-fit: contain; }
+  .help-card__item-name { position: absolute; top: 67px; left: 156px; margin: 0; color: #fff; font-size: 38px; line-height: 38px; white-space: nowrap; transform: translateY(-50%); }
+  .help-card__item-example { position: absolute; top: 116px; left: 156px; margin: 0; color: #cecece; font-size: 26px; line-height: 26px; white-space: nowrap; transform: translateY(-50%); }
+  .help-card__footer { position: absolute; bottom: 20px; left: 480px; width: 1060px; height: 40px; }
+</style>
+<img class="help-card__banner" src="{{ banner }}" alt="" /><img class="help-card__icon" src="{{ icon }}" alt="" /><h1 class="help-card__title">DNAUID帮助</h1><p class="help-card__subtitle">{{ subtitle }}</p><span class="help-card__badge">v1.0.0</span>
+{% set ns = namespace(top=766) %}{% for section in sections %}<section class="help-card__section" style="top: {{ ns.top }}px"><img class="help-card__section-bar" src="{{ cag_background }}" alt="" /><div class="help-card__section-heading"><h2 class="help-card__section-title">{{ section.name }}</h2><p class="help-card__section-desc">{{ section.description }}</p></div><div class="help-card__items">{% for item in section["items"] %}<article class="help-card__item" style="left: {{ (loop.index0 % 4) * 490 }}px; top: {{ (loop.index0 // 4) * 175 }}px"><img class="help-card__item-icon" src="{{ item.icon }}" alt="" /><p class="help-card__item-name">{{ item.name }}</p><p class="help-card__item-example">d{{ item.example }}</p></article>{% endfor %}</div></section>{% set ns.top = ns.top + 140 + (((section["items"]|length - 1) // 4) + 1) * 175 %}{% endfor %}
+{% if not sections %}<section class="help-card__items" style="top: 900px; left: 45px">{% for line in lines %}<article class="help-card__item"><p class="help-card__item-name">{{ line.name }}</p><p class="help-card__item-example">{{ line.example }}</p></article>{% endfor %}</section>{% endif %}
+<img class="help-card__footer" src="{{ footer }}" alt="" />
+{% endcall %}

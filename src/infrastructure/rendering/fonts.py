@@ -6,16 +6,18 @@ from pathlib import Path
 
 from PIL import ImageFont
 
+BUNDLED_FONT_PATH = Path(__file__).resolve().parents[3] / "dnaby" / "utils" / "fonts" / "dna_fonts.ttf"
+
 
 def load_runtime_font(
     font_path: Path | None,
     size: int,
 ) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """加载已验证资源根中的字体；资源缺失时使用 Pillow 默认字体。"""
+    """加载运行资源字体；未注入时使用插件内置中文字体。"""
 
     if font_path is not None:
         return ImageFont.truetype(str(font_path), size=size)
-    return ImageFont.load_default()
+    return ImageFont.truetype(str(BUNDLED_FONT_PATH), size=size)
 
 
 __all__ = ["load_runtime_font"]

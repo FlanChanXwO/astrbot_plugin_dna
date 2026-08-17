@@ -3,7 +3,7 @@
 ## 任务概览
 
 - [x] Task 1: 验证 T2I 服务 (localhost:8999) 与 `ssh atri` 远端 GScore 数据库连接，导出完整真实数据 Payload
-- [ ] Task 2: 在 rewrite-v0.1 建立统一 HTML/T2I 渲染基础设施与内联资源加载管线
+- [x] Task 2: 在 rewrite-v0.1 建立统一 HTML/T2I 渲染基础设施与内联资源加载管线
 - [ ] Task 3: 迁移并校准通用与通知类卡片模板（帮助、更新记录、公告列表、公告详情、密函简图与卡片）
 - [ ] Task 4: [集中检查-debug 循环 1] 复查 Task 1-3 基础设施、资源内联与简单/通知卡片契约
 - [ ] Task 5: 迁移并校准资料与签到类卡片模板（活动日历、签到日历、签到报告、实时体力便签）
@@ -30,12 +30,12 @@
 
 ### Task 2: 建立统一 HTML/T2I 渲染基础设施
 - **目标**：在 `rewrite-v0.1` 的 `src/infrastructure/rendering/` 中建立 Jinja2 模板加载、`RenderSpec` 规格定义、`HtmlRenderer` T2I 客户端适配、字体内联（`MiSansVF.woff2`, `dna_fonts.woff2` 等）与 `data:` URI 资源编码管线。
-- **状态**：待开始
+- **状态**：已完成
 - **预留回写**：
-  - 实际做了什么：
-  - 验证证据：
-  - 剩余风险：
-  - 下一步：
+  - 实际做了什么：集成了 `dnaby/rendering/`（`HtmlRenderer`, `RenderSpec`, `assets`, `spec`, `errors`, `payloads`, `qr`）；补充了 `MiSansVF.woff2`, `dna_fonts.woff2`, `arial-unicode-ms-bold.woff2` 等 WOFF2 内联字体；在 `src/infrastructure/rendering/__init__.py` 中完成统一导出；更新了 `dnaby/dna_sign/sign.py` 的签到报告渲染实现。
+  - 验证证据：Pyright 0 错误 0 警告；`tests/test_html_renderer.py` 与 `tests/test_rendering_assets.py` 16 个单元测试全部通过；`tests/test_t2i_integration.py` 真实 T2I 集成测试通过。
+  - 剩余风险：无。
+  - 下一步：执行 Task 3，迁移并校准通用与通知类卡片模板。
 
 ---
 

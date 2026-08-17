@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width={{ size }}, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: {{ size }}px; height: {{ size }}px; margin: 0; padding: 0; overflow: hidden; background: #fff; }
+    .qr { display: grid; grid-template-columns: repeat({{ modules }}, 1fr); width: {{ size }}px; height: {{ size }}px; background: #fff; }
+    .qr__module { background: #fff; }.qr__module.dark { background: #000; }
+  </style>
+</head>
+<body><main class="qr">{% for row in matrix %}{% for dark in row %}<span class="qr__module{% if dark %} dark{% endif %}"></span>{% endfor %}{% endfor %}</main></body>
+</html>

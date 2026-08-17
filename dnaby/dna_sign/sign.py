@@ -2,14 +2,14 @@ import asyncio
 from typing import Literal
 
 from astrbot.api import logger
-from PIL import Image, ImageDraw
 
 from ..dna_config.dna_config import DNASignConfig
+from ..rendering import HtmlRenderer, RenderSpec, font_data_uri
 from ..utils import dna_api
 from ..utils.boardcast import send_board_cast_msg
 from ..utils.constants.boardcast import BoardcastTypeEnum
 from ..utils.database.models import DNAUser
-from ..utils.fonts.dna_fonts import dna_font_24
+from ..utils.fonts.dna_fonts import FONT_ORIGIN_PATH
 from ..utils.msgs.notify import send_dna_notify
 from ..utils.segments import MessageSegment
 from ..utils.session import EventContext, Sender
@@ -22,6 +22,8 @@ from .sign_service import (
     sched_sign,
     sign_concurrent_num,
 )
+
+_RENDERER = HtmlRenderer()
 
 
 async def sign_task(
@@ -245,7 +247,7 @@ async def to_board_cast_msg(
         title = f"✅[二重螺旋]今日{type}任务已完成！\n本群共签到成功{success}人\n共签到失败{faild}人"
         messages = []
         if DNASignConfig.get_config("GroupSignReportPic").data:
-            image = create_sign_info_image(title, theme="yellow")
+            image = await create_sign_info_image(title, theme=theme)
             messages.append(MessageSegment.image(image))
         else:
             messages.append(MessageSegment.text(title))
@@ -264,74 +266,25 @@ async def to_board_cast_msg(
     return result
 
 
-def create_gradient_background(width, height, start_color, end_color=(255, 255, 255)):
-    """
-    使用 PIL 创建渐变背景
-    start_color: 起始颜色，如 (230, 230, 255) 浅蓝
-    end_color: 结束颜色，默认白色
-    """
-    # 创建新图像
-    image = Image.new("RGB", (width, height))
+async def create_sign_info_image(text: str, theme: str = "blue") -> bytes:
+    """以固定 600×250 HTML 卡片渲染群签到汇总。"""
 
-    for y in range(height):
-        # 计算当前行的颜色比例
-        ratio = y / height
-
-        # 计算当前行的 RGB 值
-        r = int(end_color[0] * ratio + start_color[0] * (1 - ratio))
-        g = int(end_color[1] * ratio + start_color[1] * (1 - ratio))
-        b = int(end_color[2] * ratio + start_color[2] * (1 - ratio))
-
-        # 创建当前行的颜色
-        line_color = (r, g, b)
-        # 绘制当前行
-        for x in range(width):
-            image.putpixel((x, y), line_color)
-
-    return image
-
-
-def create_sign_info_image(text, theme="blue"):
-    text = text[1:]
-    # 创建图片
-    width = 600
-    height = 250  # 稍微减小高度使布局更紧凑
-
-    # 预定义主题颜色
-    themes = {
-        "blue": (230, 230, 255),  # 浅蓝
-        "yellow": (255, 255, 230),  # 浅黄
-        "pink": (255, 230, 230),  # 浅粉
-        "green": (230, 255, 230),  # 浅绿
+    colors = {
+        "blue": "#e6e6ff",
+        "yellow": "#ffffe6",
+        "pink": "#ffe6e6",
+        "green": "#e6ffe6",
     }
-
-    # 获取主题颜色，默认浅蓝
-    start_color = themes.get(theme, themes["blue"])
-
-    # 创建渐变背景
-    img = create_gradient_background(width, height, start_color)
-    draw = ImageDraw.Draw(img)
-
-    # 颜色定义
-    title_color = (51, 51, 51)  # 标题色
-
-    # 绘制装饰边框
-    border_color = (200, 200, 200)
-    draw.rectangle([(10, 10), (width - 10, height - 10)], outline=border_color, width=2)
-
-    # 文本处理
-    lines = text.split("\n")
-    left_margin = 40  # 左边距
-    y = 40  # 起始y坐标
-
-    for i, line in enumerate(lines):
-        draw.text((left_margin, y), line, font=dna_font_24, fill=title_color)
-        if i == 0:
-            y += 60
-        else:
-            y += 45
-
-    return img
+    return await _RENDERER.render(
+        "cards/sign_report.html.j2",
+        {
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "lines": text[1:].split("\n"),
+            "theme_color": colors.get(theme, colors["blue"]),
+            "width": 600,
+        },
+        RenderSpec(width=600, height=250, full_page=False),
+    )
 
 
 async def msg_sign(
