@@ -52,8 +52,7 @@ FIXTURES_DIR = Path("/Users/flanchan/Developer/Projects/GithubProjects/astrbot-p
 async def main() -> None:
     ASTRBOT_DIR.mkdir(parents=True, exist_ok=True)
 
-    with open(FIXTURES_DIR / "live-payload.json", encoding="utf-8") as f:
-        live = json.load(f)
+    live = json.loads((FIXTURES_DIR / "live-payload.json").read_text(encoding="utf-8"))
 
     ctx = EventContext(user_id=live["scope"]["user_id"], bot_id=live["scope"]["bot_id"])
     role_show = RoleShowForTool.model_validate(live["role"]["roleInfo"]["roleShow"])
@@ -174,8 +173,7 @@ async def main() -> None:
 
     # 12. 角色详情
     print("[12/14] 渲染 role_detail.jpg ...")
-    with open(FIXTURES_DIR / "weapon-detail.json", encoding="utf-8") as f:
-        weapons = json.load(f)
+    weapons = json.loads((FIXTURES_DIR / "weapon-detail.json").read_text(encoding="utf-8"))
     rd = RoleDetail.model_validate(live["role_detail"]["charDetail"])
     con_weapon = WeaponDetail.model_validate(weapons["weaponDetail"])
     char_id = "10000001"

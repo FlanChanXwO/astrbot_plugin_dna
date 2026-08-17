@@ -1,0 +1,18 @@
+{% from "cards/macros/layout.html.j2" import card_shell %}
+{% call card_shell(width, background=background, class_name="update-card") %}
+<style>
+  @font-face { font-family: "DNAUnicode"; src: url("{{ font }}") format("woff2"); }
+  .update-card { position: relative; width: 950px; height: {{ 495 + (logs|length * 80) }}px; min-height: {{ 495 + (logs|length * 80) }}px; padding: 0 50px 20px; font-family: "DNAUnicode", sans-serif; }
+  /* log_title.png 已按旧 PIL 坐标制作，必须保持原生 950×475，不能按内容区缩放。 */
+  .update-card__title-image { display: block; width: 950px; height: 475px; margin-left: -50px; }
+  .update-card__title { position: absolute; top: 410px; left: 0; width: 950px; margin: 0; color: #fff; font-size: 30px; line-height: 42px; text-align: center; }
+  .update-card__entry { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; height: 65px; margin: 0 0 15px; padding: 0 18px; border-radius: 15px; background: rgba(128, 128, 128, .45); }
+  .update-card__entry:first-of-type { margin-top: 7px; }
+  .update-card__emoji { display: flex; align-items: center; min-width: 76px; height: 65px; white-space: nowrap; }
+  .update-card__emoji-image { display: block; width: auto; height: auto; max-width: 48px; max-height: 48px; }
+  .update-card__text { color: #fff; font-size: 30px; line-height: 65px; overflow-wrap: anywhere; }
+</style>
+<img class="update-card__title-image" src="{{ title_image }}" alt="DNAUID 更新记录" />
+<h1 class="update-card__title">DNAUID 更新记录</h1>
+{% for log in logs %}<article class="update-card__entry"><span class="update-card__emoji">{% if emoji_images %}<img class="update-card__emoji-image" src="{{ emoji_images[loop.index0] }}" alt="" />{% else %}{{ log.emojis }}{% endif %}</span><span class="update-card__text">{{ log.text }}</span></article>{% endfor %}
+{% endcall %}
