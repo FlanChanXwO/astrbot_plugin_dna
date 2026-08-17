@@ -1,72 +1,90 @@
-"""原生帮助卡片渲染器：替代 gsucore ``get_new_help``。
+"""帮助卡片 HTML/T2I 渲染器。"""
 
-读取 ``help.json``，用 PIL 绘制帮助卡片，返回 PNG bytes。
-"""
+from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
-from PIL import ImageDraw
-
-from ..utils.fonts.dna_fonts import dna_font_20, dna_font_25
-from ..utils.image import get_dna_bg
-from ..utils.image_utils import convert_img
+from ..rendering import HtmlRenderer, RenderSpec, font_data_uri, image_data_uri
 
 HELP_DATA = Path(__file__).parent / "help.json"
-
-CARD_W = 800
-
-COLOR_TITLE = (250, 250, 210)  # 浅金黄
-COLOR_TEXT = (255, 255, 255)
-COLOR_GRAY = (200, 200, 200)
-
-PADDING_TOP = 40
-PADDING_BOTTOM = 40
-TITLE_H = 40
-TITLE_GAP = 18
-LINE_H = 30
-LINE_GAP = 10
+BACKGROUND_PATH = Path(__file__).parent / "texture2d" / "bg.jpg"
+HELP_FONT_PATH = Path(__file__).parents[1] / "utils" / "fonts" / "MiSansVF.woff2"
+CARD_W = 2020
+_RENDERER = HtmlRenderer()
+_ICON_ALIASES = {
+    # GScore 依赖目录遍历顺序处理部分命中；显式固定两个无同名文件的歧义项。
+    "基本信息卡片": "基本信息.png",
+    "查看UID列表": "UID.png",
+}
 
 
-def _load_help_data() -> dict:
-    with open(HELP_DATA, "r", encoding="utf-8") as file:
+def _load_help_data() -> dict[str, Any]:
+    with HELP_DATA.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
-def _iter_help_lines(plugin_help: dict):
-    """yield (name, eg, is_group)。"""
+def _iter_help_lines(plugin_help: dict[str, Any]):
+    """生成保持旧分组和示例语义的帮助条目 payload。"""
     for group_name, group_data in plugin_help.items():
-        yield group_name, "", True
+        yield {"is_group": True, "name": group_name, "example": ""}
         for item in group_data.get("data", []):
-            yield item.get("name", ""), item.get("eg", ""), False
+            yield {
+                "is_group": False,
+                "name": item.get("name", ""),
+                "example": item.get("eg", ""),
+            }
 
 
-def _calc_height(lines: list) -> int:
-    h = PADDING_TOP + PADDING_BOTTOM
-    for _, _, is_group in lines:
-        if is_group:
-            h += TITLE_H + TITLE_GAP
-        else:
-            h += LINE_H + LINE_GAP
-    return h
+def _find_icon(name: str) -> Path:
+    icon_dir = Path(__file__).parent / "icon_path"
+    if alias := _ICON_ALIASES.get(name):
+        return icon_dir / alias
+    exact = icon_dir / f"{name}.png"
+    if exact.exists():
+        return exact
+    for path in icon_dir.glob("*.png"):
+        if path.stem in name:
+            return path
+    return icon_dir / "通用.png"
+
+
+def _help_sections(plugin_help: dict[str, Any]) -> list[dict[str, Any]]:
+    """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
+    sections: list[dict[str, Any]] = []
+    for name, value in plugin_help.items():
+        items = []
+        for command in value.get("data", []):
+            item_name = str(command.get("name", ""))
+            items.append(
+                {
+                    "example": str(command.get("eg", "")),
+                    "icon": image_data_uri(_find_icon(item_name)),
+                    "name": item_name,
+                }
+            )
+        sections.append({"description": str(value.get("desc", "")), "items": items, "name": name})
+    return sections
 
 
 async def get_help() -> bytes:
-    """渲染帮助卡片（PIL），返回 PNG bytes。"""
-    plugin_help = _load_help_data()
-    lines = list(_iter_help_lines(plugin_help))
-
-    img = get_dna_bg(CARD_W, _calc_height(lines), "bg")
-    draw = ImageDraw.Draw(img)
-
-    y = PADDING_TOP
-    for name, eg, is_group in lines:
-        if is_group:
-            draw.text((40, y), name, COLOR_TITLE, dna_font_25, "lm")
-            y += TITLE_H + TITLE_GAP
-        else:
-            text = f"{name} ({eg})" if eg else name
-            draw.text((60, y), text, COLOR_TEXT, dna_font_20, "lm")
-            y += LINE_H + LINE_GAP
-
-    return await convert_img(img)
+    """渲染动态高度帮助卡片，保留旧公开函数和返回 bytes 契约。"""
+    return await _RENDERER.render(
+        "cards/help.html.j2",
+        {
+            "background": image_data_uri(BACKGROUND_PATH),
+            # GScore 的 new_help 使用全局 MiSansVF，而非角色卡的 dna_fonts。
+            "font": font_data_uri(HELP_FONT_PATH),
+            "banner": image_data_uri(Path(__file__).parent / "texture2d" / "banner_bg.jpg"),
+            "cag_background": image_data_uri(Path(__file__).parent / "texture2d" / "cag_bg.png"),
+            "footer": image_data_uri(Path(__file__).parents[1] / "utils" / "texture2d" / "footer.png"),
+            "icon": image_data_uri(Path(__file__).parents[2] / "ICON.png"),
+            "item_background": image_data_uri(Path(__file__).parent / "texture2d" / "item.png"),
+            "lines": list(_iter_help_lines(_load_help_data())),
+            "sections": _help_sections(_load_help_data()),
+            "subtitle": "穿过寒夜，去往有你的春天。",
+            "width": CARD_W,
+        },
+        RenderSpec(width=CARD_W, full_page=True, image_format="jpeg"),
+    )

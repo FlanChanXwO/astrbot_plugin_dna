@@ -4,7 +4,7 @@
 
 - [x] Task 1: 验证 T2I 服务 (localhost:8999) 与 `ssh atri` 远端 GScore 数据库连接，导出完整真实数据 Payload
 - [x] Task 2: 在 rewrite-v0.1 建立统一 HTML/T2I 渲染基础设施与内联资源加载管线
-- [ ] Task 3: 迁移并校准通用与通知类卡片模板（帮助、更新记录、公告列表、公告详情、密函简图与卡片）
+- [x] Task 3: 迁移并校准通用与通知类卡片模板（帮助、更新记录、公告列表、公告详情、密函简图与卡片）
 - [ ] Task 4: [集中检查-debug 循环 1] 复查 Task 1-3 基础设施、资源内联与简单/通知卡片契约
 - [ ] Task 5: 迁移并校准资料与签到类卡片模板（活动日历、签到日历、签到报告、实时体力便签）
 - [ ] Task 6: 迁移并校准角色与周报类复杂卡片模板（角色总览、角色详情、本周/上周周报）
@@ -41,12 +41,12 @@
 
 ### Task 3: 迁移与校准通用/通知类卡片模板
 - **目标**：实现/迁移帮助卡 (`help`)、更新记录 (`update_log`)、公告列表 (`ann_list`)、公告详情 (`ann_detail`)、委托密函简图 (`mh_simple`) 与委托密函卡片 (`mh_card`) 的 Jinja2 模板与样式，确保像素宽度与结构对齐。
-- **状态**：待开始
+- **状态**：已完成
 - **预留回写**：
-  - 实际做了什么：
-  - 验证证据：
-  - 剩余风险：
-  - 下一步：
+  - 实际做了什么：迁移并校准了 `help.html.j2` (2020px 宽，MiSansVF 字体，分类网格)、`update_log.html.j2` (950px 宽，NotoColorEmoji 栅格化)、`announcement_list.html.j2` (1080px 宽，3列网格)、`announcement_detail.html.j2` (1080px 宽，多页裁剪支持)、`mh_simple.html.j2` (动态多列横向卡片) 和 `mh_card.html.j2` (1700x900 固定卡片)；更新了 `dnaby/dna_help/get_help.py`, `dnaby/dna_update/draw_update_log.py`, `dnaby/dna_ann/ann_card.py`, `dnaby/dna_mh/draw_mh.py`, `dnaby/utils/image_utils.py`。
+  - 验证证据：Pyright 0 错误 0 警告，ruff 全部通过；`tests/test_html_card_payloads.py`、`tests/test_html_announcement_detail.py`、`tests/test_html_qr.py` 13 个单元测试全部通过。
+  - 剩余风险：无。
+  - 下一步：执行 Task 4，开展 [集中检查-debug 循环 1]，系统复查 Task 1-3 成果。
 
 ---
 

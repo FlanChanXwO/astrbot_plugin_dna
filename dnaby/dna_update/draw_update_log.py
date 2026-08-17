@@ -1,13 +1,20 @@
+from __future__ import annotations
+
 import subprocess
 import unicodedata
 from pathlib import Path
 
 from astrbot.api import logger
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
-from ..utils.fonts.dna_fonts import dna_font_origin, emoji_font
-from ..utils.image import get_dna_bg, get_smooth_drawer
-from ..utils.image_utils import convert_img
+from ..rendering import (
+    HtmlRenderer,
+    RenderSpec,
+    font_data_uri,
+    image_data_uri,
+    pil_image_data_uri,
+)
+from ..utils.fonts.dna_fonts import EMOJI_ORIGIN_PATH, FONT_ORIGIN_PATH
 
 
 def _get_git_logs() -> list[str]:
@@ -24,62 +31,36 @@ def _get_git_logs() -> list[str]:
             return []
         commits = stdout.decode("utf-8", errors="ignore").split("\n")
 
-        # 只返回有 emoji 开头的提交记录
         filtered_commits = []
         for commit in commits:
             if commit:
                 emojis, _ = _extract_leading_emojis(commit)
-                if emojis:  # 只要有 emoji 就保留
+                if emojis:
                     filtered_commits.append(commit)
                     if len(filtered_commits) >= 18:
                         break
         return filtered_commits
-    except (OSError, subprocess.SubprocessError, UnicodeError) as e:
-        logger.warning(f"Get logs failed: {e}")
+    except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
+        logger.warning(f"Get logs failed: {exc}")
         return []
 
 
 def _extract_leading_emojis(message: str) -> tuple[list[str], str]:
     """提取消息开头连续的 emoji，并返回剩余文本。"""
+
     emojis = []
-    i = 0
-    while i < len(message):
-        ch = message[i]
-        if ch == "\ufe0f":  # VS16
-            i += 1
+    index = 0
+    while index < len(message):
+        char = message[index]
+        if char == "\ufe0f":
+            index += 1
             continue
-        if unicodedata.category(ch) in ("So", "Sk"):
-            emojis.append(ch)
-            if i + 1 < len(message) and message[i + 1] == "\ufe0f":
-                i += 2
-            else:
-                i += 1
+        if unicodedata.category(char) in ("So", "Sk"):
+            emojis.append(char)
+            index += 2 if index + 1 < len(message) and message[index + 1] == "\ufe0f" else 1
         else:
             break
-    return emojis, message[i:].lstrip()
-
-
-def _render_emoji_sprite(emoji: str, target_size: int = 56) -> Image.Image:
-    """渲染单个 emoji 为图像，并缩放到目标大小。"""
-    d = ImageDraw.Draw(Image.new("RGBA", (218, 218), (0, 0, 0, 0)))
-    bbox = d.textbbox((0, 0), emoji, font=emoji_font, anchor="lt")
-    w, h = int(max(1, bbox[2] - bbox[0])), int(max(1, bbox[3] - bbox[1]))
-    canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    dc = ImageDraw.Draw(canvas)
-    try:
-        dc.text((-bbox[0], -bbox[1]), emoji, font=emoji_font, embedded_color=True)
-    except TypeError:
-        dc.text((-bbox[0], -bbox[1]), emoji, font=emoji_font, fill=(0, 0, 0, 255))
-
-    # 缩放到目标大小，保持宽高比
-    if w > h:
-        new_w = target_size
-        new_h = int(h * target_size / w)
-    else:
-        new_h = target_size
-        new_w = int(w * target_size / h)
-
-    return canvas.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    return emojis, message[index:].lstrip()
 
 
 _CACHED_LOGS: list[str] | None = None
@@ -87,6 +68,7 @@ _CACHED_LOGS: list[str] | None = None
 
 def _get_cached_logs() -> list[str]:
     """首次查看更新记录时才执行 git log，避免导入插件时污染日志。"""
+
     global _CACHED_LOGS
     if _CACHED_LOGS is None:
         _CACHED_LOGS = _get_git_logs()
@@ -94,59 +76,61 @@ def _get_cached_logs() -> list[str]:
 
 
 TEXT_PATH = Path(__file__).parent / "texture2d"
-gs_font_30 = dna_font_origin(30)
+BACKGROUND_PATH = Path(__file__).parents[1] / "utils" / "texture2d" / "bg.jpg"
+CARD_W = 950
+_RENDERER = HtmlRenderer()
+
+
+def _build_log_payload(logs: list[str]) -> list[dict[str, str]]:
+    payload: list[dict[str, str]] = []
+    for raw_log in logs:
+        emojis, text = _extract_leading_emojis(raw_log)
+        if not emojis:
+            continue
+        if ")" in text:
+            text = text.split(")")[0] + ")"
+        payload.append({"emojis": "".join(emojis[:4]), "text": text.replace("`", "")})
+    return payload
+
+
+def _render_emoji_sprite(emoji: str, target_size: int = 48) -> Image.Image:
+    """沿用 legacy 的 NotoColorEmoji 栅格化，避免浏览器系统 emoji 发生漂移。"""
+
+    font = ImageFont.truetype(str(EMOJI_ORIGIN_PATH), size=109)
+    probe = ImageDraw.Draw(Image.new("RGBA", (218, 218), (0, 0, 0, 0)))
+    bbox = probe.textbbox((0, 0), emoji, font=font, anchor="lt")
+    width = max(1, int(bbox[2] - bbox[0]))
+    height = max(1, int(bbox[3] - bbox[1]))
+    sprite = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    ImageDraw.Draw(sprite).text((-bbox[0], -bbox[1]), emoji, font=font, embedded_color=True)
+    if width > height:
+        size = (target_size, max(1, int(height * target_size / width)))
+    else:
+        size = (max(1, int(width * target_size / height)), target_size)
+    return sprite.resize(size, Image.Resampling.LANCZOS)
+
+
+def _emoji_images(logs: list[dict[str, str]]) -> list[str]:
+    return [pil_image_data_uri(_render_emoji_sprite(log["emojis"])) for log in logs]
 
 
 async def draw_update_log_img() -> bytes | str:
+    """以 HTML/T2I 渲染更新记录，保留无日志时的旧错误文案。"""
+
     logs = _get_cached_logs()
     if not logs:
         return "获取失败"
 
-    log_title = Image.open(TEXT_PATH / "log_title.png")
-    img = get_dna_bg(950, 20 + 475 + 80 * len(logs))
-    img.paste(log_title, (0, 0), log_title)
-    img_draw = ImageDraw.Draw(img)
-    img_draw.text((475, 432), "DNAUID 更新记录", "white", gs_font_30, "mm")
-
-    for index, raw_log in enumerate(logs):
-        emojis, text = _extract_leading_emojis(raw_log)
-
-        # 跳过没有 emoji 的记录（理论上已在获取时过滤，但保险起见）
-        if not emojis:
-            continue
-
-        # 清理文本
-        if ")" in text:
-            text = text.split(")")[0] + ")"
-        text = text.replace("`", "")
-
-        base_y = 475 + 80 * index
-
-        # 绘制居中的圆角半透明灰色背景条
-        bg_width = 850
-        bg_height = 65
-        bg_x = (950 - bg_width) // 2  # 居中计算
-        bg_y = base_y + 7
-
-        rounded_bg = Image.new("RGBA", (bg_width, bg_height), (0, 0, 0, 0))
-        get_smooth_drawer().rounded_rectangle(
-            (0, 0, bg_width, bg_height),
-            radius=15,
-            fill=(128, 128, 128, 100),
-            target=rounded_bg,
-        )
-        img.paste(rounded_bg, (bg_x, bg_y), rounded_bg)
-
-        x = 70
-        # 绘制前缀 emoji
-        for e in emojis[:4]:
-            sprite = _render_emoji_sprite(e, target_size=48)
-            paste_y = base_y + max(0, (80 - sprite.height) // 2)
-            img.paste(sprite, (x, paste_y), sprite)
-            x += sprite.width + 12
-
-        # 绘制文本
-        text_x = max(x, 160)
-        img_draw.text((text_x, base_y + 40), text, "white", gs_font_30, "lm")
-
-    return await convert_img(img)
+    payload = _build_log_payload(logs)
+    return await _RENDERER.render(
+        "cards/update_log.html.j2",
+        {
+            "background": image_data_uri(BACKGROUND_PATH),
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "logs": payload,
+            "emoji_images": _emoji_images(payload),
+            "title_image": image_data_uri(TEXT_PATH / "log_title.png"),
+            "width": CARD_W,
+        },
+        RenderSpec(width=CARD_W, full_page=True, image_format="jpeg"),
+    )

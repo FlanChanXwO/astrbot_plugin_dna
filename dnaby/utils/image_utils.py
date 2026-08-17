@@ -5,7 +5,7 @@
 - ``download``：httpx 下载到目录
 - ``get_event_avatar``：按用户 id 拉头像（QQ 头像源），失败抛异常由调用方兜底
 - ``change_ev_image_to_bytes``：URL/路径/bytes → bytes（上传用）
-- ``get_qrcode_base64``：URL → 二维码 PNG bytes
+- ``get_qrcode_base64``：兼容入口，URL → HTML/T2I 二维码 PNG bytes
 """
 
 from __future__ import annotations
@@ -141,14 +141,9 @@ async def change_ev_image_to_bytes(
 
 
 async def get_qrcode_base64(url: str, path: Path, name: str) -> bytes:
-    """生成二维码 PNG bytes（扫码登录用）。"""
-    import qrcode
+    """以 HTML/T2I 生成扫码登录二维码，保留旧参数与返回类型。"""
 
-    path.mkdir(parents=True, exist_ok=True)
-    qr = qrcode.QRCode(border=1)
-    qr.add_data(url)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buf = BytesIO()
-    img.save(buf, "PNG")
-    return buf.getvalue()
+    del path, name
+    from ..rendering.qr import render_qr_code
+
+    return await render_qr_code(url)
