@@ -114,10 +114,11 @@ def _emoji_images(logs: list[dict[str, str]]) -> list[str]:
     return [pil_image_data_uri(_render_emoji_sprite(log["emojis"])) for log in logs]
 
 
-async def draw_update_log_img() -> bytes | str:
+async def draw_update_log_img(logs: list[str] | None = None) -> bytes | str:
     """以 HTML/T2I 渲染更新记录，保留无日志时的旧错误文案。"""
 
-    logs = _get_cached_logs()
+    if logs is None:
+        logs = _get_cached_logs()
     if not logs:
         return "获取失败"
 

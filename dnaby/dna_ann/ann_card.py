@@ -75,10 +75,11 @@ def _load_avatar(size: int) -> Image.Image:
     return round_avatar(Image.new("RGB", (size, size), "#b22222"), size)
 
 
-async def draw_ann_list_img() -> bytes | str:
+async def draw_ann_list_img(posts: list[dict] | None = None) -> bytes | str:
     """以 HTML/T2I 渲染公告索引卡，保留旧序号、条目上限和错误语义。"""
 
-    posts = await fetch_ann_list(prefer_cache=True)
+    if posts is None:
+        posts = await fetch_ann_list(prefer_cache=True)
     if not posts:
         return "获取公告列表失败"
 
@@ -159,6 +160,41 @@ async def _split_rendered_pages(rendered: bytes) -> bytes | list[bytes]:
     return pages
 
 
+async def draw_ann_detail_card(
+    post_id: int | str,
+    subject: str,
+    blocks: list[tuple[str, str]],
+    *,
+    time_text: str = "",
+) -> bytes | list[bytes]:
+    """使用 HTML/T2I 渲染已解析的公告正文卡片。"""
+
+    post_id = str(post_id)
+    qr_image = await load_qr_code(get_post_url(post_id))
+    block_payload = await _detail_blocks_payload(blocks)
+    font, font_fallback = unicode_font_data_uris(
+        UNICODE_ORIGIN_PATH,
+        f"{subject}{time_text}"
+        + "".join(block["value"] for block in block_payload if block["kind"] == "text"),
+    )
+    rendered = await _RENDERER.render(
+        "cards/announcement_detail.html.j2",
+        {
+            "avatar": pil_image_data_uri(_load_avatar(120)),
+            "background": image_data_uri(BACKGROUND_PATH),
+            "blocks": block_payload,
+            "font": font,
+            "font_fallback": font_fallback,
+            "qr": pil_image_data_uri(qr_image) if qr_image is not None else None,
+            "subject": subject,
+            "time_text": time_text,
+            "width": WIDTH,
+        },
+        RenderSpec(width=WIDTH, full_page=True, image_format="jpeg"),
+    )
+    return await _split_rendered_pages(rendered)
+
+
 async def draw_ann_detail_img(
     post_id: int | str,
     *,
@@ -185,26 +221,6 @@ async def draw_ann_detail_img(
     if not blocks:
         return "未找到该公告"
 
-    qr_image = await load_qr_code(get_post_url(post_id))
-    block_payload = await _detail_blocks_payload(blocks)
-    font, font_fallback = unicode_font_data_uris(
-        UNICODE_ORIGIN_PATH,
-        f"{detail.get('postTitle') or pick_subject(matched)}{format_post_time(detail.get('postTime') or matched.get('postTime'))}"
-        + "".join(block["value"] for block in block_payload if block["kind"] == "text"),
-    )
-    rendered = await _RENDERER.render(
-        "cards/announcement_detail.html.j2",
-        {
-            "avatar": pil_image_data_uri(_load_avatar(120)),
-            "background": image_data_uri(BACKGROUND_PATH),
-            "blocks": block_payload,
-            "font": font,
-            "font_fallback": font_fallback,
-            "qr": pil_image_data_uri(qr_image) if qr_image is not None else None,
-            "subject": detail.get("postTitle") or pick_subject(matched),
-            "time_text": format_post_time(detail.get("postTime") or matched.get("postTime")),
-            "width": WIDTH,
-        },
-        RenderSpec(width=WIDTH, full_page=True, image_format="jpeg"),
-    )
-    return await _split_rendered_pages(rendered)
+    subject = str(detail.get("postTitle") or pick_subject(matched))
+    time_text = format_post_time(detail.get("postTime") or matched.get("postTime"))
+    return await draw_ann_detail_card(post_id, subject, blocks, time_text=time_text)

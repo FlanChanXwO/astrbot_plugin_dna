@@ -153,7 +153,7 @@ class NoticesRenderer:
         ]
         image_bytes = await draw_ann_list_img(payload)
         if not isinstance(image_bytes, bytes):
-            raise ValueError("公告列表 legacy 绘制失败")
+            raise TypeError("公告列表 legacy 绘制失败")
         with Image.open(BytesIO(image_bytes)) as source:
             image = source.convert("RGBA")
 
