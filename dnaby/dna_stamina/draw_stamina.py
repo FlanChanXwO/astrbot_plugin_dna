@@ -1,6 +1,6 @@
-from io import BytesIO
 import random
 import time
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image

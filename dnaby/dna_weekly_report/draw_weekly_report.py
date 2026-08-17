@@ -1,6 +1,6 @@
 import asyncio
-from io import BytesIO
 import math
+from io import BytesIO
 from pathlib import Path
 
 import httpx
