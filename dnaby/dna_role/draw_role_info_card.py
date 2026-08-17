@@ -1,34 +1,29 @@
+import asyncio
 import math
 from pathlib import Path
 from typing import Literal
 
-from PIL import Image, ImageDraw
 from pydantic import BaseModel
 
-from ..utils import dna_api
-from ..utils.api.model import DNARoleForToolRes
-from ..utils.database.models import DNABind
-from ..utils.fonts.dna_fonts import (
-    dna_font_20,
-    dna_font_25,
-    dna_font_40,
-    dna_font_50,
+from ..rendering import (
+    HtmlRenderer,
+    RenderSpec,
+    build_profile_header,
+    font_data_uri,
+    image_data_uri,
+    pil_image_data_uri,
 )
+from ..utils import dna_api
+from ..utils.api.model import DNARoleForToolRes, RoleShowForTool
+from ..utils.database.models import DNABind
+from ..utils.fonts.dna_fonts import FONT_ORIGIN_PATH
 from ..utils.image import (
-    COLOR_FIRE_BRICK,
-    COLOR_PALE_GOLDENROD,
-    COLOR_WHITE,
-    add_footer,
     get_attr_img,
     get_avatar_img,
-    get_avatar_title_img,
-    get_dna_bg,
     get_grade_img,
-    get_smooth_drawer,
     get_weapon_attr_img,
     get_weapon_img,
 )
-from ..utils.image_utils import convert_img
 from ..utils.msgs.notify import (
     dna_not_found,
     dna_peek_blocked,
@@ -39,12 +34,7 @@ from ..utils.session import EventContext, Sender
 from ..utils.utils import get_using_id, is_peek_blocked, is_uid_hidden
 
 TEXT_PATH = Path(__file__).parent / "texture2d"
-global_item_fg = Image.open(TEXT_PATH / "item_fg.png")
-global_item_mask = Image.open(TEXT_PATH / "item_mask.png")
-global_role_bg = Image.open(TEXT_PATH / "bg/bg1.png")
-global_lang_weapon_bg = Image.open(TEXT_PATH / "bg/bg4.png")
-global_close_weapon_bg = Image.open(TEXT_PATH / "bg/bg5.png")
-hang_num = 5
+_RENDERER = HtmlRenderer()
 
 
 def is_show_role_info_card():
@@ -64,6 +54,121 @@ class ItemTemp(BaseModel):
     unlocked: bool = False
 
 
+async def _item_payload(item: ItemTemp) -> dict[str, object]:
+    if item.type == "role":
+        image = await get_avatar_img(item.id, item.icon)
+        element = await get_attr_img(pic_url=item.element_icon)
+    else:
+        image = await get_weapon_img(item.id, item.icon)
+        element = await get_weapon_attr_img(pic_url=item.element_icon)
+    return {
+        "element": pil_image_data_uri(element.resize((element.width // 2, element.height // 2))),
+        "grade": (
+            pil_image_data_uri(get_grade_img(item.grade_level))
+            if item.grade_level is not None
+            else None
+        ),
+        "image": pil_image_data_uri(image),
+        "level": item.level,
+        "name": item.name,
+        "type": item.type,
+        "unlocked": item.unlocked,
+    }
+
+
+async def _section_payload(
+    items: list[ItemTemp],
+    title: str,
+    show_none: bool,
+    background_path: Path,
+) -> dict[str, object]:
+    visible = items if show_none else [item for item in items if item.unlocked]
+    return {
+        "background": image_data_uri(background_path),
+        "items": list(await asyncio.gather(*(_item_payload(item) for item in visible))),
+        "title": title,
+    }
+
+
+async def _draw_role_overview_card(
+    ctx: EventContext,
+    role_show: RoleShowForTool,
+    show_none: bool = True,
+    uid_hidden: bool = False,
+) -> bytes:
+    role_items = [
+        ItemTemp(type="role", id=role.charId, name=role.name, level=role.level, element_icon=role.elementIcon, icon=role.icon, grade_level=role.gradeLevel, unlocked=role.unLocked)
+        for role in role_show.roleChars
+    ]
+    close_items = [
+        ItemTemp(type="weapon", id=weapon.weaponId, name=weapon.name, level=weapon.level, element_icon=weapon.elementIcon, icon=weapon.icon, grade_level=weapon.skillLevel, unlocked=weapon.unLocked)
+        for weapon in role_show.closeWeapons
+    ]
+    lang_items = [
+        ItemTemp(type="weapon", id=weapon.weaponId, name=weapon.name, level=weapon.level, element_icon=weapon.elementIcon, icon=weapon.icon, grade_level=weapon.skillLevel, unlocked=weapon.unLocked)
+        for weapon in role_show.langRangeWeapons
+    ]
+    achievements = [
+        {"label": "角色数量", "value": str(sum(item.unlocked for item in role_items))},
+        {"label": "近战武器", "value": str(sum(item.unlocked for item in close_items))},
+        {"label": "远程武器", "value": str(sum(item.unlocked for item in lang_items))},
+    ]
+    achievements.extend(
+        {"label": item.paramKey, "value": item.paramValue}
+        for item in role_show.params
+        if item.paramKey in ("装饰数量", "魔灵数量")
+    )
+    achievements.append({"label": "总成就数", "value": str(role_show.roleAchv.total)})
+    header_stats = [
+        (item.paramKey, item.paramValue)
+        for item in role_show.params
+        if item.paramKey in ("总活跃天数", "游戏时长")
+    ]
+    header = await build_profile_header(
+        ctx,
+        role_show.roleId,
+        role_show.roleName,
+        user_level=role_show.level,
+        stats=header_stats,
+        avatar_user_id=ctx.user_id,
+        uid_hidden=uid_hidden,
+    )
+
+    sections = [
+        await _section_payload(role_items, "角色信息", show_none, TEXT_PATH / "bg" / "bg1.png"),
+        await _section_payload(close_items, "近战武器", show_none, TEXT_PATH / "bg" / "bg5.png"),
+        await _section_payload(lang_items, "远程武器", show_none, TEXT_PATH / "bg" / "bg4.png"),
+    ]
+    section_counts = [
+        len(items) if show_none else sum(item.unlocked for item in items)
+        for items in (role_items, close_items, lang_items)
+    ]
+    height = 800 + sum(70 + 320 * math.ceil(count / 5) for count in section_counts if count)
+
+    return await _RENDERER.render(
+        "cards/role_info.html.j2",
+        {
+            "achievements": achievements,
+            "background": image_data_uri(Path(__file__).parents[1] / "utils" / "texture2d" / "bg1.jpg"),
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "footer_text": "DNAUID",
+            "footer_image": image_data_uri(Path(__file__).parents[1] / "utils" / "texture2d" / "footer.png"),
+            "header": header,
+            "header_background": image_data_uri(Path(__file__).parents[1] / "utils" / "texture2d" / "avatar_title_bg.png"),
+            "info_bar": image_data_uri(TEXT_PATH / "info_bar.png"),
+            "div_background": image_data_uri(TEXT_PATH / "div_bg.png"),
+            "item_foreground": image_data_uri(TEXT_PATH / "item_fg.png"),
+            "item_mask": image_data_uri(TEXT_PATH / "item_mask.png"),
+            "sections": sections,
+            "title_background": image_data_uri(TEXT_PATH / "title_bg.jpg"),
+            "title_mask": image_data_uri(TEXT_PATH / "title_mask.png"),
+            "height": height,
+            "width": 1200,
+        },
+        RenderSpec(width=1200, height=height, full_page=False, image_format="jpeg"),
+    )
+
+
 async def draw_role_info_card(sender: Sender, ctx: EventContext):
     user_id = await get_using_id(ctx)
     if is_peek_blocked(ctx, user_id):
@@ -73,259 +178,22 @@ async def draw_role_info_card(sender: Sender, ctx: EventContext):
     if not uid:
         await dna_uid_invalid(sender, ctx)
         return
-
     dna_user = await dna_api.get_dna_user(uid, user_id, ctx.bot_id)
     if not dna_user:
         await dna_token_invalid(sender, ctx)
         return
-
     default_role = await dna_api.get_default_role_for_tool(dna_user)
     if not default_role.is_success:
         await dna_not_found(sender, ctx, "角色列表信息")
         return
 
-    default_role = DNARoleForToolRes.model_validate(default_role.data)
-    uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
-    card = await draw_role_info_card_core(
-        default_role.roleInfo.roleShow,
-        uid_hidden=uid_hidden,
-        show_none=is_show_role_info_card(),
-        ev_stub=ctx,
-        avatar_user_id=user_id,
-    )
-    await sender.send(card)
-async def draw_role_info_card_core(
-    role_show,
-    *,
-    uid_hidden: bool,
-    show_none: bool,
-    ev_stub=None,
-    avatar_user_id: str | None = None,
-) -> bytes:
-    """纯绘制核心：与 draw_role_info_card 共享同一段绘制代码。
-
-    rewrite 渲染器通过本函数获得与 legacy 一致的输出；素材下载/缓存走 legacy
-    RESOURCE_PATH（可指向插件数据目录）。``ev_stub`` 只需提供可读写的 ``at``
-    字段（用户头像下载用）。
-    """
-    if ev_stub is None:
-        from types import SimpleNamespace
-
-        ev_stub = SimpleNamespace(at="", user_id="")
-    role_unlocked_count = len([i for i in role_show.roleChars if i.unLocked])
-    # 解锁远程武器数量
-    lang_weapon_unlocked_count = len([i for i in role_show.langRangeWeapons if i.unLocked])
-    # 解锁近战武器数量
-    close_weapon_unlocked_count = len([i for i in role_show.closeWeapons if i.unLocked])
-
-    # 成就展示
-    achievement_info = [
-        ("角色数量", str(role_unlocked_count)),
-        ("近战武器", str(close_weapon_unlocked_count)),
-        ("远程武器", str(lang_weapon_unlocked_count)),
-    ]
-    achievement_info.extend(
-        [(i.paramKey, i.paramValue) for i in role_show.params if i.paramKey in ("装饰数量", "魔灵数量")]
-    )
-    achievement_info.extend([("总成就数", str(role_show.roleAchv.total))])
-
+    role_show = DNARoleForToolRes.model_validate(default_role.data).roleInfo.roleShow
     show_none = is_show_role_info_card()
+    uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
 
-    role_len = len(role_show.roleChars) if show_none else role_unlocked_count
-    lang_len = len(role_show.langRangeWeapons) if show_none else lang_weapon_unlocked_count
-    close_len = len(role_show.closeWeapons) if show_none else close_weapon_unlocked_count
-    h = 650 + 100 + 50  # title+info+footer
-    if role_len > 0:
-        h += 320 * math.ceil(role_len / hang_num) + 70  # bar+role
-    if lang_len > 0:
-        h += 320 * math.ceil(lang_len / hang_num) + 70  # bar+weapon
-    if close_len > 0:
-        h += 320 * math.ceil(close_len / hang_num) + 70  # bar+weapon
-    card = get_dna_bg(1200, h, "bg1")
-
-    start_y = 0
-    title_mask = Image.open(TEXT_PATH / "title_mask.png")
-    title_bg = Image.open(TEXT_PATH / "title_bg.jpg")
-    title_bg = title_bg.resize((title_mask.width, title_mask.height))
-    card.paste(title_bg, (0, 0), title_mask)
-    start_y += 650
-
-    # title
-    avatar_title = await get_avatar_title_img(
-        ev_stub,
-        role_show.roleId,
-        role_show.roleName,
-        user_level=role_show.level,
-        other_info=[(i.paramKey, i.paramValue) for i in role_show.params if i.paramKey in ("总活跃天数", "游戏时长")],
-        avatar_user_id=avatar_user_id,
-        uid_hidden=uid_hidden,
-    )
-    card.alpha_composite(avatar_title, (-50, 400))
-
-    # info
-    info_bar = Image.open(TEXT_PATH / "info_bar.png")
-    info_bar_draw = ImageDraw.Draw(info_bar)
-
-    for index, info in enumerate(achievement_info):
-        # 数量
-        info_bar_draw.text((65 + index * 215, 20), info[1], COLOR_WHITE, dna_font_50, "mm")
-        # 描述
-        info_bar_draw.text((65 + index * 215, 63), info[0], COLOR_PALE_GOLDENROD, dna_font_25, "mm")
-
-    card.alpha_composite(info_bar, (100, start_y))
-    start_y += 100
-
-    # div bg
-    div_bg = Image.open(TEXT_PATH / "div_bg.png")
-    div_bg_draw = ImageDraw.Draw(div_bg)
-    div_bg_draw.text((600, 33), "角色信息", COLOR_WHITE, dna_font_40, "mm")
-    card.alpha_composite(div_bg, (0, start_y))
-    start_y += 70
-
-    start_y = await _draw_item(
-        card,
-        start_y,
-        [
-            ItemTemp(
-                type="role",
-                id=role.charId,
-                name=role.name,
-                level=role.level,
-                element_icon=role.elementIcon,
-                icon=role.icon,
-                grade_level=role.gradeLevel,
-                unlocked=role.unLocked,
-            )
-            for role in role_show.roleChars
-        ],
-        global_role_bg,
-        show_none,
-    )
-
-    # div bg
-    div_bg = Image.open(TEXT_PATH / "div_bg.png")
-    div_bg_draw = ImageDraw.Draw(div_bg)
-    div_bg_draw.text((600, 33), "近战武器", COLOR_WHITE, dna_font_40, "mm")
-    card.alpha_composite(div_bg, (0, start_y))
-    start_y += 70
-
-    start_y = await _draw_item(
-        card,
-        start_y,
-        [
-            ItemTemp(
-                type="weapon",
-                id=weapon.weaponId,
-                name=weapon.name,
-                level=weapon.level,
-                element_icon=weapon.elementIcon,
-                icon=weapon.icon,
-                grade_level=weapon.skillLevel,
-                unlocked=weapon.unLocked,
-            )
-            for weapon in role_show.closeWeapons
-        ],
-        global_close_weapon_bg,
-        show_none,
-    )
-
-    # div bg
-    div_bg = Image.open(TEXT_PATH / "div_bg.png")
-    div_bg_draw = ImageDraw.Draw(div_bg)
-    div_bg_draw.text((600, 33), "远程武器", COLOR_WHITE, dna_font_40, "mm")
-    card.alpha_composite(div_bg, (0, start_y))
-    start_y += 70
-
-    start_y = await _draw_item(
-        card,
-        start_y,
-        [
-            ItemTemp(
-                type="weapon",
-                id=weapon.weaponId,
-                name=weapon.name,
-                level=weapon.level,
-                element_icon=weapon.elementIcon,
-                icon=weapon.icon,
-                grade_level=weapon.skillLevel,
-                unlocked=weapon.unLocked,
-            )
-            for weapon in role_show.langRangeWeapons
-        ],
-        global_lang_weapon_bg,
-        show_none,
-    )
-
-    card = add_footer(card, 600)
-    card = await convert_img(card)
-    return card
+    card = await _draw_role_overview_card(ctx, role_show, show_none=show_none, uid_hidden=uid_hidden)
+    await sender.send(card)
 
 
-async def _draw_item(card: Image.Image, start_y: int, items: list[ItemTemp], item_bg: Image.Image, show_none: bool):
-    items = items if show_none else [i for i in items if i.unlocked]
-    for index, item in enumerate(items):
-        temp_bg = Image.new("RGBA", (210, 300))
-        temp_bg2 = Image.new("RGBA", (210, 300))
+draw_role_overview_card = _draw_role_overview_card
 
-        item_mask = global_item_mask.copy()
-        mine_bg = item_bg.copy()
-        if item.type == "role":
-            try:
-                item_img = await get_avatar_img(item.id, item.icon)
-            except Exception:  # noqa: BLE001
-                item_img = await get_avatar_img(item.id, None)
-        else:
-            try:
-                item_img = await get_weapon_img(item.id, item.icon)
-            except Exception:  # noqa: BLE001
-                item_img = await get_weapon_img(item.id, None)
-
-        temp_bg.alpha_composite(item_img, (-20, 0))
-        temp_bg2.paste(temp_bg, (0, 0), item_mask)
-        mine_bg.alpha_composite(temp_bg2, (0, 0))
-
-        fg = global_item_fg.copy()
-        fg_draw = ImageDraw.Draw(fg)
-
-        # name
-        fg_draw.text((100, 275), item.name, COLOR_WHITE, dna_font_20, "mm")
-        # level
-        if item.level > 0:
-            fg_draw.text((128, 215), f"Lv.{item.level}", COLOR_WHITE, dna_font_20, "mm")
-        else:
-            fg_draw.text((128, 215), "未解锁", COLOR_WHITE, dna_font_20, "mm")
-        # element
-        if item.type == "role":
-            try:
-                attr_img = await get_attr_img(pic_url=item.element_icon)
-            except Exception:  # noqa: BLE001
-                attr_img = await get_attr_img(pic_url=None)
-            attr_img = attr_img.resize((attr_img.width // 2, attr_img.height // 2))
-            fg.alpha_composite(attr_img, (0, 20))
-        else:
-            try:
-                attr_img = await get_weapon_attr_img(pic_url=item.element_icon)
-            except Exception:  # noqa: BLE001
-                attr_img = await get_weapon_attr_img(pic_url=None)
-            attr_img = attr_img.resize((attr_img.width // 2, attr_img.height // 2))
-            fg.alpha_composite(attr_img, (-3, 23))
-
-        # 画命座
-        if item.grade_level is not None:
-            # 当前命座
-            grade_img = get_grade_img(item.grade_level)
-            ellipse = Image.new("RGBA", (34, 35))
-            get_smooth_drawer().rounded_rectangle((0, 0, 34, 35), fill=COLOR_FIRE_BRICK, radius=7, target=ellipse)
-            ellipse.alpha_composite(grade_img, (0, 5))
-            fg.alpha_composite(ellipse, (145, 35))
-
-        if not item.unlocked:
-            # 置灰
-            mine_bg = mine_bg.convert("RGBA").point(lambda x: x * 0.5)
-            fg = fg.convert("RGBA").point(lambda x: x * 0.5)
-        # 一行5个 先左再右
-        card.alpha_composite(mine_bg, (50 + index % 5 * 230, start_y + index // 5 * 320))
-        card.alpha_composite(fg, (50 + index % 5 * 230, start_y + index // 5 * 320))
-
-    total_lines = math.ceil(len(items) / hang_num)
-    return start_y + 320 * total_lines

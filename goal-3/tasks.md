@@ -7,7 +7,7 @@
 - [x] Task 3: 迁移并校准通用与通知类卡片模板（帮助、更新记录、公告列表、公告详情、密函简图与卡片）
 - [x] Task 4: [集中检查-debug 循环 1] 复查 Task 1-3 基础设施、资源内联与简单/通知卡片契约
 - [x] Task 5: 迁移并校准资料与签到类卡片模板（活动日历、签到日历、签到报告、实时体力便签）
-- [ ] Task 6: 迁移并校准角色与周报类复杂卡片模板（角色总览、角色详情、本周/上周周报）
+- [x] Task 6: 迁移并校准角色与周报类复杂卡片模板（角色总览、角色详情、本周/上周周报）
 - [ ] Task 7: 对齐 `src/infrastructure/rendering/` 全量渲染器接入 T2I 渲染层与元数据生成
 - [ ] Task 8: [集中检查-debug 循环 2] 复查 Task 5-7 全部 14 类卡片渲染管线、接口兼容与单测
 - [ ] Task 9: 执行真实账号全量 14 类卡片 T2I 渲染并输出至 `output/real/astrbot/`
@@ -74,12 +74,12 @@
 
 ### Task 6: 迁移与校准角色/周报类复杂卡片模板
 - **目标**：实现/迁移角色总览 (`role_overview`)、角色详情 (`role_detail`，含武器、同律武器、技能、溯源、魔之楔、伤害计算区块) 与本周/上周周报 (`weekly_current`, `weekly_last`) 模板，复刻复杂多网格卡片布局。
-- **状态**：待开始
+- **状态**：已完成
 - **预留回写**：
-  - 实际做了什么：
-  - 验证证据：
-  - 剩余风险：
-  - 下一步：
+  - 实际做了什么：迁移并校准了 `role_info.html.j2` (1200px 宽角色总览网格)、`role_detail.html.j2` (1000px 宽全能角色面板、同律/近战/远程武器区、魔之楔 9 槽位与伤害计算)、`weekly_report.html.j2` (1200px 宽周报多分类网格)；重构并导出了 `draw_role_overview_card`、`draw_role_detail_card`、`draw_weekly_report_card`。
+  - 验证证据：`tests/test_html_complex_role.py` 4 个测试通过；真实 T2I 渲染测试成功生成角色总览 (1.79MB)、本周周报 (128KB)、上周周报 (149KB)、角色详情 (487KB)；pyright 0 错误 0 警告，ruff check 全部通过。
+  - 剩余风险：无。
+  - 下一步：执行 Task 7，对齐 `src/infrastructure/rendering/` 全量渲染器接入 T2I 渲染层与元数据生成。
 
 ---
 

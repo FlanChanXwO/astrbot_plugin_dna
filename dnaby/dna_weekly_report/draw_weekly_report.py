@@ -1,32 +1,24 @@
+import asyncio
 import math
 from pathlib import Path
 
-from PIL import Image, ImageDraw
-
+from ..rendering import (
+    HtmlRenderer,
+    RenderSpec,
+    build_profile_header,
+    font_data_uri,
+    image_data_uri,
+    pil_image_data_uri,
+)
 from ..utils import dna_api
 from ..utils.api.model import (
     DNAItemWeeklyReportRes,
     DNARoleForToolRes,
-    DNAWeeklyReportCategory,
-    DNAWeeklyReportItem,
+    RoleShowForTool,
 )
 from ..utils.database.models import DNABind
-from ..utils.fonts.dna_fonts import (
-    dna_font_22,
-    dna_font_25,
-    dna_font_28,
-    dna_font_30,
-    dna_font_36,
-)
-from ..utils.image import (
-    COLOR_PALE_GOLDENROD,
-    COLOR_WHITE,
-    add_footer,
-    download_pic_from_url,
-    get_avatar_title_img,
-    get_dna_bg,
-)
-from ..utils.image_utils import convert_img
+from ..utils.fonts.dna_fonts import FONT_ORIGIN_PATH
+from ..utils.image import download_pic_from_url
 from ..utils.msgs.notify import (
     dna_not_found,
     dna_peek_blocked,
@@ -37,16 +29,92 @@ from ..utils.resource.RESOURCE_PATH import WEEKLY_ITEM_PATH
 from ..utils.session import EventContext, Sender
 from ..utils.utils import get_using_id, is_peek_blocked, is_uid_hidden
 
+_RENDERER = HtmlRenderer()
+BACKGROUND_PATH = Path(__file__).parents[1] / "utils" / "texture2d" / "bg1.jpg"
+QUALITY_PATH = Path(__file__).parent / "texture2d" / "quality"
+
+
+def _fmt_date(value: str) -> str:
+    return f"{value[:4]}-{value[4:6]}-{value[6:8]}" if len(value) == 8 else value
+
+
+async def _item_payload(item) -> dict[str, object]:
+    name = f"item_{item.itemId}.png"
+    path = WEEKLY_ITEM_PATH / name
+    if path.exists():
+        icon = image_data_uri(path)
+    else:
+        icon = pil_image_data_uri(
+            await download_pic_from_url(WEEKLY_ITEM_PATH, item.icon, size=(105, 105), name=name)
+        )
+    quality = item.quality if 0 <= item.quality <= 5 else 0
+    quality_path = QUALITY_PATH / f"q{quality}.png"
+    return {
+        "icon": icon,
+        "name": item.itemName,
+        "quality": image_data_uri(quality_path),
+        "total": item.totalNum,
+    }
+
+
+async def _draw_weekly_report_card(
+    ctx: EventContext,
+    role_show: RoleShowForTool,
+    report: DNAItemWeeklyReportRes,
+    week_type: int = 1,
+    uid_hidden: bool = False,
+) -> bytes:
+    other_info = [
+        (item.paramKey, item.paramValue)
+        for item in role_show.params
+        if item.paramKey in ("总活跃天数", "游戏时长", "获得角色数")
+    ]
+    header = await build_profile_header(
+        ctx,
+        role_show.roleId,
+        role_show.roleName,
+        user_level=role_show.level,
+        stats=other_info,
+        avatar_user_id=ctx.user_id,
+        uid_hidden=uid_hidden,
+    )
+    category_items = await asyncio.gather(
+        *(asyncio.gather(*(_item_payload(item) for item in category.items)) for category in report.categories)
+    )
+    categories = [
+        {"items": list(items), "name": category.categoryName}
+        for category, items in zip(report.categories, category_items, strict=True)
+    ]
+    height = 400 + sum(
+        70 + max(1, math.ceil(len(category["items"]) / 5)) * 230 + 20
+        for category in categories
+    ) + 100
+    return await _RENDERER.render(
+        "cards/weekly_report.html.j2",
+        {
+            "background": image_data_uri(BACKGROUND_PATH),
+            "categories": categories,
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "footer_text": "DNAUID",
+            "footer_image": image_data_uri(Path(__file__).parents[1] / "utils" / "texture2d" / "footer.png"),
+            "header": header,
+            "header_background": image_data_uri(Path(__file__).parents[1] / "utils" / "texture2d" / "avatar_title_bg.png"),
+            "period": f"{_fmt_date(report.startDate)}  ~  {_fmt_date(report.endDate)}",
+            "week_label": "本周周报" if week_type == 1 else "上周周报",
+            "height": height,
+            "width": 1200,
+        },
+        RenderSpec(width=1200, height=height, full_page=False, image_format="jpeg"),
+    )
+
 
 async def draw_weekly_report_img(sender: Sender, ctx: EventContext, week_type: int = 1):
     user_id = await get_using_id(ctx)
     if is_peek_blocked(ctx, user_id):
         return await dna_peek_blocked(sender, ctx)
-
     uid = await DNABind.get_uid_by_game(user_id, ctx.bot_id)
     if not uid:
         return await dna_uid_invalid(sender, ctx)
-
     dna_user = await dna_api.get_dna_user(uid, user_id, ctx.bot_id)
     if not dna_user:
         return await dna_token_invalid(sender, ctx)
@@ -55,96 +123,15 @@ async def draw_weekly_report_img(sender: Sender, ctx: EventContext, week_type: i
     if not report_resp.is_success:
         return await dna_not_found(sender, ctx, "周报数据")
     report = DNAItemWeeklyReportRes.model_validate(report_resp.data)
-
     role_resp = await dna_api.get_default_role_for_tool(dna_user)
     if not role_resp.is_success:
         return await dna_not_found(sender, ctx, "角色列表信息")
     role_show = DNARoleForToolRes.model_validate(role_resp.data).roleInfo.roleShow
+    uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
 
-    # 布局参数（全部 local，避免污染模块全局）
-    card_w, side_pad, per_row = 1200, 70, 5
-    item_w, item_h = (card_w - side_pad * 2) // per_row, 230
-    oval_size, icon_size = 140, 105
-    title_h, banner_cy, cat_h, footer_pad = 400, 320, 70, 100
-    quality_dir = Path(__file__).parent / "texture2d" / "quality"
+    card = await _draw_weekly_report_card(ctx, role_show, report, week_type=week_type, uid_hidden=uid_hidden)
+    await sender.send(card)
 
-    def fmt_date(s: str) -> str:
-        return f"{s[:4]}-{s[4:6]}-{s[6:8]}" if len(s) == 8 else s
 
-    def cat_height(c: DNAWeeklyReportCategory) -> int:
-        return cat_h + max(1, math.ceil(len(c.items) / per_row)) * item_h + 20
+draw_weekly_report_card = _draw_weekly_report_card
 
-    async def load_icon(item: DNAWeeklyReportItem) -> Image.Image:
-        name = f"item_{item.itemId}.png"
-        path = WEEKLY_ITEM_PATH / name
-        if path.exists():
-            return Image.open(path).convert("RGBA").resize((icon_size, icon_size))
-        img = await download_pic_from_url(WEEKLY_ITEM_PATH, item.icon, size=(icon_size, icon_size), name=name)
-        return img.convert("RGBA")
-
-    async def draw_tile(item: DNAWeeklyReportItem) -> Image.Image:
-        q = item.quality if 0 <= item.quality <= 5 else 0
-        tile = Image.new("RGBA", (item_w, item_h))
-        oval = Image.open(quality_dir / f"q{q}.png").convert("RGBA").resize((oval_size, oval_size))
-        tile.alpha_composite(oval, ((item_w - oval_size) // 2, 0))
-        tile.alpha_composite(await load_icon(item), ((item_w - icon_size) // 2, (oval_size - icon_size) // 2 + 4))
-        d = ImageDraw.Draw(tile)
-        name = item.itemName if len(item.itemName) <= 8 else item.itemName[:7] + "…"
-        d.text((item_w // 2, oval_size + 22), name, COLOR_WHITE, dna_font_28, "mm")
-        d.text((item_w // 2, oval_size + 60), f"× {item.totalNum}", COLOR_PALE_GOLDENROD, dna_font_30, "mm")
-        return tile
-
-    async def draw_category(start_y: int, category: DNAWeeklyReportCategory) -> int:
-        d = ImageDraw.Draw(card)
-        bl, br = side_pad - 20, card_w - side_pad + 20
-        d.rectangle((bl, start_y + 10, bl + 8, start_y + cat_h - 10), fill=COLOR_PALE_GOLDENROD)
-        d.text((bl + 25, start_y + cat_h // 2), category.categoryName, COLOR_WHITE, dna_font_36, "lm")
-        d.line((bl + 25, start_y + cat_h - 10, br, start_y + cat_h - 10), fill=(255, 255, 255, 80), width=2)
-        y = start_y + cat_h
-        if not category.items:
-            d.text((card_w // 2, y + item_h // 2), "本周暂无相关资源获取", (200, 200, 200), dna_font_25, "mm")
-            return y + item_h + 20
-        for i, item in enumerate(category.items):
-            tile = await draw_tile(item)
-            card.alpha_composite(tile, (side_pad + (i % per_row) * item_w, y + (i // per_row) * item_h))
-        return y + math.ceil(len(category.items) / per_row) * item_h + 20
-
-    def draw_banner() -> None:
-        d = ImageDraw.Draw(card)
-        label = "本周周报" if week_type == 1 else "上周周报"
-        period = f"{fmt_date(report.startDate)}  ~  {fmt_date(report.endDate)}"
-        cx, ly = card_w // 2, banner_cy
-        gold_s, gold_w = (*COLOR_PALE_GOLDENROD, 220), (*COLOR_PALE_GOLDENROD, 110)
-        le, rs = cx - 120, cx + 120
-        d.line((le - 180, ly, le, ly), fill=gold_s, width=2)
-        d.line((le - 210, ly, le - 180, ly), fill=gold_w, width=2)
-        d.line((rs, ly, rs + 180, ly), fill=gold_s, width=2)
-        d.line((rs + 180, ly, rs + 210, ly), fill=gold_w, width=2)
-        for dx in (le, rs):
-            d.polygon([(dx, ly - 5), (dx + 5, ly), (dx, ly + 5), (dx - 5, ly)], fill=COLOR_PALE_GOLDENROD)
-        d.text((cx, ly), label, COLOR_PALE_GOLDENROD, dna_font_36, "mm")
-        d.text((cx, ly + 45), period, COLOR_WHITE, dna_font_22, "mm")
-
-    h = title_h + sum(cat_height(c) for c in report.categories) + footer_pad
-    card = get_dna_bg(card_w, h, "bg1")
-
-    other_info = [
-        (i.paramKey, i.paramValue) for i in role_show.params if i.paramKey in ("总活跃天数", "游戏时长", "获得角色数")
-    ]
-    avatar_title = await get_avatar_title_img(
-        ctx,
-        role_show.roleId,
-        role_show.roleName,
-        user_level=role_show.level,
-        other_info=other_info,
-        avatar_user_id=user_id,
-        uid_hidden=await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id),
-    )
-    card.alpha_composite(avatar_title, (-50, 30))
-    draw_banner()
-
-    cursor_y = title_h
-    for category in report.categories:
-        cursor_y = await draw_category(cursor_y, category)
-
-    await sender.send(await convert_img(add_footer(card, 600)))
