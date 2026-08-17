@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from PIL import Image
@@ -36,6 +37,7 @@ from src.modules.checkin.contracts import (
 from src.modules.checkin.service import CheckinService
 from src.modules.privacy import PrivacyService
 
+SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 UID = "1234567890123"
 TARGET_UID = "9876543210987"
 
@@ -253,7 +255,7 @@ async def test_manual_sign_completes_game_and_community_and_saves_record(tmp_pat
         record = await SignRecordRepository.get(
             session,
             uid=UID,
-            record_date=date.today(),
+            record_date=datetime.now(tz=SHANGHAI_TZ).date(),
         )
     assert record is not None
     assert record.game_sign == 1
@@ -270,7 +272,7 @@ async def test_manual_sign_skips_without_transport_when_already_complete(tmp_pat
         await SignRecordRepository.save(
             session,
             uid=UID,
-            record_date=date.today(),
+            record_date=datetime.now(tz=SHANGHAI_TZ).date(),
             game_sign=1,
             bbs_sign=1,
             bbs_detail=0,
@@ -398,7 +400,7 @@ async def test_manual_sign_bbs_detail_completes_via_post_iteration(tmp_path: Pat
         record = await SignRecordRepository.get(
             session,
             uid=UID,
-            record_date=date.today(),
+            record_date=datetime.now(tz=SHANGHAI_TZ).date(),
         )
     assert record is not None
     assert record.bbs_detail == 3

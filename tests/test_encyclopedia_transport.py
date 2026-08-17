@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 
 from src.infrastructure.http.encyclopedia import DnaApiEncyclopediaTransport
 
-
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 

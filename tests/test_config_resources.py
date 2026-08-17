@@ -13,7 +13,6 @@ from PIL import Image
 from src.bootstrap import build_runtime
 from src.infrastructure.config import DnabySettings, generate_astrbot_schema
 from src.infrastructure.persistence import AsyncDatabase
-from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources import (
     GitCommandError,
     GitCommandResult,
@@ -22,6 +21,7 @@ from src.infrastructure.resources import (
     ResourceManifestError,
     ResourceSynchronizer,
 )
+from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.manifest import RUNTIME_RESOURCE_DIRECTORIES
 from src.modules.player.service import PlayerService
 

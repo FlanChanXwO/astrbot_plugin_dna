@@ -5,11 +5,19 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from astrbot.api.message_components import Image, Plain
 
-from src.entry.commands import CommandRegistry, install_command_handlers, load_command_registry
-from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse, ResponseFactory
+from src.entry.commands import (
+    CommandRegistry,
+    install_command_handlers,
+    load_command_registry,
+)
+from src.entry.response import (
+    ChainResponse,
+    ImageResponse,
+    PlainTextResponse,
+    ResponseFactory,
+)
 
 
 def test_encyclopedia_commands_are_explicit_and_legacy_patterns_are_preserved() -> None:
@@ -98,6 +106,6 @@ async def test_encyclopedia_use_case_reports_missing_service() -> None:
         def plain_result(self, text: str) -> str:
             return text
 
-    handler = getattr(plugin, "handle_calendar")
+    handler = plugin.handle_calendar
     result = [item async for item in handler(Event())]
     assert result == ["资料服务暂不可用，请检查插件配置"]

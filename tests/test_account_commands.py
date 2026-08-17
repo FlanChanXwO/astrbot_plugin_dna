@@ -112,7 +112,7 @@ async def test_account_bind_handler_keeps_legacy_empty_argument_route() -> None:
         ),
     )
 
-    handler = getattr(plugin, "handle_account_bind")
+    handler = plugin.handle_account_bind
     result = [item async for item in handler(Event("绑定"))]
 
     assert result == ["绑定成功"]

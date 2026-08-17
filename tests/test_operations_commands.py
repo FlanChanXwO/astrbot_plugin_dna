@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from types import SimpleNamespace
-from typing import Awaitable, cast
+from typing import cast
 
 import pytest
 
@@ -134,7 +135,7 @@ async def test_generated_resource_status_handler_yields_text() -> None:
         ),
     )
 
-    handler = getattr(plugin, "handle_resource_status")
+    handler = plugin.handle_resource_status
     result = [item async for item in handler(Event())]
 
     assert result == ["资源状态：\n资源仓库目录: /tmp/resources"]

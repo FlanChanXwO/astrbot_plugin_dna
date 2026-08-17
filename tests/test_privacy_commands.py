@@ -7,7 +7,11 @@ from astrbot.api.message_components import At, AtAll
 from astrbot.core.star.filter.permission import PermissionTypeFilter
 from astrbot.core.star.star_handler import star_handlers_registry
 
-from src.entry.commands import CommandRegistry, install_command_handlers, load_command_registry
+from src.entry.commands import (
+    CommandRegistry,
+    install_command_handlers,
+    load_command_registry,
+)
 from src.entry.event import EventActor, target_user_from_event
 from src.entry.response import PlainTextResponse, ResponseFactory
 
@@ -129,7 +133,7 @@ async def test_generated_privacy_handler_extracts_at_target_from_public_event_ap
         ),
     )
 
-    handler = getattr(plugin, "handle_privacy_enable_peek_admin")
+    handler = plugin.handle_privacy_enable_peek_admin
     result = [item async for item in handler(Event("指定开偷窥"))]
 
     assert result == ["命令边界已传递"]
@@ -161,7 +165,7 @@ async def test_generated_privacy_handler_passes_missing_target_explicitly() -> N
         ),
     )
 
-    handler = getattr(plugin, "handle_privacy_enable_peek_admin")
+    handler = plugin.handle_privacy_enable_peek_admin
     result = [item async for item in handler(Event("指定开偷窥", target=None))]
 
     assert result == ["命令边界已传递"]

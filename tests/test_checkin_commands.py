@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from types import SimpleNamespace
-from typing import Awaitable, cast
+from typing import cast
 
 import pytest
 

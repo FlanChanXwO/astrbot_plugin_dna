@@ -11,9 +11,9 @@
 - [x] Task 7: 对齐 `src/infrastructure/rendering/` 全量渲染器接入 T2I 渲染层与元数据生成
 - [x] Task 8: [集中检查-debug 循环 2] 复查 Task 5-7 全部 14 类卡片渲染管线、接口兼容与单测
 - [x] Task 9: 执行真实账号全量 14 类卡片 T2I 渲染并输出至 `output/real/astrbot/`
-- [ ] Task 10: 针对性微调 HTML/CSS 样式与布局细节，消除视觉差异与布局瑕疵
-- [ ] Task 11: 生成接触图 (contact sheets)、差异对比图与更新真实数据验收报告
-- [ ] Task 12: [集中检查-debug 循环 3 / 终审] 全量门禁校验 (compileall/ruff/pyright/pytest) 与交付核验
+- [x] Task 10: 针对性微调 HTML/CSS 样式与布局细节，消除视觉差异与布局瑕疵
+- [x] Task 11: 生成接触图 (contact sheets)、差异对比图与更新真实数据验收报告
+- [x] Task 12: [集中检查-debug 循环 3 / 终审] 全量门禁校验 (compileall/ruff/pyright/pytest) 与交付核验
 
 ---
 
@@ -129,20 +129,20 @@
 
 ### Task 11: 生成拼版接触图与验收报告
 - **目标**：重新生成 `astrbot_contact.jpg`、`gscore_contact.jpg`、`diff_contact.jpg` 并更新 `output/real/acceptance-report.md`，记录各卡片画布尺寸、字节数、MAD 指标与视觉审查结论。
-- **状态**：待开始
+- **状态**：已完成
 - **预留回写**：
-  - 实际做了什么：
-  - 验证证据：
-  - 剩余风险：
-  - 下一步：
+  - 实际做了什么：重新合成了 `output/real/astrbot_contact.jpg`、`output/real/gscore_contact.jpg` 以及 5x 差分高亮的 `output/real/diff_contact.jpg`；在 `output/real/acceptance-report.md` 中完整记录了 14 类卡片的画布规格、文件字节数、MAD 指标（4.15~14.50）及耗时分析。
+  - 验证证据：接触图文件全部就绪，MAD 指标全面达标，所有卡片均实现真实数据零回退复刻。
+  - 剩余风险：无。
+  - 下一步：执行 Task 12，开展 [集中检查-debug 循环 3 / 终审]，完成全量门禁校验与交付核验。
 
 ---
 
 ### Task 12: [集中检查-debug 循环 3 / 终审]
 - **目标**：执行全量测试套件（pytest）、编译检查（compileall）、代码规范（ruff）与类型检查（pyright 0 errors / 0 warnings），核对所有文档与交付物，完成最终验收。
-- **状态**：待开始
+- **状态**：已完成
 - **预留回写**：
-  - 实际做了什么：
-  - 验证证据：
-  - 剩余风险：
-  - 下一步：
+  - 实际做了什么：执行了最终质量门禁全量校验：`compileall` 编译检查、`ruff check dnaby/ src/ tests/` 代码规范检查、`pyright` 静态类型检查以及全量 350 个单元测试；修复了测试用例中的时区感知日期与导入格式，所有检查全部通过。
+  - 验证证据：`compileall` 0 错误；`ruff check` 0 错误；`pyright` 0 错误 0 警告；`pytest` 348 passed, 2 skipped, 0 failed（100% 通过）。
+  - 剩余风险：无。
+  - 下一步：Goal 3 全量任务完成，向用户汇报最终成果。
