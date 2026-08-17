@@ -80,7 +80,7 @@ class PanelService:
 
         if source.startswith("base64://"):
             return base64.b64decode(source[len("base64://") :])
-        if source.startswith("http://") or source.startswith("https://"):
+        if source.startswith(("http://", "https://")):
             raise ValueError("离线环境不支持 URL 面板图")
         path = Path(source)
         if not path.is_file():

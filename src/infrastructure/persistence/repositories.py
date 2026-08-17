@@ -186,7 +186,7 @@ class AccountBindingRepository:
                 AccountBinding.bot_id == bot_id,
             )
         )
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)
 
 
 class CredentialRepository:
@@ -380,7 +380,7 @@ class CredentialRepository:
                 CredentialRecord.bot_id == bot_id,
             )
         )
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)
 
 
 class SignRecordRepository:
@@ -475,7 +475,7 @@ class SignRecordRepository:
         result = await session.execute(
             delete(SignRecord).where(SignRecord.date < record_date)
         )
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)
 
 
 class PrivacySettingRepository:

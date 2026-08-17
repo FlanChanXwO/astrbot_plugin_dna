@@ -11,8 +11,8 @@ from .notices import DnaApiNoticesTransport
 from .player import DnaApiPlayerTransport
 
 __all__ = [
-    "AccountTransportError",
     "DEFAULT_CODE_URL",
+    "AccountTransportError",
     "DnaApiAccountTransport",
     "DnaApiCheckinTransport",
     "DnaApiEncyclopediaTransport",

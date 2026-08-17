@@ -1,7 +1,6 @@
 """迁移边界回归测试。"""
 
 import asyncio
-import importlib
 import sys
 from pathlib import Path
 
@@ -103,13 +102,37 @@ def test_plugin_entrypoint_imports_as_top_level_module():
     assert module.DnabyPlugin.__name__ == "DnabyPlugin"
 
 
+def _load_worktree_main_module():
+    import importlib.util
+    import types
+
+    for pkg in ["data", "data.plugins", "data.plugins.astrbot_plugin_dnaby"]:
+        if pkg not in sys.modules:
+            mod = types.ModuleType(pkg)
+            mod.__path__ = []
+            sys.modules[pkg] = mod
+
+    worktree_root = Path(__file__).resolve().parent.parent
+    sys.modules["data.plugins.astrbot_plugin_dnaby"].__path__ = [str(worktree_root)]
+
+    main_path = worktree_root / "main.py"
+    spec = importlib.util.spec_from_file_location(
+        "data.plugins.astrbot_plugin_dnaby.main",
+        main_path,
+        submodule_search_locations=[str(worktree_root)],
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    module.__package__ = "data.plugins.astrbot_plugin_dnaby"
+    sys.modules["data.plugins.astrbot_plugin_dnaby.main"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+
 def test_plugin_entrypoint_imports_in_astrbot_namespace():
     """AstrBot 的动态模块命名空间必须能加载包内业务模块。"""
-    runtime_root = Path(__file__).resolve().parents[4]
-    root_text = str(runtime_root)
-    if root_text not in sys.path:
-        sys.path.insert(0, root_text)
-    module = importlib.import_module("data.plugins.astrbot_plugin_dnaby.main")
+    module = _load_worktree_main_module()
     assert module.DnabyPlugin.__name__ == "DnabyPlugin"
 
 
@@ -117,7 +140,8 @@ def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
     """动态命名空间下的入口必须能组装 v0.1 空 runtime。"""
     import types
 
-    module = importlib.import_module("data.plugins.astrbot_plugin_dnaby.main")
+    module = _load_worktree_main_module()
+
     registered = []
     context = types.SimpleNamespace(
         register_web_api=lambda *args: registered.append(args),
@@ -132,6 +156,7 @@ def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
     asyncio.run(lifecycle())
 
     assert registered == []
+
 
 
 def test_mh_list_order_is_stable():

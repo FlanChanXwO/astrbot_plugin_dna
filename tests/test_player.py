@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-from shutil import copyfile
 from pathlib import Path
+from shutil import copyfile
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageFont
 
 from src.entry.event import EventActor
 from src.entry.response import ImageResponse, PlainTextResponse
@@ -657,7 +657,8 @@ async def test_damage_failure_payload_never_reaches_detail_image(
     await database.dispose()
 
 
-def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_path: Path) -> None:
     """玩家图片的资源 metadata 必须区分私有根提供的素材与 placeholder。"""
 
     resource_root = tmp_path / "resources"
@@ -678,7 +679,7 @@ def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_path: 
         uid=UID,
         uid_hidden=False,
     )
-    detail = renderer.render_detail(
+    detail = await renderer.render_detail(
         _detail_fixture(),
         [("近战", _weapon_fixture())],
         DamageCalculation.success(_damage_fixture()),
@@ -788,3 +789,9 @@ async def test_player_query_errors_are_visible_and_typed(tmp_path: Path) -> None
     assert isinstance(original_response, PlainTextResponse)
     assert "引用" in original_response.text
     await database.dispose()
+def test_player_renderer_uses_bundled_chinese_font_without_private_resources(tmp_path: Path) -> None:
+    """私有字体缺失时仍须使用随包中文字体，不能退回拉丁默认字体产生方块。"""
+
+    renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())
+
+    assert isinstance(renderer._font(19), ImageFont.FreeTypeFont)

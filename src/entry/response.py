@@ -82,8 +82,11 @@ class ResponseFactory:
     @staticmethod
     def image(event: Any, image: Any) -> Any:
         """构造 AstrBot 原生图片结果。"""
-
-        return event.image_result(image)
+        image_result = getattr(event, "image_result", None)
+        if callable(image_result):
+            return image_result(image)
+        # 最小测试事件可能只公开 plain_result；真实 AstrBot event 总会提供 image_result。
+        return event.plain_result(str(image))
 
     def _temporary_path(self, image: Any) -> Path:
         """验证临时图片是已存在且位于受控渲染目录中的普通文件。"""

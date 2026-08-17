@@ -6,8 +6,8 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from ...entry.response import ImageResponse, PlainTextResponse
 from ...entry.event import EventActor
+from ...entry.response import ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import NoticesRenderer
 from ...infrastructure.subscriptions import SubscriptionStore
@@ -91,7 +91,7 @@ class NoticesService:
             return self._transport_response(error)
         if not snapshot.sections:
             return PlainTextResponse(messages.MH_NOT_FOUND)
-        rendered = self.renderer.render_mh(snapshot)
+        rendered = await self.renderer.render_mh(snapshot)
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def mh_list(self, _request: NoticeRequest):
@@ -113,7 +113,7 @@ class NoticesService:
             return PlainTextResponse(messages.ANN_LIST_FAILED)
 
         if not index:
-            rendered = self.renderer.render_ann_list(snapshot)
+            rendered = await self.renderer.render_ann_list(snapshot)
             return ImageResponse(str(rendered.path), temporary=True)
 
         from dnaby.dna_ann.utils import build_index_map, resolve_index
@@ -128,7 +128,7 @@ class NoticesService:
             detail = await self.transport.get_ann_detail(post_id)
         except NoticesTransportError as error:
             return self._transport_response(error)
-        rendered = self.renderer.render_ann_detail(detail)
+        rendered = await self.renderer.render_ann_detail(detail)
         return ImageResponse(str(rendered.path), temporary=True)
 
 
@@ -422,7 +422,7 @@ class NoticesService:
             pushed += 1
         pic_subs = await self.subscriptions.get(messages.MH_PIC_SUBSCRIBE)
         for sub in pic_subs:
-            rendered = self.renderer.render_mh(snapshot)
+            rendered = await self.renderer.render_mh(snapshot)
             await self.push(sub.unified_msg_origin, rendered.path)
             pushed += 1
         return pushed

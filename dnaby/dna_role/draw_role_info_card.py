@@ -197,3 +197,15 @@ async def draw_role_info_card(sender: Sender, ctx: EventContext):
 
 draw_role_overview_card = _draw_role_overview_card
 
+
+async def draw_role_info_card_core(
+    role_show: RoleShowForTool,
+    uid_hidden: bool = False,
+    show_none: bool = True,
+    ev_stub: EventContext | None = None,
+    avatar_user_id: str | None = None,
+) -> bytes:
+    ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
+    return await _draw_role_overview_card(ctx, role_show, show_none=show_none, uid_hidden=uid_hidden)
+
+

@@ -254,7 +254,7 @@ class DnaApiPlayerTransport:
                 ),
             )
             if not response.is_success:
-                return DamageCalculation.failure("伤害计算服务响应异常")
+                return DamageCalculation.failure(response.msg or "伤害计算服务响应异常")
             if response.data is None:
                 return DamageCalculation.failure("伤害计算服务响应异常")
             return DamageCalculation.success(

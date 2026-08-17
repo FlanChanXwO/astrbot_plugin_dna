@@ -2,20 +2,27 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from ..entry.commands import CommandRegistry, CommandRequest, CommandSpec
-from ..entry.response import PlainTextResponse
+from ..entry.response import ImageResponse
 
 
 async def help_use_case(
     _request: CommandRequest,
     registry: CommandRegistry,
     **_parameters: Any,
-) -> PlainTextResponse:
-    """返回当前 registry 中已实现命令的帮助文本。"""
+) -> ImageResponse:
+    """使用 DNAUID 原版帮助卡片绘制器输出图片。"""
 
-    return PlainTextResponse(registry.render_help())
+    from dnaby.dna_help.get_help import get_help
+
+    payload = await get_help()
+    with tempfile.NamedTemporaryFile(prefix="dnaby-help-帮助-", suffix=".jpg", delete=False) as file:
+        file.write(payload)
+        return ImageResponse(str(Path(file.name)), temporary=False)
 
 
 COMMAND_SPECS = (

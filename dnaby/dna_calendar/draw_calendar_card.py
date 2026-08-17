@@ -1,5 +1,7 @@
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -256,3 +258,49 @@ def get_date_range(dateRange, now):
     if now > end_time:
         return "已结束", "", "white"
     return "未开始", "", "white"
+
+
+async def draw_calendar_card(
+    content: list[CalendarContent],
+    calendar_assets: Mapping[str, Image.Image | Path] | None = None,
+    now: datetime | None = None,
+) -> Image.Image:
+    if now is None:
+        now = datetime.now(SHANGHAI_TZ)
+    events = []
+    for item in content:
+        event = _event_payload(item, now)
+        if calendar_assets and item.pic in calendar_assets:
+            asset = calendar_assets[item.pic]
+            if isinstance(asset, Path):
+                event["icon"] = image_data_uri(asset)
+            elif isinstance(asset, Image.Image):
+                event["icon"] = pil_image_data_uri(asset)
+            else:
+                event["icon"] = str(asset)
+        else:
+            event["icon"] = await _event_image(item)
+        events.append(event)
+
+    height = 880 + 170 * ((len(events) + 1) // 2)
+    background = _calendar_background(height)
+
+    raw_bytes = await _RENDERER.render(
+        "cards/calendar.html.j2",
+        {
+            "background": pil_image_data_uri(background.convert("RGB"), image_format="JPEG"),
+            "banner": await _load_banner(height),
+            "events": events,
+            "event_background": image_data_uri(TEXT_PATH / "event_bg.png"),
+            "bar": image_data_uri(TEXT_PATH / "bar.png"),
+            "time_icon": image_data_uri(TEXT_PATH / "time_icon.png"),
+            "footer_image": image_data_uri(Path(__file__).parents[1] / "utils" / "texture2d" / "footer.png"),
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "footer_text": "DNAUID",
+            "height": height,
+            "width": 1200,
+        },
+        RenderSpec(width=1200, height=height, full_page=False, image_format="jpeg"),
+    )
+    return Image.open(BytesIO(raw_bytes)).convert("RGBA")
+

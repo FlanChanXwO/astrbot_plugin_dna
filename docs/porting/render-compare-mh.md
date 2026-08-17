@@ -1,5 +1,8 @@
 # 本地离线渲染对比：密函（legacy draw_mh_simple vs rewrite render_mh）
 
+> 2026-08-13：`NoticesRenderer.render_mh` 已直接复用 `draw_mh_simple`。下方 1300 宽
+> rewrite 差异是修复前的历史证据，不代表当前实现。
+
 - 数据源：同源 fixture（角色/武器/魔之楔 3 类型，8 个委托），固定时钟 `2026-08-12T10:30:00+08:00`，刷新倒计时 1800s（动态字段已 mask）。
 - 对比资料（不入 Git）：`/var/folders/kz/__ln6hkx1tx_9zy0ytx3_k200000gn/T/dnaby-render-compare-8r6ik1xv`
 

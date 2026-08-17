@@ -57,6 +57,8 @@ class DraftSnapshot:
     start_at: datetime | None = None
     end_at: datetime | None = None
     completed: bool = False
+    draft_doing_num: int = 0
+    draft_complete_num: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +74,8 @@ class PlayerShortNote:
     dungeon_reward: int = 0
     dungeon_reward_total: int = 0
     drafts: tuple[DraftSnapshot, ...] = ()
+    draft_doing_num: int = 0
+    draft_max_num: int = 0
     role_overview: RoleOverview | None = None
 
 

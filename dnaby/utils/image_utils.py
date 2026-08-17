@@ -86,12 +86,20 @@ async def download(
     target = path / name
     if target.exists():
         return target
-    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        target.write_bytes(resp.content)
-    logger.info(f"{tag} 下载完成: {name} ({len(resp.content)}B)")
+    if not url.startswith(("http://", "https://")):
+        Image.new("RGBA", (128, 128)).save(target, format="PNG")
+        return target
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            target.write_bytes(resp.content)
+        logger.info(f"{tag} 下载完成: {name} ({len(resp.content)}B)")
+    except (OSError, httpx.HTTPError) as exc:
+        logger.warning(f"{tag} 下载失败: {url} ({exc})")
+        Image.new("RGBA", (128, 128)).save(target, format="PNG")
     return target
+
 
 
 async def get_event_avatar(

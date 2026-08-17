@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 from astrbot.api import logger
@@ -415,6 +416,53 @@ async def draw_role_card(
 
 
 draw_role_detail_card = _draw_role_detail_card
-render_role_card_image = _draw_role_detail_card
+
+
+async def render_role_card_image(
+    role_detail: RoleDetail,
+    weapons: list[tuple[str, WeaponDetail]],
+    damage_data: CharacterCalculateData | None,
+    *,
+    uid: str,
+    uid_hidden: bool,
+    avatar_title: Image.Image | None = None,
+    damage_message: str | None = None,
+) -> Image.Image:
+    con_weapon = next((w for label, w in weapons if "同律" in label), None)
+    close_weapon = next((w for label, w in weapons if "近战" in label), None)
+    ranged_weapon = next((w for label, w in weapons if "远程" in label), None)
+
+    role_show = RoleShowForTool.model_validate(
+        {
+            "roleId": str(role_detail.charId),
+            "roleName": role_detail.charName,
+            "level": role_detail.level,
+            "params": [],
+            "roleAchv": {"total": 0},
+            "roleChars": [],
+            "closeWeapons": [],
+            "langRangeWeapons": [],
+        }
+    )
+    ctx = EventContext(user_id=uid)
+    damage_calc = (
+        DNAApiResp.ok(damage_data)
+        if damage_data is not None
+        else DNAApiResp.err(damage_message or "未执行伤害计算")
+    )
+    card_bytes, _ = await _draw_role_detail_card(
+        ctx,
+        str(role_detail.charId),
+        role_detail.charName,
+        role_show,
+        role_detail,
+        con_weapon=con_weapon,
+        close_weapon=close_weapon,
+        ranged_weapon=ranged_weapon,
+        damage_calc_response=damage_calc,
+        uid_hidden=uid_hidden,
+    )
+    return Image.open(BytesIO(card_bytes)).convert("RGBA")
+
 
 

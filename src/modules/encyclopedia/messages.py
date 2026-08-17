@@ -38,9 +38,9 @@ def code_entry(code: str, expiry: str) -> str:
 
 
 __all__ = [
-    "CONTEXT_UNAVAILABLE",
     "CODE_EMPTY",
     "CODE_TITLE",
+    "CONTEXT_UNAVAILABLE",
     "PEEK_BLOCKED",
     "SERVICE_UNAVAILABLE",
     "UID_INVALID",

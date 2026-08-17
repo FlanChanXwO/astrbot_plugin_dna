@@ -4,12 +4,12 @@ import time
 from io import BytesIO
 from pathlib import Path
 
+import httpx
 from astrbot.api import logger
 from PIL import Image, ImageOps
 
 from ..dna_config import DNA_PREFIX
 from ..rendering import (
-    AssetRenderError,
     HtmlRenderer,
     RenderSpec,
     image_data_uri,
@@ -56,7 +56,7 @@ async def _load_preview(url: str, width: int, height: int) -> Image.Image | None
         return None
     try:
         image = await fetch_image(PREVIEW_CACHE_PATH, url, name=cache_name("preview", url))
-    except OSError:
+    except (OSError, httpx.HTTPError):
         return None
     return ImageOps.fit(image.convert("RGB"), (width, height), method=Image.Resampling.LANCZOS)
 
@@ -64,9 +64,11 @@ async def _load_preview(url: str, width: int, height: int) -> Image.Image | None
 async def _load_detail_image(url: str, max_width: int) -> Image.Image:
     try:
         image = await fetch_image(DETAIL_CACHE_PATH, url, name=cache_name("detail", url))
-    except OSError as exc:
-        raise AssetRenderError(f"公告详情图片加载失败: {url}", cause=exc) from exc
+    except (OSError, httpx.HTTPError):
+        image = Image.new("RGB", (max_width, 200), "#2a2d3d")
     return shrink_to_width(image.convert("RGB"), max_width)
+
+
 
 
 def _load_avatar(size: int) -> Image.Image:

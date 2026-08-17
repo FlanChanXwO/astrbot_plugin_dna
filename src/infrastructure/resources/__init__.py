@@ -1,5 +1,11 @@
 """私有资源仓库的 manifest、路径和 Git 同步入口。"""
 
+from .encyclopedia import (
+    AliasCatalog,
+    EncyclopediaResourceError,
+    EncyclopediaResourceStore,
+    GuideAsset,
+)
 from .git import (
     DEFAULT_RESOURCE_REMOTE,
     GitCommandError,
@@ -12,12 +18,6 @@ from .git import (
     ResourceSyncResult,
     download_all_resources,
     run_git,
-)
-from .encyclopedia import (
-    AliasCatalog,
-    EncyclopediaResourceError,
-    EncyclopediaResourceStore,
-    GuideAsset,
 )
 from .manifest import (
     RUNTIME_RESOURCE_DIRECTORIES,
@@ -33,17 +33,17 @@ from .paths import (
 
 __all__ = [
     "DEFAULT_RESOURCE_REMOTE",
+    "PLUGIN_NAME",
+    "RESOURCE_REPOSITORY_NAME",
+    "RUNTIME_RESOURCE_DIRECTORIES",
     "AliasCatalog",
     "EncyclopediaResourceError",
     "EncyclopediaResourceStore",
-    "GuideAsset",
-    "PLUGIN_NAME",
-    "RESOURCE_REPOSITORY_NAME",
     "GitCommandError",
     "GitCommandResult",
     "GitUnavailableError",
+    "GuideAsset",
     "ResourceLocalChangesError",
-    "RUNTIME_RESOURCE_DIRECTORIES",
     "ResourceManifest",
     "ResourceManifestError",
     "ResourceRemoteMismatchError",

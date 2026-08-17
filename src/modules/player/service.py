@@ -103,6 +103,8 @@ class PlayerService:
         )
         rendered = await self.renderer.render_overview_legacy(
             overview,
+            actor=request.actor,
+            target_user_id=target_user_id,
             uid=uid,
             uid_hidden=uid_hidden,
             show_unowned=self.show_unowned_roles,
@@ -254,12 +256,15 @@ class PlayerService:
             request.actor.bot_id,
             request.actor.group_id,
         )
-        rendered = self.renderer.render_detail(
+        rendered = await self.renderer.render_detail(
             role_detail,
             weapon_sections,
             damage,
             uid=uid,
             uid_hidden=uid_hidden,
+            overview=overview,
+            actor=request.actor,
+            target_user_id=target_user_id,
         )
         return ImageResponse(
             str(rendered.path),

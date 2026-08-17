@@ -40,15 +40,17 @@ async def _mode_payload(mode: Mode, side: str) -> dict[str, object]:
 
 
 def _mode_order(modes: list[Mode]) -> list[tuple[Mode, str]]:
-    if len(modes) == 4:
+    if len(modes) <= 4:
+        padded = list(modes) + [Mode(id=-1) for _ in range(4 - len(modes))]
         indexes = ((0, "left"), (2, "left"), (3, "right"), (1, "right"))
-    elif len(modes) == 8:
+        return [(padded[index], side) for index, side in indexes]
+    else:
+        padded = list(modes[:8]) + [Mode(id=-1) for _ in range(max(0, 8 - len(modes)))]
         indexes = tuple((index, "left") for index in (0, 2, 4, 6)) + tuple(
             (index, "right") for index in (1, 3, 7, 5)
         )
-    else:
-        raise ValueError(f"武器 Mod 槽数量必须为 4 或 8，实际为 {len(modes)}")
-    return [(modes[index], side) for index, side in indexes]
+        return [(padded[index], side) for index, side in indexes]
+
 
 
 async def draw_weapon_detail_section(

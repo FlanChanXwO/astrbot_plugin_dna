@@ -84,7 +84,7 @@ class DNABind(Bind, table=True):  # pyright: ignore[reportGeneralTypeIssues, rep
             return code
 
         # 获取历史
-        result: Self | None = await cls.select_data(user_id, bot_id)
+        result = await cls.select_data(user_id, bot_id)
         if not result:
             return -1
 
@@ -452,7 +452,7 @@ class DNASign(BaseIDModel, table=True):  # pyright: ignore[reportGeneralTypeIssu
         date: str,
     ):
         """清除签到记录"""
-        sql = delete(cls).where(cls.date <= date)
+        sql = delete(cls).where(cls.date <= date)  # pyright: ignore[reportArgumentType]
         await session.execute(sql)
 
 
@@ -564,7 +564,7 @@ class DNAPrivacy(BaseIDModel, table=True):  # pyright: ignore[reportGeneralTypeI
 class DNAGroupPrivacy(BaseIDModel, table=True):  # pyright: ignore[reportGeneralTypeIssues, reportCallIssue]
     """群组隐私设置表：存储群的全体隐私设置"""
 
-    __tablename__ = "dna_group_privacy"
+    __tablename__: ClassVar[Any] = "dna_group_privacy"
     __table_args__: ClassVar[dict[str, Any]] = {"extend_existing": True}
     group_id: str = Field(default=None, title="群组ID", unique=True)
     bot_id: str = Field(default=None, title="Bot ID")

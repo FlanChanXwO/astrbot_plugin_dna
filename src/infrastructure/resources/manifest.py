@@ -7,7 +7,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-
 RUNTIME_RESOURCE_DIRECTORIES: tuple[str, ...] = (
     "fonts",
     "images",

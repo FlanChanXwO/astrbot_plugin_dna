@@ -78,6 +78,7 @@ class Bind(SQLModel):
     user_id: str = Field(default=None, title="用户id")
     bot_id: str = Field(default=None, title="botid")
     group_id: str | None = Field(default=None, title="群组id")
+    uid: str = Field(default="", title="uid")
     bind_count: int = Field(default=0, title="绑定数量")
 
     # ---- 通用 CRUD ----

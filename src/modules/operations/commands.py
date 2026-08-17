@@ -143,10 +143,10 @@ async def alias_recover_use_case(request: CommandRequest, _registry: CommandRegi
     return await service.recover_alias(None)
 
 
-_COMMON = dict(
-    group="面板图管理",
-    permission="owner",
-)
+_COMMON = {
+    "group": "面板图管理",
+    "permission": "owner",
+}
 
 COMMAND_SPECS = (
     CommandSpec(

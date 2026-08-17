@@ -96,7 +96,7 @@ def _parse_datetime(value: object, *, milliseconds: bool = False) -> datetime | 
     except ValueError:
         for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M:%S"):
             try:
-                parsed = datetime.strptime(text, pattern)
+                parsed = datetime.strptime(text, pattern).replace(tzinfo=SHANGHAI_TZ)
                 break
             except ValueError:
                 continue
@@ -105,6 +105,7 @@ def _parse_datetime(value: object, *, milliseconds: bool = False) -> datetime | 
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=SHANGHAI_TZ)
     return parsed.astimezone(SHANGHAI_TZ)
+
 
 
 def _rotation_period(
@@ -225,6 +226,8 @@ class DnaApiEncyclopediaTransport:
                 start_at=_parse_datetime(draft.startTime),
                 end_at=_parse_datetime(draft.endTime),
                 completed=draft.draftCompleteNum > 0,
+                draft_doing_num=draft.draftDoingNum,
+                draft_complete_num=draft.draftCompleteNum,
             )
             for draft in (draft_info.draftDoingInfo or [])
         )
@@ -238,6 +241,8 @@ class DnaApiEncyclopediaTransport:
             dungeon_reward=payload.dungeonReward,
             dungeon_reward_total=payload.dungeonRewardTotal,
             drafts=drafts,
+            draft_doing_num=draft_info.draftDoingNum,
+            draft_max_num=draft_info.draftMaxNum,
         )
 
     @staticmethod
@@ -485,15 +490,14 @@ class DnaApiEncyclopediaTransport:
     async def _default_code_provider(self, _actor: EventActor) -> Any:
         """读取 legacy 使用的只读兑换码 JSON URL。"""
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(self.code_url) as response:
-                if response.status >= 400:
-                    raise EncyclopediaTransportError(
-                        EncyclopediaFailureKind.STATUS,
-                        resource="兑换码",
-                        detail=f"provider status={response.status}",
-                    )
-                return json.loads(await response.text())
+        async with aiohttp.ClientSession() as session, session.get(self.code_url) as response:
+            if response.status >= 400:
+                raise EncyclopediaTransportError(
+                    EncyclopediaFailureKind.STATUS,
+                    resource="兑换码",
+                    detail=f"provider status={response.status}",
+                )
+            return json.loads(await response.text())
 
     async def _provided_codes(self, actor: EventActor) -> Any:
         provider = self._code_provider or self._default_code_provider
@@ -507,12 +511,12 @@ class DnaApiEncyclopediaTransport:
         """映射 provider JSON，保留所有当前有效码及其截止时间。"""
 
         if not isinstance(data, Mapping) or not isinstance(data.get("data"), list):
-            raise ValueError("code provider payload shape is invalid")
+            raise TypeError("code provider payload shape is invalid")
         current = now or datetime.now(tz=SHANGHAI_TZ)
         entries: list[CodeEntry] = []
         for item in data["data"]:
             if not isinstance(item, Mapping) or not isinstance(item.get("code"), str):
-                raise ValueError("code provider item shape is invalid")
+                raise TypeError("code provider item shape is invalid")
             expires_at = _parse_datetime(item.get("end_at"))
             if expires_at is None:
                 raise ValueError("code provider expiry is missing")

@@ -243,6 +243,8 @@ class EncyclopediaRenderer:
             {"name": "便签进度", "items": len(progress)},
             {"name": "锻造", "items": len(snapshot.drafts)},
         ]
+        if isinstance(image, bytes):
+            image = Image.open(BytesIO(image)).convert("RGBA")
         return self._write(image, lines=lines, resources=resources, sections=sections)
 
     async def render_weekly_report(
@@ -347,6 +349,8 @@ class EncyclopediaRenderer:
                 },
             )
             cursor_y += category_height
+        if isinstance(image, bytes):
+            image = Image.open(BytesIO(image)).convert("RGBA")
         return self._write(image, lines=lines, resources=resources, sections=sections)
 
     async def render_calendar(

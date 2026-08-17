@@ -332,7 +332,8 @@ async def test_help_shows_implemented_commands_only():
     result = [item async for item in plugin.handle_help(Event())]
 
     assert len(result) == 1
-    assert "帮助" in result[0]
-    assert "签到：每日签到" in result[0]
-    assert "签到日历：查看签到日历" in result[0]
-    assert "登录" in result[0]
+    from PIL import Image
+
+    with Image.open(result[0]) as image:
+        assert image.width == 2020
+        assert image.height > 5000

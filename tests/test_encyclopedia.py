@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -36,9 +37,9 @@ from src.modules.encyclopedia.service import EncyclopediaService
 from src.modules.player.contracts import RoleAchievement, RoleOverview
 from src.modules.privacy import PrivacyService
 
-
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 UID = "1234567890123"
+TARGET_UID = "9876543210123"
 
 
 class FixtureEncyclopediaTransport:
@@ -52,12 +53,18 @@ class FixtureEncyclopediaTransport:
         codes: CodeSnapshot,
         *,
         error: EncyclopediaTransportError | None = None,
+        expected_actor_user_id: str = "user-1",
+        expected_uid: str = UID,
+        expected_credential_user_id: str = "user-1",
     ) -> None:
         self.short_note = short_note
         self.weekly = weekly
         self.calendar = calendar
         self.codes = codes
         self.error = error
+        self.expected_actor_user_id = expected_actor_user_id
+        self.expected_uid = expected_uid
+        self.expected_credential_user_id = expected_credential_user_id
         self.calls: list[tuple[str, str | int | None]] = []
 
     async def get_short_note(
@@ -68,8 +75,9 @@ class FixtureEncyclopediaTransport:
         credential_user_id: str,
     ) -> PlayerShortNote:
         self.calls.append(("short_note", credential_user_id))
-        assert actor.user_id == "user-1"
-        assert uid == UID
+        assert actor.user_id == self.expected_actor_user_id
+        assert uid == self.expected_uid
+        assert credential_user_id == self.expected_credential_user_id
         if self.error is not None:
             raise self.error
         return self.short_note
@@ -83,23 +91,23 @@ class FixtureEncyclopediaTransport:
         credential_user_id: str,
     ) -> WeeklyReport:
         self.calls.append(("weekly", week_type))
-        assert actor.user_id == "user-1"
-        assert uid == UID
-        assert credential_user_id == "user-1"
+        assert actor.user_id == self.expected_actor_user_id
+        assert uid == self.expected_uid
+        assert credential_user_id == self.expected_credential_user_id
         if self.error is not None:
             raise self.error
         return self.weekly
 
     async def get_calendar(self, actor: EventActor) -> CalendarSnapshot:
         self.calls.append(("calendar", None))
-        assert actor.user_id == "user-1"
+        assert actor.user_id == self.expected_actor_user_id
         if self.error is not None:
             raise self.error
         return self.calendar
 
     async def get_codes(self, actor: EventActor) -> CodeSnapshot:
         self.calls.append(("codes", None))
-        assert actor.user_id == "user-1"
+        assert actor.user_id == self.expected_actor_user_id
         if self.error is not None:
             raise self.error
         return self.codes
@@ -135,14 +143,20 @@ def _short_note() -> PlayerShortNote:
                 start_at=datetime(2026, 8, 11, 8, 0, tzinfo=SHANGHAI),
                 end_at=datetime(2026, 8, 11, 12, 0, tzinfo=SHANGHAI),
                 completed=False,
+                draft_doing_num=3,
+                draft_complete_num=2,
             ),
             DraftSnapshot(
                 product_name="完成材料",
                 start_at=datetime(2026, 8, 10, 8, 0, tzinfo=SHANGHAI),
                 end_at=datetime(2026, 8, 10, 12, 0, tzinfo=SHANGHAI),
                 completed=True,
+                draft_doing_num=0,
+                draft_complete_num=4,
             ),
         ),
+        draft_doing_num=3,
+        draft_max_num=5,
         role_overview=_role_overview(),
     )
 
@@ -183,7 +197,7 @@ def _calendar() -> CalendarSnapshot:
             ),
             CalendarEvent(
                 title="活动乙",
-                pic="calendar://b",
+                pic="",
                 start_at=None,
                 end_at=None,
             ),
@@ -198,15 +212,20 @@ def _codes() -> CodeSnapshot:
     )
 
 
-async def _database_with_binding(tmp_path: Path) -> AsyncDatabase:
+async def _database_with_binding(
+    tmp_path: Path,
+    *,
+    user_id: str = "user-1",
+    uid: str = UID,
+) -> AsyncDatabase:
     database = AsyncDatabase(tmp_path / "encyclopedia.sqlite3")
     await database.create_schema_for_tests()
     async with database.transaction() as session:
         await AccountBindingRepository.add(
             session,
-            user_id="user-1",
+            user_id=user_id,
             bot_id="bot-1",
-            uid=UID,
+            uid=uid,
             group_id="group-1",
             is_active=True,
         )
@@ -276,8 +295,11 @@ def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(tmp_path: Path
     )
 
 
-def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(tmp_path: Path) -> None:
     """周报和日历必须在图片 metadata 中显式区分提供素材与 placeholder。"""
+
+    from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
 
     root = tmp_path / "resources"
     weekly = root / "weekly_item" / "item_100.png"
@@ -285,11 +307,24 @@ def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(tmp_pat
     for path, color in ((weekly, "yellow"), (calendar, "orange")):
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (31, 37), color).save(path)
+    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (64, 64), "red").save(avatar)
+    for item_id in range(101, 107):
+        cached = WEEKLY_ITEM_PATH / f"item_{item_id}.png"
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (64, 64), "gray").save(cached)
     renderer = EncyclopediaRenderer(tmp_path / "rendered", EncyclopediaResourceStore.from_root(root))
 
-    weekly_image = renderer.render_weekly_report(_weekly())
-    calendar_image = renderer.render_calendar(_calendar())
+    weekly_image = await renderer.render_weekly_report(
+        _weekly(),
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        uid=UID,
+        uid_hidden=False,
+    )
+    calendar_image = await renderer.render_calendar(_calendar())
 
+    assert (weekly_image.width, weekly_image.height) == (1200, 1370)
     assert any(
         item["kind"] == "font" and item["status"] == "fallback"
         for item in weekly_image.resources
@@ -310,6 +345,159 @@ def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(tmp_pat
         item["kind"] == "calendar" and item["key"] == "活动乙" and item["status"] == "placeholder"
         for item in calendar_image.resources
     )
+
+
+@pytest.mark.asyncio
+async def test_stamina_renderer_uses_legacy_dnauid_canvas(tmp_path: Path) -> None:
+    """便签必须复用原 DNAUID 的 2000x1100 卡片，而不是 rewrite 调试列表。"""
+
+    from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH
+
+    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (64, 64), "red").save(avatar)
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
+
+    rendered = await renderer.render_stamina(
+        _short_note(),
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        uid=UID,
+        uid_hidden=False,
+    )
+
+    with Image.open(rendered.path) as image:
+        assert image.size == (2000, 1100)
+        assert image.getpixel((1900, 500)) != (25, 31, 48, 255)
+
+
+@pytest.mark.asyncio
+async def test_weekly_renderer_uses_all_legacy_material_rows(tmp_path: Path) -> None:
+    """周报按原素材卡模式动态增高，七个资源和空分类都必须保留。"""
+
+    from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+
+    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (64, 64), "red").save(avatar)
+    for item_id in range(100, 107):
+        cached = WEEKLY_ITEM_PATH / f"item_{item_id}.png"
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (64, 64), "gray").save(cached)
+
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
+    rendered = await renderer.render_weekly_report(
+        _weekly(),
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        uid=UID,
+        uid_hidden=False,
+    )
+
+    with Image.open(rendered.path) as image:
+        assert image.size == (1200, 1370)
+        text = image.info["dnaby.text"]
+    assert "资源6-完整名称" in text
+    assert "空分类" in text
+
+
+def test_weekly_legacy_card_truncates_only_the_visible_item_name() -> None:
+    """固定卡片沿用服务端八字符显示规则，typed metadata 仍保存完整名称。"""
+
+    from dnaby.dna_weekly_report.draw_weekly_report import weekly_item_display_name
+
+    full_name = "超长资源名称测试项"
+    assert weekly_item_display_name(full_name) == "超长资源名称测…"
+    assert full_name == "超长资源名称测试项"
+
+
+@pytest.mark.asyncio
+async def test_calendar_renderer_uses_legacy_two_column_canvas(tmp_path: Path) -> None:
+    """日历必须复用原 1200 宽横幅与双栏活动卡布局。"""
+
+    root = tmp_path / "resources"
+    for name, color in (("a.png", "orange"),):
+        asset = root / "calendar" / name
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (100, 100), color).save(asset)
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(root),
+    )
+
+    rendered = await renderer.render_calendar(
+        _calendar(),
+        actor=EventActor("actor-user", "bot-1", "group-1"),
+        target_user_id="target-user",
+    )
+
+    with Image.open(rendered.path) as image:
+        assert image.size == (1200, 1050)
+        assert image.getpixel((1100, 800)) != (25, 31, 48, 255)
+        assert "活动甲" in image.info["dnaby.text"]
+    assert "活动乙" in image.info["dnaby.text"]
+
+
+def test_legacy_role_adapter_preserves_role_id() -> None:
+    from src.infrastructure.rendering.encyclopedia import _legacy_role_payload
+
+    payload = _legacy_role_payload(_role_overview())
+    assert payload["roleInfo"]["roleShow"]["roleId"] == "role-1"
+
+
+def test_renderer_value_uses_asia_shanghai_for_aware_datetime() -> None:
+    from src.infrastructure.rendering.encyclopedia import _value
+
+    assert _value(datetime(2026, 8, 11, 1, 0, tzinfo=ZoneInfo("UTC"))) == "2026-08-11 09:00"
+
+
+def test_renderer_write_round_trips_jpeg_quality_85_before_png(tmp_path: Path) -> None:
+    renderer = EncyclopediaRenderer(tmp_path / "rendered", EncyclopediaResourceStore.from_root(tmp_path / "resources"))
+    source = Image.new("RGBA", (3, 2))
+    source.putdata([(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 0, 255), (0, 255, 255, 255), (255, 0, 255, 255)])
+    rendered = renderer._write(source, lines=[], resources=[], sections=[])
+    with BytesIO() as expected_buffer:
+        source.convert("RGB").save(expected_buffer, format="JPEG", quality=85)
+        expected_buffer.seek(0)
+        with Image.open(expected_buffer) as expected:
+            expected_pixels = expected.convert("RGBA").tobytes()
+    with Image.open(rendered.path) as actual:
+        assert actual.convert("RGBA").tobytes() == expected_pixels
+
+
+@pytest.mark.asyncio
+async def test_calendar_is_global_and_ignores_mention_privacy(tmp_path: Path) -> None:
+    database = await _database_with_binding(tmp_path, user_id="target-user", uid=TARGET_UID)
+    transport = FixtureEncyclopediaTransport(_short_note(), _weekly(), _calendar(), _codes())
+    resources = _resources(tmp_path)
+    calendar_asset = tmp_path / "calendar-a.png"
+    Image.new("RGBA", (64, 64), "orange").save(calendar_asset)
+    resources = EncyclopediaResourceStore(
+        aliases=resources.aliases,
+        wiki_assets=resources.wiki_assets,
+        guide_assets=resources.guide_assets,
+        calendar_assets={"calendar://a": calendar_asset},
+    )
+    service = EncyclopediaService(
+        database,
+        transport,
+        PrivacyService(database, allow_mention_query=False),
+        EncyclopediaRenderer(tmp_path / "rendered", resources),
+        resources,
+    )
+    response = await service.calendar(
+        EncyclopediaRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id="target-user",
+        ),
+    )
+    assert isinstance(response, ImageResponse)
+    assert transport.calls == [("calendar", None)]
+    await database.dispose()
 
 
 def _service(
@@ -357,12 +545,12 @@ async def test_stamina_and_weekly_images_preserve_full_typed_output(tmp_path: Pa
     assert isinstance(weekly, ImageResponse)
     assert stamina.temporary is True
     assert weekly.temporary is True
-    for response, expected in (
-        (stamina, ("资料玩家", "额外统计: 完整保留", "测试矿石", "完成材料")),
-        (weekly, ("上周周报", "完整资源分类", "资源6-完整名称", "空分类")),
+    for response, expected_width, expected in (
+        (stamina, 2000, ("资料玩家", "额外统计: 完整保留", "测试矿石", "完成材料")),
+        (weekly, 1200, ("上周周报", "完整资源分类", "资源6-完整名称", "空分类")),
     ):
         with Image.open(Path(response.image)) as image:
-            assert image.width == 1200
+            assert image.width == expected_width
             text = image.info["dnaby.text"]
             layout = json.loads(image.info["dnaby.layout"])
             resources = json.loads(image.info["dnaby.resources"])
@@ -375,9 +563,89 @@ async def test_stamina_and_weekly_images_preserve_full_typed_output(tmp_path: Pa
 
 
 @pytest.mark.asyncio
+async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_context(
+    tmp_path: Path,
+) -> None:
+    """@查询必须沿用 resolved target，而不是命令发起者的头像或账号。"""
+
+    from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+
+    database = await _database_with_binding(
+        tmp_path,
+        user_id="target-user",
+        uid=TARGET_UID,
+    )
+    for user_id, color in (("user-1", "red"), ("target-user", "blue")):
+        avatar = AVATAR_PATH / f"avatar_{user_id}.png"
+        avatar.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (64, 64), color).save(avatar)
+    for item_id in range(100, 107):
+        item = WEEKLY_ITEM_PATH / f"item_{item_id}.png"
+        item.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (64, 64), "gray").save(item)
+
+    calendar_root = tmp_path / "calendar-resources"
+    for name, color in (("a.png", "orange"),):
+        asset = calendar_root / "calendar" / name
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (64, 64), color).save(asset)
+    transport = FixtureEncyclopediaTransport(
+        _short_note(),
+        _weekly(),
+        _calendar(),
+        _codes(),
+        expected_uid=TARGET_UID,
+        expected_credential_user_id="target-user",
+    )
+    service = _service(
+        database,
+        transport,
+        EncyclopediaResourceStore.from_root(calendar_root),
+        tmp_path,
+    )
+    request = EncyclopediaRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id="target-user",
+    )
+
+    stamina = await service.stamina(request)
+    weekly = await service.weekly_report(
+        EncyclopediaRequest(
+            actor=request.actor,
+            target_user_id=request.target_user_id,
+            parameters={"week_type": 2},
+        ),
+    )
+    calendar = await service.calendar(request)
+
+    assert isinstance(stamina, ImageResponse)
+    assert isinstance(weekly, ImageResponse)
+    assert isinstance(calendar, ImageResponse)
+    for response in (stamina, weekly):
+        with Image.open(Path(response.image)) as image:
+            pixel = image.convert("RGB").getpixel((160, 145))
+            assert isinstance(pixel, tuple)
+            assert pixel[2] >= 250 and pixel[0] <= 5 and pixel[1] <= 5
+    assert transport.calls == [
+        ("short_note", "target-user"),
+        ("weekly", 2),
+        ("calendar", None),
+    ]
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(tmp_path: Path) -> None:
     database = await _database_with_binding(tmp_path)
     resources = _resources(tmp_path)
+    calendar_asset = tmp_path / "calendar-a.png"
+    Image.new("RGBA", (64, 64), "orange").save(calendar_asset)
+    resources = EncyclopediaResourceStore(
+        aliases=resources.aliases,
+        wiki_assets=resources.wiki_assets,
+        guide_assets=resources.guide_assets,
+        calendar_assets={"calendar://a": calendar_asset},
+    )
     transport = FixtureEncyclopediaTransport(_short_note(), _weekly(), _calendar(), _codes())
     service = _service(database, transport, resources, tmp_path)
     actor = EventActor("user-1", "bot-1", "group-1")

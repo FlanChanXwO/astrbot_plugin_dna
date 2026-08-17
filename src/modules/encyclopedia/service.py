@@ -84,7 +84,18 @@ class EncyclopediaService:
             )
         except EncyclopediaTransportError as error:
             return self._transport_response(error)
-        rendered = self.renderer.render_stamina(snapshot)
+        uid_hidden = await self.privacy.is_uid_hidden(
+            target_user_id,
+            request.actor.bot_id,
+            request.actor.group_id,
+        )
+        rendered = await self.renderer.render_stamina(
+            snapshot,
+            actor=request.actor,
+            target_user_id=target_user_id,
+            uid=uid,
+            uid_hidden=uid_hidden,
+        )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def weekly_report(self, request: EncyclopediaRequest):
@@ -106,7 +117,18 @@ class EncyclopediaService:
             )
         except EncyclopediaTransportError as error:
             return self._transport_response(error)
-        rendered = self.renderer.render_weekly_report(report)
+        uid_hidden = await self.privacy.is_uid_hidden(
+            target_user_id,
+            request.actor.bot_id,
+            request.actor.group_id,
+        )
+        rendered = await self.renderer.render_weekly_report(
+            report,
+            actor=request.actor,
+            target_user_id=target_user_id,
+            uid=uid,
+            uid_hidden=uid_hidden,
+        )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def calendar(self, request: EncyclopediaRequest):
@@ -116,7 +138,10 @@ class EncyclopediaService:
             snapshot = await self.transport.get_calendar(request.actor)
         except EncyclopediaTransportError as error:
             return self._transport_response(error)
-        rendered = self.renderer.render_calendar(snapshot)
+        rendered = await self.renderer.render_calendar(
+            snapshot,
+            actor=request.actor,
+        )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def wiki(self, request: EncyclopediaRequest):

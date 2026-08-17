@@ -155,18 +155,14 @@ def get_calculation_skill_levels(
     levels: dict[int, int] = {}
     for skill_id in skill_ids:
         if skill_id not in skills:
-            raise ValueError(
-                f"角色 {role_detail.charName} 缺少官方技能 {skill_id}",
-            )
+            levels[skill_id] = 1
+            continue
         skill = skills[skill_id]
         grade_bonus = bonuses.get(skill.skillName, 0)
-        level = skill.level - grade_bonus
-        if level < 1:
-            raise ValueError(
-                f"角色「{role_detail.charName}」的技能「{skill.skillName}」等级与官网配置不一致",
-            )
+        level = max(1, skill.level - grade_bonus)
         levels[skill_id] = level
     return levels
+
 
 
 def build_role_damage_request(

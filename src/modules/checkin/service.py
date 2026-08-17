@@ -10,7 +10,8 @@ from __future__ import annotations
 import asyncio
 import random
 from collections.abc import Awaitable, Callable
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from ...entry.event import EventActor
 from ...entry.response import ImageResponse, PlainTextResponse
@@ -35,6 +36,7 @@ from .contracts import (
     SignStatus,
 )
 
+SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 GAME_SIGN_TARGET = 1
 BBS_SIGN_TARGET = 1
 ERROR_TIMES = 3
@@ -87,7 +89,7 @@ class CheckinService:
         return target_user_id, binding.uid
 
     async def _load_snapshot(self, uid: str) -> CheckinSnapshot:
-        today = date.today()
+        today = datetime.now(tz=SHANGHAI_TZ).date()
         async with self.database.session() as session:
             record = await SignRecordRepository.get(
                 session,
@@ -414,7 +416,17 @@ class CheckinService:
             role_overview=role,
             snapshot=await self._load_snapshot(uid),
         )
-        rendered = self.renderer.render_calendar(data)
+        uid_hidden = await self.privacy.is_uid_hidden(
+            target_user_id,
+            request.actor.bot_id,
+            request.actor.group_id,
+        )
+        rendered = await self.renderer.render_calendar(
+            data,
+            actor=request.actor,
+            target_user_id=target_user_id,
+            uid_hidden=uid_hidden,
+        )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def _run_all_signs(self, *, bot_id: str | None = None) -> CheckinSummary:

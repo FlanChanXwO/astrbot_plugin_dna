@@ -163,7 +163,7 @@ def _request(
 
 @pytest.mark.asyncio
 async def test_mh_renders_runtime_image_with_all_sections(tmp_path: Path) -> None:
-    """密函渲染为 1300 宽运行期 PNG，完整保留每个类型与委托。"""
+    """密函复用 legacy 简洁分栏卡，完整保留类型与委托。"""
 
     database = await _database_with_binding(tmp_path)
     transport = FakeNoticesTransport()
@@ -174,13 +174,9 @@ async def test_mh_renders_runtime_image_with_all_sections(tmp_path: Path) -> Non
     assert isinstance(response, ImageResponse)
     assert response.temporary is True
     with Image.open(Path(response.image)) as image:
-        assert image.width == 1300
-        text = image.info["dnaby.text"]
-        layout = json.loads(image.info["dnaby.layout"])
-    assert "角色" in text
-    assert "扼守 (id=601)" in text
-    assert "武器" in text
-    assert [section["name"] for section in layout["sections"]] == ["角色", "武器"]
+        assert image.width == 700
+        assert image.height == 646
+        assert image.convert("RGB").getbbox() == (0, 0, image.width, image.height)
     await database.dispose()
 
 

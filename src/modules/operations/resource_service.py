@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from ...entry.response import PlainTextResponse
+from ...entry.response import ImageResponse, PlainTextResponse
 from ...infrastructure.resources import (
     GitUnavailableError,
     ResourceLocalChangesError,
@@ -31,6 +32,7 @@ def _git_log(repo_root: Path, *, limit: int = 20) -> list[str]:
             capture_output=True,
             text=True,
             timeout=15,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError, UnicodeError):
         return []
@@ -77,9 +79,16 @@ class ResourceUpdateService:
     async def update_log(self, _request: object):
         """读取插件仓库最近提交。"""
 
+        from dnaby.dna_update.draw_update_log import draw_update_log_img
+
         commits = await asyncio.to_thread(self.commit_log, self.repo_root)
         if not commits:
             return PlainTextResponse(messages.UPDATE_LOG_UNAVAILABLE)
+        rendered = await draw_update_log_img(commits)
+        if isinstance(rendered, bytes):
+            with tempfile.NamedTemporaryFile(prefix="dnaby-update-log-更新记录-", suffix=".jpg", delete=False) as file:
+                file.write(rendered)
+                return ImageResponse(file.name, temporary=False)
         return PlainTextResponse(messages.UPDATE_LOG_TITLE + "\n" + "\n".join(commits))
 
 

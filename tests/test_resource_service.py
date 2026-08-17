@@ -69,9 +69,9 @@ async def test_update_log_shows_commits_or_visible_failure(tmp_path: Path) -> No
 
     service = _service(tmp_path, commit_log=lambda root: ["abc123 fix resource", "def456 feat panel"])
     with_commits = await service.update_log(None)
-    assert isinstance(with_commits, PlainTextResponse)
-    assert "更新记录：" in with_commits.text
-    assert "abc123 fix resource" in with_commits.text
+    from src.entry.response import ImageResponse
+
+    assert isinstance(with_commits, ImageResponse)
 
     empty_service = _service(tmp_path, commit_log=lambda root: [])
     empty = await empty_service.update_log(None)

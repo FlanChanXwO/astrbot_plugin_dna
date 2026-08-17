@@ -1,3 +1,4 @@
+from io import BytesIO
 import random
 import time
 from pathlib import Path
@@ -162,5 +163,25 @@ def format_seconds(seconds: float) -> str:
     return f"{hours:02d}:{minute:02d}:{second:02d}"
 
 
-draw_stamina_card = _draw_stamina_card
+async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
+    if len(args) >= 2 and isinstance(args[1], RoleShowForTool):
+        ctx = args[0]
+        role_show = args[1]
+        short_note = args[2] if len(args) > 2 else kwargs.get("short_note_info")
+        if short_note is None:
+            raise ValueError("缺少 short_note_info 参数")
+        uid_hidden = bool(kwargs.get("uid_hidden", False))
+        return await _draw_stamina_card(ctx, role_show, short_note, uid_hidden=uid_hidden)
+    elif len(args) >= 2:
+        short_note = args[0]
+        role_info = args[1]
+        role_show = role_info.roleInfo.roleShow if hasattr(role_info, "roleInfo") else role_info
+        ctx = kwargs.get("ctx") or EventContext(user_id=kwargs.get("avatar_user_id", "0"))
+        uid_hidden = bool(kwargs.get("uid_hidden", False))
+        raw_bytes = await _draw_stamina_card(ctx, role_show, short_note, uid_hidden=uid_hidden)
+        return Image.open(BytesIO(raw_bytes)).convert("RGBA")
+    else:
+        return await _draw_stamina_card(*args, **kwargs)
+
+
 

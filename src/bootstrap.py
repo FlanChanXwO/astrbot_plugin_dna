@@ -30,8 +30,8 @@ from .infrastructure.http import (
     DnaApiNoticesTransport,
     DnaApiPlayerTransport,
 )
-from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.notices_scheduler import NoticesScheduler
+from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
     CheckinRenderer,
     EncyclopediaRenderer,
@@ -49,8 +49,8 @@ from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
-from .modules.notices.contracts import NoticesTransport
 from .modules.notices.ann_state import AnnStateStore
+from .modules.notices.contracts import NoticesTransport
 from .modules.notices.service import NoticesService
 from .modules.operations.alias_service import AliasService
 from .modules.operations.resource_service import ResourceUpdateService

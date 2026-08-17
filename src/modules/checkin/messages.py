@@ -76,9 +76,9 @@ def transport_error(kind: CheckinFailureKind) -> str:
 
 
 __all__ = [
-    "CHECKIN_ALREADY",
     "CHECKIN_ALL_DONE",
     "CHECKIN_ALL_STARTED",
+    "CHECKIN_ALREADY",
     "CHECKIN_CONTEXT_UNAVAILABLE",
     "CHECKIN_DETAIL_FAILED",
     "CHECKIN_DISABLED",

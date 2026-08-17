@@ -28,7 +28,7 @@ def test_legacy_short_note_payload_maps_without_dropping_draft_fields() -> None:
                 "draftDoingInfo": [
                     {
                         "draftCompleteNum": 0,
-                        "draftDoingNum": 1,
+                        "draftDoingNum": 3,
                         "startTime": "2026-08-11 08:00:00",
                         "endTime": "2026-08-11 12:00:00",
                         "productId": 10,
@@ -42,6 +42,9 @@ def test_legacy_short_note_payload_maps_without_dropping_draft_fields() -> None:
     assert snapshot.current_task_progress == 3
     assert snapshot.drafts[0].product_name == "测试矿石"
     assert snapshot.drafts[0].end_at is not None
+    assert snapshot.drafts[0].draft_doing_num == 3
+    assert snapshot.draft_doing_num == 1
+    assert snapshot.draft_max_num == 2
 
 
 def test_legacy_weekly_payload_maps_all_categories_and_items() -> None:

@@ -38,7 +38,7 @@
   正文或凭据样式内容。真实平台原图引用能力的验收边界仍记入 Task 30。
 - 完整证据和修复边界见 [review-v0.3-debug.md](review-v0.3-debug.md)。
 
-### rewrite Task 17 — 签到 ✅
+### rewrite Task 17 — 签到 ✅（签到日历已接回 legacy 绘制核心）
 
 - 已登记 `sign`（签到/社区签到/每日任务/社区任务/库街区签到/sign）、`sign_calendar`
   （签到日历/签到记录/签到历史）和 `sign_all`（全部签到，owner）三条命令。
@@ -47,7 +47,8 @@
   （Task 18）。写操作只走注入 transport，默认 `DnaApiCheckinTransport` 复用 legacy 纯 API；
   服务层不接触旧事件/数据库/消息段，transport 错误只映射稳定类别。
 - 成功、已签到跳过、关闭、transport 失败、日历精简、帖子遍历失败和批量聚合均由隔离
-  fixture 覆盖；签到日历渲染 1300 宽运行期 PNG 并记录布局/资源语义。
+  fixture 覆盖；签到日历由 typed 快照还原 legacy 模型，复用原版 1300 宽绘制核心，
+  并沿用目标用户头像与 UID 隐私状态。
 
 ### rewrite Task 18 — 计划任务、结果订阅与生命周期 ✅
 
@@ -88,8 +89,8 @@
   读取型命令；活动日历（`日历`）已由 Task 14 的资料读取提供，不重复注册。
 - `NoticesService` 通过 `NoticesTransport` 读取密函（复用 legacy
   `get_default_role_for_tool` 的 `instanceInfo` 分节）与公告列表/详情（公共 BBS，
-  HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）；`NoticesRenderer` 生成 1300 宽 PNG，
-  公告图片块标记为 placeholder 资源。
+  HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）；密函图片已接回 `draw_mh_simple`
+  原版横向卡片，公告图片块仍保留 typed 资源状态。
 - 密函需要调用者 active UID 凭据（区别于 legacy 随机账号，作为记录差异）；公告无需账号。
 - 全部读取由 fake transport + 隔离 SQLite + 事件 fixture 覆盖；staging runtime 全量
   pytest `229 passed, 1 skipped, 1 warning`，全部门禁通过。
@@ -147,11 +148,20 @@
   本地修改映射为可见错误，不自动覆盖本地修改；`update_log` 读取插件仓库最近提交。
 - 注册 `download_resource`（下载全部资源）与 `update_log`（更新记录/更新日志）2 条 owner
   命令（59 条命令）。
+- `帮助` 与 `update_log` 均返回图片，分别复用 legacy 帮助卡和更新日志绘制器。
 - `ResourceSynchronizer`/`GitCommandError` 的凭据脱敏已由既有 `test_config_resources.py`
   覆盖；新增资源下载成功/失败分支与更新日志测试。staging runtime 全量 pytest
   `288 passed, 1 skipped, 1 warning`，全部门禁通过。
 
 ## 当前状态
+
+### 渲染等价修复（2026-08-13）
+
+- `convert_img` 的 PIL 路径按 GsCore 语义使用 JPEG quality=85；路径和 bytes 保持原始字节。
+- 便签、周报、活动日历、签到日历、密函、角色总览均通过 legacy 绘制核心；@查询会把
+  resolved user 传入头像和 `EventContext`。
+- 当前 worktree 全量为 `300 passed, 1 skipped`；两个 `data.plugins` 动态导入测试需从
+  staging runtime 根执行，是既有嵌套 worktree 测试限制。
 
 > 本节描述的是 `legacy-reference` 的历史移植状态；`rewrite/v0.1` 的当前状态见上方各 Task
 > 记录与 `commands.json`（59 条命令）。

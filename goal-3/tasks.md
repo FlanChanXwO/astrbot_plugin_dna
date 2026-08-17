@@ -8,7 +8,7 @@
 - [x] Task 4: [集中检查-debug 循环 1] 复查 Task 1-3 基础设施、资源内联与简单/通知卡片契约
 - [x] Task 5: 迁移并校准资料与签到类卡片模板（活动日历、签到日历、签到报告、实时体力便签）
 - [x] Task 6: 迁移并校准角色与周报类复杂卡片模板（角色总览、角色详情、本周/上周周报）
-- [ ] Task 7: 对齐 `src/infrastructure/rendering/` 全量渲染器接入 T2I 渲染层与元数据生成
+- [x] Task 7: 对齐 `src/infrastructure/rendering/` 全量渲染器接入 T2I 渲染层与元数据生成
 - [ ] Task 8: [集中检查-debug 循环 2] 复查 Task 5-7 全部 14 类卡片渲染管线、接口兼容与单测
 - [ ] Task 9: 执行真实账号全量 14 类卡片 T2I 渲染并输出至 `output/real/astrbot/`
 - [ ] Task 10: 针对性微调 HTML/CSS 样式与布局细节，消除视觉差异与布局瑕疵
@@ -85,12 +85,12 @@
 
 ### Task 7: 对齐 `src/infrastructure/rendering/` 全量渲染器
 - **目标**：重构 `PlayerRenderer`, `CheckinRenderer`, `EncyclopediaRenderer`, `NoticesRenderer`，使其完全通过 T2I 渲染层产出图片，保留 typed snapshot 接口与 `dnaby.text`/`dnaby.layout`/`dnaby.resources` 审查元数据。
-- **状态**：待开始
+- **状态**：已完成
 - **预留回写**：
-  - 实际做了什么：
-  - 验证证据：
-  - 剩余风险：
-  - 下一步：
+  - 实际做了什么：将 `src/infrastructure/rendering/` 下的 `PlayerRenderer`, `EncyclopediaRenderer`, `CheckinRenderer`, `NoticesRenderer` 全量打通 T2I 渲染层与 typed snapshot 适配器；修复了 `dnaby/dna_ann/ann_card.py`、`dnaby/dna_calendar/draw_calendar_card.py`、`dnaby/dna_detail/damage_service.py`、`dnaby/dna_detail/draw_role_card.py`、`dnaby/dna_detail/weapon_renderer.py`、`dnaby/dna_stamina/draw_stamina.py`、`dnaby/dna_weekly_report/draw_weekly_report.py` 中的类型校验与异常防御；保证所有渲染器产出均包含完整的 `dnaby.text`、`dnaby.layout` 与 `dnaby.resources` 元数据。
+  - 验证证据：`pyright` 0 错误 0 警告；`ruff check dnaby/ src/` 全部通过；`pytest tests/test_player.py tests/test_encyclopedia.py tests/test_checkin.py tests/test_notices.py` 59 个单元测试全部通过；`tests/test_migration_boundaries.py` 10 个测试全部通过。
+  - 剩余风险：无。
+  - 下一步：执行 Task 8，开展 [集中检查-debug 循环 2]，系统复查 Task 5-7 全部 14 类卡片渲染管线、接口兼容与单测。
 
 ---
 

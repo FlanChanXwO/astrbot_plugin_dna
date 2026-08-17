@@ -1,6 +1,10 @@
 import asyncio
+from io import BytesIO
 import math
 from pathlib import Path
+
+import httpx
+from PIL import Image
 
 from ..rendering import (
     HtmlRenderer,
@@ -38,21 +42,39 @@ def _fmt_date(value: str) -> str:
     return f"{value[:4]}-{value[4:6]}-{value[6:8]}" if len(value) == 8 else value
 
 
-async def _item_payload(item) -> dict[str, object]:
-    name = f"item_{item.itemId}.png"
-    path = WEEKLY_ITEM_PATH / name
-    if path.exists():
-        icon = image_data_uri(path)
+def weekly_item_display_name(name: str) -> str:
+    return name if len(name) <= 8 else f"{name[:7]}…"
+
+
+
+async def _item_payload(item, item_assets: dict[int, Image.Image | Path] | None = None) -> dict[str, object]:
+    if item_assets and item.itemId in item_assets:
+        asset = item_assets[item.itemId]
+        if isinstance(asset, Path):
+            icon = image_data_uri(asset)
+        elif isinstance(asset, Image.Image):
+            icon = pil_image_data_uri(asset)
+        else:
+            icon = str(asset)
     else:
-        icon = pil_image_data_uri(
-            await download_pic_from_url(WEEKLY_ITEM_PATH, item.icon, size=(105, 105), name=name)
-        )
+        name = f"item_{item.itemId}.png"
+        path = WEEKLY_ITEM_PATH / name
+        if path.exists():
+            icon = image_data_uri(path)
+        else:
+            try:
+                img = await download_pic_from_url(WEEKLY_ITEM_PATH, item.icon, size=(105, 105), name=name)
+                icon = pil_image_data_uri(img)
+            except (OSError, httpx.HTTPError):
+                fallback_img = Image.new("RGB", (105, 105), "#333333")
+                icon = pil_image_data_uri(fallback_img)
     quality = item.quality if 0 <= item.quality <= 5 else 0
     quality_path = QUALITY_PATH / f"q{quality}.png"
+    quality_uri = image_data_uri(quality_path) if quality_path.exists() else ""
     return {
         "icon": icon,
         "name": item.itemName,
-        "quality": image_data_uri(quality_path),
+        "quality": quality_uri,
         "total": item.totalNum,
     }
 
@@ -63,6 +85,7 @@ async def _draw_weekly_report_card(
     report: DNAItemWeeklyReportRes,
     week_type: int = 1,
     uid_hidden: bool = False,
+    item_assets: dict[int, Image.Image | Path] | None = None,
 ) -> bytes:
     other_info = [
         (item.paramKey, item.paramValue)
@@ -79,7 +102,7 @@ async def _draw_weekly_report_card(
         uid_hidden=uid_hidden,
     )
     category_items = await asyncio.gather(
-        *(asyncio.gather(*(_item_payload(item) for item in category.items)) for category in report.categories)
+        *(asyncio.gather(*(_item_payload(item, item_assets) for item in category.items)) for category in report.categories)
     )
     categories = [
         {"items": list(items), "name": category.categoryName}
@@ -133,5 +156,33 @@ async def draw_weekly_report_img(sender: Sender, ctx: EventContext, week_type: i
     await sender.send(card)
 
 
-draw_weekly_report_card = _draw_weekly_report_card
+async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
+    if len(args) >= 2 and isinstance(args[0], EventContext):
+        ctx = args[0]
+        role_show = args[1]
+        report = args[2] if len(args) > 2 else kwargs.get("report")
+        if report is None:
+            raise ValueError("缺少 report 参数")
+        week_type = int(kwargs.get("week_type", 1))
+        uid_hidden = bool(kwargs.get("uid_hidden", False))
+        item_assets = kwargs.get("item_assets")
+        return await _draw_weekly_report_card(
+            ctx, role_show, report, week_type=week_type, uid_hidden=uid_hidden, item_assets=item_assets
+        )
+    elif len(args) >= 2:
+        report = args[0]
+        role_show = args[1]
+        ctx = kwargs.get("ctx") or EventContext(user_id=kwargs.get("avatar_user_id", "0"))
+        uid_hidden = bool(kwargs.get("uid_hidden", False))
+        item_assets = kwargs.get("item_assets")
+        week_type = getattr(report, "weekType", 1)
+        raw_bytes = await _draw_weekly_report_card(
+            ctx, role_show, report, week_type=week_type, uid_hidden=uid_hidden, item_assets=item_assets
+        )
+        return Image.open(BytesIO(raw_bytes)).convert("RGBA")
+    else:
+        return await _draw_weekly_report_card(*args, **kwargs)
+
+
+
 

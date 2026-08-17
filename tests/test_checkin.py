@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import date
 from pathlib import Path
 
@@ -437,11 +436,18 @@ async def test_manual_sign_bbs_post_failures_are_visible(tmp_path: Path) -> None
 
 @pytest.mark.asyncio
 async def test_sign_calendar_renders_runtime_image(tmp_path: Path) -> None:
-    """签到日历生成 1300 宽运行期 PNG，并记录布局与资源语义。"""
+    """签到日历复用 legacy 1300 宽绘制核心。"""
 
     database = await _database_with_binding(tmp_path)
     transport = FakeCheckinTransport()
     service = _service(database, transport)
+
+    from dnaby.utils.resource.RESOURCE_PATH import SIGN_PATH
+
+    for award in transport.calendar.day_awards:
+        icon_path = SIGN_PATH / award.icon_url.split("/")[-1]
+        icon_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (140, 140), (80, 120, 160, 255)).save(icon_path, format="PNG")
 
     response = await service.sign_calendar(_request())
 
@@ -450,18 +456,8 @@ async def test_sign_calendar_renders_runtime_image(tmp_path: Path) -> None:
     image_path = Path(response.image)
     with Image.open(image_path) as image:
         assert image.width == 1300
-        text = image.info["dnaby.text"]
-        layout = json.loads(image.info["dnaby.layout"])
-        resources = json.loads(image.info["dnaby.resources"])
-    assert "皎皎积分: 123" in text
-    assert "游戏累计签到: 3" in text
-    assert any(item["kind"] == "sign_award" for item in resources)
-    assert [section["name"] for section in layout["sections"]] == [
-        "角色概览",
-        "签到信息",
-        "社区任务",
-        "游戏签到奖励",
-    ]
+        assert image.height == 990
+        assert image.convert("RGB").getbbox() == (0, 0, image.width, image.height)
     await database.dispose()
 
 
