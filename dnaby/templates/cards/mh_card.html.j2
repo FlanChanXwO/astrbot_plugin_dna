@@ -76,34 +76,32 @@
     align-items: center;
     list-style: none;
   }
-  .mh-card__instance-wrap li {
+  .mh-card__instance {
     position: relative;
-    list-style: none;
+    z-index: 1;
+    display: block;
+    width: 374px;
+    height: 55px;
+    box-sizing: border-box;
     margin: 0;
-    padding: 0;
+    padding: 0 14px 0 0;
+    color: #fff;
+    font-size: 36px;
+    line-height: 55px;
+    text-align: center;
+    list-style: none;
+    overflow: hidden;
   }
-  .mh-card__instance-wrap li::before {
+  .mh-card__instance::before {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
     z-index: -1;
     display: block;
     width: 374px;
     height: 55px;
     background: url("{{ bar }}") 0 0 / 374px 55px no-repeat;
     content: "";
-  }
-  .mh-card__instance {
-    position: relative;
-    z-index: 1;
-    width: 374px;
-    height: 55px;
-    margin: 0;
-    padding: 0;
-    color: #fff;
-    font-size: 36px;
-    line-height: 55px;
-    text-align: center;
-    overflow: hidden;
   }
   .mh-card__instance.subscribed {
     color: #4caf50;
@@ -116,7 +114,7 @@
     height: 76px;
     box-sizing: border-box;
     margin: 0;
-    padding: 25px 0 0 60px;
+    padding: 25px 0 0 52px;
     background: url("{{ refresh_background }}") 0 0 / 317px 76px no-repeat;
     color: #fff;
     font-size: 20px;
