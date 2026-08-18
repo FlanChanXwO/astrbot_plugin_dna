@@ -7,7 +7,7 @@ from pathlib import Path
 
 def test_update_log_git_lookup_is_lazy(monkeypatch):
     """导入更新记录模块不应执行 git 命令，首次使用时才读取日志。"""
-    from dnaby.dna_update import draw_update_log
+    from src.infrastructure.rendering import update_log as draw_update_log
 
     calls = []
     monkeypatch.setattr(
@@ -24,7 +24,7 @@ def test_update_log_git_lookup_is_lazy(monkeypatch):
 
 def test_web_routes_match_astrbot_registration_contract():
     """Web 路由元组必须与 ``Context.register_web_api`` 的调用顺序一致。"""
-    from dnaby.dna_user.login_router import get_routes
+    from src.modules.account.login_router import get_routes
 
     routes = get_routes()
     assert routes
@@ -38,14 +38,14 @@ def test_web_routes_match_astrbot_registration_contract():
 
 def test_login_router_exports_qrcode_helper():
     """登录路由调用的二维码工具必须在模块中显式导入。"""
-    from dnaby.dna_user import login_router
+    from src.modules.account import login_router
 
     assert callable(login_router.get_qrcode_base64)
 
 
 def test_login_router_uses_runtime_timeout_support():
     """登录轮询使用运行时自带的异步超时能力，不依赖额外包。"""
-    from dnaby.dna_user import login_router
+    from src.modules.account import login_router
 
     assert callable(login_router.asyncio.timeout)
 
@@ -54,7 +54,7 @@ def test_login_session_token_is_not_derived_from_user_id():
     """登录 URL 的会话标识不能被知道 user_id 的外部请求者预测。"""
     import hashlib
 
-    from dnaby.dna_user.login_helps import get_token
+    from src.modules.account.login_helps import get_token
 
     token = get_token("user-1")
     assert len(token) == 64
@@ -70,7 +70,7 @@ def test_http_poll_surfaces_network_failure(monkeypatch):
     import httpx
     import pytest
 
-    from dnaby.dna_user import transport
+    from src.modules.account import transport
 
     class FailingClient:
         async def __aenter__(self):
@@ -161,7 +161,7 @@ def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
 
 def test_mh_list_order_is_stable():
     """动态密函命令的角色顺序必须跨进程稳定，避免清单漂移。"""
-    from dnaby.utils.api.mh_map import get_mh_list
+    from src.utils.api.mh_map import get_mh_list
 
     assert get_mh_list() == [
         "扼守",

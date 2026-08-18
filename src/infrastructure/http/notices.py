@@ -87,7 +87,7 @@ class DnaApiNoticesTransport:
                 detail="credential record is missing",
             )
         try:
-            from dnaby.utils.database.models import DNAUser
+            from src.utils.database.models import DNAUser
 
             return DNAUser(
                 user_id=credential_user_id,
@@ -113,8 +113,8 @@ class DnaApiNoticesTransport:
 
     @staticmethod
     def _mh_snapshot(data: Any) -> MhSnapshot:
-        from dnaby.utils.api.mh_map import get_mh_type_name
-        from dnaby.utils.api.model import DNAMHRes
+        from src.utils.api.mh_map import get_mh_type_name
+        from src.utils.api.model import DNAMHRes
 
         payload = DNAMHRes.model_validate(data)
         sections = []
@@ -135,7 +135,7 @@ class DnaApiNoticesTransport:
 
     @staticmethod
     def _ann_snapshot(posts: list[dict[str, Any]]) -> AnnSnapshot:
-        from dnaby.dna_ann.utils import pick_preview, pick_subject, pick_time
+        from src.modules.notices.ann_utils import pick_preview, pick_subject, pick_time
 
         entries = []
         for post in posts:
@@ -156,7 +156,7 @@ class DnaApiNoticesTransport:
 
     @staticmethod
     def _ann_detail(data: dict[str, Any], post_id: str) -> AnnDetail:
-        from dnaby.dna_ann.utils import extract_blocks, pick_subject
+        from src.modules.notices.ann_utils import extract_blocks, pick_subject
 
         content = data.get("postContent", [])
         parsed = []
@@ -179,7 +179,7 @@ class DnaApiNoticesTransport:
         credential_user_id: str,
     ) -> MhSnapshot:
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             response = await dna_api.get_default_role_for_tool(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -215,7 +215,7 @@ class DnaApiNoticesTransport:
             )
         binding, record = records[0]
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             user = await self._legacy_user(
                 EventActor(binding.user_id, binding.bot_id, None),
@@ -233,7 +233,7 @@ class DnaApiNoticesTransport:
 
     async def get_ann_list(self) -> AnnSnapshot:
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             posts = await dna_api.get_ann_list(is_cache=True) or []
             return self._ann_snapshot(posts)
@@ -246,7 +246,7 @@ class DnaApiNoticesTransport:
 
     async def get_ann_detail(self, post_id: str) -> AnnDetail:
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             response = await dna_api.get_post_detail(post_id)
             data = _response_data(response, resource="公告详情")

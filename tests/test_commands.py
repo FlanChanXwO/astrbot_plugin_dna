@@ -54,9 +54,8 @@ def test_commands_manifest_is_covered_by_code_registry():
 
 def test_specific_delete_command_precedes_generic_uid_delete():
     """重叠正则必须优先命中特定命令，避免别名删除被 UID 命令截获。"""
-    from dnaby.dispatch import ALL_COMMANDS
-
+    registry = load_command_registry()
     message = "删除角色卡米拉别名e2e别名"
-    matched = [cmd["key"] for cmd in ALL_COMMANDS if re.match(cmd["regex"], message)]
+    matched = [cmd.id for cmd in registry if re.match(cmd.pattern, message)]
 
     assert matched[0] == "alias_add_delete"

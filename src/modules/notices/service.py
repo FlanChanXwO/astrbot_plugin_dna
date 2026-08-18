@@ -97,7 +97,7 @@ class NoticesService:
     async def mh_list(self, _request: NoticeRequest):
         """返回全部密函委托名称。"""
 
-        from dnaby.utils.api.mh_map import get_mh_list
+        from src.utils.api.mh_map import get_mh_list
 
         return PlainTextResponse("\n".join(get_mh_list()))
 
@@ -116,7 +116,7 @@ class NoticesService:
             rendered = await self.renderer.render_ann_list(snapshot)
             return ImageResponse(str(rendered.path), temporary=True)
 
-        from dnaby.dna_ann.utils import build_index_map, resolve_index
+        from .ann_utils import build_index_map, resolve_index
 
         post_map = build_index_map(
             {"postId": post.post_id} for post in snapshot.posts[: _ANN_LIST_LIMIT]

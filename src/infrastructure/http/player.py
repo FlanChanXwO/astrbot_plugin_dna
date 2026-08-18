@@ -79,7 +79,7 @@ class DnaApiPlayerTransport:
                 detail="credential record is missing",
             )
         try:
-            from dnaby.utils.database.models import DNAUser
+            from src.utils.database.models import DNAUser
 
             return DNAUser(
                 user_id=credential_user_id,
@@ -105,7 +105,7 @@ class DnaApiPlayerTransport:
 
     @staticmethod
     def _overview(data: Any) -> RoleOverview:
-        from dnaby.utils.api.model import DNARoleForToolRes
+        from src.utils.api.model import DNARoleForToolRes
 
         payload = DNARoleForToolRes.model_validate(data)
         role_show = payload.roleInfo.roleShow
@@ -126,14 +126,14 @@ class DnaApiPlayerTransport:
 
     @staticmethod
     def _role_detail(data: Any) -> RoleDetail:
-        from dnaby.utils.api.model import DNARoleDetailRes
+        from src.utils.api.model import DNARoleDetailRes
 
         payload = DNARoleDetailRes.model_validate(data)
         return RoleDetail.model_validate(payload.charDetail.model_dump(by_alias=True))
 
     @staticmethod
     def _weapon_detail(data: Any) -> WeaponDetail:
-        from dnaby.utils.api.model import DNAWeaponDetailRes
+        from src.utils.api.model import DNAWeaponDetailRes
 
         payload = DNAWeaponDetailRes.model_validate(data)
         return WeaponDetail.model_validate(payload.weaponDetail.model_dump(by_alias=True))
@@ -146,7 +146,7 @@ class DnaApiPlayerTransport:
         credential_user_id: str,
     ) -> RoleOverview:
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             response = await dna_api.get_default_role_for_tool(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -169,7 +169,7 @@ class DnaApiPlayerTransport:
         credential_user_id: str,
     ) -> RoleDetail:
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             response = await dna_api.get_role_detail(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -194,7 +194,7 @@ class DnaApiPlayerTransport:
         credential_user_id: str,
     ) -> WeaponDetail:
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             response = await dna_api.get_weapon_detail(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -221,12 +221,12 @@ class DnaApiPlayerTransport:
         credential_user_id: str,
     ) -> DamageCalculation:
         try:
-            from dnaby.dna_detail.damage_service import (
+            from ...modules.player.damage_service import (
                 RoleDamageBuild,
                 calculate_role_damage,
             )
-            from dnaby.utils.api.model import RoleDetail as LegacyRoleDetail
-            from dnaby.utils.api.model import WeaponDetail as LegacyWeaponDetail
+            from src.utils.api.model import RoleDetail as LegacyRoleDetail
+            from src.utils.api.model import WeaponDetail as LegacyWeaponDetail
 
             legacy_role = LegacyRoleDetail.model_validate(role_detail.model_dump(by_alias=True))
             legacy_con = (

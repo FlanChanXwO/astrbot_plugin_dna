@@ -20,7 +20,7 @@ OUT = ROOT / "output" / "astrbot"
 
 
 def _preseed_legacy_assets() -> None:
-    from dnaby.utils.resource import RESOURCE_PATH
+    from src.utils.resource import RESOURCE_PATH
 
     assets = {
         RESOURCE_PATH.AVATAR_PATH / "avatar_101.png": (180, 60, 60),

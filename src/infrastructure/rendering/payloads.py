@@ -6,14 +6,14 @@ from pathlib import Path
 
 import httpx
 
-from dnaby.utils.image import get_avatar_img
-from dnaby.utils.image_utils import get_event_avatar
-from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH
-from dnaby.utils.session import EventContext
+from src.utils.image import get_avatar_img
+from src.utils.image_utils import get_event_avatar
+from src.utils.resource.RESOURCE_PATH import AVATAR_PATH
+from src.utils.session import EventContext
 
 from .assets import image_data_uri, pil_image_data_uri
 
-TEXTURE_PATH = Path(__file__).parents[3] / "dnaby" / "utils" / "texture2d"
+TEXTURE_PATH = Path(__file__).parents[2] / "resources" / "textures" / "common"
 
 
 async def build_profile_header(

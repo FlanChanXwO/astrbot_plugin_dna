@@ -102,6 +102,7 @@ class AnnDetail:
     post_id: str
     title: str
     blocks: tuple[AnnBlock, ...] = ()
+    time: str = ""
 
 
 @dataclass(frozen=True, slots=True)

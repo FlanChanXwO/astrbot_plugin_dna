@@ -444,7 +444,7 @@ async def test_sign_calendar_renders_runtime_image(tmp_path: Path) -> None:
     transport = FakeCheckinTransport()
     service = _service(database, transport)
 
-    from dnaby.utils.resource.RESOURCE_PATH import SIGN_PATH
+    from src.utils.resource.RESOURCE_PATH import SIGN_PATH
 
     for award in transport.calendar.day_awards:
         icon_path = SIGN_PATH / award.icon_url.split("/")[-1]

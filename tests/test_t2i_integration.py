@@ -13,10 +13,10 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
-from dnaby.dna_sign.sign import create_sign_info_image
-from dnaby.rendering import HtmlRenderError
-from dnaby.rendering.qr import render_qr_code
-from dnaby.utils.session import EventContext, Sender
+from src.infrastructure.rendering.checkin import create_sign_info_image
+from src.rendering import HtmlRenderError
+from src.rendering.qr import render_qr_code
+from src.utils.session import EventContext, Sender
 
 
 def _decode_png(payload: bytes) -> Image.Image:

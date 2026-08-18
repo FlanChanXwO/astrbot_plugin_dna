@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-TEMPLATE_DIR = Path(__file__).parents[1] / "dnaby" / "templates"
+TEMPLATE_DIR = Path(__file__).parents[1] / "src" / "templates"
 
 
 @pytest.fixture

@@ -187,5 +187,20 @@ class DnabySettings(_SettingsModel):
     @classmethod
     def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
         """将 AstrBot 的嵌套配置字典转换为 typed settings。"""
-
         return cls.model_validate(dict(config) if config is not None else {})
+
+
+# 兼容旧配置 API；放在 typed model 定义之后以保持现有导出边界。
+from .legacy import DNA_PREFIX, DNAConfig, DNASignConfig  # noqa: E402
+
+__all__ = [
+    "DNAConfig",
+    "DNASignConfig",
+    "DNA_PREFIX",
+    "DisplaySettings",
+    "DnabySettings",
+    "LoginSettings",
+    "NetworkSettings",
+    "NotificationSettings",
+    "SignInSettings",
+]

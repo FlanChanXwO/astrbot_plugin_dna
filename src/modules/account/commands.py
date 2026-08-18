@@ -195,7 +195,7 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="account_delete",
-        pattern=r"^删除\s*(?P<uid>(?!全部(?:UID|uid)?$)\S*)$",
+        pattern=r"^删除\s*(?P<uid>(?!全部(?:UID|uid)?$)\d*)$",
         group="绑定账号",
         name="删除UID",
         description="删除一个 UID",

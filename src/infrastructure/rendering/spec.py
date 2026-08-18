@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from numbers import Real
 from typing import Literal, TypedDict
 
@@ -23,19 +22,28 @@ Scale = Literal["css", "device"] | Real
 ImageFormat = Literal["png", "jpeg"]
 
 
-@dataclass(frozen=True, slots=True)
 class RenderSpec:
     """单次 HTML/T2I 渲染的画布与截图参数。"""
 
-    width: int
-    height: int | None = None
-    full_page: bool = True
-    clip: ClipRect | None = None
-    scale: Scale = "css"
-    image_format: ImageFormat = "png"
-    quality: int | None = None
+    def __init__(
+        self,
+        width: int,
+        height: int | None = None,
+        full_page: bool = True,
+        clip: ClipRect | None = None,
+        scale: Scale = "css",
+        image_format: ImageFormat = "png",
+        output_format: ImageFormat | None = None,
+        quality: int | None = None,
+    ) -> None:
+        self.width = width
+        self.height = height
+        self.full_page = full_page
+        self.clip = clip
+        self.scale = scale
+        self.image_format: ImageFormat = output_format if output_format is not None else image_format
+        self.quality = quality
 
-    def __post_init__(self) -> None:
         if self.width <= 0:
             raise ValueError("渲染宽度必须为正整数")
         if self.height is not None and self.height <= 0:
@@ -52,6 +60,26 @@ class RenderSpec:
             raise ValueError("JPEG quality 必须在 0 到 100 之间")
         if self.clip is not None:
             self._validate_clip(self.clip)
+
+    def __repr__(self) -> str:
+        return (
+            f"RenderSpec(width={self.width}, height={self.height}, "
+            f"full_page={self.full_page}, clip={self.clip}, scale={self.scale}, "
+            f"image_format={self.image_format!r}, quality={self.quality})"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, RenderSpec):
+            return NotImplemented
+        return (
+            self.width == other.width
+            and self.height == other.height
+            and self.full_page == other.full_page
+            and self.clip == other.clip
+            and self.scale == other.scale
+            and self.image_format == other.image_format
+            and self.quality == other.quality
+        )
 
     @staticmethod
     def _validate_clip(clip: ClipRect) -> None:
@@ -83,3 +111,6 @@ class RenderSpec:
                 "height": self.height,
             }
         return options
+
+
+__all__ = ["ClipRect", "ImageFormat", "RenderSpec", "Scale"]

@@ -1,1 +1,0 @@
-/goal /Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/data/plugins/astrbot_plugin_dnaby/.worktrees/rewrite-v0.1  /Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/data/plugins/astrbot_plugin_dnaby/output/real。尝试让astrbot t2i渲染能够真正复刻gscore pil渲染的样式和布局。允许使用localhost:8999 t2i服务进行渲染。和在`ssh atri` gscore容器的dnauid数据库中获取账号信息进行真实渲染数据对比

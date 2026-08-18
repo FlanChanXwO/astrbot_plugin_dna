@@ -39,7 +39,7 @@ def _fixed_datetime(tz=None):
 def _build_legacy_fixture():
     """构造与 rewrite snapshot 同源的 legacy 密函模型。"""
 
-    from dnaby.utils.api.model import DNARoleForToolInstance, DNARoleForToolInstanceInfo
+    from src.utils.api.model import DNARoleForToolInstance, DNARoleForToolInstanceInfo
 
     return [
         DNARoleForToolInstanceInfo(
@@ -97,8 +97,8 @@ def _build_rewrite_fixture():
 def _render_legacy(output_dir: Path) -> Image.Image:
     """用固定时钟渲染 legacy 密函简单卡片。"""
 
-    import dnaby.utils as dna_utils
-    from dnaby.dna_mh.draw_mh import draw_mh_simple
+    import src.utils as dna_utils
+    from src.infrastructure.rendering.notices import draw_mh_simple
 
     original = dna_utils.get_datetime
     dna_utils.get_datetime = _fixed_datetime

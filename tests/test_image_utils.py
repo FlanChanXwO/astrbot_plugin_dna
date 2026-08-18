@@ -6,9 +6,9 @@ from pathlib import Path
 from astrbot.api.message_components import Image as AstrBotImage
 from PIL import Image
 
-from dnaby.dna_update.draw_update_log import _extract_leading_emojis
-from dnaby.utils.image import add_footer
-from dnaby.utils.image_utils import change_ev_image_to_bytes
+from src.infrastructure.rendering.update_log import _extract_leading_emojis
+from src.utils.image import add_footer
+from src.utils.image_utils import change_ev_image_to_bytes
 
 
 def test_change_event_image_component_to_bytes(tmp_path):
@@ -29,7 +29,7 @@ def test_footer_keeps_legacy_card_width() -> None:
     card = Image.new("RGBA", (1200, 300), "black")
     rendered = add_footer(card, 600)
 
-    footer = Image.open(Path(__file__).parents[1] / "dnaby/utils/texture2d/footer.png")
+    footer = Image.open(Path(__file__).parents[1] / "src/resources/textures/common/footer.png")
     expected_height = int(footer.height * 600 / footer.width)
     expected_left = (card.width - 600) // 2
     expected_top = card.height - expected_height - 20

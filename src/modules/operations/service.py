@@ -181,7 +181,7 @@ class PanelService:
     async def compress_panel_imgs(self, _request: PanelCommandRequest):
         """压缩全部自定义面板图为 WebP。"""
 
-        from dnaby.utils.image import compress_to_webp
+        from src.utils.image import compress_to_webp
 
         if not self.panel_root.is_dir():
             return PlainTextResponse(messages.PANEL_EMPTY.format(name="全部"))

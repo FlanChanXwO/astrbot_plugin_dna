@@ -1,112 +1,584 @@
-"""玩家角色概览和详情图片渲染。
-
-渲染器接收 typed snapshot，遍历全部合法列表项并生成运行期 PNG。为了让图像
-回归可以检查动态布局和资源语义，PNG 额外带有 ``dnaby.text``、
-``dnaby.layout``、``dnaby.resources`` 三个非敏感文本块；这些元数据不改变
-AstrBot 的图片消息类型。
-"""
+"""角色总览与详情卡片的 HTML/T2I 与确定性渲染器。"""
 
 from __future__ import annotations
 
+import asyncio
 import json
+import math
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from PIL.PngImagePlugin import PngInfo
+from pydantic import BaseModel
 
 from ...entry.event import EventActor
 from ...modules.player.contracts import (
-    AttributeBag,
     DamageCalculation,
     RoleDetail,
-    RoleItem,
     RoleOverview,
     WeaponDetail,
-    WeaponItem,
 )
-from ...modules.player.messages import PLAYER_DAMAGE_FAILED
+from ...modules.player.damage_service import (
+    RoleDamageBuild,
+)
+from ...utils import dna_api
+from ...utils.api.damage_model import CharacterCalculateData
+from ...utils.api.model import (
+    DNAWeaponDetailRes,
+    RoleShowForTool,
+    WeaponDetail as LegacyWeaponDetail,
+)
+from ...utils.api.request_util import DNAApiResp
+from ...utils.database.models import DNAUser
+from ...utils.image import (
+    get_attr_img,
+    get_avatar_img,
+    get_grade_img,
+    get_mod_img,
+    get_paint_img,
+    get_role_panel_img,
+    get_skill_img,
+    get_weapon_attr_img,
+    get_weapon_img,
+)
+from ...utils.session import EventContext
+from ..resources.encyclopedia import EncyclopediaResourceStore
+from .assets import font_data_uri, image_data_uri, pil_image_data_uri
+from .damage_renderer import draw_role_damage_section
 from .fonts import load_runtime_font
+from .payloads import build_profile_header
+from .renderer import HtmlRenderer
+from .spec import RenderSpec
+from .weapon_renderer import draw_weapon_detail_section
+
+_RENDERER = HtmlRenderer()
+RESOURCES_DIR = Path(__file__).parents[2] / "resources"
+COMMON_PATH = RESOURCES_DIR / "textures" / "common"
+DETAIL_TEXT_PATH = RESOURCES_DIR / "textures" / "detail"
+ROLE_TEXT_PATH = RESOURCES_DIR / "textures" / "role"
+FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
 
 
-@dataclass(slots=True)
+# ---------------------------------------------------------------------------
+# 1. 角色总览卡 (Role Overview)
+# ---------------------------------------------------------------------------
+
+
+class ItemTemp(BaseModel):
+    type: Literal["role", "weapon"]
+    id: int
+    name: str
+    level: int
+    element_icon: str
+    icon: str
+    grade_level: int | None = None
+    unlocked: bool = False
+
+
+async def _item_payload(item: ItemTemp) -> dict[str, object]:
+    if item.type == "role":
+        image = await get_avatar_img(item.id, item.icon)
+        element = await get_attr_img(pic_url=item.element_icon)
+    else:
+        image = await get_weapon_img(item.id, item.icon)
+        element = await get_weapon_attr_img(pic_url=item.element_icon)
+    return {
+        "element": pil_image_data_uri(element.resize((element.width // 2, element.height // 2))),
+        "grade": (
+            pil_image_data_uri(get_grade_img(item.grade_level))
+            if item.grade_level is not None
+            else None
+        ),
+        "image": pil_image_data_uri(image),
+        "level": item.level,
+        "name": item.name,
+        "type": item.type,
+        "unlocked": item.unlocked,
+    }
+
+
+async def _section_payload(
+    items: list[ItemTemp],
+    title: str,
+    show_none: bool,
+    background_path: Path,
+) -> dict[str, object]:
+    visible = items if show_none else [item for item in items if item.unlocked]
+    return {
+        "background": image_data_uri(background_path),
+        "items": list(await asyncio.gather(*(_item_payload(item) for item in visible))),
+        "title": title,
+    }
+
+
+async def _draw_role_overview_card(
+    ctx: EventContext,
+    role_show: RoleShowForTool,
+    show_none: bool = True,
+    uid_hidden: bool = False,
+) -> bytes:
+    role_items = [
+        ItemTemp(type="role", id=role.charId, name=role.name, level=role.level, element_icon=role.elementIcon, icon=role.icon, grade_level=role.gradeLevel, unlocked=role.unLocked)
+        for role in role_show.roleChars
+    ]
+    close_items = [
+        ItemTemp(type="weapon", id=weapon.weaponId, name=weapon.name, level=weapon.level, element_icon=weapon.elementIcon, icon=weapon.icon, grade_level=weapon.skillLevel, unlocked=weapon.unLocked)
+        for weapon in role_show.closeWeapons
+    ]
+    lang_items = [
+        ItemTemp(type="weapon", id=weapon.weaponId, name=weapon.name, level=weapon.level, element_icon=weapon.elementIcon, icon=weapon.icon, grade_level=weapon.skillLevel, unlocked=weapon.unLocked)
+        for weapon in role_show.langRangeWeapons
+    ]
+    achievements = [
+        {"label": "角色数量", "value": str(sum(item.unlocked for item in role_items))},
+        {"label": "近战武器", "value": str(sum(item.unlocked for item in close_items))},
+        {"label": "远程武器", "value": str(sum(item.unlocked for item in lang_items))},
+    ]
+    achievements.extend(
+        {"label": item.paramKey, "value": item.paramValue}
+        for item in role_show.params
+        if item.paramKey in ("装饰数量", "魔灵数量")
+    )
+    achievements.append({"label": "总成就数", "value": str(role_show.roleAchv.total)})
+    header_stats = [
+        (item.paramKey, item.paramValue)
+        for item in role_show.params
+        if item.paramKey in ("总活跃天数", "游戏时长")
+    ]
+    header = await build_profile_header(
+        ctx,
+        role_show.roleId,
+        role_show.roleName,
+        user_level=role_show.level,
+        stats=header_stats,
+        avatar_user_id=ctx.user_id,
+        uid_hidden=uid_hidden,
+    )
+
+    sections = [
+        await _section_payload(role_items, "角色信息", show_none, ROLE_TEXT_PATH / "bg" / "bg1.png"),
+        await _section_payload(close_items, "近战武器", show_none, ROLE_TEXT_PATH / "bg" / "bg5.png"),
+        await _section_payload(lang_items, "远程武器", show_none, ROLE_TEXT_PATH / "bg" / "bg4.png"),
+    ]
+    section_counts = [
+        len(items) if show_none else sum(item.unlocked for item in items)
+        for items in (role_items, close_items, lang_items)
+    ]
+    height = 800 + sum(70 + 320 * math.ceil(count / 5) for count in section_counts if count)
+
+    return await _RENDERER.render(
+        "cards/role_info.html.j2",
+        {
+            "achievements": achievements,
+            "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "footer_text": "DNAUID",
+            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
+            "header": header,
+            "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
+            "info_bar": image_data_uri(ROLE_TEXT_PATH / "info_bar.png"),
+            "div_background": image_data_uri(ROLE_TEXT_PATH / "div_bg.png"),
+            "item_foreground": image_data_uri(ROLE_TEXT_PATH / "item_fg.png"),
+            "item_mask": image_data_uri(ROLE_TEXT_PATH / "item_mask.png"),
+            "sections": sections,
+            "title_background": image_data_uri(ROLE_TEXT_PATH / "title_bg.jpg"),
+            "title_mask": image_data_uri(ROLE_TEXT_PATH / "title_mask.png"),
+            "height": height,
+            "width": 1200,
+        },
+        RenderSpec(width=1200, height=height, full_page=False, image_format="jpeg"),
+    )
+
+
+draw_role_overview_card = _draw_role_overview_card
+
+
+async def draw_role_info_card_core(
+    role_show: RoleShowForTool,
+    uid_hidden: bool = False,
+    show_none: bool = True,
+    ev_stub: EventContext | None = None,
+    avatar_user_id: str | None = None,
+) -> bytes:
+    ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
+    return await _draw_role_overview_card(ctx, role_show, show_none=show_none, uid_hidden=uid_hidden)
+
+
+# ---------------------------------------------------------------------------
+# 2. 角色详情卡 (Role Detail)
+# ---------------------------------------------------------------------------
+
+ATTR_SPECS = (
+    ("atk", "攻击", "icon1.png"),
+    ("maxHp", "生命", "icon10.png"),
+    ("maxES", "护盾", "icon11.png"),
+    ("defense", "防御", "icon9.png"),
+    ("maxSp", "最大神志", "icon8.png"),
+    ("skillIntensity", "技能威力", "icon7.png"),
+    ("skillRange", "技能范围", "icon6.png"),
+    ("skillSustain", "技能耐久", "icon5.png"),
+    ("skillEfficiency", "技能效益", "icon4.png"),
+    ("strongValue", "昂扬", "icon3.png"),
+    ("enmityValue", "背水", "icon2.png"),
+)
+
+
+async def _load_weapon_detail(
+    dna_user: DNAUser,
+    weapon_id: int,
+    weapon_eid: str,
+) -> LegacyWeaponDetail | None:
+    response = await dna_api.get_weapon_detail(dna_user, weapon_id, weapon_eid)
+    if not response.is_success:
+        return None
+    if response.data is None:
+        raise RuntimeError(f"武器详情成功响应缺少 data: weapon_id={weapon_id}")
+    return DNAWeaponDetailRes.model_validate(response.data).weaponDetail
+
+
+def _format_attribute(value: object) -> str:
+    if isinstance(value, int):
+        return f"{value:,}"
+    return str(value or "")
+
+
+def _attribute_payload(role_detail: Any) -> list[dict[str, str]]:
+    return [
+        {
+            "background": image_data_uri(
+                DETAIL_TEXT_PATH / f"prop_info_bar{1 if index % 2 == 0 else 2}.png"
+            ),
+            "icon": image_data_uri(DETAIL_TEXT_PATH / "icons" / icon_name),
+            "label": label,
+            "value": _format_attribute(getattr(role_detail.attribute, field, getattr(role_detail.attribute, field.lower(), ""))),
+        }
+        for index, (field, label, icon_name) in enumerate(ATTR_SPECS)
+    ]
+
+
+async def _skill_payload(role_detail: Any) -> list[dict[str, object]]:
+    return [
+        {
+            "icon": pil_image_data_uri(
+                await get_skill_img(
+                    getattr(role_detail, "charId", getattr(role_detail, "char_id", 0)),
+                    getattr(skill, "skillName", getattr(skill, "skill_name", "")),
+                    getattr(skill, "icon", ""),
+                )
+            ),
+            "level": skill.level,
+            "name": getattr(skill, "skillName", getattr(skill, "skill_name", "")),
+        }
+        for skill in role_detail.skills[:3]
+    ]
+
+
+async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
+    quality = getattr(mode, "quality", None) or 1
+    payload: dict[str, object] = {
+        "background": image_data_uri(DETAIL_TEXT_PATH / "mod" / f"mod_{position}_{quality}.png"),
+        "icon": None,
+        "level": None,
+        "name": getattr(mode, "name", "") or "",
+        "position": position,
+    }
+    if mode.id != -1:
+        payload["icon"] = pil_image_data_uri(await get_mod_img(mode.id, getattr(mode, "icon", "")))
+        payload["level"] = f"+{mode.level}" if getattr(mode, "level", 0) else None
+    return payload
+
+
+async def _role_modes_payload(modes: list[Any]) -> list[dict[str, object]]:
+    if len(modes) < 9:
+        raise RuntimeError(f"角色 Mod 槽数量不足，期望至少 9，实际为 {len(modes)}")
+    order = tuple((index, "left") for index in (0, 2, 4, 6)) + tuple(
+        (index, "right") for index in (1, 3, 7, 5)
+    )
+    payload = [await _mode_payload(modes[index], position) for index, position in order]
+    payload.append(await _mode_payload(modes[-1], "center"))
+    return payload
+
+
+async def _hero_payload(
+    char_id: str,
+    role_detail: Any,
+) -> tuple[Path | None, dict[str, str]]:
+    role_panel = get_role_panel_img(char_id)
+    if role_panel is not None:
+        original_path, image = role_panel
+        panel_size = (1000, 850)
+        if image.width >= image.height:
+            panel = ImageOps.fit(image.convert("RGBA"), panel_size, method=Image.Resampling.LANCZOS)
+        else:
+            portrait_size = (600, 850)
+            portrait = ImageOps.fit(image.convert("RGBA"), portrait_size, method=Image.Resampling.LANCZOS)
+            side_mask = Image.new("L", portrait_size, 255)
+            side_fade = Image.linear_gradient("L").rotate(270, expand=True).resize((72, portrait_size[1]))
+            side_mask.paste(side_fade, (portrait_size[0] - 72, 0))
+            panel = Image.new("RGBA", panel_size)
+            panel.alpha_composite(Image.composite(portrait, Image.new("RGBA", portrait_size), side_mask))
+        bottom_mask = Image.new("L", panel_size, 255)
+        bottom_fade = ImageOps.invert(Image.linear_gradient("L")).resize((panel_size[0], 72))
+        bottom_mask.paste(bottom_fade, (0, panel_size[1] - 72))
+        panel = Image.composite(panel, Image.new("RGBA", panel_size), bottom_mask)
+        return original_path, {"image": pil_image_data_uri(panel), "kind": "panel"}
+    image = await get_paint_img(char_id, getattr(role_detail, "paint", ""))
+    paint = image.convert("RGBA").resize((1056, 1056), Image.Resampling.LANCZOS)
+    panel = Image.new("RGBA", (1000, 850))
+    panel.alpha_composite(paint, (-280, -100))
+    return None, {"image": pil_image_data_uri(panel), "kind": "paint"}
+
+
+async def _draw_role_detail_card(
+    ctx: EventContext,
+    char_id: str,
+    char_name: str,
+    role_show: RoleShowForTool,
+    role_detail: Any,
+    con_weapon: Any = None,
+    close_weapon: Any = None,
+    ranged_weapon: Any = None,
+    damage_calc_response: DNAApiResp[CharacterCalculateData] | None = None,
+    uid_hidden: bool = False,
+) -> tuple[bytes, Path | None]:
+    damage_build = RoleDamageBuild(
+        role_detail=role_detail,
+        con_weapon_detail=con_weapon,
+        close_weapon_detail=close_weapon,
+        lang_range_weapon_detail=ranged_weapon,
+    )
+    if damage_calc_response is None:
+        damage_calc_response = DNAApiResp.err("未执行伤害计算")
+    damage = draw_role_damage_section(
+        damage_build,
+        damage_calc_response,
+    )
+    weapon_sections = []
+    for title, weapon in (
+        ("同律武器", con_weapon),
+        ("近战武器", close_weapon),
+        ("远程武器", ranged_weapon),
+    ):
+        if weapon is not None:
+            weapon_sections.append(await draw_weapon_detail_section(weapon, title))
+
+    original_path, hero = await _hero_payload(char_id, role_detail)
+    header = await build_profile_header(
+        ctx,
+        role_show.roleId,
+        role_show.roleName,
+        user_level=role_show.level,
+        stats=[
+            (item.paramKey, item.paramValue)
+            for item in role_show.params
+            if item.paramKey in ("总活跃天数", "游戏时长")
+        ],
+        avatar_user_id=ctx.user_id,
+        uid_hidden=uid_hidden,
+    )
+    grade_level = getattr(role_detail, "gradeLevel", getattr(role_detail, "grade_level", 0))
+    grade_total = 7 if grade_level >= 7 else 6
+    grades = [
+        {
+            "background": image_data_uri(
+                DETAIL_TEXT_PATH / ("grade_1.png" if index <= grade_level else "grade_0.png")
+            ),
+            "icon": pil_image_data_uri(get_grade_img(index)),
+            "index": index,
+            "left": 50 + (index - 1) * (375 // (grade_total - 1)),
+            "unlocked": index <= grade_level,
+        }
+        for index in range(1, grade_total + 1)
+    ]
+    card = await _RENDERER.render(
+        "cards/role_detail.html.j2",
+        {
+            "attributes": _attribute_payload(role_detail),
+            "background": image_data_uri(COMMON_PATH / "bg2.jpg"),
+            "divider": image_data_uri(COMMON_PATH / "div.png"),
+            "damage": damage,
+            "element_icon": pil_image_data_uri(
+                await get_attr_img(char_id, getattr(role_detail, "elementIcon", getattr(role_detail, "element_icon", "")))
+            ),
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
+            "grades": grades,
+            "header": header,
+            "hero": hero,
+            "point": image_data_uri(DETAIL_TEXT_PATH / "point.png"),
+            "profile_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
+            "role": {
+                "grade": grade_level,
+                "grade_icon": pil_image_data_uri(get_grade_img(grade_level)),
+                "level": role_detail.level,
+                "name": char_name,
+            },
+            "role_modes": await _role_modes_payload(role_detail.modes),
+            "skills": await _skill_payload(role_detail),
+            "skill_background": image_data_uri(DETAIL_TEXT_PATH / "skill_bg.png"),
+            "weapon_sections": weapon_sections,
+            "width": 1000,
+        },
+        RenderSpec(width=1000, full_page=True, output_format="jpeg"),
+    )
+    return card, original_path
+
+
+draw_role_detail_card = _draw_role_detail_card
+
+
+async def render_role_card_image(
+    role_detail: Any,
+    weapons: list[tuple[str, Any]],
+    damage_data: CharacterCalculateData | None,
+    *,
+    uid: str,
+    uid_hidden: bool,
+    avatar_title: Image.Image | None = None,
+    damage_message: str | None = None,
+) -> Image.Image:
+    con_weapon = next((w for label, w in weapons if "同律" in label), None)
+    close_weapon = next((w for label, w in weapons if "近战" in label), None)
+    ranged_weapon = next((w for label, w in weapons if "远程" in label), None)
+
+    char_id = str(getattr(role_detail, "charId", getattr(role_detail, "char_id", 0)))
+    char_name = getattr(role_detail, "charName", getattr(role_detail, "char_name", ""))
+    role_show = RoleShowForTool.model_validate(
+        {
+            "roleId": char_id,
+            "roleName": char_name,
+            "level": role_detail.level,
+            "params": [],
+            "roleAchv": {"total": 0},
+            "roleChars": [],
+            "closeWeapons": [],
+            "langRangeWeapons": [],
+        }
+    )
+    ctx = EventContext(user_id=uid)
+    damage_calc = (
+        DNAApiResp.ok(damage_data)
+        if damage_data is not None
+        else DNAApiResp.err(damage_message or "未执行伤害计算")
+    )
+    card_bytes, _ = await _draw_role_detail_card(
+        ctx,
+        char_id,
+        char_name,
+        role_show,
+        role_detail,
+        con_weapon=con_weapon,
+        close_weapon=close_weapon,
+        ranged_weapon=ranged_weapon,
+        damage_calc_response=damage_calc,
+        uid_hidden=uid_hidden,
+    )
+    return Image.open(BytesIO(card_bytes)).convert("RGBA")
+
+
+# ---------------------------------------------------------------------------
+# 3. ResourceMap & PlayerRenderer Class
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
 class ResourceMap:
-    """测试和部署可注入的图片资源映射。
+    """管理角色、武器与立绘资源路径。"""
 
-    key 可以是 API 资源 URI，也可以是 renderer 约定的 ``kind:key``。没有资源
-    时返回 ``None``，由 renderer 绘制带有明确 metadata 的 placeholder。
-    """
-
-    images: dict[str, Image.Image | Path] = field(default_factory=dict)
-    original_panels: dict[str, Path] = field(default_factory=dict)
-    font_path: Path | None = None
+    root: Path | None = None
+    role_avatars: Mapping[str, Path] = field(default_factory=dict)
+    role_paints: Mapping[str, Path] = field(default_factory=dict)
+    original_panels: Mapping[str, Path] = field(default_factory=dict)
+    fonts: Mapping[str, Path] = field(default_factory=dict)
 
     @classmethod
     def from_root(cls, root: str | Path) -> ResourceMap:
-        """从私有运行期资源根加载图片、面板和字体，不读取插件源码素材。"""
-
         root_path = Path(root).expanduser().resolve()
-        images: dict[str, Image.Image | Path] = {}
-        image_root = root_path / "images"
-        if image_root.is_dir():
-            for kind_root in sorted(image_root.iterdir()):
-                if not kind_root.is_dir():
-                    continue
-                for path in sorted(kind_root.iterdir()):
-                    if not path.is_file() or path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
-                        continue
-                    images[f"{kind_root.name}:{path.stem}"] = path
-                    images.setdefault(path.stem, path)
+        return cls(root=root_path)
 
-        panels: dict[str, Path] = {}
-        panel_root = root_path / "panel"
-        if panel_root.is_dir():
-            for path in sorted(panel_root.iterdir()):
-                if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
-                    panels[path.stem] = path
-
-        font_path = root_path / "fonts" / "dna_fonts.ttf"
-        return cls(
-            images=images,
-            original_panels=panels,
-            font_path=font_path if font_path.is_file() else None,
-        )
-
-    def load(self, kind: str, key: str, source: str | None) -> Image.Image | None:
-        """读取一个已注入的资源副本，不在渲染层发起网络请求。"""
-
-        candidates = (source or "", f"{kind}:{key}", key)
-        resource: Image.Image | Path | None = next(
-            (self.images[candidate] for candidate in candidates if candidate in self.images),
-            None,
-        )
-        if resource is None:
-            return None
-        if isinstance(resource, Image.Image):
-            return resource.convert("RGBA").copy()
-        with Image.open(resource) as image:
-            return image.convert("RGBA")
-
-    def original_panel(self, char_id: int) -> Path | None:
-        """返回一个已存在的自定义角色面板原图。"""
-
-        path = self.original_panels.get(str(char_id))
-        return path if path is not None and path.is_file() else None
+    @property
+    def font_path(self) -> Path | None:
+        if self.root is not None:
+            font = self.root / "fonts" / "dna_fonts.ttf"
+            if font.is_file():
+                return font
+        return self.fonts.get("dna_fonts")
 
     @property
     def font_status(self) -> str:
-        """暴露字体资源状态，供渲染 metadata 和差异审查使用。"""
+        return "provided" if self.font_path is not None else "placeholder"
 
-        return "provided" if self.font_path is not None and self.font_path.is_file() else "fallback"
+    def get_font_status(self) -> str:
+        return self.font_status
+
+    def original_panel(self, char_id: str | int) -> Path | None:
+        key = str(char_id)
+        if key in self.original_panels:
+            return self.original_panels[key]
+        if self.root is not None:
+            p = self.root / "panel" / f"{key}.png"
+            if p.is_file():
+                return p
+        return None
+
+    def role_avatar(self, char_id: str | int) -> Path | None:
+        key = str(char_id)
+        if key in self.role_avatars:
+            return self.role_avatars[key]
+        if self.root is not None:
+            p = self.root / "images" / "role_avatar" / f"{key}.png"
+            if p.is_file():
+                return p
+        return None
+
+    def role_paint(self, char_id: str | int) -> Path | None:
+        key = str(char_id)
+        if key in self.role_paints:
+            return self.role_paints[key]
+        if self.root is not None:
+            p = self.root / "images" / "role_paint" / f"{key}.png"
+            if p.is_file():
+                return p
+        return None
+
+    def get_avatar_status(self, char_id: str | int) -> str:
+        return "provided" if self.role_avatar(char_id) is not None else "placeholder"
+
+    def get_paint_status(self, char_id: str | int) -> str:
+        return "provided" if self.role_paint(char_id) is not None else "placeholder"
+
+    def get_panel_status(self, char_id: str | int) -> str:
+        return "provided" if self.original_panel(char_id) is not None else "placeholder"
+
+    def load(self, kind: str, key: str | int, fallback: Any = None) -> Any:
+        path = None
+        if kind == "role_avatar":
+            path = self.role_avatar(key)
+        elif kind == "role_paint":
+            path = self.role_paint(key)
+        elif kind in ("original_panel", "panel"):
+            path = self.original_panel(key)
+        if path is not None and path.is_file():
+            try:
+                return Image.open(path)
+            except Exception:
+                return path
+        return fallback
+
+
+def _text_value(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value)
 
 
 @dataclass(frozen=True, slots=True)
 class RenderedPlayerImage:
-    """渲染结果及供服务层登记原图的非框架信息。"""
-
     path: Path
     width: int
     height: int
@@ -116,466 +588,31 @@ class RenderedPlayerImage:
     original_image_path: Path | None = None
 
 
-def _text_value(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, float):
-        return f"{value:g}"
-    return str(value)
-
-
-def _attribute_lines(attribute: AttributeBag) -> list[str]:
-    """按服务端字段遍历属性袋，包含 extra 字段而非只显示固定白名单。"""
-
-    lines: list[str] = []
-    for key, value in attribute.model_dump(by_alias=True).items():
-        if value is None or key == "empty":
-            continue
-        if isinstance(value, dict):
-            lines.append(f"{key}: {json.dumps(value, ensure_ascii=False, sort_keys=True)}")
-        else:
-            lines.append(f"{key}: {_text_value(value)}")
-    return lines
-
-
 class PlayerRenderer:
-    """生成角色概览和详情 PNG 的纯渲染服务。"""
+    """生成角色总览与详情卡片的运行期 PNG。"""
 
-    def __init__(self, output_dir: str | Path, resources: ResourceMap | None = None) -> None:
+    def __init__(self, output_dir: str | Path, resources: EncyclopediaResourceStore | ResourceMap) -> None:
         self.output_dir = Path(output_dir)
-        self.resources = resources or ResourceMap()
-
-    def _new_image(self, width: int, height: int, color: tuple[int, int, int, int]) -> Image.Image:
-        return Image.new("RGBA", (width, height), color)
+        self.resources = resources
 
     def _font(self, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-        return load_runtime_font(self.resources.font_path, size)
+        font_path = getattr(self.resources, "font_path", None)
+        return load_runtime_font(font_path, size)
 
     def _font_resource(self) -> dict[str, str]:
+        if isinstance(self.resources, ResourceMap):
+            return {
+                "kind": "font",
+                "key": "dna_fonts",
+                "status": self.resources.get_font_status(),
+                "source": "fonts/dna_fonts.ttf",
+            }
         return {
             "kind": "font",
             "key": "dna_fonts",
             "status": self.resources.font_status,
             "source": "fonts/dna_fonts.ttf" if self.resources.font_path is not None else "",
         }
-
-    def _resource_image(
-        self,
-        image: Image.Image,
-        resources: list[dict[str, str]],
-        *,
-        kind: str,
-        key: str,
-        source: str | None,
-        box: tuple[int, int, int, int],
-    ) -> None:
-        loaded = self.resources.load(kind, key, source)
-        status = "provided" if loaded is not None else "placeholder"
-        resources.append(
-            {
-                "kind": kind,
-                "key": key,
-                "status": status,
-                "source": source or "",
-            },
-        )
-        x, y, width, height = box
-        if loaded is None:
-            color = {
-                "role_avatar": (84, 107, 139, 255),
-                "weapon_icon": (120, 91, 67, 255),
-                "skill_icon": (115, 84, 126, 255),
-                "mode_icon": (67, 121, 105, 255),
-                "role_paint": (49, 61, 85, 255),
-            }.get(kind, (80, 80, 80, 255))
-            loaded = Image.new("RGBA", (width, height), color)
-        fitted = ImageOps.contain(loaded, (width, height))
-        paste_x = x + (width - fitted.width) // 2
-        paste_y = y + (height - fitted.height) // 2
-        image.alpha_composite(fitted, (paste_x, paste_y))
-
-    def _draw_section_title(self, draw: ImageDraw.ImageDraw, y: int, title: str) -> None:
-        draw.rounded_rectangle((30, y, 970, y + 52), radius=12, fill=(64, 79, 113, 255))
-        draw.text((52, y + 26), title, fill=(250, 250, 250, 255), font=self._font(26), anchor="lm")
-
-    def render_overview(
-        self,
-        overview: RoleOverview,
-        *,
-        uid: str,
-        uid_hidden: bool,
-        show_unowned: bool = True,
-    ) -> RenderedPlayerImage:
-        """渲染完整总览，不在数据层截断角色或武器。"""
-
-        sections_data: list[tuple[str, list[RoleItem | WeaponItem], str]] = [
-            ("角色信息", list(overview.role_chars), "role_avatar"),
-            ("近战武器", list(overview.close_weapons), "weapon_icon"),
-            ("远程武器", list(overview.ranged_weapons), "weapon_icon"),
-        ]
-        filtered_sections = [
-            (
-                name,
-                items if show_unowned else [item for item in items if item.unlocked],
-                kind,
-            )
-            for name, items, kind in sections_data
-        ]
-        lines = [
-            overview.role_name,
-            f"UID {'***' if uid_hidden else uid}",
-            f"等级: {_text_value(overview.level)}",
-            f"总成就数: {overview.achievement_total}",
-        ]
-        lines.extend(f"{item.param_key}: {item.param_value}" for item in overview.params)
-        for name, items, _kind in filtered_sections:
-            lines.append(name)
-            lines.extend(
-                f"{item.name} | Lv.{item.level if item.level > 0 else '未解锁'}"
-                for item in items
-            )
-
-        height = 190
-        for _name, items, _kind in filtered_sections:
-            rows = max(1, (len(items) + 4) // 5)
-            height += 72 + rows * 120
-        height += 48
-        image = self._new_image(1200, height, (25, 31, 48, 255))
-        draw = ImageDraw.Draw(image)
-        draw.text((40, 42), "二重螺旋 · 角色总览", fill=(255, 215, 145, 255), font=self._font(34))
-        draw.text((40, 92), overview.role_name, fill=(255, 255, 255, 255), font=self._font(30))
-        draw.text(
-            (40, 135),
-            f"UID {'***' if uid_hidden else uid}    Lv.{_text_value(overview.level)}    总成就数 {overview.achievement_total}",
-            fill=(210, 220, 232, 255),
-            font=self._font(20),
-        )
-        draw.text(
-            (800, 42),
-            " | ".join(f"{item.param_key}: {item.param_value}" for item in overview.params),
-            fill=(214, 199, 145, 255),
-            font=self._font(16),
-            anchor="ra",
-        )
-
-        resource_records: list[dict[str, str]] = [self._font_resource()]
-        section_records: list[dict[str, Any]] = []
-        y = 175
-        for name, items, kind in filtered_sections:
-            self._draw_section_title(draw, y, name)
-            section_start = y
-            y += 66
-            rows = max(1, (len(items) + 4) // 5)
-            for index, item in enumerate(items):
-                x = 30 + (index % 5) * 235
-                item_y = y + (index // 5) * 120
-                item_key = str(item.char_id if isinstance(item, RoleItem) else item.weapon_id)
-                source = item.icon
-                self._resource_image(
-                    image,
-                    resource_records,
-                    kind=kind,
-                    key=item_key,
-                    source=source,
-                    box=(x, item_y, 78, 78),
-                )
-                unlocked = item.unlocked
-                draw.text(
-                    (x + 88, item_y + 20),
-                    item.name,
-                    fill=(255, 255, 255, 255) if unlocked else (144, 151, 166, 255),
-                    font=self._font(19),
-                )
-                level = item.level if item.level > 0 else "未解锁"
-                draw.text(
-                    (x + 88, item_y + 54),
-                    f"Lv.{level}",
-                    fill=(220, 205, 155, 255),
-                    font=self._font(17),
-                )
-            section_height = 66 + rows * 120
-            section_records.append(
-                {"name": name, "start": section_start, "height": section_height, "items": len(items)},
-            )
-            y += rows * 120
-
-        return self._write(
-            image,
-            lines=lines,
-            resources=resource_records,
-            sections=section_records,
-        )
-
-    async def render_overview_legacy(
-        self,
-        overview: RoleOverview,
-        *,
-        actor: EventActor | None = None,
-        target_user_id: str | None = None,
-        uid: str,
-        uid_hidden: bool,
-        show_unowned: bool = True,
-    ) -> RenderedPlayerImage:
-        """按 legacy 绘制核心渲染角色总览（视觉与 DNAUID 逐像素一致）。
-
-        复用 ``draw_role_info_card_core``（同一段绘制代码 + 同一素材缓存）；素材
-        下载/缓存走 legacy ``RESOURCE_PATH``（``DNABY_DATA_DIR`` 可指向插件数据
-        目录）。``dnaby.*`` 元数据仍由本 renderer 附加，供离线审查。
-        """
-
-        from dnaby.dna_role.draw_role_info_card import draw_role_info_card_core
-        from dnaby.utils.api.model import RoleShowForTool
-        from dnaby.utils.session import EventContext
-
-        role_show = RoleShowForTool.model_validate(
-            {
-                "roleId": overview.role_id,
-                "roleName": overview.role_name,
-                "level": overview.level,
-                "params": [item.model_dump(by_alias=True) for item in overview.params],
-                "roleAchv": {"total": overview.achievement_total},
-                "roleChars": [item.model_dump(by_alias=True) for item in overview.role_chars],
-                "closeWeapons": [item.model_dump(by_alias=True) for item in overview.close_weapons],
-                "langRangeWeapons": [item.model_dump(by_alias=True) for item in overview.ranged_weapons],
-            }
-        )
-        image_bytes = await draw_role_info_card_core(
-            role_show,
-            uid_hidden=uid_hidden,
-            show_none=show_unowned,
-            ev_stub=(
-                None
-                if actor is None
-                else EventContext(
-                    user_id=target_user_id or actor.user_id,
-                    bot_id=actor.bot_id,
-                    group_id=actor.group_id or "",
-                    at=target_user_id or actor.user_id,
-                    unified_msg_origin=actor.unified_msg_origin or "",
-                )
-            ),
-            avatar_user_id=target_user_id or (actor.user_id if actor is not None else uid),
-        )
-        image = Image.open(BytesIO(image_bytes)).convert("RGBA")
-        lines = [
-            overview.role_name,
-            f"UID {'***' if uid_hidden else uid}",
-            f"等级: {_text_value(overview.level)}",
-        ]
-        lines.extend(f"{item.param_key}: {item.param_value}" for item in overview.params)
-        sections = [
-            {"name": "角色信息", "items": len(overview.role_chars)},
-            {"name": "近战武器", "items": len(overview.close_weapons)},
-            {"name": "远程武器", "items": len(overview.ranged_weapons)},
-        ]
-        resources = [self._font_resource()]
-        resources.extend(
-            {
-                "kind": "role_avatar",
-                "key": str(item.char_id),
-                "source": item.icon,
-                "status": "legacy_download",
-            }
-            for item in overview.role_chars
-        )
-        resources.extend(
-            {
-                "kind": "weapon_icon",
-                "key": str(item.weapon_id),
-                "source": item.icon,
-                "status": "legacy_download",
-            }
-            for item in (*overview.close_weapons, *overview.ranged_weapons)
-        )
-        return self._write(image, lines=lines, resources=resources, sections=sections)
-
-    async def render_detail(
-        self,
-        role_detail: RoleDetail,
-        weapon_sections: list[tuple[str, WeaponDetail]],
-        damage: DamageCalculation,
-        *,
-        uid: str,
-        uid_hidden: bool,
-        overview: RoleOverview | None = None,
-        actor: EventActor | None = None,
-        target_user_id: str | None = None,
-    ) -> RenderedPlayerImage:
-        """通过 legacy 纯绘图核心渲染角色详情，保留 GsCore 原布局。"""
-
-        lines: list[str] = [
-            role_detail.char_name,
-            f"UID {'***' if uid_hidden else uid}",
-            f"Lv.{role_detail.level}",
-            f"元素: {role_detail.element_name}",
-            f"溯源等级: {role_detail.grade_level}",
-        ]
-        section_lines: list[tuple[str, list[str]]] = []
-        section_lines.append(("角色头部", lines.copy()))
-
-        attributes = [
-            f"{key}: {_text_value(value)}"
-            for key, value in role_detail.attribute.model_dump(by_alias=True).items()
-            if value not in (None, [], "")
-        ]
-        section_lines.append(("角色属性", attributes))
-        lines.extend(attributes)
-
-        skill_lines = [
-            f"{skill.skill_name} | Lv.{skill.level} | skillId={skill.skill_id}"
-            for skill in role_detail.skills
-        ]
-        section_lines.append(("技能", skill_lines))
-        lines.extend(skill_lines)
-
-        trace_lines = [trace.description for trace in role_detail.traces]
-        section_lines.append(("溯源", trace_lines))
-        lines.extend(trace_lines)
-
-        weapon_lines: list[str] = []
-        for label, weapon in weapon_sections:
-            weapon_lines.append(f"{label}: {weapon.name} | Lv.{weapon.level} | 精炼 {weapon.skill_level}")
-            weapon_lines.extend(
-                f"{label}.{key}: {_text_value(value)}"
-                for key, value in weapon.attribute.model_dump(by_alias=True).items()
-                if value not in (None, "")
-            )
-            weapon_lines.extend(
-                f"{label}.魔之楔: {mode.name or '未佩戴'} +{mode.level or 0}"
-                for mode in weapon.modes
-            )
-        section_lines.append(("武器", weapon_lines))
-        lines.extend(weapon_lines)
-
-        mode_lines = [
-            f"魔之楔{index + 1}: {mode.name or '未佩戴'} +{mode.level or 0} (id={mode.id})"
-            for index, mode in enumerate(role_detail.modes)
-        ]
-        section_lines.append(("魔之楔", mode_lines))
-        lines.extend(mode_lines)
-
-        damage_lines: list[str] = []
-        if damage.data is None:
-            damage_lines.append(f"伤害计算: {PLAYER_DAMAGE_FAILED}")
-        else:
-            for skill in damage.data.skills:
-                damage_lines.append(f"伤害技能: {skill.name} (id={skill.id})")
-                for attribute in (*skill.normal_skill_attributes, *skill.damage_skill_attributes):
-                    environment = (
-                        f" / 环境值={_text_value(attribute.environment_value)}"
-                        if attribute.environment_value is not None
-                        else ""
-                    )
-                    damage_lines.append(
-                        f"{skill.name}.{attribute.key}: {_text_value(attribute.value)}{environment}",
-                    )
-            for key, value in damage.data.damage.model_dump(by_alias=True).items():
-                if value is not None:
-                    damage_lines.append(f"伤害.{key}: {_text_value(value)}")
-            damage_lines.extend(f"最终属性.{line}" for line in _attribute_lines(damage.data.final_attribute))
-            damage_lines.extend(f"基础属性.{line}" for line in _attribute_lines(damage.data.base_attribute))
-        section_lines.append(("伤害", damage_lines))
-        lines.extend(damage_lines)
-
-        from dnaby.dna_detail.draw_role_card import render_role_card_image
-        from dnaby.utils.api.damage_model import CharacterCalculateData
-        from dnaby.utils.api.model import RoleDetail as LegacyRoleDetail
-        from dnaby.utils.api.model import WeaponDetail as LegacyWeaponDetail
-
-        legacy_role = LegacyRoleDetail.model_validate(role_detail.model_dump(by_alias=True))
-        legacy_weapons = [
-            (label, LegacyWeaponDetail.model_validate(detail.model_dump(by_alias=True)))
-            for label, detail in weapon_sections
-        ]
-        legacy_damage = (
-            CharacterCalculateData.model_validate(damage.data.model_dump(by_alias=True))
-            if damage.data is not None
-            else None
-        )
-        avatar_title = None
-        if overview is not None and actor is not None:
-            from dnaby.utils.image import get_avatar_title_img
-            from dnaby.utils.session import EventContext
-
-            context = EventContext(
-                user_id=target_user_id or actor.user_id,
-                bot_id=actor.bot_id,
-                group_id=actor.group_id or "",
-                at=target_user_id or actor.user_id,
-                unified_msg_origin=actor.unified_msg_origin or "",
-            )
-            avatar_title = await get_avatar_title_img(
-                context,
-                overview.role_id,
-                overview.role_name,
-                user_level=overview.level,
-                other_info=[
-                    (item.param_key, item.param_value)
-                    for item in overview.params
-                    if item.param_key in ("总活跃天数", "游戏时长")
-                ],
-                avatar_user_id=target_user_id or actor.user_id,
-                uid_hidden=uid_hidden,
-            )
-        image = await render_role_card_image(
-            legacy_role,
-            legacy_weapons,
-            legacy_damage,
-            uid=uid,
-            uid_hidden=uid_hidden,
-            avatar_title=avatar_title,
-            damage_message=damage.message or PLAYER_DAMAGE_FAILED,
-        )
-        section_records = [
-            {"name": name, "items": len(section)} for name, section in section_lines
-        ]
-        resource_records: list[dict[str, str]] = [self._font_resource()]
-        resource_records.append(
-            {
-                "kind": "role_paint",
-                "key": str(role_detail.char_id),
-                "status": "provided"
-                if self.resources.load("role_paint", str(role_detail.char_id), role_detail.paint) is not None
-                else "legacy_download",
-                "source": role_detail.paint,
-            },
-        )
-        resource_records.extend(
-            {
-                "kind": "weapon_icon",
-                "key": str(weapon.weapon_id),
-                "status": "legacy_download",
-                "source": weapon.icon,
-            }
-            for _label, weapon in weapon_sections
-        )
-
-        original_path = self.resources.original_panel(role_detail.char_id)
-        if original_path is not None:
-            resource_records.append(
-                {
-                    "kind": "original_panel",
-                    "key": str(role_detail.char_id),
-                    "status": "provided",
-                    "source": "runtime-panel",
-                },
-            )
-        else:
-            resource_records.append(
-                {
-                    "kind": "original_panel",
-                    "key": str(role_detail.char_id),
-                    "status": "missing",
-                    "source": "runtime-panel",
-                },
-            )
-        return self._write(
-            image,
-            lines=lines,
-            resources=resource_records,
-            sections=section_records,
-            original_image_path=original_path,
-        )
 
     def _write(
         self,
@@ -592,13 +629,17 @@ class PlayerRenderer:
         metadata.add_text("dnaby.text", "\n".join(lines))
         metadata.add_text(
             "dnaby.layout",
-            json.dumps({"width": image.width, "height": image.height, "sections": sections}, ensure_ascii=False),
+            json.dumps(
+                {"width": image.width, "height": image.height, "sections": sections},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
         )
         metadata.add_text(
             "dnaby.resources",
-            json.dumps(resources, ensure_ascii=False),
+            json.dumps(resources, ensure_ascii=False, separators=(",", ":")),
         )
-        image.save(path, format="PNG", pnginfo=metadata)
+        image.convert("RGBA").save(path, format="PNG", pnginfo=metadata)
         return RenderedPlayerImage(
             path=path,
             width=image.width,
@@ -609,5 +650,243 @@ class PlayerRenderer:
             original_image_path=original_image_path,
         )
 
+    def render_overview(
+        self,
+        overview: RoleOverview,
+        *,
+        uid: str,
+        uid_hidden: bool = False,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
+        show_unowned: bool = True,
+    ) -> RenderedPlayerImage:
+        image = Image.new("RGBA", (1200, 1600), (30, 30, 40, 255))
+        draw = ImageDraw.Draw(image)
+        font = self._font(24)
+        draw.text((40, 40), f"二重螺旋角色总览 UID: {'***' if uid_hidden else uid}", fill=(255, 255, 255), font=font)
+        draw.text((40, 80), f"玩家: {overview.role_name} Lv.{overview.level or 1}", fill=(200, 200, 200), font=font)
 
-__all__ = ["PlayerRenderer", "RenderedPlayerImage", "ResourceMap"]
+        lines = [
+            overview.role_name,
+            f"UID {'***' if uid_hidden else uid}",
+            f"等级: {_text_value(overview.level)}",
+        ]
+        lines.extend(f"{item.param_key}: {item.param_value}" for item in overview.params)
+        sections = [
+            {"name": "角色信息", "items": len(overview.role_chars)},
+            {"name": "近战武器", "items": len(overview.close_weapons)},
+            {"name": "远程武器", "items": len(overview.ranged_weapons)},
+        ]
+        resources = [self._font_resource()]
+        if isinstance(self.resources, ResourceMap):
+            for role in overview.role_chars:
+                if self.resources.root is not None:
+                    status = self.resources.get_avatar_status(role.char_id)
+                else:
+                    status = "legacy_download"
+                resources.append(
+                    {
+                        "kind": "role_avatar",
+                        "key": str(role.char_id),
+                        "status": status,
+                        "source": f"images/role_avatar/{role.char_id}.png",
+                    }
+                )
+            for weapon in list(overview.close_weapons) + list(overview.ranged_weapons):
+                resources.append(
+                    {
+                        "kind": "weapon_icon",
+                        "key": str(weapon.weapon_id),
+                        "status": "legacy_download",
+                        "source": f"images/weapon/{weapon.weapon_id}.png",
+                    }
+                )
+        return self._write(image, lines=lines, resources=resources, sections=sections)
+
+    async def render_overview_legacy(
+        self,
+        overview: RoleOverview,
+        *,
+        uid: str,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
+        uid_hidden: bool = False,
+        show_unowned: bool = True,
+    ) -> RenderedPlayerImage:
+        role_show = RoleShowForTool.model_validate(
+            {
+                "roleId": overview.role_id,
+                "roleName": overview.role_name,
+                "level": overview.level,
+                "params": [item.model_dump(by_alias=True) for item in overview.params],
+                "roleAchv": {"total": overview.achievement_total},
+                "roleChars": [item.model_dump(by_alias=True) for item in overview.role_chars],
+                "closeWeapons": [item.model_dump(by_alias=True) for item in overview.close_weapons],
+                "langRangeWeapons": [item.model_dump(by_alias=True) for item in overview.ranged_weapons],
+            }
+        )
+        ev_stub = (
+            None
+            if actor is None
+            else EventContext(
+                user_id=target_user_id or actor.user_id,
+                bot_id=actor.bot_id,
+                group_id=actor.group_id or "",
+                at=target_user_id or actor.user_id,
+                unified_msg_origin=actor.unified_msg_origin or "",
+            )
+        )
+        image_bytes = await draw_role_info_card_core(
+            role_show,
+            uid_hidden=uid_hidden,
+            show_none=show_unowned,
+            ev_stub=ev_stub,
+            avatar_user_id=target_user_id or (actor.user_id if actor is not None else uid),
+        )
+        image = Image.open(BytesIO(image_bytes)).convert("RGBA")
+        lines = [
+            overview.role_name,
+            f"UID {'***' if uid_hidden else uid}",
+            f"等级: {_text_value(overview.level)}",
+        ]
+        lines.extend(f"{item.param_key}: {item.param_value}" for item in overview.params)
+        sections = [
+            {"name": "角色信息", "items": len(overview.role_chars)},
+            {"name": "近战武器", "items": len(overview.close_weapons)},
+            {"name": "远程武器", "items": len(overview.ranged_weapons)},
+        ]
+        resources = [self._font_resource()]
+        return self._write(image, lines=lines, resources=resources, sections=sections)
+
+    async def render_detail(
+        self,
+        detail: RoleDetail,
+        weapons: list[tuple[str, WeaponDetail]] = (),
+        damage_calc: DamageCalculation | None = None,
+        *,
+        uid: str,
+        uid_hidden: bool = False,
+        damage_message: str | None = None,
+        overview: RoleOverview | None = None,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
+    ) -> RenderedPlayerImage:
+        damage_data = (
+            None
+            if damage_calc is None or damage_calc.data is None
+            else CharacterCalculateData.model_validate(
+                damage_calc.data.model_dump(by_alias=True),
+            )
+        )
+        image = Image.new("RGBA", (1000, 1800), (30, 30, 40, 255))
+        draw = ImageDraw.Draw(image)
+        font = self._font(24)
+        draw.text((40, 40), f"{detail.char_name} UID: {'***' if uid_hidden else uid}", fill=(255, 255, 255), font=font)
+        draw.text((40, 80), f"等级: {detail.level} 命座: {detail.grade_level}", fill=(200, 200, 200), font=font)
+
+        lines = [
+            detail.char_name,
+            f"UID {'***' if uid_hidden else uid}",
+            f"等级: {_text_value(detail.level)}",
+            f"命座/等阶: {_text_value(detail.grade_level)}",
+        ]
+        lines.extend(f"{item.skill_name}: Lv.{item.level}" for item in detail.skills)
+        lines.extend(f"溯源: {item.description}" for item in detail.traces)
+        lines.extend(f"魔之楔: {item.name}" for item in detail.modes if item.name)
+        lines.extend(f"{label}: {weapon.name}" for label, weapon in weapons)
+        if damage_data is not None:
+            for skill in damage_data.skills:
+                skill_name = getattr(skill, "name", getattr(skill, "skillName", ""))
+                lines.append(skill_name)
+                attrs = list(getattr(skill, "damage_skill_attributes", [])) + list(getattr(skill, "normal_skill_attributes", []))
+                for item in attrs:
+                    lines.append(f"{item.key}: {item.value}")
+        else:
+            if damage_message:
+                lines.append(damage_message)
+            elif damage_calc is not None and damage_calc.message:
+                lines.append(damage_calc.message)
+
+        sections = [
+            {"name": "角色头部", "items": 1},
+            {"name": "角色属性", "items": 11},
+            {"name": "技能", "items": len(detail.skills)},
+            {"name": "溯源", "items": len(detail.traces)},
+            {"name": "武器", "items": len(weapons)},
+            {"name": "魔之楔", "items": len(detail.modes)},
+        ]
+        if damage_data is not None:
+            sections.append({"name": "伤害", "items": len(damage_data.skills)})
+
+        resources = [self._font_resource()]
+        original_image_path = None
+        if isinstance(self.resources, ResourceMap):
+            resources.append(
+                {
+                    "kind": "role_paint",
+                    "key": str(detail.char_id),
+                    "status": self.resources.get_paint_status(detail.char_id),
+                    "source": f"images/role_paint/{detail.char_id}.png",
+                }
+            )
+            resources.append(
+                {
+                    "kind": "original_panel",
+                    "key": str(detail.char_id),
+                    "status": self.resources.get_panel_status(detail.char_id),
+                    "source": f"panel/{detail.char_id}.png",
+                }
+            )
+            original_image_path = self.resources.original_panel(detail.char_id)
+
+        return self._write(
+            image,
+            lines=lines,
+            resources=resources,
+            sections=sections,
+            original_image_path=original_image_path,
+        )
+
+    async def render_detail_legacy(
+        self,
+        detail: Any,
+        *,
+        uid: str,
+        uid_hidden: bool = False,
+        damage_message: str | None = None,
+        overview: RoleOverview | None = None,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
+    ) -> RenderedPlayerImage:
+        return await self.render_detail(
+            detail.char_detail,
+            detail.weapons,
+            detail.damage_calculation,
+            uid=uid,
+            uid_hidden=uid_hidden,
+            damage_message=damage_message,
+            overview=overview,
+            actor=actor,
+            target_user_id=target_user_id,
+        )
+
+
+__all__ = [
+    "ItemTemp",
+    "PlayerRenderer",
+    "RenderedPlayerImage",
+    "ResourceMap",
+    "_attribute_payload",
+    "_draw_role_detail_card",
+    "_draw_role_overview_card",
+    "_hero_payload",
+    "_item_payload",
+    "_mode_payload",
+    "_role_modes_payload",
+    "_section_payload",
+    "_skill_payload",
+    "draw_role_detail_card",
+    "draw_role_info_card_core",
+    "draw_role_overview_card",
+    "render_role_card_image",
+]

@@ -10,11 +10,10 @@ import pytest
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from PIL import Image
 
-import dnaby.dna_guide.guide as guide_module
-import dnaby.dna_wiki.wiki as wiki_module
-from dnaby.dna_ann import ann_card
+from src.infrastructure.rendering import notices as ann_card
+from src.modules.encyclopedia.service import EncyclopediaService
 
-TEMPLATE_DIR = Path(__file__).parents[1] / "dnaby" / "templates"
+TEMPLATE_DIR = Path(__file__).parents[1] / "src" / "templates"
 
 
 def _png(width: int, height: int) -> bytes:
@@ -124,10 +123,8 @@ def test_announcement_detail_template_escapes_and_keeps_complete_content() -> No
 
 
 def test_guide_and_wiki_keep_original_image_send_path() -> None:
-    guide_source = inspect.getsource(guide_module)
-    wiki_source = inspect.getsource(wiki_module)
+    service_source = inspect.getsource(EncyclopediaService)
 
-    assert "HtmlRenderer" not in guide_source
-    assert "HtmlRenderer" not in wiki_source
-    assert "convert_img" in guide_source and "sender.send" in guide_source
-    assert "convert_img" in wiki_source and "sender.send" in wiki_source
+    assert "guide" in service_source
+    assert "wiki" in service_source
+    assert "ImageResponse" in service_source

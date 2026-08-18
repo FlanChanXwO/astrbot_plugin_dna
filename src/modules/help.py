@@ -17,7 +17,7 @@ async def help_use_case(
 ) -> ImageResponse:
     """使用 DNAUID 原版帮助卡片绘制器输出图片。"""
 
-    from dnaby.dna_help.get_help import get_help
+    from src.infrastructure.rendering.help import get_help
 
     payload = await get_help()
     with tempfile.NamedTemporaryFile(prefix="dnaby-help-帮助-", suffix=".jpg", delete=False) as file:

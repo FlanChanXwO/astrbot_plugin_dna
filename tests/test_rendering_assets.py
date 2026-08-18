@@ -7,7 +7,7 @@ import pytest
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from PIL import Image
 
-from dnaby.rendering import (
+from src.rendering import (
     AssetRenderError,
     font_data_uri,
     image_data_uri,
@@ -133,7 +133,7 @@ def test_data_uri_rejects_urls_and_unreadable_assets(tmp_path: Path) -> None:
 
 
 def test_shared_layout_macro_resets_margin_and_keeps_css_width() -> None:
-    template_dir = Path(__file__).parents[1] / "dnaby" / "templates"
+    template_dir = Path(__file__).parents[1] / "src" / "templates"
     environment = Environment(
         loader=FileSystemLoader(str(template_dir)),
         autoescape=select_autoescape(enabled_extensions=("html", "j2")),

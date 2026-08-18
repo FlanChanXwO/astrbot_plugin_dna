@@ -192,6 +192,10 @@ class EncyclopediaTransport(Protocol):
         ...
 
 
+StaminaSnapshot = PlayerShortNote
+WeeklyReportSnapshot = WeeklyReport
+
+
 __all__ = [
     "CalendarEvent",
     "CalendarSnapshot",
@@ -203,7 +207,9 @@ __all__ = [
     "EncyclopediaTransport",
     "EncyclopediaTransportError",
     "PlayerShortNote",
+    "StaminaSnapshot",
     "WeeklyReport",
     "WeeklyReportCategory",
     "WeeklyReportItem",
+    "WeeklyReportSnapshot",
 ]

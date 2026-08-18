@@ -168,6 +168,18 @@ class CommandRegistry:
             )
         )
 
+    def match(self, message: str) -> MatchedCommand | None:
+        """根据正则匹配文本命令，返回第一个匹配到的命令和捕获参数。"""
+        for spec in self._specs:
+            m = re.match(spec.pattern, message)
+            if m is not None:
+                return MatchedCommand(
+                    command=spec,
+                    match=m,
+                    parameters=m.groupdict(),
+                )
+        return None
+
     def render_help(self) -> str:
         """从同一 registry 渲染当前已实现命令的帮助文本。"""
 
@@ -184,6 +196,13 @@ class CommandRegistry:
                 suffix = f"（示例：{examples}）" if examples else ""
                 lines.append(f"{spec.name}：{spec.description}{suffix}")
         return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class MatchedCommand:
+    command: CommandSpec
+    match: re.Match[str]
+    parameters: dict[str, Any]
 
 
 def load_command_registry(

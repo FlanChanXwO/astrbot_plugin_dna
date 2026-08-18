@@ -6,19 +6,18 @@ import pytest
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from PIL import Image
 
-from dnaby.dna_detail.damage_renderer import draw_role_damage_section
-from dnaby.dna_detail.damage_service import RoleDamageBuild
-from dnaby.dna_detail.draw_role_card import _role_modes_payload
-from dnaby.dna_detail.weapon_renderer import draw_weapon_detail_section
-from dnaby.dna_role.draw_role_info_card import ItemTemp, _item_payload
-from dnaby.utils.api.damage_model import (
+from src.infrastructure.rendering.damage_renderer import draw_role_damage_section
+from src.infrastructure.rendering.player import ItemTemp, _item_payload, _role_modes_payload
+from src.infrastructure.rendering.weapon_renderer import draw_weapon_detail_section
+from src.modules.player.damage_service import RoleDamageBuild
+from src.utils.api.damage_model import (
     AttributeBag,
     CharacterCalculateData,
     DamageResult,
     SkillAttribute,
     SkillResult,
 )
-from dnaby.utils.api.model import (
+from src.utils.api.model import (
     Mode,
     RoleAttribute,
     RoleDetail,
@@ -26,9 +25,9 @@ from dnaby.utils.api.model import (
     WeaponAttribute,
     WeaponDetail,
 )
-from dnaby.utils.api.request_util import DNAApiResp
+from src.utils.api.request_util import DNAApiResp
 
-TEMPLATE_DIR = Path(__file__).parents[1] / "dnaby" / "templates"
+TEMPLATE_DIR = Path(__file__).parents[1] / "src" / "templates"
 
 
 def _role_detail() -> RoleDetail:
@@ -106,7 +105,7 @@ async def test_weapon_and_role_mode_payloads_inline_all_assets(monkeypatch: pyte
     async def fake_weapon(*_: object) -> Image.Image:
         return Image.new("RGBA", (2, 2), "red")
 
-    monkeypatch.setattr("dnaby.dna_detail.weapon_renderer.get_weapon_img", fake_weapon)
+    monkeypatch.setattr("src.infrastructure.rendering.weapon_renderer.get_weapon_img", fake_weapon)
     weapon = WeaponDetail(
         attribute=WeaponAttribute(atk=100, crd=0.2, cri=1.5, speed=1.0, trigger=0.3),
         currentVolume=0,
@@ -193,7 +192,7 @@ async def test_role_overview_item_uses_legacy_grade_texture(
     async def fake_asset(*_: object, **__: object) -> Image.Image:
         return Image.new("RGBA", (256, 256), "red")
 
-    role_module = cast(Any, importlib.import_module("dnaby.dna_role.draw_role_info_card"))
+    role_module = cast(Any, importlib.import_module("src.infrastructure.rendering.player"))
     monkeypatch.setattr(role_module, "get_avatar_img", fake_asset)
     monkeypatch.setattr(role_module, "get_attr_img", fake_asset)
     item = ItemTemp(

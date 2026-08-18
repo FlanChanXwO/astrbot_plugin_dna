@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from PIL import Image
 
-from dnaby.rendering import (
+from src.rendering import (
     HtmlRenderer,
     RenderResultError,
     RenderSpec,

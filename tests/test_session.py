@@ -5,8 +5,8 @@ from io import BytesIO
 
 from PIL import Image as PILImage
 
-from dnaby.utils.segments import MessageSegment
-from dnaby.utils.session import EventContext, Sender
+from src.utils.segments import MessageSegment
+from src.utils.session import EventContext, Sender
 
 
 def _img() -> bytes:

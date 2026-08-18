@@ -130,7 +130,7 @@ def _rotation_period(
 def _role_overview(data: Any) -> RoleOverview:
     """将角色卡片完整映射为玩家领域共用的 RoleOverview。"""
 
-    from dnaby.utils.api.model import DNARoleForToolRes
+    from src.utils.api.model import DNARoleForToolRes
 
     payload = DNARoleForToolRes.model_validate(data)
     role_show = payload.roleInfo.roleShow
@@ -188,7 +188,7 @@ class DnaApiEncyclopediaTransport:
                 detail="credential record is missing",
             )
         try:
-            from dnaby.utils.database.models import DNAUser
+            from src.utils.database.models import DNAUser
 
             return DNAUser(
                 user_id=credential_user_id,
@@ -216,7 +216,7 @@ class DnaApiEncyclopediaTransport:
     def _short_note(data: Any) -> PlayerShortNote:
         """映射便签 payload，保留每个合法锻造槽位字段。"""
 
-        from dnaby.utils.api.model import DNARoleShortNoteRes
+        from src.utils.api.model import DNARoleShortNoteRes
 
         payload = DNARoleShortNoteRes.model_validate(data)
         draft_info = payload.draftInfo
@@ -249,7 +249,7 @@ class DnaApiEncyclopediaTransport:
     def _weekly(report_data: Any, role_data: Any) -> WeeklyReport:
         """映射周报全部分类/资源项并合并角色概览。"""
 
-        from dnaby.utils.api.model import DNAItemWeeklyReportRes
+        from src.utils.api.model import DNAItemWeeklyReportRes
 
         payload = DNAItemWeeklyReportRes.model_validate(report_data)
         categories = tuple(
@@ -380,7 +380,7 @@ class DnaApiEncyclopediaTransport:
         credential_user_id: str,
     ) -> PlayerShortNote:
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             legacy_user = await self._legacy_user(actor, uid, credential_user_id)
             short_note = _response_data(
@@ -415,7 +415,7 @@ class DnaApiEncyclopediaTransport:
         credential_user_id: str,
     ) -> WeeklyReport:
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             legacy_user = await self._legacy_user(actor, uid, credential_user_id)
             report_data = _response_data(
@@ -447,7 +447,7 @@ class DnaApiEncyclopediaTransport:
         activity_data: Any = None
         wiki_data: Any = None
         try:
-            from dnaby.utils import dna_api
+            from src.utils import dna_api
 
             try:
                 activity_data = _response_data(

@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import dnaby.dna_sign.sign as sign_module
-from dnaby.rendering import T2IRenderError
-from dnaby.utils.segments import ImageSegment
+import src.modules.checkin.broadcast as sign_module
+from src.rendering import T2IRenderError
+from src.utils.segments import ImageSegment
 
 
 class _SignConfig:

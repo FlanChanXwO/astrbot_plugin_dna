@@ -46,7 +46,7 @@ TARGET_UID = "9876543210987"
 def _preseed_legacy_assets() -> None:
     """预置 legacy 素材缓存（命中即不下载），使离线渲染可复现。"""
 
-    from dnaby.utils.resource import RESOURCE_PATH
+    from src.utils.resource import RESOURCE_PATH
 
     assets = {
         RESOURCE_PATH.AVATAR_PATH / "avatar_101.png": (180, 60, 60),
@@ -662,7 +662,7 @@ async def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_
     """玩家图片的资源 metadata 必须区分私有根提供的素材与 placeholder。"""
 
     resource_root = tmp_path / "resources"
-    font_source = Path(__file__).resolve().parents[1] / "dnaby" / "utils" / "fonts" / "dna_fonts.ttf"
+    font_source = Path(__file__).resolve().parents[1] / "src" / "resources" / "fonts" / "dna_fonts.ttf"
     font = resource_root / "fonts" / "dna_fonts.ttf"
     avatar = resource_root / "images" / "role_avatar" / "101.png"
     paint = resource_root / "images" / "role_paint" / "101.png"

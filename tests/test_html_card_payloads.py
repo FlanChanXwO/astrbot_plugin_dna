@@ -27,7 +27,7 @@ class RendererSpy:
 
 @pytest.mark.asyncio
 async def test_help_card_keeps_groups_and_examples(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = importlib.import_module("dnaby.dna_help.get_help")
+    module = importlib.import_module("src.infrastructure.rendering.help")
     renderer = RendererSpy()
     font_paths: list[Path] = []
     monkeypatch.setattr(module, "_RENDERER", renderer)
@@ -56,7 +56,7 @@ async def test_help_card_keeps_groups_and_examples(monkeypatch: pytest.MonkeyPat
 
 
 def test_help_ambiguous_icons_match_gscore_selection() -> None:
-    module = importlib.import_module("dnaby.dna_help.get_help")
+    module = importlib.import_module("src.infrastructure.rendering.help")
 
     assert module._find_icon("查看UID列表").name == "UID.png"
     assert module._find_icon("基本信息卡片").name == "基本信息.png"
@@ -64,7 +64,7 @@ def test_help_ambiguous_icons_match_gscore_selection() -> None:
 
 @pytest.mark.asyncio
 async def test_update_log_card_preserves_existing_log_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = importlib.import_module("dnaby.dna_update.draw_update_log")
+    module = importlib.import_module("src.infrastructure.rendering.update_log")
     renderer = RendererSpy()
     monkeypatch.setattr(module, "_RENDERER", renderer)
     monkeypatch.setattr(module, "font_data_uri", lambda _: "data:font/ttf;base64,AA==")
@@ -79,7 +79,7 @@ async def test_update_log_card_preserves_existing_log_cleanup(monkeypatch: pytes
 
 @pytest.mark.asyncio
 async def test_announcement_list_embeds_previews_and_keeps_indexes(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = importlib.import_module("dnaby.dna_ann.ann_card")
+    module = importlib.import_module("src.infrastructure.rendering.notices")
     renderer = RendererSpy()
     monkeypatch.setattr(module, "_RENDERER", renderer)
     monkeypatch.setattr(
@@ -117,7 +117,7 @@ async def test_announcement_list_embeds_previews_and_keeps_indexes(monkeypatch: 
 
 @pytest.mark.asyncio
 async def test_sign_report_keeps_fixed_canvas_and_message_lines(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = importlib.import_module("dnaby.dna_sign.sign")
+    module = importlib.import_module("src.infrastructure.rendering.checkin")
     renderer = RendererSpy()
     monkeypatch.setattr(module, "_RENDERER", renderer)
     monkeypatch.setattr(module, "font_data_uri", lambda _: "data:font/ttf;base64,AA==")
@@ -131,7 +131,7 @@ async def test_sign_report_keeps_fixed_canvas_and_message_lines(monkeypatch: pyt
 
 
 def test_simple_card_templates_keep_key_text_and_css_width() -> None:
-    template_dir = Path(__file__).parents[1] / "dnaby" / "templates"
+    template_dir = Path(__file__).parents[1] / "src" / "templates"
     environment = Environment(
         loader=FileSystemLoader(str(template_dir)),
         autoescape=select_autoescape(enabled_extensions=("html", "j2")),
@@ -172,7 +172,7 @@ def test_simple_card_templates_keep_key_text_and_css_width() -> None:
 
 
 def test_help_template_uses_legacy_group_and_item_coordinates() -> None:
-    template_dir = Path(__file__).parents[1] / "dnaby" / "templates"
+    template_dir = Path(__file__).parents[1] / "src" / "templates"
     environment = Environment(
         loader=FileSystemLoader(str(template_dir)),
         autoescape=select_autoescape(enabled_extensions=("html", "j2")),

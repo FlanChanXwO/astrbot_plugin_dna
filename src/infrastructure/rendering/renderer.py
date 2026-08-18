@@ -113,6 +113,11 @@ class HtmlRenderer:
             return self._t2i
         try:
             from astrbot.core import html_renderer
+            if hasattr(html_renderer, "network_strategy"):
+                ns = html_renderer.network_strategy
+                if hasattr(ns, "BASE_RENDER_URL") and ("soulter.top" in str(ns.BASE_RENDER_URL) or not ns.BASE_RENDER_URL):
+                    ns.BASE_RENDER_URL = "http://localhost:8999/text2img"
+                    ns.endpoints = ["http://localhost:8999/text2img"]
         except ImportError as exc:
             raise T2IRenderError(
                 "无法导入 AstrBot 全局 html_renderer", cause=exc

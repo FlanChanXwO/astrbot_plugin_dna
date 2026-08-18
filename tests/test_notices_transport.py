@@ -125,7 +125,7 @@ async def _transport_with_credential(tmp_path: Path) -> tuple[DnaApiNoticesTrans
 
 
 def _patch_dna_api(monkeypatch, fake) -> None:
-    from dnaby.utils import dna_api
+    from src.utils import dna_api
 
     monkeypatch.setattr(dna_api, "get_default_role_for_tool", fake)
 

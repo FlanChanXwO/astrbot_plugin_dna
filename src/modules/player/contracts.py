@@ -128,6 +128,14 @@ class RoleSkill(_PlayerModel):
     level: int = 0
     skill_name: str = Field(validation_alias="skillName", serialization_alias="skillName")
 
+    @property
+    def skillId(self) -> int:
+        return self.skill_id
+
+    @property
+    def skillName(self) -> str:
+        return self.skill_name
+
 
 class RoleTrace(_PlayerModel):
     """角色溯源描述。"""
@@ -166,6 +174,34 @@ class RoleDetail(_PlayerModel):
     con_weapon_eid: str | None = Field(default=None, validation_alias="conWeaponEid", serialization_alias="conWeaponEid")
     con_weapon_id: int | None = Field(default=None, validation_alias="conWeaponId", serialization_alias="conWeaponId")
 
+    @property
+    def charId(self) -> int:
+        return self.char_id
+
+    @property
+    def charName(self) -> str:
+        return self.char_name
+
+    @property
+    def gradeLevel(self) -> int:
+        return self.grade_level
+
+    @property
+    def elementName(self) -> str:
+        return self.element_name
+
+    @property
+    def elementIcon(self) -> str:
+        return self.element_icon
+
+    @property
+    def currentVolume(self) -> int:
+        return self.current_volume
+
+    @property
+    def sumVolume(self) -> int:
+        return self.sum_volume
+
 
 class WeaponAttribute(_PlayerModel):
     """武器面板属性。"""
@@ -191,6 +227,30 @@ class WeaponDetail(_PlayerModel):
     name: str
     skill_level: int = Field(default=0, validation_alias="skillLevel", serialization_alias="skillLevel")
     sum_volume: int = Field(default=0, validation_alias="sumVolume", serialization_alias="sumVolume")
+
+    @property
+    def id(self) -> int:
+        return self.weapon_id
+
+    @property
+    def elementName(self) -> str:
+        return self.element_name
+
+    @property
+    def elementIcon(self) -> str:
+        return self.element_icon
+
+    @property
+    def currentVolume(self) -> int:
+        return self.current_volume
+
+    @property
+    def sumVolume(self) -> int:
+        return self.sum_volume
+
+    @property
+    def skillLevel(self) -> int:
+        return self.skill_level
 
 
 class AttributeBag(_PlayerModel):

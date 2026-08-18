@@ -186,12 +186,12 @@ def build_runtime(
     )
 
     def _resolve_char_id(char_name: str) -> str | None:
-        from dnaby.utils.name_convert import char_name_to_char_id
+        from src.utils.name_convert import char_name_to_char_id
 
         return char_name_to_char_id(char_name)
 
     def _panel_dir_for(char_id: str) -> str:
-        from dnaby.utils.master_char_const import get_master_char_panel_dir
+        from src.utils.master_char_const import get_master_char_panel_dir
 
         return get_master_char_panel_dir(char_id)
 

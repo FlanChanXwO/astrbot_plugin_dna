@@ -388,7 +388,7 @@ async def test_legacy_transport_maps_response_shape_errors_without_raw_detail():
         async def login_app(self, _mobile, _code, _dev_code):
             raise TypeError("token=transport-shape-secret")
 
-    from dnaby.utils.api.model import DNALoginRes
+    from src.utils.api.model import DNALoginRes
 
     transport = DnaApiAccountTransport()
     with pytest.raises(AccountTransportError) as raised:

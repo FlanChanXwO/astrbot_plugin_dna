@@ -3,8 +3,8 @@ from typing import Any
 
 import pytest
 
-from dnaby.rendering import qr as qr_module
-from dnaby.utils import image_utils
+from src.rendering import qr as qr_module
+from src.utils import image_utils
 
 
 @pytest.mark.asyncio

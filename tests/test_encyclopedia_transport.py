@@ -176,7 +176,7 @@ def test_base_calendar_events_do_not_import_legacy_renderer(monkeypatch) -> None
     original_import = builtins.__import__
 
     def guarded_import(name, *args, **kwargs):
-        if name == "dnaby.dna_calendar.draw_calendar_card":
+        if "dna_calendar.draw_calendar_card" in name:
             raise AssertionError("资料 transport 不应导入 legacy 日历渲染器")
         return original_import(name, *args, **kwargs)
 

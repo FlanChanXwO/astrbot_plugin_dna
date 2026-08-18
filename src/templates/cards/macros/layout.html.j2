@@ -3,7 +3,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width={{ width }}, initial-scale=1" />
+    <meta name="viewport" content="width={{ width }}, height={{ height or 800 }}, initial-scale=1" />
     <style>
       * { box-sizing: border-box; }
       html, body { width: 100%; min-height: 100%; margin: 0; padding: 0; }
@@ -74,4 +74,4 @@
 
 {% macro divider() -%}<div class="dna-divider"></div>{%- endmacro %}
 
-{% macro footer(text='DNAUID') -%}<footer class="dna-footer">{{ text }}</footer>{%- endmacro %}
+{% macro footer(text='Power By AstrBot & Copyright 二重 螺旋') -%}<footer class="dna-footer">{{ text }}</footer>{%- endmacro %}

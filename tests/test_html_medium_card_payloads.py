@@ -6,19 +6,19 @@ from zoneinfo import ZoneInfo
 import pytest
 from PIL import Image
 
-import dnaby.rendering.payloads as profile_payloads
-from dnaby.dna_calendar.draw_calendar_card import (
+import src.rendering.payloads as profile_payloads
+from src.infrastructure.rendering.encyclopedia import (
     TEXT_PATH,
     CalendarContent,
     _calendar_background,
     _event_payload,
     _load_banner,
+    _progress_ratio,
 )
-from dnaby.dna_mh.draw_mh import _mh_payload
-from dnaby.dna_stamina.draw_stamina import _progress_ratio
-from dnaby.utils.api.model import DNARoleForToolInstance, DNARoleForToolInstanceInfo
-from dnaby.utils.image_utils import crop_center_img
-from dnaby.utils.session import EventContext
+from src.infrastructure.rendering.notices import _mh_payload
+from src.utils.api.model import DNARoleForToolInstance, DNARoleForToolInstanceInfo
+from src.utils.image_utils import crop_center_img
+from src.utils.session import EventContext
 
 
 def test_mh_payload_keeps_dynamic_instances_and_subscription_state() -> None:

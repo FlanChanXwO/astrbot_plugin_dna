@@ -24,5 +24,5 @@
 {{ legacy_profile_header(header, header_background) }}
 <section class="stamina-card__notes">{% for note in notes %}<article class="stamina-card__note">{% if note.icon %}<img src="{{ note.icon }}" alt="" />{% endif %}<div><strong>{{ note.name }}</strong><div class="stamina-card__track"><div class="stamina-card__value" style="width: {{ note.ratio * 100 }}%"></div></div></div><span>{{ note.current }}/{{ note.total }}</span></article>{% endfor %}</section>
 {% if drafts %}<section class="stamina-card__drafts">{% for draft in drafts %}<article class="stamina-card__draft{% if draft.done %} done{% endif %}" style="top:{{ 980 - loop.index * 100 }}px"><img src="{% if draft.done %}{{ success }}{% else %}{{ running }}{% endif %}" alt="" /><span class="stamina-card__draft-name">{{ draft.name }}</span><span class="stamina-card__draft-state">{{ draft.state }}</span></article>{% endfor %}</section>{% endif %}
-<p class="stamina-card__footer">Created By DnaUID &amp; Power By GsCore &amp; Copyright 二重 螺旋</p>
+<p class="stamina-card__footer">Power By AstrBot &amp; Copyright 二重 螺旋</p>
 {% endcall %}

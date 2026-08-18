@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 
 from ...entry.response import ImageResponse, PlainTextResponse
@@ -101,7 +102,7 @@ class PlayerService:
             request.actor.bot_id,
             request.actor.group_id,
         )
-        rendered = await self.renderer.render_overview_legacy(
+        rendered_res = self.renderer.render_overview(
             overview,
             actor=request.actor,
             target_user_id=target_user_id,
@@ -109,6 +110,10 @@ class PlayerService:
             uid_hidden=uid_hidden,
             show_unowned=self.show_unowned_roles,
         )
+        if asyncio.iscoroutine(rendered_res):
+            rendered = await rendered_res
+        else:
+            rendered = rendered_res
         return ImageResponse(str(rendered.path), temporary=True)
 
     @staticmethod

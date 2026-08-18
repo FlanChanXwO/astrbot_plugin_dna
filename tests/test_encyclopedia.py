@@ -299,7 +299,7 @@ def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(tmp_path: Path
 async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(tmp_path: Path) -> None:
     """周报和日历必须在图片 metadata 中显式区分提供素材与 placeholder。"""
 
-    from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
 
     root = tmp_path / "resources"
     weekly = root / "weekly_item" / "item_100.png"
@@ -351,7 +351,7 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(t
 async def test_stamina_renderer_uses_legacy_dnauid_canvas(tmp_path: Path) -> None:
     """便签必须复用原 DNAUID 的 2000x1100 卡片，而不是 rewrite 调试列表。"""
 
-    from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH
+    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH
 
     avatar = AVATAR_PATH / "avatar_user-1.png"
     avatar.parent.mkdir(parents=True, exist_ok=True)
@@ -377,7 +377,7 @@ async def test_stamina_renderer_uses_legacy_dnauid_canvas(tmp_path: Path) -> Non
 async def test_weekly_renderer_uses_all_legacy_material_rows(tmp_path: Path) -> None:
     """周报按原素材卡模式动态增高，七个资源和空分类都必须保留。"""
 
-    from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
 
     avatar = AVATAR_PATH / "avatar_user-1.png"
     avatar.parent.mkdir(parents=True, exist_ok=True)
@@ -408,7 +408,7 @@ async def test_weekly_renderer_uses_all_legacy_material_rows(tmp_path: Path) -> 
 def test_weekly_legacy_card_truncates_only_the_visible_item_name() -> None:
     """固定卡片沿用服务端八字符显示规则，typed metadata 仍保存完整名称。"""
 
-    from dnaby.dna_weekly_report.draw_weekly_report import weekly_item_display_name
+    from src.infrastructure.rendering.encyclopedia import weekly_item_display_name
 
     full_name = "超长资源名称测试项"
     assert weekly_item_display_name(full_name) == "超长资源名称测…"
@@ -568,7 +568,7 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
 ) -> None:
     """@查询必须沿用 resolved target，而不是命令发起者的头像或账号。"""
 
-    from dnaby.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
 
     database = await _database_with_binding(
         tmp_path,

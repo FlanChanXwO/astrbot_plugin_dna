@@ -79,7 +79,7 @@ class ResourceUpdateService:
     async def update_log(self, _request: object):
         """读取插件仓库最近提交。"""
 
-        from dnaby.dna_update.draw_update_log import draw_update_log_img
+        from src.infrastructure.rendering.update_log import draw_update_log_img
 
         commits = await asyncio.to_thread(self.commit_log, self.repo_root)
         if not commits:
