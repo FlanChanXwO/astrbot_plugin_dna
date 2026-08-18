@@ -51,8 +51,8 @@ def _raise_if_failed(response: Any) -> Any:
 def _role_infos(channel: LoginChannel, data: Any) -> tuple[RoleInfo, ...]:
     """解析 App 多角色或 Web 默认角色为统一 role DTO。"""
 
-    from src.utils.api.model import DNARoleForToolRes, DNARoleListRes
-    from src.utils.constants.constants import DNA_GAME_ID
+    from ...utils.api.model import DNARoleForToolRes, DNARoleListRes
+    from ...utils.constants.constants import DNA_GAME_ID
 
     if channel is LoginChannel.APP:
         payload = DNARoleListRes.model_validate(data)
@@ -115,9 +115,9 @@ class DnaApiAccountTransport:
         """使用 legacy DNAApi 完成 token 或短信登录，并统一角色结果。"""
 
         try:
-            from src.utils import dna_api
-            from src.utils.api.auth import create_device_code
-            from src.utils.api.model import DNALoginRes
+            from ...utils import dna_api
+            from ...utils.api.auth import create_device_code
+            from ...utils.api.model import DNALoginRes
         except ImportError:
             raise AccountTransportError(
                 TransportErrorKind.SERVER,
@@ -147,7 +147,7 @@ class DnaApiAccountTransport:
         """执行单一渠道的短信登录。"""
 
         try:
-            from src.utils.api.auth import LoginChannel as LegacyLoginChannel
+            from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 
             legacy_channel = LegacyLoginChannel(attempt.channel.value)
             dev_code = create_device_code(legacy_channel)
@@ -195,7 +195,7 @@ class DnaApiAccountTransport:
     ) -> LoginResult:
         """按 legacy 顺序尝试 App，再尝试 Web token 角色接口。"""
 
-        from src.utils.api.auth import LoginChannel as LegacyLoginChannel
+        from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 
         errors: list[AccountTransportError] = []
         for channel in (LoginChannel.APP, LoginChannel.WEB):
@@ -250,7 +250,7 @@ class DnaApiAccountTransport:
             )
             return _role_infos(credentials.channel, response.data)
 
-        from src.utils.api.auth import get_token_user_id
+        from ...utils.api.auth import get_token_user_id
 
         if get_token_user_id(credentials.token) is None:
             raise AccountTransportError(

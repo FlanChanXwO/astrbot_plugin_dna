@@ -83,7 +83,7 @@ class DnaApiCheckinTransport:
                 detail="credential record is missing",
             )
         try:
-            from src.utils.database.models import DNAUser
+            from ...utils.database.models import DNAUser
 
             return DNAUser(
                 user_id=credential_user_id,
@@ -109,7 +109,7 @@ class DnaApiCheckinTransport:
 
     @staticmethod
     def _sign_calendar(data: Any) -> SignCalendar:
-        from src.utils.api.model import DNACalendarSignRes
+        from ...utils.api.model import DNACalendarSignRes
 
         payload = DNACalendarSignRes.model_validate(data)
         period = payload.period
@@ -154,7 +154,7 @@ class DnaApiCheckinTransport:
 
     @staticmethod
     def _task_process(data: Any) -> TaskProcess:
-        from src.utils.api.model import DNATaskProcessRes
+        from ...utils.api.model import DNATaskProcessRes
 
         payload = DNATaskProcessRes.model_validate(data)
         return TaskProcess(
@@ -180,7 +180,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> SignCalendar:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.sign_calendar(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -216,7 +216,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> SignStatus:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.game_sign(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -239,7 +239,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> TaskProcess:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.get_task_process(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -260,7 +260,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> SignStatus:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.bbs_sign(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -281,7 +281,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> int:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.have_sign_in(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -309,8 +309,8 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> RoleOverview:
         try:
-            from src.utils import dna_api
-            from src.infrastructure.http.player import DnaApiPlayerTransport
+            from ...utils import dna_api
+            from .player import DnaApiPlayerTransport
 
             response = await dna_api.get_default_role_for_tool(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -333,7 +333,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> tuple[CommunityPost, ...]:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.get_post_list(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -364,7 +364,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> bool:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.get_post_detail(
                 post.post_id,
@@ -387,7 +387,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> bool:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.do_like(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -409,7 +409,7 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> bool:
         try:
-            from src.utils import dna_api
+            from ...utils import dna_api
 
             response = await dna_api.do_share(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -431,8 +431,8 @@ class DnaApiCheckinTransport:
         credential_user_id: str,
     ) -> bool:
         try:
-            from src.modules.checkin.reply_temps import get_random_reply
-            from src.utils import dna_api
+            from ...modules.checkin.reply_temps import get_random_reply
+            from ...utils import dna_api
 
             response = await dna_api.do_reply(
                 await self._legacy_user(actor, uid, credential_user_id),
