@@ -1,4 +1,4 @@
-"""私有资源仓库的 manifest、路径和 Git 同步入口。"""
+"""公共资源仓库的 manifest、路径和 Git 同步入口。"""
 
 from .encyclopedia import (
     AliasCatalog,

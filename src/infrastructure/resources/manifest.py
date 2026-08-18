@@ -1,4 +1,4 @@
-"""私有资源仓库 manifest 定义与目录校验。"""
+"""公共资源仓库 manifest 定义与目录校验。"""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ RUNTIME_RESOURCE_DIRECTORIES: tuple[str, ...] = (
     "weekly_item",
     "calendar",
 )
-"""v0.3 renderer 与资料索引共同消费的私有资源目录。"""
+"""v0.3 renderer 与资料索引共同消费的公共资源目录。"""
 
 
 class ResourceManifestError(ValueError):

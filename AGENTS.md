@@ -13,7 +13,7 @@
   `infrastructure/`（config、persistence、http transports、rendering、resources、
   subscriptions、scheduler、notices_scheduler）。
 - `src/infrastructure/config/` — Pydantic typed settings 与 `_conf_schema.json` 生成器。
-- `src/infrastructure/resources/` — 私有 `dnaby_resources` Git 仓库的路径、manifest 校验和安全同步接口。
+- `src/infrastructure/resources/` — 公共 `astrbot_plugin_dna_resources` Git 仓库的路径、manifest 校验和安全同步接口。
 - `dnaby/` — legacy 内部业务包（保留原 `dna_*` 布局），仅作迁移参考/复用纯逻辑（请求签名、
   伤害计算、PIL 渲染、攻略/wiki 素材、姓名别名、master char 常量、ann/mh 纯工具）。
 - `commands.json` — 命令清单投影（代码 registry 是唯一事实源）。
