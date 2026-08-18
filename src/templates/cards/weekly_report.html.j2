@@ -1,0 +1,31 @@
+{% from "cards/macros/layout.html.j2" import card_shell %}
+{% from "cards/macros/components.html.j2" import legacy_profile_header %}
+{% call card_shell(width, height, background=background, class_name="weekly-report") %}
+<style>
+  @font-face { font-family: "DNAUnicode"; src: url("{{ font }}") format("woff2"); }
+  .weekly-report { position: relative; width: 1200px; height: {{ height }}px; color: #fff; font-family: "DNAUnicode", sans-serif; overflow: hidden; }
+  .weekly-report .dna-legacy-profile { position: absolute; top: 30px; left: -50px; z-index: 2; margin: 0; }
+  .weekly-report__banner { position: absolute; top: 270px; left: 70px; width: 1060px; height: 110px; text-align: center; }
+  .weekly-report__banner h2 { position: absolute; top: 27px; left: 0; width: 100%; margin: 0; color: #eee8aa; font-size: 36px; font-weight: 400; line-height: 50px; }
+  .weekly-report__banner p { position: absolute; top: 78px; left: 0; width: 100%; margin: 0; font-size: 22px; line-height: 30px; }
+  .weekly-report__banner .rule { position: absolute; top: 50px; width: 210px; height: 2px; background: #eee8aa; }
+  .weekly-report__banner .rule::after { position: absolute; top: -5px; width: 0; height: 0; border: 5px solid transparent; content: ""; }
+  .weekly-report__banner .rule--left { left: 200px; }.weekly-report__banner .rule--left::after { right: -1px; border-right: 0; border-left-color: #eee8aa; }
+  .weekly-report__banner .rule--right { right: 200px; }.weekly-report__banner .rule--right::after { left: -1px; border-right-color: #eee8aa; border-left: 0; }
+  .weekly-report__category { position: absolute; left: 50px; width: 1100px; margin: 0; }
+  .weekly-report__category h2 { position: relative; height: 70px; margin: 0; padding: 15px 0 0 17px; border-left: 8px solid #eee8aa; font-size: 36px; font-weight: 400; line-height: 45px; }
+  .weekly-report__category h2::after { position: absolute; right: 0; bottom: 10px; left: 17px; height: 2px; background: rgba(255,255,255,.45); content: ""; }
+  .weekly-report__items { display: grid; grid-template-columns: repeat(5, 212px); grid-auto-rows: 230px; gap: 0; margin: 0 0 0 20px; padding: 0; }
+  .weekly-report__item { position: relative; width: 212px; height: 230px; text-align: center; }
+  .weekly-report__quality { position: absolute; top: 0; left: 36px; width: 140px; height: 140px; object-fit: contain; }
+  .weekly-report__icon { position: absolute; top: 22px; left: 53px; width: 105px; height: 105px; object-fit: contain; }
+  .weekly-report__item h3 { position: absolute; top: 148px; left: 0; width: 212px; height: 38px; margin: 0; font-size: 28px; font-weight: 400; line-height: 38px; overflow-wrap: anywhere; }
+  .weekly-report__item p { position: absolute; top: 190px; left: 0; width: 212px; height: 38px; margin: 0; color: #eee8aa; font-size: 30px; font-weight: 400; line-height: 38px; }
+  .weekly-report__empty { height: 250px; margin: 0; padding: 100px 0 0; color: #c8c8c8; font-size: 25px; text-align: center; }
+  .weekly-report__footer { position: absolute; bottom: 20px; left: 300px; width: 600px; height: auto; }
+</style>
+{{ legacy_profile_header(header, header_background) }}
+<header class="weekly-report__banner"><span class="rule rule--left"></span><span class="rule rule--right"></span><h2>{{ week_label }}</h2><p>{{ period }}</p></header>
+{% set ns = namespace(top=400) %}{% for category in categories %}{% set rows = [1, ((category["items"]|length + 4) // 5)]|max %}<section class="weekly-report__category" style="top:{{ ns.top }}px;height:{{ 70 + rows * 230 + 20 }}px"><h2>{{ category.name }}</h2>{% if category["items"] %}<div class="weekly-report__items">{% for item in category["items"] %}<article class="weekly-report__item">{% if item.quality %}<img class="weekly-report__quality" src="{{ item.quality }}" alt="" />{% endif %}{% if item.icon %}<img class="weekly-report__icon" src="{{ item.icon }}" alt="" />{% endif %}<h3>{{ item.name }}</h3><p>× {{ item.total }}</p></article>{% endfor %}</div>{% else %}<p class="weekly-report__empty">本周暂无相关资源获取</p>{% endif %}</section>{% set ns.top = ns.top + 70 + rows * 230 + 20 %}{% endfor %}
+<img class="weekly-report__footer" src="{{ footer_image }}" alt="" />
+{% endcall %}

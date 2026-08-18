@@ -21,34 +21,53 @@
 
 ```
 astrbot_plugin_dnaby/
-├── main.py                # Star 子类：@filter.regex 主门 + 分发；initialize/terminate；Web API 注册
+├── main.py                # Star 子类、命令方法安装和 bootstrap
+├── src/
+│   ├── bootstrap.py
+│   ├── entry/
+│   │   ├── commands/      # CommandSpec、registry、handler 生成器
+│   │   ├── event.py       # 非命令事件边界
+│   │   ├── response.py    # DTO → AstrBot 原生结果
+│   │   ├── web.py
+│   │   └── lifecycle.py
+│   ├── modules/           # 显式索引的已实现 use case
+│   └── infrastructure/    # 配置、持久化、HTTP、资源、渲染
 ├── metadata.yaml / _conf_schema.json / commands.json / requirements.txt
-├── AGENTS.md / CLAUDE.md / docs/ / tests/ / ICON.png / LICENSE
+├── AGENTS.md / CLAUDE.md / docs/ / tests/ / ICON.png / logo.png / CHANGELOG.md / LICENSE
 ├── dnaby/                 # 内部业务包（保留 dna_* 布局，rename 自 DNAUID）
 │   ├── dna_*/             # 命令处理器 + 纯逻辑（draw_*/service/api）
-│   └── utils/             # resource/config/database/image/fonts/notify/subscriptions/dna_api/constants
+│   └── utils/             # legacy resource/config/database/image/fonts/notify/subscriptions/dna_api/constants
 └── templates/             # 登录页（dnaby/templates）
 ```
 
 ## 4. 命令层设计
 
-- `commands.json` 为唯一事实源：`key/group/name/desc/eg/regex/permission/handler`。
-- `main.py` 用一个 `@filter.regex(MASTER)` 门（`MASTER = "|".join(regex)`），handler 内按序 `re.match` 取 named groups 再分发（仿 setu）。`@filter.regex` 只做 `re.search` 门、不传 Match，必须重跑 `re.match`。
-- 权限：`permission=owner|admin` 用 `event.is_admin()` 或 sender role ∈ {admin, owner}；`user` 放行。
+- `CommandSpec` 是代码事实源，字段为 `id/pattern/group/name/description/examples/permission/use_case`。
+- `src/modules/index.py` 显式列出模块；`main.py` 为每个 spec 生成一个独立的真正
+  async-generator class method，并应用 AstrBot 4.27.x 公共 `filter.regex` 与权限 decorator。
+- handler 只重跑自己的正则并把 named groups 封装为 typed `CommandRequest`；不存在
+  `MASTER_PATTERN` 或全局循环 dispatch。use case 返回框架无关 DTO，响应边界负责构造
+  AstrBot 原生结果。
+- `commands.json` 由 registry 生成，帮助 use case 读取同一 registry；未实现命令不注册、不展示。
+- 权限：`user` 映射 `PermissionType.MEMBER`，`admin` 映射 `ADMIN`；`owner` 当前暂沿用
+  AstrBot 公共 `ADMIN` 边界，待 owner use case 迁移时补充更细语义。
 
 ## 5. 发送层设计（关键）
 
-- `dnaby/session.py` 定义 `EventContext`（只读字段：user_id/bot_id/group_id/at/text/command/raw_text/regex_dict/image_list/reply/user_pm）与 `Sender`（`send(text|bytes|Image|list)` 累积）。
-- 业务函数签名 `(bot, ev)` → `(sender, ctx)`；handler 把 `Sender` 结果转 `yield event.plain_result/chain_result([Comp.Image.fromBytes(...)])`。
-- 转发节点用 `Comp.Nodes`；`@` 用 `Comp.At`。
+- 新入口的 handler 将消息文本和自己的 named groups 封装为 typed `CommandRequest`；
+  use case 不接收 `AstrMessageEvent`，也不依赖旧 `EventContext`、`Sender` 或 `MessageSegment`。
+- use case 返回 `PlainTextResponse`、`ChainResponse`、`ImageResponse` 等框架无关 DTO；
+  `src/entry/response.py` 统一调用 `event.plain_result`、`chain_result` 和 `image_result`。
+- 业务消息段和图片组件只在后续 response/infrastructure 适配层出现；legacy `dnaby/`
+  中的 `Sender` 仅作为迁移参考，不被新入口导入。
 
 ## 6. 各子系统映射
 
 | 子系统 | gsucore | AstrBot 原生 |
 |---|---|---|
-| 触发 | `SV`+`on_*` | `commands.json` + `@filter.regex` |
-| 发送 | `bot.send` | `Sender` → `yield event.*_result` |
-| 配置 | `StringConfig`/`Gs*Config` | `AstrBotConfig` + `_conf_schema.json`；保留 `.get_config("Key").data` 读法 |
+| 触发 | `SV`+`on_*` | 代码 `CommandSpec` + 独立 `@filter.regex` handler |
+| 发送 | `bot.send` | response DTO → `yield event.*_result` |
+| 配置 | `StringConfig`/`Gs*Config` | `Pydantic DnabySettings` + `_conf_schema.json` 生成；legacy `.get_config("Key").data` 仅作参考 |
 | 数据目录 | `get_res_path()` | `StarTools.get_data_dir(name)` |
 | DB | gsucore base_models/exec_list | 本地 `utils/database/base.py`（sqlmodel+aiosqlite 私有 engine） |
 | 订阅/推送 | `gs_subscribe`/`gss.target_send` | `utils/subscriptions.py` + `context.send_message(umo, chain)` |
@@ -61,5 +80,6 @@ astrbot_plugin_dnaby/
 
 - 内部包名沿用 `dnaby`（原 `DNAUID`），`dna_*` 布局保留以最小化路径改动。
 - 旧 GsCore 部署（`atri`）的数据不迁移，全新开始。
-- wiki/guide 素材（~33MB）随包带上；后续可选惰性下载/CDN。
+- fonts/wiki/guide/panel/image 素材放入插件外的私有 `FlanChanXwO/dnaby_resources`；插件只通过
+  manifest + Git fast-forward-only 同步接口读取，建立/推送资源仓库需独立授权。
 - 数据目录：`data/plugin_data/astrbot_plugin_dnaby/`。

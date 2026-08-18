@@ -1,0 +1,139 @@
+"""框架无关响应 DTO 到 AstrBot 原生结果的转换边界。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from astrbot.api.message_components import Image as AstrImage
+from astrbot.api.message_components import Plain as AstrPlain
+
+
+@dataclass(frozen=True, slots=True)
+class PlainTextResponse:
+    """纯文本 use case 响应。"""
+
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class ChainResponse:
+    """消息链 use case 响应。"""
+
+    components: Any
+
+
+@dataclass(frozen=True, slots=True)
+class ImageResponse:
+    """图片 use case 响应。"""
+
+    image: Any
+    temporary: bool = False
+    """仅限本次事件结束后可删除的合成文件。"""
+    original_image_path: Path | None = None
+    """与本次详情响应关联的原图；没有公开发送 ID 时不得据此登记缓存。"""
+
+
+CommandResponse = PlainTextResponse | ChainResponse | ImageResponse
+
+
+class ResponseFactory:
+    """集中调用 AstrBot 事件的原生结果构造方法。
+
+    业务 use case 不应直接依赖 ``plain_result``/``chain_result``；后续命令层
+    只把框架无关 DTO 交给此类转换。
+    """
+
+    def __init__(self, *, temporary_roots: tuple[str | Path, ...] = ()) -> None:
+        """限定可交给事件清理的合成文件根目录。"""
+
+        self._temporary_roots = tuple(
+            Path(root).expanduser().resolve()
+            for root in temporary_roots
+        )
+
+    @staticmethod
+    def plain(event: Any, text: str) -> Any:
+        """构造 AstrBot 原生纯文本结果。"""
+
+        return event.plain_result(text)
+
+    @staticmethod
+    def chain(event: Any, components: Any) -> Any:
+        """构造 AstrBot 原生消息链结果。"""
+
+        if isinstance(components, (list, tuple)):
+            converted: list[Any] = []
+            changed = False
+            for component in components:
+                if isinstance(component, PlainTextResponse):
+                    converted.append(AstrPlain(component.text))
+                    changed = True
+                elif isinstance(component, ImageResponse):
+                    converted.append(AstrImage(str(component.image)))
+                    changed = True
+                else:
+                    converted.append(component)
+            if changed:
+                components = converted
+        return event.chain_result(components)
+
+    @staticmethod
+    def image(event: Any, image: Any) -> Any:
+        """构造 AstrBot 原生图片结果。"""
+        image_result = getattr(event, "image_result", None)
+        if callable(image_result):
+            return image_result(image)
+        # 最小测试事件可能只公开 plain_result；真实 AstrBot event 总会提供 image_result。
+        return event.plain_result(str(image))
+
+    def _temporary_path(self, image: Any) -> Path:
+        """验证临时图片是已存在且位于受控渲染目录中的普通文件。"""
+
+        try:
+            path = Path(str(image)).resolve(strict=True)
+        except OSError as error:
+            raise ValueError("临时图片路径不可用") from error
+        if not path.is_file():
+            raise ValueError("临时图片路径不是文件")
+        if not any(path.is_relative_to(root) for root in self._temporary_roots):
+            raise ValueError("临时图片不在受控渲染目录中")
+        return path
+
+    def _track_temporary_images(self, event: Any, response: CommandResponse) -> None:
+        """将明确标记的合成图片交给 AstrBot 事件生命周期清理。"""
+
+        tracker = getattr(event, "track_temporary_local_file", None)
+        if not callable(tracker):
+            # 单元测试中的最小 event 只验证 result 构造；真实 AstrBot event 提供该公开方法。
+            return
+        if isinstance(response, ImageResponse):
+            if response.temporary:
+                tracker(str(self._temporary_path(response.image)))
+            return
+        if isinstance(response, ChainResponse) and isinstance(response.components, (list, tuple)):
+            for component in response.components:
+                if isinstance(component, ImageResponse) and component.temporary:
+                    tracker(str(self._temporary_path(component.image)))
+
+    def build(self, event: Any, response: CommandResponse) -> Any:
+        """将框架无关 DTO 转换为 AstrBot 原生结果。"""
+
+        self._track_temporary_images(event, response)
+        if isinstance(response, PlainTextResponse):
+            return self.plain(event, response.text)
+        if isinstance(response, ChainResponse):
+            return self.chain(event, response.components)
+        if isinstance(response, ImageResponse):
+            return self.image(event, response.image)
+        raise TypeError(f"未知命令响应类型: {type(response).__name__}")
+
+
+__all__ = [
+    "ChainResponse",
+    "CommandResponse",
+    "ImageResponse",
+    "PlainTextResponse",
+    "ResponseFactory",
+]

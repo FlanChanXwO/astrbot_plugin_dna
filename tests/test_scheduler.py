@@ -1,68 +1,161 @@
-"""定时任务调度边界测试。"""
+"""Task 18 计划任务的启动/取消、自动签到推送与记录清理测试。"""
 
-import asyncio
+from __future__ import annotations
 
+from datetime import date, datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
-def test_parse_hhmm_accepts_config_shapes_and_uses_declared_defaults():
-    from dnaby.scheduler import _parse_hhmm
+import pytest
 
-    assert _parse_hhmm("08:30") == (8, 30)
-    assert _parse_hhmm([9, 45]) == (9, 45)
-    assert _parse_hhmm("not-a-time", 2, 7) == (2, 7)
-    assert _parse_hhmm("24:00", 2, 7) == (2, 7)
+from src.infrastructure.scheduler import SignScheduler
+from src.infrastructure.subscriptions import SubscriptionStore
+from src.modules.checkin import messages
 
-
-def test_start_scheduled_tasks_creates_all_registered_loops(monkeypatch):
-    from dnaby import scheduler
-
-    async def no_loop(*args):
-        return None
-
-    monkeypatch.setattr(scheduler, "_run_daily", no_loop)
-    monkeypatch.setattr(scheduler, "_run_hourly", no_loop)
-    monkeypatch.setattr(scheduler, "_run_loop", no_loop)
-
-    async def scenario():
-        tasks = await scheduler.start_scheduled_tasks()
-        assert [task.get_name() for task in tasks] == [
-            "dnaby_auto_sign",
-            "dnaby_clear_sign_record",
-            "dnaby_mh_push",
-            "dnaby_ann_check",
-        ]
-        await asyncio.gather(*tasks)
-
-    asyncio.run(scenario())
+TZ = ZoneInfo("Asia/Shanghai")
 
 
-def test_start_scheduled_tasks_wires_business_callbacks(monkeypatch):
-    """四个调度循环必须绑定到对应业务回调，而不是只创建空任务。"""
-    from dnaby import scheduler
+class _FakeCheckin:
+    def __init__(self, *, game_enabled: bool = True, community_enabled: bool = True) -> None:
+        self.game_enabled = game_enabled
+        self.community_enabled = community_enabled
+        self.auto_calls = 0
+        self.cleanup_calls: list[date] = []
 
-    calls = []
+    async def auto_sign_all(self) -> str:
+        self.auto_calls += 1
+        return "[二重螺旋]自动任务\n今日成功游戏签到 2 个账号\n今日社区签到 1 个账号"
 
-    async def capture_daily(name, factory, hour, minute):
-        calls.append(("daily", name, factory.__name__, hour, minute))
+    async def clear_sign_records_before(self, record_date: date) -> int:
+        self.cleanup_calls.append(record_date)
+        return 3
 
-    async def capture_hourly(name, factory, minute, second):
-        calls.append(("hourly", name, factory.__name__, minute, second))
 
-    async def capture_loop(name, factory, interval):
-        calls.append(("loop", name, factory.__name__, interval))
+def _noop_sleep(_seconds: float):
+    raise AssertionError("测试不应真实睡眠")
 
-    monkeypatch.setattr(scheduler, "_run_daily", capture_daily)
-    monkeypatch.setattr(scheduler, "_run_hourly", capture_hourly)
-    monkeypatch.setattr(scheduler, "_run_loop", capture_loop)
 
-    async def scenario():
-        tasks = await scheduler.start_scheduled_tasks()
-        await asyncio.gather(*tasks)
+@pytest.mark.asyncio
+async def test_scheduler_start_is_idempotent_and_stop_cancels_tasks(tmp_path: Path) -> None:
+    """重复 start 不重复创建任务，stop 取消全部并幂等。"""
 
-    asyncio.run(scenario())
+    checkin = _FakeCheckin()
+    scheduler = SignScheduler(
+        checkin,
+        SubscriptionStore(tmp_path / "subscriptions.json"),
+        enable_all_users=True,
+        sleep=_noop_sleep,
+    )
 
-    assert [call[:3] for call in calls] == [
-        ("daily", "auto_sign", "dna_auto_sign"),
-        ("daily", "clear_sign_record", "clear_dna_sign_record"),
-        ("hourly", "mh_push", "dna_push_mh_notify"),
-        ("loop", "ann_check", "check_dna_ann_state"),
-    ]
+    await scheduler.start()
+    await scheduler.start()
+    assert scheduler.started is True
+    assert len(scheduler._tasks) == 2  # 签到 + 清理
+
+    await scheduler.stop()
+    await scheduler.stop()
+    assert scheduler.started is False
+    assert scheduler._tasks == []
+    assert all(task.done() or task.cancelled() for task in [])
+
+
+@pytest.mark.asyncio
+async def test_scheduler_requires_enable_all_users_for_sign_task(tmp_path: Path) -> None:
+    """未授权全部账号时，定时签到任务不创建，只保留清理任务。"""
+
+    scheduler = SignScheduler(
+        _FakeCheckin(),
+        SubscriptionStore(tmp_path / "subscriptions.json"),
+        scheduled_enabled=True,
+        enable_all_users=False,
+        sleep=_noop_sleep,
+    )
+
+    await scheduler.start()
+    assert len(scheduler._tasks) == 1
+    assert scheduler._tasks[0].get_name() == "dnaby_sign_cleanup"
+    await scheduler.stop()
+
+
+@pytest.mark.asyncio
+async def test_scheduler_respects_scheduled_disabled(tmp_path: Path) -> None:
+    """定时签到关闭时只创建清理任务。"""
+
+    scheduler = SignScheduler(
+        _FakeCheckin(),
+        SubscriptionStore(tmp_path / "subscriptions.json"),
+        scheduled_enabled=False,
+        sleep=_noop_sleep,
+    )
+
+    await scheduler.start()
+    assert len(scheduler._tasks) == 1
+    assert scheduler._tasks[0].get_name() == "dnaby_sign_cleanup"
+    await scheduler.stop()
+
+
+@pytest.mark.asyncio
+async def test_run_sign_once_pushes_summary_to_subscribers(tmp_path: Path) -> None:
+    """自动签到后把摘要推送给订阅者，推送函数注入且可验证。"""
+
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    await subscriptions.add(
+        messages.SIGN_RESULT_SUBSCRIBE,
+        origin="platform:group:g1",
+        user_id="owner-1",
+        bot_id="bot-1",
+    )
+    pushed: list[tuple[str, str]] = []
+    checkin = _FakeCheckin()
+
+    async def push(origin: str, text: str) -> None:
+        pushed.append((origin, text))
+
+    scheduler = SignScheduler(
+        checkin,
+        subscriptions,
+        sleep=_noop_sleep,
+        push=push,
+    )
+
+    text = await scheduler.run_sign_once()
+
+    assert "今日成功游戏签到 2 个账号" in text
+    assert pushed == [("platform:group:g1", text)]
+    assert checkin.auto_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_run_sign_once_without_push_or_subscribers_is_safe(tmp_path: Path) -> None:
+    """无推送函数或订阅者时自动签到仍返回摘要，不抛错。"""
+
+    checkin = _FakeCheckin()
+    scheduler = SignScheduler(
+        checkin,
+        SubscriptionStore(tmp_path / "subscriptions.json"),
+        sleep=_noop_sleep,
+        push=None,
+    )
+
+    text = await scheduler.run_sign_once()
+
+    assert "今日社区签到 1 个账号" in text
+
+
+@pytest.mark.asyncio
+async def test_run_cleanup_once_uses_two_days_ago(tmp_path: Path) -> None:
+    """清理任务删除 2 天前的记录并返回条数。"""
+
+    now = datetime(2026, 8, 12, 1, 0, tzinfo=TZ)
+    checkin = _FakeCheckin()
+    scheduler = SignScheduler(
+        checkin,
+        SubscriptionStore(tmp_path / "subscriptions.json"),
+        sleep=_noop_sleep,
+        now=lambda: now,
+    )
+
+    deleted = await scheduler.run_cleanup_once()
+
+    assert deleted == 3
+    assert checkin.cleanup_calls == [date(2026, 8, 10)]

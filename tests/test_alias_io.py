@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 def test_char_alias_mutation_persists_json_without_changing_lookup(monkeypatch, tmp_path: Path):
-    from dnaby.dna_alias import alias_ops
-    from dnaby.utils import name_convert
+    from src.modules.encyclopedia import alias_ops
+    from src.utils import name_convert
 
     alias_path = tmp_path / "char_alias.json"
     alias_path.write_text('{"角色": ["角色"]}', encoding="utf-8")

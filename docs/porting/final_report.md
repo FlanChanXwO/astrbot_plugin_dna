@@ -1,5 +1,10 @@
 # 移植最终报告
 
+> 历史存档：本文是 legacy-reference 完整移植阶段的最终报告。当前
+> `rewrite/v0.1` 仍按 `goal-1/tasks.md` 分阶段推进，不能把本文的 56 项能力和
+> 真实 E2E 结论当作当前重构区的验收证据；目标完成前的阶段审查见
+> [review-v0.1.md](review-v0.1.md)。
+
 ## 交付结论
 
 DNAUID 已完成原生 AstrBot 插件化移植的代码交付。插件不依赖 `gsuid_core` / `gsucore`，命令、配置、数据库、订阅、推送、登录 Web 和调度均使用 AstrBot 或本地实现。当前代码可被 AstrBot 4.27.1 运行时动态加载，并已在本机 Dashboard 通过指定插件重载。

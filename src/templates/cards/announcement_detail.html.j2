@@ -1,0 +1,30 @@
+{% from "cards/macros/layout.html.j2" import card_shell %}
+{% call card_shell(width, background=background, class_name="announcement-detail") %}
+<style>
+  @font-face { font-family: "DNAUnicode"; src: url("{{ font }}") format("woff2"); }
+  {% if font_fallback %}@font-face { font-family: "DNAUnicodeFallback"; src: url("{{ font_fallback }}") format("woff2"); }{% endif %}
+  .announcement-detail { padding: 40px; font-family: "DNAUnicode", "DNAUnicodeFallback", sans-serif; background: #171323; }
+  .announcement-detail__header { position: relative; height: 146px; }
+  .announcement-detail__author { position: relative; width: 100%; height: 120px; }
+  .announcement-detail__avatar { position: absolute; top: 0; left: 0; width: 120px; height: 120px; border-radius: 50%; object-fit: cover; }
+  .announcement-detail__author h2 { position: absolute; top: 32px; left: 140px; margin: 0; color: #f5f0e1; font-size: 26px; line-height: 36px; }
+  .announcement-detail__author p { position: absolute; top: 74px; left: 140px; margin: 0; color: #9691af; font-size: 22px; line-height: 30px; }
+  .announcement-detail__qr { position: absolute; top: 0; right: 0; width: 184px; height: 184px; padding: 10px; background: rgba(245,240,225,.96); object-fit: contain; }
+  .announcement-detail__title { width: 1000px; margin: 0 0 18px; color: #eee8aa; font-size: 60px; line-height: 82px; overflow-wrap: anywhere; }
+  .announcement-detail__title--with-qr { width: 792px; margin-bottom: 8px; line-height: 92px; }
+  .announcement-detail__time { height: 36px; margin: 0; color: #9691af; font-size: 22px; line-height: 30px; }
+  .announcement-detail__divider { height: 2px; margin: 0 0 24px; background: rgba(95,80,130,.8); }
+  .announcement-detail__body { padding: 0; }
+  .announcement-detail__text { margin: 0 0 6px; color: #d2cddc; font-size: 28px; line-height: 48px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .announcement-detail__text.accent { color: #daa520; }
+  .announcement-detail__image { display: block; max-width: 100%; height: auto; margin: 0 auto 16px; object-fit: contain; }
+</style>
+<header class="announcement-detail__header">
+  <div class="announcement-detail__author"><img class="announcement-detail__avatar" src="{{ avatar }}" alt="" /><div><h2>二重螺旋官方</h2><p>官方资讯发布</p></div></div>
+  {% if qr %}<img class="announcement-detail__qr" src="{{ qr }}" alt="公告二维码" />{% endif %}
+</header>
+<h1 class="announcement-detail__title{% if qr %} announcement-detail__title--with-qr{% endif %}">{{ subject }}</h1>
+{% if time_text %}<p class="announcement-detail__time">时间：{{ time_text }}</p>{% endif %}
+<div class="announcement-detail__divider"></div>
+<main class="announcement-detail__body">{% for block in blocks %}{% if block.kind == "text" %}<p class="announcement-detail__text{% if block.value.startswith((">>>", "▸", "◆", "★")) %} accent{% endif %}">{{ block.value }}</p>{% else %}<img class="announcement-detail__image" src="{{ block.value }}" alt="" />{% endif %}{% endfor %}</main>
+{% endcall %}

@@ -1,8 +1,12 @@
 # 迁移代码审查
 
+> 历史存档：本文记录 `legacy-reference` 的完整移植审查，不代表当前
+> `rewrite/v0.1` 的能力、测试或发布结论。当前重构阶段审查见
+> [review-v0.1.md](review-v0.1.md)；最终报告将在目标全部完成后更新。
+
 ## 审查范围
 
-审查基于当前工作树、`commands.json`、`_conf_schema.json`、pytest/lint/type-check 结果和本机 AstrBot 运行时重载。插件目录与 runtime 根目录均不是 Git 仓库，因此没有可用的 `git diff` 基线；未把未观察到的历史变更当作已审查证据。
+审查基于当时的 legacy 工作树、`commands.json`、`_conf_schema.json`、pytest/lint/type-check 结果和本机 AstrBot 运行时重载。该结论不应覆盖当前重构区的阶段性证据。
 
 重点覆盖入口与动态加载、权限分发、配置 schema、数据库事务、登录 Web/transport、定时任务、订阅持久化、外部请求和敏感信息日志。
 

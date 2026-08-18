@@ -1,0 +1,143 @@
+{% from "cards/macros/layout.html.j2" import card_shell %}
+{% call card_shell(width, height, background=background, class_name="mh-card") %}
+<style>
+  @font-face {
+    font-family: "DNAFont";
+    src: url("{{ font }}") format("woff2");
+  }
+  .mh-card {
+    box-sizing: border-box;
+  }
+  .mh-card .dna-card__content {
+    position: relative;
+    width: 1700px;
+    height: 900px;
+    font-family: "DNAFont", sans-serif;
+  }
+  .mh-card__entry {
+    position: absolute;
+    top: 70px;
+    width: 511px;
+    height: 776px;
+    color: #fff;
+    text-align: center;
+  }
+  .mh-card__entry:nth-of-type(1) { left: 100px; }
+  .mh-card__entry:nth-of-type(2) { left: 600px; }
+  .mh-card__entry:nth-of-type(3) { left: 1100px; }
+  .mh-card__entry-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 511px;
+    height: 776px;
+  }
+  .mh-card__icon {
+    position: absolute;
+    top: 70px;
+    left: 120px;
+    width: 256px;
+    height: 256px;
+    object-fit: contain;
+  }
+  .mh-card__type {
+    position: absolute;
+    top: 330px;
+    left: 0;
+    width: 500px;
+    margin: 0;
+    color: #daa520;
+    font-size: 40px;
+    font-weight: 400;
+    line-height: 40px;
+    text-align: center;
+  }
+  .mh-card__state {
+    position: absolute;
+    top: 390px;
+    left: 0;
+    width: 500px;
+    margin: 0;
+    color: #d3d3d3;
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 20px;
+    text-align: center;
+  }
+  .mh-card__instance-wrap {
+    position: absolute;
+    top: 420px;
+    left: 70px;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    align-items: center;
+    list-style: none;
+  }
+  .mh-card__instance {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 374px;
+    height: 55px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 14px 0 0;
+    color: #fff;
+    font-size: 36px;
+    line-height: 55px;
+    text-align: center;
+    list-style: none;
+    overflow: hidden;
+  }
+  .mh-card__instance::before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: -1;
+    display: block;
+    width: 374px;
+    height: 55px;
+    background: url("{{ bar }}") 0 0 / 374px 55px no-repeat;
+    content: "";
+  }
+  .mh-card__instance.subscribed {
+    color: #4caf50;
+  }
+  .mh-card__refresh {
+    position: absolute;
+    top: 20px;
+    left: 1400px;
+    width: 317px;
+    height: 76px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 27px 0 0 62px;
+    background: url("{{ refresh_background }}") 0 0 / 317px 76px no-repeat;
+    color: #fff;
+    font-size: 20px;
+    line-height: 20px;
+  }
+  .mh-card__title {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 376px;
+    height: 108px;
+  }
+  .mh-card__footer {
+    position: absolute;
+    top: 858px;
+    left: 550px;
+    width: 600px;
+    height: 22px;
+    object-fit: fill;
+  }
+</style>
+{% for card in cards %}<article class="mh-card__entry"><img class="mh-card__entry-bg" src="{{ card_background }}" alt="" />{% if card.icon %}<img class="mh-card__icon" src="{{ card.icon }}" alt="" />{% endif %}<h1 class="mh-card__type">{{ card.type_name }}</h1><p class="mh-card__state">当前开放</p><ul class="mh-card__instance-wrap">{% for instance in card.instances %}<li class="mh-card__instance{% if instance.subscribed %} subscribed{% endif %}">{{ instance.name }}</li>{% endfor %}</ul></article>{% endfor %}
+<img class="mh-card__title" src="{{ title }}" alt="" />
+<img class="mh-card__footer" src="{{ footer }}" alt="" />
+<p class="mh-card__refresh">{{ refresh_text }}</p>
+{% endcall %}

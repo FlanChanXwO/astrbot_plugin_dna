@@ -2,6 +2,10 @@
 
 二重螺旋（DNA）Bot 插件 —— AstrBot 原生移植版。由 GsCore 插件 [DNAUID](https://github.com/tyql688/DNAUID)（私有镜像 `FlanChanXwO/DNAUID`）全面移植而来。
 
+> 重构说明：`rewrite/v0.1` 已提供新的薄入口、显式 `CommandSpec` registry、帮助、账号、隐私、
+> 玩家查询和资料读取 use case；下方未列入当前命令清单的能力仍是 legacy-reference/目标能力。完整迁移按
+> `goal-1/tasks.md` 分阶段完成。
+
 ## 功能
 
 - **皎皎角登录**：Web/App 短信登录页、token 登录、短信验证码命令登录、QR 二维码、退出登录、获取 token
@@ -15,15 +19,25 @@
 
 ## 安装
 
-将本插件目录放入 AstrBot 的 `data/plugins/` 后，在 Dashboard 启用并重启；或在 AstrBot 插件市场中搜索安装。
+当前 v0.1 仅面向私有源码 checkout：将本插件目录放入 AstrBot 的 `data/plugins/` 后，在 Dashboard 启用并重启。暂不发布 Marketplace 或公开 Release。
 
 ## 使用
 
-所有命令为自然语言正则触发，命令清单见 `commands.json` 与 [docs/usage/commands.md](docs/usage/commands.md)。发送 `帮助` 可查看命令卡片。
+已迁移命令使用独立的自然语言正则 handler；当前包括 `帮助`、登录/退出、UID 绑定/
+切换/删除/查看、脱敏凭据状态查询、个人隐私开关和群管理员隐私控制，以及角色卡片/详情、
+日常便笺、周报、日历、图鉴、攻略、兑换码和只读别名查询，游戏/社区签到、签到日历、
+owner 全部签到与签到结果订阅（每日 `sign_in.sign_time` 计划任务推送），密函、公告读取
+及其订阅推送（按 `notifications.secret_push_time` 每小时推送、`announcement_check_minutes`
+轮询公告），以及 owner 面板图管理（上传/列表/删除/压缩）、资源状态、资源下载与更新记录。
+玩家和资料素材已从私有运行期
+资源根加载；真实资源内容与视觉等价仍待 Task 30 只读验收。`原图` 因 AstrBot 4.27.x 公开
+结果边界没有已发送消息 ID 交付点，显式标记为暂不支持，不作可用平台功能宣称。签到写操作
+与推送只在离线 fixture 验证，未对真实账户执行。命令清单见 `commands.json` 与
+[docs/usage/commands.md](docs/usage/commands.md)。
 
 ## 配置
 
-插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），含登录方式、密函推送时间、签到时间、公告轮询间隔等。
+插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），由 `src/infrastructure/config` 的 Pydantic 定义生成，按登录、网络、签到、通知和显示分组。资源仓库使用私有 Git origin，首次同步浅克隆，后续只允许 fast-forward 更新；详见 [docs/usage/resources.md](docs/usage/resources.md)。
 
 ## 开发
 

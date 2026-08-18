@@ -6,8 +6,8 @@ import aiohttp
 
 
 def test_local_login_server_serves_login_page():
-    from dnaby.dna_user.local_server import LocalLoginServer
-    from dnaby.dna_user.login_router import LoginSession, cache, get_routes
+    from src.infrastructure.http.login_server import LocalLoginServer
+    from src.modules.account.login_router import LoginSession, cache, get_routes
 
     auth = "test-local-login-auth"
     cache.set(auth, LoginSession(auth=auth, user_id="user-1"))
@@ -40,8 +40,8 @@ def test_local_login_server_serves_login_page():
 
 
 def test_login_url_uses_started_local_server():
-    from dnaby.dna_user.local_server import LocalLoginServer
-    from dnaby.dna_user.login_router import (
+    from src.infrastructure.http.login_server import LocalLoginServer
+    from src.modules.account.login_router import (
         bind_local_login_server,
         get_dna_login_url,
         get_routes,
@@ -62,14 +62,14 @@ def test_login_url_uses_started_local_server():
 
 def test_login_link_is_sent_before_waiting_for_submission(monkeypatch):
     """登录链接必须先发出，不能被本地登录等待循环延迟。"""
-    from dnaby.dna_user.login_router import send_login
-    from dnaby.utils.session import EventContext, Sender
+    from src.modules.account.login_router import send_login
+    from src.utils.session import EventContext, Sender
 
     async def no_uid_hidden(*args):
         return False
 
     monkeypatch.setattr(
-        "dnaby.utils.msgs.notify.is_uid_hidden",
+        "src.utils.msgs.notify.is_uid_hidden",
         no_uid_hidden,
     )
 

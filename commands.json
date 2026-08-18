@@ -1,562 +1,737 @@
 [
   {
-    "key": "role_info_card",
-    "group": "信息查询",
-    "name": "基本信息卡片",
-    "desc": "查询基本信息",
-    "eg": "卡片",
-    "regex": "^(?:查询|卡片|角色|信息)$",
-    "permission": "user",
-    "handler": "dnaby.dna_role.handle_role_info_card"
-  },
-  {
-    "key": "sign",
-    "group": "签到",
-    "name": "签到",
-    "desc": "每日签到",
-    "eg": "签到",
-    "regex": "^(?:签到|社区签到|每日任务|社区任务|库街区签到|sign)$",
-    "permission": "user",
-    "handler": "dnaby.dna_sign.handle_dna_user_sign"
-  },
-  {
-    "key": "sign_calendar",
-    "group": "签到",
-    "name": "签到日历",
-    "desc": "查看签到日历",
-    "eg": "签到日历",
-    "regex": "^(?:签到日历|签到记录|签到历史)$",
-    "permission": "user",
-    "handler": "dnaby.dna_sign.handle_sign_calendar"
-  },
-  {
-    "key": "sign_all",
-    "group": "签到",
-    "name": "全部签到",
-    "desc": "手动触发全部账号签到",
-    "eg": "全部签到",
-    "regex": "^全部签到$",
-    "permission": "owner",
-    "handler": "dnaby.dna_sign.handle_sign_recheck_all"
-  },
-  {
-    "key": "sign_result_subscribe",
-    "group": "签到",
-    "name": "订阅签到结果",
-    "desc": "订阅/取消订阅签到结果推送",
-    "eg": "订阅签到结果",
-    "regex": "^(订阅|取消订阅)签到结果$",
-    "permission": "owner",
-    "handler": "dnaby.dna_sign.handle_sign_result"
-  },
-  {
-    "key": "mh",
-    "group": "密函",
-    "name": "密函",
-    "desc": "查看当前密函",
-    "eg": "密函",
-    "regex": "^(?:密函|委托密函|mh)$",
-    "permission": "user",
-    "handler": "dnaby.dna_mh.handle_send_mh"
-  },
-  {
-    "key": "mh_list",
-    "group": "密函",
-    "name": "密函列表",
-    "desc": "查看可订阅密函列表",
-    "eg": "密函列表",
-    "regex": "^密函列表$",
-    "permission": "user",
-    "handler": "dnaby.dna_mh.handle_send_mh_list"
-  },
-  {
-    "key": "mh_subscribe",
-    "group": "密函",
-    "name": "我的密函订阅",
-    "desc": "查看我的密函订阅",
-    "eg": "我的密函",
-    "regex": "^(?:密函订阅|我的密函|我的密函订阅)$",
-    "permission": "user",
-    "handler": "dnaby.dna_mh.handle_send_mh_subscribe"
-  },
-  {
-    "key": "mh_subscribe_by_name",
-    "group": "密函",
-    "name": "订阅密函",
-    "desc": "订阅/取消订阅指定密函",
-    "eg": "订阅角色驱逐密函",
-    "regex": "^(订阅|取消订阅)(?P<mh_type>角色|武器|魔之楔)?(?P<mh_name>扼守|拆解|勘探|追缉|探险|调停|避险|迁移|驱逐|护送|驱离|全部)密函$",
-    "permission": "user",
-    "handler": "dnaby.dna_mh.handle_dna_mh_subscribe"
-  },
-  {
-    "key": "mh_subscribe_cycle",
-    "group": "密函",
-    "name": "订阅密函时间/周期",
-    "desc": "设置密函推送时间段",
-    "eg": "订阅密函时间17:23",
-    "regex": "^订阅密函(时间|周期)(\\d{1,2}):(\\d{1,2})$",
-    "permission": "user",
-    "handler": "dnaby.dna_mh.handle_dna_mh_push_time"
-  },
-  {
-    "key": "mh_pic_subscribe",
-    "group": "密函",
-    "name": "订阅密函图片",
-    "desc": "订阅/取消订阅密函图片推送",
-    "eg": "订阅密函图片",
-    "regex": "^(?:订阅密函图片|取消订阅密函图片)$",
-    "permission": "admin",
-    "handler": "dnaby.dna_mh.handle_sub_mh_pic_subscribe"
-  },
-  {
-    "key": "mh_text_subscribe",
-    "group": "密函",
-    "name": "订阅密函文本",
-    "desc": "订阅/取消订阅密函文本推送",
-    "eg": "订阅密函文本",
-    "regex": "^(?:订阅密函文本|取消订阅密函文本)$",
-    "permission": "admin",
-    "handler": "dnaby.dna_mh.handle_sub_mh_text_subscribe"
-  },
-  {
-    "key": "mh_test",
-    "group": "密函",
-    "name": "密函测试",
-    "desc": "测试密函推送",
-    "eg": "密函测试",
-    "regex": "^密函测试$",
-    "permission": "owner",
-    "handler": "dnaby.dna_mh.handle_send_mh_test"
-  },
-  {
-    "key": "ann",
-    "group": "公告",
-    "name": "公告",
-    "desc": "查看二重螺旋公告列表或公告详情",
-    "eg": "公告 1",
-    "regex": "^公告(?:\\s+(\\d+))?$",
-    "permission": "user",
-    "handler": "dnaby.dna_ann.handle_ann_dna"
-  },
-  {
-    "key": "ann_sub",
-    "group": "公告",
-    "name": "订阅公告",
-    "desc": "订阅二重螺旋公告推送",
-    "eg": "订阅公告",
-    "regex": "^订阅公告$",
-    "permission": "admin",
-    "handler": "dnaby.dna_ann.handle_sub_ann"
-  },
-  {
-    "key": "ann_unsub",
-    "group": "公告",
-    "name": "取消订阅公告",
-    "desc": "取消订阅二重螺旋公告推送",
-    "eg": "取消订阅公告",
-    "regex": "^(?:取消订阅公告|取消公告|退订公告)$",
-    "permission": "admin",
-    "handler": "dnaby.dna_ann.handle_unsub_ann"
-  },
-  {
-    "key": "calendar",
-    "group": "信息查询",
-    "name": "日历",
-    "desc": "日历",
-    "eg": "日历",
-    "regex": "^日历$",
-    "permission": "user",
-    "handler": "dnaby.dna_calendar.handle_calendar"
-  },
-  {
-    "key": "dna_code",
-    "group": "兑换码",
-    "name": "兑换码",
-    "desc": "查看当前可用的兑换码",
-    "eg": "兑换码",
-    "regex": "^(?:兑换码|cdk|CDK|code)$",
-    "permission": "user",
-    "handler": "dnaby.dna_code.handle_dna_code"
-  },
-  {
-    "key": "role_detail_card",
-    "group": "角色信息",
-    "name": "角色详情卡片",
-    "desc": "查询角色面板/伤害详情",
-    "eg": "角色名面板",
-    "regex": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:面板|信息|详情|面包|🍞)(?:\\s*[+＋]\\s*(?P<weapon_name_1>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?(?:\\s*[+＋]\\s*(?P<weapon_name_2>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?$",
-    "permission": "user",
-    "handler": "dnaby.dna_detail.handle_role_detail_card"
-  },
-  {
-    "key": "role_original_image",
-    "group": "角色信息",
-    "name": "角色原图",
-    "desc": "获取所引用面板图的原图",
-    "eg": "原图",
-    "regex": "^原图$",
-    "permission": "user",
-    "handler": "dnaby.dna_detail.handle_role_original_image"
-  },
-  {
-    "key": "dna_guide",
-    "group": "攻略",
-    "name": "角色攻略",
-    "desc": "查看角色攻略图",
-    "eg": "角色名攻略",
-    "regex": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)攻略$",
-    "permission": "user",
-    "handler": "dnaby.dna_guide.handle_role_guide"
-  },
-  {
-    "key": "help",
+    "id": "help",
+    "pattern": "^帮助$",
     "group": "bot主人功能",
     "name": "帮助",
-    "desc": "查看帮助",
-    "eg": "帮助",
-    "regex": "^帮助$",
+    "description": "查看当前已实现命令",
+    "examples": [
+      "帮助"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_help.handle_help"
+    "use_case": "src.modules.help.help_use_case"
   },
   {
-    "key": "privacy_enable_peek_personal",
-    "group": "隐私控制",
-    "name": "开偷窥",
-    "desc": "允许被其它人查看自己的游戏信息",
-    "eg": "开偷窥",
-    "regex": "^(?:开偷窥|关闭偷窥防护)$",
-    "permission": "user",
-    "handler": "dnaby.dna_privacy.handle_enable_peek_personal"
-  },
-  {
-    "key": "privacy_disable_peek_personal",
-    "group": "隐私控制",
-    "name": "防偷窥",
-    "desc": "禁止被其它人查看自己的游戏信息",
-    "eg": "防偷窥",
-    "regex": "^(?:防偷窥|开启偷窥防护)$",
-    "permission": "user",
-    "handler": "dnaby.dna_privacy.handle_disable_peek_personal"
-  },
-  {
-    "key": "privacy_enable_uid_hidden",
-    "group": "隐私控制",
-    "name": "隐藏UID",
-    "desc": "在生成的卡片中隐藏自己的UID",
-    "eg": "隐藏UID",
-    "regex": "^(?:隐藏UID|隐藏uid)$",
-    "permission": "user",
-    "handler": "dnaby.dna_privacy.handle_enable_uid_hidden"
-  },
-  {
-    "key": "privacy_disable_uid_hidden",
-    "group": "隐私控制",
-    "name": "显示UID",
-    "desc": "在生成的卡片中显示自己的UID",
-    "eg": "显示UID",
-    "regex": "^(?:显示UID|显示uid)$",
-    "permission": "user",
-    "handler": "dnaby.dna_privacy.handle_disable_uid_hidden"
-  },
-  {
-    "key": "privacy_enable_peek_admin",
-    "group": "群管理员功能",
-    "name": "指定开偷窥",
-    "desc": "允许会话中被艾特的玩家被其它人查看该玩家的游戏信息",
-    "eg": "指定开偷窥",
-    "regex": "^指定开偷窥$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_enable_peek_admin"
-  },
-  {
-    "key": "privacy_disable_peek_admin",
-    "group": "群管理员功能",
-    "name": "指定防偷窥",
-    "desc": "禁止会话中被艾特的玩家被其它人查看该玩家的游戏信息",
-    "eg": "指定防偷窥",
-    "regex": "^指定防偷窥$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_disable_peek_admin"
-  },
-  {
-    "key": "privacy_enable_peek_all",
-    "group": "群管理员功能",
-    "name": "全体开偷窥",
-    "desc": "允许会话中所有玩家相互查看自己的游戏信息",
-    "eg": "全体开偷窥",
-    "regex": "^全体开偷窥$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_enable_peek_all"
-  },
-  {
-    "key": "privacy_disable_peek_all",
-    "group": "群管理员功能",
-    "name": "全体防偷窥",
-    "desc": "禁止会话中所有玩家相互查看自己的游戏信息",
-    "eg": "全体防偷窥",
-    "regex": "^全体防偷窥$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_disable_peek_all"
-  },
-  {
-    "key": "privacy_cancel_peek_all",
-    "group": "群管理员功能",
-    "name": "取消全体偷窥",
-    "desc": "取消全体偷窥设置，恢复个人设置",
-    "eg": "取消全体偷窥",
-    "regex": "^取消全体偷窥$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_cancel_peek_all"
-  },
-  {
-    "key": "privacy_enable_uid_hidden_admin",
-    "group": "群管理员功能",
-    "name": "指定隐藏UID",
-    "desc": "为会话中被艾特的玩家开启UID隐藏",
-    "eg": "指定隐藏UID",
-    "regex": "^指定隐藏UID$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_enable_uid_hidden_admin"
-  },
-  {
-    "key": "privacy_disable_uid_hidden_admin",
-    "group": "群管理员功能",
-    "name": "指定显示UID",
-    "desc": "为会话中被艾特的玩家关闭UID隐藏",
-    "eg": "指定显示UID",
-    "regex": "^指定显示UID$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_disable_uid_hidden_admin"
-  },
-  {
-    "key": "privacy_enable_uid_hidden_all",
-    "group": "群管理员功能",
-    "name": "全体隐藏UID",
-    "desc": "强制会话中所有玩家隐藏UID",
-    "eg": "全体隐藏UID",
-    "regex": "^全体隐藏UID$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_enable_uid_hidden_all"
-  },
-  {
-    "key": "privacy_disable_uid_hidden_all",
-    "group": "群管理员功能",
-    "name": "全体显示UID",
-    "desc": "强制会话中所有玩家显示UID",
-    "eg": "全体显示UID",
-    "regex": "^全体显示UID$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_disable_uid_hidden_all"
-  },
-  {
-    "key": "privacy_cancel_uid_hidden_all",
-    "group": "群管理员功能",
-    "name": "取消全体UID隐藏",
-    "desc": "取消全体UID隐藏设置，恢复个人设置",
-    "eg": "取消全体UID隐藏",
-    "regex": "^取消全体UID隐藏$",
-    "permission": "admin",
-    "handler": "dnaby.dna_privacy.handle_cancel_uid_hidden_all"
-  },
-  {
-    "key": "download_resource",
-    "group": "bot主人功能",
-    "name": "下载全部资源",
-    "desc": "下载全部资源",
-    "eg": "下载全部资源",
-    "regex": "^下载全部资源$",
-    "permission": "owner",
-    "handler": "dnaby.dna_resource.handle_download_resource"
-  },
-  {
-    "key": "stamina",
-    "group": "信息查询",
-    "name": "日常便签",
-    "desc": "查询实时便笺/体力",
-    "eg": "日常",
-    "regex": "^(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$",
-    "permission": "user",
-    "handler": "dnaby.dna_stamina.handle_stamina"
-  },
-  {
-    "key": "update_log",
-    "group": "bot主人功能",
-    "name": "git更新记录",
-    "desc": "更新记录",
-    "eg": "更新记录",
-    "regex": "^(?:更新记录|更新日志)$",
-    "permission": "owner",
-    "handler": "dnaby.dna_update.handle_update_log"
-  },
-  {
-    "key": "upload_panel_img",
-    "group": "面板图管理",
-    "name": "上传面板图",
-    "desc": "上传角色自定义面板图",
-    "eg": "上传角色面板图",
-    "regex": "^上传(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图$",
-    "permission": "owner",
-    "handler": "dnaby.dna_upload.handle_upload_panel_img"
-  },
-  {
-    "key": "list_panel_imgs",
-    "group": "面板图管理",
-    "name": "面板图列表",
-    "desc": "查看角色已上传的面板图",
-    "eg": "角色面板图列表",
-    "regex": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图列表$",
-    "permission": "owner",
-    "handler": "dnaby.dna_upload.handle_list_panel_imgs"
-  },
-  {
-    "key": "delete_panel_img_by_id",
-    "group": "面板图管理",
-    "name": "删除面板图",
-    "desc": "按 ID 删除角色面板图",
-    "eg": "删除角色面板图abc",
-    "regex": "^删除(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图(?P<image_id>\\S+)$",
-    "permission": "owner",
-    "handler": "dnaby.dna_upload.handle_delete_panel_img_by_id"
-  },
-  {
-    "key": "delete_all_panel_imgs",
-    "group": "面板图管理",
-    "name": "删除全部面板图",
-    "desc": "删除角色全部面板图",
-    "eg": "删除角色全部面板图",
-    "regex": "^删除(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)全部面板图$",
-    "permission": "owner",
-    "handler": "dnaby.dna_upload.handle_delete_all_panel_imgs"
-  },
-  {
-    "key": "delete_original_panel_img",
-    "group": "面板图管理",
-    "name": "原图删除",
-    "desc": "删除引用的原图",
-    "eg": "原图删除",
-    "regex": "^原图删除$",
-    "permission": "owner",
-    "handler": "dnaby.dna_upload.handle_delete_original_panel_img"
-  },
-  {
-    "key": "compress_panel_imgs",
-    "group": "面板图管理",
-    "name": "压缩面板图",
-    "desc": "压缩全部自定义面板图",
-    "eg": "压缩面板图",
-    "regex": "^压缩面板图$",
-    "permission": "owner",
-    "handler": "dnaby.dna_upload.handle_compress_panel_imgs"
-  },
-  {
-    "key": "user_login",
+    "id": "account_login",
+    "pattern": "^(?:(?:dna|DNA)?(?:登录|登陆|登入|登龙)|login)\\s*(?P<arg>.*)$",
     "group": "皎皎角登录",
     "name": "登录",
-    "desc": "皎皎角登录（扫码/网页/短信验证码/token）",
-    "eg": "登录",
-    "regex": "^(?:(?:dna|DNA)?(?:登录|登陆|登入|登龙)|login)\\s*(.*)$",
+    "description": "皎皎角登录（登录页/短信验证码/token）",
+    "examples": [
+      "登录",
+      "登录tttttttttttttttttttttttttttttttttttttttt"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_user.handle_login"
+    "use_case": "src.modules.account.commands.account_login_use_case"
   },
   {
-    "key": "user_logout",
+    "id": "account_logout",
+    "pattern": "^(?:退出登录|登出|logout)$",
     "group": "皎皎角登录",
     "name": "退出登录",
-    "desc": "退出当前登录",
-    "eg": "退出登录",
-    "regex": "^(?:退出登录|登出|logout)$",
+    "description": "退出当前登录",
+    "examples": [
+      "退出登录"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_user.handle_logout"
+    "use_case": "src.modules.account.commands.account_logout_use_case"
   },
   {
-    "key": "user_bind",
+    "id": "account_bind",
+    "pattern": "^绑定\\s*(?P<uid>\\S*)$",
     "group": "绑定账号",
     "name": "绑定UID",
-    "desc": "绑定/切换/删除/查看 UID",
-    "eg": "绑定123456",
-    "regex": "^(绑定|切换|删除全部UID|删除全部uid|删除|查看)\\s*(?P<arg>\\S*)$",
+    "description": "绑定一个 UID",
+    "examples": [
+      "绑定1234567890123"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_user.handle_bind_uid"
+    "use_case": "src.modules.account.commands.account_bind_use_case"
   },
   {
-    "key": "user_get_ck",
+    "id": "account_switch",
+    "pattern": "^切换\\s*(?P<uid>\\S*)$",
     "group": "绑定账号",
-    "name": "获取ck",
-    "desc": "获取当前绑定账号的登录凭据",
-    "eg": "获取ck",
-    "regex": "^(?:获取ck|获取CK|获取Token|获取token|获取TOKEN)$",
+    "name": "切换UID",
+    "description": "切换当前 UID",
+    "examples": [
+      "切换1234567890123"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_user.handle_get_ck"
+    "use_case": "src.modules.account.commands.account_switch_use_case"
   },
   {
-    "key": "weekly_report_current",
+    "id": "account_delete_all",
+    "pattern": "^删除全部(?:UID|uid)?$",
+    "group": "绑定账号",
+    "name": "删除全部UID",
+    "description": "删除当前作用域的全部 UID",
+    "examples": [
+      "删除全部UID"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.account.commands.account_delete_all_use_case"
+  },
+  {
+    "id": "account_delete",
+    "pattern": "^删除\\s*(?P<uid>(?!全部(?:UID|uid)?$)\\d*)$",
+    "group": "绑定账号",
+    "name": "删除UID",
+    "description": "删除一个 UID",
+    "examples": [
+      "删除1234567890123"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.account.commands.account_delete_use_case"
+  },
+  {
+    "id": "account_list",
+    "pattern": "^查看(?:UID|uid)?$",
+    "group": "绑定账号",
+    "name": "查看UID",
+    "description": "查看当前绑定 UID",
+    "examples": [
+      "查看UID"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.account.commands.account_list_use_case"
+  },
+  {
+    "id": "account_credentials",
+    "pattern": "^(?:获取ck|获取CK|获取Token|获取token|获取TOKEN)$",
+    "group": "绑定账号",
+    "name": "获取凭据状态",
+    "description": "查看当前绑定账号的凭据状态（严格脱敏）",
+    "examples": [
+      "获取ck"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.account.commands.account_credentials_use_case"
+  },
+  {
+    "id": "role_info_card",
+    "pattern": "^(?:查询|卡片|角色|信息)$",
+    "group": "信息查询",
+    "name": "基本信息卡片",
+    "description": "查询基本信息",
+    "examples": [
+      "卡片"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_role_overview_use_case"
+  },
+  {
+    "id": "role_detail_card",
+    "pattern": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:面板|信息|详情|面包|🍞)(?:\\s*[+＋]\\s*(?P<weapon_name_1>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?(?:\\s*[+＋]\\s*(?P<weapon_name_2>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?$",
+    "group": "角色信息",
+    "name": "角色详情卡片",
+    "description": "查询角色面板/伤害详情",
+    "examples": [
+      "角色名面板"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_role_detail_use_case"
+  },
+  {
+    "id": "role_original_image",
+    "pattern": "^原图$",
+    "group": "角色信息",
+    "name": "角色原图（暂不支持）",
+    "description": "当前平台暂不支持通过引用获取角色原图",
+    "examples": [
+      "原图"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_original_image_use_case"
+  },
+  {
+    "id": "privacy_enable_peek_personal",
+    "pattern": "^(?:开偷窥|关闭偷窥防护)$",
+    "group": "隐私控制",
+    "name": "开偷窥",
+    "description": "允许被其它人查看自己的游戏信息",
+    "examples": [
+      "开偷窥"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.privacy.commands.privacy_enable_peek_personal_use_case"
+  },
+  {
+    "id": "privacy_disable_peek_personal",
+    "pattern": "^(?:防偷窥|开启偷窥防护)$",
+    "group": "隐私控制",
+    "name": "防偷窥",
+    "description": "禁止被其它人查看自己的游戏信息",
+    "examples": [
+      "防偷窥"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.privacy.commands.privacy_disable_peek_personal_use_case"
+  },
+  {
+    "id": "privacy_enable_uid_hidden",
+    "pattern": "^(?:隐藏UID|隐藏uid)$",
+    "group": "隐私控制",
+    "name": "隐藏UID",
+    "description": "在生成的卡片中隐藏自己的UID",
+    "examples": [
+      "隐藏UID"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.privacy.commands.privacy_enable_uid_hidden_use_case"
+  },
+  {
+    "id": "privacy_disable_uid_hidden",
+    "pattern": "^(?:显示UID|显示uid)$",
+    "group": "隐私控制",
+    "name": "显示UID",
+    "description": "在生成的卡片中显示自己的UID",
+    "examples": [
+      "显示UID"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.privacy.commands.privacy_disable_uid_hidden_use_case"
+  },
+  {
+    "id": "privacy_enable_peek_admin",
+    "pattern": "^指定开偷窥$",
+    "group": "群管理员功能",
+    "name": "指定开偷窥",
+    "description": "允许会话中被艾特的玩家被其它人查看该玩家的游戏信息",
+    "examples": [
+      "指定开偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_enable_peek_admin_use_case"
+  },
+  {
+    "id": "privacy_disable_peek_admin",
+    "pattern": "^指定防偷窥$",
+    "group": "群管理员功能",
+    "name": "指定防偷窥",
+    "description": "禁止会话中被艾特的玩家被其它人查看该玩家的游戏信息",
+    "examples": [
+      "指定防偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_disable_peek_admin_use_case"
+  },
+  {
+    "id": "privacy_enable_peek_all",
+    "pattern": "^全体开偷窥$",
+    "group": "群管理员功能",
+    "name": "全体开偷窥",
+    "description": "允许会话中所有玩家相互查看自己的游戏信息",
+    "examples": [
+      "全体开偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_enable_peek_all_use_case"
+  },
+  {
+    "id": "privacy_disable_peek_all",
+    "pattern": "^全体防偷窥$",
+    "group": "群管理员功能",
+    "name": "全体防偷窥",
+    "description": "禁止会话中所有玩家相互查看自己的游戏信息",
+    "examples": [
+      "全体防偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_disable_peek_all_use_case"
+  },
+  {
+    "id": "privacy_cancel_peek_all",
+    "pattern": "^取消全体偷窥$",
+    "group": "群管理员功能",
+    "name": "取消全体偷窥",
+    "description": "取消全体偷窥设置，恢复个人设置",
+    "examples": [
+      "取消全体偷窥"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_cancel_peek_all_use_case"
+  },
+  {
+    "id": "privacy_enable_uid_hidden_admin",
+    "pattern": "^指定隐藏UID$",
+    "group": "群管理员功能",
+    "name": "指定隐藏UID",
+    "description": "为会话中被艾特的玩家开启UID隐藏",
+    "examples": [
+      "指定隐藏UID"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_enable_uid_hidden_admin_use_case"
+  },
+  {
+    "id": "privacy_disable_uid_hidden_admin",
+    "pattern": "^指定显示UID$",
+    "group": "群管理员功能",
+    "name": "指定显示UID",
+    "description": "为会话中被艾特的玩家关闭UID隐藏",
+    "examples": [
+      "指定显示UID"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_disable_uid_hidden_admin_use_case"
+  },
+  {
+    "id": "privacy_enable_uid_hidden_all",
+    "pattern": "^全体隐藏UID$",
+    "group": "群管理员功能",
+    "name": "全体隐藏UID",
+    "description": "强制会话中所有玩家隐藏UID",
+    "examples": [
+      "全体隐藏UID"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_enable_uid_hidden_all_use_case"
+  },
+  {
+    "id": "privacy_disable_uid_hidden_all",
+    "pattern": "^全体显示UID$",
+    "group": "群管理员功能",
+    "name": "全体显示UID",
+    "description": "强制会话中所有玩家显示UID",
+    "examples": [
+      "全体显示UID"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_disable_uid_hidden_all_use_case"
+  },
+  {
+    "id": "privacy_cancel_uid_hidden_all",
+    "pattern": "^取消全体UID隐藏$",
+    "group": "群管理员功能",
+    "name": "取消全体UID隐藏",
+    "description": "取消全体UID隐藏设置，恢复个人设置",
+    "examples": [
+      "取消全体UID隐藏"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.privacy.commands.privacy_cancel_uid_hidden_all_use_case"
+  },
+  {
+    "id": "stamina",
+    "pattern": "^(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$",
+    "group": "信息查询",
+    "name": "日常便签",
+    "description": "查询实时便笺/体力",
+    "examples": [
+      "日常"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.stamina_use_case"
+  },
+  {
+    "id": "weekly_report_current",
+    "pattern": "^(?:本周周报|周报)$",
     "group": "信息查询",
     "name": "本周周报",
-    "desc": "查询本周资源获取统计",
-    "eg": "周报",
-    "regex": "^(?:本周周报|周报)$",
+    "description": "查询本周资源获取统计",
+    "examples": [
+      "周报"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_weekly_report.handle_weekly_report_current"
+    "use_case": "src.modules.encyclopedia.commands.weekly_report_current_use_case"
   },
   {
-    "key": "weekly_report_last",
+    "id": "weekly_report_last",
+    "pattern": "^上周周报$",
     "group": "信息查询",
     "name": "上周周报",
-    "desc": "查询上周资源获取统计",
-    "eg": "上周周报",
-    "regex": "^上周周报$",
+    "description": "查询上周资源获取统计",
+    "examples": [
+      "上周周报"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_weekly_report.handle_weekly_report_last"
+    "use_case": "src.modules.encyclopedia.commands.weekly_report_last_use_case"
   },
   {
-    "key": "dna_wiki",
+    "id": "calendar",
+    "pattern": "^日历$",
+    "group": "信息查询",
+    "name": "日历",
+    "description": "日历",
+    "examples": [
+      "日历"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.calendar_use_case"
+  },
+  {
+    "id": "dna_wiki",
+    "pattern": "^(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:图鉴|wiki|Wiki|WIKI)$",
     "group": "图鉴",
     "name": "角色图鉴",
-    "desc": "查看角色图鉴",
-    "eg": "角色名图鉴",
-    "regex": "^(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:图鉴|wiki|Wiki|WIKI)$",
+    "description": "查看角色图鉴",
+    "examples": [
+      "角色名图鉴"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_wiki.handle_wiki"
+    "use_case": "src.modules.encyclopedia.commands.wiki_use_case"
   },
   {
-    "key": "alias_add_delete",
-    "group": "bot主人功能",
-    "name": "添加/删除别名",
-    "desc": "添加或删除角色/武器别名",
-    "eg": "添加角色辛西娅别名小辛",
-    "regex": "^(?P<action>添加|删除)(?P<alias_type>角色|武器)?(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)别名(?P<new_alias>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)$",
-    "permission": "owner",
-    "handler": "dnaby.dna_alias.handle_add_alias"
+    "id": "dna_guide",
+    "pattern": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)攻略$",
+    "group": "攻略",
+    "name": "角色攻略",
+    "description": "查看角色攻略图",
+    "examples": [
+      "角色名攻略"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.guide_use_case"
   },
   {
-    "key": "alias_list",
+    "id": "dna_code",
+    "pattern": "^(?:兑换码|cdk|CDK|code)$",
+    "group": "兑换码",
+    "name": "兑换码",
+    "description": "查看当前可用的兑换码",
+    "examples": [
+      "兑换码"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.encyclopedia.commands.code_use_case"
+  },
+  {
+    "id": "alias_list",
+    "pattern": "^(?!添加|删除)(?P<alias_type>角色|武器)?(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)别名(列表)?$",
     "group": "bot主人功能",
     "name": "别名列表",
-    "desc": "查看角色/武器别名列表",
-    "eg": "辛西娅别名",
-    "regex": "^(?P<alias_type>角色|武器)?(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)别名(列表)?$",
+    "description": "查看角色/武器别名列表",
+    "examples": [
+      "角色名别名"
+    ],
     "permission": "owner",
-    "handler": "dnaby.dna_alias.handle_list_alias"
+    "use_case": "src.modules.encyclopedia.commands.alias_list_use_case"
   },
   {
-    "key": "alias_recover",
-    "group": "bot主人功能",
-    "name": "恢复别名",
-    "desc": "恢复/强制恢复内置别名",
-    "eg": "恢复别名",
-    "regex": "^(?:恢复别名|强制恢复别名)$",
-    "permission": "owner",
-    "handler": "dnaby.dna_alias.handle_recover_alias"
-  },
-  {
-    "key": "alias_all_list",
+    "id": "alias_all_list",
+    "pattern": "^(?:角色列表|武器列表)$",
     "group": "bot主人功能",
     "name": "角色/武器列表",
-    "desc": "查看全部角色或武器列表",
-    "eg": "角色列表",
-    "regex": "^(?:角色列表|武器列表)$",
+    "description": "查看全部角色或武器列表",
+    "examples": [
+      "角色列表"
+    ],
     "permission": "user",
-    "handler": "dnaby.dna_alias.handle_all_list_alias"
+    "use_case": "src.modules.encyclopedia.commands.alias_all_list_use_case"
+  },
+  {
+    "id": "sign",
+    "pattern": "^(?:签到|社区签到|每日任务|社区任务|库街区签到|sign)$",
+    "group": "签到",
+    "name": "签到",
+    "description": "每日签到",
+    "examples": [
+      "签到"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.checkin.commands.checkin_sign_use_case"
+  },
+  {
+    "id": "sign_calendar",
+    "pattern": "^(?:签到日历|签到记录|签到历史)$",
+    "group": "签到",
+    "name": "签到日历",
+    "description": "查看签到日历",
+    "examples": [
+      "签到日历"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.checkin.commands.checkin_sign_calendar_use_case"
+  },
+  {
+    "id": "sign_all",
+    "pattern": "^全部签到$",
+    "group": "签到",
+    "name": "全部签到",
+    "description": "手动触发全部账号签到",
+    "examples": [
+      "全部签到"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.checkin.commands.checkin_sign_all_use_case"
+  },
+  {
+    "id": "sign_result_subscribe",
+    "pattern": "^(订阅|取消订阅)签到结果$",
+    "group": "签到",
+    "name": "订阅签到结果",
+    "description": "订阅/取消订阅签到结果推送",
+    "examples": [
+      "订阅签到结果"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.checkin.commands.checkin_sign_result_subscribe_use_case"
+  },
+  {
+    "id": "mh",
+    "pattern": "^(?:密函|委托密函|mh)$",
+    "group": "密函",
+    "name": "密函",
+    "description": "查看当前小时段密函委托",
+    "examples": [
+      "密函"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_mh_use_case"
+  },
+  {
+    "id": "mh_list",
+    "pattern": "^密函列表$",
+    "group": "密函",
+    "name": "密函列表",
+    "description": "查看全部密函委托名称",
+    "examples": [
+      "密函列表"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_mh_list_use_case"
+  },
+  {
+    "id": "ann",
+    "pattern": "^公告(?:\\s+(?P<index>\\d+))?$",
+    "group": "公告",
+    "name": "公告",
+    "description": "查看公告列表；带序号时查看公告详情",
+    "examples": [
+      "公告",
+      "公告 1"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_ann_use_case"
+  },
+  {
+    "id": "mh_subscribe",
+    "pattern": "^(?:密函订阅|我的密函|我的密函订阅)$",
+    "group": "密函",
+    "name": "我的密函订阅",
+    "description": "查看当前密函订阅与推送时间",
+    "examples": [
+      "我的密函"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_mh_subscriptions_use_case"
+  },
+  {
+    "id": "mh_subscribe_by_name",
+    "pattern": "^(订阅|取消订阅)(?P<mh_type>角色|武器|魔之楔)?(?P<mh_name>扼守|拆解|勘探|追缉|探险|调停|避险|迁移|驱逐|护送|驱离|全部)密函$",
+    "group": "密函",
+    "name": "订阅/取消订阅密函",
+    "description": "按名称订阅或取消订阅密函委托",
+    "examples": [
+      "订阅拆解密函",
+      "取消订阅全部密函"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_mh_subscribe_use_case"
+  },
+  {
+    "id": "mh_subscribe_cycle",
+    "pattern": "^订阅密函(?:时间|周期)(?P<start>\\d{1,2}):(?P<end>\\d{1,2})$",
+    "group": "密函",
+    "name": "订阅密函时间",
+    "description": "设置密函推送时间窗口",
+    "examples": [
+      "订阅密函时间17:23"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.notices.commands.notices_mh_push_time_use_case"
+  },
+  {
+    "id": "mh_pic_subscribe",
+    "pattern": "^(?:订阅密函图片|取消订阅密函图片)$",
+    "group": "密函",
+    "name": "订阅密函图片",
+    "description": "订阅/取消订阅密函图片推送",
+    "examples": [
+      "订阅密函图片"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.notices.commands.notices_mh_pic_use_case"
+  },
+  {
+    "id": "mh_text_subscribe",
+    "pattern": "^(?:订阅密函文本|取消订阅密函文本)$",
+    "group": "密函",
+    "name": "订阅密函文本",
+    "description": "订阅/取消订阅密函文本推送",
+    "examples": [
+      "订阅密函文本"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.notices.commands.notices_mh_text_use_case"
+  },
+  {
+    "id": "mh_test",
+    "pattern": "^密函测试$",
+    "group": "密函",
+    "name": "密函测试",
+    "description": "向当前会话发送密函测试推送",
+    "examples": [
+      "密函测试"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.notices.commands.notices_mh_test_use_case"
+  },
+  {
+    "id": "ann_sub",
+    "pattern": "^订阅公告$",
+    "group": "公告",
+    "name": "订阅公告",
+    "description": "订阅公告推送（群聊）",
+    "examples": [
+      "订阅公告"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.notices.commands.notices_ann_sub_use_case"
+  },
+  {
+    "id": "ann_unsub",
+    "pattern": "^(?:取消订阅公告|取消公告|退订公告)$",
+    "group": "公告",
+    "name": "取消订阅公告",
+    "description": "取消订阅公告推送（群聊）",
+    "examples": [
+      "取消订阅公告"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.notices.commands.notices_ann_unsub_use_case"
+  },
+  {
+    "id": "upload_panel_img",
+    "pattern": "^上传(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图$",
+    "group": "面板图管理",
+    "name": "上传面板图",
+    "description": "上传角色自定义面板图",
+    "examples": [
+      "上传角色面板图"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_upload_use_case"
+  },
+  {
+    "id": "list_panel_imgs",
+    "pattern": "^(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图列表$",
+    "group": "面板图管理",
+    "name": "面板图列表",
+    "description": "查看角色已上传的面板图",
+    "examples": [
+      "角色面板图列表"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_list_use_case"
+  },
+  {
+    "id": "delete_panel_img_by_id",
+    "pattern": "^删除(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图(?P<image_id>\\S+)$",
+    "group": "面板图管理",
+    "name": "删除面板图",
+    "description": "按 ID 删除角色面板图",
+    "examples": [
+      "删除角色面板图abc"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_delete_by_id_use_case"
+  },
+  {
+    "id": "delete_all_panel_imgs",
+    "pattern": "^删除(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)全部面板图$",
+    "group": "面板图管理",
+    "name": "删除全部面板图",
+    "description": "删除角色全部面板图",
+    "examples": [
+      "删除角色全部面板图"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_delete_all_use_case"
+  },
+  {
+    "id": "delete_original_panel_img",
+    "pattern": "^原图删除$",
+    "group": "面板图管理",
+    "name": "删除原图",
+    "description": "删除引用面板图对应的原图",
+    "examples": [
+      "原图删除"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_delete_original_use_case"
+  },
+  {
+    "id": "compress_panel_imgs",
+    "pattern": "^压缩面板图$",
+    "group": "面板图管理",
+    "name": "压缩面板图",
+    "description": "压缩全部自定义面板图",
+    "examples": [
+      "压缩面板图"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_compress_use_case"
+  },
+  {
+    "id": "resource_status",
+    "pattern": "^资源状态$",
+    "group": "面板图管理",
+    "name": "资源状态",
+    "description": "查看私有资源仓库与自定义面板状态",
+    "examples": [
+      "资源状态"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.panel_resource_status_use_case"
+  },
+  {
+    "id": "download_resource",
+    "pattern": "^下载全部资源$",
+    "group": "资源管理",
+    "name": "下载全部资源",
+    "description": "下载全部资源",
+    "examples": [
+      "下载全部资源"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.resource_download_use_case"
+  },
+  {
+    "id": "update_log",
+    "pattern": "^(?:更新记录|更新日志)$",
+    "group": "资源管理",
+    "name": "更新记录",
+    "description": "查看插件更新记录",
+    "examples": [
+      "更新记录"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.resource_update_log_use_case"
+  },
+  {
+    "id": "alias_add_delete",
+    "pattern": "^(?P<action>添加|删除)(?P<alias_type>角色|武器)?(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)别名(?P<new_alias>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)$",
+    "group": "别名管理",
+    "name": "添加/删除别名",
+    "description": "添加或删除角色/武器别名",
+    "examples": [
+      "添加角色辛西娅别名小辛"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.alias_add_delete_use_case"
+  },
+  {
+    "id": "alias_recover",
+    "pattern": "^(?:恢复别名|强制恢复别名)$",
+    "group": "别名管理",
+    "name": "恢复别名",
+    "description": "恢复/强制恢复内置别名",
+    "examples": [
+      "恢复别名"
+    ],
+    "permission": "owner",
+    "use_case": "src.modules.operations.commands.alias_recover_use_case"
   }
 ]

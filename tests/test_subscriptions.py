@@ -4,8 +4,8 @@ import asyncio
 import json
 from pathlib import Path
 
-from dnaby.utils.session import EventContext
-from dnaby.utils.subscriptions import SubscriptionStore
+from src.utils.session import EventContext
+from src.utils.subscriptions import SubscriptionStore
 
 
 def _run(awaitable):

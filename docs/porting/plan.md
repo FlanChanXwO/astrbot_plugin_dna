@@ -12,10 +12,10 @@
 4. `dnaby/utils/image_utils.py`：convert_img/tint_image/crop_center_img/download/get_qrcode_base64/get_event_avatar/change_ev_image_to_bytes（本地 PIL+qrcode+httpx）。
 5. `dnaby/utils/database/base.py`：引擎/with_session/BaseIDModel/Bind/User + 迁移 runner；`models.py` 去 gsucore base（test_database）。
 6. `dnaby/utils/subscriptions.py`：订阅存储 + 推送（test_subscriptions）。
-7. `dnaby/dna_config/`：config models + ConfigManager + `_conf_schema.json` 生成（test_config）。
+7. `src/infrastructure/config/`：Pydantic typed settings + `_conf_schema.json` 生成；`src/infrastructure/resources/`：私有 Git manifest 校验与 fast-forward-only 同步（test_config_resources）。
 8. `dnaby/utils/msgs/notify.py`：适配 Sender/EventContext。
-9. `commands.json` 生成 + `main.py` 分发框架（MASTER regex + dispatch + PermissionService）（test_commands）。
-10. 帮助卡片（commands.json 渲染）。
+9. `CommandSpec` 显式 registry、独立正则 handler 和权限 decorator，生成 `commands.json`（test_command_registry/test_commands）。
+10. 帮助 use case 读取同一 registry，未实现命令不展示。
 
 ## Phase 2 — 信息查询（免登录，完成）
 角色卡片/面板+伤害、图鉴、攻略、日常、日历、周报、兑换码、公告查看、更新记录。每命令 test 起步。

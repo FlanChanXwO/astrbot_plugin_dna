@@ -1,5 +1,7 @@
 {
   "include": [
+    "src",
+    "main.py",
     "dnaby",
     "tests"
   ],
