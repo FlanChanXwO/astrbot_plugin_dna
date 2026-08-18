@@ -62,7 +62,7 @@ async def test_operations_handler_reports_service_missing() -> None:
     result = await cast(Awaitable, spec.use_case(
         SimpleNamespace(
             command_id="resource_status",
-            text="资源状态",
+            text="kk资源状态",
             parameters={},
             actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
             services={},
@@ -104,7 +104,7 @@ async def test_generated_resource_status_handler_yields_text() -> None:
 
     class Event:
         def get_message_str(self) -> str:
-            return "资源状态"
+            return "kk资源状态"
 
         def get_sender_id(self) -> str:
             return "user-1"

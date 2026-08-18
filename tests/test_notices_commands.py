@@ -23,12 +23,12 @@ def test_notices_commands_are_registered_with_legacy_semantics() -> None:
     specs = {spec.id: spec for spec in load_command_registry()}
 
     assert NOTICES_SPEC_IDS <= specs.keys()
-    assert specs["mh"].pattern == r"^(?:密函|委托密函|mh)$"
+    assert specs["mh"].pattern == r"^kk(?:密函|委托密函|mh)$"
     assert specs["mh"].permission == "user"
     assert specs["mh"].group == "密函"
-    assert specs["mh_list"].pattern == r"^密函列表$"
+    assert specs["mh_list"].pattern == r"^kk密函列表$"
     assert specs["mh_list"].permission == "user"
-    assert specs["ann"].pattern == r"^公告(?:\s+(?P<index>\d+))?$"
+    assert specs["ann"].pattern == r"^kk公告(?:\s+(?P<index>\d+))?$"
     assert specs["ann"].permission == "user"
     assert specs["mh_subscribe_by_name"].permission == "user"
     assert specs["mh_subscribe_cycle"].permission == "user"
@@ -43,10 +43,10 @@ def test_ann_pattern_extracts_named_index() -> None:
     import re
 
     spec = load_command_registry().get("ann")
-    match = re.match(spec.pattern, "公告 3")
+    match = re.match(spec.pattern, "kk公告 3")
     assert match is not None
     assert match.groupdict() == {"index": "3"}
-    no_index = re.match(spec.pattern, "公告")
+    no_index = re.match(spec.pattern, "kk公告")
     assert no_index is not None
     assert no_index.groupdict() == {"index": None}
 
@@ -60,7 +60,7 @@ async def test_notices_handler_reports_service_missing() -> None:
     result = await cast(Awaitable, spec.use_case(
         SimpleNamespace(
             command_id="mh",
-            text="密函",
+            text="kk密函",
             parameters={},
             actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
             services={},
@@ -117,7 +117,7 @@ async def test_generated_ann_handler_yields_image_response() -> None:
 
     class Event:
         def get_message_str(self) -> str:
-            return "公告"
+            return "kk公告"
 
         def get_sender_id(self) -> str:
             return "user-1"

@@ -323,7 +323,7 @@ async def test_help_shows_implemented_commands_only():
 
     class Event:
         def get_message_str(self) -> str:
-            return "帮助"
+            return "kk帮助"
 
         def plain_result(self, text: str) -> str:
             return text

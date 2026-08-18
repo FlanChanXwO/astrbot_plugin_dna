@@ -23,14 +23,14 @@ def test_checkin_commands_are_registered_with_legacy_semantics() -> None:
     specs = {spec.id: spec for spec in load_command_registry()}
 
     assert CHECKIN_SPEC_IDS <= specs.keys()
-    assert specs["sign"].pattern == r"^(?:签到|社区签到|每日任务|社区任务|库街区签到|sign)$"
+    assert specs["sign"].pattern == r"^kk(?:签到|社区签到|每日任务|社区任务|库街区签到|sign)$"
     assert specs["sign"].permission == "user"
     assert specs["sign"].group == "签到"
-    assert specs["sign_calendar"].pattern == r"^(?:签到日历|签到记录|签到历史)$"
+    assert specs["sign_calendar"].pattern == r"^kk(?:签到日历|签到记录|签到历史)$"
     assert specs["sign_calendar"].permission == "user"
-    assert specs["sign_all"].pattern == r"^全部签到$"
+    assert specs["sign_all"].pattern == r"^kk全部签到$"
     assert specs["sign_all"].permission == "owner"
-    assert specs["sign_result_subscribe"].pattern == r"^(订阅|取消订阅)签到结果$"
+    assert specs["sign_result_subscribe"].pattern == r"^kk(订阅|取消订阅)签到结果$"
     assert specs["sign_result_subscribe"].permission == "owner"
 
 
@@ -42,7 +42,7 @@ async def test_sign_handler_reports_service_missing() -> None:
 
     class Event:
         def get_message_str(self) -> str:
-            return "签到"
+            return "kk签到"
 
         def get_sender_id(self) -> str:
             return "user-1"
@@ -56,7 +56,7 @@ async def test_sign_handler_reports_service_missing() -> None:
     result = await cast(Awaitable, spec.use_case(
         SimpleNamespace(
             command_id="sign",
-            text="签到",
+            text="kk签到",
             parameters={},
             actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
             services={},
@@ -89,7 +89,7 @@ async def test_generated_sign_all_handler_yields_aggregate_result() -> None:
 
     class Event:
         def get_message_str(self) -> str:
-            return "全部签到"
+            return "kk全部签到"
 
         def get_sender_id(self) -> str:
             return "user-1"
@@ -147,7 +147,7 @@ async def test_generated_sign_result_handler_yields_subscription_result() -> Non
 
     class Event:
         def get_message_str(self) -> str:
-            return "订阅签到结果"
+            return "kk订阅签到结果"
 
         def get_sender_id(self) -> str:
             return "user-1"

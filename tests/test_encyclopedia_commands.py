@@ -35,15 +35,15 @@ def test_encyclopedia_commands_are_explicit_and_legacy_patterns_are_preserved() 
         "alias_all_list",
     }
     assert expected <= specs.keys()
-    assert specs["stamina"].pattern == r"^(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
-    assert specs["weekly_report_current"].pattern == r"^(?:本周周报|周报)$"
-    assert specs["weekly_report_last"].pattern == r"^上周周报$"
-    assert specs["calendar"].pattern == r"^日历$"
-    assert specs["dna_code"].pattern == r"^(?:兑换码|cdk|CDK|code)$"
+    assert specs["stamina"].pattern == r"^kk(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert specs["weekly_report_current"].pattern == r"^kk(?:本周周报|周报)$"
+    assert specs["weekly_report_last"].pattern == r"^kk上周周报$"
+    assert specs["calendar"].pattern == r"^kk日历$"
+    assert specs["dna_code"].pattern == r"^kk(?:兑换码|cdk|CDK|code)$"
     assert specs["alias_list"].permission == "owner"
     assert specs["alias_all_list"].permission == "user"
-    assert specs["dna_wiki"].pattern.startswith(r"^(?P<name>")
-    assert specs["dna_guide"].pattern.startswith(r"^(?P<char_name>")
+    assert specs["dna_wiki"].pattern.startswith(r"^kk(?P<name>")
+    assert specs["dna_guide"].pattern.startswith(r"^kk(?P<char_name>")
 
 
 @pytest.mark.asyncio
@@ -89,7 +89,7 @@ async def test_encyclopedia_use_case_reports_missing_service() -> None:
 
     class Event:
         def get_message_str(self) -> str:
-            return "日历"
+            return "kk日历"
 
         def get_sender_id(self) -> str:
             return "user-1"
