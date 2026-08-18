@@ -17,7 +17,7 @@ from typing import Protocol
 from .manifest import ResourceManifest
 from .paths import default_resource_repository_dir, resource_repository_dir
 
-DEFAULT_RESOURCE_REMOTE = "git@github.com:FlanChanXwO/astrbot_plugin_dna_resources.git"
+DEFAULT_RESOURCE_REMOTE = "https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git"
 
 
 class ResourceSyncError(RuntimeError):

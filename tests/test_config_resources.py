@@ -181,7 +181,7 @@ def test_resource_sync_rejects_manifest_missing_runtime_layout(tmp_path: Path) -
         ),
         encoding="utf-8",
     )
-    remote = "git@github.com:FlanChanXwO/astrbot_plugin_dna_resources.git"
+    remote = "https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git"
     runner = FakeGit(
         {
             ("rev-parse", "--is-inside-work-tree"): GitCommandResult(stdout="true\n"),
@@ -256,7 +256,7 @@ def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) -> Non
 
 def test_resource_sync_clones_once_and_pulls_after_clean_check(tmp_path: Path) -> None:
     target = tmp_path / "resources"
-    remote = "git@github.com:FlanChanXwO/astrbot_plugin_dna_resources.git"
+    remote = "https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git"
     clone = FakeGit(
         {
             ("clone", "--depth", "1", remote, str(target)): GitCommandResult(),
@@ -314,7 +314,7 @@ def test_resource_sync_reports_local_changes_without_pull(tmp_path: Path) -> Non
     target = tmp_path / "resources"
     target.mkdir()
     _write_manifest(target)
-    remote = "git@github.com:FlanChanXwO/astrbot_plugin_dna_resources.git"
+    remote = "https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git"
     runner = FakeGit(
         {
             ("rev-parse", "--is-inside-work-tree"): GitCommandResult(stdout="true\n"),
