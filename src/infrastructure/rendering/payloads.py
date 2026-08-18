@@ -6,10 +6,10 @@ from pathlib import Path
 
 import httpx
 
-from src.utils.image import get_avatar_img
-from src.utils.image_utils import get_event_avatar
-from src.utils.resource.RESOURCE_PATH import AVATAR_PATH
-from src.utils.session import EventContext
+from ...utils.image import get_avatar_img
+from ...utils.image_utils import get_event_avatar
+from ...utils.resource.RESOURCE_PATH import AVATAR_PATH
+from ...utils.session import EventContext
 
 from .assets import image_data_uri, pil_image_data_uri
 

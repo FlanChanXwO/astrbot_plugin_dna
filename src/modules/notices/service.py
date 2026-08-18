@@ -97,7 +97,7 @@ class NoticesService:
     async def mh_list(self, _request: NoticeRequest):
         """返回全部密函委托名称。"""
 
-        from src.utils.api.mh_map import get_mh_list
+        from ...utils.api.mh_map import get_mh_list
 
         return PlainTextResponse("\n".join(get_mh_list()))
 

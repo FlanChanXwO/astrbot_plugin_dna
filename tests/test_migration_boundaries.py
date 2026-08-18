@@ -158,6 +158,41 @@ def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
     assert registered == []
 
 
+def test_package_namespace_import_does_not_depend_on_top_level_src():
+    """包名加载必须在没有顶层 ``src`` 兼容模块的干净进程中成立。"""
+    import subprocess
+
+    script = r'''
+import importlib.util
+import sys
+import types
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for pkg in ["data", "data.plugins", "data.plugins.astrbot_plugin_dnaby"]:
+    module = types.ModuleType(pkg)
+    module.__path__ = []
+    sys.modules[pkg] = module
+sys.modules["data.plugins.astrbot_plugin_dnaby"].__path__ = [str(root)]
+spec = importlib.util.spec_from_file_location(
+    "data.plugins.astrbot_plugin_dnaby.main",
+    root / "main.py",
+    submodule_search_locations=[str(root)],
+)
+assert spec and spec.loader
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+assert len(module.COMMAND_REGISTRY) == 61
+'''
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(Path(__file__).resolve().parent.parent)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
 
 def test_mh_list_order_is_stable():
     """动态密函命令的角色顺序必须跨进程稳定，避免清单漂移。"""
