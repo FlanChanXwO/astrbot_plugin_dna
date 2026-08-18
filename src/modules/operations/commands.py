@@ -207,7 +207,7 @@ COMMAND_SPECS = (
         id="resource_status",
         pattern=r"^资源状态$",
         name="资源状态",
-        description="查看私有资源仓库与自定义面板状态",
+        description="查看公共资源仓库与自定义面板状态",
         examples=("资源状态",),
         use_case=cast(Any, panel_resource_status_use_case),
         **_COMMON,

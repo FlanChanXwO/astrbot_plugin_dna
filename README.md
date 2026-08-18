@@ -29,7 +29,7 @@
 owner 全部签到与签到结果订阅（每日 `sign_in.sign_time` 计划任务推送），密函、公告读取
 及其订阅推送（按 `notifications.secret_push_time` 每小时推送、`announcement_check_minutes`
 轮询公告），以及 owner 面板图管理（上传/列表/删除/压缩）、资源状态、资源下载与更新记录。
-玩家和资料素材已从私有运行期
+玩家和资料素材已从公共运行期
 资源根加载；真实资源内容与视觉等价仍待 Task 30 只读验收。`原图` 因 AstrBot 4.27.x 公开
 结果边界没有已发送消息 ID 交付点，显式标记为暂不支持，不作可用平台功能宣称。签到写操作
 与推送只在离线 fixture 验证，未对真实账户执行。命令清单见 `commands.json` 与
@@ -37,7 +37,7 @@ owner 全部签到与签到结果订阅（每日 `sign_in.sign_time` 计划任�
 
 ## 配置
 
-插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），由 `src/infrastructure/config` 的 Pydantic 定义生成，按登录、网络、签到、通知和显示分组。资源仓库使用私有 Git origin，首次同步浅克隆，后续只允许 fast-forward 更新；详见 [docs/usage/resources.md](docs/usage/resources.md)。
+插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），由 `src/infrastructure/config` 的 Pydantic 定义生成，按登录、网络、签到、通知和显示分组。资源仓库使用公共 Git origin，首次同步浅克隆，后续只允许 fast-forward 更新；详见 [docs/usage/resources.md](docs/usage/resources.md)。
 
 ## 开发
 

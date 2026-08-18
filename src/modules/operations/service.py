@@ -34,7 +34,7 @@ class PanelCommandRequest:
 
 
 class PanelService:
-    """本地自定义面板图与私有资源状态的管理器。
+    """本地自定义面板图与公共资源状态的管理器。
 
     写操作（上传/删除/压缩）只操作运行期数据目录下的 ``panel_custom/``，不触碰插件
     源码、参考区或真实账户；测试使用隔离目录 fixture 验证。
@@ -205,7 +205,7 @@ class PanelService:
         )
 
     async def resource_status(self, _request: PanelCommandRequest):
-        """展示私有资源仓库与本地面板数据的状态。"""
+        """展示公共资源仓库与本地面板数据的状态。"""
 
         lines = [messages.RESOURCE_STATUS_HEADER]
         lines.append(messages.resource_status_line("资源仓库目录", str(self.resource_root)))

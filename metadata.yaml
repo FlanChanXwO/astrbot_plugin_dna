@@ -1,6 +1,6 @@
 name: astrbot_plugin_dnaby
 display_name: DNAUID（二重螺旋）
-desc: 二重螺旋 AstrBot 原生重构插件；v0.1 当前提供薄入口、typed 配置、帮助命令和私有资源仓库接口，历史能力按阶段迁移。
+desc: 二重螺旋 AstrBot 原生重构插件；v0.1 当前提供薄入口、typed 配置、帮助命令和公共资源仓库接口，历史能力按阶段迁移。
 version: v0.1.0
 author: FlanChanXwO
 repo: https://github.com/FlanChanXwO/astrbot_plugin_dnaby

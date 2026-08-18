@@ -43,7 +43,7 @@ def _git_log(repo_root: Path, *, limit: int = 20) -> list[str]:
 
 
 class ResourceUpdateService:
-    """私有资源同步与插件更新日志展示。
+    """公共资源同步与插件更新日志展示。
 
     同步只调用参数列表形式的 ``git``（浅克隆 / ``pull --ff-only``），Git 缺失、认证失败、
     远端失败、非快进和本地修改均通过异常显露为可见文案，不自动覆盖本地修改。
@@ -61,7 +61,7 @@ class ResourceUpdateService:
         self.commit_log = commit_log
 
     async def download_all(self, _request: object):
-        """下载全部私有资源（浅克隆或 ff-only 更新）。"""
+        """下载全部公共资源（浅克隆或 ff-only 更新）。"""
 
         try:
             result = await asyncio.to_thread(self.synchronize)

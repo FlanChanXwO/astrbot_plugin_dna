@@ -1,4 +1,4 @@
-"""私有资源 Git 同步接口。
+"""公共资源 Git 同步接口。
 
 同步器只调用参数列表形式的 ``git``，不经过 shell；它不会 force checkout、
 删除本地目录或覆盖本地修改。首次同步使用浅克隆，后续只允许
@@ -17,7 +17,7 @@ from typing import Protocol
 from .manifest import ResourceManifest
 from .paths import default_resource_repository_dir, resource_repository_dir
 
-DEFAULT_RESOURCE_REMOTE = "git@github.com:FlanChanXwO/dnaby_resources.git"
+DEFAULT_RESOURCE_REMOTE = "git@github.com:FlanChanXwO/astrbot_plugin_dna_resources.git"
 
 
 class ResourceSyncError(RuntimeError):
@@ -28,7 +28,7 @@ class GitUnavailableError(ResourceSyncError):
     """系统未提供 Git 可执行文件。"""
 
     def __init__(self) -> None:
-        super().__init__("未找到 git 可执行文件，无法同步私有资源仓库")
+        super().__init__("未找到 git 可执行文件，无法同步公共资源仓库")
 
 
 def _redact_git_detail(detail: str) -> str:
@@ -64,10 +64,10 @@ class GitCommandError(ResourceSyncError):
 
 
 class ResourceRemoteMismatchError(ResourceSyncError):
-    """仓库 origin 与预期私有资源仓库不一致。"""
+    """仓库 origin 与预期公共资源仓库不一致。"""
 
     def __init__(self) -> None:
-        super().__init__("资源 Git origin 与配置的私有资源仓库不一致")
+        super().__init__("资源 Git origin 与配置的公共资源仓库不一致")
 
 
 class ResourceLocalChangesError(ResourceSyncError):
@@ -131,7 +131,7 @@ class ResourceSyncResult:
 
 
 class ResourceSynchronizer:
-    """同步并验证私有资源 Git 仓库。"""
+    """同步并验证公共资源 Git 仓库。"""
 
     def __init__(
         self,
@@ -219,7 +219,7 @@ def download_all_resources(
     remote: str = DEFAULT_RESOURCE_REMOTE,
     runner: GitRunner = run_git,
 ) -> ResourceSyncResult:
-    """下载并验证全部私有资源；首次浅克隆，后续 fast-forward-only 更新。"""
+    """下载并验证全部公共资源；首次浅克隆，后续 fast-forward-only 更新。"""
 
     if repository is not None and data_dir is not None:
         raise ValueError("repository 与 data_dir 只能指定一个")

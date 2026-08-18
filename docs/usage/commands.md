@@ -30,7 +30,7 @@ registry 的帮助文本。
   例如 `角色名面板 +近战名 +远程名`。
 - `原图`：设计上引用角色详情图后读取对应的原始面板图。AstrBot 4.27.x 公共结果边界没有
   已发送消息 ID 交付点，当前显式报告“暂不支持”，不会用永久不可命中的缓存伪装“未找到”。
-  私有资源根可提供 `panel/<角色 ID>.png`，原面板引用随详情响应 `original_image_path`
+  公共资源根可提供 `panel/<角色 ID>.png`，原面板引用随详情响应 `original_image_path`
   传递。详见 [v0.3 集中审查](../porting/review-v0.3-debug.md)。
 
 玩家图片由 `ImageResponse` 交给 AstrBot 公共 `image_result`，实际 PNG 写入
@@ -98,12 +98,12 @@ registry 的帮助文本。
 - `删除<角色>面板图<ID>`、`删除<角色>全部面板图`：按 ID 或全部删除。
 - `压缩面板图`：把全部自定义面板图压缩为 WebP。
 - `原图删除`：公开结果边界无原图引用缓存，显式报告暂不支持。
-- `资源状态`：展示私有资源仓库目录、manifest 版本/必需目录和自定义面板数量。
+- `资源状态`：展示公共资源仓库目录、manifest 版本/必需目录和自定义面板数量。
 - 上传/删除/压缩等写操作只在隔离 fixture 验证，不操作真实账户或参考区。
 
 ## 资源管理命令（owner）
 
-- `下载全部资源`：浅克隆或 `git pull --ff-only` 同步私有资源仓库并校验 manifest；Git
+- `下载全部资源`：浅克隆或 `git pull --ff-only` 同步公共资源仓库并校验 manifest；Git
   缺失、认证失败、远端失败、非快进和本地修改均返回可见错误，不自动覆盖本地修改。
 - `更新记录`、`更新日志`：读取插件仓库最近提交。
 
@@ -113,7 +113,7 @@ registry 的帮助文本。
 [v0.3 资料查询行为矩阵](../porting/review-v0.3-encyclopedia.md)。
 
 资源同步后的完整目录已接入玩家与百科 renderer；metadata 会把实际读取到的素材标为
-`provided`，缺失素材标为 `placeholder` 或 `fallback`。这仍不等于真实私有资源或视觉输出
+`provided`，缺失素材标为 `placeholder` 或 `fallback`。这仍不等于真实公共资源或视觉输出
 已验收，Task 30 必须保留该差异结论。
 
 ## 隐私控制命令
