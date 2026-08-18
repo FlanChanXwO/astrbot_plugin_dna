@@ -14,22 +14,34 @@ def test_master_pattern_matches_examples_with_named_groups():
             assert pattern.match(eg), f"{command.id}: {eg}"
 
 
-def test_login_accepts_dna_prefix_at_command_and_master_gates():
+def test_registered_commands_require_kk_prefix():
+    from src.entry.commands import COMMAND_PREFIX, load_command_registry
+
+    registry = load_command_registry()
+    assert COMMAND_PREFIX == "kk"
+    assert all(command.pattern.startswith(r"^kk") for command in registry)
+    assert registry.match("帮助") is None
+    assert registry.match("kk帮助") is not None
+
+
+def test_login_accepts_kk_prefix_at_command_and_master_gates():
     from src.entry.commands import load_command_registry
 
     registry = load_command_registry()
     login = next(command for command in registry if command.id == "account_login")
     login_pattern = re.compile(login.pattern)
 
-    for message in ("登录", "dna登录", "DNA登录", "dna登录 token"):
+    for message in ("kk登录", "kk登陆", "kklogin", "kk登录 token"):
         assert login_pattern.match(message), message
+    for message in ("登录", "dna登录", "DNA登录"):
+        assert login_pattern.match(message) is None, message
 
 
 def test_dispatch_reparses_command_and_populates_context():
     from src.entry.commands import load_command_registry
 
     registry = load_command_registry()
-    matched = registry.match("绑定123456")
+    matched = registry.match("kk绑定123456")
     assert matched is not None
     assert matched.command.id == "account_bind"
     assert matched.parameters["uid"] == "123456"

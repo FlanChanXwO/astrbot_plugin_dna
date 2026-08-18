@@ -145,7 +145,7 @@ async def account_credentials_use_case(
 COMMAND_SPECS = (
     CommandSpec(
         id="account_login",
-        pattern=r"^(?:(?:dna|DNA)?(?:登录|登陆|登入|登龙)|login)\s*(?P<arg>.*)$",
+        pattern=r"^(?:登录|登陆|登入|登龙|login)\s*(?P<arg>.*)$",
         group="皎皎角登录",
         name="登录",
         description="皎皎角登录（登录页/短信验证码/token）",

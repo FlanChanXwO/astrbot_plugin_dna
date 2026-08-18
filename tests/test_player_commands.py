@@ -27,9 +27,9 @@ def test_player_commands_are_explicit_and_legacy_patterns_are_preserved() -> Non
     specs = {spec.id: spec for spec in registry}
 
     assert {"role_info_card", "role_detail_card", "role_original_image"} <= specs.keys()
-    assert specs["role_info_card"].pattern == r"^(?:查询|卡片|角色|信息)$"
-    assert specs["role_original_image"].pattern == r"^原图$"
-    assert ROLE_DETAIL_PATTERN == specs["role_detail_card"].pattern
+    assert specs["role_info_card"].pattern == r"^kk(?:查询|卡片|角色|信息)$"
+    assert specs["role_original_image"].pattern == r"^kk原图$"
+    assert specs["role_detail_card"].pattern == r"^kk" + ROLE_DETAIL_PATTERN[1:]
     assert registry.named_parameters("role_detail_card") == (
         "char_name",
         "weapon_name_1",
@@ -83,7 +83,7 @@ async def test_original_image_handler_explicitly_reports_public_boundary_unsuppo
 
     class Event:
         def get_message_str(self) -> str:
-            return "原图"
+            return "kk原图"
 
         def get_sender_id(self) -> str:
             return "user-1"

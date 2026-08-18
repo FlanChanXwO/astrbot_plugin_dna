@@ -35,6 +35,7 @@ CommandUseCase = Callable[
 ]
 
 _PERMISSIONS = {"user", "admin", "owner"}
+COMMAND_PREFIX = "kk"
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +206,29 @@ class MatchedCommand:
     parameters: dict[str, Any]
 
 
+def _prefix_pattern(pattern: str) -> str:
+    """给生产命令统一添加触发前缀，模块内仍保留易读的原始正则。"""
+
+    if pattern.startswith("^"):
+        return f"^{re.escape(COMMAND_PREFIX)}{pattern[1:]}"
+    return f"^{re.escape(COMMAND_PREFIX)}{pattern}"
+
+
+def _prefix_spec(spec: CommandSpec) -> CommandSpec:
+    """生成带前缀的公开命令声明，同时保持原 use case 不变。"""
+
+    return CommandSpec(
+        id=spec.id,
+        pattern=_prefix_pattern(spec.pattern),
+        group=spec.group,
+        name=spec.name,
+        description=spec.description,
+        examples=tuple(f"{COMMAND_PREFIX}{example}" for example in spec.examples),
+        permission=spec.permission,
+        use_case=spec.use_case,
+    )
+
+
 def load_command_registry(
     modules: Iterable[ModuleType] | None = None,
 ) -> CommandRegistry:
@@ -214,7 +238,8 @@ def load_command_registry(
         from ...modules.index import COMMAND_MODULES
 
         modules = COMMAND_MODULES
-    return CommandRegistry.from_modules(modules)
+    raw_registry = CommandRegistry.from_modules(modules)
+    return CommandRegistry(_prefix_spec(spec) for spec in raw_registry)
 
 
 def _canonical_symbol_path(callable_: Callable[..., Any]) -> str:
@@ -371,6 +396,7 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
 
 
 __all__ = [
+    "COMMAND_PREFIX",
     "CommandRegistry",
     "CommandRequest",
     "CommandSpec",

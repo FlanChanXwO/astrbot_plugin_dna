@@ -77,7 +77,7 @@ async def test_account_handler_extracts_actor_and_named_uid() -> None:
 
     handler_name = "handle_account_bind"
     handler = getattr(plugin, handler_name)
-    result = [item async for item in handler(Event("绑定1234567890123"))]
+    result = [item async for item in handler(Event("kk绑定1234567890123"))]
 
     assert result == ["绑定成功"]
     assert service.calls == [
@@ -113,7 +113,7 @@ async def test_account_bind_handler_keeps_legacy_empty_argument_route() -> None:
     )
 
     handler = plugin.handle_account_bind
-    result = [item async for item in handler(Event("绑定"))]
+    result = [item async for item in handler(Event("kk绑定"))]
 
     assert result == ["绑定成功"]
     assert service.calls[0][2] == ""
@@ -145,7 +145,7 @@ async def test_account_handler_requires_event_actor() -> None:
     handler_name = "handle_account_bind"
     handler = getattr(plugin, handler_name)
     result = [
-        item async for item in handler(Event("绑定1234567890123", with_actor=False))
+        item async for item in handler(Event("kk绑定1234567890123", with_actor=False))
     ]
 
     assert result == ["无法识别当前用户，暂不能执行账号操作！"]
@@ -177,7 +177,7 @@ async def test_account_login_without_argument_starts_page_transport() -> None:
 
     handler_name = "handle_account_login"
     handler = getattr(plugin, handler_name)
-    result = [item async for item in handler(Event("dna登录"))]
+    result = [item async for item in handler(Event("kk登录"))]
 
     assert result == ["登录页已启动"]
     assert service.calls[0][0] == "begin_login"

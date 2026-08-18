@@ -1,13 +1,16 @@
 # 命令
 
+所有命令现在都必须以 `kk` 开头，例如 `kk帮助`、`kk签到`、`kk登录`。为保持文档
+紧凑，下文命令列表省略这个统一前缀；发送时请在命令主体前加上 `kk`。
+
 当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询、资料读取、隐私、签到和通知 use case。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
-`scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `帮助` 查看同一
+`scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `kk帮助` 查看同一
 registry 的帮助文本。
 
 ## 当前账号命令
 
-- `登录`、`dna登录`、`DNA登录`、`login`：调用注入的登录页 transport。
+- `登录`、`登陆`、`登入`、`登龙`、`login`：调用注入的登录页 transport。
 - `登录` 加 40 个字符以上 token：执行 token 登录；例如 `登录<token>`。
 - `登录手机号,验证码`：执行手机号验证码登录，例如 `登录13800138000,1234`。
 - `退出登录`、`登出`、`logout`：退出当前 active UID 的登录。
