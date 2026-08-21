@@ -132,7 +132,7 @@
 
 - 新增 `src/modules/operations/`：`PanelService` 管理运行期数据目录 `panel_custom/` 的
   自定义面板图（上传 WebP/sha1 去重、列表、按 ID/全部删除、压缩），原图删除因公开结果
-  边界无引用缓存显式报告不支持；`resource_status` 展示私有资源仓库 manifest/必需目录与
+  边界无引用缓存显式报告不支持；`resource_status` 展示公共资源仓库 manifest/必需目录与
   面板数量。
 - 注册 `upload_panel_img`/`list_panel_imgs`/`delete_panel_img_by_id`/
   `delete_all_panel_imgs`/`delete_original_panel_img`/`compress_panel_imgs`/
@@ -166,7 +166,7 @@
 > 本节描述的是 `legacy-reference` 的历史移植状态；`rewrite/v0.1` 的当前状态见上方各 Task
 > 记录与 `commands.json`（59 条命令）。
 
-`astrbot_plugin_dnaby` 已完成从 GsCore DNAUID 到原生 AstrBot 的代码层移植。当前入口可被 AstrBot 以 `data.plugins.astrbot_plugin_dnaby.main` 动态加载，56 条命令、18 个功能模块、5 张 SQLModel 表、登录 Web 路由和 4 个定时任务均已接入。
+以下为历史移植阶段记录；当前 main 以 `commands.json` 为准，已注册 61 条命令、16 个功能组和 5 张 SQLAlchemy 表。历史数字与验证结果不代表当前 main 的最终状态。
 
 硬约束已核对：源码不 import `gsuid_core` / `gsucore`；运行期数据库、订阅和资源写入 AstrBot `plugin_data` 数据目录；`commands.json` 与分发表同步；入口不承载业务编排。
 
@@ -197,8 +197,8 @@
 
 ### 真实 E2E ✅（2026-08-09）
 
-- 通过本机 AstrBot `6196`、OneBot HTTP `6199`、NapCat 出站链路覆盖 `commands.json` 的
-  56 条命令；每条至少验证了正常路径或不会改动真实账号的错误/空数据路径。
+- 历史阶段曾通过本机 AstrBot `6196`、OneBot HTTP `6199`、NapCat 出站链路覆盖当时
+  `commands.json` 的 56 条命令；该记录不替代当前 61 条命令矩阵。
 - 已验证真实数据库中的登录数据仍可被查询，原绑定 UID 未变化；测试用户、订阅、别名和
   自定义面板图均在收尾检查后清理。
 - `dna登录` 已验证消息命中、链接立即出站、登录页 `HTTP 200` 和表单 DOM；旧 auth 返回
@@ -219,9 +219,9 @@
 | `python -m compileall -q .` | 通过 |
 | `import main` | 通过 |
 | `import data.plugins.astrbot_plugin_dnaby.main` | 通过 |
-| 命令清单/分发 | 56 条、18 模块，pytest 一致性断言通过 |
+| 历史命令清单/分发 | 当时 56 条、18 模块；当前 main 以 61 条、16 组为准 |
 | Dashboard 重载 | `ASTRBOT_SKIP_PLUGIN_REQUIREMENTS_SYNC=1 ... reload-plugins.sh 6196 astrbot_plugin_dnaby` 返回 `重载成功` |
-| 本机真实 E2E | 56 条命令均有入站 `204`；NapCat 出站日志与预期输出一致，密函测试在无订阅时无直接回复 |
+| 历史本机真实 E2E | 当时 56 条命令有入站 `204`；当前 goal 的生产事件级 E2E 另按矩阵记录 |
 
 ## 已修复的迁移边界
 

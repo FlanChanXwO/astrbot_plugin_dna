@@ -382,8 +382,6 @@ async def _checkin_service(db: AsyncDatabase, tmp_path) -> CheckinService:
             tmp_path / "rendered",
             EncyclopediaResourceStore.from_root(tmp_path / "resources"),
         ),
-        game_enabled=True,
-        community_enabled=True,
         community_tasks=("bbs_sign",),
         subscriptions=SubscriptionStore(tmp_path / "subscriptions.json"),
     )

@@ -2,7 +2,6 @@
   "include": [
     "src",
     "main.py",
-    "dnaby",
     "tests"
   ],
   "pythonVersion": "3.11",

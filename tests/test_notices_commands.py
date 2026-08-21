@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -151,7 +151,7 @@ async def test_generated_ann_handler_yields_image_response() -> None:
         ),
     )
 
-    handler = plugin.handle_ann
+    handler = cast(Any, plugin).handle_ann
     result = [item async for item in handler(Event())]
 
     assert result == ["rendered.png"]

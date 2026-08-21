@@ -1,7 +1,8 @@
 # Task 15 gscore 只读命令差异矩阵
 
-> 采集日期：2026-08-12。此文记录 Task 15 的可复现证据，不把未运行的真实平台链路、
-> 未接入的私有资源或未人工审查的视觉差异标为通过。完整只读验收仍属于 Task 30。
+> 采集日期：2026-08-12。此文记录 Task 15 当时的可复现证据，不把未运行的真实平台链路、
+> 未纳入该次 staging 的公共资源内容或未人工审查的视觉差异标为通过。当前验收结论以本次
+> goal 的后续修复、回归与终审记录为准。
 
 ## 只读边界与探测结论
 
@@ -62,12 +63,12 @@ rewrite 临时图保留 `dnaby.text`、`dnaby.layout` 与 `dnaby.resources` 元�
 
 | 命令 ID / 代表输入 | 当前证据 | 状态与后续要求 |
 | --- | --- | --- |
-| `help` / `帮助` | registry/帮助 fixture；rewrite 为文本响应，legacy 为帮助卡片 | `差异待审查`，需在 Task 30 明确文本、分组和可见格式结论。 |
-| `calendar` / `日历` | Task 14 API fixture 覆盖活动接口、旧日历接口和动态 PNG | `fixture/待实测`；活动数据会随时间变化，应在 Task 30 用明确时间/动态字段 mask 复核。 |
-| `dna_wiki` / `<名称>图鉴` | 本地资源索引、别名与图片 fixture | `fixture/待实测`；私有资源仓库未接入 staging，不能声称真实素材等价。 |
-| `dna_guide` / `<角色名>攻略` | 作者分组、图片顺序与 chain fixture | `fixture/待实测`；需在私有资源可用时对图片顺序和作者文本复核。 |
+| `help` / `帮助` | registry/帮助 fixture；rewrite 为文本响应，legacy 为帮助卡片 | `差异待审查`；当前文本、分组和可见格式结论见本次 goal 后续记录。 |
+| `calendar` / `日历` | Task 14 API fixture 覆盖活动接口、旧日历接口和动态 PNG | `fixture/待实测`；活动数据会随时间变化，终审时需用明确时间/动态字段 mask 复核。 |
+| `dna_wiki` / `<名称>图鉴` | 本地资源索引、别名与图片 fixture | `fixture/待实测`；公共资源内容未纳入该次 staging，不能据此声称真实素材等价。 |
+| `dna_guide` / `<角色名>攻略` | 作者分组、图片顺序与 chain fixture | `fixture/待实测`；需在公共资源内容可用时对图片顺序和作者文本复核。 |
 | `dna_code` / `兑换码` | provider 与逐码截止时间 fixture | `fixture/待实测`；真实 provider 是时间敏感外部来源，后续需记录响应日期与失败语义。 |
-| `alias_list` / `<角色/武器>别名` | alias JSON fixture；`owner` 权限已在 registry 测试 | `fixture/待实测`；私有 alias 资源未装载。 |
+| `alias_list` / `<角色/武器>别名` | alias JSON fixture；`owner` 权限已在 registry 测试 | `fixture/待实测`；该次 staging 未装载 alias 资源内容。 |
 | `alias_all_list` / `角色列表` | alias JSON fixture | `fixture/待实测`；同上。 |
 
 ## 未接受差异与下一步
@@ -78,6 +79,5 @@ rewrite 临时图保留 `dnaby.text`、`dnaby.layout` 与 `dnaby.resources` 元�
    审查。原图的真实平台路径继续受“不得执行 NapCat”约束。
 3. 日历、图鉴、攻略、兑换码和别名尚未进行真实资源/时间敏感双侧比较；其 fixture
    覆盖不应被解释为线上输出已验证。
-4. Task 16.1 已修复资源目录/renderer 接线和合成图片生命周期；私有资源内容、图片视觉差异
-   与时间敏感输出仍未接受。原图发送映射和伤害失败输出继续由 Task 16.2 修复，Task 30 才能
-   完成全量只读验收与人工结论。
+4. 后续任务已修复资源目录/renderer 接线和合成图片生命周期；公共资源内容、图片视觉差异
+   与时间敏感输出的最终接受结论以本次 goal 的全矩阵汇总和终审为准。

@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from typing import Any
 
 from ..entry.commands import CommandRegistry, CommandRequest, CommandSpec
-from ..entry.response import ImageResponse
+from ..entry.response import ImageResponse, write_temporary_image
 
 
 async def help_use_case(
-    _request: CommandRequest,
+    request: CommandRequest,
     registry: CommandRegistry,
     **_parameters: Any,
 ) -> ImageResponse:
@@ -20,9 +19,15 @@ async def help_use_case(
     from ..infrastructure.rendering.help import get_help
 
     payload = await get_help()
-    with tempfile.NamedTemporaryFile(prefix="dnaby-help-帮助-", suffix=".jpg", delete=False) as file:
-        file.write(payload)
-        return ImageResponse(str(Path(file.name)), temporary=False)
+    rendered_root = request.services.get("rendered_root")
+    if not isinstance(rendered_root, (str, Path)):
+        raise RuntimeError("帮助卡缺少受控渲染目录")
+    return write_temporary_image(
+        rendered_root,
+        payload,
+        prefix="dnaby-help-帮助-",
+        suffix=".jpg",
+    )
 
 
 COMMAND_SPECS = (

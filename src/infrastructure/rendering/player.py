@@ -761,7 +761,7 @@ class PlayerRenderer:
     async def render_detail(
         self,
         detail: RoleDetail,
-        weapons: list[tuple[str, WeaponDetail]] = (),
+        weapons: list[tuple[str, WeaponDetail]] | None = None,
         damage_calc: DamageCalculation | None = None,
         *,
         uid: str,
@@ -771,6 +771,7 @@ class PlayerRenderer:
         actor: EventActor | None = None,
         target_user_id: str | None = None,
     ) -> RenderedPlayerImage:
+        weapons = weapons or []
         damage_data = (
             None
             if damage_calc is None or damage_calc.data is None

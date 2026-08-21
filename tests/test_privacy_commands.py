@@ -1,6 +1,7 @@
 """Task 11 隐私命令的 registry、权限和 AstrBot @ 目标边界测试。"""
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from astrbot.api.message_components import At, AtAll
@@ -133,7 +134,7 @@ async def test_generated_privacy_handler_extracts_at_target_from_public_event_ap
         ),
     )
 
-    handler = plugin.handle_privacy_enable_peek_admin
+    handler = cast(Any, plugin).handle_privacy_enable_peek_admin
     result = [item async for item in handler(Event("kk指定开偷窥"))]
 
     assert result == ["命令边界已传递"]
@@ -165,7 +166,7 @@ async def test_generated_privacy_handler_passes_missing_target_explicitly() -> N
         ),
     )
 
-    handler = plugin.handle_privacy_enable_peek_admin
+    handler = cast(Any, plugin).handle_privacy_enable_peek_admin
     result = [item async for item in handler(Event("kk指定开偷窥", target=None))]
 
     assert result == ["命令边界已传递"]

@@ -15,7 +15,7 @@ from PIL import Image
 
 from src.infrastructure.rendering.checkin import create_sign_info_image
 from src.rendering import HtmlRenderError
-from src.rendering.qr import render_qr_code
+from src.infrastructure.rendering.qr import render_qr_code
 from src.utils.session import EventContext, Sender
 
 

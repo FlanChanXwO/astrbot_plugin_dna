@@ -192,6 +192,46 @@ def test_generated_method_is_a_real_async_generator_with_public_filters():
     assert permission_filters[0].permission_type == filter.PermissionType.MEMBER
 
 
+def test_generated_owner_handler_uses_bot_owner_ids_in_private_and_group_chat():
+    """owner 命令只接受全局 bot owner，不能把普通群管理员当 owner。"""
+
+    class GeneratedOwnerPlugin:
+        __module__ = "tests.generated_owner_plugin"
+
+    registry = CommandRegistry((_spec("owner_generated", permission="owner"),))
+    install_command_handlers(GeneratedOwnerPlugin, registry)
+    metadata = star_handlers_registry.get_handler_by_full_name(
+        "tests.generated_owner_plugin_handle_owner_generated",
+    )
+
+    assert metadata is not None
+    assert not any(
+        isinstance(item, PermissionTypeFilter) for item in metadata.event_filters
+    )
+    owner_filters = [
+        item for item in metadata.event_filters if isinstance(item, filter.CustomFilter)
+    ]
+    assert len(owner_filters) == 1
+    owner_filter = owner_filters[0]
+
+    class Event:
+        def __init__(self, sender_id: str, group_id: str | None) -> None:
+            self.sender_id = sender_id
+            self.group_id = group_id
+
+        def get_sender_id(self) -> str:
+            return self.sender_id
+
+        def get_group_id(self) -> str | None:
+            return self.group_id
+
+    cfg = {"admins_id": ["owner-1"]}
+    assert owner_filter.filter(Event("admin-1", "group-1"), cfg) is False
+    assert owner_filter.filter(Event("owner-1", "group-1"), cfg) is True
+    assert owner_filter.filter(Event("owner-1", None), cfg) is True
+    assert owner_filter.filter(Event("owner-1", None), {}) is False
+
+
 @pytest.mark.asyncio
 async def test_generated_handler_reparses_its_named_parameters():
     """handler 自己重跑 pattern，named group 只流向自己的 use case。"""

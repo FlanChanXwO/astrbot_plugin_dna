@@ -131,11 +131,6 @@ CONFIG_DEFAULT = {
         "description": "二重螺旋签到配置",
         "type": "object",
         "items": {
-            "DNASignin": {
-                "description": "自动签到开关",
-                "type": "bool",
-                "default": False,
-            },
             "SignTime": {
                 "description": "每日签到时间 (时:分)",
                 "type": "string",

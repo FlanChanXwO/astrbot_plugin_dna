@@ -43,7 +43,7 @@
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
   snapshot 生成可审查的 PNG，不按资料条目截断。
 - 签到：`src/modules/checkin/` 通过 `CheckinTransport` 协调游戏/社区签到、签到日历和
-  owner 批量签到；当天计数落到 `sign_records` 表（Task 9 的 `SignRecordRepository`）。
+  owner 批量签到；当天计数落到 `sign_records` 表（Task 9 的 `SignRecordRepository`）。owner 身份由全局 `admins_id` 精确授权。
   真实写操作只走注入 transport（默认 `DnaApiCheckinTransport` 复用 legacy 纯 API），
   服务层不接触旧事件/数据库/消息段；`CheckinRenderer` 生成 1300 宽日历 PNG。
 - 订阅与计划任务：`src/infrastructure/subscriptions/` 提供框架无关的 JSON 订阅存储
@@ -60,7 +60,7 @@
   `Context.send_message`，文本/图片载荷分别映射为 Plain/Image 组件。
 - 面板与资源状态：`src/modules/operations/` 管理运行期数据目录 `panel_custom/` 的自定义
   面板图（上传 WebP/sha1 去重、列表、按 ID/全部删除、压缩），原图删除因公开结果边界无
-  引用缓存显式报告不支持；`resource_status` 展示私有资源仓库 manifest/必需目录与面板数量。
+  引用缓存显式报告不支持；`resource_status` 展示公共资源仓库 manifest/必需目录与面板数量。
   写操作只在隔离 fixture 验证；命令层经 `CommandRequest.images` 从 AstrBot 公开消息链提取
   图片载荷（`images_from_event`）。
   资源更新经 `ResourceUpdateService` 复用 `ResourceSynchronizer`（浅克隆/`pull --ff-only`），
@@ -71,8 +71,8 @@
   强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与
   `EncyclopediaResourceStore`，字体不再从源码读取。生成 PNG 仅在受控 `rendered/` 根登记给
   AstrBot 事件期清理，资源资产不会被登记为临时文件。
-- 当前阶段：`rewrite/v0.1` 已注册 `帮助`、Task 10 账号、Task 11 隐私、Task 13 玩家
-  查询和 Task 14 资料读取 use case，共 35 条命令；其余旧功能不会在新入口中隐式注册。
+- 当前阶段：当前 main 已注册 `commands.json` 中的 61 条命令，权限为
+  `user=32/admin=14/owner=15`；未迁移命令不会在新入口中隐式注册。
 
 ## `legacy-reference` 迁移参考
 

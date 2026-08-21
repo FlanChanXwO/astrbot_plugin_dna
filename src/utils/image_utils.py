@@ -152,6 +152,6 @@ async def get_qrcode_base64(url: str, path: Path, name: str) -> bytes:
     """以 HTML/T2I 生成扫码登录二维码，保留旧参数与返回类型。"""
 
     del path, name
-    from ..rendering.qr import render_qr_code
+    from ..infrastructure.rendering.qr import render_qr_code
 
     return await render_qr_code(url)

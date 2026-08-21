@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
-import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from ...entry.response import ImageResponse, PlainTextResponse
+from ...entry.response import PlainTextResponse, write_temporary_image
 from ...infrastructure.resources import (
     GitUnavailableError,
     ResourceLocalChangesError,
@@ -53,10 +52,12 @@ class ResourceUpdateService:
         self,
         *,
         repo_root: str | Path,
+        rendered_root: str | Path,
         synchronize: SynchronizeFn,
         commit_log: CommitLogFn = _git_log,
     ) -> None:
         self.repo_root = Path(repo_root)
+        self.rendered_root = Path(rendered_root)
         self.synchronize = synchronize
         self.commit_log = commit_log
 
@@ -86,9 +87,12 @@ class ResourceUpdateService:
             return PlainTextResponse(messages.UPDATE_LOG_UNAVAILABLE)
         rendered = await draw_update_log_img(commits)
         if isinstance(rendered, bytes):
-            with tempfile.NamedTemporaryFile(prefix="dnaby-update-log-更新记录-", suffix=".jpg", delete=False) as file:
-                file.write(rendered)
-                return ImageResponse(file.name, temporary=False)
+            return write_temporary_image(
+                self.rendered_root,
+                rendered,
+                prefix="dnaby-update-log-更新记录-",
+                suffix=".jpg",
+            )
         return PlainTextResponse(messages.UPDATE_LOG_TITLE + "\n" + "\n".join(commits))
 
 

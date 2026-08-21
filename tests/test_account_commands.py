@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -112,7 +113,7 @@ async def test_account_bind_handler_keeps_legacy_empty_argument_route() -> None:
         ),
     )
 
-    handler = plugin.handle_account_bind
+    handler = cast(Any, plugin).handle_account_bind
     result = [item async for item in handler(Event("kk绑定"))]
 
     assert result == ["绑定成功"]

@@ -29,9 +29,6 @@ _CLEANUP_TASK_NAME = "dnaby_sign_cleanup"
 class SchedulableCheckin(Protocol):
     """计划任务所需的签到接口。"""
 
-    game_enabled: bool
-    community_enabled: bool
-
     async def auto_sign_all(self) -> str: ...
     async def clear_sign_records_before(self, record_date: date) -> int: ...
 
@@ -111,11 +108,7 @@ class SignScheduler:
         tasks: list[asyncio.Task] = []
         # 自动签到需要「定时开启 + 全部账号授权」；新 schema 没有 per-user 签到开关，
         # enable_all_users 承担 legacy SigninMaster 对全账号自动签到的门控语义。
-        if (
-            self.scheduled_enabled
-            and self.enable_all_users
-            and (self.checkin.game_enabled or self.checkin.community_enabled)
-        ):
+        if self.scheduled_enabled and self.enable_all_users:
             tasks.append(
                 asyncio.create_task(
                     self._run_daily(

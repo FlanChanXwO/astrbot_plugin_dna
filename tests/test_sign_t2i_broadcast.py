@@ -91,9 +91,6 @@ async def test_auto_sign_pushes_game_and_community_html_reports(monkeypatch: pyt
     async def capture_broadcast(payload: dict, _: object) -> None:
         sent.append(payload)
 
-    async def no_sleep(_: float) -> None:
-        return None
-
     monkeypatch.setattr(sign_module, "DNAUser", _DNAUser)
     monkeypatch.setattr(sign_module, "DNASignConfig", _SignConfig)
     monkeypatch.setattr(sign_module, "sched_sign", lambda: True)
@@ -105,7 +102,6 @@ async def test_auto_sign_pushes_game_and_community_html_reports(monkeypatch: pyt
     monkeypatch.setattr(sign_module, "sign_task", fake_sign_task)
     monkeypatch.setattr(sign_module, "create_sign_info_image", render_report)
     monkeypatch.setattr(sign_module, "send_board_cast_msg", capture_broadcast)
-    monkeypatch.setattr(sign_module.asyncio, "sleep", no_sleep)
 
     summary = await sign_module.auto_sign()
 

@@ -52,8 +52,6 @@ class CheckinService:
         privacy: PrivacyService,
         renderer: CheckinRenderer,
         *,
-        game_enabled: bool = True,
-        community_enabled: bool = True,
         community_tasks: tuple[str, ...] = ("bbs_sign", "bbs_detail", "bbs_like", "bbs_share", "bbs_reply"),
         concurrency: int = 1,
         interval_range: tuple[int, int] = (0, 0),
@@ -63,8 +61,6 @@ class CheckinService:
         self.transport = transport
         self.privacy = privacy
         self.renderer = renderer
-        self.game_enabled = game_enabled
-        self.community_enabled = community_enabled
         self.community_tasks = community_tasks
         self.concurrency = max(1, concurrency)
         self.interval_range = interval_range
@@ -140,8 +136,6 @@ class CheckinService:
         credential_user_id: str,
         snapshot: CheckinSnapshot,
     ) -> SignStatus:
-        if not self.game_enabled:
-            return SignStatus.DISABLED
         if self._game_complete(snapshot):
             return SignStatus.SKIP
         calendar = await self.transport.get_sign_calendar(
@@ -214,8 +208,6 @@ class CheckinService:
         snapshot: CheckinSnapshot,
     ) -> tuple[SignStatus, tuple[str, ...], str]:
         """执行启用的社区任务，返回稳定状态、逐任务文案和可见错误。"""
-        if not self.community_enabled:
-            return SignStatus.DISABLED, (), ""
         if self._community_complete(snapshot):
             return SignStatus.SKIP, (), ""
         task_process = await self.transport.get_task_process(
@@ -326,12 +318,7 @@ class CheckinService:
         credential_user_id: str,
     ) -> CheckinOutcome:
         snapshot = await self._load_snapshot(uid)
-        if (
-            self.game_enabled
-            and self.community_enabled
-            and self._game_complete(snapshot)
-            and self._community_complete(snapshot)
-        ):
+        if self._game_complete(snapshot) and self._community_complete(snapshot):
             return CheckinOutcome(
                 SignStatus.SKIP,
                 SignStatus.SKIP,
@@ -349,11 +336,9 @@ class CheckinService:
         await self._save_snapshot(snapshot)
 
         lines: list[str] = []
-        if self.game_enabled:
-            lines.append(f"签到状态: {messages.sign_status(game_status)}")
-        if self.community_enabled:
-            lines.append("社区任务:")
-            lines.extend(community_lines)
+        lines.append(f"签到状态: {messages.sign_status(game_status)}")
+        lines.append("社区任务:")
+        lines.extend(community_lines)
         if error:
             lines.append(f"错误信息: {error}")
         lines.append("-----------------------------")
@@ -367,8 +352,6 @@ class CheckinService:
     async def manual_sign(self, request: CheckinCommandRequest):
         """为当前用户或被允许查询用户执行一次签到。"""
 
-        if not self.game_enabled and not self.community_enabled:
-            return PlainTextResponse(messages.CHECKIN_DISABLED)
         resolved = await self._resolve_uid(request)
         if isinstance(resolved, PlainTextResponse):
             return resolved
@@ -480,8 +463,6 @@ class CheckinService:
     async def sign_all(self, request: CheckinCommandRequest):
         """为所有已绑定账号执行签到并按并发/间隔聚合结果。"""
 
-        if not self.game_enabled and not self.community_enabled:
-            return PlainTextResponse(messages.CHECKIN_DISABLED)
         summary = await self._run_all_signs(
             bot_id=request.actor.bot_id if request.actor is not None else None,
         )
@@ -497,8 +478,6 @@ class CheckinService:
     async def auto_sign_all(self) -> str:
         """供计划任务调用的全账号自动签到，返回可推送摘要。"""
 
-        if not self.game_enabled and not self.community_enabled:
-            return f"[二重螺旋]自动任务\n{messages.CHECKIN_DISABLED}"
         summary = await self._run_all_signs()
         if summary.success == 0 and summary.failed == 0:
             return f"[二重螺旋]自动任务\n{messages.CHECKIN_NO_USERS}"

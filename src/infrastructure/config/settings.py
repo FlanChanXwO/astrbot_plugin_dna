@@ -87,8 +87,6 @@ class NetworkSettings(_SettingsModel):
 class SignInSettings(_SettingsModel):
     """游戏签到、社区任务和签到报告配置。"""
 
-    game_enabled: bool = Field(default=False, description="是否启用二重螺旋游戏签到。")
-    community_enabled: bool = Field(default=False, description="是否启用社区任务。")
     community_tasks: list[
         Literal["bbs_sign", "bbs_detail", "bbs_like", "bbs_share", "bbs_reply"]
     ] = Field(
@@ -187,7 +185,16 @@ class DnabySettings(_SettingsModel):
     @classmethod
     def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
         """将 AstrBot 的嵌套配置字典转换为 typed settings。"""
-        return cls.model_validate(dict(config) if config is not None else {})
+        values = dict(config) if config is not None else {}
+        sign_in = values.get("sign_in")
+        if isinstance(sign_in, Mapping):
+            # 旧版本的功能开关已废弃，只清理这两个已知字段；其余未知配置仍应显式报错。
+            values["sign_in"] = {
+                key: value
+                for key, value in sign_in.items()
+                if key not in {"game_enabled", "community_enabled"}
+            }
+        return cls.model_validate(values)
 
 
 # 兼容旧配置 API；放在 typed model 定义之后以保持现有导出边界。

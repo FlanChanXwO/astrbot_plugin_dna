@@ -145,8 +145,6 @@ def build_runtime(
         checkin_transport or DnaApiCheckinTransport(runtime_database),
         privacy_service,
         CheckinRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
-        game_enabled=settings.sign_in.game_enabled,
-        community_enabled=settings.sign_in.community_enabled,
         community_tasks=tuple(settings.sign_in.community_tasks),
         concurrency=settings.sign_in.concurrency,
         interval_range=settings.sign_in.concurrency_interval_seconds,
@@ -209,6 +207,7 @@ def build_runtime(
 
     resource_update_service = ResourceUpdateService(
         repo_root=Path(__file__).resolve().parents[2],
+        rendered_root=runtime_database.path.parent / "rendered",
         synchronize=_synchronize_resources,
     )
     alias_service = AliasService(
@@ -221,6 +220,7 @@ def build_runtime(
         "privacy_service": privacy_service,
         "player_service": player_service,
         "resource_root": resource_root,
+        "rendered_root": runtime_database.path.parent / "rendered",
         "player_resources": player_resources,
         "encyclopedia_service": encyclopedia_service,
         "encyclopedia_resources": encyclopedia_resources,

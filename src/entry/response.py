@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,27 @@ class ImageResponse:
 
 
 CommandResponse = PlainTextResponse | ChainResponse | ImageResponse
+
+
+def write_temporary_image(
+    rendered_root: str | Path,
+    payload: bytes,
+    *,
+    prefix: str,
+    suffix: str,
+) -> ImageResponse:
+    """把合成图片写入受控渲染根，交由事件生命周期清理。"""
+
+    root = Path(rendered_root).expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        prefix=prefix,
+        suffix=suffix,
+        dir=root,
+        delete=False,
+    ) as file:
+        file.write(payload)
+        return ImageResponse(file.name, temporary=True)
 
 
 class ResponseFactory:
@@ -136,4 +158,5 @@ __all__ = [
     "ImageResponse",
     "PlainTextResponse",
     "ResponseFactory",
+    "write_temporary_image",
 ]

@@ -49,8 +49,8 @@ astrbot_plugin_dnaby/
   `MASTER_PATTERN` 或全局循环 dispatch。use case 返回框架无关 DTO，响应边界负责构造
   AstrBot 原生结果。
 - `commands.json` 由 registry 生成，帮助 use case 读取同一 registry；未实现命令不注册、不展示。
-- 权限：`user` 映射 `PermissionType.MEMBER`，`admin` 映射 `ADMIN`；`owner` 当前暂沿用
-  AstrBot 公共 `ADMIN` 边界，待 owner use case 迁移时补充更细语义。
+- 权限：`user` 映射 `PermissionType.MEMBER`，`admin` 映射 `ADMIN`；AstrBot 没有独立 owner
+  类型，当前 owner 由自定义过滤器精确匹配全局 `admins_id`，不等同于群管理员。
 
 ## 5. 发送层设计（关键）
 

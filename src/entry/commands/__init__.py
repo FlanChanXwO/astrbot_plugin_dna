@@ -290,6 +290,16 @@ def _permission_filter(permission: PermissionName) -> filter.PermissionType:
     return filter.PermissionType.ADMIN
 
 
+class _BotOwnerFilter(filter.CustomFilter):
+    """仅允许 AstrBot 全局配置 ``admins_id`` 中的 bot owner。"""
+
+    def filter(self, event: AstrMessageEvent, cfg: Any) -> bool:
+        configured = cfg.get("admins_id", []) if hasattr(cfg, "get") else []
+        owner_ids = {str(value) for value in configured if value is not None}
+        sender_id = event.get_sender_id()
+        return str(sender_id) in owner_ids
+
+
 async def execute_use_case(
     spec: CommandSpec,
     request: CommandRequest,
@@ -390,7 +400,10 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
         handler_name = f"handle_{spec.id}"
         handler = _make_handler(spec, plugin_cls.__module__, handler_name)
         handler = filter.regex(spec.pattern, desc=spec.description)(handler)
-        handler = filter.permission_type(_permission_filter(spec.permission))(handler)
+        if spec.permission == "owner":
+            handler = filter.custom_filter(_BotOwnerFilter)(handler)
+        else:
+            handler = filter.permission_type(_permission_filter(spec.permission))(handler)
         setattr(plugin_cls, handler_name, handler)
     plugin_cls.__dnaby_command_ids__ = command_ids
 

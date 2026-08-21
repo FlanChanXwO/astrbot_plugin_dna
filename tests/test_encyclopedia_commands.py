@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from astrbot.api.message_components import Image, Plain
@@ -106,6 +107,6 @@ async def test_encyclopedia_use_case_reports_missing_service() -> None:
         def plain_result(self, text: str) -> str:
             return text
 
-    handler = plugin.handle_calendar
+    handler = cast(Any, plugin).handle_calendar
     result = [item async for item in handler(Event())]
     assert result == ["资料服务暂不可用，请检查插件配置"]

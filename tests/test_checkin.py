@@ -199,8 +199,6 @@ def _service(
     database: AsyncDatabase,
     transport: FakeCheckinTransport,
     *,
-    game_enabled: bool = True,
-    community_enabled: bool = True,
     community_tasks: tuple[str, ...] = ("bbs_sign",),
     concurrency: int = 1,
     interval_range: tuple[int, int] = (0, 0),
@@ -215,8 +213,6 @@ def _service(
             database.path.parent / "rendered",
             EncyclopediaResourceStore.from_root(database.path.parent / "resources"),
         ),
-        game_enabled=game_enabled,
-        community_enabled=community_enabled,
         community_tasks=community_tasks,
         concurrency=concurrency,
         interval_range=interval_range,
@@ -287,39 +283,6 @@ async def test_manual_sign_skips_without_transport_when_already_complete(tmp_pat
 
     assert isinstance(response, PlainTextResponse)
     assert messages.CHECKIN_ALREADY in response.text
-    assert transport.calls == []
-    await database.dispose()
-
-
-@pytest.mark.asyncio
-async def test_manual_sign_game_only_omits_community_section(tmp_path: Path) -> None:
-    """社区关闭时结果只展示游戏签到状态。"""
-
-    database = await _database_with_binding(tmp_path)
-    transport = FakeCheckinTransport()
-    service = _service(database, transport, community_enabled=False)
-
-    response = await service.manual_sign(_request())
-
-    assert isinstance(response, PlainTextResponse)
-    assert messages.sign_status(SignStatus.DONE) in response.text
-    assert "社区任务" not in response.text
-    assert "bbs_sign" not in transport.calls
-    await database.dispose()
-
-
-@pytest.mark.asyncio
-async def test_manual_sign_both_disabled_returns_visible_disabled(tmp_path: Path) -> None:
-    """两项签到都关闭时显式提示未开启。"""
-
-    database = await _database_with_binding(tmp_path)
-    transport = FakeCheckinTransport()
-    service = _service(database, transport, game_enabled=False, community_enabled=False)
-
-    response = await service.manual_sign(_request())
-
-    assert isinstance(response, PlainTextResponse)
-    assert response.text == messages.CHECKIN_DISABLED
     assert transport.calls == []
     await database.dispose()
 

@@ -1,1 +1,2980 @@
-{"scope": {"user_id": "815645342", "bot_id": "onebot", "uid": "1003431137824"}, "role": {"instanceInfo": [{"instances": [{"id": 60702, "name": "避险"}, {"id": 60102, "name": "扼守/无尽"}, {"id": 61102, "name": "驱离"}]}, {"instances": [{"id": 62202, "name": "拆解"}, {"id": 62702, "name": "避险"}, {"id": 62602, "name": "调停"}]}, {"instances": [{"id": 64102, "name": "扼守/无尽"}, {"id": 65102, "name": "驱离"}, {"id": 64502, "name": "探险/无尽"}]}], "roleInfo": {"abyssInfo": {"bestTimeVo1": {"charIcon": "https://herobox-img.yingxiong.com/role/config/character/icon/fuluola.png", "closeWeaponIcon": "https://herobox-img.yingxiong.com/role/config/weapon/qiuniaodeciyu.png", "langRangeWeaponIcon": "https://herobox-img.yingxiong.com/role/config/weapon/jicijuexiang.png", "petIcon": "https://herobox-img.yingxiong.com/role/config/pet/Head_Pet_Heiyao.png", "phantomCharIcon1": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Baiheng.png", "phantomCharIcon2": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Songlu.png", "phantomWeaponIcon1": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Swordwhip_Zeshi.png", "phantomWeaponIcon2": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Bow_hugaung.png"}, "endTime": "1787018400", "operaName": "勇者们的传说", "progressName": "null 第47幕", "stars": "330/162", "startTime": "1785204000"}, "roleShow": {"closeWeapons": [{"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/21.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Broadsword_Huipo.png", "level": 80, "name": "辉珀刃", "skillLevel": 5, "unLocked": true, "weaponEid": "690024AE0ADE64F9652CE804", "weaponId": 10101}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/21.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Broadsword_Guzi.png", "level": 80, "name": "孤子的缚锁", "skillLevel": 5, "unLocked": true, "weaponEid": "692645920ADE64F9654A3320", "weaponId": 10102}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/21.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Sword_Zhuiyi.png", "level": 80, "name": "追忆的残影", "skillLevel": 5, "unLocked": true, "weaponEid": "6908A2710ADE64F9656DEF2F", "weaponId": 10103}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/21.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Sword_Huimou.png", "level": 80, "name": "慧谋的攻守", "skillLevel": 5, "unLocked": true, "weaponEid": "690FED970ADE64F965ABDDAC", "weaponId": 10104}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/21.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Sword_Liulang.png", "level": 80, "name": "流浪的蔷薇", "skillLevel": 5, "unLocked": true, "weaponEid": "6964B3540ADE64C60A8C16B7", "weaponId": 10105}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/21.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/qiuniaodeciyu.png", "level": 80, "name": "囚鸟的刺羽", "skillLevel": 5, "unLocked": true, "weaponEid": "6A1F6CE70ADE64B9485B397C", "weaponId": 10107}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/22.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Polearm_Sairen.png", "level": 80, "name": "塞壬的拥吻", "skillLevel": 5, "unLocked": true, "weaponEid": "6908E2100ADE64F965AAF893", "weaponId": 10201}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/22.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Polearm_Chunjue.png", "level": 80, "name": "春玦戟", "skillLevel": 5, "unLocked": true, "weaponEid": "69002CAA0ADE64F965809CB6", "weaponId": 10202}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/22.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Polearm_Zuiqian.png", "level": 80, "name": "罪愆的逆鳞", "skillLevel": 2, "unLocked": true, "weaponEid": "69B147560ADE6436FCAE8522", "weaponId": 10203}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/22.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Scythe_Xiji.png", "level": 80, "name": "希冀的丰稔", "skillLevel": 5, "unLocked": true, "weaponEid": "6901DB1F0ADE64F9655D8E46", "weaponId": 10204}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/22.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Scythe_Chixing.png", "level": 80, "name": "枯朽", "skillLevel": 5, "unLocked": true, "weaponEid": "6900979A0ADE64F965720E51", "weaponId": 10206}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/22.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Scythe_Yihe.png", "level": 80, "name": "未来之鸽", "skillLevel": 0, "unLocked": true, "weaponEid": "696EFED90ADE64C60A5F3F7E", "weaponId": 10208}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/23.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Claymore_Chengjie.png", "level": 80, "name": "惩戒的炼火", "skillLevel": 5, "unLocked": true, "weaponEid": "6976F1DA0ADE64C60AF79999", "weaponId": 10301}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/23.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Claymore_Rimian.png", "level": 80, "name": "铸铁者", "skillLevel": 5, "unLocked": true, "weaponEid": "69004F150ADE64F9656EB5CF", "weaponId": 10302}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/23.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Claymore_Chixing.png", "level": 80, "name": "焦渴", "skillLevel": 5, "unLocked": true, "weaponEid": "690B5ABC0ADE64F965D4E243", "weaponId": 10303}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/23.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Claymore_Wangu.png", "level": 80, "name": "万古的诀别", "skillLevel": 4, "unLocked": true, "weaponEid": "698AFE6E0ADE6436FC6A0B33", "weaponId": 10304}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/23.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/mingjinyao.png", "level": 80, "name": "鸣金遥", "skillLevel": 0, "unLocked": true, "weaponEid": "69DCC1C00ADE64D56E6672AB", "weaponId": 10305}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/24.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Dualblade_Shixiang.png", "level": 80, "name": "失乡的獠牙", "skillLevel": 5, "unLocked": true, "weaponEid": "690065040ADE64F965D321A1", "weaponId": 10401}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/24.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Dualblade_Liujin.png", "level": 80, "name": "鎏金岁月", "skillLevel": 5, "unLocked": true, "weaponEid": "69525C6B0ADE64C60A6FAA30", "weaponId": 10402}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/24.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Dualblade_Yousha.png", "level": 80, "name": "幽鲨眼", "skillLevel": 5, "unLocked": true, "weaponEid": "690A05DC0ADE64F96535B321", "weaponId": 10403}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/24.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Dualblade_fengyunjue.png", "level": 80, "name": "风云决", "skillLevel": 0, "unLocked": true, "weaponEid": "699259EC0ADE6436FCE114F6", "weaponId": 10404}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/25.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Swordwhip_Buyu.png", "level": 80, "name": "不渝的梦海", "skillLevel": 5, "unLocked": true, "weaponEid": "6906C7850ADE64F9652DDB1F", "weaponId": 10501}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/25.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Swordwhip_Zeshi.png", "level": 80, "name": "泽世的慈雨", "skillLevel": 5, "unLocked": true, "weaponEid": "694AA4860ADE64C60A1CCC8C", "weaponId": 10502}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/25.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Swordwhip_Chixing.png", "level": 80, "name": "缠结", "skillLevel": 5, "unLocked": true, "weaponEid": "6909C3430ADE64F965033C89", "weaponId": 10503}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/25.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Swordwhip_Canghu.png", "level": 80, "name": "苍瑚凝碧", "skillLevel": 0, "unLocked": true, "weaponEid": "6964B3540ADE64C60A8C16B2", "weaponId": 10504}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/26.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Katana_Feiqie.png", "level": 80, "name": "红叶一滴", "skillLevel": 5, "unLocked": true, "weaponEid": "69093D000ADE64F965C0BECD", "weaponId": 10601}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/26.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Katana_Chixing.png", "level": 80, "name": "凋零", "skillLevel": 5, "unLocked": true, "weaponEid": "690B12900ADE64F965A60BF0", "weaponId": 10602}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/26.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Katana_Yuli.png", "level": 80, "name": "蒙恩御礼", "skillLevel": 5, "unLocked": true, "weaponEid": "695C314A0ADE64C60AAAADFD", "weaponId": 10603}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/26.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/shengxuetaidao.png", "level": 80, "name": "圣血·太刀", "skillLevel": 0, "unLocked": true, "weaponEid": "6A1F6CE70ADE64B9485B3975", "weaponId": 10604}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/22.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/zhuixinheiyaolian.png", "level": 0, "name": "锥心黑曜镰", "skillLevel": 0, "unLocked": false, "weaponId": 10209}], "headUrl": "https://herobox-img.yingxiong.com/role/gameHead/10001.png", "langRangeWeapons": [{"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/27.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Pistol_Wuxu.png", "level": 80, "name": "无序奇点", "skillLevel": 5, "unLocked": true, "weaponEid": "6909EDDC0ADE64F965211310", "weaponId": 20101}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/27.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Pistol_Chixing.png", "level": 80, "name": "剥离", "skillLevel": 5, "unLocked": true, "weaponEid": "690A39D20ADE64F9655CE55D", "weaponId": 20102}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/27.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Pistol_Gaoyu.png", "level": 80, "name": "告谕圣言", "skillLevel": 0, "unLocked": true, "weaponEid": "6980811A0ADE64C60ADEDEB3", "weaponId": 20103}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/28.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Crossbow_Chixing.png", "level": 80, "name": "赘生", "skillLevel": 5, "unLocked": true, "weaponEid": "6906C7850ADE64F9652DDB25", "weaponId": 20201}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/28.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Crossbow_Lanse.png", "level": 80, "name": "蓝色脉动", "skillLevel": 5, "unLocked": true, "weaponEid": "690B5ABC0ADE64F965D4E24A", "weaponId": 20203}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/28.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Crossbow_Gaoyu.png", "level": 80, "name": "告谕圣音", "skillLevel": 5, "unLocked": true, "weaponEid": "6980811A0ADE64C60ADEDEAE", "weaponId": 20205}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/29.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Cannon_Qunxing.png", "level": 80, "name": "群星无意赦免", "skillLevel": 5, "unLocked": true, "weaponEid": "694B6D750ADE64C60A3BFF38", "weaponId": 20301}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/29.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/chiqiangdehuayan.png", "level": 80, "name": "炽枪的花宴", "skillLevel": 0, "unLocked": true, "weaponEid": "6A5F3DBC0ADE64B94832DBFA", "weaponId": 20302}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/29.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Cannon_Chixing.png", "level": 80, "name": "崩解", "skillLevel": 5, "unLocked": true, "weaponEid": "690C37E30ADE64F965278AB0", "weaponId": 20303}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/29.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Cannon_Guixu.png", "level": 80, "name": "归墟棘轮", "skillLevel": 5, "unLocked": true, "weaponEid": "69112C590ADE64F9652B1A6D", "weaponId": 20304}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/29.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Cannon_Yinbai.png", "level": 80, "name": "银白敕令", "skillLevel": 5, "unLocked": true, "weaponEid": "6902DC080ADE64F965333764", "weaponId": 20305}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/30.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Shotgun_Chixing.png", "level": 80, "name": "嘶鸣", "skillLevel": 5, "unLocked": true, "weaponEid": "6900A6EA0ADE64F965A375C2", "weaponId": 20401}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/30.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Shotgun_Banzi.png", "level": 80, "name": "缄默育种者", "skillLevel": 5, "unLocked": true, "weaponEid": "690BE4460ADE64F96504A8A5", "weaponId": 20402}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/30.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Shotgun_Shengcai.png", "level": 80, "name": "圣裁日", "skillLevel": 5, "unLocked": true, "weaponEid": "6976F1DA0ADE64C60AF79994", "weaponId": 20403}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/30.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Shotgun_Baopo.png", "level": 80, "name": "爆破艺术", "skillLevel": 5, "unLocked": true, "weaponEid": "696EFED90ADE64C60A5F3F79", "weaponId": 20405}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/30.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Shotgun_Guchu.png", "level": 80, "name": "孤雏的羽迹", "skillLevel": 3, "unLocked": true, "weaponEid": "69D68E7F0ADE64D56E7B046A", "weaponId": 20407}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Chixing.png", "level": 80, "name": "销骨", "skillLevel": 5, "unLocked": true, "weaponEid": "6900261C0ADE64F9653BE2DB", "weaponId": 20501}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Fangzhu.png", "level": 80, "name": "放逐怒雷", "skillLevel": 5, "unLocked": true, "weaponEid": "696EFED90ADE64C60A5F3F74", "weaponId": 20502}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Qiqing.png", "level": 80, "name": "祈请净火", "skillLevel": 5, "unLocked": true, "weaponEid": "69005B600ADE64F965ADEDBF", "weaponId": 20503}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Poxiao.png", "level": 80, "name": "破晓赞美诗", "skillLevel": 5, "unLocked": true, "weaponEid": "695C314A0ADE64C60AAAADF8", "weaponId": 20504}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Sanjiao.png", "level": 80, "name": "三角缪斯", "skillLevel": 0, "unLocked": true, "weaponEid": "69B75E7C0ADE6436FC52EFA7", "weaponId": 20505}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Quewu.png", "level": 80, "name": "雀舞云屏", "skillLevel": 0, "unLocked": true, "weaponEid": "695258480ADE64C60A6EDCD4", "weaponId": 20506}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Yinlang.png", "level": 80, "name": "引浪小调", "skillLevel": 5, "unLocked": true, "weaponEid": "694CABAA0ADE64C60A7A48F6", "weaponId": 20507}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Zhimeng.png", "level": 80, "name": "织梦的白羽", "skillLevel": 5, "unLocked": true, "weaponEid": "6925314D0ADE64F965F767DA", "weaponId": 20509}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Machinegun_Ruohua.png", "level": 80, "name": "若华的飞光", "skillLevel": 0, "unLocked": true, "weaponEid": "6970B98E0ADE64C60A8796F7", "weaponId": 20510}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/bomoqiyue.png", "level": 80, "name": "薄暮契约", "skillLevel": 0, "unLocked": true, "weaponEid": "6A692B610ADE6411531B6BBF", "weaponId": 20511}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/31.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/beizhongdecanhuo.png", "level": 80, "name": "杯中的残火", "skillLevel": 2, "unLocked": true, "weaponEid": "69F9F58F0ADE64D56ED4C470", "weaponId": 20512}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/32.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Bow_Lieyan.png", "level": 80, "name": "烈焰孤沙", "skillLevel": 5, "unLocked": true, "weaponEid": "690C17210ADE64F96518E1C7", "weaponId": 20601}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/32.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Bow_hugaung.png", "level": 80, "name": "弧光百劫", "skillLevel": 5, "unLocked": true, "weaponEid": "690213EB0ADE64F965A89833", "weaponId": 20602}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/32.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Bow_Yinbu.png", "level": 80, "name": "茵布拉花序", "skillLevel": 5, "unLocked": true, "weaponEid": "691128350ADE64F9652A6E27", "weaponId": 20603}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/32.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/Head_Bow_Chixing.png", "level": 80, "name": "裂魂", "skillLevel": 5, "unLocked": true, "weaponEid": "69140D570ADE64F96527723F", "weaponId": 20604}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/28.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/zuihaodeyitian.png", "level": 20, "name": "最好的一天", "skillLevel": 0, "unLocked": true, "weaponEid": "6A6E02870ADE641153FA731D", "weaponId": 20207}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/27.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/shengxueshouqiang.png", "level": 1, "name": "圣血·手枪", "skillLevel": 0, "unLocked": true, "weaponEid": "6A6EA02B0ADE6411530BB966", "weaponId": 20104}, {"elementIcon": "https://herobox-img.yingxiong.com/role/config/type/30.png", "icon": "https://herobox-img.yingxiong.com/role/config/weapon/qiegechilun.png", "level": 1, "name": "切割齿轮", "skillLevel": 0, "unLocked": true, "weaponEid": "6A6EA02B0ADE6411530BB960", "weaponId": 20406}], "level": 65, "params": [{"paramKey": "总活跃天数", "paramValue": "292"}, {"paramKey": "游戏时长", "paramValue": "1552.8"}, {"paramKey": "获得角色", "paramValue": "29"}, {"paramKey": "近战武器", "paramValue": "29"}, {"paramKey": "远程武器", "paramValue": "34"}, {"paramKey": "角色时装", "paramValue": "116"}, {"paramKey": "武器时装", "paramValue": "6"}, {"paramKey": "魔之楔数量", "paramValue": "622"}, {"paramKey": "魔灵数量", "paramValue": "1963"}], "roleAchv": {"bronze": 160, "gold": 177, "silver": 192, "total": 529}, "roleChars": [{"charEid": "690032FB0ADE64F965B55EF6", "charId": 1101, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/1.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Heitao.png", "level": 80, "name": "贝蕾妮卡", "unLocked": true}, {"charEid": "6A1E78DA0ADE64B948146931", "charId": 1102, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/1.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/fuluola.png", "level": 80, "name": "芙罗拉", "unLocked": true}, {"charEid": "691A6EC20ADE64F9651C57B9", "charId": 1103, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/1.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Tuosi01.png", "level": 80, "name": "幻景", "unLocked": true}, {"charEid": "6A204C2C0ADE64B948A50BB5", "charId": 1201, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/1.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Nvzhuan.png", "level": 80, "name": "女主-暗", "unLocked": true}, {"charEid": "69010F0E0ADE64F965BDE15E", "charId": 1501, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/2.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Baonu.png", "level": 80, "name": "莉兹贝尔", "unLocked": true}, {"charEid": "690235B70ADE64F965E0D313", "charId": 1502, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/2.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Nifu.png", "level": 80, "name": "妮弗尔夫人", "unLocked": true}, {"charEid": "696F6C1C0ADE64C60A6BEFDE", "charId": 1503, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/2.png", "gradeLevel": 2, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/T_Head_Kezhou.png", "level": 80, "name": "刻舟", "unLocked": true}, {"charEid": "69D4C5890ADE64D56E1F2F1D", "charId": 1504, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/2.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/suyi.png", "level": 80, "name": "苏乙", "unLocked": true}, {"charEid": "69001FA80ADE64F96500ACDC", "charId": 1601, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/2.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Nvzhu.png", "level": 80, "name": "女主-光", "unLocked": true}, {"charEid": "6924F9650ADE64F965EEAE63", "charId": 1801, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/2.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Feina.png", "level": 80, "name": "菲娜", "unLocked": true}, {"charEid": "690032F10ADE64F965B512F3", "charId": 2101, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/3.png", "gradeLevel": 7, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Shuimu.png", "level": 80, "name": "丽蓓卡", "unLocked": true}, {"charEid": "6A68A1950ADE641153FA76F6", "charId": 2102, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/3.png", "gradeLevel": 2, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/T_Head_Eve.png", "level": 80, "name": "艾达（？？）", "unLocked": true}, {"charEid": "6907F6A50ADE64F965FC4647", "charId": 2301, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/3.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Zhangyu.png", "level": 80, "name": "塔比瑟", "unLocked": true}, {"charEid": "694A87820ADE64C60A12FA02", "charId": 2401, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/3.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Baiheng.png", "level": 80, "name": "扶疏", "unLocked": true}, {"charEid": "69020E610ADE64F9659F9311", "charId": 3101, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/4.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Linen.png", "level": 80, "name": "琳恩", "unLocked": true}, {"charEid": "6A43846C0ADE64B94848A9C9", "charId": 3102, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/4.png", "gradeLevel": 2, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Xier.png", "level": 80, "name": "希尔妲", "unLocked": true}, {"charEid": "693F562E0ADE64F965E5B4BB", "charId": 3103, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/4.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Yeer.png", "level": 80, "name": "耶尔", "unLocked": true}, {"charEid": "693623A90ADE64F965DC277E", "charId": 3201, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/4.png", "gradeLevel": 7, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Haier.png", "level": 80, "name": "海尔法", "unLocked": true}, {"charEid": "69F970EF0ADE64D56EC3AACC", "charId": 3202, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/4.png", "gradeLevel": 4, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/kamila.png", "level": 80, "name": "卡米拉", "unLocked": true}, {"charEid": "69002D150ADE64F965846D40", "charId": 3301, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/4.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Maer.png", "level": 80, "name": "玛尔洁", "unLocked": true}, {"charEid": "690230FF0ADE64F965D9836F", "charId": 4101, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/5.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Lise.png", "level": 80, "name": "黎瑟", "unLocked": true}, {"charEid": "698AAB3C0ADE6436FC53BA1C", "charId": 4102, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/5.png", "gradeLevel": 2, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/T_Head_Zhiliu.png", "level": 80, "name": "止流", "unLocked": true}, {"charEid": "69B01E600ADE6436FC8E6DE5", "charId": 4201, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/5.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/T_Head_Yuming.png", "level": 80, "name": "煜明", "unLocked": true}, {"charEid": "6902428C0ADE64F965F16C29", "charId": 4202, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/5.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Landi.png", "level": 80, "name": "兰迪", "unLocked": true}, {"charEid": "69023B8D0ADE64F965E8FE22", "charId": 4301, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/5.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Xibi.png", "level": 80, "name": "西比尔", "unLocked": true}, {"charEid": "6900A4430ADE64F9659A283B", "charId": 5101, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/6.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Songlu.png", "level": 80, "name": "松露", "unLocked": true}, {"charEid": "690076BF0ADE64F9650DC1EB", "charId": 5102, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/6.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Aote.png", "level": 80, "name": "奥特赛德", "unLocked": true}, {"charEid": "69030D7A0ADE64F9655CBFC1", "charId": 5301, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/6.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Saiqi.png", "level": 80, "name": "赛琪", "unLocked": true}, {"charEid": "6900C2B80ADE64F965073453", "charId": 5401, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/6.png", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Dafu.png", "level": 80, "name": "达芙涅", "unLocked": true}, {"charId": 120101, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/1.png", "gradeLevel": 0, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Nanzhuan.png", "level": 0, "name": "男主-暗", "unLocked": false}, {"charId": 160101, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/2.png", "gradeLevel": 0, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Nanzhu.png", "level": 0, "name": "男主-光", "unLocked": false}], "roleId": "1003431137824", "roleName": "末药", "rougeLikeInfo": {"maxPassed": 106, "maxPassedName": "6_80", "resetTime": "1787518800", "rewardCount": 12, "rewardTotal": 12, "talentInfo": [{"cur": "24", "max": "24"}, {"cur": "24", "max": "24"}, {"cur": "24", "max": "24"}, {"cur": "24", "max": "24"}]}}}}, "short_note": {"currentTaskProgress": 280, "draftInfo": {"draftDoingInfo": [{"draftCompleteNum": 0, "draftDoingNum": 1, "endTime": "1786880369", "productId": 10206, "productName": "枯朽", "startTime": "1786869569"}, {"draftCompleteNum": 0, "draftDoingNum": 1, "endTime": "1786880368", "productId": 10303, "productName": "焦渴", "startTime": "1786869568"}, {"draftCompleteNum": 0, "draftDoingNum": 1, "endTime": "1786880364", "productId": 20102, "productName": "剥离", "startTime": "1786869564"}, {"draftCompleteNum": 239, "draftDoingNum": 629, "endTime": "1787248900", "productId": 20023, "productName": "金砂", "startTime": "1786728100"}, {"draftCompleteNum": 0, "draftDoingNum": 1, "endTime": "1786880362", "productId": 20201, "productName": "赘生", "startTime": "1786869562"}, {"draftCompleteNum": 239, "draftDoingNum": 629, "endTime": "1787248893", "productId": 20008, "productName": "排斥结晶", "startTime": "1786728093"}, {"draftCompleteNum": 0, "draftDoingNum": 1, "endTime": "1786880365", "productId": 10602, "productName": "凋零", "startTime": "1786869565"}, {"draftCompleteNum": 0, "draftDoingNum": 1, "endTime": "1786880366", "productId": 10503, "productName": "缠结", "startTime": "1786869566"}, {"draftCompleteNum": 4, "draftDoingNum": 1, "endTime": "1786872605", "productId": 51733, "productName": "炽灼·鼓舞", "startTime": "1786863605"}, {"draftCompleteNum": 4, "draftDoingNum": 3, "endTime": "1786876210", "productId": 51734, "productName": "涅槃·权能", "startTime": "1786863610"}, {"draftCompleteNum": 1, "draftDoingNum": 7, "endTime": "1786881597", "productId": 20030, "productName": "血清注射器", "startTime": "1786869597"}, {"draftCompleteNum": 1, "draftDoingNum": 17, "endTime": "1786896592", "productId": 20031, "productName": "秽兽聚合物", "startTime": "1786869592"}], "draftDoingNum": 12, "draftMaxNum": 4}, "dungeonReward": 0, "dungeonRewardTotal": 3, "hardBossRewardCount": 0, "hardBossRewardTotal": 5, "maxDailyTaskProgress": 200, "rougeLikeRewardCount": 12, "rougeLikeRewardTotal": 12}, "weekly_current": {"categories": [{"categoryName": "基础资源", "isBase": true, "items": [{"icon": "https://herobox-img.yingxiong.com/role/config/currency/xiansuo01.png", "itemId": 211, "itemName": "委托密函线索", "quality": 5, "totalNum": "11324"}, {"icon": "https://herobox-img.yingxiong.com/role/config/currency/fangxian01.png", "itemId": 215, "itemName": "时之纺线", "quality": 5, "totalNum": "171789"}, {"icon": "https://herobox-img.yingxiong.com/role/config/currency/ningzhu01.png", "itemId": 102, "itemName": "深红凝珠", "quality": 4, "totalNum": "203798"}, {"icon": "https://herobox-img.yingxiong.com/role/config/currency/tongbi01.png", "itemId": 101, "itemName": "铜币", "quality": 3, "totalNum": "157252384"}, {"icon": "https://herobox-img.yingxiong.com/role/config/currency/jiaojiaobi01.png", "itemId": 20013, "itemName": "皎皎之民的信物", "quality": 3, "totalNum": "71400"}], "type": 14}], "endDate": "20260816", "startDate": "20260810", "weekType": 1}, "weekly_last": {"categories": [{"categoryName": "基础资源", "isBase": true, "items": [{"icon": "https://herobox-img.yingxiong.com/role/config/currency/xiansuo01.png", "itemId": 211, "itemName": "委托密函线索", "quality": 5, "totalNum": "14043"}, {"icon": "https://herobox-img.yingxiong.com/role/config/currency/fangxian01.png", "itemId": 215, "itemName": "时之纺线", "quality": 5, "totalNum": "236810"}, {"icon": "https://herobox-img.yingxiong.com/role/config/currency/ningzhu01.png", "itemId": 102, "itemName": "深红凝珠", "quality": 4, "totalNum": "543615"}, {"icon": "https://herobox-img.yingxiong.com/role/config/currency/tongbi01.png", "itemId": 101, "itemName": "铜币", "quality": 3, "totalNum": "24140134"}, {"icon": "https://herobox-img.yingxiong.com/role/config/currency/jiaojiaobi01.png", "itemId": 20013, "itemName": "皎皎之民的信物", "quality": 3, "totalNum": "15861"}], "type": 14}, {"categoryName": "思绪碎片", "isBase": false, "items": [{"icon": "https://herobox-img.yingxiong.com/role/config/CharPiece/T_CharPiece_Lise.png", "itemId": 1004101, "itemName": "黎瑟", "quality": 5, "totalNum": "30"}], "type": 15}], "endDate": "20260809", "startDate": "20260803", "weekType": 2}, "sign": {"todaySignin": false, "period": {"createTime": 1772189968000, "endDate": 1788105600000, "gameId": 268, "id": 18, "name": "2026.8", "overDays": 31, "retryCos": 50, "retryTimes": 4, "startDate": 1785513600000}, "roleInfo": {"headUrl": "https://herobox-img.yingxiong.com/role/gameHead/10001.png", "level": 65, "roleBoundId": "764608932093102399", "roleId": "1003431137824", "roleName": "末药"}, "userGoldNum": 41594, "dayAward": [{"awardName": "妙膏膏", "awardNum": 1, "createTime": 1772189975000, "dayInPeriod": 1, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104422110873953.png", "id": 970, "periodId": 18, "thirdProductId": "7501", "updateTime": 1772189975000}, {"awardName": "深红凝珠", "awardNum": 100, "createTime": 1772189975000, "dayInPeriod": 2, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104589359507376.png", "id": 971, "periodId": 18, "thirdProductId": "7502", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 3000, "createTime": 1772189975000, "dayInPeriod": 3, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104624869274154.png", "id": 972, "periodId": 18, "thirdProductId": "7503", "updateTime": 1772189975000}, {"awardName": "委托密函线索", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 4, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104660591167739.png", "id": 973, "periodId": 18, "thirdProductId": "7504", "updateTime": 1772189975000}, {"awardName": "委托手册 · 一", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 5, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104711776892920.png", "id": 974, "periodId": 18, "thirdProductId": "7505", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 5000, "createTime": 1772189975000, "dayInPeriod": 6, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104784614255649.png", "id": 975, "periodId": 18, "thirdProductId": "7506", "updateTime": 1772189975000}, {"awardName": "委托手册 · 一", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 7, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104763957637186.png", "id": 976, "periodId": 18, "thirdProductId": "7507", "updateTime": 1772189975000}, {"awardName": "妙膏膏", "awardNum": 1, "createTime": 1772189975000, "dayInPeriod": 8, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104801407329386.png", "id": 977, "periodId": 18, "thirdProductId": "7508", "updateTime": 1772189975000}, {"awardName": "委托密函线索", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 9, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104816188764828.png", "id": 978, "periodId": 18, "thirdProductId": "7509", "updateTime": 1772189975000}, {"awardName": "深红凝珠", "awardNum": 200, "createTime": 1772189975000, "dayInPeriod": 10, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104835332157643.png", "id": 979, "periodId": 18, "thirdProductId": "7510", "updateTime": 1772189975000}, {"awardName": "妙膏膏", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 11, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104860068215177.png", "id": 980, "periodId": 18, "thirdProductId": "7511", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 5000, "createTime": 1772189975000, "dayInPeriod": 12, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104879040469453.png", "id": 981, "periodId": 18, "thirdProductId": "7512", "updateTime": 1772189975000}, {"awardName": "委托手册 · 一", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 13, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104910308444830.png", "id": 982, "periodId": 18, "thirdProductId": "7513", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 5000, "createTime": 1772189975000, "dayInPeriod": 14, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104926010520710.png", "id": 983, "periodId": 18, "thirdProductId": "7514", "updateTime": 1772189975000}, {"awardName": "委托密函线索", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 15, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104945763327766.png", "id": 984, "periodId": 18, "thirdProductId": "7515", "updateTime": 1772189975000}, {"awardName": "委托手册 · 一", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 16, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104959640965926.png", "id": 985, "periodId": 18, "thirdProductId": "7516", "updateTime": 1772189975000}, {"awardName": "深红凝珠", "awardNum": 200, "createTime": 1772189975000, "dayInPeriod": 17, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104977378945438.png", "id": 986, "periodId": 18, "thirdProductId": "7517", "updateTime": 1772189975000}, {"awardName": "妙膏膏", "awardNum": 3, "createTime": 1772189975000, "dayInPeriod": 18, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761104992560778574.png", "id": 987, "periodId": 18, "thirdProductId": "7518", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 8000, "createTime": 1772189975000, "dayInPeriod": 19, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105008734832687.png", "id": 988, "periodId": 18, "thirdProductId": "7519", "updateTime": 1772189975000}, {"awardName": "委托手册 · 一", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 20, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105023983369610.png", "id": 989, "periodId": 18, "thirdProductId": "7520", "updateTime": 1772189975000}, {"awardName": "深红凝珠", "awardNum": 200, "createTime": 1772189975000, "dayInPeriod": 21, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105038242880410.png", "id": 990, "periodId": 18, "thirdProductId": "7521", "updateTime": 1772189975000}, {"awardName": "委托密函线索", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 22, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105052451543946.png", "id": 991, "periodId": 18, "thirdProductId": "7522", "updateTime": 1772189975000}, {"awardName": "委托手册 · 一", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 23, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105076129623102.png", "id": 992, "periodId": 18, "thirdProductId": "7523", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 8000, "createTime": 1772189975000, "dayInPeriod": 24, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105092305842171.png", "id": 993, "periodId": 18, "thirdProductId": "7524", "updateTime": 1772189975000}, {"awardName": "妙膏膏", "awardNum": 3, "createTime": 1772189975000, "dayInPeriod": 25, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105168720252965.png", "id": 994, "periodId": 18, "thirdProductId": "7525", "updateTime": 1772189975000}, {"awardName": "深红凝珠", "awardNum": 300, "createTime": 1772189975000, "dayInPeriod": 26, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105182488556166.png", "id": 995, "periodId": 18, "thirdProductId": "7526", "updateTime": 1772189975000}, {"awardName": "委托手册 · 一", "awardNum": 3, "createTime": 1772189975000, "dayInPeriod": 27, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105206250565184.png", "id": 996, "periodId": 18, "thirdProductId": "7527", "updateTime": 1772189975000}, {"awardName": "委托密函线索", "awardNum": 2, "createTime": 1772189975000, "dayInPeriod": 28, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1761105221251956325.png", "id": 997, "periodId": 18, "thirdProductId": "7528", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 8000, "createTime": 1772189975000, "dayInPeriod": 29, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1765785542839172127.png", "id": 998, "periodId": 18, "thirdProductId": "7529", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 8000, "createTime": 1772189975000, "dayInPeriod": 30, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1765785563010825902.png", "id": 999, "periodId": 18, "thirdProductId": "7530", "updateTime": 1772189975000}, {"awardName": "铜币", "awardNum": 8000, "createTime": 1772189975000, "dayInPeriod": 31, "gameId": 268, "iconUrl": "https://herobox-img.yingxiong.com/config/signin/1772189934857771740.png", "id": 1000, "periodId": 18, "thirdProductId": "7531", "updateTime": 1772189975000}], "totalReTime": 4, "signinTime": 15, "continueAward": [], "remainReTime": 4}, "tasks": {"growTask": [{"completeTimes": 1, "gainExp": 100, "gainGold": 100, "process": 1.0, "remark": "关注3名用户", "skipType": 5, "times": 1}, {"completeTimes": 1, "gainExp": 50, "gainGold": 50, "process": 1.0, "remark": "修改头像", "skipType": 4, "times": 1}, {"completeTimes": 1, "gainExp": 50, "gainGold": 50, "process": 1.0, "remark": "修改背景", "skipType": 4, "times": 1}, {"completeTimes": 1, "gainExp": 100, "gainGold": 100, "process": 1.0, "remark": "浏览社区累计10分钟", "skipType": 5, "times": 1}], "dailyTask": [{"completeTimes": 0, "gainExp": 6, "gainGold": 6, "process": 0.0, "remark": "完成5次点赞", "skipType": 0, "times": 5}, {"completeTimes": 0, "gainExp": 30, "gainGold": 30, "process": 0.0, "remark": "分享1篇内容", "skipType": 0, "times": 1}, {"completeTimes": 0, "gainExp": 10, "gainGold": 10, "process": 0.0, "remark": "回复他人帖子5次", "skipType": 0, "times": 5}, {"completeTimes": 0, "gainExp": 10, "gainGold": 10, "process": 0.0, "remark": "签到", "skipType": 0, "times": 1}, {"completeTimes": 3, "gainExp": 10, "gainGold": 10, "process": 1.0, "remark": "浏览3篇帖子", "skipType": 0, "times": 3}]}, "days": {"haveSignIn": false, "gainList": [{"gainValue": 10, "gainTyp": 1}, {"gainValue": 10, "gainTyp": 2}], "totalSignInDay": 266, "haveRoleSignIn": false}, "selected_role_name": "贝蕾妮卡", "role_detail": {"charDetail": {"attribute": {"atk": 376, "def": 300, "enmityValue": "0%", "maxES": 1255, "maxHp": 1255, "maxSp": 150, "skillEfficiency": "113%", "skillIntensity": "100%", "skillRange": "100%", "skillSustain": "100%", "strongValue": "0%", "weaponTags": ["单手剑", "双枪"]}, "charId": 1101, "charName": "贝蕾妮卡", "conWeaponEid": "690032FB0ADE64F965B55EF8", "conWeaponId": 110101, "currentVolume": 132, "elementIcon": "https://herobox-img.yingxiong.com/role/config/type/1.png", "elementName": "暗", "gradeLevel": 6, "icon": "https://herobox-img.yingxiong.com/role/config/character/icon/Head_Heitao.png", "level": 80, "modes": [{"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_Anubis01_Purple.png", "id": 51911, "level": 10, "name": "虚妄献祭", "quality": 5}, {"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_Typhon01_Black.png", "id": 51413, "level": 10, "name": "全盛·追袭", "quality": 5}, {"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_Griffin01_Black.png", "id": 51331, "level": 10, "name": "虚无·极昼", "quality": 5}, {"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_Mephisto01_Black.png", "id": 51717, "level": 10, "name": "昂扬·决断", "quality": 5}, {"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_Siren01_Black.png", "id": 56112, "level": 10, "name": "羽翼·鼓舞·追袭", "quality": 5}, {"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_Mephisto01_Black.png", "id": 51711, "level": 10, "name": "炽灭", "quality": 5}, {"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_Sphinx01_Green.png", "id": 51313, "level": 10, "name": "决斗", "quality": 5}, {"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_Mephisto01_Black.png", "id": 51712, "level": 10, "name": "炽灼·昂扬", "quality": 5}, {"icon": "https://herobox-img.yingxiong.com/role/config/mod/Mod_FeatheredSnake01_Black.png", "id": 51716, "level": 10, "name": "昂扬", "quality": 5}], "paint": "https://herobox-img.yingxiong.com/role/config/character/illustration_1/beileinika.png", "skills": [{"icon": "https://herobox-img.yingxiong.com/role/config/skill/T_Skill_Heitao01.png", "level": 10, "skillId": 110101, "skillName": "残光"}, {"icon": "https://herobox-img.yingxiong.com/role/config/skill/T_Skill_Heitao02_On.png", "level": 10, "skillId": 110102, "skillName": "冥焰"}, {"icon": "https://herobox-img.yingxiong.com/role/config/skill/T_Skill_Heitao03.png", "level": 10, "skillId": 110103, "skillName": "回转"}], "sumVolume": 155, "traces": [{"description": "螺旋跳跃和释放[残光]后，自身获得1层技能效益提高8.0%，持续12秒，最多叠加3层。", "icon": "https://herobox-img.yingxiong.com/role/config/type/an1.png"}, {"description": "对生命值百分比低于自身的目标，造成的伤害提高30.0%。", "icon": "https://herobox-img.yingxiong.com/role/config/type/an2.png"}, {"description": "[残光]等级+2，[回转]等级+1。", "icon": "https://herobox-img.yingxiong.com/role/config/type/an3.png"}, {"description": "根据自身连击等级提高攻击，每级提高20.0%。", "icon": "https://herobox-img.yingxiong.com/role/config/type/an4.png"}, {"description": "[冥焰]等级+2，[回转]等级+1。", "icon": "https://herobox-img.yingxiong.com/role/config/type/an5.png"}, {"description": "使用[冥焰]后，释放剑气时有概率额外生成1道剑气。概率为[伊弥尔]触发概率属性值的25.0%。", "icon": "https://herobox-img.yingxiong.com/role/config/type/an6.png"}]}}, "ann_posts": [{"auditStatus": 0, "browseCount": "282", "checkStatus": 0, "collectionCount": 0, "commentCount": 31, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 3840, "imgHeight": 2160, "url": "https://herobox-img.yingxiong.com/post/1785383441201494916.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 44, "postContent": "", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "869763934406576545", "postTitle": "“小雪花啊，就这样轻轻地落下来吧，晚风会替你找到归处——”", "postType": 1, "showTime": "22小时前", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "899", "checkStatus": 0, "collectionCount": 0, "commentCount": 63, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1080, "imgHeight": 1920, "url": "https://herobox-img.yingxiong.com/post/1785383418563105786.jpg"}, {"imgWidth": 1080, "imgHeight": 4436, "url": "https://herobox-img.yingxiong.com/post/1785383421192997949.jpg"}], "imgCount": 2, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 56, "postContent": "✦ 武器名：权火将熄✦ 武器类别：重剑✦ 获取方式：通过铸造免费获得✦ 武器描述：获得武器的其中一人是名君王，父神嘉奖他的野心。人们站在他的身后，欢呼他的威名，歌颂他的征服。他没有停下征服的脚步，他坚信自己会拥有更多的簇拥，但他的敌人却越来越多。最终他被包围在王座之上，燃起烈火，将自己和荣耀一起焚成灰烬。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "869295850109535791", "postTitle": "灾厄铸造 | 权火将熄", "postType": 1, "showTime": "08-14", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "885", "checkStatus": 0, "collectionCount": 0, "commentCount": 39, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1080, "imgHeight": 1920, "url": "https://herobox-img.yingxiong.com/post/1785383369943311917.jpg"}, {"imgWidth": 1080, "imgHeight": 2499, "url": "https://herobox-img.yingxiong.com/post/1785383372446265644.jpg"}], "imgCount": 2, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 56, "postContent": "✦ 武器名：锥心黑曜镰✦ 武器类别：长柄✦ 获取方式：通过铸造免费获得/通过商店购买获得✦ 武器描述：浴血的锥刃已经指向心脏，在滚烫的熔岩冷却前，你还有逃亡的时间。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "868933462151662081", "postTitle": "《铸铁计划》 | 锥心黑曜镰", "postType": 1, "showTime": "08-13", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "921", "checkStatus": 0, "collectionCount": 0, "commentCount": 71, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785383231622520179.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 72, "postContent": "以武会友，磨砺锋芒。【活动时间】2026年8月13日 10:00 ~ 2026年9月1日 05:00（UTC+8）【开放条件】历练等级达到50级并开启【活动】功能【奖励内容】头像奖励：「且试锋芒」密函奖励：「密函：裂魂」「密函：凋零」「密函：崩解」「密函：缠结」「密函：赘生」「密函：枯朽」「密函：剥离」「密函：焦渴」资源奖励：「月石」「华彩沙漏」「星辉丝线」「深红凝珠」「铜币」「熔炼模具」「战斗旋律·四」「武器说明书·四」「委托密函线索」", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "868571074336392759", "postTitle": "✦ 【且试锋芒】活动说明 ✦", "postType": 1, "showTime": "08-12", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "414", "checkStatus": 0, "collectionCount": 0, "commentCount": 42, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 3840, "imgHeight": 2160, "url": "https://herobox-img.yingxiong.com/post/1785383183685778777.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 65, "postContent": "", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "868314382914815195", "postTitle": "“乐园之外的世界，一定非常广阔吧？”", "postType": 1, "showTime": "08-11", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "559", "checkStatus": 0, "collectionCount": 0, "commentCount": 45, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785383148675754467.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 68, "postContent": "“轻快地起舞吧。”✦获取方式：提升【吟游诗集·盛夏节拍-精装诗集】等级获得。✦获取开放时间：2026年7月28日 ~ 2026年9月7日", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "867846298601000895", "postTitle": "展示动作 | 滴答舞步", "postType": 1, "showTime": "08-10", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "668", "checkStatus": 0, "collectionCount": 0, "commentCount": 46, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785383069737281304.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 79, "postContent": "“老大，这样真能把冰淇淋卖出去吗？”✦2026年7月28日更新后，以下形象上架外观商店。【喵喵雪糕·白樱】【喵喵雪糕·晴蓝】【喵喵雪糕·焦糖】【喵喵雪糕·藕紫】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "866759134932893960", "postTitle": "✦侍者皎皎的商店上新✦", "postType": 1, "showTime": "08-07", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "654", "checkStatus": 0, "collectionCount": 0, "commentCount": 55, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 3840, "imgHeight": 2160, "url": "https://herobox-img.yingxiong.com/post/1785383039643343361.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 89, "postContent": "旋转的木马，会带领你去到最欢乐的地方——", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "866502443536482949", "postTitle": "欢迎来到艾达的白兔游乐园！", "postType": 1, "showTime": "08-06", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "911", "checkStatus": 0, "collectionCount": 0, "commentCount": 56, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785383004820558475.jpg"}, {"imgWidth": 1200, "imgHeight": 8353, "url": "https://herobox-img.yingxiong.com/post/1785383014383763764.jpg"}], "imgCount": 2, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 76, "postContent": "「黄金旅途·魔灵竞速」是一个能够获取各类资源道具的赛跑竞猜活动。通过多种方式了解魔灵选手的每日状态，并选择支持的魔灵选手，即有机会获得竞猜回馈奖励。《皎皎的冒险笔记：魔灵竞速篇》为您献上，本篇内容主要记载了关于全新玩法「黄金旅途·魔灵竞速」的介绍，敬请查阅~", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "866396747084071771", "postTitle": "✦ 皎皎的冒险笔记：魔灵竞速篇 ✦", "postType": 1, "showTime": "08-06", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "1432", "checkStatus": 0, "collectionCount": 0, "commentCount": 67, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785912466417661006.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 78, "postContent": "我们将决定剧中故事的走向，沉浸于我们的剧目，共同迎接故事的完美终局。【活动时间】2026年8月6日 10:00 ~ 2026年9月6日 17:00（UTC+8）【开放条件】完成夜航篇剧情【前往少女所说的宅邸】并开启【活动】功能。【奖励内容】「铜币」「深红凝珠」「皎皎之民的信物」「武器说明书·三」「战斗旋律·三」「委托密函线索」【活动规则】关于创建舞台和参与舞台：创建或参与联袂演绎舞台，和其他狩月人一起收获丰厚的报酬。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "866109857307034645", "postTitle": "✦ 【沉浸式戏剧·联袂演绎】活动说明 ✦", "postType": 1, "showTime": "08-05", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "1329", "checkStatus": 0, "collectionCount": 0, "commentCount": 71, "gameForumId": 56, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785912318313552250.png"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 52, "postContent": "亲爱的狩月人：本次版本更新后，我们上新了四款「契约者之炽灼」魔之楔。原计划产出途径为【沉浸式戏剧·联袂演绎】并计划在下次版本更新后，调整至夜航手册中常驻获取。现调整为跳过本期【沉浸式戏剧·联袂演绎】直接在夜航手册中可常驻获取，我们将于2026年8月5日 17:00-18:00的更新中进行以下调整。新增6种属性的无尽扼守委托，参与该委托可获取对应属性的「契约者魔之楔」道具箱。删除【沉浸式戏剧·联袂演绎】活动中「契约者魔之楔道具箱」奖励。 ", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "866094757191879264", "postTitle": "关于「契约者之炽灼」系列魔之楔的产出途径调整说明", "postType": 1, "showTime": "08-05", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "1422", "checkStatus": 0, "collectionCount": 0, "commentCount": 63, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785382943761176279.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 78, "postContent": "时间就是声名，艾森巴恩对所有的车站员工提出要求：为了百花车站的荣誉，所有员工应当时刻准备，朝着更快的目标前进——包括他们的魔灵。【活动时间】2026年8月6日 10:00 ~ 2026年8月18日 05:00（UTC+8）【开放条件】完成任务【夜航篇·极光快车上的秘密】【奖励内容】个人主页背景：「魔灵竞速」头像：「定格的往事」「黄金旅途」头部装饰：「多彩气球·薄荷」「山外齿轮」资源：「华彩沙漏」「月石」「增幅激化器」「暮夜的履迹」「爆弹」「利刃药剂」「武器说明书·四」「战斗旋律·四」「委托密函线索」「深红凝珠」「铜币」「皎皎之民的信物」", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "865671971411594535", "postTitle": "✦ 【黄金旅途·魔灵竞速】活动说明 ✦", "postType": 1, "showTime": "08-04", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "422", "checkStatus": 0, "collectionCount": 0, "commentCount": 50, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785382813536824239.jpg"}, {"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785382815892794027.jpg"}], "imgCount": 2, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 76, "postContent": "“灵动、可爱、活泼、美丽……世上一切对美好的形容词在猫耳的面前都会显得黯淡无光，这就是猫耳那让人无法拒绝的魔力。”✦2026年7月28日更新后，以下形象上架外观商店。【折耳喵喵发饰·墨玉】【折耳喵喵发饰·焦糖】【折耳喵喵发饰·铅灰】【折耳喵喵发饰·白樱】【折耳喵喵尾巴·墨玉】【折耳喵喵尾巴·焦糖】【折耳喵喵尾巴·铅灰】【折耳喵喵尾巴·白樱】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "865309583579546135", "postTitle": "✦侍者皎皎的商店上新✦", "postType": 1, "showTime": "08-03", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "660", "checkStatus": 0, "collectionCount": 0, "commentCount": 67, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785145181106768296.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 90, "postContent": "不朽将逝去，如眼泪消失在雨中。✦2026年7月28日更新后，以下载具将上架【商店】：【银翼骑士·晴蓝】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "864313016844288471", "postTitle": "载具上新 | 银翼骑士·晴蓝", "postType": 1, "showTime": "07-31", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "430", "checkStatus": 0, "collectionCount": 0, "commentCount": 57, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785144642252624455.jpg"}, {"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785144644476841457.jpg"}], "imgCount": 2, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 88, "postContent": "“噗呦噗呦噗~”✦2026年7月27日起，以下形象上架外观商店：【噗呦章鱼·白樱】【噗呦章鱼·黛蓝】【噗呦章鱼·薄荷】【噗呦章鱼·涅白】【哼哼河豚·锈红】【哼哼河豚·晴蓝】【哼哼河豚·涅白】【哼哼河豚·白樱】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "864222419907249929", "postTitle": "✦侍者皎皎的商店上新✦", "postType": 1, "showTime": "07-31", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "461", "checkStatus": 0, "collectionCount": 0, "commentCount": 53, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 3840, "imgHeight": 2160, "url": "https://herobox-img.yingxiong.com/post/1785144553430215895.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 86, "postContent": "保存壁纸，与艾达（？？）一同沉浸幽蓝夏夜。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "864192220910061842", "postTitle": "深海藏星，晚风入八月。", "postType": 1, "showTime": "07-31", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "456", "checkStatus": 0, "collectionCount": 0, "commentCount": 60, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 750, "imgHeight": 400, "url": "https://herobox-img.yingxiong.com/post/1785402569769900347.jpg"}, {"imgWidth": 1080, "imgHeight": 1920, "url": "https://herobox-img.yingxiong.com/post/1785402564403907857.jpg"}], "imgCount": 2, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 90, "postContent": "在这座充满欢声的乐园里，最受欢迎的项目竟然是——摸摸魔魔角！只需轻轻踮脚，递出指尖，就会明白，星光原来如此奇妙！✦欢迎各位狩月人扫描图片二维码，或前往「微信表情包商城」搜索「二重螺旋摸魔角8」，前往「QQ表情包商城」搜索「二重螺旋11」下载使用！", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "863950629003854548", "postTitle": "✦ 摸摸魔魔角丨系列表情包第8弹现已上架", "postType": 1, "showTime": "07-30", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "305", "checkStatus": 0, "collectionCount": 0, "commentCount": 47, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785144456084144029.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 70, "postContent": "“雪花是天空的信使。”✦以下形象可在【商店】中消耗【水色棱镜】兑换获得：【星芒冰晶·黛蓝】【星芒冰晶·晴蓝】【星芒冰晶·涅白】【星芒冰晶·白樱】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "863875131510885080", "postTitle": "✦侍者皎皎的商店上新✦", "postType": 1, "showTime": "07-30", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}, {"auditStatus": 0, "browseCount": "680", "checkStatus": 0, "collectionCount": 0, "commentCount": 51, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [], "imgCount": 0, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 68, "postContent": "特效上新 | 相位切割以下为全新特效【相位切割】实机演示，敬请狩月人查看~*【相位切割】适用于太刀招式魔之楔【华光缭乱】✦获取方式：特效【相位切割】已上线，各位狩月人可在【商店】中通过消耗【虹色棱镜】兑换获得。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "863844932530471904", "postTitle": "视频标题：相位切割 | 实机展示", "postType": 4, "showTime": "07-30", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋", "videoContent": {"coverHeight": 1080, "coverUrl": "https://herobox-img.yingxiong.com/post/1785144393928638336.jpg", "coverWidth": 1920, "ext": "sd-mp4", "videoId": "705e59e1899c71f1804e752281fd0102", "videoUrl": "https://dnabbs-vod.yingxiong.com/705e59e1899c71f1804e752281fd0102-sd-mp4.mp4?auth_key=1786872092-5d808892719442c58f6fd7c2692df952-0-6e225adaf97617051f08d7f8174439ff"}}, {"auditStatus": 0, "browseCount": "414", "checkStatus": 0, "collectionCount": 0, "commentCount": 47, "gameForumId": 48, "gameId": 268, "gameName": "二重螺旋", "imgContent": [{"imgWidth": 1920, "imgHeight": 1080, "url": "https://herobox-img.yingxiong.com/post/1785143771781631584.jpg"}], "imgCount": 1, "isCollect": 0, "isCreator": 0, "isElite": 0, "isFollow": 0, "isLike": 0, "isLock": 0, "isOfficial": 1, "isPublisher": 0, "likeCount": 75, "postContent": "由公尚研发的机枢载具，如同真正的玄色狴犴一般逼真。若是骑着它在烟津渡横冲直撞，定然会引来路人纷纷瞠目吧。✦2026年7月28日更新后，以下载具将上架【商店】：【拟真玄色狴犴·晴蓝】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。", "postCover": "", "postCoverVo": {"imgHeight": 0, "imgWidth": 0}, "postId": "863588241113090767", "postTitle": "载具上新 | 拟真玄色狴犴·晴蓝", "postType": 1, "showTime": "07-29", "topics": [], "userHeadUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "userId": "709542994134436647", "userLevel": 8, "userModeratorIdentity": 2, "userName": "二重螺旋"}], "ann_post_id": "869763934406576545", "ann_detail": {"auditStatus": 0, "browseCount": "283", "checkStatus": 0, "collectionCount": 3, "commentCount": 31, "gameForumId": 48, "gameForumVo": {"forumDataType": 3, "forumListShowType": 1, "forumType": 1, "forumUiType": 1, "hasChild": 0, "iconUrl": "https://herobox-img.yingxiong.com/config/forum/gf_h.png", "iconWhiteUrl": "https://herobox-img.yingxiong.com/config/forum/gf_n.png", "id": 48, "isOfficial": 1, "isTrend": 0, "name": "官方资讯", "parentId": 55, "sort": 3}, "gameId": 268, "gameName": "二重螺旋", "headCodeUrl": "https://herobox-img.yingxiong.com/userHead/1780366304236804880.jpg", "id": "869763934406576545", "isCreator": 0, "isElite": 0, "isForceRecommend": 0, "isHide": 0, "isLock": 0, "isOfficial": 1, "isRecommend": 1, "isTop": 0, "likeCount": 44, "postContent": [{"contentType": 2, "imgHeight": 2160, "imgWidth": 3840, "url": "https://herobox-img.yingxiong.com/post/1785383441201494916.jpg"}], "postH5Content": "<div class=\"w-e_img-card\" data-module-name=\"img-card\" has-delete=\"true\" contenteditable=\"false\"><img img-des=\"3840,2160,https://herobox-img.yingxiong.com/post/1785383441201494916.jpg\" src=\"https://herobox-img.yingxiong.com/post/1785383441201494916.jpg\" listen-img-load=\"true\" class=\"w_e_network_image\"/></div>", "postTime": "22小时前", "postTitle": "“小雪花啊，就这样轻轻地落下来吧，晚风会替你找到归处——”", "postType": 1, "postUserId": "709542994134436647", "refreshHour": 0, "score": 0, "userLevel": 8, "userModeratorIdentity": 3, "userName": "二重螺旋", "whiteUrl": []}, "mh": [{"instances": [{"id": 60702, "name": "避险"}, {"id": 60102, "name": "扼守/无尽"}, {"id": 61102, "name": "驱离"}], "mh_type": "role"}, {"instances": [{"id": 62202, "name": "拆解"}, {"id": 62702, "name": "避险"}, {"id": 62602, "name": "调停"}], "mh_type": "weapon"}, {"instances": [{"id": 64102, "name": "扼守/无尽"}, {"id": 65102, "name": "驱离"}, {"id": 64502, "name": "探险/无尽"}], "mh_type": "mzx"}]}
+{
+  "scope": {
+    "user_id": "synthetic-user-1",
+    "bot_id": "onebot",
+    "uid": "synthetic-uid-1"
+  },
+  "role": {
+    "instanceInfo": [
+      {
+        "instances": [
+          {
+            "id": 60702,
+            "name": "避险"
+          },
+          {
+            "id": 60102,
+            "name": "扼守/无尽"
+          },
+          {
+            "id": 61102,
+            "name": "驱离"
+          }
+        ]
+      },
+      {
+        "instances": [
+          {
+            "id": 62202,
+            "name": "拆解"
+          },
+          {
+            "id": 62702,
+            "name": "避险"
+          },
+          {
+            "id": 62602,
+            "name": "调停"
+          }
+        ]
+      },
+      {
+        "instances": [
+          {
+            "id": 64102,
+            "name": "扼守/无尽"
+          },
+          {
+            "id": 65102,
+            "name": "驱离"
+          },
+          {
+            "id": 64502,
+            "name": "探险/无尽"
+          }
+        ]
+      }
+    ],
+    "roleInfo": {
+      "abyssInfo": {
+        "bestTimeVo1": {
+          "charIcon": "https://example.invalid/role/config/character/icon/fuluola.png",
+          "closeWeaponIcon": "https://example.invalid/role/config/weapon/qiuniaodeciyu.png",
+          "langRangeWeaponIcon": "https://example.invalid/role/config/weapon/jicijuexiang.png",
+          "petIcon": "https://example.invalid/role/config/pet/Head_Pet_Heiyao.png",
+          "phantomCharIcon1": "https://example.invalid/role/config/character/icon/Head_Baiheng.png",
+          "phantomCharIcon2": "https://example.invalid/role/config/character/icon/Head_Songlu.png",
+          "phantomWeaponIcon1": "https://example.invalid/role/config/weapon/Head_Swordwhip_Zeshi.png",
+          "phantomWeaponIcon2": "https://example.invalid/role/config/weapon/Head_Bow_hugaung.png"
+        },
+        "endTime": "1787018400",
+        "operaName": "勇者们的传说",
+        "progressName": "null 第47幕",
+        "stars": "330/162",
+        "startTime": "1785204000"
+      },
+      "roleShow": {
+        "closeWeapons": [
+          {
+            "elementIcon": "https://example.invalid/role/config/type/21.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Broadsword_Huipo.png",
+            "level": 80,
+            "name": "辉珀刃",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10101
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/21.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Broadsword_Guzi.png",
+            "level": 80,
+            "name": "孤子的缚锁",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10102
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/21.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Sword_Zhuiyi.png",
+            "level": 80,
+            "name": "追忆的残影",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10103
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/21.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Sword_Huimou.png",
+            "level": 80,
+            "name": "慧谋的攻守",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10104
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/21.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Sword_Liulang.png",
+            "level": 80,
+            "name": "流浪的蔷薇",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10105
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/21.png",
+            "icon": "https://example.invalid/role/config/weapon/qiuniaodeciyu.png",
+            "level": 80,
+            "name": "囚鸟的刺羽",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10107
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/22.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Polearm_Sairen.png",
+            "level": 80,
+            "name": "塞壬的拥吻",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10201
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/22.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Polearm_Chunjue.png",
+            "level": 80,
+            "name": "春玦戟",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10202
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/22.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Polearm_Zuiqian.png",
+            "level": 80,
+            "name": "罪愆的逆鳞",
+            "skillLevel": 2,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10203
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/22.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Scythe_Xiji.png",
+            "level": 80,
+            "name": "希冀的丰稔",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10204
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/22.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Scythe_Chixing.png",
+            "level": 80,
+            "name": "枯朽",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10206
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/22.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Scythe_Yihe.png",
+            "level": 80,
+            "name": "未来之鸽",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10208
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/23.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Claymore_Chengjie.png",
+            "level": 80,
+            "name": "惩戒的炼火",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10301
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/23.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Claymore_Rimian.png",
+            "level": 80,
+            "name": "铸铁者",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10302
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/23.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Claymore_Chixing.png",
+            "level": 80,
+            "name": "焦渴",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10303
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/23.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Claymore_Wangu.png",
+            "level": 80,
+            "name": "万古的诀别",
+            "skillLevel": 4,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10304
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/23.png",
+            "icon": "https://example.invalid/role/config/weapon/mingjinyao.png",
+            "level": 80,
+            "name": "鸣金遥",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10305
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/24.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Dualblade_Shixiang.png",
+            "level": 80,
+            "name": "失乡的獠牙",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10401
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/24.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Dualblade_Liujin.png",
+            "level": 80,
+            "name": "鎏金岁月",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10402
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/24.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Dualblade_Yousha.png",
+            "level": 80,
+            "name": "幽鲨眼",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10403
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/24.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Dualblade_fengyunjue.png",
+            "level": 80,
+            "name": "风云决",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10404
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/25.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Swordwhip_Buyu.png",
+            "level": 80,
+            "name": "不渝的梦海",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10501
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/25.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Swordwhip_Zeshi.png",
+            "level": 80,
+            "name": "泽世的慈雨",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10502
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/25.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Swordwhip_Chixing.png",
+            "level": 80,
+            "name": "缠结",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10503
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/25.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Swordwhip_Canghu.png",
+            "level": 80,
+            "name": "苍瑚凝碧",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10504
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/26.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Katana_Feiqie.png",
+            "level": 80,
+            "name": "红叶一滴",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10601
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/26.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Katana_Chixing.png",
+            "level": 80,
+            "name": "凋零",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10602
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/26.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Katana_Yuli.png",
+            "level": 80,
+            "name": "蒙恩御礼",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10603
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/26.png",
+            "icon": "https://example.invalid/role/config/weapon/shengxuetaidao.png",
+            "level": 80,
+            "name": "圣血·太刀",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 10604
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/22.png",
+            "icon": "https://example.invalid/role/config/weapon/zhuixinheiyaolian.png",
+            "level": 0,
+            "name": "锥心黑曜镰",
+            "skillLevel": 0,
+            "unLocked": false,
+            "weaponId": 10209
+          }
+        ],
+        "headUrl": "https://example.invalid/role/gameHead/10001.png",
+        "langRangeWeapons": [
+          {
+            "elementIcon": "https://example.invalid/role/config/type/27.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Pistol_Wuxu.png",
+            "level": 80,
+            "name": "无序奇点",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20101
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/27.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Pistol_Chixing.png",
+            "level": 80,
+            "name": "剥离",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20102
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/27.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Pistol_Gaoyu.png",
+            "level": 80,
+            "name": "告谕圣言",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20103
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/28.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Crossbow_Chixing.png",
+            "level": 80,
+            "name": "赘生",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20201
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/28.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Crossbow_Lanse.png",
+            "level": 80,
+            "name": "蓝色脉动",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20203
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/28.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Crossbow_Gaoyu.png",
+            "level": 80,
+            "name": "告谕圣音",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20205
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/29.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Cannon_Qunxing.png",
+            "level": 80,
+            "name": "群星无意赦免",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20301
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/29.png",
+            "icon": "https://example.invalid/role/config/weapon/chiqiangdehuayan.png",
+            "level": 80,
+            "name": "炽枪的花宴",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20302
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/29.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Cannon_Chixing.png",
+            "level": 80,
+            "name": "崩解",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20303
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/29.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Cannon_Guixu.png",
+            "level": 80,
+            "name": "归墟棘轮",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20304
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/29.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Cannon_Yinbai.png",
+            "level": 80,
+            "name": "银白敕令",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20305
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/30.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Shotgun_Chixing.png",
+            "level": 80,
+            "name": "嘶鸣",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20401
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/30.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Shotgun_Banzi.png",
+            "level": 80,
+            "name": "缄默育种者",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20402
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/30.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Shotgun_Shengcai.png",
+            "level": 80,
+            "name": "圣裁日",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20403
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/30.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Shotgun_Baopo.png",
+            "level": 80,
+            "name": "爆破艺术",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20405
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/30.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Shotgun_Guchu.png",
+            "level": 80,
+            "name": "孤雏的羽迹",
+            "skillLevel": 3,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20407
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Chixing.png",
+            "level": 80,
+            "name": "销骨",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20501
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Fangzhu.png",
+            "level": 80,
+            "name": "放逐怒雷",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20502
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Qiqing.png",
+            "level": 80,
+            "name": "祈请净火",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20503
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Poxiao.png",
+            "level": 80,
+            "name": "破晓赞美诗",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20504
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Sanjiao.png",
+            "level": 80,
+            "name": "三角缪斯",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20505
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Quewu.png",
+            "level": 80,
+            "name": "雀舞云屏",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20506
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Yinlang.png",
+            "level": 80,
+            "name": "引浪小调",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20507
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Zhimeng.png",
+            "level": 80,
+            "name": "织梦的白羽",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20509
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Machinegun_Ruohua.png",
+            "level": 80,
+            "name": "若华的飞光",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20510
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/bomoqiyue.png",
+            "level": 80,
+            "name": "薄暮契约",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20511
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/31.png",
+            "icon": "https://example.invalid/role/config/weapon/beizhongdecanhuo.png",
+            "level": 80,
+            "name": "杯中的残火",
+            "skillLevel": 2,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20512
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/32.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Bow_Lieyan.png",
+            "level": 80,
+            "name": "烈焰孤沙",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20601
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/32.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Bow_hugaung.png",
+            "level": 80,
+            "name": "弧光百劫",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20602
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/32.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Bow_Yinbu.png",
+            "level": 80,
+            "name": "茵布拉花序",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20603
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/32.png",
+            "icon": "https://example.invalid/role/config/weapon/Head_Bow_Chixing.png",
+            "level": 80,
+            "name": "裂魂",
+            "skillLevel": 5,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20604
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/28.png",
+            "icon": "https://example.invalid/role/config/weapon/zuihaodeyitian.png",
+            "level": 20,
+            "name": "最好的一天",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20207
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/27.png",
+            "icon": "https://example.invalid/role/config/weapon/shengxueshouqiang.png",
+            "level": 1,
+            "name": "圣血·手枪",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20104
+          },
+          {
+            "elementIcon": "https://example.invalid/role/config/type/30.png",
+            "icon": "https://example.invalid/role/config/weapon/qiegechilun.png",
+            "level": 1,
+            "name": "切割齿轮",
+            "skillLevel": 0,
+            "unLocked": true,
+            "weaponEid": "synthetic-weaponEid",
+            "weaponId": 20406
+          }
+        ],
+        "level": 65,
+        "params": [
+          {
+            "paramKey": "总活跃天数",
+            "paramValue": "292"
+          },
+          {
+            "paramKey": "游戏时长",
+            "paramValue": "1552.8"
+          },
+          {
+            "paramKey": "获得角色",
+            "paramValue": "29"
+          },
+          {
+            "paramKey": "近战武器",
+            "paramValue": "29"
+          },
+          {
+            "paramKey": "远程武器",
+            "paramValue": "34"
+          },
+          {
+            "paramKey": "角色时装",
+            "paramValue": "116"
+          },
+          {
+            "paramKey": "武器时装",
+            "paramValue": "6"
+          },
+          {
+            "paramKey": "魔之楔数量",
+            "paramValue": "622"
+          },
+          {
+            "paramKey": "魔灵数量",
+            "paramValue": "1963"
+          }
+        ],
+        "roleAchv": {
+          "bronze": 160,
+          "gold": 177,
+          "silver": 192,
+          "total": 529
+        },
+        "roleChars": [
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1101,
+            "elementIcon": "https://example.invalid/role/config/type/1.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Heitao.png",
+            "level": 80,
+            "name": "贝蕾妮卡",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1102,
+            "elementIcon": "https://example.invalid/role/config/type/1.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/fuluola.png",
+            "level": 80,
+            "name": "芙罗拉",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1103,
+            "elementIcon": "https://example.invalid/role/config/type/1.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Tuosi01.png",
+            "level": 80,
+            "name": "幻景",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1201,
+            "elementIcon": "https://example.invalid/role/config/type/1.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Nvzhuan.png",
+            "level": 80,
+            "name": "女主-暗",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1501,
+            "elementIcon": "https://example.invalid/role/config/type/2.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Baonu.png",
+            "level": 80,
+            "name": "莉兹贝尔",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1502,
+            "elementIcon": "https://example.invalid/role/config/type/2.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Nifu.png",
+            "level": 80,
+            "name": "妮弗尔夫人",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1503,
+            "elementIcon": "https://example.invalid/role/config/type/2.png",
+            "gradeLevel": 2,
+            "icon": "https://example.invalid/role/config/character/icon/T_Head_Kezhou.png",
+            "level": 80,
+            "name": "刻舟",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1504,
+            "elementIcon": "https://example.invalid/role/config/type/2.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/suyi.png",
+            "level": 80,
+            "name": "苏乙",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1601,
+            "elementIcon": "https://example.invalid/role/config/type/2.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Nvzhu.png",
+            "level": 80,
+            "name": "女主-光",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 1801,
+            "elementIcon": "https://example.invalid/role/config/type/2.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Feina.png",
+            "level": 80,
+            "name": "菲娜",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 2101,
+            "elementIcon": "https://example.invalid/role/config/type/3.png",
+            "gradeLevel": 7,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Shuimu.png",
+            "level": 80,
+            "name": "丽蓓卡",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 2102,
+            "elementIcon": "https://example.invalid/role/config/type/3.png",
+            "gradeLevel": 2,
+            "icon": "https://example.invalid/role/config/character/icon/T_Head_Eve.png",
+            "level": 80,
+            "name": "艾达（？？）",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 2301,
+            "elementIcon": "https://example.invalid/role/config/type/3.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Zhangyu.png",
+            "level": 80,
+            "name": "塔比瑟",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 2401,
+            "elementIcon": "https://example.invalid/role/config/type/3.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Baiheng.png",
+            "level": 80,
+            "name": "扶疏",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 3101,
+            "elementIcon": "https://example.invalid/role/config/type/4.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Linen.png",
+            "level": 80,
+            "name": "琳恩",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 3102,
+            "elementIcon": "https://example.invalid/role/config/type/4.png",
+            "gradeLevel": 2,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Xier.png",
+            "level": 80,
+            "name": "希尔妲",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 3103,
+            "elementIcon": "https://example.invalid/role/config/type/4.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Yeer.png",
+            "level": 80,
+            "name": "耶尔",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 3201,
+            "elementIcon": "https://example.invalid/role/config/type/4.png",
+            "gradeLevel": 7,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Haier.png",
+            "level": 80,
+            "name": "海尔法",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 3202,
+            "elementIcon": "https://example.invalid/role/config/type/4.png",
+            "gradeLevel": 4,
+            "icon": "https://example.invalid/role/config/character/icon/kamila.png",
+            "level": 80,
+            "name": "卡米拉",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 3301,
+            "elementIcon": "https://example.invalid/role/config/type/4.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Maer.png",
+            "level": 80,
+            "name": "玛尔洁",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 4101,
+            "elementIcon": "https://example.invalid/role/config/type/5.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Lise.png",
+            "level": 80,
+            "name": "黎瑟",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 4102,
+            "elementIcon": "https://example.invalid/role/config/type/5.png",
+            "gradeLevel": 2,
+            "icon": "https://example.invalid/role/config/character/icon/T_Head_Zhiliu.png",
+            "level": 80,
+            "name": "止流",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 4201,
+            "elementIcon": "https://example.invalid/role/config/type/5.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/T_Head_Yuming.png",
+            "level": 80,
+            "name": "煜明",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 4202,
+            "elementIcon": "https://example.invalid/role/config/type/5.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Landi.png",
+            "level": 80,
+            "name": "兰迪",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 4301,
+            "elementIcon": "https://example.invalid/role/config/type/5.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Xibi.png",
+            "level": 80,
+            "name": "西比尔",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 5101,
+            "elementIcon": "https://example.invalid/role/config/type/6.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Songlu.png",
+            "level": 80,
+            "name": "松露",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 5102,
+            "elementIcon": "https://example.invalid/role/config/type/6.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Aote.png",
+            "level": 80,
+            "name": "奥特赛德",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 5301,
+            "elementIcon": "https://example.invalid/role/config/type/6.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Saiqi.png",
+            "level": 80,
+            "name": "赛琪",
+            "unLocked": true
+          },
+          {
+            "charEid": "synthetic-charEid",
+            "charId": 5401,
+            "elementIcon": "https://example.invalid/role/config/type/6.png",
+            "gradeLevel": 6,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Dafu.png",
+            "level": 80,
+            "name": "达芙涅",
+            "unLocked": true
+          },
+          {
+            "charId": 120101,
+            "elementIcon": "https://example.invalid/role/config/type/1.png",
+            "gradeLevel": 0,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Nanzhuan.png",
+            "level": 0,
+            "name": "男主-暗",
+            "unLocked": false
+          },
+          {
+            "charId": 160101,
+            "elementIcon": "https://example.invalid/role/config/type/2.png",
+            "gradeLevel": 0,
+            "icon": "https://example.invalid/role/config/character/icon/Head_Nanzhu.png",
+            "level": 0,
+            "name": "男主-光",
+            "unLocked": false
+          }
+        ],
+        "roleId": "synthetic-role-1",
+        "roleName": "末药",
+        "rougeLikeInfo": {
+          "maxPassed": 106,
+          "maxPassedName": "6_80",
+          "resetTime": "1787518800",
+          "rewardCount": 12,
+          "rewardTotal": 12,
+          "talentInfo": [
+            {
+              "cur": "24",
+              "max": "24"
+            },
+            {
+              "cur": "24",
+              "max": "24"
+            },
+            {
+              "cur": "24",
+              "max": "24"
+            },
+            {
+              "cur": "24",
+              "max": "24"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "short_note": {
+    "currentTaskProgress": 280,
+    "draftInfo": {
+      "draftDoingInfo": [
+        {
+          "draftCompleteNum": 0,
+          "draftDoingNum": 1,
+          "endTime": "1786880369",
+          "productId": 10206,
+          "productName": "枯朽",
+          "startTime": "1786869569"
+        },
+        {
+          "draftCompleteNum": 0,
+          "draftDoingNum": 1,
+          "endTime": "1786880368",
+          "productId": 10303,
+          "productName": "焦渴",
+          "startTime": "1786869568"
+        },
+        {
+          "draftCompleteNum": 0,
+          "draftDoingNum": 1,
+          "endTime": "1786880364",
+          "productId": 20102,
+          "productName": "剥离",
+          "startTime": "1786869564"
+        },
+        {
+          "draftCompleteNum": 239,
+          "draftDoingNum": 629,
+          "endTime": "1787248900",
+          "productId": 20023,
+          "productName": "金砂",
+          "startTime": "1786728100"
+        },
+        {
+          "draftCompleteNum": 0,
+          "draftDoingNum": 1,
+          "endTime": "1786880362",
+          "productId": 20201,
+          "productName": "赘生",
+          "startTime": "1786869562"
+        },
+        {
+          "draftCompleteNum": 239,
+          "draftDoingNum": 629,
+          "endTime": "1787248893",
+          "productId": 20008,
+          "productName": "排斥结晶",
+          "startTime": "1786728093"
+        },
+        {
+          "draftCompleteNum": 0,
+          "draftDoingNum": 1,
+          "endTime": "1786880365",
+          "productId": 10602,
+          "productName": "凋零",
+          "startTime": "1786869565"
+        },
+        {
+          "draftCompleteNum": 0,
+          "draftDoingNum": 1,
+          "endTime": "1786880366",
+          "productId": 10503,
+          "productName": "缠结",
+          "startTime": "1786869566"
+        },
+        {
+          "draftCompleteNum": 4,
+          "draftDoingNum": 1,
+          "endTime": "1786872605",
+          "productId": 51733,
+          "productName": "炽灼·鼓舞",
+          "startTime": "1786863605"
+        },
+        {
+          "draftCompleteNum": 4,
+          "draftDoingNum": 3,
+          "endTime": "1786876210",
+          "productId": 51734,
+          "productName": "涅槃·权能",
+          "startTime": "1786863610"
+        },
+        {
+          "draftCompleteNum": 1,
+          "draftDoingNum": 7,
+          "endTime": "1786881597",
+          "productId": 20030,
+          "productName": "血清注射器",
+          "startTime": "1786869597"
+        },
+        {
+          "draftCompleteNum": 1,
+          "draftDoingNum": 17,
+          "endTime": "1786896592",
+          "productId": 20031,
+          "productName": "秽兽聚合物",
+          "startTime": "1786869592"
+        }
+      ],
+      "draftDoingNum": 12,
+      "draftMaxNum": 4
+    },
+    "dungeonReward": 0,
+    "dungeonRewardTotal": 3,
+    "hardBossRewardCount": 0,
+    "hardBossRewardTotal": 5,
+    "maxDailyTaskProgress": 200,
+    "rougeLikeRewardCount": 12,
+    "rougeLikeRewardTotal": 12
+  },
+  "weekly_current": {
+    "categories": [
+      {
+        "categoryName": "基础资源",
+        "isBase": true,
+        "items": [
+          {
+            "icon": "https://example.invalid/role/config/currency/xiansuo01.png",
+            "itemId": 211,
+            "itemName": "委托密函线索",
+            "quality": 5,
+            "totalNum": "11324"
+          },
+          {
+            "icon": "https://example.invalid/role/config/currency/fangxian01.png",
+            "itemId": 215,
+            "itemName": "时之纺线",
+            "quality": 5,
+            "totalNum": "171789"
+          },
+          {
+            "icon": "https://example.invalid/role/config/currency/ningzhu01.png",
+            "itemId": 102,
+            "itemName": "深红凝珠",
+            "quality": 4,
+            "totalNum": "203798"
+          },
+          {
+            "icon": "https://example.invalid/role/config/currency/tongbi01.png",
+            "itemId": 101,
+            "itemName": "铜币",
+            "quality": 3,
+            "totalNum": "157252384"
+          },
+          {
+            "icon": "https://example.invalid/role/config/currency/jiaojiaobi01.png",
+            "itemId": 20013,
+            "itemName": "皎皎之民的信物",
+            "quality": 3,
+            "totalNum": "71400"
+          }
+        ],
+        "type": 14
+      }
+    ],
+    "endDate": "20260816",
+    "startDate": "20260810",
+    "weekType": 1
+  },
+  "weekly_last": {
+    "categories": [
+      {
+        "categoryName": "基础资源",
+        "isBase": true,
+        "items": [
+          {
+            "icon": "https://example.invalid/role/config/currency/xiansuo01.png",
+            "itemId": 211,
+            "itemName": "委托密函线索",
+            "quality": 5,
+            "totalNum": "14043"
+          },
+          {
+            "icon": "https://example.invalid/role/config/currency/fangxian01.png",
+            "itemId": 215,
+            "itemName": "时之纺线",
+            "quality": 5,
+            "totalNum": "236810"
+          },
+          {
+            "icon": "https://example.invalid/role/config/currency/ningzhu01.png",
+            "itemId": 102,
+            "itemName": "深红凝珠",
+            "quality": 4,
+            "totalNum": "543615"
+          },
+          {
+            "icon": "https://example.invalid/role/config/currency/tongbi01.png",
+            "itemId": 101,
+            "itemName": "铜币",
+            "quality": 3,
+            "totalNum": "24140134"
+          },
+          {
+            "icon": "https://example.invalid/role/config/currency/jiaojiaobi01.png",
+            "itemId": 20013,
+            "itemName": "皎皎之民的信物",
+            "quality": 3,
+            "totalNum": "15861"
+          }
+        ],
+        "type": 14
+      },
+      {
+        "categoryName": "思绪碎片",
+        "isBase": false,
+        "items": [
+          {
+            "icon": "https://example.invalid/role/config/CharPiece/T_CharPiece_Lise.png",
+            "itemId": 1004101,
+            "itemName": "黎瑟",
+            "quality": 5,
+            "totalNum": "30"
+          }
+        ],
+        "type": 15
+      }
+    ],
+    "endDate": "20260809",
+    "startDate": "20260803",
+    "weekType": 2
+  },
+  "sign": {
+    "todaySignin": false,
+    "period": {
+      "createTime": 1772189968000,
+      "endDate": 1788105600000,
+      "gameId": 268,
+      "id": 18,
+      "name": "2026.8",
+      "overDays": 31,
+      "retryCos": 50,
+      "retryTimes": 4,
+      "startDate": 1785513600000
+    },
+    "roleInfo": {
+      "headUrl": "https://example.invalid/role/gameHead/10001.png",
+      "level": 65,
+      "roleBoundId": "synthetic-role-1",
+      "roleId": "synthetic-role-1",
+      "roleName": "末药"
+    },
+    "userGoldNum": 41594,
+    "dayAward": [
+      {
+        "awardName": "妙膏膏",
+        "awardNum": 1,
+        "createTime": 1772189975000,
+        "dayInPeriod": 1,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 970,
+        "periodId": 18,
+        "thirdProductId": "7501",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "深红凝珠",
+        "awardNum": 100,
+        "createTime": 1772189975000,
+        "dayInPeriod": 2,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 971,
+        "periodId": 18,
+        "thirdProductId": "7502",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 3000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 3,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 972,
+        "periodId": 18,
+        "thirdProductId": "7503",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托密函线索",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 4,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 973,
+        "periodId": 18,
+        "thirdProductId": "7504",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托手册 · 一",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 5,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 974,
+        "periodId": 18,
+        "thirdProductId": "7505",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 5000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 6,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 975,
+        "periodId": 18,
+        "thirdProductId": "7506",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托手册 · 一",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 7,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 976,
+        "periodId": 18,
+        "thirdProductId": "7507",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "妙膏膏",
+        "awardNum": 1,
+        "createTime": 1772189975000,
+        "dayInPeriod": 8,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 977,
+        "periodId": 18,
+        "thirdProductId": "7508",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托密函线索",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 9,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 978,
+        "periodId": 18,
+        "thirdProductId": "7509",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "深红凝珠",
+        "awardNum": 200,
+        "createTime": 1772189975000,
+        "dayInPeriod": 10,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 979,
+        "periodId": 18,
+        "thirdProductId": "7510",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "妙膏膏",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 11,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 980,
+        "periodId": 18,
+        "thirdProductId": "7511",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 5000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 12,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 981,
+        "periodId": 18,
+        "thirdProductId": "7512",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托手册 · 一",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 13,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 982,
+        "periodId": 18,
+        "thirdProductId": "7513",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 5000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 14,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 983,
+        "periodId": 18,
+        "thirdProductId": "7514",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托密函线索",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 15,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 984,
+        "periodId": 18,
+        "thirdProductId": "7515",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托手册 · 一",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 16,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 985,
+        "periodId": 18,
+        "thirdProductId": "7516",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "深红凝珠",
+        "awardNum": 200,
+        "createTime": 1772189975000,
+        "dayInPeriod": 17,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 986,
+        "periodId": 18,
+        "thirdProductId": "7517",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "妙膏膏",
+        "awardNum": 3,
+        "createTime": 1772189975000,
+        "dayInPeriod": 18,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 987,
+        "periodId": 18,
+        "thirdProductId": "7518",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 8000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 19,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 988,
+        "periodId": 18,
+        "thirdProductId": "7519",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托手册 · 一",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 20,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 989,
+        "periodId": 18,
+        "thirdProductId": "7520",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "深红凝珠",
+        "awardNum": 200,
+        "createTime": 1772189975000,
+        "dayInPeriod": 21,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 990,
+        "periodId": 18,
+        "thirdProductId": "7521",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托密函线索",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 22,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 991,
+        "periodId": 18,
+        "thirdProductId": "7522",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托手册 · 一",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 23,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 992,
+        "periodId": 18,
+        "thirdProductId": "7523",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 8000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 24,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 993,
+        "periodId": 18,
+        "thirdProductId": "7524",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "妙膏膏",
+        "awardNum": 3,
+        "createTime": 1772189975000,
+        "dayInPeriod": 25,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 994,
+        "periodId": 18,
+        "thirdProductId": "7525",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "深红凝珠",
+        "awardNum": 300,
+        "createTime": 1772189975000,
+        "dayInPeriod": 26,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 995,
+        "periodId": 18,
+        "thirdProductId": "7526",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托手册 · 一",
+        "awardNum": 3,
+        "createTime": 1772189975000,
+        "dayInPeriod": 27,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 996,
+        "periodId": 18,
+        "thirdProductId": "7527",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "委托密函线索",
+        "awardNum": 2,
+        "createTime": 1772189975000,
+        "dayInPeriod": 28,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 997,
+        "periodId": 18,
+        "thirdProductId": "7528",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 8000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 29,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 998,
+        "periodId": 18,
+        "thirdProductId": "7529",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 8000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 30,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 999,
+        "periodId": 18,
+        "thirdProductId": "7530",
+        "updateTime": 1772189975000
+      },
+      {
+        "awardName": "铜币",
+        "awardNum": 8000,
+        "createTime": 1772189975000,
+        "dayInPeriod": 31,
+        "gameId": 268,
+        "iconUrl": "https://example.invalid/config/signin/synthetic-id.png",
+        "id": 1000,
+        "periodId": 18,
+        "thirdProductId": "7531",
+        "updateTime": 1772189975000
+      }
+    ],
+    "totalReTime": 4,
+    "signinTime": 15,
+    "continueAward": [],
+    "remainReTime": 4
+  },
+  "tasks": {
+    "growTask": [
+      {
+        "completeTimes": 1,
+        "gainExp": 100,
+        "gainGold": 100,
+        "process": 1.0,
+        "remark": "关注3名用户",
+        "skipType": 5,
+        "times": 1
+      },
+      {
+        "completeTimes": 1,
+        "gainExp": 50,
+        "gainGold": 50,
+        "process": 1.0,
+        "remark": "修改头像",
+        "skipType": 4,
+        "times": 1
+      },
+      {
+        "completeTimes": 1,
+        "gainExp": 50,
+        "gainGold": 50,
+        "process": 1.0,
+        "remark": "修改背景",
+        "skipType": 4,
+        "times": 1
+      },
+      {
+        "completeTimes": 1,
+        "gainExp": 100,
+        "gainGold": 100,
+        "process": 1.0,
+        "remark": "浏览社区累计10分钟",
+        "skipType": 5,
+        "times": 1
+      }
+    ],
+    "dailyTask": [
+      {
+        "completeTimes": 0,
+        "gainExp": 6,
+        "gainGold": 6,
+        "process": 0.0,
+        "remark": "完成5次点赞",
+        "skipType": 0,
+        "times": 5
+      },
+      {
+        "completeTimes": 0,
+        "gainExp": 30,
+        "gainGold": 30,
+        "process": 0.0,
+        "remark": "分享1篇内容",
+        "skipType": 0,
+        "times": 1
+      },
+      {
+        "completeTimes": 0,
+        "gainExp": 10,
+        "gainGold": 10,
+        "process": 0.0,
+        "remark": "回复他人帖子5次",
+        "skipType": 0,
+        "times": 5
+      },
+      {
+        "completeTimes": 0,
+        "gainExp": 10,
+        "gainGold": 10,
+        "process": 0.0,
+        "remark": "签到",
+        "skipType": 0,
+        "times": 1
+      },
+      {
+        "completeTimes": 3,
+        "gainExp": 10,
+        "gainGold": 10,
+        "process": 1.0,
+        "remark": "浏览3篇帖子",
+        "skipType": 0,
+        "times": 3
+      }
+    ]
+  },
+  "days": {
+    "haveSignIn": false,
+    "gainList": [
+      {
+        "gainValue": 10,
+        "gainTyp": 1
+      },
+      {
+        "gainValue": 10,
+        "gainTyp": 2
+      }
+    ],
+    "totalSignInDay": 266,
+    "haveRoleSignIn": false
+  },
+  "selected_role_name": "贝蕾妮卡",
+  "role_detail": {
+    "charDetail": {
+      "attribute": {
+        "atk": 376,
+        "def": 300,
+        "enmityValue": "0%",
+        "maxES": 1255,
+        "maxHp": 1255,
+        "maxSp": 150,
+        "skillEfficiency": "113%",
+        "skillIntensity": "100%",
+        "skillRange": "100%",
+        "skillSustain": "100%",
+        "strongValue": "0%",
+        "weaponTags": [
+          "单手剑",
+          "双枪"
+        ]
+      },
+      "charId": 1101,
+      "charName": "贝蕾妮卡",
+      "conWeaponEid": "synthetic-conWeaponEid",
+      "conWeaponId": 110101,
+      "currentVolume": 132,
+      "elementIcon": "https://example.invalid/role/config/type/1.png",
+      "elementName": "暗",
+      "gradeLevel": 6,
+      "icon": "https://example.invalid/role/config/character/icon/Head_Heitao.png",
+      "level": 80,
+      "modes": [
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_Anubis01_Purple.png",
+          "id": 51911,
+          "level": 10,
+          "name": "虚妄献祭",
+          "quality": 5
+        },
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_Typhon01_Black.png",
+          "id": 51413,
+          "level": 10,
+          "name": "全盛·追袭",
+          "quality": 5
+        },
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_Griffin01_Black.png",
+          "id": 51331,
+          "level": 10,
+          "name": "虚无·极昼",
+          "quality": 5
+        },
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_Mephisto01_Black.png",
+          "id": 51717,
+          "level": 10,
+          "name": "昂扬·决断",
+          "quality": 5
+        },
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_Siren01_Black.png",
+          "id": 56112,
+          "level": 10,
+          "name": "羽翼·鼓舞·追袭",
+          "quality": 5
+        },
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_Mephisto01_Black.png",
+          "id": 51711,
+          "level": 10,
+          "name": "炽灭",
+          "quality": 5
+        },
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_Sphinx01_Green.png",
+          "id": 51313,
+          "level": 10,
+          "name": "决斗",
+          "quality": 5
+        },
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_Mephisto01_Black.png",
+          "id": 51712,
+          "level": 10,
+          "name": "炽灼·昂扬",
+          "quality": 5
+        },
+        {
+          "icon": "https://example.invalid/role/config/mod/Mod_FeatheredSnake01_Black.png",
+          "id": 51716,
+          "level": 10,
+          "name": "昂扬",
+          "quality": 5
+        }
+      ],
+      "paint": "https://example.invalid/role/config/character/illustration_1/beileinika.png",
+      "skills": [
+        {
+          "icon": "https://example.invalid/role/config/skill/T_Skill_Heitao01.png",
+          "level": 10,
+          "skillId": 110101,
+          "skillName": "残光"
+        },
+        {
+          "icon": "https://example.invalid/role/config/skill/T_Skill_Heitao02_On.png",
+          "level": 10,
+          "skillId": 110102,
+          "skillName": "冥焰"
+        },
+        {
+          "icon": "https://example.invalid/role/config/skill/T_Skill_Heitao03.png",
+          "level": 10,
+          "skillId": 110103,
+          "skillName": "回转"
+        }
+      ],
+      "sumVolume": 155,
+      "traces": [
+        {
+          "description": "螺旋跳跃和释放[残光]后，自身获得1层技能效益提高8.0%，持续12秒，最多叠加3层。",
+          "icon": "https://example.invalid/role/config/type/an1.png"
+        },
+        {
+          "description": "对生命值百分比低于自身的目标，造成的伤害提高30.0%。",
+          "icon": "https://example.invalid/role/config/type/an2.png"
+        },
+        {
+          "description": "[残光]等级+2，[回转]等级+1。",
+          "icon": "https://example.invalid/role/config/type/an3.png"
+        },
+        {
+          "description": "根据自身连击等级提高攻击，每级提高20.0%。",
+          "icon": "https://example.invalid/role/config/type/an4.png"
+        },
+        {
+          "description": "[冥焰]等级+2，[回转]等级+1。",
+          "icon": "https://example.invalid/role/config/type/an5.png"
+        },
+        {
+          "description": "使用[冥焰]后，释放剑气时有概率额外生成1道剑气。概率为[伊弥尔]触发概率属性值的25.0%。",
+          "icon": "https://example.invalid/role/config/type/an6.png"
+        }
+      ]
+    }
+  },
+  "ann_posts": [
+    {
+      "auditStatus": 0,
+      "browseCount": "282",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 31,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 3840,
+          "imgHeight": 2160,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 44,
+      "postContent": "",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "“小雪花啊，就这样轻轻地落下来吧，晚风会替你找到归处——”",
+      "postType": 1,
+      "showTime": "22小时前",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "899",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 63,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1080,
+          "imgHeight": 1920,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        },
+        {
+          "imgWidth": 1080,
+          "imgHeight": 4436,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 2,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 56,
+      "postContent": "✦ 武器名：权火将熄✦ 武器类别：重剑✦ 获取方式：通过铸造免费获得✦ 武器描述：获得武器的其中一人是名君王，父神嘉奖他的野心。人们站在他的身后，欢呼他的威名，歌颂他的征服。他没有停下征服的脚步，他坚信自己会拥有更多的簇拥，但他的敌人却越来越多。最终他被包围在王座之上，燃起烈火，将自己和荣耀一起焚成灰烬。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "灾厄铸造 | 权火将熄",
+      "postType": 1,
+      "showTime": "08-14",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "885",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 39,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1080,
+          "imgHeight": 1920,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        },
+        {
+          "imgWidth": 1080,
+          "imgHeight": 2499,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 2,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 56,
+      "postContent": "✦ 武器名：锥心黑曜镰✦ 武器类别：长柄✦ 获取方式：通过铸造免费获得/通过商店购买获得✦ 武器描述：浴血的锥刃已经指向心脏，在滚烫的熔岩冷却前，你还有逃亡的时间。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "《铸铁计划》 | 锥心黑曜镰",
+      "postType": 1,
+      "showTime": "08-13",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "921",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 71,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 72,
+      "postContent": "以武会友，磨砺锋芒。【活动时间】2026年8月13日 10:00 ~ 2026年9月1日 05:00（UTC+8）【开放条件】历练等级达到50级并开启【活动】功能【奖励内容】头像奖励：「且试锋芒」密函奖励：「密函：裂魂」「密函：凋零」「密函：崩解」「密函：缠结」「密函：赘生」「密函：枯朽」「密函：剥离」「密函：焦渴」资源奖励：「月石」「华彩沙漏」「星辉丝线」「深红凝珠」「铜币」「熔炼模具」「战斗旋律·四」「武器说明书·四」「委托密函线索」",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦ 【且试锋芒】活动说明 ✦",
+      "postType": 1,
+      "showTime": "08-12",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "414",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 42,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 3840,
+          "imgHeight": 2160,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 65,
+      "postContent": "",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "“乐园之外的世界，一定非常广阔吧？”",
+      "postType": 1,
+      "showTime": "08-11",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "559",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 45,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 68,
+      "postContent": "“轻快地起舞吧。”✦获取方式：提升【吟游诗集·盛夏节拍-精装诗集】等级获得。✦获取开放时间：2026年7月28日 ~ 2026年9月7日",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "展示动作 | 滴答舞步",
+      "postType": 1,
+      "showTime": "08-10",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "668",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 46,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 79,
+      "postContent": "“老大，这样真能把冰淇淋卖出去吗？”✦2026年7月28日更新后，以下形象上架外观商店。【喵喵雪糕·白樱】【喵喵雪糕·晴蓝】【喵喵雪糕·焦糖】【喵喵雪糕·藕紫】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦侍者皎皎的商店上新✦",
+      "postType": 1,
+      "showTime": "08-07",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "654",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 55,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 3840,
+          "imgHeight": 2160,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 89,
+      "postContent": "旋转的木马，会带领你去到最欢乐的地方——",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "欢迎来到艾达的白兔游乐园！",
+      "postType": 1,
+      "showTime": "08-06",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "911",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 56,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        },
+        {
+          "imgWidth": 1200,
+          "imgHeight": 8353,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 2,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 76,
+      "postContent": "「黄金旅途·魔灵竞速」是一个能够获取各类资源道具的赛跑竞猜活动。通过多种方式了解魔灵选手的每日状态，并选择支持的魔灵选手，即有机会获得竞猜回馈奖励。《皎皎的冒险笔记：魔灵竞速篇》为您献上，本篇内容主要记载了关于全新玩法「黄金旅途·魔灵竞速」的介绍，敬请查阅~",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦ 皎皎的冒险笔记：魔灵竞速篇 ✦",
+      "postType": 1,
+      "showTime": "08-06",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "1432",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 67,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 78,
+      "postContent": "我们将决定剧中故事的走向，沉浸于我们的剧目，共同迎接故事的完美终局。【活动时间】2026年8月6日 10:00 ~ 2026年9月6日 17:00（UTC+8）【开放条件】完成夜航篇剧情【前往少女所说的宅邸】并开启【活动】功能。【奖励内容】「铜币」「深红凝珠」「皎皎之民的信物」「武器说明书·三」「战斗旋律·三」「委托密函线索」【活动规则】关于创建舞台和参与舞台：创建或参与联袂演绎舞台，和其他狩月人一起收获丰厚的报酬。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦ 【沉浸式戏剧·联袂演绎】活动说明 ✦",
+      "postType": 1,
+      "showTime": "08-05",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "1329",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 71,
+      "gameForumId": 56,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.png"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 52,
+      "postContent": "亲爱的狩月人：本次版本更新后，我们上新了四款「契约者之炽灼」魔之楔。原计划产出途径为【沉浸式戏剧·联袂演绎】并计划在下次版本更新后，调整至夜航手册中常驻获取。现调整为跳过本期【沉浸式戏剧·联袂演绎】直接在夜航手册中可常驻获取，我们将于2026年8月5日 17:00-18:00的更新中进行以下调整。新增6种属性的无尽扼守委托，参与该委托可获取对应属性的「契约者魔之楔」道具箱。删除【沉浸式戏剧·联袂演绎】活动中「契约者魔之楔道具箱」奖励。 ",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "关于「契约者之炽灼」系列魔之楔的产出途径调整说明",
+      "postType": 1,
+      "showTime": "08-05",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "1422",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 63,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 78,
+      "postContent": "时间就是声名，艾森巴恩对所有的车站员工提出要求：为了百花车站的荣誉，所有员工应当时刻准备，朝着更快的目标前进——包括他们的魔灵。【活动时间】2026年8月6日 10:00 ~ 2026年8月18日 05:00（UTC+8）【开放条件】完成任务【夜航篇·极光快车上的秘密】【奖励内容】个人主页背景：「魔灵竞速」头像：「定格的往事」「黄金旅途」头部装饰：「多彩气球·薄荷」「山外齿轮」资源：「华彩沙漏」「月石」「增幅激化器」「暮夜的履迹」「爆弹」「利刃药剂」「武器说明书·四」「战斗旋律·四」「委托密函线索」「深红凝珠」「铜币」「皎皎之民的信物」",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦ 【黄金旅途·魔灵竞速】活动说明 ✦",
+      "postType": 1,
+      "showTime": "08-04",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "422",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 50,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        },
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 2,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 76,
+      "postContent": "“灵动、可爱、活泼、美丽……世上一切对美好的形容词在猫耳的面前都会显得黯淡无光，这就是猫耳那让人无法拒绝的魔力。”✦2026年7月28日更新后，以下形象上架外观商店。【折耳喵喵发饰·墨玉】【折耳喵喵发饰·焦糖】【折耳喵喵发饰·铅灰】【折耳喵喵发饰·白樱】【折耳喵喵尾巴·墨玉】【折耳喵喵尾巴·焦糖】【折耳喵喵尾巴·铅灰】【折耳喵喵尾巴·白樱】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦侍者皎皎的商店上新✦",
+      "postType": 1,
+      "showTime": "08-03",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "660",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 67,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 90,
+      "postContent": "不朽将逝去，如眼泪消失在雨中。✦2026年7月28日更新后，以下载具将上架【商店】：【银翼骑士·晴蓝】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "载具上新 | 银翼骑士·晴蓝",
+      "postType": 1,
+      "showTime": "07-31",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "430",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 57,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        },
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 2,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 88,
+      "postContent": "“噗呦噗呦噗~”✦2026年7月27日起，以下形象上架外观商店：【噗呦章鱼·白樱】【噗呦章鱼·黛蓝】【噗呦章鱼·薄荷】【噗呦章鱼·涅白】【哼哼河豚·锈红】【哼哼河豚·晴蓝】【哼哼河豚·涅白】【哼哼河豚·白樱】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦侍者皎皎的商店上新✦",
+      "postType": 1,
+      "showTime": "07-31",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "461",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 53,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 3840,
+          "imgHeight": 2160,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 86,
+      "postContent": "保存壁纸，与艾达（？？）一同沉浸幽蓝夏夜。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "深海藏星，晚风入八月。",
+      "postType": 1,
+      "showTime": "07-31",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "456",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 60,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 750,
+          "imgHeight": 400,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        },
+        {
+          "imgWidth": 1080,
+          "imgHeight": 1920,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 2,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 90,
+      "postContent": "在这座充满欢声的乐园里，最受欢迎的项目竟然是——摸摸魔魔角！只需轻轻踮脚，递出指尖，就会明白，星光原来如此奇妙！✦欢迎各位狩月人扫描图片二维码，或前往「微信表情包商城」搜索「二重螺旋摸魔角8」，前往「QQ表情包商城」搜索「二重螺旋11」下载使用！",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦ 摸摸魔魔角丨系列表情包第8弹现已上架",
+      "postType": 1,
+      "showTime": "07-30",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "305",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 47,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 70,
+      "postContent": "“雪花是天空的信使。”✦以下形象可在【商店】中消耗【水色棱镜】兑换获得：【星芒冰晶·黛蓝】【星芒冰晶·晴蓝】【星芒冰晶·涅白】【星芒冰晶·白樱】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "✦侍者皎皎的商店上新✦",
+      "postType": 1,
+      "showTime": "07-30",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "680",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 51,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [],
+      "imgCount": 0,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 68,
+      "postContent": "特效上新 | 相位切割以下为全新特效【相位切割】实机演示，敬请狩月人查看~*【相位切割】适用于太刀招式魔之楔【华光缭乱】✦获取方式：特效【相位切割】已上线，各位狩月人可在【商店】中通过消耗【虹色棱镜】兑换获得。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "视频标题：相位切割 | 实机展示",
+      "postType": 4,
+      "showTime": "07-30",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋",
+      "videoContent": {
+        "coverHeight": 1080,
+        "coverUrl": "https://example.invalid/post/synthetic-id.jpg",
+        "coverWidth": 1920,
+        "ext": "sd-mp4",
+        "videoId": "synthetic-video-1",
+        "videoUrl": "https://example.invalid/video/synthetic-video-1.mp4"
+      }
+    },
+    {
+      "auditStatus": 0,
+      "browseCount": "414",
+      "checkStatus": 0,
+      "collectionCount": 0,
+      "commentCount": 47,
+      "gameForumId": 48,
+      "gameId": 268,
+      "gameName": "二重螺旋",
+      "imgContent": [
+        {
+          "imgWidth": 1920,
+          "imgHeight": 1080,
+          "url": "https://example.invalid/post/synthetic-id.jpg"
+        }
+      ],
+      "imgCount": 1,
+      "isCollect": 0,
+      "isCreator": 0,
+      "isElite": 0,
+      "isFollow": 0,
+      "isLike": 0,
+      "isLock": 0,
+      "isOfficial": 1,
+      "isPublisher": 0,
+      "likeCount": 75,
+      "postContent": "由公尚研发的机枢载具，如同真正的玄色狴犴一般逼真。若是骑着它在烟津渡横冲直撞，定然会引来路人纷纷瞠目吧。✦2026年7月28日更新后，以下载具将上架【商店】：【拟真玄色狴犴·晴蓝】✦更多外观内容和具体售卖规则可前往【商店】-【外观】中查看。",
+      "postCover": "",
+      "postCoverVo": {
+        "imgHeight": 0,
+        "imgWidth": 0
+      },
+      "postId": "synthetic-post-1",
+      "postTitle": "载具上新 | 拟真玄色狴犴·晴蓝",
+      "postType": 1,
+      "showTime": "07-29",
+      "topics": [],
+      "userHeadUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+      "userId": "synthetic-user-1",
+      "userLevel": 8,
+      "userModeratorIdentity": 2,
+      "userName": "二重螺旋"
+    }
+  ],
+  "ann_post_id": "synthetic-post-1",
+  "ann_detail": {
+    "auditStatus": 0,
+    "browseCount": "283",
+    "checkStatus": 0,
+    "collectionCount": 3,
+    "commentCount": 31,
+    "gameForumId": 48,
+    "gameForumVo": {
+      "forumDataType": 3,
+      "forumListShowType": 1,
+      "forumType": 1,
+      "forumUiType": 1,
+      "hasChild": 0,
+      "iconUrl": "https://example.invalid/config/forum/gf_h.png",
+      "iconWhiteUrl": "https://example.invalid/config/forum/gf_n.png",
+      "id": 48,
+      "isOfficial": 1,
+      "isTrend": 0,
+      "name": "官方资讯",
+      "parentId": 55,
+      "sort": 3
+    },
+    "gameId": 268,
+    "gameName": "二重螺旋",
+    "headCodeUrl": "https://example.invalid/userHead/synthetic-id.jpg",
+    "id": "synthetic-id",
+    "isCreator": 0,
+    "isElite": 0,
+    "isForceRecommend": 0,
+    "isHide": 0,
+    "isLock": 0,
+    "isOfficial": 1,
+    "isRecommend": 1,
+    "isTop": 0,
+    "likeCount": 44,
+    "postContent": [
+      {
+        "contentType": 2,
+        "imgHeight": 2160,
+        "imgWidth": 3840,
+        "url": "https://example.invalid/post/synthetic-id.jpg"
+      }
+    ],
+    "postH5Content": "<div class=\"w-e_img-card\" data-module-name=\"img-card\" has-delete=\"true\" contenteditable=\"false\"><img img-des=\"3840,2160,https://example.invalid/post/synthetic-id.jpg\" src=\"https://example.invalid/post/synthetic-id.jpg\" listen-img-load=\"true\" class=\"w_e_network_image\"/></div>",
+    "postTime": "22小时前",
+    "postTitle": "“小雪花啊，就这样轻轻地落下来吧，晚风会替你找到归处——”",
+    "postType": 1,
+    "postUserId": "synthetic-user-1",
+    "refreshHour": 0,
+    "score": 0,
+    "userLevel": 8,
+    "userModeratorIdentity": 3,
+    "userName": "二重螺旋",
+    "whiteUrl": []
+  },
+  "mh": [
+    {
+      "instances": [
+        {
+          "id": 60702,
+          "name": "避险"
+        },
+        {
+          "id": 60102,
+          "name": "扼守/无尽"
+        },
+        {
+          "id": 61102,
+          "name": "驱离"
+        }
+      ],
+      "mh_type": "role"
+    },
+    {
+      "instances": [
+        {
+          "id": 62202,
+          "name": "拆解"
+        },
+        {
+          "id": 62702,
+          "name": "避险"
+        },
+        {
+          "id": 62602,
+          "name": "调停"
+        }
+      ],
+      "mh_type": "weapon"
+    },
+    {
+      "instances": [
+        {
+          "id": 64102,
+          "name": "扼守/无尽"
+        },
+        {
+          "id": 65102,
+          "name": "驱离"
+        },
+        {
+          "id": 64502,
+          "name": "探险/无尽"
+        }
+      ],
+      "mh_type": "mzx"
+    }
+  ]
+}

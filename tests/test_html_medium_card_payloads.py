@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from PIL import Image
 
-import src.rendering.payloads as profile_payloads
+import src.infrastructure.rendering.payloads as profile_payloads
 from src.infrastructure.rendering.encyclopedia import (
     TEXT_PATH,
     CalendarContent,

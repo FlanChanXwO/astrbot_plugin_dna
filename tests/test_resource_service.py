@@ -21,6 +21,7 @@ from src.modules.operations.resource_service import ResourceUpdateService
 def _service(tmp_path: Path, *, synchronize=None, commit_log=None) -> ResourceUpdateService:
     return ResourceUpdateService(
         repo_root=tmp_path / "repo",
+        rendered_root=tmp_path / "rendered",
         synchronize=synchronize or (lambda: ResourceSyncResult(repository=tmp_path / "r", action="cloned", resource_version="1.0")),
         commit_log=commit_log or (lambda root: []),
     )
@@ -45,7 +46,7 @@ async def test_download_all_reports_clone_and_update(tmp_path: Path) -> None:
     ("error", "expected"),
     [
         (GitUnavailableError(), "未找到 git 可执行文件"),
-        (ResourceRemoteMismatchError(), "origin 与配置的私有资源仓库不一致"),
+        (ResourceRemoteMismatchError(), "origin 与配置的公共资源仓库不一致"),
         (ResourceLocalChangesError("M panel/101.png"), "存在本地修改"),
         (ResourceSyncError("sync exploded"), "资源同步失败：sync exploded"),
     ],

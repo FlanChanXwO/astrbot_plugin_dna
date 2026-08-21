@@ -24,8 +24,8 @@ use case / service，service 只调用注入的 fake transport（或直接写隔
 | `admin` | `privacy_*_peek_admin`、`privacy_*_peek_all`、`privacy_cancel_peek_all`、`privacy_*_uid_hidden_admin`、`privacy_*_uid_hidden_all`、`privacy_cancel_uid_hidden_all` |
 | `owner` | `sign_all`、`sign_result_subscribe` |
 
-AstrBot 公开 API 没有独立的 owner 权限类型；`owner` 沿用 admin 过滤器，具体 owner
-语义在对应 use case 内校验（见 `src/entry/commands` 的 `_permission_filter` 注释）。
+AstrBot 公开 API 没有独立的 owner 权限类型；插件使用自定义入口过滤器，将发送者 ID
+与 AstrBot 全局 `admins_id` 精确匹配。群管理员身份本身不能通过 owner 命令边界。
 
 ## 逐能力离线覆盖
 
@@ -37,7 +37,7 @@ AstrBot 公开 API 没有独立的 owner 权限类型；`owner` 沿用 admin 过
 | 删除全部 UID | `test_account.py` | 全部记录移除 |
 | 个人隐私写入 | `test_privacy.py` | 群强制优先、拒绝时不落库、并发 upsert 唯一 |
 | 群管理隐私写入 | `test_privacy_commands.py` | admin 过滤器、At 目标提取、缺失目标显式错误 |
-| 游戏/社区签到 | `test_checkin.py` | 成功落盘、已签跳过、关闭、失败可见 |
+| 游戏/社区签到 | `test_checkin.py` | 两条链路永久执行；成功落盘、已签跳过、失败可见 |
 | 全部签到（批量） | `test_checkin.py` | 并发/间隔聚合 |
 | 签到结果订阅 | `test_checkin.py` + `test_subscription_store.py` | 订阅/取消、去重、持久化 |
 
@@ -47,4 +47,4 @@ AstrBot 公开 API 没有独立的 owner 权限类型；`owner` 沿用 admin 过
   未在真实账户上执行；对应能力的离线契约在后续 Task 19 之后的阶段补齐（面板/资源见
   Task 25/26）。
 - 面板上传/删除、别名修改等写入命令尚未注册；未实现能力不注册、不展示。
-- 最终真实平台写入能力验收边界由 Task 30 统一记录，不得以本离线契约替代。
+- 最终真实平台写入能力验收边界由本次 goal 终审统一记录，不得以本离线契约替代。

@@ -3,7 +3,7 @@
 所有命令现在都必须以 `kk` 开头，例如 `kk帮助`、`kk签到`、`kk登录`。为保持文档
 紧凑，下文命令列表省略这个统一前缀；发送时请在命令主体前加上 `kk`。
 
-当前 `rewrite/v0.1` 注册 `帮助`、账号/UID、玩家查询、资料读取、隐私、签到和通知 use case。命令声明位于
+当前 main 注册 `commands.json` 中的 61 条命令，覆盖账号/UID、玩家查询、资料读取、隐私、签到、通知、面板和资源管理。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `kk帮助` 查看同一
 registry 的帮助文本。
@@ -54,7 +54,7 @@ registry 的帮助文本。
 ## 签到命令
 
 - `签到`、`社区签到`、`每日任务`、`社区任务`、`库街区签到`、`sign`：对当前 active
-  UID 执行游戏签到和启用的社区任务（签到/浏览/点赞/分享/回复），返回逐项状态；
+  UID 固定执行游戏签到和配置列表中的社区任务（签到/浏览/点赞/分享/回复），返回逐项状态；
   今日已完成直接提示重复签到。真实写操作只通过注入的 `CheckinTransport` 执行，
   测试使用 fake transport。
 - `签到日历`、`签到记录`、`签到历史`：渲染签到日历（皎皎积分、社区/游戏累计签到、
@@ -114,7 +114,7 @@ registry 的帮助文本。
 
 资源同步后的完整目录已接入玩家与百科 renderer；metadata 会把实际读取到的素材标为
 `provided`，缺失素材标为 `placeholder` 或 `fallback`。这仍不等于真实公共资源或视觉输出
-已验收，Task 30 必须保留该差异结论。
+已验收；真实公共资源内容与生产视觉输出仍需按 E2E 矩阵区分记录。
 
 ## 隐私控制命令
 
@@ -146,4 +146,4 @@ pattern 和重复模块加载。
 
 - `user`：AstrBot `PermissionType.MEMBER`。
 - `admin`：AstrBot `PermissionType.ADMIN`。
-- `owner`：当前沿用 AstrBot 公共 `ADMIN` 边界；bot-owner 专属语义待对应 use case 迁移时实现。
+- `owner`：仅允许发送者 ID 位于 AstrBot 全局 `admins_id` 的 bot owner；群管理员身份本身不能执行 owner 命令，私聊与群聊使用同一身份边界。

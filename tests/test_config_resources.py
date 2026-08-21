@@ -13,6 +13,7 @@ from PIL import Image
 from src.bootstrap import build_runtime
 from src.infrastructure.config import DnabySettings, generate_astrbot_schema
 from src.infrastructure.persistence import AsyncDatabase
+from src.infrastructure.rendering.player import ResourceMap
 from src.infrastructure.resources import (
     GitCommandError,
     GitCommandResult,
@@ -243,8 +244,9 @@ def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) -> Non
     )
 
     assert player_service.renderer.resources.font_path == font
-    assert player_service.renderer.resources.original_panel(101) == panel
-    assert player_service.renderer.resources.load("role_avatar", "101", None) is not None
+    player_resources = cast(ResourceMap, player_service.renderer.resources)
+    assert player_resources.original_panel(101) == panel
+    assert player_resources.load("role_avatar", "101", None) is not None
     assert encyclopedia_resources.font_path == font
     assert encyclopedia_resources.wiki_asset("小甲") == ("role", role_wiki)
     assert encyclopedia_resources.wiki_asset("大剑") == ("weapon", weapon_wiki)

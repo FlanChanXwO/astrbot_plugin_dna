@@ -1,12 +1,12 @@
 # v0.4 签到阶段集中审查
 
-> 覆盖 Task 17-19（`c25354c..b5503d8`）。复核签到状态机、调度取消、订阅边界、写入
+> 历史阶段记录，覆盖 Task 17-19（`c25354c..b5503d8`）。复核签到状态机、调度取消、订阅边界、写入
 > 隔离、并发/事务与全量门禁；本轮修复问题见「修复」小节。
 
 ## 审查范围
 
 - 游戏/社区签到状态机（`src/modules/checkin/service.py`）：日历精简、code 711/10000、
-  帖子遍历失败、已签到跳过、关闭开关与当天记录 upsert。
+  帖子遍历失败、已签到跳过、历史关闭开关与当天记录 upsert。
 - 计划任务（`src/infrastructure/scheduler.py`）：`initialize()` 创建、`terminate()` 取消、
   幂等 start/stop、`scheduled_enabled`/`enable_all_users` 门控。
 - 订阅边界（`src/infrastructure/subscriptions/`）：type+会话去重、原子落盘、损坏文件可见失败。
@@ -18,7 +18,7 @@
 1. `enable_all_users` 原是 `CheckinService` 的死参数：新 schema 没有 per-user 签到开关，
    移除该参数，并把门控语义移交 `SignScheduler`——定时自动签到任务需要
    `scheduled_enabled and enable_all_users` 才创建（承担 legacy `SigninMaster` 对全账号
-   自动签到的语义）；owner 手动的 `全部签到` 不受影响。
+   自动签到的语义）；当前 main 已移除签到功能开关，owner 手动的 `全部签到` 不受影响。
 2. 社区启用但 API 未返回启用任务时，原实现误报「帖子列表为空」；改为明确的
    `CHECKIN_TASKS_EMPTY`（社区任务列表为空），不再把「无任务」混同「无帖子」。
 3. `subscribe_sign_result` 在订阅文件损坏时会让 handler 崩溃（`SubscriptionStore.load`

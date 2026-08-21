@@ -16,9 +16,7 @@ TZ = ZoneInfo("Asia/Shanghai")
 
 
 class _FakeCheckin:
-    def __init__(self, *, game_enabled: bool = True, community_enabled: bool = True) -> None:
-        self.game_enabled = game_enabled
-        self.community_enabled = community_enabled
+    def __init__(self) -> None:
         self.auto_calls = 0
         self.cleanup_calls: list[date] = []
 

@@ -101,16 +101,6 @@
     "description": "签到",
     "type": "object",
     "items": {
-      "game_enabled": {
-        "type": "bool",
-        "description": "是否启用二重螺旋游戏签到。",
-        "default": false
-      },
-      "community_enabled": {
-        "type": "bool",
-        "description": "是否启用社区任务。",
-        "default": false
-      },
       "community_tasks": {
         "type": "list",
         "description": "启用的社区任务。",
