@@ -21,7 +21,7 @@ async def help_use_case(
     payload = await get_help()
     rendered_root = request.services.get("rendered_root")
     if not isinstance(rendered_root, (str, Path)):
-        raise RuntimeError("帮助卡缺少受控渲染目录")
+        raise TypeError("帮助卡缺少受控渲染目录")
     return write_temporary_image(
         rendered_root,
         payload,

@@ -201,9 +201,9 @@ class DnabySettings(_SettingsModel):
 from .legacy import DNA_PREFIX, DNAConfig, DNASignConfig  # noqa: E402
 
 __all__ = [
+    "DNA_PREFIX",
     "DNAConfig",
     "DNASignConfig",
-    "DNA_PREFIX",
     "DisplaySettings",
     "DnabySettings",
     "LoginSettings",

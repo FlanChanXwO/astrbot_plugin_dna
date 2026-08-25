@@ -5,6 +5,8 @@ from .legacy import (
     DNA_PREFIX,
     DNAConfig,
     DNASignConfig,
+)
+from .legacy import (
     generate_astrbot_schema as generate_legacy_schema,
 )
 from .schema import generate_astrbot_schema, write_astrbot_schema
@@ -19,9 +21,9 @@ from .settings import (
 
 __all__ = [
     "CONFIG_DEFAULT",
+    "DNA_PREFIX",
     "DNAConfig",
     "DNASignConfig",
-    "DNA_PREFIX",
     "DisplaySettings",
     "DnabySettings",
     "LoginSettings",

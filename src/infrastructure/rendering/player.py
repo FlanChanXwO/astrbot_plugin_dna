@@ -12,7 +12,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageFont, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from pydantic import BaseModel
 
@@ -30,7 +30,10 @@ from ...utils import dna_api
 from ...utils.api.damage_model import CharacterCalculateData
 from ...utils.api.model import (
     DNAWeaponDetailRes,
+    Mode,
     RoleShowForTool,
+)
+from ...utils.api.model import (
     WeaponDetail as LegacyWeaponDetail,
 )
 from ...utils.api.request_util import DNAApiResp
@@ -87,13 +90,14 @@ async def _item_payload(item: ItemTemp) -> dict[str, object]:
     else:
         image = await get_weapon_img(item.id, item.icon)
         element = await get_weapon_attr_img(pic_url=item.element_icon)
+
+    # 仅当条目已解锁且命座等级大于 0 时才显示命座徽章，0 命或未解锁不渲染徽章
+    has_grade = item.unlocked and item.grade_level is not None and item.grade_level > 0
+    grade_uri = pil_image_data_uri(get_grade_img(item.grade_level)) if has_grade else None
+
     return {
         "element": pil_image_data_uri(element.resize((element.width // 2, element.height // 2))),
-        "grade": (
-            pil_image_data_uri(get_grade_img(item.grade_level))
-            if item.grade_level is not None
-            else None
-        ),
+        "grade": grade_uri,
         "image": pil_image_data_uri(image),
         "level": item.level,
         "name": item.name,
@@ -123,15 +127,42 @@ async def _draw_role_overview_card(
     uid_hidden: bool = False,
 ) -> bytes:
     role_items = [
-        ItemTemp(type="role", id=role.charId, name=role.name, level=role.level, element_icon=role.elementIcon, icon=role.icon, grade_level=role.gradeLevel, unlocked=role.unLocked)
+        ItemTemp(
+            type="role",
+            id=getattr(role, "charId", getattr(role, "char_id", 0)),
+            name=getattr(role, "name", ""),
+            level=getattr(role, "level", 0),
+            element_icon=getattr(role, "elementIcon", getattr(role, "element_icon", "")),
+            icon=getattr(role, "icon", ""),
+            grade_level=getattr(role, "gradeLevel", getattr(role, "grade_level", None)),
+            unlocked=getattr(role, "unLocked", getattr(role, "unlocked", False)),
+        )
         for role in role_show.roleChars
     ]
     close_items = [
-        ItemTemp(type="weapon", id=weapon.weaponId, name=weapon.name, level=weapon.level, element_icon=weapon.elementIcon, icon=weapon.icon, grade_level=weapon.skillLevel, unlocked=weapon.unLocked)
+        ItemTemp(
+            type="weapon",
+            id=getattr(weapon, "weaponId", getattr(weapon, "weapon_id", 0)),
+            name=getattr(weapon, "name", ""),
+            level=getattr(weapon, "level", 0),
+            element_icon=getattr(weapon, "elementIcon", getattr(weapon, "element_icon", "")),
+            icon=getattr(weapon, "icon", ""),
+            grade_level=getattr(weapon, "skillLevel", getattr(weapon, "skill_level", None)),
+            unlocked=getattr(weapon, "unLocked", getattr(weapon, "unlocked", False)),
+        )
         for weapon in role_show.closeWeapons
     ]
     lang_items = [
-        ItemTemp(type="weapon", id=weapon.weaponId, name=weapon.name, level=weapon.level, element_icon=weapon.elementIcon, icon=weapon.icon, grade_level=weapon.skillLevel, unlocked=weapon.unLocked)
+        ItemTemp(
+            type="weapon",
+            id=getattr(weapon, "weaponId", getattr(weapon, "weapon_id", 0)),
+            name=getattr(weapon, "name", ""),
+            level=getattr(weapon, "level", 0),
+            element_icon=getattr(weapon, "elementIcon", getattr(weapon, "element_icon", "")),
+            icon=getattr(weapon, "icon", ""),
+            grade_level=getattr(weapon, "skillLevel", getattr(weapon, "skill_level", None)),
+            unlocked=getattr(weapon, "unLocked", getattr(weapon, "unlocked", False)),
+        )
         for weapon in role_show.langRangeWeapons
     ]
     achievements = [
@@ -140,20 +171,21 @@ async def _draw_role_overview_card(
         {"label": "远程武器", "value": str(sum(item.unlocked for item in lang_items))},
     ]
     achievements.extend(
-        {"label": item.paramKey, "value": item.paramValue}
+        {"label": getattr(item, "paramKey", getattr(item, "param_key", "")), "value": str(getattr(item, "paramValue", getattr(item, "param_value", "")))}
         for item in role_show.params
-        if item.paramKey in ("装饰数量", "魔灵数量")
+        if getattr(item, "paramKey", getattr(item, "param_key", "")) in ("装饰数量", "魔灵数量")
     )
-    achievements.append({"label": "总成就数", "value": str(role_show.roleAchv.total)})
+    total_achv = getattr(role_show.roleAchv, "total", getattr(role_show, "achievement_total", 0))
+    achievements.append({"label": "总成就数", "value": str(total_achv)})
     header_stats = [
-        (item.paramKey, item.paramValue)
+        (getattr(item, "paramKey", getattr(item, "param_key", "")), str(getattr(item, "paramValue", getattr(item, "param_value", ""))))
         for item in role_show.params
-        if item.paramKey in ("总活跃天数", "游戏时长")
+        if getattr(item, "paramKey", getattr(item, "param_key", "")) in ("总活跃天数", "游戏时长")
     ]
     header = await build_profile_header(
         ctx,
-        role_show.roleId,
-        role_show.roleName,
+        getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
+        getattr(role_show, "roleName", getattr(role_show, "role_name", "")),
         user_level=role_show.level,
         stats=header_stats,
         avatar_user_id=ctx.user_id,
@@ -214,17 +246,17 @@ async def draw_role_info_card_core(
 # ---------------------------------------------------------------------------
 
 ATTR_SPECS = (
-    ("atk", "攻击", "icon1.png"),
-    ("maxHp", "生命", "icon10.png"),
-    ("maxES", "护盾", "icon11.png"),
-    ("defense", "防御", "icon9.png"),
-    ("maxSp", "最大神志", "icon8.png"),
-    ("skillIntensity", "技能威力", "icon7.png"),
-    ("skillRange", "技能范围", "icon6.png"),
-    ("skillSustain", "技能耐久", "icon5.png"),
-    ("skillEfficiency", "技能效益", "icon4.png"),
-    ("strongValue", "昂扬", "icon3.png"),
-    ("enmityValue", "背水", "icon2.png"),
+    ("atk", "atk", "攻击", "icon1.png"),
+    ("maxHp", "max_hp", "生命", "icon10.png"),
+    ("maxES", "max_es", "护盾", "icon11.png"),
+    ("defense", "defense", "防御", "icon9.png"),
+    ("maxSp", "max_sp", "最大神志", "icon8.png"),
+    ("skillIntensity", "skill_intensity", "技能威力", "icon7.png"),
+    ("skillRange", "skill_range", "技能范围", "icon6.png"),
+    ("skillSustain", "skill_sustain", "技能耐久", "icon5.png"),
+    ("skillEfficiency", "skill_efficiency", "技能效益", "icon4.png"),
+    ("strongValue", "strong_value", "昂扬", "icon3.png"),
+    ("enmityValue", "enmity_value", "背水", "icon2.png"),
 )
 
 
@@ -247,7 +279,20 @@ def _format_attribute(value: object) -> str:
     return str(value or "")
 
 
+def _get_attr_val(attr: Any, camel: str, snake: str) -> Any:
+    if attr is None:
+        return ""
+    val = getattr(attr, camel, None)
+    if val is not None:
+        return val
+    val = getattr(attr, snake, None)
+    if val is not None:
+        return val
+    return getattr(attr, camel.lower(), "")
+
+
 def _attribute_payload(role_detail: Any) -> list[dict[str, str]]:
+    attr = getattr(role_detail, "attribute", None)
     return [
         {
             "background": image_data_uri(
@@ -255,18 +300,20 @@ def _attribute_payload(role_detail: Any) -> list[dict[str, str]]:
             ),
             "icon": image_data_uri(DETAIL_TEXT_PATH / "icons" / icon_name),
             "label": label,
-            "value": _format_attribute(getattr(role_detail.attribute, field, getattr(role_detail.attribute, field.lower(), ""))),
+            "value": _format_attribute(_get_attr_val(attr, camel, snake)),
         }
-        for index, (field, label, icon_name) in enumerate(ATTR_SPECS)
+        for index, (camel, snake, label, icon_name) in enumerate(ATTR_SPECS)
     ]
 
 
 async def _skill_payload(role_detail: Any) -> list[dict[str, object]]:
+    char_id = getattr(role_detail, "charId", getattr(role_detail, "char_id", 0))
+    skills = getattr(role_detail, "skills", [])
     return [
         {
             "icon": pil_image_data_uri(
                 await get_skill_img(
-                    getattr(role_detail, "charId", getattr(role_detail, "char_id", 0)),
+                    char_id,
                     getattr(skill, "skillName", getattr(skill, "skill_name", "")),
                     getattr(skill, "icon", ""),
                 )
@@ -274,41 +321,48 @@ async def _skill_payload(role_detail: Any) -> list[dict[str, object]]:
             "level": skill.level,
             "name": getattr(skill, "skillName", getattr(skill, "skill_name", "")),
         }
-        for skill in role_detail.skills[:3]
+        for skill in skills[:3]
     ]
 
 
 async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
     quality = getattr(mode, "quality", None) or 1
     payload: dict[str, object] = {
-        "background": image_data_uri(DETAIL_TEXT_PATH / "mod" / f"mod_{position}_{quality}.png"),
+        "background": image_data_uri(DETAIL_TEXT_PATH / f"mod/mod_{position}_{quality}.png"),
         "icon": None,
         "level": None,
         "name": getattr(mode, "name", "") or "",
         "position": position,
     }
-    if mode.id != -1:
-        payload["icon"] = pil_image_data_uri(await get_mod_img(mode.id, getattr(mode, "icon", "")))
-        payload["level"] = f"+{mode.level}" if getattr(mode, "level", 0) else None
+    mode_id = getattr(mode, "id", -1)
+    if mode_id != -1:
+        payload["icon"] = pil_image_data_uri(await get_mod_img(mode_id, getattr(mode, "icon", "")))
+        level = getattr(mode, "level", 0)
+        payload["level"] = f"+{level}" if level else None
     return payload
 
 
 async def _role_modes_payload(modes: list[Any]) -> list[dict[str, object]]:
-    if len(modes) < 9:
-        raise RuntimeError(f"角色 Mod 槽数量不足，期望至少 9，实际为 {len(modes)}")
+    padded = list(modes) + [Mode(id=-1) for _ in range(max(0, 9 - len(modes)))]
     order = tuple((index, "left") for index in (0, 2, 4, 6)) + tuple(
         (index, "right") for index in (1, 3, 7, 5)
     )
-    payload = [await _mode_payload(modes[index], position) for index, position in order]
-    payload.append(await _mode_payload(modes[-1], "center"))
+    payload = [await _mode_payload(padded[index], position) for index, position in order]
+    payload.append(await _mode_payload(padded[8], "center"))
     return payload
 
 
 async def _hero_payload(
     char_id: str,
     role_detail: Any,
+    custom_panel: Path | None = None,
 ) -> tuple[Path | None, dict[str, str]]:
-    role_panel = get_role_panel_img(char_id)
+    if custom_panel is not None and custom_panel.is_file():
+        image = Image.open(custom_panel)
+        role_panel = (custom_panel, image)
+    else:
+        role_panel = get_role_panel_img(char_id)
+
     if role_panel is not None:
         original_path, image = role_panel
         panel_size = (1000, 850)
@@ -327,6 +381,7 @@ async def _hero_payload(
         bottom_mask.paste(bottom_fade, (0, panel_size[1] - 72))
         panel = Image.composite(panel, Image.new("RGBA", panel_size), bottom_mask)
         return original_path, {"image": pil_image_data_uri(panel), "kind": "panel"}
+
     image = await get_paint_img(char_id, getattr(role_detail, "paint", ""))
     paint = image.convert("RGBA").resize((1056, 1056), Image.Resampling.LANCZOS)
     panel = Image.new("RGBA", (1000, 850))
@@ -345,6 +400,7 @@ async def _draw_role_detail_card(
     ranged_weapon: Any = None,
     damage_calc_response: DNAApiResp[CharacterCalculateData] | None = None,
     uid_hidden: bool = False,
+    custom_panel: Path | None = None,
 ) -> tuple[bytes, Path | None]:
     damage_build = RoleDamageBuild(
         role_detail=role_detail,
@@ -367,16 +423,16 @@ async def _draw_role_detail_card(
         if weapon is not None:
             weapon_sections.append(await draw_weapon_detail_section(weapon, title))
 
-    original_path, hero = await _hero_payload(char_id, role_detail)
+    original_path, hero = await _hero_payload(char_id, role_detail, custom_panel=custom_panel)
     header = await build_profile_header(
         ctx,
-        role_show.roleId,
-        role_show.roleName,
+        getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
+        getattr(role_show, "roleName", getattr(role_show, "role_name", "")),
         user_level=role_show.level,
         stats=[
-            (item.paramKey, item.paramValue)
+            (getattr(item, "paramKey", getattr(item, "param_key", "")), str(getattr(item, "paramValue", getattr(item, "param_value", ""))))
             for item in role_show.params
-            if item.paramKey in ("总活跃天数", "游戏时长")
+            if getattr(item, "paramKey", getattr(item, "param_key", "")) in ("总活跃天数", "游戏时长")
         ],
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
@@ -414,17 +470,17 @@ async def _draw_role_detail_card(
             "profile_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "role": {
                 "grade": grade_level,
-                "grade_icon": pil_image_data_uri(get_grade_img(grade_level)),
+                "grade_icon": pil_image_data_uri(get_grade_img(grade_level)) if grade_level > 0 else None,
                 "level": role_detail.level,
                 "name": char_name,
             },
-            "role_modes": await _role_modes_payload(role_detail.modes),
+            "role_modes": await _role_modes_payload(getattr(role_detail, "modes", [])),
             "skills": await _skill_payload(role_detail),
             "skill_background": image_data_uri(DETAIL_TEXT_PATH / "skill_bg.png"),
             "weapon_sections": weapon_sections,
             "width": 1000,
         },
-        RenderSpec(width=1000, full_page=True, output_format="jpeg"),
+        RenderSpec(width=1000, full_page=True, image_format="jpeg"),
     )
     return card, original_path
 
@@ -566,7 +622,7 @@ class ResourceMap:
         if path is not None and path.is_file():
             try:
                 return Image.open(path)
-            except Exception:
+            except (OSError, ValueError):
                 return path
         return fallback
 
@@ -650,60 +706,7 @@ class PlayerRenderer:
             original_image_path=original_image_path,
         )
 
-    def render_overview(
-        self,
-        overview: RoleOverview,
-        *,
-        uid: str,
-        uid_hidden: bool = False,
-        actor: EventActor | None = None,
-        target_user_id: str | None = None,
-        show_unowned: bool = True,
-    ) -> RenderedPlayerImage:
-        image = Image.new("RGBA", (1200, 1600), (30, 30, 40, 255))
-        draw = ImageDraw.Draw(image)
-        font = self._font(24)
-        draw.text((40, 40), f"二重螺旋角色总览 UID: {'***' if uid_hidden else uid}", fill=(255, 255, 255), font=font)
-        draw.text((40, 80), f"玩家: {overview.role_name} Lv.{overview.level or 1}", fill=(200, 200, 200), font=font)
-
-        lines = [
-            overview.role_name,
-            f"UID {'***' if uid_hidden else uid}",
-            f"等级: {_text_value(overview.level)}",
-        ]
-        lines.extend(f"{item.param_key}: {item.param_value}" for item in overview.params)
-        sections = [
-            {"name": "角色信息", "items": len(overview.role_chars)},
-            {"name": "近战武器", "items": len(overview.close_weapons)},
-            {"name": "远程武器", "items": len(overview.ranged_weapons)},
-        ]
-        resources = [self._font_resource()]
-        if isinstance(self.resources, ResourceMap):
-            for role in overview.role_chars:
-                if self.resources.root is not None:
-                    status = self.resources.get_avatar_status(role.char_id)
-                else:
-                    status = "legacy_download"
-                resources.append(
-                    {
-                        "kind": "role_avatar",
-                        "key": str(role.char_id),
-                        "status": status,
-                        "source": f"images/role_avatar/{role.char_id}.png",
-                    }
-                )
-            for weapon in list(overview.close_weapons) + list(overview.ranged_weapons):
-                resources.append(
-                    {
-                        "kind": "weapon_icon",
-                        "key": str(weapon.weapon_id),
-                        "status": "legacy_download",
-                        "source": f"images/weapon/{weapon.weapon_id}.png",
-                    }
-                )
-        return self._write(image, lines=lines, resources=resources, sections=sections)
-
-    async def render_overview_legacy(
+    async def render_overview(
         self,
         overview: RoleOverview,
         *,
@@ -756,7 +759,49 @@ class PlayerRenderer:
             {"name": "远程武器", "items": len(overview.ranged_weapons)},
         ]
         resources = [self._font_resource()]
+        if isinstance(self.resources, ResourceMap):
+            for role in overview.role_chars:
+                if self.resources.root is not None:
+                    status = self.resources.get_avatar_status(role.char_id)
+                else:
+                    status = "legacy_download"
+                resources.append(
+                    {
+                        "kind": "role_avatar",
+                        "key": str(role.char_id),
+                        "status": status,
+                        "source": f"images/role_avatar/{role.char_id}.png",
+                    }
+                )
+            for weapon in list(overview.close_weapons) + list(overview.ranged_weapons):
+                resources.append(
+                    {
+                        "kind": "weapon_icon",
+                        "key": str(weapon.weapon_id),
+                        "status": "legacy_download",
+                        "source": f"images/weapon/{weapon.weapon_id}.png",
+                    }
+                )
         return self._write(image, lines=lines, resources=resources, sections=sections)
+
+    async def render_overview_legacy(
+        self,
+        overview: RoleOverview,
+        *,
+        uid: str,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
+        uid_hidden: bool = False,
+        show_unowned: bool = True,
+    ) -> RenderedPlayerImage:
+        return await self.render_overview(
+            overview,
+            uid=uid,
+            actor=actor,
+            target_user_id=target_user_id,
+            uid_hidden=uid_hidden,
+            show_unowned=show_unowned,
+        )
 
     async def render_detail(
         self,
@@ -779,11 +824,80 @@ class PlayerRenderer:
                 damage_calc.data.model_dump(by_alias=True),
             )
         )
-        image = Image.new("RGBA", (1000, 1800), (30, 30, 40, 255))
-        draw = ImageDraw.Draw(image)
-        font = self._font(24)
-        draw.text((40, 40), f"{detail.char_name} UID: {'***' if uid_hidden else uid}", fill=(255, 255, 255), font=font)
-        draw.text((40, 80), f"等级: {detail.level} 命座: {detail.grade_level}", fill=(200, 200, 200), font=font)
+        con_weapon = next((w for label, w in weapons if "同律" in label), None)
+        close_weapon = next((w for label, w in weapons if "近战" in label), None)
+        ranged_weapon = next((w for label, w in weapons if "远程" in label), None)
+
+        char_id = str(detail.char_id)
+        char_name = detail.char_name
+        if overview is not None:
+            role_show = RoleShowForTool.model_validate(
+                {
+                    "roleId": overview.role_id,
+                    "roleName": overview.role_name,
+                    "level": overview.level,
+                    "params": [p.model_dump(by_alias=True) for p in overview.params],
+                    "roleAchv": {"total": overview.achievement_total},
+                    "roleChars": [c.model_dump(by_alias=True) for c in overview.role_chars],
+                    "closeWeapons": [w.model_dump(by_alias=True) for w in overview.close_weapons],
+                    "langRangeWeapons": [w.model_dump(by_alias=True) for w in overview.ranged_weapons],
+                }
+            )
+        else:
+            role_show = RoleShowForTool.model_validate(
+                {
+                    "roleId": char_id,
+                    "roleName": char_name,
+                    "level": detail.level,
+                    "params": [],
+                    "roleAchv": {"total": 0},
+                    "roleChars": [],
+                    "closeWeapons": [],
+                    "langRangeWeapons": [],
+                }
+            )
+
+        ev_stub = (
+            None
+            if actor is None
+            else EventContext(
+                user_id=target_user_id or actor.user_id,
+                bot_id=actor.bot_id,
+                group_id=actor.group_id or "",
+                at=target_user_id or actor.user_id,
+                unified_msg_origin=actor.unified_msg_origin or "",
+            )
+        )
+        ctx = ev_stub or EventContext(user_id=target_user_id or (actor.user_id if actor is not None else uid))
+
+        damage_response = (
+            DNAApiResp.ok(damage_data)
+            if damage_data is not None
+            else DNAApiResp.err(
+                damage_message
+                or (damage_calc.message if damage_calc is not None else None)
+                or "未执行伤害计算"
+            )
+        )
+
+        custom_panel = None
+        if isinstance(self.resources, ResourceMap):
+            custom_panel = self.resources.original_panel(detail.char_id)
+
+        card_bytes, original_path = await _draw_role_detail_card(
+            ctx,
+            char_id,
+            char_name,
+            role_show,
+            detail,
+            con_weapon=con_weapon,
+            close_weapon=close_weapon,
+            ranged_weapon=ranged_weapon,
+            damage_calc_response=damage_response,
+            uid_hidden=uid_hidden,
+            custom_panel=custom_panel,
+        )
+        image = Image.open(BytesIO(card_bytes)).convert("RGBA")
 
         lines = [
             detail.char_name,
@@ -799,7 +913,9 @@ class PlayerRenderer:
             for skill in damage_data.skills:
                 skill_name = getattr(skill, "name", getattr(skill, "skillName", ""))
                 lines.append(skill_name)
-                attrs = list(getattr(skill, "damage_skill_attributes", [])) + list(getattr(skill, "normal_skill_attributes", []))
+                attrs = list(getattr(skill, "damage_skill_attributes", [])) + list(
+                    getattr(skill, "normal_skill_attributes", [])
+                )
                 for item in attrs:
                     lines.append(f"{item.key}: {item.value}")
         else:
@@ -820,7 +936,6 @@ class PlayerRenderer:
             sections.append({"name": "伤害", "items": len(damage_data.skills)})
 
         resources = [self._font_resource()]
-        original_image_path = None
         if isinstance(self.resources, ResourceMap):
             resources.append(
                 {
@@ -838,14 +953,15 @@ class PlayerRenderer:
                     "source": f"panel/{detail.char_id}.png",
                 }
             )
-            original_image_path = self.resources.original_panel(detail.char_id)
+            if original_path is None:
+                original_path = custom_panel
 
         return self._write(
             image,
             lines=lines,
             resources=resources,
             sections=sections,
-            original_image_path=original_image_path,
+            original_image_path=original_path,
         )
 
     async def render_detail_legacy(

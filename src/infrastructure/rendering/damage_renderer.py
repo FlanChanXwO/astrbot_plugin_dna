@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from ...modules.player.damage_service import RoleDamageBuild, get_calculation_skill_levels
+from ...modules.player.damage_service import (
+    RoleDamageBuild,
+    get_calculation_skill_levels,
+)
 from ...utils.api.damage_model import (
     AttributeBag,
     CharacterCalculateData,

@@ -5,17 +5,17 @@ from ..infrastructure.rendering import (
     CheckinRenderer,
     ClipRect,
     EncyclopediaRenderer,
+    HtmlRenderer,
     HtmlRenderError,
     HtmlRenderErrorKind,
-    HtmlRenderer,
     NoticesRenderer,
     PlayerRenderer,
-    RenderResultError,
-    RenderSpec,
     RenderedCheckinImage,
     RenderedEncyclopediaImage,
     RenderedNoticesImage,
     RenderedPlayerImage,
+    RenderResultError,
+    RenderSpec,
     ResourceMap,
     T2IRenderError,
     TemplateRenderError,
@@ -30,15 +30,35 @@ from ..infrastructure.rendering import (
 )
 from ..infrastructure.rendering import (
     assets as assets,
+)
+from ..infrastructure.rendering import (
     checkin as checkin,
+)
+from ..infrastructure.rendering import (
     encyclopedia as encyclopedia,
+)
+from ..infrastructure.rendering import (
     errors as errors,
+)
+from ..infrastructure.rendering import (
     fonts as fonts,
+)
+from ..infrastructure.rendering import (
     notices as notices,
+)
+from ..infrastructure.rendering import (
     payloads as payloads,
+)
+from ..infrastructure.rendering import (
     player as player,
+)
+from ..infrastructure.rendering import (
     qr as qr,
+)
+from ..infrastructure.rendering import (
     renderer as renderer,
+)
+from ..infrastructure.rendering import (
     spec as spec,
 )
 

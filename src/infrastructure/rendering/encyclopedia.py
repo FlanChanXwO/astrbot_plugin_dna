@@ -1000,10 +1000,10 @@ class EncyclopediaRenderer:
 
 
 __all__ = [
+    "START_TIME",
     "CalendarContent",
     "EncyclopediaRenderer",
     "RenderedEncyclopediaImage",
-    "START_TIME",
     "TimeType",
     "_calendar_background",
     "_draw_stamina_card",

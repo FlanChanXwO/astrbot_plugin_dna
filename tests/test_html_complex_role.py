@@ -7,7 +7,11 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from PIL import Image
 
 from src.infrastructure.rendering.damage_renderer import draw_role_damage_section
-from src.infrastructure.rendering.player import ItemTemp, _item_payload, _role_modes_payload
+from src.infrastructure.rendering.player import (
+    ItemTemp,
+    _item_payload,
+    _role_modes_payload,
+)
 from src.infrastructure.rendering.weapon_renderer import draw_weapon_detail_section
 from src.modules.player.damage_service import RoleDamageBuild
 from src.utils.api.damage_model import (
@@ -210,3 +214,56 @@ async def test_role_overview_item_uses_legacy_grade_texture(
 
     assert payload["type"] == "role"
     assert str(payload["grade"]).startswith("data:image/png;base64,")
+
+@pytest.mark.asyncio
+async def test_role_overview_item_omits_grade_when_zero_or_locked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_asset(*_: object, **__: object) -> Image.Image:
+        return Image.new("RGBA", (256, 256), "red")
+
+    role_module = cast(Any, importlib.import_module("src.infrastructure.rendering.player"))
+    monkeypatch.setattr(role_module, "get_avatar_img", fake_asset)
+    monkeypatch.setattr(role_module, "get_attr_img", fake_asset)
+
+    # 1. 解锁但 0 命座
+    item_zero = ItemTemp(
+        type="role",
+        id=1,
+        name="测试角色",
+        level=80,
+        element_icon="element",
+        icon="avatar",
+        grade_level=0,
+        unlocked=True,
+    )
+    payload_zero = await _item_payload(item_zero)
+    assert payload_zero["grade"] is None
+
+    # 2. 未解锁但 grade_level=6
+    item_locked_grade = ItemTemp(
+        type="role",
+        id=2,
+        name="未解锁角色",
+        level=0,
+        element_icon="element",
+        icon="avatar",
+        grade_level=6,
+        unlocked=False,
+    )
+    payload_locked = await _item_payload(item_locked_grade)
+    assert payload_locked["grade"] is None
+
+    # 3. 未解锁且 0 命座
+    item_locked_zero = ItemTemp(
+        type="role",
+        id=3,
+        name="未解锁角色0",
+        level=0,
+        element_icon="element",
+        icon="avatar",
+        grade_level=0,
+        unlocked=False,
+    )
+    payload_locked_zero = await _item_payload(item_locked_zero)
+    assert payload_locked_zero["grade"] is None

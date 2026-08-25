@@ -83,16 +83,16 @@ async def to_board_cast_msg(
 ) -> dict:
     private_msg_dict: dict = {}
     group_msg_dict: dict = {}
-    for qid in private_msgs:
+    for qid, msgs_list in private_msgs.items():
         msgs = []
-        for msg in private_msgs[qid]:
+        for msg in msgs_list:
             msgs.extend(msg["msg"])
         if qid not in private_msg_dict:
             private_msg_dict[qid] = []
 
         private_msg_dict[qid].append(
             {
-                "bot_id": private_msgs[qid][0]["bot_id"],
+                "bot_id": msgs_list[0]["bot_id"],
                 "messages": msgs,
             }
         )

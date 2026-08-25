@@ -7,7 +7,6 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-
 FIXTURE = Path(__file__).parent / "fixtures" / "live-payload.json"
 
 IDENTITY_KEYS = {

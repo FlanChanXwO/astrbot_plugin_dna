@@ -674,7 +674,7 @@ async def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_
     copyfile(font_source, font)
     renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap.from_root(resource_root))
 
-    overview = renderer.render_overview(
+    overview = await renderer.render_overview(
         _overview_fixture(),
         uid=UID,
         uid_hidden=False,

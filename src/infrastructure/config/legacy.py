@@ -220,8 +220,8 @@ DNASignConfig = _ConfigNamespace("DNAUID签到配置")
 
 __all__ = [
     "CONFIG_DEFAULT",
+    "DNA_PREFIX",
     "DNAConfig",
     "DNASignConfig",
-    "DNA_PREFIX",
     "generate_astrbot_schema",
 ]

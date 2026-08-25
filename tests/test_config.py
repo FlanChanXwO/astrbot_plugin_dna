@@ -7,8 +7,15 @@ os.environ.setdefault("DNABY_DATA_DIR", "/tmp/dnaby-test-data")
 import pytest
 
 from src.infrastructure.config import generate_legacy_schema as generate_astrbot_schema
-from src.infrastructure.config.schema import generate_astrbot_schema as generate_typed_schema
-from src.infrastructure.config.settings import DNAConfig, DNASignConfig, DnabySettings, SignInSettings
+from src.infrastructure.config.schema import (
+    generate_astrbot_schema as generate_typed_schema,
+)
+from src.infrastructure.config.settings import (
+    DnabySettings,
+    DNAConfig,
+    DNASignConfig,
+    SignInSettings,
+)
 
 
 def test_schema_generation():
