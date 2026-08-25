@@ -1,5 +1,5 @@
-# ruff: noqa: E402
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """全量重新生成 output/real/astrbot/ 下所有 14 类真实卡片并计算 MAD/生成接触图。"""
 
 # 脚本先注入项目根目录，再导入 src 包；这些导入位置是启动约束而非业务顺序。
