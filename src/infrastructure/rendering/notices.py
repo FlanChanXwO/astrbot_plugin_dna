@@ -399,9 +399,16 @@ class RenderedNoticesImage:
 class NoticesRenderer:
     """生成密函与公告卡片的运行期 PNG。"""
 
-    def __init__(self, output_dir: str | Path, resources: EncyclopediaResourceStore) -> None:
+    def __init__(
+        self,
+        output_dir: str | Path,
+        resources: EncyclopediaResourceStore,
+        *,
+        simple_image: bool = False,
+    ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
+        self.simple_image = simple_image
 
     def _font_resource(self) -> dict[str, str]:
         return {
@@ -445,9 +452,16 @@ class NoticesRenderer:
             sections=tuple(sections),
         )
 
-    async def render_mh(self, snapshot: MhSnapshot) -> RenderedNoticesImage:
-        """复用 legacy 默认简洁密函绘制核心。"""
+    async def render_mh(
+        self,
+        snapshot: MhSnapshot,
+        *,
+        simple_image: bool | None = None,
+        subscribe_list: list[str] | None = None,
+    ) -> RenderedNoticesImage:
+        """根据配置或入参渲染标准 1700×900 密函大图卡片或简洁分栏卡。"""
 
+        is_simple = self.simple_image if simple_image is None else simple_image
         legacy = [
             DNARoleForToolInstanceInfo.model_validate(
                 {
@@ -462,10 +476,19 @@ class NoticesRenderer:
         ]
         now = get_datetime()
         next_refresh = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        image_bytes = await draw_mh_simple(
-            legacy,
-            int((next_refresh - now).total_seconds()),
-        )
+        remaining_seconds = int((next_refresh - now).total_seconds())
+        if is_simple:
+            image_bytes = await draw_mh_simple(
+                legacy,
+                remaining_seconds,
+                subscribe_list=subscribe_list,
+            )
+        else:
+            image_bytes = await draw_mh_card(
+                legacy,
+                remaining_seconds,
+                subscribe_list=subscribe_list,
+            )
         with Image.open(BytesIO(image_bytes)) as source:
             image = source.convert("RGBA")
 

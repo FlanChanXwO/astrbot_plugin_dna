@@ -43,6 +43,8 @@ class NoticesService:
         subscriptions: SubscriptionStore | None = None,
         ann_state: AnnStateStore | None = None,
         push: PushCallable | None = None,
+        *,
+        secret_simple_image: bool = False,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -51,6 +53,7 @@ class NoticesService:
         self.subscriptions = subscriptions
         self.ann_state = ann_state
         self.push = push
+        self.secret_simple_image = secret_simple_image
 
     async def _resolve_uid(
         self,
@@ -91,7 +94,10 @@ class NoticesService:
             return self._transport_response(error)
         if not snapshot.sections:
             return PlainTextResponse(messages.MH_NOT_FOUND)
-        rendered = await self.renderer.render_mh(snapshot)
+        rendered = await self.renderer.render_mh(
+            snapshot,
+            simple_image=self.secret_simple_image,
+        )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def mh_list(self, _request: NoticeRequest):
@@ -422,7 +428,10 @@ class NoticesService:
             pushed += 1
         pic_subs = await self.subscriptions.get(messages.MH_PIC_SUBSCRIBE)
         for sub in pic_subs:
-            rendered = await self.renderer.render_mh(snapshot)
+            rendered = await self.renderer.render_mh(
+                snapshot,
+                simple_image=self.secret_simple_image,
+            )
             await self.push(sub.unified_msg_origin, rendered.path)
             pushed += 1
         return pushed

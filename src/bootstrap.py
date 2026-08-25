@@ -161,13 +161,19 @@ def build_runtime(
             MessageChain(chain=[Plain(text)]),
         ),
     )
+    notices_renderer = NoticesRenderer(
+        runtime_database.path.parent / "rendered",
+        encyclopedia_resources,
+        simple_image=settings.notifications.secret_simple_image,
+    )
     notices_service = NoticesService(
         runtime_database,
         notices_transport or DnaApiNoticesTransport(runtime_database),
         privacy_service,
-        NoticesRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+        notices_renderer,
         subscriptions=subscriptions,
         ann_state=AnnStateStore(runtime_database.path.parent / "ann_state.json"),
+        secret_simple_image=settings.notifications.secret_simple_image,
         push=lambda origin, payload: context.send_message(
             origin,
             MessageChain(

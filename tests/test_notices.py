@@ -134,6 +134,7 @@ def _service(
     transport: FakeNoticesTransport,
     *,
     allow_mention_query: bool = True,
+    secret_simple_image: bool = False,
 ) -> NoticesService:
     return NoticesService(
         database,
@@ -142,7 +143,9 @@ def _service(
         NoticesRenderer(
             database.path.parent / "rendered",
             EncyclopediaResourceStore.from_root(database.path.parent / "resources"),
+            simple_image=secret_simple_image,
         ),
+        secret_simple_image=secret_simple_image,
     )
 
 
@@ -162,12 +165,31 @@ def _request(
 
 
 @pytest.mark.asyncio
-async def test_mh_renders_runtime_image_with_all_sections(tmp_path: Path) -> None:
-    """密函复用 legacy 简洁分栏卡，完整保留类型与委托。"""
+async def test_mh_renders_standard_card_by_default(tmp_path: Path) -> None:
+    """密函默认渲染 1700×900 标准大图卡片。"""
 
     database = await _database_with_binding(tmp_path)
     transport = FakeNoticesTransport()
-    service = _service(database, transport)
+    service = _service(database, transport, secret_simple_image=False)
+
+    response = await service.mh(_request())
+
+    assert isinstance(response, ImageResponse)
+    assert response.temporary is True
+    with Image.open(Path(response.image)) as image:
+        assert image.width == 1700
+        assert image.height == 900
+        assert image.convert("RGB").getbbox() == (0, 0, image.width, image.height)
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_mh_renders_simple_card_when_configured(tmp_path: Path) -> None:
+    """开启简单密函配置时渲染简洁分栏卡。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeNoticesTransport()
+    service = _service(database, transport, secret_simple_image=True)
 
     response = await service.mh(_request())
 
