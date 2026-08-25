@@ -43,3 +43,8 @@ Web 路由。未注入实际 page provider 时，无参数登录会显式报告�
 
 共享密钥使用 Pydantic `SecretStr`，schema 默认值保持为空；不得把实际密钥写入
 Git、日志、异常或用户可见响应。
+
+## HTML/T2I 图片渲染
+
+生成型图片复用 AstrBot 4.27.1 及以上版本的全局 HTML/T2I 服务，不新增插件私有 endpoint 配置。
+服务不可用或返回无效图片时，命令返回统一失败提示，详细原因仅记录到 AstrBot 日志。

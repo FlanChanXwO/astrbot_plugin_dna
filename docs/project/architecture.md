@@ -74,6 +74,12 @@
 - 当前阶段：当前 main 已注册 `commands.json` 中的 61 条命令，权限为
   `user=32/admin=14/owner=15`；未迁移命令不会在新入口中隐式注册。
 
+## HTML/T2I 图片渲染
+
+生成型用户可见图片由 `src/infrastructure/rendering/` 的 Jinja2 模板和 AstrBot 全局 T2I 适配器生成。
+资源先编码为 `data:` URI，`HtmlRenderer` 负责统一截图规格和返回图片格式校验；渲染异常在命令 handler
+边界记录分类与内部原因，并返回 `notify.py` 定义的通用失败文案。插件不修改全局 T2I 网络策略。
+
 ## `legacy-reference` 迁移参考
 
 - 旧命令入口：`dnaby/dispatch.py` 的 `MASTER_PATTERN` 与全局分发，后续迁移到显式 `CommandSpec` registry。

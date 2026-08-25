@@ -18,8 +18,11 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
+from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 
+from ...infrastructure.rendering.errors import HtmlRenderError
+from ...utils.msgs.notify import HTML_RENDER_FAILED
 from ..event import (
     EventActor,
     actor_from_event,
@@ -367,12 +370,21 @@ def _make_handler(spec: CommandSpec, plugin_module: str, handler_name: str):
             services=getattr(runtime, "services", {}),
             images=images_from_event(event),
         )
-        async for result in execute_use_case(
-            spec,
-            request,
-            runtime.commands,
-        ):
-            yield runtime.responses.build(event, result)
+        try:
+            async for result in execute_use_case(
+                spec,
+                request,
+                runtime.commands,
+            ):
+                yield runtime.responses.build(event, result)
+        except HtmlRenderError as error:
+            logger.exception(
+                "[dnaby] 命令 %s 图片渲染失败 kind=%s: %s",
+                spec.id,
+                error.kind,
+                error,
+            )
+            yield runtime.responses.build(event, PlainTextResponse(HTML_RENDER_FAILED))
 
     handler.__name__ = handler_name
     handler.__qualname__ = handler_name

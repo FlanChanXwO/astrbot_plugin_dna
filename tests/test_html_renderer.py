@@ -173,6 +173,37 @@ async def test_renderer_classifies_template_errors(template_dir: Path) -> None:
         await renderer.render("missing.html", {}, RenderSpec(100))
 
 
+@pytest.mark.asyncio
+async def test_renderer_does_not_rewrite_global_t2i_network_strategy(
+    template_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """插件渲染不得覆盖 AstrBot 全局配置的 T2I 地址。"""
+
+    import astrbot.core
+
+    network_strategy = type(
+        "NetworkStrategy",
+        (),
+        {
+            "BASE_RENDER_URL": "https://soulter.top/text2img",
+            "endpoints": ["https://soulter.top/text2img"],
+        },
+    )()
+    t2i = FakeT2I()
+    t2i.network_strategy = network_strategy
+    monkeypatch.setattr(astrbot.core, "html_renderer", t2i)
+
+    await HtmlRenderer(template_dir).render(
+        "card.html",
+        {"width": 100, "text": "ok"},
+        RenderSpec(100),
+    )
+
+    assert network_strategy.BASE_RENDER_URL == "https://soulter.top/text2img"
+    assert network_strategy.endpoints == ["https://soulter.top/text2img"]
+
+
 def test_render_spec_rejects_ambiguous_screenshot() -> None:
     with pytest.raises(ValueError):
         RenderSpec(width=100, full_page=False)

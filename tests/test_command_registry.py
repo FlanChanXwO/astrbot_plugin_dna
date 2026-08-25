@@ -285,6 +285,58 @@ async def test_generated_handler_reparses_its_named_parameters():
     assert result == [("plain", "命中")]
 
 
+@pytest.mark.asyncio
+async def test_generated_handler_returns_generic_message_for_render_failure():
+    """图片渲染失败时，handler 不得把模板或服务内部细节暴露给用户。"""
+
+    from src.rendering import T2IRenderError
+
+    async def failing_use_case(_request: CommandRequest, _registry, **_parameters):
+        raise T2IRenderError("secret-template-path")
+
+    class GeneratedRenderPlugin:
+        __module__ = "tests.generated_render_failure_plugin"
+
+    registry = CommandRegistry(
+        (
+            CommandSpec(
+                id="render_failure",
+                pattern=r"^渲染$",
+                group="测试",
+                name="渲染",
+                description="测试渲染失败",
+                examples=("渲染",),
+                permission="user",
+                use_case=failing_use_case,
+            ),
+        ),
+    )
+    install_command_handlers(GeneratedRenderPlugin, registry)
+
+    class Event:
+        def get_message_str(self) -> str:
+            return "渲染"
+
+        def plain_result(self, text: str) -> tuple[str, str]:
+            return ("plain", text)
+
+    plugin = GeneratedRenderPlugin()
+    object.__setattr__(
+        plugin,
+        "_runtime",
+        SimpleNamespace(
+            commands=registry,
+            responses=ResponseFactory(),
+        ),
+    )
+
+    method = plugin.handle_render_failure
+    result = [item async for item in method(Event())]
+
+    assert result == [("plain", "图片渲染失败，请稍后重试；管理员可查看日志了解详情。")]
+    assert "secret-template-path" not in result[0][1]
+
+
 def test_commands_manifest_is_generated_from_registry():
     """commands.json 必须与代码 registry 的可序列化投影完全一致。"""
 

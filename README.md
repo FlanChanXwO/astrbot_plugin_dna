@@ -39,6 +39,10 @@ owner 全部签到与签到结果订阅（每日 `sign_in.sign_time` 计划任�
 
 插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），由 `src/infrastructure/config` 的 Pydantic 定义生成，按登录、网络、签到、通知和显示分组。资源仓库使用公共 Git origin，首次同步浅克隆，后续只允许 fast-forward 更新；详见 [docs/usage/resources.md](docs/usage/resources.md)。
 
+生成型图片卡片统一使用 AstrBot 4.27.1 及以上版本的全局 HTML/T2I 服务；插件不会覆盖全局
+T2I 地址。模板和素材由 `src/infrastructure/rendering/` 统一处理，渲染失败时记录内部原因并向用户
+返回通用提示。
+
 ## 开发
 
 - [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) —— 开发约定

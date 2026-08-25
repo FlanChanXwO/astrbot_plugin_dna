@@ -2,6 +2,7 @@ from ...utils.utils import get_using_id, is_uid_hidden, mask_uid_in_text
 from ..session import EventContext, Sender
 
 title = "[二重螺旋]\n"
+HTML_RENDER_FAILED = "图片渲染失败，请稍后重试；管理员可查看日志了解详情。"
 
 
 async def send_dna_notify(

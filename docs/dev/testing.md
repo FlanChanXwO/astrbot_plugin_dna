@@ -59,6 +59,9 @@ ruff check .
 - `test_database.py` — 5 表 CRUD + 迁移（临时 sqlite 文件）。
 - `test_subscriptions.py` — 订阅增删改查 + 目标解析。
 - 各功能域纯逻辑（name_convert、damage、sign 解析等）。
+- `test_html_renderer.py`、`test_rendering_assets.py` — Jinja autoescape、截图参数、结果类型、资源
+  data URI 和全局 T2I 配置不被插件改写。
+- `test_command_registry.py` — HTML/T2I 渲染异常只向用户暴露统一文案，内部原因留在日志。
 
 ## 原则
 - 先写失败测试（Red）→ 最小实现（Green）→ Refactor。
