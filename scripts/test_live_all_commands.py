@@ -11,6 +11,8 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from astrbot.api.star import StarTools
+
 from src.bootstrap import build_runtime
 from src.entry.commands import (
     CommandRequest,
@@ -19,6 +21,7 @@ from src.entry.commands import (
 )
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from src.infrastructure.persistence.database import AsyncDatabase
 
 
 class MockContext:
@@ -48,12 +51,20 @@ async def run() -> None:
     print("Initializing Plugin Runtime with live DB")
     print("========================================")
 
+    prod_data_dir = Path("/AstrBot/data/plugin_data/astrbot_plugin_dnaby")
+    if (prod_data_dir / "dnaby.sqlite3").exists():
+        data_dir = prod_data_dir
+    else:
+        data_dir = Path(StarTools.get_data_dir("astrbot_plugin_dnaby"))
+
+    db = AsyncDatabase.from_data_dir(data_dir)
+    await db.create_schema_for_tests()
+    print(f"Database: {db.path}")
+
     registry = load_command_registry()
     ctx = MockContext()
-    runtime = build_runtime(ctx, None, command_registry=registry)
+    runtime = build_runtime(ctx, None, command_registry=registry, database=db)
     services = runtime.services
-    db = services["database"]
-    print(f"Database: {db.path}")
 
     # Test user: 308597424 (QQ) with active UID 1002631141868 (江上月)
     user_id = "308597424"
