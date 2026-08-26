@@ -520,6 +520,7 @@ class NoticesService:
 
         # 1. 个人/群聊按名称订阅 (MH_SUBSCRIBE)
         text_subs = await self.subscriptions.get(messages.MH_SUBSCRIBE)
+        subs_by_origin: dict[str, list[Any]] = {}
         for sub in text_subs:
             # 检查时间段限制: "17:23" -> start 17, end 23
             if sub.extra_data and ":" in sub.extra_data:
@@ -534,21 +535,46 @@ class NoticesService:
                             continue
                 except (ValueError, TypeError):
                     pass
+            subs_by_origin.setdefault(sub.unified_msg_origin, []).append(sub)
 
-            names = [item for item in sub.extra_message.split(",") if item]
-            if not names:
-                continue
+        for origin, group_subs in subs_by_origin.items():
+            matched_keys_ordered: list[str] = []
+            seen_keys: set[str] = set()
+            at_users: list[str] = []
+            seen_users: set[str] = set()
 
-            matched = [key for key in names if key in available_names]
-            if not matched:
+            for sub in group_subs:
+                names = [item for item in sub.extra_message.split(",") if item]
+                if not names:
+                    continue
+                matched = [key for key in names if key in available_names]
+                if not matched:
+                    continue
+
+                for key in matched:
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        matched_keys_ordered.append(key)
+
+                if sub.user_type == "group" or sub.group_id:
+                    uid = str(sub.uid or sub.user_id)
+                    if uid and uid not in seen_users:
+                        seen_users.add(uid)
+                        at_users.append(uid)
+
+            if not matched_keys_ordered:
                 continue
 
             lines = ["当前订阅密函已刷新:"]
-            for key in matched:
+            for key in matched_keys_ordered:
                 type_name, _, mh_name = key.partition(":")
                 lines.append(f"{type_name} : {mh_name or key}")
-            at_target = (sub.uid or sub.user_id) if (sub.user_type == "group" or sub.group_id) else None
-            if await self._invoke_push(sub.unified_msg_origin, "\n".join(lines), at_user_id=at_target):
+
+            at_target: str | list[str] | None = None
+            if at_users:
+                at_target = at_users if len(at_users) > 1 else at_users[0]
+
+            if await self._invoke_push(origin, "\n".join(lines), at_user_id=at_target):
                 pushed += 1
 
         # 2. 全量文本密函订阅 (MH_TEXT_SUBSCRIBE)

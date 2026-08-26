@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -758,3 +759,91 @@ async def test_push_mh_pic_and_text_do_not_at_user_while_name_sub_does(tmp_path:
     assert push_by_origin["platform:group:g3"][1] is None
 
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_push_mh_now_aggregates_multiple_group_subscribers_with_ats_at_end(tmp_path: Path) -> None:
+    """同一群聊中多个用户订阅并触发密函刷新时，应聚合成一条推送消息，且所有 at 堆在末尾。"""
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    pushed: list[tuple[str, object, Any]] = []
+
+    async def push(origin: str, payload: object, at_user_id: Any = None) -> None:
+        pushed.append((origin, payload, at_user_id))
+
+    service = _service(
+        database,
+        FakeNoticesTransport(),
+        tmp_path,
+        subscriptions=subscriptions,
+        push=push,
+    )
+
+    # 3 个用户在同一个群聊中分别订阅 拆解 密函
+    origin = "platform:group:g100"
+    for user_id in ("user-1", "user-2", "user-3"):
+        actor = EventActor(user_id=user_id, bot_id="bot-1", group_id="g100", unified_msg_origin=origin)
+        req = _request("订阅拆解密函", {"mh_name": "拆解"}, actor=actor)
+        await service.subscribe_mh(req)
+
+    count = await service.push_mh_now()
+
+    # 聚合成 1 条推送
+    assert count == 1
+    assert len(pushed) == 1
+    push_origin, payload, at_users = pushed[0]
+    assert push_origin == origin
+    assert "当前订阅密函已刷新:\n角色 : 拆解" in str(payload)
+    # at_users 应包含 3 个用户
+    assert at_users == ["user-1", "user-2", "user-3"]
+
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_push_notice_formats_ats_at_the_end() -> None:
+    """验证 _push_notice 在构造 MessageChain 时将所有 at 放在正文换行之后的末尾。"""
+    from astrbot.api.message_components import At, Plain
+    from astrbot.core.message.message_event_result import MessageChain
+
+    from src.bootstrap import build_runtime
+
+    sent_messages: list[tuple[str, MessageChain]] = []
+
+    class FakeContext:
+        def send_message(self, origin: str, msg: MessageChain) -> None:
+            sent_messages.append((origin, msg))
+
+    runtime = build_runtime(FakeContext(), config={})
+    notices_service = runtime.services["notices_service"]
+    push_fn = notices_service.push
+
+    # 模拟推送给 3 个用户的群聊消息
+    await push_fn(
+        "platform:group:g100",
+        "当前订阅密函已刷新:\n角色 : 探险",
+        at_user_id=["1", "2", "3"],
+    )
+
+    assert len(sent_messages) == 1
+    origin, msg_chain = sent_messages[0]
+    assert origin == "platform:group:g100"
+
+    chain = msg_chain.chain
+    # 第一个组件为正文 Plain
+    assert isinstance(chain[0], Plain)
+    assert chain[0].text == "当前订阅密函已刷新:\n角色 : 探险"
+    # 第二个组件为换行 Plain("\n")
+    assert isinstance(chain[1], Plain)
+    assert chain[1].text == "\n"
+    # 后续组件为 At 和空格
+    assert isinstance(chain[2], At)
+    assert str(chain[2].qq) == "1"
+    assert isinstance(chain[3], Plain)
+    assert chain[3].text == " "
+    assert isinstance(chain[4], At)
+    assert str(chain[4].qq) == "2"
+    assert isinstance(chain[5], Plain)
+    assert chain[5].text == " "
+    assert isinstance(chain[6], At)
+    assert str(chain[6].qq) == "3"

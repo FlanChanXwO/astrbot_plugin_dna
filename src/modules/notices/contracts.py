@@ -113,6 +113,7 @@ class NoticeRequest:
     target_user_id: str | None
     parameters: dict[str, Any] = field(default_factory=dict)
     text: str = ""
+    matched_prefix: str = "kk"
 
 
 class NoticesTransport(Protocol):

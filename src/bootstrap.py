@@ -14,8 +14,8 @@ from typing import Any
 
 from astrbot.api.star import Context
 from astrbot.core import AstrBotConfig
+from astrbot.core.message.components import At, Plain
 from astrbot.core.message.components import Image as AstrImage
-from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
 
 from .entry.commands import CommandRegistry, load_command_registry
@@ -181,13 +181,9 @@ def build_runtime(
     async def _push_notice(
         origin: str,
         payload: str | Path,
-        at_user_id: str | None = None,
+        at_user_id: str | list[str] | None = None,
     ) -> None:
         chain: list[Any] = []
-        if at_user_id:
-            from astrbot.api.message_components import At
-
-            chain.append(At(qq=str(at_user_id)))
         if isinstance(payload, Path) or (
             isinstance(payload, str)
             and (payload.endswith((".png", ".jpg", ".jpeg", ".webp")) or Path(payload).exists())
@@ -195,6 +191,17 @@ def build_runtime(
             chain.append(AstrImage.fromFileSystem(str(payload)))
         else:
             chain.append(Plain(str(payload)))
+
+        if at_user_id:
+            user_ids = [at_user_id] if isinstance(at_user_id, (str, int)) else list(at_user_id)
+            user_ids = [str(uid) for uid in user_ids if uid]
+            if user_ids:
+                chain.append(Plain("\n"))
+                for idx, uid in enumerate(user_ids):
+                    if idx > 0:
+                        chain.append(Plain(" "))
+                    chain.append(At(qq=str(uid)))
+
         msg = MessageChain(chain=chain)
         try:
             res = context.send_message(origin, msg)
