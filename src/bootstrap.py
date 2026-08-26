@@ -184,23 +184,27 @@ def build_runtime(
         at_user_id: str | list[str] | None = None,
     ) -> None:
         chain: list[Any] = []
+        user_ids: list[str] = []
+        if at_user_id:
+            raw_ids = [at_user_id] if isinstance(at_user_id, (str, int)) else list(at_user_id)
+            user_ids = [str(uid) for uid in raw_ids if uid]
+
         if isinstance(payload, Path) or (
             isinstance(payload, str)
             and (payload.endswith((".png", ".jpg", ".jpeg", ".webp")) or Path(payload).exists())
         ):
             chain.append(AstrImage.fromFileSystem(str(payload)))
         else:
-            chain.append(Plain(str(payload)))
-
-        if at_user_id:
-            user_ids = [at_user_id] if isinstance(at_user_id, (str, int)) else list(at_user_id)
-            user_ids = [str(uid) for uid in user_ids if uid]
+            text = str(payload).rstrip()
             if user_ids:
-                chain.append(Plain("\n"))
-                for idx, uid in enumerate(user_ids):
-                    if idx > 0:
-                        chain.append(Plain(" "))
-                    chain.append(At(qq=str(uid)))
+                text = f"{text}\n"
+            chain.append(Plain(text))
+
+        if user_ids:
+            for idx, uid in enumerate(user_ids):
+                if idx > 0:
+                    chain.append(Plain(" "))
+                chain.append(At(qq=str(uid)))
 
         msg = MessageChain(chain=chain)
         try:

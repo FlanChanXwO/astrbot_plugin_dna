@@ -830,20 +830,17 @@ async def test_bootstrap_push_notice_formats_ats_at_the_end() -> None:
     assert origin == "platform:group:g100"
 
     chain = msg_chain.chain
-    # 第一个组件为正文 Plain
+    # 第一个组件为正文 Plain，结尾带 \n 以免被 AstrBot 平台适配器（如 OneBot）过滤单独的 \n 组件
     assert isinstance(chain[0], Plain)
-    assert chain[0].text == "当前订阅密函已刷新:\n角色 : 探险"
-    # 第二个组件为换行 Plain("\n")
-    assert isinstance(chain[1], Plain)
-    assert chain[1].text == "\n"
+    assert chain[0].text == "当前订阅密函已刷新:\n角色 : 探险\n"
     # 后续组件为 At 和空格
-    assert isinstance(chain[2], At)
-    assert str(chain[2].qq) == "1"
-    assert isinstance(chain[3], Plain)
-    assert chain[3].text == " "
-    assert isinstance(chain[4], At)
-    assert str(chain[4].qq) == "2"
-    assert isinstance(chain[5], Plain)
-    assert chain[5].text == " "
-    assert isinstance(chain[6], At)
-    assert str(chain[6].qq) == "3"
+    assert isinstance(chain[1], At)
+    assert str(chain[1].qq) == "1"
+    assert isinstance(chain[2], Plain)
+    assert chain[2].text == " "
+    assert isinstance(chain[3], At)
+    assert str(chain[3].qq) == "2"
+    assert isinstance(chain[4], Plain)
+    assert chain[4].text == " "
+    assert isinstance(chain[5], At)
+    assert str(chain[5].qq) == "3"
