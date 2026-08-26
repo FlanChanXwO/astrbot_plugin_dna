@@ -155,3 +155,101 @@ async def test_generated_ann_handler_yields_image_response() -> None:
     result = [item async for item in handler(Event())]
 
     assert result == ["rendered.png"]
+
+
+@pytest.mark.asyncio
+async def test_generated_mh_subscribe_handler_ats_user_in_group_chat() -> None:
+    """群聊中执行密函订阅命令时返回带 At 的消息链。"""
+    from astrbot.api.message_components import At, Plain
+
+    class FakeNoticesService:
+        async def mh(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def mh_list(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def ann(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def subscribe_mh(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("成功订阅密函【角色:拆解,武器:拆解,魔之楔:拆解】", need_at=True)
+        async def unsubscribe_mh(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def mh_subscriptions(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def set_mh_push_time(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def toggle_mh_pic(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def toggle_mh_text(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def test_mh_push(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def subscribe_ann(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def unsubscribe_ann(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+
+    class GeneratedNoticesPlugin:
+        __module__ = "tests.generated_notices_plugin"
+
+    class GroupEvent:
+        def get_message_str(self) -> str:
+            return "kk订阅拆解密函"
+
+        def get_sender_id(self) -> str:
+            return "user-1"
+
+        def get_self_id(self) -> str:
+            return "bot-1"
+
+        def get_group_id(self) -> str:
+            return "group-1"
+
+        def get_messages(self) -> list:
+            return []
+
+        def chain_result(self, components: object) -> object:
+            return components
+
+        def plain_result(self, text: str) -> str:
+            return text
+
+    class DirectEvent:
+        def get_message_str(self) -> str:
+            return "kk订阅拆解密函"
+
+        def get_sender_id(self) -> str:
+            return "user-1"
+
+        def get_self_id(self) -> str:
+            return "bot-1"
+
+        def get_group_id(self) -> None:
+            return None
+
+        def get_messages(self) -> list:
+            return []
+
+        def chain_result(self, components: object) -> object:
+            return components
+
+        def plain_result(self, text: str) -> str:
+            return text
+
+    spec = load_command_registry().get("mh_subscribe_by_name")
+    registry = CommandRegistry((spec,))
+    install_command_handlers(GeneratedNoticesPlugin, registry)
+    plugin = GeneratedNoticesPlugin()
+    object.__setattr__(
+        plugin,
+        "_runtime",
+        SimpleNamespace(
+            commands=registry,
+            responses=ResponseFactory(),
+            services={"notices_service": FakeNoticesService()},
+        ),
+    )
+
+    handler = cast(Any, plugin).handle_mh_subscribe_by_name
+
+    # 群聊测试：返回带 At 组件的消息链
+    group_results = [item async for item in handler(GroupEvent())]
+    assert len(group_results) == 1
+    chain = group_results[0]
+    assert len(chain) == 2
+    assert isinstance(chain[0], At)
+    assert chain[0].qq == "user-1"
+    assert isinstance(chain[1], Plain)
+    assert chain[1].text == "成功订阅密函【角色:拆解,武器:拆解,魔之楔:拆解】"
+
+    # 私聊测试：直接返回纯文本
+    direct_results = [item async for item in handler(DirectEvent())]
+    assert direct_results == ["成功订阅密函【角色:拆解,武器:拆解,魔之楔:拆解】"]

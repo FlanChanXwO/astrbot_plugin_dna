@@ -41,6 +41,7 @@ def _service(
     *,
     push=None,
     subscriptions: SubscriptionStore | None = None,
+    secret_simple_image: bool = True,
 ) -> NoticesService:
     return NoticesService(
         database,
@@ -49,11 +50,13 @@ def _service(
         NoticesRenderer(
             database.path.parent / "rendered",
             EncyclopediaResourceStore.from_root(database.path.parent / "resources"),
+            simple_image=secret_simple_image,
         ),
         subscriptions=subscriptions
         or SubscriptionStore(tmp_path / "subscriptions.json"),
         ann_state=AnnStateStore(tmp_path / "ann_state.json"),
         push=push,
+        secret_simple_image=secret_simple_image,
     )
 
 
@@ -85,10 +88,19 @@ async def test_subscribe_mh_adds_names_and_dedupes(tmp_path: Path) -> None:
     second = await service.subscribe_mh(
         _request("订阅拆解密函", {"mh_name": "拆解"}),
     )
+    third = await service.subscribe_mh(
+        _request("订阅追缉密函", {"mh_name": "追缉"}),
+    )
 
     assert isinstance(first, PlainTextResponse)
-    assert "角色:拆解" in first.text
-    assert messages.MH_DUPLICATE.format(name="拆解") in second.text
+    assert first.need_at is True
+    assert first.text == "成功订阅密函【角色:拆解,武器:拆解,魔之楔:拆解】"
+    assert isinstance(second, PlainTextResponse)
+    assert second.need_at is True
+    assert second.text == "请勿重复订阅密函【拆解】"
+    assert isinstance(third, PlainTextResponse)
+    assert third.need_at is True
+    assert third.text == f"成功订阅密函【追缉】!当前订阅密函: {",".join(sorted({"角色:拆解", "角色:追缉", "武器:拆解", "武器:追缉", "魔之楔:拆解", "魔之楔:追缉"}))}"
     subscriptions = service.subscriptions
     assert subscriptions is not None
     subs = await subscriptions.get(
@@ -97,7 +109,7 @@ async def test_subscribe_mh_adds_names_and_dedupes(tmp_path: Path) -> None:
         bot_id="bot-1",
     )
     assert len(subs) == 1
-    assert set(subs[0].extra_message.split(",")) == {"角色:拆解", "武器:拆解", "魔之楔:拆解"}
+    assert set(subs[0].extra_message.split(",")) == {"角色:拆解", "角色:追缉", "武器:拆解", "武器:追缉", "魔之楔:拆解", "魔之楔:追缉"}
     await database.dispose()
 
 
@@ -111,7 +123,8 @@ async def test_subscribe_mh_rejects_all(tmp_path: Path) -> None:
     response = await service.subscribe_mh(_request("订阅全部密函", {"mh_name": "全部"}))
 
     assert isinstance(response, PlainTextResponse)
-    assert response.text == messages.MH_ALL_FORBIDDEN
+    assert response.need_at is True
+    assert response.text == "禁止订阅全部密函, 请使用[kk密函列表]命令查看可订阅密函"
     await database.dispose()
 
 
@@ -129,11 +142,21 @@ async def test_unsubscribe_mh_removes_names(tmp_path: Path) -> None:
     )
 
     assert isinstance(response, PlainTextResponse)
-    assert "拆解" in response.text
+    assert response.need_at is True
+    assert response.text == f"成功取消订阅密函【拆解】!当前订阅密函: {",".join(sorted({"角色:追缉", "武器:追缉", "魔之楔:追缉"}))}"
     subscriptions = service.subscriptions
     assert subscriptions is not None
     subs = await subscriptions.get(messages.MH_SUBSCRIBE)
     assert set(subs[0].extra_message.split(",")) == {"角色:追缉", "武器:追缉", "魔之楔:追缉"}
+
+    # 取消订阅最后一项时，返回当前订阅密函为空并清理订阅
+    last_unsub = await service.unsubscribe_mh(
+        _request("取消订阅追缉密函", {"mh_name": "追缉"}),
+    )
+    assert isinstance(last_unsub, PlainTextResponse)
+    assert last_unsub.need_at is True
+    assert last_unsub.text == "成功取消订阅密函【追缉】!当前订阅密函: "
+    assert await subscriptions.get(messages.MH_SUBSCRIBE) == ()
     await database.dispose()
 
 
@@ -150,6 +173,7 @@ async def test_unsubscribe_mh_all_deletes_subscription(tmp_path: Path) -> None:
     )
 
     assert isinstance(response, PlainTextResponse)
+    assert response.need_at is True
     assert response.text == messages.MH_UNSUBSCRIBED_ALL
     subscriptions = service.subscriptions
     assert subscriptions is not None
@@ -163,16 +187,43 @@ async def test_mh_subscriptions_shows_time_window(tmp_path: Path) -> None:
 
     database = await _database_with_binding(tmp_path)
     service = _service(database, FakeNoticesTransport(), tmp_path)
+
+    # 未订阅时提示未曾订阅密函
+    empty_res = await service.mh_subscriptions(_request("我的密函"))
+    assert isinstance(empty_res, PlainTextResponse)
+    assert empty_res.need_at is True
+    assert empty_res.text == "未曾订阅密函"
+
+    # 订阅后无时间限制
     await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}))
-    await service.set_mh_push_time(
+    unlimited_res = await service.mh_subscriptions(_request("我的密函"))
+    assert isinstance(unlimited_res, PlainTextResponse)
+    assert unlimited_res.need_at is True
+    assert unlimited_res.text == (
+        "当前订阅密函: 角色:拆解,武器:拆解,魔之楔:拆解\n"
+        "推送时间: 不限制\n"
+        "可以使用命令设置推送时间: kk订阅密函时间17:23"
+    )
+
+    # 设置时间后展示时间段
+    time_set_res = await service.set_mh_push_time(
         _request("订阅密函时间17:23", {"start": "17", "end": "23"}),
+    )
+    assert isinstance(time_set_res, PlainTextResponse)
+    assert time_set_res.need_at is True
+    assert time_set_res.text == (
+        "当前订阅密函: 角色:拆解,武器:拆解,魔之楔:拆解\n"
+        "推送时间: 17点-23点"
     )
 
     response = await service.mh_subscriptions(_request("我的密函"))
 
     assert isinstance(response, PlainTextResponse)
-    assert "角色:拆解" in response.text
-    assert messages.MH_PUSH_TIME_SET.format(start="17", end="23") in response.text
+    assert response.need_at is True
+    assert response.text == (
+        "当前订阅密函: 角色:拆解,武器:拆解,魔之楔:拆解\n"
+        "推送时间: 17点-23点"
+    )
     await database.dispose()
 
 
@@ -188,6 +239,7 @@ async def test_set_mh_push_time_invalid_hours_is_visible(tmp_path: Path) -> None
     )
 
     assert isinstance(response, PlainTextResponse)
+    assert response.need_at is True
     assert response.text == messages.MH_PUSH_TIME_FORMAT
     await database.dispose()
 
@@ -202,15 +254,30 @@ async def test_toggle_mh_pic_and_text_are_session_scoped(tmp_path: Path) -> None
 
     pic = await service.toggle_mh_pic(_request("订阅密函图片", actor=actor))
     pic_cancel = await service.toggle_mh_pic(_request("取消订阅密函图片", actor=actor))
-    text = await service.toggle_mh_text(_request("订阅密函文本", actor=actor))
+    pic_cancel_empty = await service.toggle_mh_pic(_request("取消订阅密函图片", actor=actor))
 
+    text = await service.toggle_mh_text(_request("订阅密函文本", actor=actor))
+    text_cancel = await service.toggle_mh_text(_request("取消订阅密函文本", actor=actor))
+    text_cancel_empty = await service.toggle_mh_text(_request("取消订阅密函文本", actor=actor))
+
+    assert isinstance(pic, PlainTextResponse) and pic.need_at is True
     assert pic.text == messages.MH_PIC_SUBSCRIBED
+    assert isinstance(pic_cancel, PlainTextResponse) and pic_cancel.need_at is True
     assert pic_cancel.text == messages.MH_PIC_UNSUBSCRIBED
+    assert isinstance(pic_cancel_empty, PlainTextResponse) and pic_cancel_empty.need_at is True
+    assert pic_cancel_empty.text == messages.MH_PIC_NOT_SUBSCRIBED
+
+    assert isinstance(text, PlainTextResponse) and text.need_at is True
     assert text.text == messages.MH_TEXT_SUBSCRIBED
+    assert isinstance(text_cancel, PlainTextResponse) and text_cancel.need_at is True
+    assert text_cancel.text == messages.MH_TEXT_UNSUBSCRIBED
+    assert isinstance(text_cancel_empty, PlainTextResponse) and text_cancel_empty.need_at is True
+    assert text_cancel_empty.text == messages.MH_TEXT_NOT_SUBSCRIBED
+
     subscriptions = service.subscriptions
     assert subscriptions is not None
     assert await subscriptions.get(messages.MH_PIC_SUBSCRIBE) == ()
-    assert len(await subscriptions.get(messages.MH_TEXT_SUBSCRIBE)) == 1
+    assert await subscriptions.get(messages.MH_TEXT_SUBSCRIBE) == ()
     await database.dispose()
 
 
@@ -224,10 +291,17 @@ async def test_ann_sub_unsub_group_scoped(tmp_path: Path) -> None:
     first = await service.subscribe_ann(_request("订阅公告"))
     duplicate = await service.subscribe_ann(_request("订阅公告"))
     unsub = await service.unsubscribe_ann(_request("取消订阅公告"))
+    unsub_empty = await service.unsubscribe_ann(_request("取消订阅公告"))
 
+    assert isinstance(first, PlainTextResponse) and first.need_at is True
     assert first.text == messages.ANN_SUBSCRIBED
+    assert isinstance(duplicate, PlainTextResponse) and duplicate.need_at is True
     assert duplicate.text == messages.ANN_ALREADY_SUBSCRIBED
+    assert isinstance(unsub, PlainTextResponse) and unsub.need_at is True
     assert unsub.text == messages.ANN_UNSUBSCRIBED
+    assert isinstance(unsub_empty, PlainTextResponse) and unsub_empty.need_at is True
+    assert unsub_empty.text == messages.ANN_NOT_SUBSCRIBED
+
     subscriptions = service.subscriptions
     assert subscriptions is not None
     assert await subscriptions.get(messages.ANN_SUBSCRIBE) == ()
@@ -244,9 +318,17 @@ async def test_ann_sub_requires_group(tmp_path: Path) -> None:
     response = await service.subscribe_ann(
         _request("订阅公告", actor=_actor(group=None)),
     )
+    unsub_resp = await service.unsubscribe_ann(
+        _request("取消订阅公告", actor=_actor(group=None)),
+    )
 
     assert isinstance(response, PlainTextResponse)
+    assert response.need_at is True
     assert response.text == messages.ANN_GROUP_ONLY
+
+    assert isinstance(unsub_resp, PlainTextResponse)
+    assert unsub_resp.need_at is True
+    assert unsub_resp.text == messages.ANN_GROUP_UNSUB_ONLY
     await database.dispose()
 
 

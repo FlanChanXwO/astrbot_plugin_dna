@@ -61,7 +61,7 @@ class NoticesService:
     ) -> tuple[str, str] | PlainTextResponse:
         resolution = await self.privacy.resolve_query(request.actor, request.target_user_id)
         if resolution.blocked:
-            return PlainTextResponse(messages.NOTICES_PEEK_BLOCKED)
+            return PlainTextResponse(messages.NOTICES_PEEK_BLOCKED, need_at=True)
         target_user_id = resolution.resolved_user_id
         async with self.database.session() as session:
             binding = await AccountBindingRepository.current(
@@ -70,12 +70,12 @@ class NoticesService:
                 bot_id=request.actor.bot_id,
             )
         if binding is None:
-            return PlainTextResponse(messages.NOTICES_UID_INVALID)
+            return PlainTextResponse(messages.NOTICES_UID_INVALID, need_at=True)
         return target_user_id, binding.uid
 
     @staticmethod
     def _transport_response(error: NoticesTransportError) -> PlainTextResponse:
-        return PlainTextResponse(messages.transport_error(error.kind))
+        return PlainTextResponse(messages.transport_error(error.kind), need_at=True)
 
     async def mh(self, request: NoticeRequest):
         """读取并渲染当前小时段的密函数据。"""
@@ -93,7 +93,7 @@ class NoticesService:
         except NoticesTransportError as error:
             return self._transport_response(error)
         if not snapshot.sections:
-            return PlainTextResponse(messages.MH_NOT_FOUND)
+            return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         rendered = await self.renderer.render_mh(
             snapshot,
             simple_image=self.secret_simple_image,
@@ -116,7 +116,7 @@ class NoticesService:
         except NoticesTransportError as error:
             return self._transport_response(error)
         if not snapshot.posts:
-            return PlainTextResponse(messages.ANN_LIST_FAILED)
+            return PlainTextResponse(messages.ANN_LIST_FAILED, need_at=True)
 
         if not index:
             rendered = await self.renderer.render_ann_list(snapshot)
@@ -129,7 +129,7 @@ class NoticesService:
         )
         post_id = resolve_index(index, post_map)
         if post_id is None:
-            return PlainTextResponse(messages.ANN_INDEX_INVALID)
+            return PlainTextResponse(messages.ANN_INDEX_INVALID, need_at=True)
         try:
             detail = await self.transport.get_ann_detail(post_id)
         except NoticesTransportError as error:
@@ -149,16 +149,16 @@ class NoticesService:
         """按名称订阅密函委托（user，按会话作用域）。"""
 
         if self.subscriptions is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
-            return PlainTextResponse(error)
+            return PlainTextResponse(error, need_at=True)
         mh_name = str(request.parameters.get("mh_name", "")).strip()
         mh_type = str(request.parameters.get("mh_type") or "").strip() or None
         if not mh_name:
-            return PlainTextResponse(messages.MH_NOT_FOUND)
+            return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         if mh_name == "全部":
-            return PlainTextResponse(messages.MH_ALL_FORBIDDEN)
+            return PlainTextResponse(messages.MH_ALL_FORBIDDEN, need_at=True)
         keys = _mh_keys(mh_name, mh_type)
 
         try:
@@ -185,10 +185,10 @@ class NoticesService:
                     uid=request.actor.user_id,
                     extra_message=",".join(keys),
                 )
-                return PlainTextResponse(messages.MH_SUBSCRIBED_TEMPLATE.format(names=",".join(keys)))
+                return PlainTextResponse(messages.MH_SUBSCRIBED_TEMPLATE.format(names=",".join(keys)), need_at=True)
             existing = [item for item in target.extra_message.split(",") if item]
             if set(keys) <= set(existing):
-                return PlainTextResponse(messages.MH_DUPLICATE.format(name=mh_name))
+                return PlainTextResponse(messages.MH_DUPLICATE.format(name=mh_name), need_at=True)
             merged = sorted(set(existing) | set(keys))
             await self.subscriptions.update(
                 messages.MH_SUBSCRIBE,
@@ -197,19 +197,20 @@ class NoticesService:
                 extra_message=",".join(merged),
             )
             return PlainTextResponse(
-                f"{messages.MH_SUBSCRIBED_TEMPLATE.format(names=mh_name)}!当前订阅密函: {','.join(merged)}",
+                f"{messages.MH_SUBSCRIBED_TEMPLATE.format(names=mh_name)}!当前订阅密函: {",".join(merged)}",
+                need_at=True,
             )
         except RuntimeError:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
 
     async def unsubscribe_mh(self, request: NoticeRequest):
         """按名称取消订阅密函委托；全部 时删除当前会话的订阅（user）。"""
 
         if self.subscriptions is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
-            return PlainTextResponse(error)
+            return PlainTextResponse(error, need_at=True)
         mh_name = str(request.parameters.get("mh_name", "")).strip()
         mh_type = str(request.parameters.get("mh_type") or "").strip() or None
         try:
@@ -226,14 +227,14 @@ class NoticesService:
                 None,
             )
             if target is None or not target.extra_message:
-                return PlainTextResponse(messages.MH_NOT_SUBSCRIBED)
+                return PlainTextResponse(messages.MH_NOT_SUBSCRIBED, need_at=True)
             if mh_name == "全部":
                 await self.subscriptions.delete(
                     messages.MH_SUBSCRIBE,
                     origin,
                     uid=request.actor.user_id,
                 )
-                return PlainTextResponse(messages.MH_UNSUBSCRIBED_ALL)
+                return PlainTextResponse(messages.MH_UNSUBSCRIBED_ALL, need_at=True)
             keys = _mh_keys(mh_name, mh_type)
             remaining = [item for item in target.extra_message.split(",") if item and item not in keys]
             if not remaining:
@@ -242,7 +243,10 @@ class NoticesService:
                     origin,
                     uid=request.actor.user_id,
                 )
-                return PlainTextResponse(messages.MH_UNSUBSCRIBED.format(name=mh_name))
+                return PlainTextResponse(
+                    f"{messages.MH_UNSUBSCRIBED.format(name=mh_name)}!当前订阅密函: ",
+                    need_at=True,
+                )
             await self.subscriptions.update(
                 messages.MH_SUBSCRIBE,
                 origin,
@@ -251,18 +255,19 @@ class NoticesService:
             )
             return PlainTextResponse(
                 f"{messages.MH_UNSUBSCRIBED.format(name=mh_name)}!当前订阅密函: {','.join(remaining)}",
+                need_at=True,
             )
         except RuntimeError:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
 
     async def mh_subscriptions(self, request: NoticeRequest):
         """查看当前会话的密函订阅与推送时间（user）。"""
 
         if self.subscriptions is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
-            return PlainTextResponse(error)
+            return PlainTextResponse(error, need_at=True)
         target = next(
             (
                 sub
@@ -276,31 +281,31 @@ class NoticesService:
             None,
         )
         if target is None or not target.extra_message:
-            return PlainTextResponse(messages.MH_NOT_SUBSCRIBED)
+            return PlainTextResponse(messages.MH_NOT_SUBSCRIBED, need_at=True)
         lines = [messages.MH_CURRENT.format(names=target.extra_message)]
         if target.extra_data and ":" in target.extra_data:
             start, end = target.extra_data.split(":", 1)
             lines.append(messages.MH_PUSH_TIME_SET.format(start=start, end=end))
         else:
             lines.append(messages.MH_PUSH_TIME_UNLIMITED)
-            lines.append("可以使用命令设置推送时间: 订阅密函时间17:23")
-        return PlainTextResponse("\n".join(lines))
+            lines.append(f"可以使用命令设置推送时间: {messages.COMMAND_PREFIX}订阅密函时间17:23")
+        return PlainTextResponse("\n".join(lines), need_at=True)
 
     async def set_mh_push_time(self, request: NoticeRequest):
         """设置密函推送时间窗口（user）。"""
 
         if self.subscriptions is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         try:
             start = int(str(request.parameters.get("start", "")).strip())
             end = int(str(request.parameters.get("end", "")).strip())
         except ValueError:
-            return PlainTextResponse(messages.MH_PUSH_TIME_FORMAT)
+            return PlainTextResponse(messages.MH_PUSH_TIME_FORMAT, need_at=True)
         if start < 0 or start > 23 or end < 0 or end > 23:
-            return PlainTextResponse(messages.MH_PUSH_TIME_FORMAT)
+            return PlainTextResponse(messages.MH_PUSH_TIME_FORMAT, need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
-            return PlainTextResponse(error)
+            return PlainTextResponse(error, need_at=True)
         updated = await self.subscriptions.update(
             messages.MH_SUBSCRIBE,
             origin,
@@ -308,22 +313,22 @@ class NoticesService:
             extra_data=f"{start}:{end}",
         )
         if not updated:
-            return PlainTextResponse(messages.MH_NOT_SUBSCRIBED)
+            return PlainTextResponse(messages.MH_NOT_SUBSCRIBED, need_at=True)
         return await self.mh_subscriptions(request)
 
     async def toggle_mh_pic(self, request: NoticeRequest):
         """订阅/取消订阅密函图片推送（admin，会话作用域）。"""
 
         if self.subscriptions is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
-            return PlainTextResponse(error)
+            return PlainTextResponse(error, need_at=True)
         cancelling = "取消" in request.text
         if cancelling:
             if not await self.subscriptions.delete(messages.MH_PIC_SUBSCRIBE, origin):
-                return PlainTextResponse(messages.MH_PIC_NOT_SUBSCRIBED)
-            return PlainTextResponse(messages.MH_PIC_UNSUBSCRIBED)
+                return PlainTextResponse(messages.MH_PIC_NOT_SUBSCRIBED, need_at=True)
+            return PlainTextResponse(messages.MH_PIC_UNSUBSCRIBED, need_at=True)
         await self.subscriptions.add(
             messages.MH_PIC_SUBSCRIBE,
             origin=origin,
@@ -331,21 +336,21 @@ class NoticesService:
             bot_id=request.actor.bot_id,
             group_id=request.actor.group_id or "",
         )
-        return PlainTextResponse(messages.MH_PIC_SUBSCRIBED)
+        return PlainTextResponse(messages.MH_PIC_SUBSCRIBED, need_at=True)
 
     async def toggle_mh_text(self, request: NoticeRequest):
         """订阅/取消订阅密函文本推送（admin，会话作用域）。"""
 
         if self.subscriptions is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
-            return PlainTextResponse(error)
+            return PlainTextResponse(error, need_at=True)
         cancelling = "取消" in request.text
         if cancelling:
             if not await self.subscriptions.delete(messages.MH_TEXT_SUBSCRIBE, origin):
-                return PlainTextResponse(messages.MH_TEXT_NOT_SUBSCRIBED)
-            return PlainTextResponse(messages.MH_TEXT_UNSUBSCRIBED)
+                return PlainTextResponse(messages.MH_TEXT_NOT_SUBSCRIBED, need_at=True)
+            return PlainTextResponse(messages.MH_TEXT_UNSUBSCRIBED, need_at=True)
         await self.subscriptions.add(
             messages.MH_TEXT_SUBSCRIBE,
             origin=origin,
@@ -353,7 +358,7 @@ class NoticesService:
             bot_id=request.actor.bot_id,
             group_id=request.actor.group_id or "",
         )
-        return PlainTextResponse(messages.MH_TEXT_SUBSCRIBED)
+        return PlainTextResponse(messages.MH_TEXT_SUBSCRIBED, need_at=True)
 
     async def test_mh_push(self, request: NoticeRequest):
         """向当前会话发送一次密函测试推送（owner）。"""
@@ -370,18 +375,18 @@ class NoticesService:
         """订阅公告推送（admin，仅群聊）。"""
 
         if self.subscriptions is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         if not request.actor.group_id:
-            return PlainTextResponse(messages.ANN_GROUP_ONLY)
+            return PlainTextResponse(messages.ANN_GROUP_ONLY, need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
-            return PlainTextResponse(error)
+            return PlainTextResponse(error, need_at=True)
         subs = await self.subscriptions.get(
             messages.ANN_SUBSCRIBE,
             group_id=request.actor.group_id,
         )
         if any(sub.group_id == request.actor.group_id for sub in subs):
-            return PlainTextResponse(messages.ANN_ALREADY_SUBSCRIBED)
+            return PlainTextResponse(messages.ANN_ALREADY_SUBSCRIBED, need_at=True)
         await self.subscriptions.add(
             messages.ANN_SUBSCRIBE,
             origin=origin,
@@ -390,21 +395,21 @@ class NoticesService:
             group_id=request.actor.group_id,
             user_type="group",
         )
-        return PlainTextResponse(messages.ANN_SUBSCRIBED)
+        return PlainTextResponse(messages.ANN_SUBSCRIBED, need_at=True)
 
     async def unsubscribe_ann(self, request: NoticeRequest):
         """取消订阅公告推送（admin，仅群聊）。"""
 
         if self.subscriptions is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         if not request.actor.group_id:
-            return PlainTextResponse(messages.ANN_GROUP_ONLY)
+            return PlainTextResponse(messages.ANN_GROUP_UNSUB_ONLY, need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
-            return PlainTextResponse(error)
+            return PlainTextResponse(error, need_at=True)
         if await self.subscriptions.delete(messages.ANN_SUBSCRIBE, origin):
-            return PlainTextResponse(messages.ANN_UNSUBSCRIBED)
-        return PlainTextResponse(messages.ANN_NOT_SUBSCRIBED)
+            return PlainTextResponse(messages.ANN_UNSUBSCRIBED, need_at=True)
+        return PlainTextResponse(messages.ANN_NOT_SUBSCRIBED, need_at=True)
 
     async def push_mh_now(self) -> int:
         """拉取当前密函并按订阅推送文本/图片；返回推送次数（计划任务）。"""

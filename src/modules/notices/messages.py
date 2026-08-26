@@ -18,7 +18,8 @@ MH_PIC_SUBSCRIBE = "订阅二重螺旋图片密函"
 MH_TEXT_SUBSCRIBE = "订阅二重螺旋文本密函"
 ANN_SUBSCRIBE = "订阅DNA公告"
 
-MH_ALL_FORBIDDEN = "禁止订阅全部密函，请使用 密函列表 命令查看可订阅密函"
+COMMAND_PREFIX = "kk"
+MH_ALL_FORBIDDEN = f"禁止订阅全部密函, 请使用[{COMMAND_PREFIX}密函列表]命令查看可订阅密函"
 MH_SUBSCRIBED_TEMPLATE = "成功订阅密函【{names}】"
 MH_DUPLICATE = "请勿重复订阅密函【{name}】"
 MH_UNSUBSCRIBED = "成功取消订阅密函【{name}】"
@@ -28,7 +29,7 @@ MH_SUBSCRIBE_EMPTY = "订阅列表为空"
 MH_CURRENT = "当前订阅密函: {names}"
 MH_PUSH_TIME_UNLIMITED = "推送时间: 不限制"
 MH_PUSH_TIME_SET = "推送时间: {start}点-{end}点"
-MH_PUSH_TIME_FORMAT = "设置推送时间段格式错误，请使用 订阅密函时间17:23"
+MH_PUSH_TIME_FORMAT = f"设置推送时间段格式错误，请使用以下格式\n例如开始时间:17点, 结束时间:23点, 命令: {COMMAND_PREFIX}订阅密函时间17:23"
 MH_PIC_SUBSCRIBED = "成功订阅密函图片"
 MH_PIC_UNSUBSCRIBED = "成功取消订阅密函图片"
 MH_PIC_NOT_SUBSCRIBED = "未曾订阅密函图片"
@@ -37,6 +38,7 @@ MH_TEXT_UNSUBSCRIBED = "成功取消订阅密函文本"
 MH_TEXT_NOT_SUBSCRIBED = "未曾订阅密函文本"
 MH_TEST_SENT = "已发送密函测试"
 ANN_GROUP_ONLY = "请在群聊中订阅"
+ANN_GROUP_UNSUB_ONLY = "请在群聊中取消订阅"
 ANN_ALREADY_SUBSCRIBED = "已经订阅了二重螺旋公告！"
 ANN_SUBSCRIBED = "成功订阅二重螺旋公告！"
 ANN_UNSUBSCRIBED = "成功取消订阅二重螺旋公告！"
@@ -60,6 +62,7 @@ __all__ = [
     "ANN_ALREADY_SUBSCRIBED",
     "ANN_DETAIL_FAILED",
     "ANN_GROUP_ONLY",
+    "ANN_GROUP_UNSUB_ONLY",
     "ANN_INDEX_INVALID",
     "ANN_LIST_FAILED",
     "ANN_NOT_SUBSCRIBED",
@@ -67,6 +70,7 @@ __all__ = [
     "ANN_SUBSCRIBE",
     "ANN_SUBSCRIBED",
     "ANN_UNSUBSCRIBED",
+    "COMMAND_PREFIX",
     "MH_ALL_FORBIDDEN",
     "MH_CURRENT",
     "MH_DUPLICATE",

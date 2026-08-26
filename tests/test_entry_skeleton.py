@@ -177,3 +177,50 @@ def test_response_factory_rejects_temporary_image_outside_rendered_root(tmp_path
         )
 
     assert original.exists()
+
+
+def test_response_factory_plain_with_need_at_in_group_creates_at_chain():
+    """群聊中 need_at=True 的纯文本响应转换为 At + Plain 消息链。"""
+    from astrbot.api.message_components import At, Plain
+
+    class GroupEvent:
+        def get_group_id(self) -> str:
+            return "group-1"
+
+        def get_sender_id(self) -> str:
+            return "user-123"
+
+        def chain_result(self, components: object) -> tuple[str, object]:
+            return ("chain", components)
+
+        def plain_result(self, text: str) -> tuple[str, object]:
+            return ("plain", text)
+
+    class DirectEvent:
+        def get_group_id(self) -> None:
+            return None
+
+        def get_sender_id(self) -> str:
+            return "user-123"
+
+        def chain_result(self, components: object) -> tuple[str, object]:
+            return ("chain", components)
+
+        def plain_result(self, text: str) -> tuple[str, object]:
+            return ("plain", text)
+
+    factory = ResponseFactory()
+    group_res = factory.build(GroupEvent(), PlainTextResponse("测试消息", need_at=True))
+    assert group_res[0] == "chain"
+    components = group_res[1]
+    assert len(components) == 2
+    assert isinstance(components[0], At)
+    assert components[0].qq == "user-123"
+    assert isinstance(components[1], Plain)
+    assert components[1].text == "测试消息"
+
+    direct_res = factory.build(DirectEvent(), PlainTextResponse("测试消息", need_at=True))
+    assert direct_res == ("plain", "测试消息")
+
+    no_at_res = factory.build(GroupEvent(), PlainTextResponse("测试消息", need_at=False))
+    assert no_at_res == ("plain", "测试消息")

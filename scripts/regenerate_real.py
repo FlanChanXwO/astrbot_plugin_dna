@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-# ruff: noqa: E402
 """全量重新生成 output/real/astrbot/ 下所有 14 类真实卡片并计算 MAD/生成接触图。"""
-
-# 脚本先注入项目根目录，再导入 src 包；这些导入位置是启动约束而非业务顺序。
 
 from __future__ import annotations
 
@@ -13,10 +10,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
-
-ROOT = Path(__file__).parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw
@@ -54,6 +47,10 @@ from src.utils.api.model import (
     WeaponDetail,
 )
 from src.utils.session import EventContext
+
+ROOT = Path(__file__).parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 REAL_DIR = Path("/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/data/plugins/astrbot_plugin_dnaby/output/real")

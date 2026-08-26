@@ -12,6 +12,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
+from .legacy import DNA_PREFIX, DNAConfig, DNASignConfig
+
 
 class _SettingsModel(BaseModel):
     """所有配置分组共用的校验策略。"""
@@ -197,8 +199,6 @@ class DnabySettings(_SettingsModel):
         return cls.model_validate(values)
 
 
-# 兼容旧配置 API；放在 typed model 定义之后以保持现有导出边界。
-from .legacy import DNA_PREFIX, DNAConfig, DNASignConfig  # noqa: E402
 
 __all__ = [
     "DNA_PREFIX",

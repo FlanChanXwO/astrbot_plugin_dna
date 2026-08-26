@@ -16,6 +16,7 @@ class PlainTextResponse:
     """纯文本 use case 响应。"""
 
     text: str
+    need_at: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,9 +77,19 @@ class ResponseFactory:
         )
 
     @staticmethod
-    def plain(event: Any, text: str) -> Any:
+    def plain(event: Any, text: str, *, need_at: bool = False) -> Any:
         """构造 AstrBot 原生纯文本结果。"""
 
+        if need_at:
+            get_group_id = getattr(event, "get_group_id", None)
+            get_sender_id = getattr(event, "get_sender_id", None)
+            group_id = get_group_id() if callable(get_group_id) else None
+            user_id = get_sender_id() if callable(get_sender_id) else None
+            chain_result = getattr(event, "chain_result", None)
+            if group_id and user_id and callable(chain_result):
+                from astrbot.api.message_components import At, Plain
+
+                return chain_result([At(qq=str(user_id)), Plain(text)])
         return event.plain_result(text)
 
     @staticmethod
@@ -144,7 +155,7 @@ class ResponseFactory:
 
         self._track_temporary_images(event, response)
         if isinstance(response, PlainTextResponse):
-            return self.plain(event, response.text)
+            return self.plain(event, response.text, need_at=response.need_at)
         if isinstance(response, ChainResponse):
             return self.chain(event, response.components)
         if isinstance(response, ImageResponse):
