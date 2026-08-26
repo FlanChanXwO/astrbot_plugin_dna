@@ -240,3 +240,88 @@ def test_all_config_items_resolve_from_typed_config():
     assert DNASignConfig.get_config("PrivateSignReport").data is True
     assert DNASignConfig.get_config("GroupSignReport").data is True
     assert DNASignConfig.get_config("GroupSignReportPic").data is True
+
+
+def test_build_runtime_propagates_all_settings(tmp_path):
+    """测试 build_runtime 将全部 typed 配置项正确下发到对应 service / scheduler / renderer。"""
+    from types import SimpleNamespace
+
+    from src.bootstrap import build_runtime
+    from src.infrastructure.persistence import AsyncDatabase
+
+    config_dict = {
+        "login": {
+            "max_bind_count": 7,
+        },
+        "display": {
+            "command_prefix": "dna",
+            "guide_providers": ["猫冬"],
+            "show_unowned_roles": False,
+            "allow_mention_query": False,
+        },
+        "sign_in": {
+            "community_tasks": ["bbs_sign"],
+            "enable_all_users": True,
+            "scheduled_enabled": True,
+            "sign_time": "07:15",
+            "concurrency": 4,
+            "concurrency_interval_seconds": [2, 6],
+        },
+        "notifications": {
+            "announcement_enabled": False,
+            "announcement_check_minutes": 20,
+            "secret_push_time": "02:10",
+            "secret_simple_image": True,
+        },
+    }
+    db = AsyncDatabase(tmp_path / "test.sqlite3")
+    context = SimpleNamespace(register_web_api=lambda *args: None)
+    runtime = build_runtime(context, config_dict, database=db)
+
+    # 1. 验证 settings 字段
+    assert runtime.settings.login.max_bind_count == 7
+    assert runtime.settings.display.command_prefix == "dna"
+    assert runtime.settings.display.guide_providers == ["猫冬"]
+    assert runtime.settings.display.show_unowned_roles is False
+    assert runtime.settings.display.allow_mention_query is False
+    assert runtime.settings.sign_in.sign_time == "07:15"
+    assert runtime.settings.sign_in.enable_all_users is True
+    assert runtime.settings.sign_in.scheduled_enabled is True
+    assert runtime.settings.sign_in.concurrency == 4
+    assert runtime.settings.sign_in.concurrency_interval_seconds == (2, 6)
+    assert runtime.settings.notifications.announcement_enabled is False
+    assert runtime.settings.notifications.announcement_check_minutes == 20
+    assert runtime.settings.notifications.secret_push_time == "02:10"
+    assert runtime.settings.notifications.secret_simple_image is True
+
+    # 2. 验证下发到各个具体 service / scheduler
+    account_service = runtime.services["account_service"]
+    assert account_service.max_bind_count == 7
+
+    privacy_service = runtime.services["privacy_service"]
+    assert privacy_service.allow_mention_query is False
+
+    player_service = runtime.services["player_service"]
+    assert player_service.show_unowned_roles is False
+
+    encyclopedia_service = runtime.services["encyclopedia_service"]
+    assert encyclopedia_service.guide_providers == ("猫冬",)
+
+    checkin_service = runtime.services["checkin_service"]
+    assert checkin_service.community_tasks == ("bbs_sign",)
+    assert checkin_service.concurrency == 4
+    assert checkin_service.interval_range == (2, 6)
+
+    sign_scheduler = runtime.services["sign_scheduler"]
+    assert sign_scheduler.sign_time == (7, 15)
+    assert sign_scheduler.scheduled_enabled is True
+    assert sign_scheduler.enable_all_users is True
+
+    notices_scheduler = runtime.services["notices_scheduler"]
+    assert notices_scheduler.announcement_enabled is False
+    assert notices_scheduler.push_time == (2, 10)
+    assert notices_scheduler.poll_minutes == 20
+
+    # 3. 验证命令前缀动态生效
+    help_spec = runtime.commands.get("help")
+    assert help_spec.pattern.startswith("^dna")
