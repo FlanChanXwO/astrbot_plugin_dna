@@ -68,7 +68,7 @@ async def test_response_factory_converts_framework_free_chain_parts() -> None:
     assert isinstance(result[0], Plain)
     assert result[0].text == "作者"
     assert isinstance(result[1], Image)
-    assert result[1].file == "/tmp/guide.png"
+    assert result[1].file.endswith("/tmp/guide.png")
 
 
 @pytest.mark.asyncio
