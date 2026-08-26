@@ -130,12 +130,9 @@
         "default": false
       },
       "sign_time": {
-        "type": "list",
-        "description": "每日签到时间，格式为 [小时, 分钟]。",
-        "default": [
-          0,
-          5
-        ]
+        "type": "string",
+        "description": "每日签到时间，格式为 HH:mm。",
+        "default": "00:05"
       },
       "concurrency": {
         "type": "int",

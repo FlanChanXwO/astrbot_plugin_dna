@@ -70,8 +70,8 @@ CONFIG_DEFAULT = {
             },
             "DNAPaint": {
                 "description": "角色立绘作者",
-                "type": "string",
-                "default": "all",
+                "type": "list",
+                "default": ["all"],
                 "options": ["all", "狩月庭攻略组", "猫冬"],
             },
             "DNAPaintShowNone": {
@@ -80,6 +80,11 @@ CONFIG_DEFAULT = {
                 "default": True,
             },
             "DNAAt": {
+                "description": "允许通过 @ 查询他人信息",
+                "type": "bool",
+                "default": True,
+            },
+            "AllowAtQuery": {
                 "description": "允许通过 @ 查询他人信息",
                 "type": "bool",
                 "default": True,
@@ -129,6 +134,36 @@ CONFIG_DEFAULT = {
                 "description": "密函推送开关",
                 "type": "bool",
                 "default": True,
+            },
+            "DNAUrlProxyUrl": {
+                "description": "二重螺旋 API 代理地址",
+                "type": "string",
+                "default": "",
+            },
+            "LocalProxyUrl": {
+                "description": "本地代理地址",
+                "type": "string",
+                "default": "",
+            },
+            "NeedProxyFunc": {
+                "description": "需要使用代理的函数",
+                "type": "list",
+                "default": [],
+            },
+            "NoNeedProxyFunc": {
+                "description": "强制不使用代理的函数",
+                "type": "list",
+                "default": [],
+            },
+            "WebSocketContinueTime": {
+                "description": "WebSocket 保活持续时间（秒）",
+                "type": "int",
+                "default": 300,
+            },
+            "WebSocketWaitTime": {
+                "description": "等待 WebSocket 建立连接的时间（秒）",
+                "type": "int",
+                "default": 5,
             },
         },
     },
@@ -181,6 +216,50 @@ CONFIG_DEFAULT = {
     },
 }
 
+_LEGACY_MAP: dict[str, tuple[str, str]] = {
+    # login
+    "MaxBindNum": ("login", "max_bind_count"),
+    "DNALoginUrl": ("login", "url"),
+    "DNALoginBindHost": ("login", "bind_host"),
+    "DNALoginPort": ("login", "port"),
+    "DNALoginTransport": ("login", "transport"),
+    "DNALoginSecret": ("login", "shared_secret"),
+    "DNATencentWord": ("login", "tencent_docs"),
+    "DNAQRLogin": ("login", "qr_login"),
+    "DNALoginForward": ("login", "forward_login"),
+    # display
+    "CommandPrefix": ("display", "command_prefix"),
+    "DNAPaint": ("display", "guide_providers"),
+    "DNAPaintShowNone": ("display", "show_unowned_roles"),
+    "DNAAt": ("display", "allow_mention_query"),
+    "AllowAtQuery": ("display", "allow_mention_query"),
+    # notifications
+    "DNAAnnState": ("notifications", "announcement_enabled"),
+    "DNAAnnGroups": ("notifications", "announcement_groups"),
+    "DNAAnnIds": ("notifications", "announcement_ids"),
+    "AnnMinuteCheck": ("notifications", "announcement_check_minutes"),
+    "MHSubscribe": ("notifications", "secret_subscriptions"),
+    "MHPushSubscribe": ("notifications", "secret_push_time"),
+    "MHCache": ("notifications", "secret_cache"),
+    "MHSimplePic": ("notifications", "secret_simple_image"),
+    "MHPushTask": ("notifications", "announcement_enabled"),
+    # network
+    "DNAUrlProxyUrl": ("network", "api_proxy_url"),
+    "LocalProxyUrl": ("network", "local_proxy_url"),
+    "NeedProxyFunc": ("network", "proxy_functions"),
+    "NoNeedProxyFunc": ("network", "no_proxy_functions"),
+    "WebSocketContinueTime": ("network", "websocket_continue_seconds"),
+    "WebSocketWaitTime": ("network", "websocket_wait_seconds"),
+    # sign_in
+    "SignTime": ("sign_in", "sign_time"),
+    "SignAllUser": ("sign_in", "enable_all_users"),
+    "DNABBSLink": ("sign_in", "community_tasks"),
+    "SignRandomTime": ("sign_in", "concurrency_interval_seconds"),
+    "PrivateSignReport": ("sign_in", "private_report"),
+    "GroupSignReport": ("sign_in", "group_report"),
+    "GroupSignReportPic": ("sign_in", "group_report_image"),
+}
+
 
 def generate_astrbot_schema() -> dict[str, Any]:
     return copy.deepcopy(CONFIG_DEFAULT)
@@ -201,19 +280,41 @@ class _ConfigNamespace:
 
     def get_config(self, key: str) -> ConfigEntry:
         schema = CONFIG_DEFAULT.get(self._section, {}).get("items", {})
-        if key not in schema:
+        if key not in schema and key not in _LEGACY_MAP:
             raise KeyError(f"未知配置项: {key}")
 
-        default_val = schema[key].get("default")
+        default_val = schema.get(key, {}).get("default")
         if self._store is not None:
+            # 1. 尝试从 typed 配置映射读取
+            if key in _LEGACY_MAP:
+                group_name, field_name = _LEGACY_MAP[key]
+                group_data = self._store.get(group_name)
+                if isinstance(group_data, dict) and field_name in group_data:
+                    val = group_data[field_name]
+                    if hasattr(val, "get_secret_value"):
+                        val = val.get_secret_value()
+                    return ConfigEntry(data=val)
+
+            # 2. 尝试从 legacy section 读取
             section_data = self._store.get(self._section)
             if isinstance(section_data, dict) and key in section_data:
-                return ConfigEntry(data=section_data[key])
+                val = section_data[key]
+                if hasattr(val, "get_secret_value"):
+                    val = val.get_secret_value()
+                return ConfigEntry(data=val)
+
+            # 3. 尝试从顶层直接读取
+            if key in self._store:
+                val = self._store[key]
+                if hasattr(val, "get_secret_value"):
+                    val = val.get_secret_value()
+                return ConfigEntry(data=val)
+
         return ConfigEntry(data=default_val)
 
     def set_config(self, key: str, value: Any) -> None:
         schema = CONFIG_DEFAULT.get(self._section, {}).get("items", {})
-        if key not in schema:
+        if key not in schema and key not in _LEGACY_MAP:
             raise KeyError(f"未知配置项: {key}")
         if self._store is not None:
             self._store.setdefault(self._section, {})[key] = value

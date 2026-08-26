@@ -62,7 +62,7 @@ class SignScheduler:
         checkin: SchedulableCheckin,
         subscriptions: SubscriptionStore,
         *,
-        sign_time: tuple[int, int] = (0, 5),
+        sign_time: str | tuple[int, int] = "00:05",
         cleanup_time: tuple[int, int] = (0, 5),
         scheduled_enabled: bool = True,
         enable_all_users: bool = False,

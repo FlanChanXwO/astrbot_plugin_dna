@@ -40,12 +40,12 @@ def test_settings_are_grouped_and_typed() -> None:
     loaded = DnabySettings.from_config(
         {
             "login": {"transport": "http_poll", "port": 6200},
-            "sign_in": {"sign_time": [1, 30]},
+            "sign_in": {"sign_time": "01:30"},
         }
     )
     assert loaded.login.transport == "http_poll"
     assert loaded.login.port == 6200
-    assert loaded.sign_in.sign_time == (1, 30)
+    assert loaded.sign_in.sign_time == "01:30"
 
 
 def test_generated_schema_is_astrbot_compatible(tmp_path: Path) -> None:
@@ -59,7 +59,7 @@ def test_generated_schema_is_astrbot_compatible(tmp_path: Path) -> None:
         "sse",
         "ws",
     ]
-    assert schema["sign_in"]["items"]["sign_time"]["default"] == [0, 5]
+    assert schema["sign_in"]["items"]["sign_time"]["default"] == "00:05"
 
     from astrbot.core import AstrBotConfig
 

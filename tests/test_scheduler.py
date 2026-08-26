@@ -194,3 +194,27 @@ async def test_run_sign_once_continues_when_one_subscriber_push_fails(tmp_path: 
 
     assert "今日成功游戏签到 2 个账号" in text
     assert pushed == ["platform:group:ok_group"]
+
+
+@pytest.mark.asyncio
+async def test_sign_scheduler_parses_string_sign_time(tmp_path: Path) -> None:
+    """SignScheduler 支持 HH:mm 字符串格式的时间。"""
+    scheduler = SignScheduler(
+        _FakeCheckin(),
+        SubscriptionStore(tmp_path / "subscriptions.json"),
+        sign_time="08:30",
+        sleep=_noop_sleep,
+    )
+    assert scheduler.sign_time == (8, 30)
+
+
+@pytest.mark.asyncio
+async def test_sign_scheduler_falls_back_on_invalid_sign_time(tmp_path: Path) -> None:
+    """SignScheduler 在遇到非法时间格式时回退到 00:05。"""
+    scheduler = SignScheduler(
+        _FakeCheckin(),
+        SubscriptionStore(tmp_path / "subscriptions.json"),
+        sign_time="invalid:time",
+        sleep=_noop_sleep,
+    )
+    assert scheduler.sign_time == (0, 5)

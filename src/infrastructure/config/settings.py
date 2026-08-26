@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 from .legacy import DNA_PREFIX, DNAConfig, DNASignConfig
 
@@ -106,10 +106,28 @@ class SignInSettings(_SettingsModel):
         description="是否为所有已登录用户自动执行签到。",
     )
     scheduled_enabled: bool = Field(default=False, description="是否启用定时签到。")
-    sign_time: tuple[int, int] = Field(
-        default=(0, 5),
-        description="每日签到时间，格式为 [小时, 分钟]。",
+    sign_time: str = Field(
+        default="00:05",
+        description="每日签到时间，格式为 HH:mm。",
     )
+
+    @field_validator("sign_time", mode="before")
+    @classmethod
+    def _validate_sign_time(cls, value: Any) -> str:
+        if isinstance(value, str):
+            parts = value.strip().split(":")
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                hour, minute = int(parts[0]), int(parts[1])
+                if 0 <= hour <= 23 and 0 <= minute <= 59:
+                    return f"{hour:02d}:{minute:02d}"
+        elif isinstance(value, (tuple, list)) and len(value) == 2:
+            try:
+                hour, minute = int(value[0]), int(value[1])
+                if 0 <= hour <= 23 and 0 <= minute <= 59:
+                    return f"{hour:02d}:{minute:02d}"
+            except (ValueError, TypeError):
+                pass
+        return "00:05"
     concurrency: int = Field(
         default=1,
         ge=1,
@@ -200,7 +218,12 @@ class DnabySettings(_SettingsModel):
                 for key, value in sign_in.items()
                 if key not in {"game_enabled", "community_enabled"}
             }
-        return cls.model_validate(values)
+        settings = cls.model_validate(values)
+        if hasattr(DNAConfig, "bind"):
+            DNAConfig.bind(values)
+        if hasattr(DNASignConfig, "bind"):
+            DNASignConfig.bind(values)
+        return settings
 
 
 

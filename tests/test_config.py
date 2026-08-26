@@ -96,3 +96,147 @@ def test_display_settings_supports_configurable_command_prefix():
 
     default_settings = DnabySettings.from_config({})
     assert default_settings.display.command_prefix == "kk"
+
+
+def test_sign_time_string_format_and_fallback():
+    # 正常 HH:mm 格式
+    assert SignInSettings(sign_time="08:30").sign_time == "08:30"
+    assert SignInSettings(sign_time="00:05").sign_time == "00:05"
+    assert SignInSettings(sign_time="23:59").sign_time == "23:59"
+    # 单数字小时归一化
+    assert SignInSettings(sign_time="8:30").sign_time == "08:30"
+    # 格式错误时回退到 00:05
+    assert SignInSettings(sign_time="24:00").sign_time == "00:05"
+    assert SignInSettings(sign_time="12:60").sign_time == "00:05"
+    assert SignInSettings(sign_time="invalid").sign_time == "00:05"
+    assert SignInSettings(sign_time="").sign_time == "00:05"
+    assert SignInSettings(sign_time=None).sign_time == "00:05"
+    # 兼容 list/tuple 输入并归一化为 HH:mm 字符串
+    assert SignInSettings(sign_time=[1, 30]).sign_time == "01:30"
+    assert SignInSettings(sign_time=[25, 0]).sign_time == "00:05"
+
+
+def test_all_config_items_resolve_from_typed_config():
+    """测试 typed 配置字典能够完整生效，包括 legacy namespace 和 typed settings。"""
+    config_dict = {
+        "login": {
+            "url": "http://127.0.0.1:8000",
+            "bind_host": "0.0.0.0",
+            "port": 9000,
+            "transport": "http_poll",
+            "shared_secret": "my-secret",
+            "tencent_docs": True,
+            "qr_login": True,
+            "forward_login": True,
+            "max_bind_count": 5,
+        },
+        "network": {
+            "api_proxy_url": "http://proxy.api",
+            "local_proxy_url": "http://127.0.0.1:7890",
+            "proxy_functions": ["all"],
+            "no_proxy_functions": ["login"],
+            "websocket_continue_seconds": 600,
+            "websocket_wait_seconds": 10,
+        },
+        "sign_in": {
+            "community_tasks": ["bbs_sign"],
+            "enable_all_users": True,
+            "scheduled_enabled": True,
+            "sign_time": "06:30",
+            "concurrency": 3,
+            "concurrency_interval_seconds": [5, 10],
+            "private_report": True,
+            "group_report": True,
+            "group_report_image": True,
+        },
+        "notifications": {
+            "announcement_enabled": False,
+            "announcement_groups": {"123": True},
+            "announcement_ids": [101, 102],
+            "announcement_check_minutes": 15,
+            "secret_subscriptions": ["private", "group"],
+            "secret_push_time": "01:00",
+            "secret_cache": False,
+            "secret_simple_image": True,
+        },
+        "display": {
+            "command_prefix": "dna",
+            "guide_providers": ["猫冬"],
+            "show_unowned_roles": False,
+            "allow_mention_query": False,
+        },
+    }
+    settings = DnabySettings.from_config(config_dict)
+
+    # 验证 typed settings
+    assert settings.login.url == "http://127.0.0.1:8000"
+    assert settings.login.bind_host == "0.0.0.0"
+    assert settings.login.port == 9000
+    assert settings.login.transport == "http_poll"
+    assert settings.login.shared_secret.get_secret_value() == "my-secret"
+    assert settings.login.tencent_docs is True
+    assert settings.login.qr_login is True
+    assert settings.login.forward_login is True
+    assert settings.login.max_bind_count == 5
+
+    assert settings.network.api_proxy_url == "http://proxy.api"
+    assert settings.network.local_proxy_url == "http://127.0.0.1:7890"
+    assert settings.network.proxy_functions == ["all"]
+    assert settings.network.no_proxy_functions == ["login"]
+    assert settings.network.websocket_continue_seconds == 600
+    assert settings.network.websocket_wait_seconds == 10
+
+    assert settings.sign_in.community_tasks == ["bbs_sign"]
+    assert settings.sign_in.enable_all_users is True
+    assert settings.sign_in.scheduled_enabled is True
+    assert settings.sign_in.sign_time == "06:30"
+    assert settings.sign_in.concurrency == 3
+    assert settings.sign_in.concurrency_interval_seconds == (5, 10)
+    assert settings.sign_in.private_report is True
+    assert settings.sign_in.group_report is True
+    assert settings.sign_in.group_report_image is True
+
+    assert settings.notifications.announcement_enabled is False
+    assert settings.notifications.announcement_groups == {"123": True}
+    assert settings.notifications.announcement_ids == [101, 102]
+    assert settings.notifications.announcement_check_minutes == 15
+    assert settings.notifications.secret_subscriptions == ["private", "group"]
+    assert settings.notifications.secret_push_time == "01:00"
+    assert settings.notifications.secret_cache is False
+    assert settings.notifications.secret_simple_image is True
+
+    assert settings.display.command_prefix == "dna"
+    assert settings.display.guide_providers == ["猫冬"]
+    assert settings.display.show_unowned_roles is False
+    assert settings.display.allow_mention_query is False
+
+    # 验证 legacy namespace get_config 同步生效
+    assert DNAConfig.get_config("MaxBindNum").data == 5
+    assert DNAConfig.get_config("DNALoginUrl").data == "http://127.0.0.1:8000"
+    assert DNAConfig.get_config("DNALoginBindHost").data == "0.0.0.0"
+    assert DNAConfig.get_config("DNALoginPort").data == 9000
+    assert DNAConfig.get_config("DNALoginTransport").data == "http_poll"
+    assert DNAConfig.get_config("DNALoginSecret").data == "my-secret"
+    assert DNAConfig.get_config("DNAQRLogin").data is True
+    assert DNAConfig.get_config("DNALoginForward").data is True
+    assert DNAConfig.get_config("DNATencentWord").data is True
+    assert DNAConfig.get_config("CommandPrefix").data == "dna"
+    assert DNAConfig.get_config("DNAPaint").data == ["猫冬"]
+    assert DNAConfig.get_config("DNAPaintShowNone").data is False
+    assert DNAConfig.get_config("DNAAt").data is False
+    assert DNAConfig.get_config("AllowAtQuery").data is False
+    assert DNAConfig.get_config("DNAAnnState").data is False
+    assert DNAConfig.get_config("DNAUrlProxyUrl").data == "http://proxy.api"
+    assert DNAConfig.get_config("LocalProxyUrl").data == "http://127.0.0.1:7890"
+    assert DNAConfig.get_config("NeedProxyFunc").data == ["all"]
+    assert DNAConfig.get_config("NoNeedProxyFunc").data == ["login"]
+    assert DNAConfig.get_config("WebSocketContinueTime").data == 600
+    assert DNAConfig.get_config("WebSocketWaitTime").data == 10
+
+    assert DNASignConfig.get_config("SignTime").data == "06:30"
+    assert DNASignConfig.get_config("SignAllUser").data is True
+    assert DNASignConfig.get_config("DNABBSLink").data == ["bbs_sign"]
+    assert list(DNASignConfig.get_config("SignRandomTime").data) == [5, 10]
+    assert DNASignConfig.get_config("PrivateSignReport").data is True
+    assert DNASignConfig.get_config("GroupSignReport").data is True
+    assert DNASignConfig.get_config("GroupSignReportPic").data is True
