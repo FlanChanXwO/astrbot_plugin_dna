@@ -120,9 +120,10 @@ def build_runtime(
         allow_mention_query=settings.display.allow_mention_query,
     )
     resource_root = resource_repository_dir(runtime_database.path.parent)
-    if resource_root.exists():
+    manifest_path = resource_root / "resource_manifest.json"
+    if manifest_path.exists():
         ResourceManifest.load(
-            resource_root / "resource_manifest.json",
+            manifest_path,
         ).validate_runtime_layout(resource_root)
     player_resources = ResourceMap.from_root(resource_root)
     encyclopedia_resources = EncyclopediaResourceStore.from_root(resource_root)

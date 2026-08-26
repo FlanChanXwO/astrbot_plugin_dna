@@ -224,3 +224,14 @@ def test_response_factory_plain_with_need_at_in_group_creates_at_chain():
 
     no_at_res = factory.build(GroupEvent(), PlainTextResponse("测试消息", need_at=False))
     assert no_at_res == ("plain", "测试消息")
+
+
+def test_build_runtime_handles_existing_resource_dir_without_manifest(tmp_path: Path):
+    """当 resources 目录存在但尚未拉取 manifest 时，runtime 组装不抛出异常。"""
+    from src.bootstrap import build_runtime
+    from src.infrastructure.persistence import AsyncDatabase
+
+    db = AsyncDatabase.from_data_dir(tmp_path)
+    (tmp_path / "resources").mkdir(parents=True, exist_ok=True)
+    runtime = build_runtime(FakeContext(), {}, database=db)
+    assert runtime is not None

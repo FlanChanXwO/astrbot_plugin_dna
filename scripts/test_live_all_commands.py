@@ -15,6 +15,7 @@ from astrbot.api.star import StarTools
 
 from src.bootstrap import build_runtime
 from src.entry.commands import (
+    CommandRegistry,
     CommandRequest,
     execute_use_case,
     load_command_registry,
@@ -44,6 +45,119 @@ def _save_reports(output_dir: Path, report_data: dict[str, object], markdown_tex
         f.write(markdown_text)
 
     return report_json_path, report_md_path
+
+
+async def _execute_single_command(
+    test_id: str,
+    msg_text: str,
+    desc: str,
+    registry: CommandRegistry,
+    runtime_services: dict[str, object],
+    actor: EventActor,
+) -> dict[str, object]:
+    print(f"\n>>> Testing: {test_id} ({msg_text}) [{desc}]")
+    matched_spec = None
+    matched_params = {}
+    for spec in registry:
+        m = re.match(spec.pattern, msg_text)
+        if m is not None:
+            matched_spec = spec
+            matched_params = m.groupdict()
+            break
+
+    if not matched_spec:
+        print(f"❌ No matching command spec for: {msg_text}")
+        return {
+            "test_id": test_id,
+            "command": msg_text,
+            "description": desc,
+            "status": "NO_SPEC_MATCH",
+            "responses": [],
+        }
+
+    req = CommandRequest(
+        command_id=matched_spec.id,
+        text=msg_text,
+        parameters=matched_params,
+        actor=actor,
+        target_user_id=None,
+        reply_id=None,
+        services=runtime_services,
+        images=(),
+    )
+
+    try:
+        responses = []
+        async for resp in execute_use_case(matched_spec, req, registry):
+            responses.append(resp)
+
+        print(f"   Count of responses: {len(responses)}")
+        resp_summary: list[dict[str, object]] = []
+        for i, r in enumerate(responses):
+            if isinstance(r, PlainTextResponse):
+                text_sample = r.text.replace("\n", " ")
+                print(f"   [{i}] PlainText(need_at={r.need_at}): {text_sample[:150]}")
+                resp_summary.append({
+                    "type": "PlainText",
+                    "need_at": r.need_at,
+                    "text": r.text,
+                })
+            elif isinstance(r, ImageResponse):
+                img_path = r.image
+                img_info: dict[str, object] = {"type": "Image"}
+                if isinstance(img_path, (str, Path)) and os.path.exists(str(img_path)):
+                    size_bytes = os.path.getsize(str(img_path))
+                    try:
+                        with Image.open(str(img_path)) as im:
+                            w, h = im.size
+                            fmt = im.format
+                            print(f"   [{i}] Image: path={img_path}, size={size_bytes:,}B, res={w}x{h}, fmt={fmt}")
+                            img_info.update({
+                                "path": str(img_path),
+                                "size_bytes": size_bytes,
+                                "resolution": f"{w}x{h}",
+                                "format": fmt,
+                            })
+                    except (OSError, ValueError) as e:
+                        print(f"   [{i}] Image: path={img_path}, size={size_bytes:,}B, error: {e}")
+                        img_info.update({"path": str(img_path), "size_bytes": size_bytes, "error": str(e)})
+                elif isinstance(img_path, bytes):
+                    print(f"   [{i}] Image: raw_bytes, size={len(img_path):,}B")
+                    img_info.update({"size_bytes": len(img_path), "raw": True})
+                else:
+                    print(f"   [{i}] Image: path={img_path} (NOT FOUND ON DISK)")
+                    img_info.update({"path": str(img_path), "missing": True})
+                resp_summary.append(img_info)
+            elif isinstance(r, ChainResponse):
+                print(f"   [{i}] ChainResponse: {r.components}")
+                resp_summary.append({
+                    "type": "ChainResponse",
+                    "components": str(r.components),
+                })
+            else:
+                print(f"   [{i}] Other response: {type(r).__name__} -> {r}")
+                resp_summary.append({
+                    "type": type(r).__name__,
+                    "value": str(r),
+                })
+        return {
+            "test_id": test_id,
+            "command": msg_text,
+            "description": desc,
+            "status": "OK",
+            "responses": resp_summary,
+        }
+    except Exception as exc:  # noqa: BLE001
+        print(f"❌ Error executing {test_id}: {exc}")
+        traceback.print_exc()
+        return {
+            "test_id": test_id,
+            "command": msg_text,
+            "description": desc,
+            "status": "ERROR",
+            "error": str(exc),
+            "responses": [],
+        }
 
 
 async def run() -> None:
@@ -83,15 +197,19 @@ async def run() -> None:
         ("kk帮助", "kk帮助", "帮助菜单卡片渲染"),
 
         # 1. 账号与隐私控制
+        ("kk登录", "kk登录", "生成登录二维码/URL会话"),
         ("kk查看UID", "kk查看UID", "查看绑定UID"),
         ("kk获取ck", "kk获取ck", "查看凭据状态"),
+        ("kk绑定1002631141868", "kk绑定1002631141868", "重新/重复绑定测试UID"),
         ("kk开偷窥", "kk开偷窥", "开启个人偷窥"),
         ("kk防偷窥", "kk防偷窥", "关闭个人偷窥"),
         ("kk隐藏UID", "kk隐藏UID", "开启隐藏UID"),
         ("kk显示UID", "kk显示UID", "关闭隐藏UID"),
         ("kk切换1002631141868", "kk切换1002631141868", "切换当前激活UID"),
-        ("kk指定隐藏UID", "kk指定隐藏UID", "管理员指定隐藏UID"),
-        ("kk指定显示UID", "kk指定显示UID", "管理员指定显示UID"),
+        ("kk指定开偷窥", "kk指定开偷窥", "管理员指定开偷窥提示"),
+        ("kk指定防偷窥", "kk指定防偷窥", "管理员指定防偷窥提示"),
+        ("kk指定隐藏UID", "kk指定隐藏UID", "管理员指定隐藏UID提示"),
+        ("kk指定显示UID", "kk指定显示UID", "管理员指定显示UID提示"),
         ("kk全体隐藏UID", "kk全体隐藏UID", "管理员全体隐藏UID"),
         ("kk全体显示UID", "kk全体显示UID", "管理员全体显示UID"),
         ("kk取消全体UID隐藏", "kk取消全体UID隐藏", "管理员取消全体UID隐藏"),
@@ -104,6 +222,7 @@ async def run() -> None:
         ("kk菲娜详情", "kk菲娜详情", "角色属性与武器详情卡T2I渲染"),
         ("kk菲娜详情+暗月+暗月", "kk菲娜详情+暗月+暗月", "角色与自定义武器面板详情"),
         ("kk原图", "kk原图", "角色原图查询（提示暂不支持）"),
+        ("kk原图删除", "kk原图删除", "删除角色原图"),
 
         # 3. 百科、周报与便签模块
         ("kk便签", "kk便签", "实时便签与体力卡片T2I渲染"),
@@ -120,11 +239,12 @@ async def run() -> None:
 
         # 4. 签到模块
         ("kk签到", "kk签到", "手动执行签到任务"),
+        ("kk全部签到", "kk全部签到", "手动批量全部签到"),
         ("kk签到日历", "kk签到日历", "当月签到记录日历T2I渲染"),
         ("kk订阅签到结果", "kk订阅签到结果", "订阅签到广播"),
         ("kk取消订阅签到结果", "kk取消订阅签到结果", "取消订阅签到广播"),
 
-        # 5. 密函与公告模块
+        # 5. 密函模块
         ("kk密函", "kk密函", "密函卡片T2I渲染"),
         ("kk密函列表", "kk密函列表", "可订阅密函类型列表"),
         ("kk订阅扼守密函", "kk订阅扼守密函", "订阅指定密函并@用户"),
@@ -136,163 +256,69 @@ async def run() -> None:
         ("kk取消订阅密函文本", "kk取消订阅密函文本", "关闭密函文本推送"),
         ("kk密函测试", "kk密函测试", "密函推送测试"),
         ("kk取消订阅扼守密函", "kk取消订阅扼守密函", "取消订阅指定密函"),
+
+        # 6. 公告模块
         ("kk公告", "kk公告", "最新公告列表T2I渲染"),
         ("kk公告 1", "kk公告 1", "指定序号公告详情查询"),
         ("kk订阅公告", "kk订阅公告", "群聊订阅游戏公告"),
         ("kk取消订阅公告", "kk取消订阅公告", "群聊退订游戏公告"),
 
-        # 6. 运维与别名管理
+        # 7. 运维与资源模块
         ("kk资源状态", "kk资源状态", "公共资源目录健康检查"),
         ("kk更新记录", "kk更新记录", "Git更新日志查询"),
         ("kk恢复别名", "kk恢复别名", "恢复内置角色别名映射"),
         ("kk添加角色辛西娅别名小辛", "kk添加角色辛西娅别名小辛", "添加自定义角色别名"),
         ("kk删除角色辛西娅别名小辛", "kk删除角色辛西娅别名小辛", "删除自定义角色别名"),
         ("kk菲娜面板图列表", "kk菲娜面板图列表", "查询自定义面板图"),
+        ("kk上传菲娜面板图", "kk上传菲娜面板图", "上传面板图缺失图片提示"),
+        ("kk删除菲娜面板图test", "kk删除菲娜面板图test", "删除指定面板图"),
+        ("kk删除菲娜全部面板图", "kk删除菲娜全部面板图", "删除全部面板图"),
         ("kk压缩面板图", "kk压缩面板图", "压缩自定义面板图"),
+        ("kk下载全部资源", "kk下载全部资源", "下载/同步全部公共资源"),
     ]
 
+    output_dir = Path(__file__).resolve().parent / "output"
     results: list[dict[str, object]] = []
-    output_dir = Path(__file__).resolve().parents[1] / "scripts" / "output"
 
     for test_id, msg_text, desc in test_commands:
-        print(f"\n>>> Testing command: {test_id} ({msg_text}) [{desc}]")
-        matched_spec = None
-        matched_params = {}
-        for spec in registry:
-            m = re.match(spec.pattern, msg_text)
-            if m is not None:
-                matched_spec = spec
-                matched_params = m.groupdict()
-                break
-
-        if not matched_spec:
-            print(f"❌ No matching command spec for: {msg_text}")
-            results.append({
-                "test_id": test_id,
-                "command": msg_text,
-                "description": desc,
-                "status": "NO_SPEC_MATCH",
-            })
-            continue
-
-        req = CommandRequest(
-            command_id=matched_spec.id,
-            text=msg_text,
-            parameters=matched_params,
+        res = await _execute_single_command(
+            test_id=test_id,
+            msg_text=msg_text,
+            desc=desc,
+            registry=registry,
+            runtime_services=services,
             actor=actor,
-            target_user_id=None,
-            reply_id=None,
-            services=services,
-            images=(),
         )
+        results.append(res)
 
-        try:
-            responses = []
-            async for resp in execute_use_case(matched_spec, req, registry):
-                responses.append(resp)
+    # Configurable Prefix Tests
+    prefix_tests = [
+        ("dna", "dna卡片", "dna卡片 (前缀配置为dna)", "自定义前缀dna卡片指令渲染"),
+        ("dna", "dna帮助", "dna帮助 (前缀配置为dna)", "自定义前缀dna帮助指令渲染"),
+        ("", "卡片", "卡片 (无前缀配置)", "无前缀卡片指令渲染"),
+    ]
 
-            print(f"   Count of responses: {len(responses)}")
-            resp_summary = []
-            for i, r in enumerate(responses):
-                if isinstance(r, PlainTextResponse):
-                    text_sample = r.text.replace("\n", " \n ")
-                    print(f"   [{i}] PlainText(need_at={r.need_at}): {text_sample[:150]}")
-                    resp_summary.append({
-                        "type": "PlainText",
-                        "need_at": r.need_at,
-                        "text": r.text,
-                    })
-                elif isinstance(r, ImageResponse):
-                    img_path = r.image
-                    img_info: dict[str, object] = {"type": "Image"}
-                    if isinstance(img_path, (str, Path)) and os.path.exists(str(img_path)):
-                        size_bytes = os.path.getsize(str(img_path))
-                        try:
-                            with Image.open(str(img_path)) as im:
-                                w, h = im.size
-                                fmt = im.format
-                                print(f"   [{i}] Image: path={img_path}, size={size_bytes:,}B, res={w}x{h}, fmt={fmt}")
-                                img_info.update({
-                                    "path": str(img_path),
-                                    "size_bytes": size_bytes,
-                                    "resolution": f"{w}x{h}",
-                                    "format": fmt,
-                                })
-                        except (OSError, ValueError) as e:
-                            print(f"   [{i}] Image: path={img_path}, size={size_bytes:,}B, error: {e}")
-                            img_info.update({"path": str(img_path), "size_bytes": size_bytes, "error": str(e)})
-                    elif isinstance(img_path, bytes):
-                        print(f"   [{i}] Image: raw_bytes, size={len(img_path):,}B")
-                        img_info.update({"size_bytes": len(img_path), "raw": True})
-                    else:
-                        print(f"   [{i}] Image: path={img_path} (NOT FOUND ON DISK)")
-                        img_info.update({"path": str(img_path), "missing": True})
-                    resp_summary.append(img_info)
-                elif isinstance(r, ChainResponse):
-                    print(f"   [{i}] ChainResponse: {r.components}")
-                    resp_summary.append({
-                        "type": "ChainResponse",
-                        "components": str(r.components),
-                    })
-                else:
-                    print(f"   [{i}] Other response: {type(r).__name__} -> {r}")
-                    resp_summary.append({
-                        "type": type(r).__name__,
-                        "value": str(r),
-                    })
-            results.append({
-                "test_id": test_id,
-                "command": msg_text,
-                "description": desc,
-                "status": "OK",
-                "responses": resp_summary,
-            })
-        except Exception as exc:  # noqa: BLE001
-            print(f"❌ Error executing {test_id}: {exc}")
-            traceback.print_exc()
-            results.append({
-                "test_id": test_id,
-                "command": msg_text,
-                "description": desc,
-                "status": "ERROR",
-                "error": str(exc),
-            })
-
-    # Custom Prefix Test (prefix = "dna")
     print("\n========================================")
-    print("Testing Configurable Prefix (prefix='dna')")
+    print("Testing Configurable Prefix Variations")
     print("========================================")
-    dna_registry = load_command_registry(prefix="dna")
-    dna_runtime = build_runtime(ctx, {"display": {"command_prefix": "dna"}}, command_registry=dna_registry, database=db)
-    dna_test_cmd = "dna卡片"
-    dna_spec = next((s for s in dna_registry if re.match(s.pattern, dna_test_cmd)), None)
-    if dna_spec:
-        req = CommandRequest(
-            command_id=dna_spec.id,
-            text=dna_test_cmd,
-            parameters=re.match(dna_spec.pattern, dna_test_cmd).groupdict(),
-            actor=actor,
-            services=dna_runtime.services,
+
+    for pfx, cmd_text, test_title, test_desc in prefix_tests:
+        pfx_registry = load_command_registry(prefix=pfx)
+        pfx_runtime = build_runtime(
+            ctx,
+            {"display": {"command_prefix": pfx}},
+            command_registry=pfx_registry,
+            database=db,
         )
-        try:
-            dna_resps = [resp async for resp in execute_use_case(dna_spec, req, dna_registry)]
-            print(f"✅ Prefix 'dna' test successful for 'dna卡片': {len(dna_resps)} response(s)")
-            results.append({
-                "test_id": "dna卡片 (自定义前缀测试)",
-                "command": dna_test_cmd,
-                "description": "自定义前缀dna指令触发测试",
-                "status": "OK",
-                "responses": [{"type": "Image", "custom_prefix": True}],
-            })
-        except Exception as exc:  # noqa: BLE001
-            print(f"❌ Prefix test failed: {exc}")
-            results.append({
-                "test_id": "dna卡片 (自定义前缀测试)",
-                "command": dna_test_cmd,
-                "description": "自定义前缀dna指令触发测试",
-                "status": "ERROR",
-                "error": str(exc),
-            })
+        res = await _execute_single_command(
+            test_id=test_title,
+            msg_text=cmd_text,
+            desc=test_desc,
+            registry=pfx_registry,
+            runtime_services=pfx_runtime.services,
+            actor=actor,
+        )
+        results.append(res)
 
     # Output report files
     timestamp = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
@@ -341,7 +367,7 @@ async def run() -> None:
     print("SUMMARY OF ALL TESTED COMMANDS")
     print("========================================")
     for item in results:
-        print(f"{item['command']!s:<30} : {item['status']}")
+        print(f"{item['command']!s:<35} : {item['status']}")
     print(f"\nSaved test reports to:\n - {report_json_path}\n - {report_md_path}")
 
 
