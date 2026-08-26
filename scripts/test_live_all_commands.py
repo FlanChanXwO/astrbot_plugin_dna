@@ -166,13 +166,14 @@ async def run() -> None:
             continue
 
         req = CommandRequest(
-            actor=actor,
-            raw_message=msg_text,
+            command_id=matched_spec.id,
+            text=msg_text,
             parameters=matched_params,
+            actor=actor,
             target_user_id=None,
-            is_admin=True,
-            is_bot_owner=True,
-            context=ctx,
+            reply_id=None,
+            services=services,
+            images=(),
         )
 
         try:
