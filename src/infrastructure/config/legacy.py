@@ -228,7 +228,7 @@ _LEGACY_MAP: dict[str, tuple[str, str]] = {
     "DNAQRLogin": ("login", "qr_login"),
     "DNALoginForward": ("login", "forward_login"),
     # display
-    "CommandPrefix": ("display", "command_prefix"),
+    "CommandPrefix": ("display", "command_prefixes"),
     "DNAPaint": ("display", "guide_providers"),
     "DNAPaintShowNone": ("display", "show_unowned_roles"),
     "DNAAt": ("display", "allow_mention_query"),
@@ -293,6 +293,8 @@ class _ConfigNamespace:
                     val = group_data[field_name]
                     if hasattr(val, "get_secret_value"):
                         val = val.get_secret_value()
+                    if key == "CommandPrefix" and isinstance(val, (list, tuple)):
+                        return ConfigEntry(data=val[0] if val else "kk")
                     return ConfigEntry(data=val)
 
             # 2. 尝试从 legacy section 读取

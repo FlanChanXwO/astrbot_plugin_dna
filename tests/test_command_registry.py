@@ -468,3 +468,69 @@ async def test_plugin_handles_custom_prefix_dynamically():
 
     res_kk = [item async for item in plugin.handle_resource_status(Event("kk资源状态"))]
     assert len(res_kk) == 0
+
+
+def test_load_command_registry_supports_multiple_prefixes():
+    """支持多前缀列表，例如 ['kk', 'dna'] 或包含空前缀。"""
+    multi_registry = load_command_registry(prefixes=["kk", "dna"])
+    stamina_spec = multi_registry.get("stamina")
+    assert stamina_spec.pattern == "^(?:dna|kk)(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert stamina_spec.examples[0].startswith("kk")
+
+    matched_kk = multi_registry.match("kk体力")
+    assert matched_kk is not None
+    assert matched_kk.command.id == "stamina"
+
+    matched_dna = multi_registry.match("dna体力")
+    assert matched_dna is not None
+    assert matched_dna.command.id == "stamina"
+
+    # 包含空字符串时支持无前缀
+    multi_empty = load_command_registry(prefixes=["kk", ""])
+    assert multi_empty.get("stamina").pattern == "^(?:kk)?(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert multi_empty.match("体力") is not None
+    assert multi_empty.match("kk体力") is not None
+
+
+@pytest.mark.asyncio
+async def test_plugin_handles_multiple_prefixes_dynamically():
+    """插件配置多前缀列表时，各前缀均能正确触发。"""
+    class Event:
+        def __init__(self, message: str) -> None:
+            self.message = message
+
+        def get_message_str(self) -> str:
+            return self.message
+
+        def get_sender_id(self) -> str:
+            return "10001"
+
+        def get_self_id(self) -> str:
+            return "20002"
+
+        def plain_result(self, text: str) -> tuple[str, str]:
+            return ("plain", text)
+
+    plugin = DnabyPlugin(SimpleNamespace(), {"display": {"command_prefixes": ["kk", "dna"]}})
+    res_dna = [item async for item in plugin.handle_resource_status(Event("dna资源状态"))]
+    assert len(res_dna) == 1
+    assert "资源状态" in res_dna[0][1]
+
+    res_kk = [item async for item in plugin.handle_resource_status(Event("kk资源状态"))]
+    assert len(res_kk) == 1
+    assert "资源状态" in res_kk[0][1]
+
+
+@pytest.mark.asyncio
+async def test_help_card_examples_adapt_to_matched_prefix():
+    """当用户使用特定的前缀（例如 dna帮助）触发时，帮助卡片显示对应的前缀。"""
+    from src.infrastructure.rendering.help import _help_sections, _load_help_data
+
+    plugin_help = _load_help_data()
+    sections_dna = _help_sections(plugin_help, prefix="dna")
+    first_item = sections_dna[0]["items"][0]
+    assert first_item["example"].startswith("dna")
+
+    sections_empty = _help_sections(plugin_help, prefix="")
+    first_item_empty = sections_empty[0]["items"][0]
+    assert not first_item_empty["example"].startswith("kk")

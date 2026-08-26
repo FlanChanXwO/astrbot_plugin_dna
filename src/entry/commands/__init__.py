@@ -54,6 +54,7 @@ class CommandRequest:
     target_user_id: str | None = None
     reply_id: str | None = None
     images: tuple[str, ...] = ()
+    matched_prefix: str = "kk"
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,25 +211,40 @@ class MatchedCommand:
     parameters: dict[str, Any]
 
 
-def _prefix_pattern(pattern: str, prefix: str = COMMAND_PREFIX) -> str:
+def _prefix_pattern(pattern: str, prefixes: Iterable[str] = (COMMAND_PREFIX,)) -> str:
     """给生产命令统一添加触发前缀，模块内仍保留易读的原始正则。"""
 
-    escaped = re.escape(prefix) if prefix else ""
+    prefixes_list = list(dict.fromkeys(prefixes))
+    has_empty = "" in prefixes_list
+    non_empty = [p for p in prefixes_list if p]
+    sorted_non_empty = sorted(non_empty, key=lambda s: (-len(s), s))
+
+    if len(sorted_non_empty) == 0:
+        prefix_expr = ""
+    elif len(sorted_non_empty) == 1:
+        escaped = re.escape(sorted_non_empty[0])
+        prefix_expr = f"(?:{escaped})?" if has_empty else escaped
+    else:
+        escaped_parts = [re.escape(p) for p in sorted_non_empty]
+        joined = "|".join(escaped_parts)
+        prefix_expr = f"(?:{joined})?" if has_empty else f"(?:{joined})"
+
     if pattern.startswith("^"):
-        return f"^{escaped}{pattern[1:]}"
-    return f"^{escaped}{pattern}"
+        return f"^{prefix_expr}{pattern[1:]}"
+    return f"^{prefix_expr}{pattern}"
 
 
-def _prefix_spec(spec: CommandSpec, prefix: str = COMMAND_PREFIX) -> CommandSpec:
+def _prefix_spec(spec: CommandSpec, prefixes: Iterable[str] = (COMMAND_PREFIX,)) -> CommandSpec:
     """生成带前缀的公开命令声明，同时保持原 use case 不变。"""
 
+    primary_prefix = next((p for p in prefixes if p), "")
     return CommandSpec(
         id=spec.id,
-        pattern=_prefix_pattern(spec.pattern, prefix=prefix),
+        pattern=_prefix_pattern(spec.pattern, prefixes=prefixes),
         group=spec.group,
         name=spec.name,
         description=spec.description,
-        examples=tuple(f"{prefix}{example}" for example in spec.examples),
+        examples=tuple(f"{primary_prefix}{example}" for example in spec.examples),
         permission=spec.permission,
         use_case=spec.use_case,
     )
@@ -236,16 +252,24 @@ def _prefix_spec(spec: CommandSpec, prefix: str = COMMAND_PREFIX) -> CommandSpec
 
 def load_command_registry(
     modules: Iterable[ModuleType] | None = None,
-    prefix: str = COMMAND_PREFIX,
+    prefixes: Iterable[str] | None = None,
+    prefix: str | None = None,
 ) -> CommandRegistry:
     """加载代码声明的命令模块索引。"""
+
+    if prefixes is not None:
+        norm_prefixes = tuple(prefixes)
+    elif prefix is not None:
+        norm_prefixes = (prefix,)
+    else:
+        norm_prefixes = (COMMAND_PREFIX,)
 
     if modules is None:
         from ...modules.index import COMMAND_MODULES
 
         modules = COMMAND_MODULES
     raw_registry = CommandRegistry.from_modules(modules)
-    return CommandRegistry(_prefix_spec(spec, prefix=prefix) for spec in raw_registry)
+    return CommandRegistry(_prefix_spec(spec, prefixes=norm_prefixes) for spec in raw_registry)
 
 
 def _canonical_symbol_path(callable_: Callable[..., Any]) -> str:
@@ -393,6 +417,30 @@ def _make_handler(
         parameters = dict(match.groupdict())
         parameters.update(provided_parameters)
         actor = actor_from_event(event)
+        configured_prefixes: list[str] = ["kk"]
+        if runtime is not None and hasattr(runtime, "settings"):
+            display_settings = getattr(runtime.settings, "display", None)
+            if display_settings is not None:
+                configured_prefixes = getattr(
+                    display_settings,
+                    "command_prefixes",
+                    [getattr(display_settings, "command_prefix", "kk")],
+                )
+
+        matched_prefix = configured_prefixes[0] if configured_prefixes else "kk"
+        sorted_prefixes = sorted(
+            [p for p in configured_prefixes if p],
+            key=len,
+            reverse=True,
+        )
+        for p in sorted_prefixes:
+            if message.startswith(p):
+                matched_prefix = p
+                break
+        else:
+            if "" in configured_prefixes:
+                matched_prefix = ""
+
         request = CommandRequest(
             command_id=active_spec.id,
             text=message,
@@ -405,6 +453,7 @@ def _make_handler(
             reply_id=reply_id_from_event(event),
             services=getattr(runtime, "services", {}),
             images=images_from_event(event),
+            matched_prefix=matched_prefix,
         )
         try:
             async for result in execute_use_case(

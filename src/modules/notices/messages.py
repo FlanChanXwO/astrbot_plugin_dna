@@ -18,8 +18,16 @@ MH_PIC_SUBSCRIBE = "订阅二重螺旋图片密函"
 MH_TEXT_SUBSCRIBE = "订阅二重螺旋文本密函"
 ANN_SUBSCRIBE = "订阅DNA公告"
 
+def mh_all_forbidden(prefix: str = "kk") -> str:
+    return f"禁止订阅全部密函, 请使用[{prefix}密函列表]命令查看可订阅密函"
+
+
+def mh_push_time_format(prefix: str = "kk") -> str:
+    return f"设置推送时间段格式错误，请使用以下格式\n例如开始时间:17点, 结束时间:23点, 命令: {prefix}订阅密函时间17:23"
+
+
 COMMAND_PREFIX = "kk"
-MH_ALL_FORBIDDEN = f"禁止订阅全部密函, 请使用[{COMMAND_PREFIX}密函列表]命令查看可订阅密函"
+MH_ALL_FORBIDDEN = mh_all_forbidden(COMMAND_PREFIX)
 MH_SUBSCRIBED_TEMPLATE = "成功订阅密函【{names}】"
 MH_DUPLICATE = "请勿重复订阅密函【{name}】"
 MH_UNSUBSCRIBED = "成功取消订阅密函【{name}】"
@@ -29,7 +37,7 @@ MH_SUBSCRIBE_EMPTY = "订阅列表为空"
 MH_CURRENT = "当前订阅密函: {names}"
 MH_PUSH_TIME_UNLIMITED = "推送时间: 不限制"
 MH_PUSH_TIME_SET = "推送时间: {start}点-{end}点"
-MH_PUSH_TIME_FORMAT = f"设置推送时间段格式错误，请使用以下格式\n例如开始时间:17点, 结束时间:23点, 命令: {COMMAND_PREFIX}订阅密函时间17:23"
+MH_PUSH_TIME_FORMAT = mh_push_time_format(COMMAND_PREFIX)
 MH_PIC_SUBSCRIBED = "成功订阅密函图片"
 MH_PIC_UNSUBSCRIBED = "成功取消订阅密函图片"
 MH_PIC_NOT_SUBSCRIBED = "未曾订阅密函图片"
@@ -97,5 +105,7 @@ __all__ = [
     "NOTICES_PEEK_BLOCKED",
     "NOTICES_SERVICE_UNAVAILABLE",
     "NOTICES_UID_INVALID",
+    "mh_all_forbidden",
+    "mh_push_time_format",
     "transport_error",
 ]

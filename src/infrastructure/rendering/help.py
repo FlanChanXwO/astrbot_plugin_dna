@@ -34,7 +34,25 @@ def _load_help_data() -> dict[str, Any]:
         return json.load(file)
 
 
-def _iter_help_lines(plugin_help: dict[str, Any]):
+def _format_example(eg: str, prefix: str = "kk") -> str:
+    if not eg:
+        return ""
+    if not prefix:
+        return eg
+    parts = eg.split(" / ")
+    formatted = []
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if part.startswith(prefix):
+            formatted.append(part)
+        else:
+            formatted.append(f"{prefix}{part}")
+    return " / ".join(formatted)
+
+
+def _iter_help_lines(plugin_help: dict[str, Any], prefix: str = "kk"):
     """生成保持旧分组和示例语义的帮助条目 payload。"""
     for group_name, group_data in plugin_help.items():
         yield {"is_group": True, "name": group_name, "example": ""}
@@ -42,7 +60,7 @@ def _iter_help_lines(plugin_help: dict[str, Any]):
             yield {
                 "is_group": False,
                 "name": item.get("name", ""),
-                "example": item.get("eg", ""),
+                "example": _format_example(item.get("eg", ""), prefix=prefix),
             }
 
 
@@ -59,7 +77,7 @@ def _find_icon(name: str) -> Path:
     return icon_dir / "通用.png"
 
 
-def _help_sections(plugin_help: dict[str, Any]) -> list[dict[str, Any]]:
+def _help_sections(plugin_help: dict[str, Any], prefix: str = "kk") -> list[dict[str, Any]]:
     """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
     sections: list[dict[str, Any]] = []
     for name, value in plugin_help.items():
@@ -68,7 +86,7 @@ def _help_sections(plugin_help: dict[str, Any]) -> list[dict[str, Any]]:
             item_name = str(command.get("name", ""))
             items.append(
                 {
-                    "example": str(command.get("eg", "")),
+                    "example": _format_example(str(command.get("eg", "")), prefix=prefix),
                     "icon": image_data_uri(_find_icon(item_name)),
                     "name": item_name,
                 }
@@ -77,10 +95,10 @@ def _help_sections(plugin_help: dict[str, Any]) -> list[dict[str, Any]]:
     return sections
 
 
-async def get_help() -> bytes:
+async def get_help(prefix: str = "kk") -> bytes:
     """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
     plugin_help = _load_help_data()
-    sections = _help_sections(plugin_help)
+    sections = _help_sections(plugin_help, prefix=prefix)
     template_data = {
         "background": image_data_uri(BACKGROUND_PATH),
         "banner": image_data_uri(
@@ -97,7 +115,7 @@ async def get_help() -> bytes:
         "item_background": image_data_uri(
             Path(__file__).parents[2] / "resources" / "textures" / "help" / "item.png",
         ),
-        "lines": list(_iter_help_lines(plugin_help)),
+        "lines": list(_iter_help_lines(plugin_help, prefix=prefix)),
         "sections": sections,
         "subtitle": "穿过寒夜，去往有你的春天。",
         "width": CARD_W,

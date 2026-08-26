@@ -18,7 +18,7 @@ async def help_use_case(
 
     from ..infrastructure.rendering.help import get_help
 
-    payload = await get_help()
+    payload = await get_help(prefix=request.matched_prefix)
     rendered_root = request.services.get("rendered_root")
     if not isinstance(rendered_root, (str, Path)):
         raise TypeError("帮助卡缺少受控渲染目录")

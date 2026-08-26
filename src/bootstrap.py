@@ -325,8 +325,8 @@ def build_runtime(
             temporary_roots=(runtime_database.path.parent / "rendered",),
         ),
         commands=(
-            load_command_registry(prefix=settings.display.command_prefix)
-            if command_registry is None or settings.display.command_prefix != "kk"
+            load_command_registry(prefixes=settings.display.command_prefixes)
+            if command_registry is None or settings.display.command_prefixes != ["kk"]
             else command_registry
         ),
         settings=settings,

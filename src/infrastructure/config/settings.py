@@ -243,10 +243,10 @@ class NotificationSettings(_SettingsModel):
 class DisplaySettings(_SettingsModel):
     """角色展示、攻略来源和 AT 查询配置。"""
 
-    command_prefix: str = Field(
-        default="kk",
-        description="命令触发前缀",
-        json_schema_extra={"hint": "插件命令触发前缀，默认为 kk"},
+    command_prefixes: list[str] = Field(
+        default_factory=lambda: ["kk"],
+        description="命令触发前缀列表",
+        json_schema_extra={"hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发"},
     )
     guide_providers: list[Literal["all", "狩月庭攻略组", "猫冬"]] = Field(
         default_factory=lambda: ["all"],
@@ -263,6 +263,20 @@ class DisplaySettings(_SettingsModel):
         description="允许AT查询他人",
         json_schema_extra={"hint": "是否允许通过 @ 查询他人的角色信息"},
     )
+
+    @field_validator("command_prefixes", mode="before")
+    @classmethod
+    def _validate_prefixes(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return [v]
+        if isinstance(v, (list, tuple, set)):
+            return [str(x) for x in v]
+        return ["kk"]
+
+    @property
+    def command_prefix(self) -> str:
+        """保持向前兼容的单前缀访问属性。"""
+        return self.command_prefixes[0] if self.command_prefixes else "kk"
 
 
 def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -286,13 +300,19 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
             for k, v in section_data.items():
                 if k in _LEGACY_MAP:
                     group, field = _LEGACY_MAP[k]
-                    result[group][field] = v
+                    if field == "command_prefixes" and isinstance(v, str):
+                        result[group][field] = [v]
+                    else:
+                        result[group][field] = v
 
     # 2. 检查并迁移顶层扁平老字段
     for k, v in raw_dict.items():
         if k in _LEGACY_MAP:
             group, field = _LEGACY_MAP[k]
-            result[group][field] = v
+            if field == "command_prefixes" and isinstance(v, str):
+                result[group][field] = [v]
+            else:
+                result[group][field] = v
 
     # 3. 合并已有的 typed 分组配置（typed 配置优先）
     for group_name in ("login", "network", "sign_in", "notifications", "display"):
@@ -300,6 +320,10 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
         if isinstance(group_data, Mapping):
             for k, v in group_data.items():
                 if group_name == "sign_in" and k in {"game_enabled", "community_enabled"}:
+                    continue
+                if group_name == "display" and k == "command_prefix":
+                    if "command_prefixes" not in group_data:
+                        result[group_name]["command_prefixes"] = [v] if isinstance(v, str) else list(v)
                     continue
                 result[group_name][k] = v
 

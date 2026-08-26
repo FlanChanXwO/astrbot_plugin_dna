@@ -62,7 +62,7 @@ async def test_notices_handler_reports_service_missing() -> None:
             command_id="mh",
             text="kk密函",
             parameters={},
-            actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
+            actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1", unified_msg_origin="group-1"),
             services={},
         ),
         load_command_registry(),
@@ -253,3 +253,31 @@ async def test_generated_mh_subscribe_handler_ats_user_in_group_chat() -> None:
     # 私聊测试：直接返回纯文本
     direct_results = [item async for item in handler(DirectEvent())]
     assert direct_results == ["成功订阅密函【角色:拆解,武器:拆解,魔之楔:拆解】"]
+
+
+@pytest.mark.asyncio
+async def test_notices_service_adapts_prefix_for_forbidden_and_time_format():
+    """当用户用特定前缀（如 dna）触发时，提示信息中的命令示例动态使用该前缀。"""
+    from src.entry.commands import CommandRequest
+    from src.modules.notices.service import NoticesService
+
+    service = NoticesService(database=SimpleNamespace(), transport=SimpleNamespace(), privacy=SimpleNamespace(), renderer=SimpleNamespace(), subscriptions=SimpleNamespace())
+    req_dna = CommandRequest(
+        command_id="mh_subscribe_by_name",
+        text="dna订阅全部密函",
+        parameters={"mh_name": "全部"},
+        actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1", unified_msg_origin="group-1"),
+        matched_prefix="dna",
+    )
+    res = await service.subscribe_mh(req_dna)
+    assert "[dna密函列表]" in res.text
+
+    req_time = CommandRequest(
+        command_id="mh_subscribe_cycle",
+        text="dna订阅密函时间",
+        parameters={"start": "invalid", "end": "invalid"},
+        actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1", unified_msg_origin="group-1"),
+        matched_prefix="dna",
+    )
+    res_time = await service.set_mh_push_time(req_time)
+    assert "dna订阅密函时间17:23" in res_time.text

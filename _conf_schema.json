@@ -253,11 +253,13 @@
     "description": "显示设置",
     "type": "object",
     "items": {
-      "command_prefix": {
-        "type": "string",
-        "description": "命令触发前缀",
-        "hint": "插件命令触发前缀，默认为 kk",
-        "default": "kk"
+      "command_prefixes": {
+        "type": "list",
+        "description": "命令触发前缀列表",
+        "hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发",
+        "default": [
+          "kk"
+        ]
       },
       "guide_providers": {
         "type": "list",

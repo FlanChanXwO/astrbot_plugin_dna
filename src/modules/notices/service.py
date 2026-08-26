@@ -163,7 +163,7 @@ class NoticesService:
         if not mh_name:
             return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         if mh_name == "全部":
-            return PlainTextResponse(messages.MH_ALL_FORBIDDEN, need_at=True)
+            return PlainTextResponse(messages.mh_all_forbidden(request.matched_prefix), need_at=True)
         keys = _mh_keys(mh_name, mh_type)
 
         try:
@@ -305,9 +305,9 @@ class NoticesService:
             start = int(str(request.parameters.get("start", "")).strip())
             end = int(str(request.parameters.get("end", "")).strip())
         except ValueError:
-            return PlainTextResponse(messages.MH_PUSH_TIME_FORMAT, need_at=True)
+            return PlainTextResponse(messages.mh_push_time_format(request.matched_prefix), need_at=True)
         if start < 0 or start > 23 or end < 0 or end > 23:
-            return PlainTextResponse(messages.MH_PUSH_TIME_FORMAT, need_at=True)
+            return PlainTextResponse(messages.mh_push_time_format(request.matched_prefix), need_at=True)
         origin, error = await self._origin(request.actor)
         if error:
             return PlainTextResponse(error, need_at=True)

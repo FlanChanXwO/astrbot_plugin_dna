@@ -93,9 +93,15 @@ def test_get_config_unknown_key_raises():
 def test_display_settings_supports_configurable_command_prefix():
     settings = DnabySettings.from_config({"display": {"command_prefix": "dna"}})
     assert settings.display.command_prefix == "dna"
+    assert settings.display.command_prefixes == ["dna"]
+
+    multi_settings = DnabySettings.from_config({"display": {"command_prefixes": ["kk", "dna"]}})
+    assert multi_settings.display.command_prefixes == ["kk", "dna"]
+    assert multi_settings.display.command_prefix == "kk"
 
     default_settings = DnabySettings.from_config({})
     assert default_settings.display.command_prefix == "kk"
+    assert default_settings.display.command_prefixes == ["kk"]
 
 
 def test_sign_time_string_format_and_fallback():
@@ -391,7 +397,7 @@ def test_legacy_nested_and_flat_config_migration():
     migrated = migrate_config_dict(legacy_gscore)
     assert migrated["login"]["max_bind_count"] == 4
     assert migrated["login"]["url"] == "http://login.local:8080"
-    assert migrated["display"]["command_prefix"] == "dna"
+    assert migrated["display"]["command_prefixes"] == ["dna"]
     assert migrated["notifications"]["announcement_groups"] == {"group_100": True}
     assert migrated["notifications"]["secret_simple_image"] is True
     assert migrated["sign_in"]["sign_time"] == "08:00"
