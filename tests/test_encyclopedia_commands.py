@@ -110,3 +110,15 @@ async def test_encyclopedia_use_case_reports_missing_service() -> None:
     handler = cast(Any, plugin).handle_calendar
     result = [item async for item in handler(Event())]
     assert result == ["资料服务暂不可用，请检查插件配置"]
+
+
+def test_alias_command_patterns_do_not_conflict_with_restore_builtin_aliases() -> None:
+    import re
+    specs = {spec.id: spec for spec in load_command_registry()}
+    alias_spec = specs['alias_list']
+    restore_spec = specs['alias_recover']
+
+    assert re.match(alias_spec.pattern, 'kk菲娜别名') is not None
+    assert re.match(alias_spec.pattern, 'kk恢复别名') is None
+    assert re.match(alias_spec.pattern, 'kk强制恢复别名') is None
+    assert re.match(restore_spec.pattern, 'kk恢复别名') is not None

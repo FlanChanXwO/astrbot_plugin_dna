@@ -193,7 +193,7 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="alias_list",
-        pattern=rf"^(?!添加|删除)(?P<alias_type>角色|武器)?(?P<name>{PATTERN})别名(列表)?$",
+        pattern=rf"^(?!添加|删除|恢复|强制恢复)(?P<alias_type>角色|武器)?(?P<name>{PATTERN})别名(列表)?$",
         group="bot主人功能",
         name="别名列表",
         description="查看角色/武器别名列表",

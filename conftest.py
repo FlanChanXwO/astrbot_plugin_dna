@@ -22,6 +22,8 @@ def _prepare_test_environment() -> tuple[Path, Path]:
     data_root = session_root / "plugin-data"
     shutil.copytree(ROOT / "tests" / ".data", data_root)
     astrbot_root.mkdir()
+    (astrbot_root / "temp").mkdir(parents=True, exist_ok=True)
+    Path("data/temp").mkdir(parents=True, exist_ok=True)
     return session_root, astrbot_root
 
 
