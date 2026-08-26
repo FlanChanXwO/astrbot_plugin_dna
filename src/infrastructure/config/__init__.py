@@ -17,6 +17,7 @@ from .settings import (
     NetworkSettings,
     NotificationSettings,
     SignInSettings,
+    migrate_config_dict,
 )
 
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     "SignInSettings",
     "generate_astrbot_schema",
     "generate_legacy_schema",
+    "migrate_config_dict",
     "write_astrbot_schema",
 ]

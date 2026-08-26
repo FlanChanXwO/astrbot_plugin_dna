@@ -46,6 +46,8 @@ class NoticesService:
         push: PushCallable | None = None,
         *,
         secret_simple_image: bool = False,
+        config_store: dict[str, Any] | None = None,
+        sync_ann_group_cb: Callable[[str, bool], None] | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -55,6 +57,8 @@ class NoticesService:
         self.ann_state = ann_state
         self.push = push
         self.secret_simple_image = secret_simple_image
+        self.config_store = config_store
+        self._sync_ann_group_cb = sync_ann_group_cb
 
     async def _resolve_uid(
         self,
@@ -405,6 +409,38 @@ class NoticesService:
         await self._invoke_push(origin, "密函测试推送")
         return PlainTextResponse(messages.MH_TEST_SENT)
 
+    def _sync_ann_group(self, group_id: str | None, subscribed: bool) -> None:
+        if not group_id:
+            return
+        gid_str = str(group_id)
+        if getattr(self, '_sync_ann_group_cb', None):
+            self._sync_ann_group_cb(gid_str, subscribed)
+            return
+        if getattr(self, 'config_store', None) is not None:
+            notif = self.config_store.setdefault("notifications", {})
+            if isinstance(notif, dict):
+                groups = notif.setdefault("announcement_groups", {})
+                if isinstance(groups, dict):
+                    if subscribed:
+                        groups[gid_str] = True
+                    else:
+                        groups.pop(gid_str, None)
+                elif isinstance(groups, list):
+                    if subscribed and gid_str not in groups:
+                        groups.append(gid_str)
+                    elif not subscribed and gid_str in groups:
+                        groups.remove(gid_str)
+            legacy_dna = self.config_store.get("DNAUID配置")
+            if isinstance(legacy_dna, dict):
+                legacy_groups = legacy_dna.setdefault("DNAAnnGroups", {})
+                if isinstance(legacy_groups, dict):
+                    if subscribed:
+                        legacy_groups[gid_str] = True
+                    else:
+                        legacy_groups.pop(gid_str, None)
+            if hasattr(self.config_store, "save_config"):
+                self.config_store.save_config()
+
     async def subscribe_ann(self, request: NoticeRequest):
         """订阅公告推送（admin，仅群聊）。"""
 
@@ -429,6 +465,7 @@ class NoticesService:
             group_id=request.actor.group_id,
             user_type="group",
         )
+        self._sync_ann_group(request.actor.group_id, True)
         return PlainTextResponse(messages.ANN_SUBSCRIBED, need_at=True)
 
     async def unsubscribe_ann(self, request: NoticeRequest):
@@ -442,6 +479,7 @@ class NoticesService:
         if error:
             return PlainTextResponse(error, need_at=True)
         if await self.subscriptions.delete(messages.ANN_SUBSCRIBE, origin):
+            self._sync_ann_group(request.actor.group_id, False)
             return PlainTextResponse(messages.ANN_UNSUBSCRIBED, need_at=True)
         return PlainTextResponse(messages.ANN_NOT_SUBSCRIBED, need_at=True)
 
@@ -523,8 +561,7 @@ class NoticesService:
                     text_lines.extend(f"{i}. {name}" for i, name in enumerate(by_type[type_name], start=1))
             full_text = "\n".join(text_lines)
             for sub in all_text_subs:
-                at_target = (sub.uid or sub.user_id) if (sub.user_type == "group" or sub.group_id) else None
-                if await self._invoke_push(sub.unified_msg_origin, full_text, at_user_id=at_target):
+                if await self._invoke_push(sub.unified_msg_origin, full_text, at_user_id=None):
                     pushed += 1
 
         # 3. 图片密函订阅 (MH_PIC_SUBSCRIBE)
@@ -535,8 +572,7 @@ class NoticesService:
                 simple_image=self.secret_simple_image,
             )
             for sub in pic_subs:
-                at_target = (sub.uid or sub.user_id) if (sub.user_type == "group" or sub.group_id) else None
-                if await self._invoke_push(sub.unified_msg_origin, rendered.path, at_user_id=at_target):
+                if await self._invoke_push(sub.unified_msg_origin, rendered.path, at_user_id=None):
                     pushed += 1
 
         return pushed

@@ -92,8 +92,13 @@ def _field_schema(field: Any) -> dict[str, Any]:
     item: dict[str, Any] = {
         "type": _astrbot_type(annotation),
         "description": field.description or "",
-        "default": _json_default(field.get_default(call_default_factory=True)),
     }
+    if field.json_schema_extra and isinstance(field.json_schema_extra, dict):
+        for key in ("hint", "obvious_hint", "slider", "invisible"):
+            if key in field.json_schema_extra:
+                item[key] = field.json_schema_extra[key]
+
+    item["default"] = _json_default(field.get_default(call_default_factory=True))
     options = _literal_values(annotation)
     if options is not None:
         item["options"] = [_json_default(option) for option in options]
@@ -131,4 +136,3 @@ def write_astrbot_schema(path: str | Path) -> Path:
 
 
 __all__ = ["generate_astrbot_schema", "write_astrbot_schema"]
-

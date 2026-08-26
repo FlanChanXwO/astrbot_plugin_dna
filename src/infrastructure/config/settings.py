@@ -12,14 +12,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
-from .legacy import DNA_PREFIX, DNAConfig, DNASignConfig
+from .legacy import _LEGACY_MAP, DNA_PREFIX, DNAConfig, DNASignConfig
 
 
 class _SettingsModel(BaseModel):
     """所有配置分组共用的校验策略。"""
 
-    # 下方 port、并发和时间边界沿用 legacy 配置定义中已有的
-    # max_value/平台端口范围；它们只拒绝越界配置，不截断输出、不增加重试或超时。
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
@@ -28,61 +26,91 @@ class LoginSettings(_SettingsModel):
 
     url: str = Field(
         default="",
-        description="登录页或外置 dna-login 服务的 base URL；留空使用内置服务。",
+        description="登录服务地址",
+        json_schema_extra={"hint": "登录页或外置 dna-login 服务的 base URL；留空使用内置服务"},
     )
     bind_host: str = Field(
         default="127.0.0.1",
-        description="内置登录服务监听地址。",
+        description="内置服务监听地址",
+        json_schema_extra={"hint": "内置登录服务监听地址"},
     )
     port: int = Field(
         default=6189,
         ge=0,
         le=65535,
-        description="内置登录服务监听端口；0 表示由系统分配临时端口。",
+        description="内置服务监听端口",
+        json_schema_extra={"hint": "内置登录服务监听端口；0 表示由系统分配临时端口"},
     )
     transport: Literal["local", "http_poll", "sse", "ws"] = Field(
         default="local",
-        description="登录接入方式。",
+        description="登录接入方式",
+        json_schema_extra={"hint": "登录接入方式 (local/http_poll/sse/ws)"},
     )
     shared_secret: SecretStr = Field(
         default_factory=lambda: SecretStr(""),
-        description="外置登录服务共享密钥；不会写入日志或用户响应。",
+        description="外置服务共享密钥",
+        json_schema_extra={"hint": "外置登录服务共享密钥；不会写入日志或用户响应"},
     )
-    tencent_docs: bool = Field(default=False, description="是否启用腾讯文档登录辅助。")
-    qr_login: bool = Field(default=False, description="是否将登录链接转换为二维码。")
-    forward_login: bool = Field(default=False, description="是否将登录链接转换为转发消息。")
+    tencent_docs: bool = Field(
+        default=False,
+        description="腾讯文档登录辅助",
+        json_schema_extra={"hint": "是否启用腾讯文档登录辅助"},
+    )
+    qr_login: bool = Field(
+        default=False,
+        description="二维码登录",
+        json_schema_extra={"hint": "是否将登录链接转换为二维码"},
+    )
+    forward_login: bool = Field(
+        default=False,
+        description="转发消息登录",
+        json_schema_extra={"hint": "是否将登录链接转换为转发消息"},
+    )
     max_bind_count: int = Field(
         default=2,
         ge=0,
         le=100,
-        description="未登录用户允许绑定的 UID 数量。",
+        description="未登录用户最大绑定数",
+        json_schema_extra={"hint": "未登录用户允许绑定的 UID 数量"},
     )
 
 
 class NetworkSettings(_SettingsModel):
     """API、代理和 WebSocket 连接配置。"""
 
-    api_proxy_url: str = Field(default="", description="二重螺旋 API 代理地址。")
-    local_proxy_url: str = Field(default="", description="本地代理地址。")
+    api_proxy_url: str = Field(
+        default="",
+        description="API 代理地址",
+        json_schema_extra={"hint": "二重螺旋 API 代理地址"},
+    )
+    local_proxy_url: str = Field(
+        default="",
+        description="本地代理地址",
+        json_schema_extra={"hint": "本地代理地址"},
+    )
     proxy_functions: list[Literal["all", "get_sms_code", "login"]] = Field(
         default_factory=list,
-        description="需要使用代理的函数；空列表表示不额外指定。",
+        description="指定走代理的函数",
+        json_schema_extra={"hint": "需要使用代理的函数；空列表表示不额外指定"},
     )
     no_proxy_functions: list[str] = Field(
         default_factory=list,
-        description="强制不使用代理的函数，优先级高于 proxy_functions。",
+        description="强制直连的函数",
+        json_schema_extra={"hint": "强制不使用代理的函数，优先级高于 proxy_functions"},
     )
     websocket_continue_seconds: int = Field(
         default=300,
         ge=0,
         le=86400,
-        description="WebSocket 保活持续时间（秒）。",
+        description="WebSocket 保活时间",
+        json_schema_extra={"hint": "WebSocket 保活持续时间（秒）"},
     )
     websocket_wait_seconds: int = Field(
         default=5,
         ge=0,
         le=30,
-        description="等待 WebSocket 建立连接的时间（秒）。",
+        description="WebSocket 连接等待时间",
+        json_schema_extra={"hint": "等待 WebSocket 建立连接的时间（秒）"},
     )
 
 
@@ -99,16 +127,23 @@ class SignInSettings(_SettingsModel):
             "bbs_share",
             "bbs_reply",
         ],
-        description="启用的社区任务。",
+        description="启用的社区任务",
+        json_schema_extra={"hint": "启用的社区任务列表"},
     )
     enable_all_users: bool = Field(
         default=False,
-        description="是否为所有已登录用户自动执行签到。",
+        description="全员自动签到",
+        json_schema_extra={"hint": "是否为所有已登录用户自动执行签到"},
     )
-    scheduled_enabled: bool = Field(default=False, description="是否启用定时签到。")
+    scheduled_enabled: bool = Field(
+        default=False,
+        description="定时签到开关",
+        json_schema_extra={"hint": "是否启用定时签到"},
+    )
     sign_time: str = Field(
         default="00:05",
-        description="每日签到时间，格式为 HH:mm。",
+        description="每日签到时间",
+        json_schema_extra={"hint": "每日签到时间，格式为 HH:mm（如 00:05）"},
     )
 
     @field_validator("sign_time", mode="before")
@@ -128,49 +163,81 @@ class SignInSettings(_SettingsModel):
             except (ValueError, TypeError):
                 pass
         return "00:05"
+
     concurrency: int = Field(
         default=1,
         ge=1,
         le=50,
-        description="自动签到并发数量。",
+        description="签到并发数",
+        json_schema_extra={"hint": "自动签到并发数量"},
     )
     concurrency_interval_seconds: tuple[int, int] = Field(
         default=(3, 5),
-        description="自动签到任务之间的随机间隔范围（秒）。",
+        description="签到任务随机间隔",
+        json_schema_extra={"hint": "自动签到任务之间的随机间隔范围（秒）"},
     )
-    private_report: bool = Field(default=False, description="是否发送签到私聊报告。")
-    group_report: bool = Field(default=False, description="是否发送签到群组报告。")
-    group_report_image: bool = Field(default=False, description="是否以图片发送群组报告。")
+    private_report: bool = Field(
+        default=False,
+        description="私聊签到报告",
+        json_schema_extra={"hint": "是否发送签到私聊报告"},
+    )
+    group_report: bool = Field(
+        default=False,
+        description="群聊签到报告",
+        json_schema_extra={"hint": "是否发送签到群组报告"},
+    )
+    group_report_image: bool = Field(
+        default=False,
+        description="图片形式群报告",
+        json_schema_extra={"hint": "是否以图片发送群组报告"},
+    )
 
 
 class NotificationSettings(_SettingsModel):
     """公告和密函通知配置。"""
 
-    announcement_enabled: bool = Field(default=True, description="是否启用公告推送。")
+    announcement_enabled: bool = Field(
+        default=True,
+        description="公告推送开关",
+        json_schema_extra={"hint": "是否启用公告推送"},
+    )
     announcement_groups: dict[str, Any] = Field(
         default_factory=dict,
-        description="公告推送群组配置。",
+        description="公告推送群组",
+        json_schema_extra={"hint": "公告推送群组配置（群内输入 kk订阅公告 也会自动同步到此处）"},
     )
     announcement_ids: list[int] = Field(
         default_factory=list,
-        description="已经推送过的公告 ID 列表。",
+        description="已推送公告ID",
+        json_schema_extra={"hint": "已经推送过的公告 ID 列表"},
     )
     announcement_check_minutes: int = Field(
         default=10,
         ge=0,
         le=60,
-        description="公告推送检查间隔（分钟）。",
+        description="公告检查间隔",
+        json_schema_extra={"hint": "公告推送检查间隔（分钟）"},
     )
     secret_subscriptions: list[Literal["private", "group"]] = Field(
         default_factory=lambda: ["group"],
-        description="密函订阅作用域。",
+        description="密函订阅作用域",
+        json_schema_extra={"hint": "密函订阅作用域 (private/group)"},
     )
     secret_push_time: str = Field(
         default="00:30",
-        description="密函推送时间，格式为 分钟:秒。",
+        description="密函推送时间",
+        json_schema_extra={"hint": "密函推送时间，格式为 分钟:秒"},
     )
-    secret_cache: bool = Field(default=True, description="是否缓存密函数据。")
-    secret_simple_image: bool = Field(default=False, description="是否使用简单密函图片。")
+    secret_cache: bool = Field(
+        default=True,
+        description="密函数据缓存",
+        json_schema_extra={"hint": "是否缓存密函数据"},
+    )
+    secret_simple_image: bool = Field(
+        default=False,
+        description="简易密函图片",
+        json_schema_extra={"hint": "是否使用简单密函图片"},
+    )
 
 
 class DisplaySettings(_SettingsModel):
@@ -178,53 +245,98 @@ class DisplaySettings(_SettingsModel):
 
     command_prefix: str = Field(
         default="kk",
-        description="插件命令触发前缀，默认为 kk。",
+        description="命令触发前缀",
+        json_schema_extra={"hint": "插件命令触发前缀，默认为 kk"},
     )
     guide_providers: list[Literal["all", "狩月庭攻略组", "猫冬"]] = Field(
         default_factory=lambda: ["all"],
-        description="角色攻略图提供方。",
+        description="角色攻略提供方",
+        json_schema_extra={"hint": "角色攻略图提供方"},
     )
     show_unowned_roles: bool = Field(
         default=True,
-        description="是否在角色信息卡片中显示未拥有的角色和武器。",
+        description="显示未拥有角色",
+        json_schema_extra={"hint": "是否在角色信息卡片中显示未拥有的角色和武器"},
     )
     allow_mention_query: bool = Field(
         default=True,
-        description="是否允许通过 @ 查询他人的角色信息。",
+        description="允许AT查询他人",
+        json_schema_extra={"hint": "是否允许通过 @ 查询他人的角色信息"},
     )
+
+
+def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
+    """将老版 GsCore 嵌套配置、老版扁平配置或不完整配置迁移规范化为 typed 分组结构。"""
+    result: dict[str, Any] = {
+        "login": {},
+        "network": {},
+        "sign_in": {},
+        "notifications": {},
+        "display": {},
+    }
+    if raw is None:
+        return result
+
+    raw_dict = dict(raw)
+
+    # 1. 检查并迁移 GScore 嵌套 section ("DNAUID配置", "DNAUID签到配置")
+    for section_key in ("DNAUID配置", "DNAUID签到配置"):
+        section_data = raw_dict.get(section_key)
+        if isinstance(section_data, Mapping):
+            for k, v in section_data.items():
+                if k in _LEGACY_MAP:
+                    group, field = _LEGACY_MAP[k]
+                    result[group][field] = v
+
+    # 2. 检查并迁移顶层扁平老字段
+    for k, v in raw_dict.items():
+        if k in _LEGACY_MAP:
+            group, field = _LEGACY_MAP[k]
+            result[group][field] = v
+
+    # 3. 合并已有的 typed 分组配置（typed 配置优先）
+    for group_name in ("login", "network", "sign_in", "notifications", "display"):
+        group_data = raw_dict.get(group_name)
+        if isinstance(group_data, Mapping):
+            for k, v in group_data.items():
+                if group_name == "sign_in" and k in {"game_enabled", "community_enabled"}:
+                    continue
+                result[group_name][k] = v
+
+    return result
 
 
 class DnabySettings(_SettingsModel):
     """插件完整 typed 配置。"""
 
-    login: LoginSettings = Field(default_factory=LoginSettings, description="登录")
-    network: NetworkSettings = Field(default_factory=NetworkSettings, description="网络")
-    sign_in: SignInSettings = Field(default_factory=SignInSettings, description="签到")
+    login: LoginSettings = Field(default_factory=LoginSettings, description="登录设置")
+    network: NetworkSettings = Field(default_factory=NetworkSettings, description="网络设置")
+    sign_in: SignInSettings = Field(default_factory=SignInSettings, description="签到设置")
     notifications: NotificationSettings = Field(
         default_factory=NotificationSettings,
-        description="通知",
+        description="通知设置",
     )
-    display: DisplaySettings = Field(default_factory=DisplaySettings, description="显示")
+    display: DisplaySettings = Field(default_factory=DisplaySettings, description="显示设置")
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
         """将 AstrBot 的嵌套配置字典转换为 typed settings。"""
-        values = dict(config) if config is not None else {}
-        sign_in = values.get("sign_in")
-        if isinstance(sign_in, Mapping):
-            # 旧版本的功能开关已废弃，只清理这两个已知字段；其余未知配置仍应显式报错。
-            values["sign_in"] = {
-                key: value
-                for key, value in sign_in.items()
-                if key not in {"game_enabled", "community_enabled"}
-            }
-        settings = cls.model_validate(values)
-        if hasattr(DNAConfig, "bind"):
-            DNAConfig.bind(values)
-        if hasattr(DNASignConfig, "bind"):
-            DNASignConfig.bind(values)
-        return settings
+        migrated = migrate_config_dict(config)
+        settings = cls.model_validate(migrated)
 
+        # 若传入的是可变字典（例如 AstrBotConfig），同步更新其标准分组键
+        if isinstance(config, dict):
+            for group_name, group_values in migrated.items():
+                if group_name not in config or not isinstance(config[group_name], dict):
+                    config[group_name] = dict(group_values)
+                else:
+                    config[group_name].update(group_values)
+
+        if hasattr(DNAConfig, "bind"):
+            DNAConfig.bind(dict(config) if config is not None else migrated)
+        if hasattr(DNASignConfig, "bind"):
+            DNASignConfig.bind(dict(config) if config is not None else migrated)
+        return settings
 
 
 __all__ = [
@@ -237,4 +349,5 @@ __all__ = [
     "NetworkSettings",
     "NotificationSettings",
     "SignInSettings",
+    "migrate_config_dict",
 ]

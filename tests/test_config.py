@@ -325,3 +325,84 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     # 3. 验证命令前缀动态生效
     help_spec = runtime.commands.get("help")
     assert help_spec.pattern.startswith("^dna")
+
+
+def test_schema_descriptions_have_no_periods_and_hints_are_populated():
+    """配置项显示名称不能有句号，提示信息必须放到 hint。"""
+    import json
+    from pathlib import Path
+
+    from src.infrastructure.config.schema import generate_astrbot_schema
+
+    schema = generate_astrbot_schema()
+    for group_name, group in schema.items():
+        assert "。" not in group["description"], f"分组 {group_name} description 包含句号"
+        assert not group["description"].endswith("."), f"分组 {group_name} description 包含英文句号结尾"
+        for field_name, field_def in group.get("items", {}).items():
+            desc = field_def.get("description", "")
+            assert "。" not in desc, f"字段 {group_name}.{field_name} description 包含句号: {desc}"
+            assert not desc.endswith("."), f"字段 {group_name}.{field_name} description 包含英文句号结尾: {desc}"
+            hint = field_def.get("hint", "")
+            assert hint, f"字段 {group_name}.{field_name} 缺少 hint"
+
+    # 同时校验根目录 _conf_schema.json
+    schema_file = Path(__file__).parents[1] / "_conf_schema.json"
+    if schema_file.exists():
+        disk_schema = json.loads(schema_file.read_text(encoding="utf-8"))
+        for group_name, group in disk_schema.items():
+            assert "。" not in group["description"]
+            for field_name, field_def in group.get("items", {}).items():
+                desc = field_def.get("description", "")
+                assert "。" not in desc, f"_conf_schema.json 字段 {group_name}.{field_name} description 包含句号: {desc}"
+                assert field_def.get("hint"), f"_conf_schema.json 字段 {group_name}.{field_name} 缺少 hint"
+
+
+def test_numeric_config_fields_use_int_types():
+    """纯数字配置项应使用 int / float 类型。"""
+    from src.infrastructure.config.schema import generate_astrbot_schema
+
+    schema = generate_astrbot_schema()
+    assert schema["login"]["items"]["port"]["type"] == "int"
+    assert schema["login"]["items"]["max_bind_count"]["type"] == "int"
+    assert schema["network"]["items"]["websocket_continue_seconds"]["type"] == "int"
+    assert schema["network"]["items"]["websocket_wait_seconds"]["type"] == "int"
+    assert schema["sign_in"]["items"]["concurrency"]["type"] == "int"
+    assert schema["notifications"]["items"]["announcement_check_minutes"]["type"] == "int"
+
+
+def test_legacy_nested_and_flat_config_migration():
+    """手动/自动迁移：从 GsCore 旧版嵌套结构和扁平结构迁移到 typed 配置。"""
+    from src.infrastructure.config.settings import DnabySettings, migrate_config_dict
+
+    legacy_gscore = {
+        "DNAUID配置": {
+            "MaxBindNum": 4,
+            "DNALoginUrl": "http://login.local:8080",
+            "CommandPrefix": "dna",
+            "DNAAnnGroups": {"group_100": True},
+            "MHSimplePic": True,
+        },
+        "DNAUID签到配置": {
+            "SignTime": "08:00",
+            "SignAllUser": True,
+            "PrivateSignReport": True,
+        },
+    }
+    migrated = migrate_config_dict(legacy_gscore)
+    assert migrated["login"]["max_bind_count"] == 4
+    assert migrated["login"]["url"] == "http://login.local:8080"
+    assert migrated["display"]["command_prefix"] == "dna"
+    assert migrated["notifications"]["announcement_groups"] == {"group_100": True}
+    assert migrated["notifications"]["secret_simple_image"] is True
+    assert migrated["sign_in"]["sign_time"] == "08:00"
+    assert migrated["sign_in"]["enable_all_users"] is True
+    assert migrated["sign_in"]["private_report"] is True
+
+    settings = DnabySettings.from_config(legacy_gscore)
+    assert settings.login.max_bind_count == 4
+    assert settings.login.url == "http://login.local:8080"
+    assert settings.display.command_prefix == "dna"
+    assert settings.notifications.announcement_groups == {"group_100": True}
+    assert settings.notifications.secret_simple_image is True
+    assert settings.sign_in.sign_time == "08:00"
+    assert settings.sign_in.enable_all_users is True

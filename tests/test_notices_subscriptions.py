@@ -664,3 +664,97 @@ async def test_push_mh_now_includes_at_user_id_for_group_subscriber(tmp_path: Pa
     assert "角色 : 拆解" in str(payload)
     assert at_user == "308597424"
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_subscribe_and_unsubscribe_ann_syncs_to_config_and_saves(tmp_path: Path) -> None:
+    """订阅公告和退订公告时，群组 ID 同步到 config[notifications][announcement_groups] 并持久化保存。"""
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    saved = []
+
+    class FakeAstrBotConfig(dict):
+        def save_config(self):
+            saved.append(True)
+
+    config = FakeAstrBotConfig({
+        "notifications": {
+            "announcement_groups": {},
+        }
+    })
+
+    service = _service(
+        database,
+        FakeNoticesTransport(),
+        tmp_path,
+        subscriptions=subscriptions,
+    )
+    service.config_store = config
+
+    actor = EventActor(user_id="10001", bot_id="bot-1", group_id="group-999", unified_msg_origin="platform:group:group-999")
+    req = _request("订阅公告", actor=actor)
+    sub_res = await service.subscribe_ann(req)
+    assert isinstance(sub_res, PlainTextResponse)
+    assert "订阅" in sub_res.text
+    assert config["notifications"]["announcement_groups"].get("group-999") is True
+    assert len(saved) >= 1
+
+    # 退订公告
+    unsub_req = _request("退订公告", actor=actor)
+    unsub_res = await service.unsubscribe_ann(unsub_req)
+    assert isinstance(unsub_res, PlainTextResponse)
+    assert "已取消" in unsub_res.text or "退订" in unsub_res.text or "成功" in unsub_res.text
+    assert "group-999" not in config["notifications"]["announcement_groups"]
+    assert len(saved) >= 2
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_push_mh_pic_and_text_do_not_at_user_while_name_sub_does(tmp_path: Path) -> None:
+    """订阅密函图片和订阅密函文本属于全量广播订阅，不产生 at 行为；只有订阅具体名称密函才在群聊中 at 订阅者。"""
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    pushed: list[tuple[str, object, str | None]] = []
+
+    async def push(origin: str, payload: object, at_user_id: str | None = None) -> None:
+        pushed.append((origin, payload, at_user_id))
+
+    service = _service(
+        database,
+        FakeNoticesTransport(),
+        tmp_path,
+        subscriptions=subscriptions,
+        push=push,
+    )
+
+    # 1. 群 g1 订阅具体名称密函 拆解
+    actor1 = EventActor(user_id="user-1", bot_id="bot-1", group_id="g1", unified_msg_origin="platform:group:g1")
+    await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}, actor=actor1))
+
+    # 2. 群 g2 订阅密函文本
+    actor2 = EventActor(user_id="user-2", bot_id="bot-1", group_id="g2", unified_msg_origin="platform:group:g2")
+    await service.toggle_mh_text(_request("订阅全量密函", actor=actor2))
+
+    # 3. 群 g3 订阅密函图片
+    actor3 = EventActor(user_id="user-3", bot_id="bot-1", group_id="g3", unified_msg_origin="platform:group:g3")
+    await service.toggle_mh_pic(_request("订阅密函图片", actor=actor3))
+
+    count = await service.push_mh_now()
+    assert count == 3
+
+    # 验证推送时的 at_user_id
+    push_by_origin = {origin: (payload, at_user) for origin, payload, at_user in pushed}
+
+    # g1 应有 at
+    assert "platform:group:g1" in push_by_origin
+    assert push_by_origin["platform:group:g1"][1] == "user-1"
+
+    # g2 (文本) 不应有 at
+    assert "platform:group:g2" in push_by_origin
+    assert push_by_origin["platform:group:g2"][1] is None
+
+    # g3 (图片) 不应有 at
+    assert "platform:group:g3" in push_by_origin
+    assert push_by_origin["platform:group:g3"][1] is None
+
+    await database.dispose()

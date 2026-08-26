@@ -213,6 +213,7 @@ def build_runtime(
         ann_state=AnnStateStore(runtime_database.path.parent / "ann_state.json"),
         secret_simple_image=settings.notifications.secret_simple_image,
         push=_push_notice,
+        config_store=config if isinstance(config, dict) else None,
     )
     notices_scheduler = NoticesScheduler(
         notices_service,
@@ -273,9 +274,46 @@ def build_runtime(
     if services is not None:
         resolved_services.update(services)
 
+    async def _sync_ann_config_on_startup() -> None:
+        from .modules.notices import messages
+
+        if subscriptions is None:
+            return
+        existing_subs = await subscriptions.get(messages.ANN_SUBSCRIBE)
+        modified = False
+        if isinstance(config, dict):
+            notif = config.setdefault("notifications", {})
+            if isinstance(notif, dict):
+                groups = notif.setdefault("announcement_groups", {})
+                if isinstance(groups, dict):
+                    for sub in existing_subs:
+                        if sub.group_id and str(sub.group_id) not in groups:
+                            groups[str(sub.group_id)] = True
+                            modified = True
+            if modified and hasattr(config, "save_config"):
+                config.save_config()
+
+        if settings.notifications.announcement_groups:
+            cfg_groups = settings.notifications.announcement_groups
+            configured_ids: set[str] = set()
+            if isinstance(cfg_groups, dict):
+                configured_ids = {str(k) for k, v in cfg_groups.items() if v}
+            elif isinstance(cfg_groups, list):
+                configured_ids = {str(item) for item in cfg_groups}
+            subscribed_ids = {str(s.group_id) for s in existing_subs if s.group_id}
+            for gid in configured_ids - subscribed_ids:
+                await subscriptions.add(
+                    messages.ANN_SUBSCRIBE,
+                    origin=f"group:{gid}",
+                    user_id="",
+                    bot_id="",
+                    group_id=gid,
+                    user_type="group",
+                )
+
     web = WebRegistrar(context)
     lifecycle = PluginLifecycle(
-        start_hooks=(web.initialize, sign_scheduler.start, notices_scheduler.start),
+        start_hooks=(web.initialize, _sync_ann_config_on_startup, sign_scheduler.start, notices_scheduler.start),
         stop_hooks=(notices_scheduler.stop, sign_scheduler.stop, runtime_database.dispose),
     )
     return PluginRuntime(
