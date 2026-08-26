@@ -178,14 +178,24 @@ def build_runtime(
         simple_image=settings.notifications.secret_simple_image,
     )
 
-    async def _push_notice(origin: str, payload: str | Path) -> None:
+    async def _push_notice(
+        origin: str,
+        payload: str | Path,
+        at_user_id: str | None = None,
+    ) -> None:
+        chain: list[Any] = []
+        if at_user_id:
+            from astrbot.api.message_components import At
+
+            chain.append(At(qq=str(at_user_id)))
         if isinstance(payload, Path) or (
             isinstance(payload, str)
             and (payload.endswith((".png", ".jpg", ".jpeg", ".webp")) or Path(payload).exists())
         ):
-            msg = MessageChain(chain=[AstrImage.fromFileSystem(str(payload))])
+            chain.append(AstrImage.fromFileSystem(str(payload)))
         else:
-            msg = MessageChain(chain=[Plain(str(payload))])
+            chain.append(Plain(str(payload)))
+        msg = MessageChain(chain=chain)
         try:
             res = context.send_message(origin, msg)
             if inspect.isawaitable(res):

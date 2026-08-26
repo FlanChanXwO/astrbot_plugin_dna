@@ -631,3 +631,36 @@ async def test_poll_ann_now_continues_when_one_subscriber_push_fails(tmp_path: P
     assert count == 1
     assert pushed == ["platform:group:ok_group"]
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_push_mh_now_includes_at_user_id_for_group_subscriber(tmp_path: Path) -> None:
+    """群聊密函订阅在推送时应携带订阅者的 at_user_id。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    pushed: list[tuple[str, object, str | None]] = []
+
+    async def push(origin: str, payload: object, at_user_id: str | None = None) -> None:
+        pushed.append((origin, payload, at_user_id))
+
+    service = _service(
+        database,
+        FakeNoticesTransport(),
+        tmp_path,
+        subscriptions=subscriptions,
+        push=push,
+    )
+    actor = EventActor(user_id="308597424", bot_id="bot-1", group_id="g100", unified_msg_origin="platform:group:g100")
+    req = _request("订阅拆解密函", {"mh_name": "拆解"}, actor=actor)
+    await service.subscribe_mh(req)
+
+    count = await service.push_mh_now()
+
+    assert count == 1
+    assert len(pushed) == 1
+    origin, payload, at_user = pushed[0]
+    assert origin == "platform:group:g100"
+    assert "角色 : 拆解" in str(payload)
+    assert at_user == "308597424"
+    await database.dispose()

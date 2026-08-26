@@ -361,10 +361,29 @@ class NoticesService:
         )
         return PlainTextResponse(messages.MH_TEXT_SUBSCRIBED, need_at=True)
 
-    async def _invoke_push(self, origin: str, payload: str | Path) -> bool:
+    async def _invoke_push(
+        self,
+        origin: str,
+        payload: str | Path,
+        at_user_id: str | None = None,
+    ) -> bool:
         if self.push is not None:
             try:
-                res = self.push(origin, payload)
+                sig = inspect.signature(self.push)
+                if (
+                    len(sig.parameters) >= 3
+                    or "at_user_id" in sig.parameters
+                    or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                ):
+                    res = self.push(origin, payload, at_user_id=at_user_id)
+                elif at_user_id:
+                    try:
+                        res = self.push(origin, payload, at_user_id)
+                    except TypeError:
+                        res = self.push(origin, payload)
+                else:
+                    res = self.push(origin, payload)
+
                 if inspect.isawaitable(res):
                     await res
                 return True
@@ -490,7 +509,8 @@ class NoticesService:
             for key in matched:
                 type_name, _, mh_name = key.partition(":")
                 lines.append(f"{type_name} : {mh_name or key}")
-            if await self._invoke_push(sub.unified_msg_origin, "\n".join(lines)):
+            at_target = (sub.uid or sub.user_id) if (sub.user_type == "group" or sub.group_id) else None
+            if await self._invoke_push(sub.unified_msg_origin, "\n".join(lines), at_user_id=at_target):
                 pushed += 1
 
         # 2. 全量文本密函订阅 (MH_TEXT_SUBSCRIBE)
@@ -503,7 +523,8 @@ class NoticesService:
                     text_lines.extend(f"{i}. {name}" for i, name in enumerate(by_type[type_name], start=1))
             full_text = "\n".join(text_lines)
             for sub in all_text_subs:
-                if await self._invoke_push(sub.unified_msg_origin, full_text):
+                at_target = (sub.uid or sub.user_id) if (sub.user_type == "group" or sub.group_id) else None
+                if await self._invoke_push(sub.unified_msg_origin, full_text, at_user_id=at_target):
                     pushed += 1
 
         # 3. 图片密函订阅 (MH_PIC_SUBSCRIBE)
@@ -514,7 +535,8 @@ class NoticesService:
                 simple_image=self.secret_simple_image,
             )
             for sub in pic_subs:
-                if await self._invoke_push(sub.unified_msg_origin, rendered.path):
+                at_target = (sub.uid or sub.user_id) if (sub.user_type == "group" or sub.group_id) else None
+                if await self._invoke_push(sub.unified_msg_origin, rendered.path, at_user_id=at_target):
                     pushed += 1
 
         return pushed
