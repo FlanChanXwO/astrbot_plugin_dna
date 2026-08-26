@@ -58,12 +58,14 @@ class NoticesScheduler:
         self,
         notices: SchedulableNotices,
         *,
+        announcement_enabled: bool = True,
         push_time: str | tuple[int, int] = (0, 30),
         poll_minutes: int = 10,
         sleep: SleepCallable = asyncio.sleep,
         now: NowCallable | None = None,
     ) -> None:
         self.notices = notices
+        self.announcement_enabled = announcement_enabled
         self.push_time = _parse_hhmm(push_time)
         self.poll_minutes = max(1, int(poll_minutes))
         self._sleep = sleep
@@ -85,6 +87,8 @@ class NoticesScheduler:
                 raise
             except Exception as error:  # noqa: BLE001
                 logger.warning(f"[dnaby][{_MH_PUSH_TASK_NAME}] 定时任务异常: {error}")
+            # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标秒内重复触发
+            await self._sleep(1.0)
 
     async def _run_periodic(self, coro: Callable[[], Awaitable[object]]) -> None:
         while True:
@@ -101,16 +105,20 @@ class NoticesScheduler:
 
         if self._started:
             return
-        self._tasks = [
+        tasks: list[asyncio.Task] = [
             asyncio.create_task(
                 self._run_hourly(self.notices.push_mh_now),
                 name=_MH_PUSH_TASK_NAME,
             ),
-            asyncio.create_task(
-                self._run_periodic(self.notices.poll_ann_now),
-                name=_ANN_POLL_TASK_NAME,
-            ),
         ]
+        if self.announcement_enabled:
+            tasks.append(
+                asyncio.create_task(
+                    self._run_periodic(self.notices.poll_ann_now),
+                    name=_ANN_POLL_TASK_NAME,
+                )
+            )
+        self._tasks = tasks
         self._started = True
 
     async def stop(self) -> None:

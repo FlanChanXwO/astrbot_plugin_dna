@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta
 from typing import Any, Protocol
@@ -99,6 +100,8 @@ class SignScheduler:
                 from astrbot.api import logger
 
                 logger.warning(f"[dnaby][{name}] 定时任务异常: {error}")
+            # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标分钟内重复触发
+            await self._sleep(1.0)
 
     async def start(self) -> None:
         """幂等创建计划任务；重复 start 不创建重复任务。"""
@@ -157,7 +160,16 @@ class SignScheduler:
         for subscription in subscribers:
             if self._push is None:
                 continue
-            await self._push(subscription.unified_msg_origin, text)
+            try:
+                res = self._push(subscription.unified_msg_origin, text)
+                if inspect.isawaitable(res):
+                    await res
+            except Exception as error:  # noqa: BLE001
+                from astrbot.api import logger
+
+                logger.warning(
+                    f"[dnaby][sign_push] 发送给 {subscription.unified_msg_origin} 失败: {error}"
+                )
         return text
 
     async def run_cleanup_once(self) -> int:

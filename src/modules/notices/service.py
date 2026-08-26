@@ -361,11 +361,19 @@ class NoticesService:
         )
         return PlainTextResponse(messages.MH_TEXT_SUBSCRIBED, need_at=True)
 
-    async def _invoke_push(self, origin: str, payload: str | Path) -> None:
+    async def _invoke_push(self, origin: str, payload: str | Path) -> bool:
         if self.push is not None:
-            res = self.push(origin, payload)
-            if inspect.isawaitable(res):
-                await res
+            try:
+                res = self.push(origin, payload)
+                if inspect.isawaitable(res):
+                    await res
+                return True
+            except Exception as error:  # noqa: BLE001
+                from astrbot.api import logger
+
+                logger.warning(f"[dnaby][push] 发送给 {origin} 失败: {error}")
+                return False
+        return False
 
     async def test_mh_push(self, request: NoticeRequest):
         """向当前会话发送一次密函测试推送（owner）。"""
@@ -482,8 +490,8 @@ class NoticesService:
             for key in matched:
                 type_name, _, mh_name = key.partition(":")
                 lines.append(f"{type_name} : {mh_name or key}")
-            await self._invoke_push(sub.unified_msg_origin, "\n".join(lines))
-            pushed += 1
+            if await self._invoke_push(sub.unified_msg_origin, "\n".join(lines)):
+                pushed += 1
 
         # 2. 全量文本密函订阅 (MH_TEXT_SUBSCRIBE)
         all_text_subs = await self.subscriptions.get(messages.MH_TEXT_SUBSCRIBE)
@@ -495,8 +503,8 @@ class NoticesService:
                     text_lines.extend(f"{i}. {name}" for i, name in enumerate(by_type[type_name], start=1))
             full_text = "\n".join(text_lines)
             for sub in all_text_subs:
-                await self._invoke_push(sub.unified_msg_origin, full_text)
-                pushed += 1
+                if await self._invoke_push(sub.unified_msg_origin, full_text):
+                    pushed += 1
 
         # 3. 图片密函订阅 (MH_PIC_SUBSCRIBE)
         pic_subs = await self.subscriptions.get(messages.MH_PIC_SUBSCRIBE)
@@ -506,8 +514,8 @@ class NoticesService:
                 simple_image=self.secret_simple_image,
             )
             for sub in pic_subs:
-                await self._invoke_push(sub.unified_msg_origin, rendered.path)
-                pushed += 1
+                if await self._invoke_push(sub.unified_msg_origin, rendered.path):
+                    pushed += 1
 
         return pushed
 
@@ -544,8 +552,8 @@ class NoticesService:
                 payload = f"【最新二重螺旋公告】\n{title}"
 
             for sub in subs:
-                await self._invoke_push(sub.unified_msg_origin, payload)
-                pushed += 1
+                if await self._invoke_push(sub.unified_msg_origin, payload):
+                    pushed += 1
 
         return pushed
 

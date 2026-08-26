@@ -157,3 +157,40 @@ async def test_run_cleanup_once_uses_two_days_ago(tmp_path: Path) -> None:
 
     assert deleted == 3
     assert checkin.cleanup_calls == [date(2026, 8, 10)]
+
+@pytest.mark.asyncio
+async def test_run_sign_once_continues_when_one_subscriber_push_fails(tmp_path: Path) -> None:
+    """单个订阅者推送抛出异常时，不中断其他订阅者的推送。"""
+
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    await subscriptions.add(
+        messages.SIGN_RESULT_SUBSCRIBE,
+        origin="platform:group:fail_group",
+        user_id="owner-1",
+        bot_id="bot-1",
+    )
+    await subscriptions.add(
+        messages.SIGN_RESULT_SUBSCRIBE,
+        origin="platform:group:ok_group",
+        user_id="owner-2",
+        bot_id="bot-1",
+    )
+    pushed: list[str] = []
+    checkin = _FakeCheckin()
+
+    async def push(origin: str, text: str) -> None:
+        if "fail_group" in origin:
+            raise ConnectionResetError("network failed")
+        pushed.append(origin)
+
+    scheduler = SignScheduler(
+        checkin,
+        subscriptions,
+        sleep=_noop_sleep,
+        push=push,
+    )
+
+    text = await scheduler.run_sign_once()
+
+    assert "今日成功游戏签到 2 个账号" in text
+    assert pushed == ["platform:group:ok_group"]

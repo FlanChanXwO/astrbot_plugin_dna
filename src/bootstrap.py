@@ -156,10 +156,14 @@ def build_runtime(
 
     async def _push_sign(origin: str, text: str) -> None:
         msg = MessageChain(chain=[Plain(text)])
-        res = context.send_message(origin, msg)
-        if inspect.isawaitable(res):
-            await res
+        try:
+            res = context.send_message(origin, msg)
+            if inspect.isawaitable(res):
+                await res
+        except Exception as error:  # noqa: BLE001
+            from astrbot.api import logger
 
+            logger.warning(f"[dnaby][push_sign] 推送至 {origin} 失败: {error}")
     sign_scheduler = SignScheduler(
         checkin_service,
         subscriptions,
@@ -182,10 +186,14 @@ def build_runtime(
             msg = MessageChain(chain=[AstrImage.fromFileSystem(str(payload))])
         else:
             msg = MessageChain(chain=[Plain(str(payload))])
-        res = context.send_message(origin, msg)
-        if inspect.isawaitable(res):
-            await res
+        try:
+            res = context.send_message(origin, msg)
+            if inspect.isawaitable(res):
+                await res
+        except Exception as error:  # noqa: BLE001
+            from astrbot.api import logger
 
+            logger.warning(f"[dnaby][push_notice] 推送至 {origin} 失败: {error}")
     notices_service = NoticesService(
         runtime_database,
         notices_transport or DnaApiNoticesTransport(runtime_database),
@@ -198,10 +206,10 @@ def build_runtime(
     )
     notices_scheduler = NoticesScheduler(
         notices_service,
+        announcement_enabled=settings.notifications.announcement_enabled,
         push_time=settings.notifications.secret_push_time,
         poll_minutes=settings.notifications.announcement_check_minutes,
     )
-
     def _resolve_char_id(char_name: str) -> str | None:
         from .utils.name_convert import char_name_to_char_id
 

@@ -539,3 +539,95 @@ async def test_push_mh_now_filters_by_rotation_and_time_and_text_all(tmp_path: P
     assert g4_payload.is_file()
 
     await database.dispose()
+
+@pytest.mark.asyncio
+async def test_push_mh_now_continues_when_one_subscriber_push_fails(tmp_path: Path) -> None:
+    """密函推送中某订阅者失败时，不影响其他订阅者。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    await subscriptions.add(
+        messages.MH_SUBSCRIBE,
+        origin="platform:group:fail_group",
+        user_id="user-1",
+        bot_id="bot-1",
+        group_id="fail_group",
+        uid="user-1",
+        extra_message="角色:拆解",
+    )
+    await subscriptions.add(
+        messages.MH_SUBSCRIBE,
+        origin="platform:group:ok_group",
+        user_id="user-2",
+        bot_id="bot-1",
+        group_id="ok_group",
+        uid="user-2",
+        extra_message="角色:拆解",
+    )
+    pushed: list[str] = []
+
+    async def push(origin: str, payload: object) -> None:
+        if "fail_group" in origin:
+            raise ConnectionResetError("network failed")
+        pushed.append(origin)
+
+    service = _service(
+        database,
+        FakeNoticesTransport(),
+        tmp_path,
+        subscriptions=subscriptions,
+        push=push,
+    )
+
+    count = await service.push_mh_now()
+
+    assert count == 1
+    assert pushed == ["platform:group:ok_group"]
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_poll_ann_now_continues_when_one_subscriber_push_fails(tmp_path: Path) -> None:
+    """公告推送中某订阅者失败时，不影响其他订阅者。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    await subscriptions.add(
+        messages.ANN_SUBSCRIBE,
+        origin="platform:group:fail_group",
+        user_id="user-1",
+        bot_id="bot-1",
+        group_id="fail_group",
+        user_type="group",
+    )
+    await subscriptions.add(
+        messages.ANN_SUBSCRIBE,
+        origin="platform:group:ok_group",
+        user_id="user-2",
+        bot_id="bot-1",
+        group_id="ok_group",
+        user_type="group",
+    )
+    ann_state = AnnStateStore(tmp_path / "ann_state.json")
+    await ann_state.merge([1000, 1002])  # 1001 是新公告
+    pushed: list[str] = []
+
+    async def push(origin: str, payload: object) -> None:
+        if "fail_group" in origin:
+            raise ConnectionResetError("network failed")
+        pushed.append(origin)
+
+    service = _service(
+        database,
+        FakeNoticesTransport(ann_list=_ann_snapshot()),
+        tmp_path,
+        subscriptions=subscriptions,
+        push=push,
+    )
+    object.__setattr__(service, "ann_state", ann_state)
+
+    count = await service.poll_ann_now()
+
+    assert count == 1
+    assert pushed == ["platform:group:ok_group"]
+    await database.dispose()
