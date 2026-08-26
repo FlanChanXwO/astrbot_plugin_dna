@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -360,6 +361,12 @@ class NoticesService:
         )
         return PlainTextResponse(messages.MH_TEXT_SUBSCRIBED, need_at=True)
 
+    async def _invoke_push(self, origin: str, payload: str | Path) -> None:
+        if self.push is not None:
+            res = self.push(origin, payload)
+            if inspect.isawaitable(res):
+                await res
+
     async def test_mh_push(self, request: NoticeRequest):
         """向当前会话发送一次密函测试推送（owner）。"""
 
@@ -368,7 +375,7 @@ class NoticesService:
         origin, error = await self._origin(request.actor)
         if error:
             return PlainTextResponse(error)
-        await self.push(origin, "密函测试推送")
+        await self._invoke_push(origin, "密函测试推送")
         return PlainTextResponse(messages.MH_TEST_SENT)
 
     async def subscribe_ann(self, request: NoticeRequest):
@@ -429,7 +436,7 @@ class NoticesService:
             for key in names:
                 type_name, _, mh_name = key.partition(":")
                 lines.append(f"{type_name} : {mh_name or key}")
-            await self.push(sub.unified_msg_origin, "\n".join(lines))
+            await self._invoke_push(sub.unified_msg_origin, "\n".join(lines))
             pushed += 1
         pic_subs = await self.subscriptions.get(messages.MH_PIC_SUBSCRIBE)
         for sub in pic_subs:
@@ -437,7 +444,7 @@ class NoticesService:
                 snapshot,
                 simple_image=self.secret_simple_image,
             )
-            await self.push(sub.unified_msg_origin, rendered.path)
+            await self._invoke_push(sub.unified_msg_origin, rendered.path)
             pushed += 1
         return pushed
 
@@ -457,7 +464,7 @@ class NoticesService:
         for sub in subs:
             lines = ["最新公告:"]
             lines.extend(f"#{idx} {title_by_id.get(str(post_id), post_id)}" for idx, post_id in enumerate(pending, start=1))
-            await self.push(sub.unified_msg_origin, "\n".join(lines))
+            await self._invoke_push(sub.unified_msg_origin, "\n".join(lines))
             pushed += 1
         return pushed
 

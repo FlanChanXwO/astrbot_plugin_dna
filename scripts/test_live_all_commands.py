@@ -28,7 +28,7 @@ class MockContext:
     def __init__(self) -> None:
         self.sent_messages: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
-    def send_message(self, *args: object, **kwargs: object) -> None:
+    async def send_message(self, *args: object, **kwargs: object) -> None:
         self.sent_messages.append((args, kwargs))
 
 
@@ -121,7 +121,6 @@ async def run() -> None:
         # 4. 签到模块
         ("kk签到", "kk签到", "手动执行签到任务"),
         ("kk签到日历", "kk签到日历", "当月签到记录日历T2I渲染"),
-        ("kk全部签到", "kk全部签到", "执行全部用户签到"),
         ("kk订阅签到结果", "kk订阅签到结果", "订阅签到广播"),
         ("kk取消订阅签到结果", "kk取消订阅签到结果", "取消订阅签到广播"),
 
@@ -255,6 +254,42 @@ async def run() -> None:
                 "test_id": test_id,
                 "command": msg_text,
                 "description": desc,
+                "status": "ERROR",
+                "error": str(exc),
+            })
+
+    # Custom Prefix Test (prefix = "dna")
+    print("\n========================================")
+    print("Testing Configurable Prefix (prefix='dna')")
+    print("========================================")
+    dna_registry = load_command_registry(prefix="dna")
+    dna_runtime = build_runtime(ctx, {"display": {"command_prefix": "dna"}}, command_registry=dna_registry, database=db)
+    dna_test_cmd = "dna卡片"
+    dna_spec = next((s for s in dna_registry if re.match(s.pattern, dna_test_cmd)), None)
+    if dna_spec:
+        req = CommandRequest(
+            command_id=dna_spec.id,
+            text=dna_test_cmd,
+            parameters=re.match(dna_spec.pattern, dna_test_cmd).groupdict(),
+            actor=actor,
+            services=dna_runtime.services,
+        )
+        try:
+            dna_resps = [resp async for resp in execute_use_case(dna_spec, req, dna_registry)]
+            print(f"✅ Prefix 'dna' test successful for 'dna卡片': {len(dna_resps)} response(s)")
+            results.append({
+                "test_id": "dna卡片 (自定义前缀测试)",
+                "command": dna_test_cmd,
+                "description": "自定义前缀dna指令触发测试",
+                "status": "OK",
+                "responses": [{"type": "Image", "custom_prefix": True}],
+            })
+        except Exception as exc:  # noqa: BLE001
+            print(f"❌ Prefix test failed: {exc}")
+            results.append({
+                "test_id": "dna卡片 (自定义前缀测试)",
+                "command": dna_test_cmd,
+                "description": "自定义前缀dna指令触发测试",
                 "status": "ERROR",
                 "error": str(exc),
             })

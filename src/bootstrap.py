@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -140,6 +141,7 @@ def build_runtime(
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
     )
+    subscriptions = SubscriptionStore(runtime_database.path.parent / "subscriptions.json")
     checkin_service = CheckinService(
         runtime_database,
         checkin_transport or DnaApiCheckinTransport(runtime_database),
@@ -148,24 +150,39 @@ def build_runtime(
         community_tasks=tuple(settings.sign_in.community_tasks),
         concurrency=settings.sign_in.concurrency,
         interval_range=settings.sign_in.concurrency_interval_seconds,
+        subscriptions=subscriptions,
     )
-    subscriptions = SubscriptionStore(runtime_database.path.parent / "subscriptions.json")
+
+    async def _push_sign(origin: str, text: str) -> None:
+        msg = MessageChain(chain=[Plain(text)])
+        res = context.send_message(origin, msg)
+        if inspect.isawaitable(res):
+            await res
+
     sign_scheduler = SignScheduler(
         checkin_service,
         subscriptions,
         sign_time=settings.sign_in.sign_time,
         scheduled_enabled=settings.sign_in.scheduled_enabled,
         enable_all_users=settings.sign_in.enable_all_users,
-        push=lambda origin, text: context.send_message(
-            origin,
-            MessageChain(chain=[Plain(text)]),
-        ),
+        push=_push_sign,
     )
     notices_renderer = NoticesRenderer(
         runtime_database.path.parent / "rendered",
         encyclopedia_resources,
         simple_image=settings.notifications.secret_simple_image,
     )
+
+    async def _push_notice(origin: str, payload: str | Path) -> None:
+        msg = MessageChain(
+            chain=[
+                Plain(str(payload)) if not isinstance(payload, Path) else AstrImage(str(payload)),
+            ],
+        )
+        res = context.send_message(origin, msg)
+        if inspect.isawaitable(res):
+            await res
+
     notices_service = NoticesService(
         runtime_database,
         notices_transport or DnaApiNoticesTransport(runtime_database),
@@ -174,14 +191,7 @@ def build_runtime(
         subscriptions=subscriptions,
         ann_state=AnnStateStore(runtime_database.path.parent / "ann_state.json"),
         secret_simple_image=settings.notifications.secret_simple_image,
-        push=lambda origin, payload: context.send_message(
-            origin,
-            MessageChain(
-                chain=[
-                    Plain(str(payload)) if not isinstance(payload, Path) else AstrImage(str(payload)),
-                ],
-            ),
-        ),
+        push=_push_notice,
     )
     notices_scheduler = NoticesScheduler(
         notices_service,
