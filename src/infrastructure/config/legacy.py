@@ -63,6 +63,11 @@ CONFIG_DEFAULT = {
                 "type": "bool",
                 "default": False,
             },
+            "CommandPrefix": {
+                "description": "插件指令前缀",
+                "type": "string",
+                "default": "kk",
+            },
             "DNAPaint": {
                 "description": "角色立绘作者",
                 "type": "string",

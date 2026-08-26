@@ -20,6 +20,7 @@ from typing import Any, cast
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.core.star.filter.regex import RegexFilter
 
 from ...infrastructure.rendering.errors import HtmlRenderError
 from ...utils.msgs.notify import HTML_RENDER_FAILED
@@ -209,24 +210,25 @@ class MatchedCommand:
     parameters: dict[str, Any]
 
 
-def _prefix_pattern(pattern: str) -> str:
+def _prefix_pattern(pattern: str, prefix: str = COMMAND_PREFIX) -> str:
     """给生产命令统一添加触发前缀，模块内仍保留易读的原始正则。"""
 
+    escaped = re.escape(prefix) if prefix else ""
     if pattern.startswith("^"):
-        return f"^{re.escape(COMMAND_PREFIX)}{pattern[1:]}"
-    return f"^{re.escape(COMMAND_PREFIX)}{pattern}"
+        return f"^{escaped}{pattern[1:]}"
+    return f"^{escaped}{pattern}"
 
 
-def _prefix_spec(spec: CommandSpec) -> CommandSpec:
+def _prefix_spec(spec: CommandSpec, prefix: str = COMMAND_PREFIX) -> CommandSpec:
     """生成带前缀的公开命令声明，同时保持原 use case 不变。"""
 
     return CommandSpec(
         id=spec.id,
-        pattern=_prefix_pattern(spec.pattern),
+        pattern=_prefix_pattern(spec.pattern, prefix=prefix),
         group=spec.group,
         name=spec.name,
         description=spec.description,
-        examples=tuple(f"{COMMAND_PREFIX}{example}" for example in spec.examples),
+        examples=tuple(f"{prefix}{example}" for example in spec.examples),
         permission=spec.permission,
         use_case=spec.use_case,
     )
@@ -234,6 +236,7 @@ def _prefix_spec(spec: CommandSpec) -> CommandSpec:
 
 def load_command_registry(
     modules: Iterable[ModuleType] | None = None,
+    prefix: str = COMMAND_PREFIX,
 ) -> CommandRegistry:
     """加载代码声明的命令模块索引。"""
 
@@ -242,7 +245,7 @@ def load_command_registry(
 
         modules = COMMAND_MODULES
     raw_registry = CommandRegistry.from_modules(modules)
-    return CommandRegistry(_prefix_spec(spec) for spec in raw_registry)
+    return CommandRegistry(_prefix_spec(spec, prefix=prefix) for spec in raw_registry)
 
 
 def _canonical_symbol_path(callable_: Callable[..., Any]) -> str:
@@ -341,8 +344,35 @@ def _adapt_response(result: Any) -> CommandResponse | None:
     raise TypeError(f"未知命令响应类型: {type(result).__name__}")
 
 
-def _make_handler(spec: CommandSpec, plugin_module: str, handler_name: str):
+class _DynamicRegexFilter(RegexFilter):
+    """根据当前插件实例配置的 command_prefix 动态匹配命令的 RegexFilter。"""
+
+    def __init__(self, fallback_pattern: str, command_id: str) -> None:
+        super().__init__(fallback_pattern)
+        self.command_id = command_id
+
+    def filter(self, event: AstrMessageEvent, cfg: Any) -> bool:
+        from astrbot.core.star.star_manager import star_map
+
+        message = event.get_message_str().strip()
+        for star_meta in star_map.values():
+            if star_meta.name == "astrbot_plugin_dnaby" and star_meta.star_cls:
+                runtime = getattr(star_meta.star_cls, "_runtime", None)
+                if runtime is not None and hasattr(runtime, "commands"):
+                    spec = runtime.commands.get(self.command_id)
+                    return bool(re.search(spec.pattern, message))
+        return bool(self.regex.search(message))
+
+
+def _make_handler(
+    spec: CommandSpec,
+    plugin_module: str,
+    handler_name: str,
+    fallback_registry: CommandRegistry | None = None,
+):
     """生成一个拥有独立正则重匹配逻辑的 async-generator 方法。"""
+
+    default_registry = fallback_registry or CommandRegistry((spec,))
 
     async def handler(
         self: Any,
@@ -350,15 +380,21 @@ def _make_handler(spec: CommandSpec, plugin_module: str, handler_name: str):
         **provided_parameters: Any,
     ) -> AsyncGenerator[Any, None]:
         message = event.get_message_str().strip()
-        match = re.match(spec.pattern, message)
+        runtime = getattr(self, "_runtime", None)
+        active_registry = getattr(runtime, "commands", None)
+        active_spec = (
+            active_registry.get(spec.id)
+            if active_registry is not None
+            else spec
+        )
+        match = re.match(active_spec.pattern, message)
         if match is None:
             return
         parameters = dict(match.groupdict())
         parameters.update(provided_parameters)
-        runtime = self._runtime
         actor = actor_from_event(event)
         request = CommandRequest(
-            command_id=spec.id,
+            command_id=active_spec.id,
             text=message,
             parameters=parameters,
             actor=actor,
@@ -372,15 +408,15 @@ def _make_handler(spec: CommandSpec, plugin_module: str, handler_name: str):
         )
         try:
             async for result in execute_use_case(
-                spec,
+                active_spec,
                 request,
-                runtime.commands,
+                active_registry if active_registry is not None else default_registry,
             ):
                 yield runtime.responses.build(event, result)
         except HtmlRenderError as error:
             logger.exception(
                 "[dnaby] 命令 %s 图片渲染失败 kind=%s: %s",
-                spec.id,
+                active_spec.id,
                 error.kind,
                 error,
             )
@@ -395,6 +431,8 @@ def _make_handler(spec: CommandSpec, plugin_module: str, handler_name: str):
 
 def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -> None:
     """将 registry 中的每个命令安装为一个带公开 decorator 的 class method。"""
+    from astrbot.core.star.filter.regex import RegexFilter
+    from astrbot.core.star.register.star_handler import get_handler_or_create
 
     command_ids = tuple(spec.id for spec in registry)
     installed = getattr(plugin_cls, "__dnaby_command_ids__", None)
@@ -410,12 +448,17 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
 
     for spec in registry:
         handler_name = f"handle_{spec.id}"
-        handler = _make_handler(spec, plugin_cls.__module__, handler_name)
+        handler = _make_handler(spec, plugin_cls.__module__, handler_name, registry)
         handler = filter.regex(spec.pattern, desc=spec.description)(handler)
         if spec.permission == "owner":
             handler = filter.custom_filter(_BotOwnerFilter)(handler)
         else:
             handler = filter.permission_type(_permission_filter(spec.permission))(handler)
+        from astrbot.core.star.star_handler import EventType
+        handler_md = get_handler_or_create(handler, EventType.AdapterMessageEvent)
+        for idx, f in enumerate(handler_md.event_filters):
+            if isinstance(f, RegexFilter):
+                handler_md.event_filters[idx] = _DynamicRegexFilter(spec.pattern, spec.id)
         setattr(plugin_cls, handler_name, handler)
     plugin_cls.__dnaby_command_ids__ = command_ids
 

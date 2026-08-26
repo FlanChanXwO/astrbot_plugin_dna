@@ -256,9 +256,9 @@ def build_runtime(
             temporary_roots=(runtime_database.path.parent / "rendered",),
         ),
         commands=(
-            command_registry
-            if command_registry is not None
-            else load_command_registry()
+            load_command_registry(prefix=settings.display.command_prefix)
+            if command_registry is None or settings.display.command_prefix != "kk"
+            else command_registry
         ),
         settings=settings,
         services=resolved_services,

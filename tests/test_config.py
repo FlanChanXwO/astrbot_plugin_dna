@@ -88,3 +88,11 @@ def test_bind_and_get():
 def test_get_config_unknown_key_raises():
     with pytest.raises(KeyError):
         DNAConfig.get_config("不存在的键")
+
+
+def test_display_settings_supports_configurable_command_prefix():
+    settings = DnabySettings.from_config({"display": {"command_prefix": "dna"}})
+    assert settings.display.command_prefix == "dna"
+
+    default_settings = DnabySettings.from_config({})
+    assert default_settings.display.command_prefix == "kk"

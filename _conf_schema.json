@@ -224,6 +224,11 @@
     "description": "显示",
     "type": "object",
     "items": {
+      "command_prefix": {
+        "type": "string",
+        "description": "插件命令触发前缀，默认为 kk。",
+        "default": "kk"
+      },
       "guide_providers": {
         "type": "list",
         "description": "角色攻略图提供方。",

@@ -18,6 +18,7 @@ from src.entry.commands import (
     CommandRequest,
     CommandSpec,
     install_command_handlers,
+    load_command_registry,
     manifest_records,
 )
 from src.entry.response import PlainTextResponse, ResponseFactory
@@ -429,3 +430,41 @@ async def test_help_shows_implemented_commands_only():
     with Image.open(result[0]) as image:
         assert image.width == 2020
         assert image.height > 5000
+
+
+def test_load_command_registry_supports_custom_prefix():
+    dna_registry = load_command_registry(prefix="dna")
+    assert dna_registry.get("role_info_card").pattern.startswith("^dna")
+    assert dna_registry.get("role_info_card").examples[0].startswith("dna")
+    assert dna_registry.get("stamina").pattern == "^dna(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+
+    empty_prefix_registry = load_command_registry(prefix="")
+    assert empty_prefix_registry.get("stamina").pattern == "^(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert empty_prefix_registry.get("stamina").examples == ("日常",)
+
+
+@pytest.mark.asyncio
+async def test_plugin_handles_custom_prefix_dynamically():
+    class Event:
+        def __init__(self, message: str) -> None:
+            self.message = message
+
+        def get_message_str(self) -> str:
+            return self.message
+
+        def get_sender_id(self) -> str:
+            return "10001"
+
+        def get_self_id(self) -> str:
+            return "20002"
+
+        def plain_result(self, text: str) -> tuple[str, str]:
+            return ("plain", text)
+
+    plugin = DnabyPlugin(SimpleNamespace(), {"display": {"command_prefix": "dna"}})
+    res_dna = [item async for item in plugin.handle_resource_status(Event("dna资源状态"))]
+    assert len(res_dna) == 1
+    assert "资源状态" in res_dna[0][1]
+
+    res_kk = [item async for item in plugin.handle_resource_status(Event("kk资源状态"))]
+    assert len(res_kk) == 0

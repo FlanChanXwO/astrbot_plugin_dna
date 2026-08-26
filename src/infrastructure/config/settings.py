@@ -158,6 +158,10 @@ class NotificationSettings(_SettingsModel):
 class DisplaySettings(_SettingsModel):
     """角色展示、攻略来源和 AT 查询配置。"""
 
+    command_prefix: str = Field(
+        default="kk",
+        description="插件命令触发前缀，默认为 kk。",
+    )
     guide_providers: list[Literal["all", "狩月庭攻略组", "猫冬"]] = Field(
         default_factory=lambda: ["all"],
         description="角色攻略图提供方。",
