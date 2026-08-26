@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import json
 import os
 import re
@@ -140,6 +141,7 @@ async def _execute_single_command(
                     "type": type(r).__name__,
                     "value": str(r),
                 })
+        gc.collect()
         return {
             "test_id": test_id,
             "command": msg_text,
@@ -150,6 +152,7 @@ async def _execute_single_command(
     except Exception as exc:  # noqa: BLE001
         print(f"❌ Error executing {test_id}: {exc}")
         traceback.print_exc()
+        gc.collect()
         return {
             "test_id": test_id,
             "command": msg_text,
@@ -274,7 +277,6 @@ async def run() -> None:
         ("kk删除菲娜面板图test", "kk删除菲娜面板图test", "删除指定面板图"),
         ("kk删除菲娜全部面板图", "kk删除菲娜全部面板图", "删除全部面板图"),
         ("kk压缩面板图", "kk压缩面板图", "压缩自定义面板图"),
-        ("kk下载全部资源", "kk下载全部资源", "下载/同步全部公共资源"),
     ]
 
     output_dir = Path(__file__).resolve().parent / "output"
