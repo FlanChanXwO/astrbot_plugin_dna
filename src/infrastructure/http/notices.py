@@ -193,7 +193,7 @@ class DnaApiNoticesTransport:
             raise NoticesTransportError(NoticesFailureKind.SERVER, resource="密函数据") from None
 
     async def get_mh_any(self) -> MhSnapshot:
-        """用任意可用账号凭据读取密函（计划任务推送用，区别于读取命令的调用者账号）。"""
+        """用任意可用账号凭据读取密函（计划任务推送用，当单个凭据失效时自动轮询下一个有效凭据）。"""
 
         async with self.database.session() as session:
             bindings = await AccountBindingRepository.list_all(session)
@@ -213,23 +213,36 @@ class DnaApiNoticesTransport:
                 resource="密函数据",
                 detail="no usable credential for scheduled push",
             )
-        binding, record = records[0]
-        try:
-            from ...utils import dna_api
 
-            user = await self._legacy_user(
-                EventActor(binding.user_id, binding.bot_id, None),
-                binding.uid,
-                binding.user_id,
-            )
-            response = await dna_api.get_default_role_for_tool(user)
-            return self._mh_snapshot(_response_data(response, resource="密函数据"))
-        except NoticesTransportError:
-            raise
-        except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise NoticesTransportError(NoticesFailureKind.NETWORK, resource="密函数据") from None
-        except (AttributeError, KeyError, TypeError, ValueError):
-            raise NoticesTransportError(NoticesFailureKind.SERVER, resource="密函数据") from None
+        from ...utils import dna_api
+
+        last_error: NoticesTransportError | None = None
+        for binding, record in records:
+            try:
+                user = await self._legacy_user(
+                    EventActor(binding.user_id, binding.bot_id, None),
+                    binding.uid,
+                    binding.user_id,
+                )
+                response = await dna_api.get_default_role_for_tool(user)
+                return self._mh_snapshot(_response_data(response, resource="密函数据"))
+            except NoticesTransportError as error:
+                last_error = error
+                continue
+            except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
+                last_error = NoticesTransportError(NoticesFailureKind.NETWORK, resource="密函数据")
+                continue
+            except (AttributeError, KeyError, TypeError, ValueError):
+                last_error = NoticesTransportError(NoticesFailureKind.SERVER, resource="密函数据")
+                continue
+
+        if last_error is not None:
+            raise last_error
+        raise NoticesTransportError(
+            NoticesFailureKind.SERVER,
+            resource="密函数据",
+            detail="failed to fetch secret letters from any available credential",
+        )
 
     async def get_ann_list(self) -> AnnSnapshot:
         try:

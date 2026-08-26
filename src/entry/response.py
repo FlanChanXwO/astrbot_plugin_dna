@@ -104,7 +104,7 @@ class ResponseFactory:
                     converted.append(AstrPlain(component.text))
                     changed = True
                 elif isinstance(component, ImageResponse):
-                    converted.append(AstrImage(str(component.image)))
+                    converted.append(AstrImage.fromFileSystem(str(component.image)))
                     changed = True
                 else:
                     converted.append(component)

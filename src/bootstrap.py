@@ -175,11 +175,13 @@ def build_runtime(
     )
 
     async def _push_notice(origin: str, payload: str | Path) -> None:
-        msg = MessageChain(
-            chain=[
-                Plain(str(payload)) if not isinstance(payload, Path) else AstrImage(str(payload)),
-            ],
-        )
+        if isinstance(payload, Path) or (
+            isinstance(payload, str)
+            and (payload.endswith((".png", ".jpg", ".jpeg", ".webp")) or Path(payload).exists())
+        ):
+            msg = MessageChain(chain=[AstrImage.fromFileSystem(str(payload))])
+        else:
+            msg = MessageChain(chain=[Plain(str(payload))])
         res = context.send_message(origin, msg)
         if inspect.isawaitable(res):
             await res

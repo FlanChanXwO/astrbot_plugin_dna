@@ -372,17 +372,17 @@ async def test_push_mh_now_pushes_text_and_pic_to_subscribers(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_poll_ann_now_pushes_only_new_announcements(tmp_path: Path) -> None:
-    """公告轮询只推送新公告，已推送的 id 不再重复推送。"""
+    """公告轮询只推送新公告，已推送的 id 不再重复推送，新公告推送渲染图片。"""
 
     database = await _database_with_binding(tmp_path)
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
-    pushed: list[tuple[str, str]] = []
+    pushed: list[tuple[str, object]] = []
     ann_state = AnnStateStore(tmp_path / "ann_state.json")
-    # 预置一个已推送过的旧公告 id，模拟第一次轮询初始化后的状态。
-    await ann_state.merge([1000])
+    # 预置已推送过的旧公告 id
+    await ann_state.merge([1000, 1002])
 
     async def push(origin: str, payload: object) -> None:
-        pushed.append((origin, str(payload)))
+        pushed.append((origin, payload))
 
     service = _service(
         database,
@@ -397,10 +397,13 @@ async def test_poll_ann_now_pushes_only_new_announcements(tmp_path: Path) -> Non
     first = await service.poll_ann_now()
     second = await service.poll_ann_now()
 
-    assert first == 1  # 1001/1002 是新公告 → 推送给 1 个订阅者
+    assert first == 1  # 1001 是新公告 → 推送给 1 个订阅者
     assert second == 0  # 已推送过，不再重复
-    assert "最新公告:" in pushed[0][1]
-    assert "版本更新公告" in pushed[0][1]
+    assert len(pushed) == 1
+    origin, payload = pushed[0]
+    assert origin == "platform:group:g1"
+    assert isinstance(payload, Path)
+    assert payload.is_file()
     await database.dispose()
 
 
@@ -480,4 +483,59 @@ async def test_mh_subscription_keeps_two_users_in_same_conversation(tmp_path: Pa
     subs = await subscriptions.get(messages.MH_SUBSCRIBE)
     assert len(subs) == 2
     assert {sub.uid for sub in subs} == {"user-1", "user-2"}
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_push_mh_now_filters_by_rotation_and_time_and_text_all(tmp_path: Path) -> None:
+    """密函整点推送：按当前轮换与时间段过滤个人订阅，支持全量文本订阅与图片订阅。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    pushed: list[tuple[str, object]] = []
+
+    async def push(origin: str, payload: object) -> None:
+        pushed.append((origin, payload))
+
+    service = _service(
+        database,
+        FakeNoticesTransport(),
+        tmp_path,
+        subscriptions=subscriptions,
+        push=push,
+    )
+
+    # 1. 订阅了轮换中存在的密函（拆解在 FakeNoticesTransport 角色轮换中）
+    await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}, actor=_actor(origin="platform:group:g1")))
+
+    # 2. 订阅了轮换中不存在的密函（避险不在 FakeNoticesTransport 中）
+    await service.subscribe_mh(_request("订阅避险密函", {"mh_name": "避险"}, actor=_actor(origin="platform:group:g2")))
+
+    # 3. 订阅了全量文本密函
+    await service.toggle_mh_text(_request("订阅密函文本", actor=_actor(origin="platform:group:g3")))
+
+    # 4. 订阅了全量图片密函
+    await service.toggle_mh_pic(_request("订阅密函图片", actor=_actor(origin="platform:group:g4")))
+
+    count = await service.push_mh_now()
+
+    # g1 (拆解), g3 (全量文本), g4 (图片) 应收到推送，g2 (避险未命中) 不收到
+    assert count == 3
+    origins = [origin for origin, _ in pushed]
+    assert "platform:group:g1" in origins
+    assert "platform:group:g2" not in origins
+    assert "platform:group:g3" in origins
+    assert "platform:group:g4" in origins
+
+    # 验证 g3 全量文本格式
+    g3_payload = next(payload for origin, payload in pushed if origin == "platform:group:g3")
+    assert "【密函已刷新】" in str(g3_payload)
+    assert "-- 角色 --" in str(g3_payload)
+    assert "扼守" in str(g3_payload)
+
+    # 验证 g4 图片推送
+    g4_payload = next(payload for origin, payload in pushed if origin == "platform:group:g4")
+    assert isinstance(g4_payload, Path)
+    assert g4_payload.is_file()
+
     await database.dispose()

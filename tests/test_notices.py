@@ -98,8 +98,13 @@ class FakeNoticesTransport:
 
     async def get_ann_detail(self, post_id: str) -> AnnDetail:
         self._maybe_fail("get_ann_detail")
-        assert post_id == "1001"
-        return self.ann_detail
+        if post_id == "1001":
+            return self.ann_detail
+        return AnnDetail(
+            post_id=post_id,
+            title=f"公告{post_id}",
+            blocks=self.ann_detail.blocks,
+        )
 
 
 def _ann_detail_fixture() -> AnnDetail:

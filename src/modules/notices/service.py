@@ -423,49 +423,130 @@ class NoticesService:
 
         if self.subscriptions is None or self.push is None:
             return 0
-        snapshot = await self.transport.get_mh_any()
+        try:
+            snapshot = await self.transport.get_mh_any()
+        except NoticesTransportError:
+            from astrbot.api import logger
+
+            logger.warning("[dnaby][push_mh] 获取密函数据失败，跳过本次定时推送")
+            return 0
+
         if not snapshot.sections:
             return 0
+
+        from ...utils import get_datetime
+
+        current_hour = get_datetime().hour
+
+        available_names: set[str] = set()
+        by_type: dict[str, list[str]] = {}
+        for section in snapshot.sections:
+            type_name = section.type_name
+            instance_names = [item.name for item in section.instances]
+            by_type[type_name] = instance_names
+            for full_name in instance_names:
+                base_name = full_name.split("/")[0]
+                available_names.add(base_name)
+                available_names.add(full_name)
+                available_names.add(f"{type_name}:{base_name}")
+                available_names.add(f"{type_name}:{full_name}")
+
         pushed = 0
+
+        # 1. 个人/群聊按名称订阅 (MH_SUBSCRIBE)
         text_subs = await self.subscriptions.get(messages.MH_SUBSCRIBE)
         for sub in text_subs:
+            # 检查时间段限制: "17:23" -> start 17, end 23
+            if sub.extra_data and ":" in sub.extra_data:
+                try:
+                    s_str, e_str = sub.extra_data.split(":", 1)
+                    start_h, end_h = int(s_str), int(e_str)
+                    if start_h <= end_h:
+                        if current_hour < start_h or current_hour > end_h:
+                            continue
+                    else:
+                        if current_hour < start_h and current_hour > end_h:
+                            continue
+                except (ValueError, TypeError):
+                    pass
+
             names = [item for item in sub.extra_message.split(",") if item]
             if not names:
                 continue
+
+            matched = [key for key in names if key in available_names]
+            if not matched:
+                continue
+
             lines = ["当前订阅密函已刷新:"]
-            for key in names:
+            for key in matched:
                 type_name, _, mh_name = key.partition(":")
                 lines.append(f"{type_name} : {mh_name or key}")
             await self._invoke_push(sub.unified_msg_origin, "\n".join(lines))
             pushed += 1
+
+        # 2. 全量文本密函订阅 (MH_TEXT_SUBSCRIBE)
+        all_text_subs = await self.subscriptions.get(messages.MH_TEXT_SUBSCRIBE)
+        if all_text_subs:
+            text_lines = ["【密函已刷新】"]
+            for type_name in ("角色", "武器", "魔之楔"):
+                if by_type.get(type_name):
+                    text_lines.append(f"\n-- {type_name} --")
+                    text_lines.extend(f"{i}. {name}" for i, name in enumerate(by_type[type_name], start=1))
+            full_text = "\n".join(text_lines)
+            for sub in all_text_subs:
+                await self._invoke_push(sub.unified_msg_origin, full_text)
+                pushed += 1
+
+        # 3. 图片密函订阅 (MH_PIC_SUBSCRIBE)
         pic_subs = await self.subscriptions.get(messages.MH_PIC_SUBSCRIBE)
-        for sub in pic_subs:
+        if pic_subs:
             rendered = await self.renderer.render_mh(
                 snapshot,
                 simple_image=self.secret_simple_image,
             )
-            await self._invoke_push(sub.unified_msg_origin, rendered.path)
-            pushed += 1
+            for sub in pic_subs:
+                await self._invoke_push(sub.unified_msg_origin, rendered.path)
+                pushed += 1
+
         return pushed
 
     async def poll_ann_now(self) -> int:
-        """轮询公告并向群订阅者推送新公告；返回推送条数（计划任务）。"""
+        """轮询公告并向群订阅者推送新公告图片；返回推送条数（计划任务）。"""
 
         if self.subscriptions is None or self.push is None or self.ann_state is None:
             return 0
-        snapshot = await self.transport.get_ann_list()
+        try:
+            snapshot = await self.transport.get_ann_list()
+        except NoticesTransportError:
+            return 0
+
         fresh_ids = [int(post.post_id) for post in snapshot.posts if post.post_id.isdigit()]
         pending = await self.ann_state.merge(fresh_ids)
         if not pending:
             return 0
-        title_by_id = {post.post_id: post.title for post in snapshot.posts}
-        pushed = 0
+
         subs = await self.subscriptions.get(messages.ANN_SUBSCRIBE)
-        for sub in subs:
-            lines = ["最新公告:"]
-            lines.extend(f"#{idx} {title_by_id.get(str(post_id), post_id)}" for idx, post_id in enumerate(pending, start=1))
-            await self._invoke_push(sub.unified_msg_origin, "\n".join(lines))
-            pushed += 1
+        if not subs:
+            return 0
+
+        pushed = 0
+        title_by_id = {post.post_id: post.title for post in snapshot.posts}
+
+        for post_id in pending:
+            payload: Path | str
+            try:
+                detail = await self.transport.get_ann_detail(str(post_id))
+                rendered = await self.renderer.render_ann_detail(detail)
+                payload = rendered.path
+            except Exception:  # noqa: BLE001
+                title = title_by_id.get(str(post_id), str(post_id))
+                payload = f"【最新二重螺旋公告】\n{title}"
+
+            for sub in subs:
+                await self._invoke_push(sub.unified_msg_origin, payload)
+                pushed += 1
+
         return pushed
 
 

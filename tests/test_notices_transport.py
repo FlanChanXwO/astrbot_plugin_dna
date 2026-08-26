@@ -204,3 +204,83 @@ async def test_get_mh_structure_change_is_server_error(tmp_path, monkeypatch) ->
         assert raised.value.kind is NoticesFailureKind.SERVER
     finally:
         await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, monkeypatch) -> None:
+    """当首个凭据失效或报错时，get_mh_any 自动回退尝试后续有效凭据并成功返回。"""
+
+    database = AsyncDatabase(tmp_path / "notices_multi.sqlite3")
+    await database.create_schema_for_tests()
+    from src.infrastructure.persistence import AccountBindingRepository
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            bot_id="bot-1",
+            uid="1000000000001",
+            is_active=True,
+        )
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-2",
+            bot_id="bot-1",
+            uid="1000000000002",
+            is_active=True,
+        )
+        # 添加两个账号凭据：user-1 会失败，user-2 会成功
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            bot_id="bot-1",
+            uid="1000000000001",
+            app_cookie="cookie-1",
+            app_device_code="dev-1",
+            app_d_num="",
+            app_refresh_token="",
+            app_status="",
+            web_token="",
+            web_device_code="",
+            web_d_num="",
+            web_refresh_token="",
+            web_status="",
+        )
+        await CredentialRepository.add(
+            session,
+            user_id="user-2",
+            bot_id="bot-1",
+            uid="1000000000002",
+            app_cookie="cookie-2",
+            app_device_code="dev-2",
+            app_d_num="",
+            app_refresh_token="",
+            app_status="",
+            web_token="",
+            web_device_code="",
+            web_d_num="",
+            web_refresh_token="",
+            web_status="",
+        )
+
+    transport = DnaApiNoticesTransport(database)
+
+    try:
+        async def fake_get_default_role(user):
+            # user-1 模拟服务端返回错误（例如 userId 为空或凭据过期）
+            if getattr(user, "user_id", "") == "user-1":
+                return SimpleNamespace(is_success=False, code=220, msg="userId不能为空")
+            # user-2 成功返回有效密函数据
+            return SimpleNamespace(
+                is_success=True,
+                code=200,
+                data=_legacy_mh_payload(),
+            )
+
+        _patch_dna_api(monkeypatch, fake_get_default_role)
+
+        snapshot = await transport.get_mh_any()
+        assert len(snapshot.sections) == 2
+        assert snapshot.sections[0].type_name == "角色"
+        assert [item.name for item in snapshot.sections[0].instances] == ["扼守", "拆解"]
+    finally:
+        await database.dispose()
