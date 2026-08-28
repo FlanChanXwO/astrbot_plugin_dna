@@ -84,6 +84,11 @@ a:focus-visible,
   outline-offset: 3px;
 }
 
+.account-group-summary:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: -3px;
+}
+
 svg {
   display: block;
   fill: none;

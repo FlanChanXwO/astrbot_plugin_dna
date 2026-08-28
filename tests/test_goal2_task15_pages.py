@@ -165,3 +165,13 @@ def test_alias_markup_only_offers_delete_for_custom_aliases() -> None:
     )
     assert "role.default_aliases" in html
     assert "alias-tags--readonly" in html
+
+
+def test_dashboard_review_keeps_summary_focus_visible_and_serializes_alias_writes() -> (
+    None
+):
+    html, _store, _bridge = _page_files()
+    css = (PAGE_ROOT / "css" / "dashboard.css").read_text(encoding="utf-8")
+
+    assert ".account-group-summary:focus-visible" in css
+    assert html.count("aliasActionBusy !== ''") >= 3

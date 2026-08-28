@@ -428,13 +428,23 @@
 
 ## 集中检查 D05 — Task 13–15
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 检查：页面需求偏离、UI/UX、暗色、响应式、键盘/焦点、loading/error/empty 状态、secret 浏览器持久化、bridge 错误、静态契约测试。
 - 处理：不得添加数据 dashboard、帮助管理或无依据分页；发现问题修复或追加 task。
 - 实际工作：
+- 逐项复核四页边界和页面资源：仅保留面板图、任务与探测、账号与预览、角色别名；没有首页统计、图表、帮助命令管理、账号/任务创建、分页或武器别名管理。版本仍由 bootstrap 的 `pluginVersion` 展示，PetiteVue vendor 与许可文件保持本地。
+- 复核 UX 与可访问性：浅色/系统暗色 token、响应式单列/横向导航、44px 控件、可见焦点、原生 `<details>` 键盘折叠、图片 alt、dialog/drawer 关闭路径、加载/错误/空状态和成功 toast 均存在。审查发现 `<summary>` 自定义焦点样式缺失及别名全量恢复时的并发写入口，已先由测试复现再补齐焦点样式并在任意别名写操作期间禁用其他写按钮。
+- 复核 secret 生命周期：账号列表只取摘要，编辑器按 UID 读取明文十字段；不使用浏览器存储，关闭编辑抽屉清空凭据、`selectedAccount` 和预览引用，request id 阻止迟到响应恢复已关闭的 secret/图片。
 - 验证证据：
+- D05 修正 TDD：新增审计契约首次实际 `1 failed, 6 passed`；修正后 `../../../.venv/bin/python -m pytest tests/test_goal2_task15_pages.py -q`：`7 passed`。
+- 相关静态回归：`../../../.venv/bin/python -m pytest tests/test_goal2_task*.py tests/test_entry_skeleton.py tests/test_migration_boundaries.py tests/test_config.py -q`：`145 passed, 5 warnings`；警告仍仅为 AstrBot `audioop` 与动态插件命名空间 `__package__` 弃用提示。
+- 页面禁用项扫描无命中；`node --check` 检查 `app.js`、`bridge.js`、`store.js` 通过；全仓 `ruff check .`、页面测试 Ruff format、变更文件 pre-commit、compileall 和 `git diff --check` 通过。无依赖 Node harness 复核 alias 写入互斥、账号/预览清理与 bridge endpoint。
+- `ui-ux-pro-max` UX 检索结果要求成功反馈、删除确认和移动端无横向溢出，均已落实；当前工具集未提供 LSP/blast-radius 能力，已用精确静态扫描、pytest、Node 语法和运行时 harness 替代。
 - 剩余风险：
+- 真实 AstrBot Plugin Pages 注入环境、桌面/移动/暗色的实际渲染和四页交互仍留给 Task 16；本检查没有操作真实账号、生产配置或运行期 data root。
+- 全量 pytest、全量 Pyright、全量 pre-commit 和终审级安全/并发审查仍按 Task 18/D06 执行；本 D05 不以静态契约替代真实浏览器或最终门禁。
 - 下一步：
+- Task 16：在隔离环境进行真实 AstrBot Plugin Pages 浏览器验证。
 
 ---
 

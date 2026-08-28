@@ -565,7 +565,7 @@
                   <h2 id="aliases-title">角色别名</h2>
                   <p class="section-help">默认别名只读；自定义别名可以追加多个值，恢复默认只清除 custom。</p>
                 </div>
-                <button class="button button--secondary button--small" type="button" :disabled="aliasActionBusy === 'all'" @click="confirmRestoreAllAliases">
+                <button class="button button--secondary button--small" type="button" :disabled="aliasActionBusy !== ''" @click="confirmRestoreAllAliases">
                   恢复全部默认
                 </button>
               </div>
@@ -594,7 +594,7 @@
                       <p class="section-kicker">CHARACTER</p>
                       <h3>{{ role.canonical_name }}</h3>
                     </div>
-                    <button class="button button--secondary button--small" type="button" :disabled="aliasActionBusy === role.canonical_name" @click="confirmRestoreAlias(role)">
+                    <button class="button button--secondary button--small" type="button" :disabled="aliasActionBusy !== ''" @click="confirmRestoreAlias(role)">
                       恢复默认
                     </button>
                   </div>
@@ -610,7 +610,7 @@
                     <div class="alias-tags">
                       <span v-for="alias in role.custom_aliases" :key="`custom-${alias}`" class="alias-tag alias-tag--custom">
                         <span>{{ alias }}</span>
-                        <button class="alias-tag-remove" type="button" :aria-label="`删除自定义别名 ${alias}`" :disabled="aliasActionBusy === role.canonical_name" @click="confirmDeleteAlias(role, alias)">×</button>
+                        <button class="alias-tag-remove" type="button" :aria-label="`删除自定义别名 ${alias}`" :disabled="aliasActionBusy !== ''" @click="confirmDeleteAlias(role, alias)">×</button>
                       </span>
                       <span v-if="!role.custom_aliases?.length" class="field-hint">暂无自定义追加</span>
                     </div>
@@ -626,7 +626,7 @@
                       <span>追加一个自定义别名</span>
                       <input v-model="aliasDrafts[role.canonical_name]" type="text" placeholder="例如：小名" autocomplete="off" />
                     </label>
-                    <button class="button button--primary button--small" type="button" :disabled="aliasActionBusy === role.canonical_name" @click="confirmAddAlias(role)">
+                    <button class="button button--primary button--small" type="button" :disabled="aliasActionBusy !== ''" @click="confirmAddAlias(role)">
                       添加别名
                     </button>
                   </div>
