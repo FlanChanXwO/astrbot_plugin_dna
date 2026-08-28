@@ -85,7 +85,7 @@
 - 剩余风险：全量 pytest 的 76 个失败均出现在并行 `goal-2` 提交 `65417b4` 删除 `bot_id` 后尚未同步的签到、玩家、百科、通知及写入契约路径；失败堆栈为 repository/model API 不接受现有调用方的 `bot_id`，不属于本 O04 文档/清理改动。O05 之前必须完成下方 O04-R；本轮未执行生产登录、插件重载或真实签到。
 - 下一步：先完成 O04-R 的跨目标身份迁移后门禁复跑，再进入 O05。
 
-### O04-R — 并行身份迁移完成后的第一阶段门禁复跑 `[pending]`
+### O04-R — 并行身份迁移完成后的第一阶段门禁复跑 `[completed]`
 
 - 待 `goal-2` 完成 account/privacy/repository/model API 与现有服务、测试的统一后，重跑第一阶段相关测试及完整 pytest、ruff、compileall、投影一致性检查。
 - 只处理 `goal-2` 归属的身份迁移冲突；本复跑未通过前不得进入 O05，也不得进行生产热重载。
@@ -105,6 +105,14 @@
 - 验证命令与结果：compileall、`git diff --check`、命令/配置生成器及投影核对通过；全仓 ruff 当前唯一失败为并行 `goal-2` Task 05 新增 `tests/test_goal2_task05_admin_accounts.py` 的 `I001` import 排序，未涉及 O04-R 文件，且未由本轮修改。
 - 剩余风险：并行 `goal-2` Task 05 尚在进行，全仓 ruff 尚未恢复全绿；O04-R 的全量静态门禁因此仍未完成。O05、生产热重载和后续阶段继续禁止。
 - 下一步：待并行 Task 05 自行修正其 lint 后，重跑全仓 ruff 和必要的 O04-R 门禁；静态门禁全绿后再标记 O04-R completed。
+
+最终收口记录（2026-08-28）：
+
+- 实际完成：`goal-2` Task 04 已由 `c9e157a` 提交，统一身份迁移覆盖的 Player、Encyclopedia、Checkin、Notices 消费者、transport 及 `player_transport` fixture 均已收口；Task 04 的身份阻塞不再存在。
+- Red/Green/Refactor 证据：`tests/test_player_transport.py`、`tests/test_goal2_task04_global_consumers.py`、`tests/test_write_contracts.py` 共 `56 passed, 1 warning`；在 `c9e157a` 后执行的全量 pytest 为 `413 passed, 1 skipped, 5 warnings`。本任务只做门禁复跑，没有新增实现或 Refactor。
+- 验证命令与结果：goal-2 Task 05 新增测试 `7 passed`；当前全仓 `ruff check .`、`compileall -q .`、`git diff --check` 均通过；重新生成 `commands.json` 与 `_conf_schema.json` 后无 diff。
+- 剩余风险：当前仅保留 5 条已知兼容性 warning；后续 `goal-2` 管理功能与其自身任务仍可能继续改变工作树，但不再阻塞第一阶段身份门禁。本任务未执行生产登录、热重载或真实签到。
+- 下一步：进入 O05，审查第一阶段范围并形成独立插件 SHA；在 O05/O06 完成前不得启动第二阶段。
 
 ### O05 — 第一阶段审查与独立 SHA `[pending]`
 
