@@ -140,6 +140,7 @@
 - TDD Green/回归：`.venv/bin/python -m pytest tests/test_goal2_task05_admin_accounts.py tests/test_persistence.py tests/test_account.py tests/test_goal2_task03_global_identity.py tests/test_goal2_task04_global_consumers.py -q`：`39 passed, 1 warning`。
 - 按 runtime 根目录 Ruff 配置复核并修复 `tests/test_goal2_task05_admin_accounts.py` 的 `I001`：移除第三方导入与 `src` 导入之间多余的空行；定向 `.../.venv/bin/python -m ruff check data/plugins/astrbot_plugin_dnaby/tests/test_goal2_task05_admin_accounts.py --select I001` 通过。
 - 插件目录全仓 `/Users/flanchan/.local/bin/ruff check .` 通过；runtime 根目录扫描整个插件仍报告 57 个既有、分布在其他文件的 `I001`/`RUF022`，本轮未扩大到 Task 05 之外。
+- 2026-08-29 复核：Task 05 定向 pytest `39 passed, 1 warning`；runtime 根目录定向 `I001` 与插件目录全仓 Ruff 均通过。runtime 根目录全仓扫描仍包含其他历史文件及当前未提交 Task 12 文件的越界诊断，本轮不纳入 Task 05 修复范围。
 - 定向 Pyright：`pyright --project pyrightconfig.json src/modules/admin tests/test_goal2_task05_admin_accounts.py`：`0 errors, 0 warnings, 0 informations`。
 - 剩余风险：
 - admin service 尚未注册 WebRoute；框架 adapter、认证上下文和实际 Dashboard 路由留给 Task 10/12，当前 service 不提供普通命令入口。
