@@ -135,6 +135,16 @@
 - 运行权限/帮助/At 行为 adapter 模拟。
 - 复制帮助、卡片、周报等产物到本地并由 Agent 实际查看。
 
+首次预检记录（2026-08-28）：
+
+- `atri` 插件目录存在，部署工作树 clean，当前 SHA 为
+  `9a33b60ed3545020b97acb11e18b91041c1f80de`；该 SHA 同时作为本阶段恢复点候选。
+- 已通过已认证 Dashboard API 预检 `astrbot_plugin_dnaby`：插件 ID 匹配、状态为已激活、版本为
+  `v0.1.0`。本次没有输出或记录任何凭据和原始 API 响应。
+- 目标阶段 SHA `a97317e1a8c41112fb0220bca941120010076edf` 不在 `atri` 本地对象库，且
+  `origin` 也没有 `codex/goal-1-phase1` ref；因此在目标 SHA 可 fetch 前停止，未切换生产工作树、未调用 reload。
+- 剩余前置：需要明确授权将本地 `codex/goal-1-phase1` 发布到项目远端（或提供等效的受控交付方式），之后才能继续按 §4.2 执行 fetch、精确切换、热重载和验收。
+
 ### D02 — 调试审查 O04–O06 `[pending]`
 
 - 核对本地 SHA、生产 SHA、插件版本、registry 投影和日志生命周期一致性。
