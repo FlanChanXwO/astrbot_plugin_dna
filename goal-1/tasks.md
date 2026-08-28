@@ -114,11 +114,20 @@
 - 剩余风险：当前仅保留 5 条已知兼容性 warning；后续 `goal-2` 管理功能与其自身任务仍可能继续改变工作树，但不再阻塞第一阶段身份门禁。本任务未执行生产登录、热重载或真实签到。
 - 下一步：进入 O05，审查第一阶段范围并形成独立插件 SHA；在 O05/O06 完成前不得启动第二阶段。
 
-### O05 — 第一阶段审查与独立 SHA `[pending]`
+### O05 — 第一阶段审查与独立 SHA `[completed]`
 
 - 自审并使用 `code-review-expert`，处理所有阻塞发现。
 - 形成只包含第一阶段的可追溯 commit SHA。
 - 记录部署前 SHA、变更摘要和回滚 SHA，不部署。
+
+本轮完成记录（2026-08-28）：
+
+- 实际完成：按 `code-review-expert` 清单复核 O01–O04-R 的命令 registry、动态 handler、权限快照、At 目标解析、帮助缓存/版本、生命周期、删除项、文档和投影；发现并修复多前缀配置下帮助示例把主前缀与实际前缀拼接的问题（如 `dnakk帮助`），并修正活动设计/离线写契约中的旧 owner/未注册命令描述。未发现本阶段仍存的 P0/P1 阻塞。
+- Red/Green/Refactor 证据：新增测试先实际失败，断言 `dnakk帮助` 与期望 `dna帮助` 不一致；最小修复后多前缀和空前缀场景通过。相关第一阶段 suite 为 `136 passed, 5 warnings`；本轮没有额外重构。
+- 验证命令与结果：`pytest` 第一阶段相关 suite `136 passed, 5 warnings`；当前工作树全量 `pytest` 为 `423 passed, 1 skipped, 4 failed`，4 个失败均为既有真实 T2I 返回不可解码图片（百科/密函渲染），不属于本任务改动；全仓 `ruff check .`、`compileall -q src main.py scripts`、`git diff --check`、命令/配置生成器及 `commands.json`/`_conf_schema.json` 无 diff 均通过。由 `tests/.data` 补齐的隔离快照相关 suite 同样为 `136 passed, 5 warnings`。
+- 第一阶段独立 SHA：`a97317e1a8c41112fb0220bca941120010076edf`（本地 ref `codex/goal-1-phase1`，父提交为 `origin/main` 的 `9a33b60ed3545020b97acb11e18b91041c1f80de`）。该快照包含 goal-1 O01–O05 的第一阶段改动，以及 O04-R 必需的 goal-2 全局身份迁移提交 `8618986`/`65417b4`/`820431d`/`c9e157a`；明确不含 goal-2 Task05/06 管理功能。O05 审查修复提交为 `e616e20edb1f643a0e750feb2ae64f9427e58438`。
+- 部署前/回滚记录：沿用 `plan.md §4.1` 于 2026-08-28 对 `atri` 的只读基线，部署前 SHA 与回滚 SHA 均记录为 `9a33b60ed3545020b97acb11e18b91041c1f80de`；本轮未重新连接生产、未切换 SHA、未调用 reload，O06 必须在部署前重新确认该恢复点、目标 SHA 已可 fetch 且工作树干净。
+- 剩余风险：全量测试的 4 条 T2I 失败仍需具备可用渲染服务或隔离 fake 后再做全量绿门禁；阶段一独立提交目前只建立在本地 ref，未发布到 `atri`，因此不构成生产验收证据。下一步进入 O06 前仍不得重载生产。
 
 ### O06 — 第一阶段 atri 精确 SHA 热重载验收 `[pending]`
 
