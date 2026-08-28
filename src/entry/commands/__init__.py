@@ -115,9 +115,14 @@ class CommandSpec:
 class CommandRegistry:
     """显式命令声明的只读索引。"""
 
-    __slots__ = ("_by_id", "_by_pattern", "_specs")
+    __slots__ = ("_by_id", "_by_pattern", "_prefixes", "_specs")
 
-    def __init__(self, specs: Iterable[CommandSpec]) -> None:
+    def __init__(
+        self,
+        specs: Iterable[CommandSpec],
+        *,
+        prefixes: Iterable[str] = (),
+    ) -> None:
         specs_tuple = tuple(specs)
         by_id: dict[str, CommandSpec] = {}
         by_pattern: dict[str, CommandSpec] = {}
@@ -136,6 +141,7 @@ class CommandRegistry:
         self._specs = specs_tuple
         self._by_id = by_id
         self._by_pattern = by_pattern
+        self._prefixes = tuple(prefixes)
 
     @classmethod
     def from_modules(cls, modules: Iterable[ModuleType]) -> CommandRegistry:
@@ -159,6 +165,12 @@ class CommandRegistry:
 
     def __len__(self) -> int:
         return len(self._specs)
+
+    @property
+    def prefixes(self) -> tuple[str, ...]:
+        """返回构造 registry 时使用的命令前缀，用于帮助示例重绘。"""
+
+        return self._prefixes
 
     def get(self, command_id: str) -> CommandSpec:
         """按稳定 id 取得命令；未知 id 显式失败。"""
@@ -285,7 +297,10 @@ def load_command_registry(
 
         modules = COMMAND_MODULES
     raw_registry = CommandRegistry.from_modules(modules)
-    return CommandRegistry(_prefix_spec(spec, prefixes=norm_prefixes) for spec in raw_registry)
+    return CommandRegistry(
+        (_prefix_spec(spec, prefixes=norm_prefixes) for spec in raw_registry),
+        prefixes=norm_prefixes,
+    )
 
 
 def _canonical_symbol_path(callable_: Callable[..., Any]) -> str:

@@ -120,11 +120,20 @@ def _registry_help_sections(
         if isinstance(value, dict)
     }
     grouped: dict[str, list[dict[str, Any]]] = {}
+    configured_prefixes = tuple(
+        sorted((prefix for prefix in registry.prefixes if prefix), key=len, reverse=True),
+    )
     for spec in registry.visible_specs(permission):
-        example = " / ".join(spec.examples)
+        examples = []
+        for example in spec.examples:
+            for configured_prefix in configured_prefixes:
+                if example.startswith(configured_prefix):
+                    example = example[len(configured_prefix) :]
+                    break
+            examples.append(example)
         grouped.setdefault(spec.group, []).append(
             {
-                "example": _format_example(example, prefix=prefix),
+                "example": _format_example(" / ".join(examples), prefix=prefix),
                 "icon": image_data_uri(_find_icon(spec.name)),
                 "name": spec.name,
             },

@@ -263,6 +263,75 @@ async def test_help_card_uses_visible_registry_commands_and_metadata_version(
 
 
 @pytest.mark.asyncio
+async def test_registry_help_examples_follow_the_prefix_used_to_trigger_help(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """多前缀配置下，帮助示例不能把主前缀和实际前缀拼接在一起。"""
+
+    import src.infrastructure.rendering.help as help_renderer
+
+    class Renderer:
+        def __init__(self) -> None:
+            self.data: dict[str, object] | None = None
+
+        async def render(
+            self,
+            _template_name: str,
+            data: dict[str, object],
+            _spec: object,
+        ) -> bytes:
+            self.data = data
+            return b"help-card"
+
+    renderer = Renderer()
+    monkeypatch.setattr(help_renderer, "_RENDERER", renderer)
+    monkeypatch.setattr(help_renderer, "font_data_uri", lambda _: "font")
+    monkeypatch.setattr(help_renderer, "image_data_uri", lambda _: "image")
+    monkeypatch.setattr(
+        help_renderer,
+        "_load_help_data",
+        lambda: {"帮助": {"desc": "", "data": []}},
+    )
+    help_renderer.invalidate_help_cache()
+
+    registry = load_command_registry(prefixes=["kk", "dna"])
+    result = await help_renderer.get_help(
+        prefix="dna",
+        registry=registry,
+        permission="user",
+    )
+
+    assert result == b"help-card"
+    assert renderer.data is not None
+    sections = renderer.data["sections"]
+    assert isinstance(sections, list)
+    help_items = [
+        item
+        for section in sections
+        for item in section["items"]
+        if item["name"] == "帮助"
+    ]
+    assert help_items[0]["example"] == "dna帮助"
+
+    empty_registry = load_command_registry(prefixes=["kk", ""])
+    await help_renderer.get_help(
+        prefix="",
+        registry=empty_registry,
+        permission="user",
+    )
+    assert renderer.data is not None
+    empty_sections = renderer.data["sections"]
+    assert isinstance(empty_sections, list)
+    empty_help_items = [
+        item
+        for section in empty_sections
+        for item in section["items"]
+        if item["name"] == "帮助"
+    ]
+    assert empty_help_items[0]["example"] == "帮助"
+
+
+@pytest.mark.asyncio
 async def test_help_cache_is_keyed_and_invalidated_by_runtime_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

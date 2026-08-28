@@ -8,7 +8,7 @@
 
 1. **原生重写集成层**：不引入 gsuid_core 兼容包；命令/发送/配置/DB/订阅/推送/Web/定时任务用 AstrBot 原生写法，仅复用纯逻辑（请求签名、伤害计算、素材处理、攻略/wiki 素材、姓名别名、字体图片工具）；生成型图片统一由 Jinja2 + AstrBot 全局 T2I 输出。
 2. **完整移植登录**：内嵌 Web/App 短信登录页、local 模式、QR、token、短信命令登录、外置传输（http_poll/sse/ws）全保留。
-3. **命令改正则触发**：命令清单仿照原 `help.json` 生成 `commands.json`。
+3. **命令改正则触发**：命令由显式 `CommandSpec` registry 声明；`commands.json` 是 registry 投影，`help.json` 在 registry 帮助路径仅提供表现层说明与资源信息。
 4. 使用 `/skill-astrbot-dev` 规范（metadata/requirements/main 聚焦/README/LICENSE）与 `/superpowers-skill` 方法论执行。
 
 ## 2. 现状（源）
@@ -49,8 +49,9 @@ astrbot_plugin_dnaby/
   `MASTER_PATTERN` 或全局循环 dispatch。use case 返回框架无关 DTO，响应边界负责构造
   AstrBot 原生结果。
 - `commands.json` 由 registry 生成，帮助 use case 读取同一 registry；未实现命令不注册、不展示。
-- 权限：`user` 映射 `PermissionType.MEMBER`，`admin` 映射 `ADMIN`；AstrBot 没有独立 owner
-  类型，当前 owner 由自定义过滤器精确匹配全局 `admins_id`，不等同于群管理员。
+- 实际触发前缀只来自 `display.command_prefixes`；帮助按本次匹配到的前缀重绘示例，不隐式追加 `d`。
+- 权限只有 `user` 与 `admin`：`user` 映射 `PermissionType.MEMBER`，`admin` 映射 `ADMIN`；
+  `CommandRequest.permission` 在入口处从当前事件快照得到，不再使用自定义 owner 过滤器或全局 `admins_id`。
 
 ## 5. 发送层设计（关键）
 
