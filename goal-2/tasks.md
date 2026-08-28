@@ -404,13 +404,27 @@
 
 ## Task 15 — 账号预览与角色别名页面
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：实现全局账号折叠列表、明文凭据编辑、删 UID/用户预览、基本卡/详情卡 overlay，以及默认只读+多 custom 标签的角色别名页。
 - 验收：身份键不可编辑；关闭抽屉清空 secret 与图片引用；隐私不影响预览；默认别名不能删改；恢复默认只清 custom；不出现武器别名管理。
 - 实际工作：
+- 新增账号与别名页面：账号按全局 `user_id` 折叠展示 UID 摘要，列表只请求 `include_credentials=false`；打开编辑抽屉后再按 `(user_id, uid)` 读取全部十项 App/Web 凭据，`user_id`/`uid` 使用只读输入，来源群和 active 状态可编辑，不提供账号创建。
+- 接入 UID/用户删除预览与确认执行；删除前校验服务端返回的身份键和 `confirmation_payload`，成功后重新读取账号事实。基本信息卡和详情卡均通过认证 API 获取 base64 图片，详情支持角色名和逗号分隔的可选武器名。
+- 增加 secret/图片生命周期保护：编辑器关闭会清空表单凭据、`selectedAccount` 和预览引用；详情/预览请求以 request id 忽略关闭后的迟到响应；页面和 bridge/store 不使用 `localStorage` 或 `sessionStorage`。
+- 增加角色别名管理：默认别名以只读标签展示，自定义别名支持多个值追加/删除，有效集合单独展示；添加、删除、按角色恢复和全部恢复均进入确认流程，并在成功后重载服务端目录；页面没有武器别名管理入口。
+- 复用统一卡片、抽屉、确认弹窗、加载/错误/空状态和移动端断点；按 `ui-ux-pro-max` UX 检索结果落实成功反馈、破坏性操作确认及窄屏无横向溢出。
 - 验证证据：
+- TDD Red：首次执行 `../../../.venv/bin/python -m pytest tests/test_goal2_task15_pages.py -q`，页面仍是 Task 13 占位且 bridge/store 无 Task 15 契约，实际 `6 failed`。
+- Green：`../../../.venv/bin/python -m pytest tests/test_goal2_task15_pages.py -q`：`6 passed`；Task 13–15 联合：`17 passed`。
+- Goal-2 相关回归：`../../../.venv/bin/python -m pytest tests/test_goal2_task*.py tests/test_entry_skeleton.py tests/test_migration_boundaries.py tests/test_config.py -q`：`144 passed, 5 warnings`；警告仅为 AstrBot `audioop` 与动态插件命名空间 `__package__` 弃用提示。
+- `node --check pages/dashboard/js/bridge.js`、`node --check pages/dashboard/js/store.js`、定向 Pyright、`compileall -q src main.py tests`、`git diff --check`、Task 15 Ruff format check、全仓 `/Users/flanchan/.local/bin/ruff check .` 和变更文件 `pre-commit run --files ...`：均通过。
+- 无依赖 Node harness 核验：账号列表只传 `include_credentials=false`，身份路径正确编码，详情/删除预览/预览图片 endpoint 正确；store 成功写入后重载别名/账号，关闭编辑或预览后迟到响应不会恢复 secret 或图片引用。
 - 剩余风险：
+- 真实 AstrBot Plugin Pages 注入环境、桌面/移动/暗色视觉与真实交互证据仍留给 Task 16；本 task 未接触真实账号、订阅或生产 data root。
+- 明文凭据仍会在已认证管理请求和编辑抽屉生命周期内可见；后端 no-store、列表摘要化和关闭/竞态清理已覆盖页面边界，真实浏览器缓存与宿主 bridge 行为需 Task 16 复核。
+- 预览上游与既有渲染链的真实图片可用性仍取决于隔离环境中的 transport/T2I 服务，Task 15 只负责认证 API 映射与内存图片展示。
 - 下一步：
+- 集中检查 D05：复核 Task 13–15 的需求偏离、UX/响应式/可访问性、secret 生命周期、bridge 错误和静态契约。
 
 ## 集中检查 D05 — Task 13–15
 

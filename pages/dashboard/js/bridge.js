@@ -111,7 +111,20 @@ function dataValue(response) {
 export function createDashboardApi() {
   return {
     getBootstrap: () => apiGet("admin/bootstrap"),
+    getAccounts,
+    getAccount,
+    updateAccount,
+    getUidDeletePreview,
+    deleteUid,
+    getUserDeletePreview,
+    deleteUser,
+    previewOverview,
+    previewDetail,
     getAliasCatalog,
+    addAlias,
+    deleteAlias,
+    restoreAliasRole,
+    restoreAllAliases,
     getPanelImages,
     getPanelImage,
     uploadPanel,
@@ -134,6 +147,98 @@ export function createDashboardApi() {
 
 export async function getAliasCatalog() {
   return dataValue(await apiGet("admin/aliases"));
+}
+
+export async function addAlias(roleName, alias) {
+  const role = pathSegment(roleName, "角色名称");
+  return dataValue(await apiPost(`admin/aliases/${role}`, { alias }));
+}
+
+export async function deleteAlias(roleName, alias) {
+  const role = pathSegment(roleName, "角色名称");
+  return dataValue(await apiPost(`admin/aliases/${role}/delete`, { alias }));
+}
+
+export async function restoreAliasRole(roleName) {
+  const role = pathSegment(roleName, "角色名称");
+  return dataValue(await apiPost(`admin/aliases/${role}/restore`, {}));
+}
+
+export async function restoreAllAliases() {
+  return dataValue(await apiPost("admin/aliases/restore-all", {}));
+}
+
+export async function getAccounts({ includeCredentials = false } = {}) {
+  return dataValue(
+    await apiGet("admin/accounts", {
+      include_credentials: includeCredentials ? "true" : "false",
+    }),
+  );
+}
+
+export async function getAccount(userId, uid) {
+  const user = pathSegment(userId, "user_id");
+  const accountUid = pathSegment(uid, "uid");
+  return dataValue(await apiGet(`admin/accounts/${user}/${accountUid}`));
+}
+
+export async function updateAccount(userId, uid, payload) {
+  const user = pathSegment(userId, "user_id");
+  const accountUid = pathSegment(uid, "uid");
+  return dataValue(await apiPost(`admin/accounts/${user}/${accountUid}`, payload));
+}
+
+export async function getUidDeletePreview(userId, uid) {
+  const user = pathSegment(userId, "user_id");
+  const accountUid = pathSegment(uid, "uid");
+  return dataValue(
+    await apiGet(`admin/accounts/${user}/${accountUid}/delete-preview`),
+  );
+}
+
+export async function deleteUid(userId, uid, plan) {
+  const user = pathSegment(userId, "user_id");
+  const accountUid = pathSegment(uid, "uid");
+  return dataValue(
+    await apiPost(`admin/accounts/${user}/${accountUid}/delete`, {
+      plan,
+      confirmation_payload: plan?.confirmation_payload,
+    }),
+  );
+}
+
+export async function getUserDeletePreview(userId) {
+  const user = pathSegment(userId, "user_id");
+  return dataValue(await apiGet(`admin/accounts/users/${user}/delete-preview`));
+}
+
+export async function deleteUser(userId, plan) {
+  const user = pathSegment(userId, "user_id");
+  return dataValue(
+    await apiPost(`admin/accounts/users/${user}/delete`, {
+      plan,
+      confirmation_payload: plan?.confirmation_payload,
+    }),
+  );
+}
+
+export async function previewOverview(userId, uid) {
+  const user = pathSegment(userId, "user_id");
+  const accountUid = pathSegment(uid, "uid");
+  return dataValue(
+    await apiPost(`admin/accounts/${user}/${accountUid}/preview/overview`, {}),
+  );
+}
+
+export async function previewDetail(userId, uid, charName, weaponNames = []) {
+  const user = pathSegment(userId, "user_id");
+  const accountUid = pathSegment(uid, "uid");
+  return dataValue(
+    await apiPost(`admin/accounts/${user}/${accountUid}/preview/detail`, {
+      char_name: charName,
+      weapon_names: weaponNames,
+    }),
+  );
 }
 
 export async function getPanelImages(roleName) {

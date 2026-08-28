@@ -17,6 +17,76 @@ const MEMBERSHIP_STATE_LABELS = Object.freeze({
   unknown: "无法确认",
 });
 
+const CREDENTIAL_FIELDS = Object.freeze([
+  "app_cookie",
+  "app_device_code",
+  "app_d_num",
+  "app_refresh_token",
+  "app_status",
+  "web_token",
+  "web_device_code",
+  "web_d_num",
+  "web_refresh_token",
+  "web_status",
+]);
+
+function blankCredentials() {
+  return Object.fromEntries(CREDENTIAL_FIELDS.map((field) => [field, ""]));
+}
+
+function blankAccountForm() {
+  return {
+    user_id: "",
+    uid: "",
+    group_id: "",
+    is_active: false,
+    credentials: blankCredentials(),
+  };
+}
+
+function accountKey(account) {
+  return `${account?.user_id || ""}:${account?.uid || ""}`;
+}
+
+function accountGroups(value) {
+  const accounts = asList(value, "accounts");
+  const groups = new Map();
+  for (const account of accounts) {
+    if (!account || typeof account.user_id !== "string" || !account.user_id.trim()) {
+      continue;
+    }
+    const userId = account.user_id.trim();
+    if (!groups.has(userId)) {
+      groups.set(userId, { user_id: userId, accounts: [] });
+    }
+    groups.get(userId).accounts.push(account);
+  }
+  return [...groups.values()];
+}
+
+function accountFormValue(account) {
+  const credentials = blankCredentials();
+  for (const field of CREDENTIAL_FIELDS) {
+    if (typeof account?.credentials?.[field] === "string") {
+      credentials[field] = account.credentials[field];
+    }
+  }
+  return {
+    user_id: typeof account?.user_id === "string" ? account.user_id : "",
+    uid: typeof account?.uid === "string" ? account.uid : "",
+    group_id: typeof account?.group_id === "string" ? account.group_id : "",
+    is_active: account?.is_active === true,
+    credentials,
+  };
+}
+
+function parseWeaponNames(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function blankDialog() {
   return {
     open: false,
@@ -31,6 +101,7 @@ function blankDialog() {
 function blankDrawer() {
   return {
     open: false,
+    kind: "generic",
     title: "详情",
     description: "",
   };
@@ -134,6 +205,33 @@ export function createDashboardStore({ api }) {
     memberDeletePreviewLoading: false,
     memberDeletePlan: null,
 
+    accounts: [],
+    accountGroups: [],
+    accountSearch: "",
+    accountsLoading: false,
+    accountsError: "",
+    selectedAccount: null,
+    accountForm: blankAccountForm(),
+    accountEditorOpen: false,
+    accountEditorRequestId: 0,
+    accountSaving: false,
+    accountActionBusy: "",
+    accountDeleteLoading: false,
+    accountDeletePlan: null,
+    accountPreview: null,
+    accountPreviewLoading: false,
+    accountPreviewError: "",
+    previewRequestId: 0,
+    previewCharName: "",
+    previewWeaponNames: "",
+
+    aliasRoles: [],
+    aliasSearch: "",
+    aliasesLoading: false,
+    aliasesError: "",
+    aliasDrafts: {},
+    aliasActionBusy: "",
+
     toast: {
       open: false,
       message: "",
@@ -154,8 +252,43 @@ export function createDashboardStore({ api }) {
       return this.panelRoles.filter((role) => role.toLocaleLowerCase().includes(query));
     },
 
+    get filteredAccountGroups() {
+      const query = this.accountSearch.trim().toLocaleLowerCase();
+      if (!query) {
+        return this.accountGroups;
+      }
+      return this.accountGroups
+        .map((group) => ({
+          ...group,
+          accounts: group.accounts.filter((account) =>
+            accountKey(account).toLocaleLowerCase().includes(query),
+          ),
+        }))
+        .filter((group) => group.accounts.length > 0);
+    },
+
+    get filteredAliasRoles() {
+      const query = this.aliasSearch.trim().toLocaleLowerCase();
+      if (!query) {
+        return this.aliasRoles;
+      }
+      return this.aliasRoles.filter((role) => {
+        const values = [
+          role.canonical_name,
+          ...(role.default_aliases || []),
+          ...(role.custom_aliases || []),
+          ...(role.effective_aliases || []),
+        ];
+        return values.some((value) => String(value).toLocaleLowerCase().includes(query));
+      });
+    },
+
     get selectedTask() {
       return this.tasks.find((task) => task.id === this.selectedTaskId) || null;
+    },
+
+    accountKey(account) {
+      return accountKey(account);
     },
 
     get membershipResults() {
@@ -199,6 +332,8 @@ export function createDashboardStore({ api }) {
       await this.loadMembershipCapability();
       await this.reloadTaskState();
       await this.reloadPanelState();
+      await this.reloadAccountState();
+      await this.reloadAliasState();
       this.loading = false;
     },
 
@@ -258,6 +393,12 @@ export function createDashboardStore({ api }) {
     },
 
     openDrawer(options = {}) {
+      if (this.drawer.kind === "account-edit") {
+        this.clearAccountSecrets();
+      }
+      if (this.drawer.kind === "preview") {
+        this.clearPreviewState();
+      }
       this.drawer = {
         ...blankDrawer(),
         ...options,
@@ -266,6 +407,17 @@ export function createDashboardStore({ api }) {
     },
 
     closeDrawer() {
+      if (this.drawer.kind === "account-edit") {
+        this.clearAccountSecrets();
+        this.accountEditorOpen = false;
+        this.selectedAccount = null;
+      }
+      if (this.drawer.kind === "preview") {
+        this.clearPreviewState();
+      }
+      if (this.drawer.kind === "detail-form") {
+        this.clearPreviewState();
+      }
       this.drawer = blankDrawer();
     },
 
@@ -276,6 +428,486 @@ export function createDashboardStore({ api }) {
       }
       if (this.drawer.open) {
         this.closeDrawer();
+      }
+    },
+
+    async reloadAccountState() {
+      this.accountsLoading = true;
+      this.accountsError = "";
+      try {
+        const payload = await this.api.getAccounts({ includeCredentials: false });
+        this.accounts = asList(payload, "accounts");
+        this.accountGroups = accountGroups(this.accounts);
+      } catch (error) {
+        this.accounts = [];
+        this.accountGroups = [];
+        this.accountsError = safeErrorMessage(error);
+      } finally {
+        this.accountsLoading = false;
+      }
+    },
+
+    async openAccountEditor(account) {
+      if (!account) {
+        return;
+      }
+      const requestId = ++this.accountEditorRequestId;
+      this.clearAccountSecrets();
+      this.clearPreviewState();
+      this.selectedAccount = account;
+      this.accountForm = accountFormValue(account);
+      this.accountEditorOpen = true;
+      this.openDrawer({
+        kind: "account-edit",
+        title: `编辑账号 ${account.uid || ""}`,
+        description: "身份键只读；来源群、启用状态和全部 App/Web 凭据可编辑。",
+      });
+      try {
+        const payload = responseData(await this.api.getAccount(account.user_id, account.uid));
+        if (
+          requestId !== this.accountEditorRequestId ||
+          !this.drawer.open ||
+          this.drawer.kind !== "account-edit"
+        ) {
+          return;
+        }
+        if (payload) {
+          this.selectedAccount = payload;
+          this.accountForm = accountFormValue(payload);
+        }
+      } catch (error) {
+        if (requestId !== this.accountEditorRequestId) {
+          return;
+        }
+        this.accountEditorOpen = false;
+        this.closeDrawer();
+        this.showToast(safeErrorMessage(error), "error");
+      }
+    },
+
+    clearAccountSecrets() {
+      const credentials = this.accountForm?.credentials;
+      if (!credentials) {
+        return;
+      }
+      for (const field of CREDENTIAL_FIELDS) {
+        credentials[field] = "";
+      }
+    },
+
+    closeAccountEditor() {
+      this.accountEditorRequestId += 1;
+      this.clearAccountSecrets();
+      this.accountEditorOpen = false;
+      this.accountForm = blankAccountForm();
+      this.selectedAccount = null;
+      if (this.drawer.open) {
+        this.closeDrawer();
+      }
+    },
+
+    accountFormPayload() {
+      const credentials = {};
+      for (const field of CREDENTIAL_FIELDS) {
+        credentials[field] = String(this.accountForm.credentials?.[field] || "");
+      }
+      return {
+        user_id: this.accountForm.user_id,
+        uid: this.accountForm.uid,
+        group_id: this.accountForm.group_id.trim() || null,
+        is_active: this.accountForm.is_active === true,
+        credentials,
+      };
+    },
+
+    confirmSaveAccount() {
+      if (!this.accountForm.user_id || !this.accountForm.uid) {
+        this.showToast("账号身份键不完整，无法保存", "error");
+        return;
+      }
+      this.openDialog({
+        title: "确认保存账号",
+        description: `将更新用户「${this.accountForm.user_id}」的 UID「${this.accountForm.uid}」来源、状态和全部凭据。`,
+        confirmLabel: "保存账号",
+        onConfirm: () => this.saveAccount(),
+      });
+    },
+
+    async saveAccount() {
+      this.accountSaving = true;
+      try {
+        await this.api.updateAccount(
+          this.accountForm.user_id,
+          this.accountForm.uid,
+          this.accountFormPayload(),
+        );
+        await this.reloadAccountState();
+        this.showToast("账号已更新");
+        this.closeAccountEditor();
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.accountSaving = false;
+      }
+    },
+
+    async confirmDeleteUid(account) {
+      if (!account) {
+        return;
+      }
+      this.accountDeleteLoading = true;
+      this.accountDeletePlan = null;
+      try {
+        const plan = responseData(
+          await this.api.getUidDeletePreview(account.user_id, account.uid),
+        );
+        if (
+          !plan?.confirmation_payload ||
+          plan.user_id !== account.user_id ||
+          plan.uid !== account.uid
+        ) {
+          throw new Error("UID 删除预览无效");
+        }
+        this.accountDeletePlan = plan;
+        this.openDialog({
+          title: "确认删除 UID",
+          description: `将删除用户「${account.user_id}」的 UID「${account.uid}」及预览列出的数据，此操作不可恢复。`,
+          confirmLabel: "永久删除 UID",
+          onConfirm: () => this.deleteUid(account, plan),
+        });
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.accountDeleteLoading = false;
+      }
+    },
+
+    async deleteUid(account, plan = this.accountDeletePlan) {
+      if (!account || !plan) {
+        return;
+      }
+      this.accountActionBusy = accountKey(account);
+      try {
+        await this.api.deleteUid(account.user_id, account.uid, plan);
+        await this.reloadAccountState();
+        this.accountDeletePlan = null;
+        this.showToast("UID 已永久删除");
+        if (this.accountEditorOpen) {
+          this.closeAccountEditor();
+        }
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.accountActionBusy = "";
+      }
+    },
+
+    async confirmDeleteUser(userId) {
+      const normalizedUserId = String(userId || "").trim();
+      if (!normalizedUserId) {
+        return;
+      }
+      this.accountDeleteLoading = true;
+      this.accountDeletePlan = null;
+      try {
+        const plan = responseData(await this.api.getUserDeletePreview(normalizedUserId));
+        if (!plan?.confirmation_payload || plan.user_id !== normalizedUserId || plan.uid !== null) {
+          throw new Error("用户删除预览无效");
+        }
+        this.accountDeletePlan = plan;
+        this.openDialog({
+          title: "确认删除用户",
+          description: `将删除用户「${normalizedUserId}」及 ${plan.affected_uids?.length || 0} 个 UID 的全部账号数据，此操作不可恢复。`,
+          confirmLabel: "永久删除用户",
+          onConfirm: () => this.deleteUser(normalizedUserId, plan),
+        });
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.accountDeleteLoading = false;
+      }
+    },
+
+    async deleteUser(userId, plan = this.accountDeletePlan) {
+      if (!userId || !plan) {
+        return;
+      }
+      this.accountActionBusy = userId;
+      try {
+        await this.api.deleteUser(userId, plan);
+        await this.reloadAccountState();
+        this.accountDeletePlan = null;
+        this.showToast("用户及其全局数据已永久删除");
+        if (this.accountEditorOpen) {
+          this.closeAccountEditor();
+        }
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.accountActionBusy = "";
+      }
+    },
+
+    clearPreviewState() {
+      this.previewRequestId += 1;
+      this.accountPreview = null;
+      this.accountPreviewLoading = false;
+      this.accountPreviewError = "";
+      this.previewCharName = "";
+      this.previewWeaponNames = "";
+    },
+
+    previewImageUrl(preview = this.accountPreview) {
+      const data = preview?.data_base64 || preview?.data;
+      if (typeof data !== "string" || !data) {
+        return "";
+      }
+      const contentType = typeof preview.content_type === "string" && preview.content_type
+        ? preview.content_type
+        : "image/png";
+      return `data:${contentType};base64,${data}`;
+    },
+
+    openDetailForm(account) {
+      if (!account) {
+        return;
+      }
+      this.clearPreviewState();
+      this.selectedAccount = account;
+      this.openDrawer({
+        kind: "detail-form",
+        title: `生成详情卡 · ${account.uid || ""}`,
+        description: "输入总览中的角色名称，可选填至多两件武器名称。",
+      });
+    },
+
+    async previewOverview(account) {
+      if (!account) {
+        return;
+      }
+      this.clearPreviewState();
+      this.selectedAccount = account;
+      this.openDrawer({
+        kind: "preview",
+        title: `基本信息卡 · ${account.uid || ""}`,
+        description: "管理预览固定显示完整 UID，不受用户隐私设置影响。",
+      });
+      this.accountPreviewLoading = true;
+      const requestId = this.previewRequestId;
+      try {
+        const payload = responseData(await this.api.previewOverview(account.user_id, account.uid));
+        if (
+          requestId !== this.previewRequestId ||
+          !this.drawer.open ||
+          this.drawer.kind !== "preview"
+        ) {
+          return;
+        }
+        if (!this.previewImageUrl(payload)) {
+          throw new Error("基本信息卡图片无效");
+        }
+        this.accountPreview = payload;
+      } catch (error) {
+        if (requestId === this.previewRequestId) {
+          this.accountPreviewError = safeErrorMessage(error);
+        }
+      } finally {
+        if (requestId === this.previewRequestId) {
+          this.accountPreviewLoading = false;
+        }
+      }
+    },
+
+    async previewDetail(account) {
+      if (!account) {
+        return;
+      }
+      const charName = this.previewCharName.trim();
+      if (!charName) {
+        this.showToast("请输入角色名称", "error");
+        return;
+      }
+      const weaponNames = parseWeaponNames(this.previewWeaponNames);
+      this.clearPreviewState();
+      this.selectedAccount = account;
+      this.previewCharName = charName;
+      this.previewWeaponNames = weaponNames.join(", ");
+      this.openDrawer({
+        kind: "preview",
+        title: `详情卡 · ${account.uid || ""}`,
+        description: "管理预览固定显示完整 UID，不受用户隐私设置影响。",
+      });
+      this.accountPreviewLoading = true;
+      const requestId = this.previewRequestId;
+      try {
+        const payload = responseData(
+          await this.api.previewDetail(account.user_id, account.uid, charName, weaponNames),
+        );
+        if (
+          requestId !== this.previewRequestId ||
+          !this.drawer.open ||
+          this.drawer.kind !== "preview"
+        ) {
+          return;
+        }
+        if (!this.previewImageUrl(payload)) {
+          throw new Error("详情卡图片无效");
+        }
+        this.accountPreview = payload;
+      } catch (error) {
+        if (requestId === this.previewRequestId) {
+          this.accountPreviewError = safeErrorMessage(error);
+        }
+      } finally {
+        if (requestId === this.previewRequestId) {
+          this.accountPreviewLoading = false;
+        }
+      }
+    },
+
+    previewDetailFromDrawer() {
+      return this.previewDetail(this.selectedAccount);
+    },
+
+    async reloadAliasState() {
+      this.aliasesLoading = true;
+      this.aliasesError = "";
+      try {
+        const payload = await this.api.getAliasCatalog();
+        this.aliasRoles = asList(payload, "roles");
+        const drafts = { ...this.aliasDrafts };
+        for (const role of this.aliasRoles) {
+          const name = role?.canonical_name;
+          if (typeof name === "string" && drafts[name] === undefined) {
+            drafts[name] = "";
+          }
+        }
+        this.aliasDrafts = drafts;
+      } catch (error) {
+        this.aliasRoles = [];
+        this.aliasesError = safeErrorMessage(error);
+      } finally {
+        this.aliasesLoading = false;
+      }
+    },
+
+    aliasRoleName(role) {
+      return typeof role === "string" ? role : role?.canonical_name || "";
+    },
+
+    confirmAddAlias(role) {
+      const roleName = this.aliasRoleName(role);
+      const alias = String(this.aliasDrafts[roleName] || "").trim();
+      if (!roleName || !alias) {
+        this.showToast("请输入要追加的角色别名", "error");
+        return;
+      }
+      this.openDialog({
+        title: "确认添加自定义别名",
+        description: `将为角色「${roleName}」追加自定义别名「${alias}」。`,
+        confirmLabel: "添加别名",
+        onConfirm: () => this.addAlias(roleName, alias),
+      });
+    },
+
+    async addAlias(role, alias) {
+      const roleName = this.aliasRoleName(role);
+      const candidate = String(alias || "").trim();
+      if (!roleName || !candidate) {
+        return;
+      }
+      this.aliasActionBusy = roleName;
+      try {
+        await this.api.addAlias(roleName, candidate);
+        await this.reloadAliasState();
+        this.aliasDrafts[roleName] = "";
+        this.showToast("自定义别名已添加");
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.aliasActionBusy = "";
+      }
+    },
+
+    confirmDeleteAlias(role, alias) {
+      const roleName = this.aliasRoleName(role);
+      if (!roleName || !alias) {
+        return;
+      }
+      this.openDialog({
+        title: "确认删除自定义别名",
+        description: `将从角色「${roleName}」删除自定义别名「${alias}」。默认别名不会受影响。`,
+        confirmLabel: "删除别名",
+        onConfirm: () => this.deleteAlias(roleName, alias),
+      });
+    },
+
+    async deleteAlias(role, alias) {
+      const roleName = this.aliasRoleName(role);
+      if (!roleName || !alias) {
+        return;
+      }
+      this.aliasActionBusy = roleName;
+      try {
+        await this.api.deleteAlias(roleName, alias);
+        await this.reloadAliasState();
+        this.showToast("自定义别名已删除");
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.aliasActionBusy = "";
+      }
+    },
+
+    confirmRestoreAlias(role) {
+      const roleName = this.aliasRoleName(role);
+      if (!roleName) {
+        return;
+      }
+      this.openDialog({
+        title: "确认恢复角色默认别名",
+        description: `将删除角色「${roleName}」的全部自定义追加，只保留默认别名。`,
+        confirmLabel: "恢复默认",
+        onConfirm: () => this.restoreAliasRole(roleName),
+      });
+    },
+
+    async restoreAliasRole(role) {
+      const roleName = this.aliasRoleName(role);
+      if (!roleName) {
+        return;
+      }
+      this.aliasActionBusy = roleName;
+      try {
+        await this.api.restoreAliasRole(roleName);
+        await this.reloadAliasState();
+        this.showToast("角色默认别名已恢复");
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.aliasActionBusy = "";
+      }
+    },
+
+    confirmRestoreAllAliases() {
+      this.openDialog({
+        title: "确认恢复全部默认别名",
+        description: "将删除所有角色的自定义别名追加，不修改资源仓库中的默认别名。",
+        confirmLabel: "恢复全部默认",
+        onConfirm: () => this.restoreAllAliases(),
+      });
+    },
+
+    async restoreAllAliases() {
+      this.aliasActionBusy = "all";
+      try {
+        await this.api.restoreAllAliases();
+        await this.reloadAliasState();
+        this.showToast("全部角色默认别名已恢复");
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.aliasActionBusy = "";
       }
     },
 
