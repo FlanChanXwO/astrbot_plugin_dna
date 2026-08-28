@@ -153,6 +153,41 @@ class SubscriptionStore:
             self._save_unlocked()
             return True
 
+    async def delete_personal_subscriptions(
+        self,
+        user_id: str,
+        *,
+        subscription_type: str,
+    ) -> int:
+        """删除指定用户的个人订阅类型，保留群级/会话级订阅。
+
+        个人密函记录以 ``uid=user_id`` 标识；群级订阅没有该个人 UID。内存快照
+        只有在 JSON 原子写成功后才提交，写盘失败时恢复原列表，保证协调器可重试。
+        """
+
+        async with self._lock:
+            await self.load()
+            previous = self._subs
+            remaining = [
+                sub
+                for sub in previous
+                if not (
+                    sub.type == subscription_type
+                    and sub.user_id == user_id
+                    and sub.uid == user_id
+                )
+            ]
+            deleted = len(previous) - len(remaining)
+            if deleted == 0:
+                return 0
+            self._subs = remaining
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._subs = previous
+                raise
+            return deleted
+
     async def update(
         self,
         sub_type: str,

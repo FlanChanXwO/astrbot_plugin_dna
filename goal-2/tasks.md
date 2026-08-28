@@ -193,13 +193,25 @@
 
 ## Task 07 — 用户级联删除协调器
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD 实现删除计划预览和幂等协调器，覆盖绑定、凭据、个人隐私、个人密函订阅及所有关联 UID 签到历史；群级订阅和群隐私不误删。
 - 验收：强制签到历史删除（含共享 UID）被测试证明；SQLite/JSON 部分失败返回逐项状态，可安全重试；确认 payload 必须匹配目标 user ID。
 - 实际工作：
+- 新增 `AccountDeletionCoordinator` 及 `DeletionExecution`/`DeletionStepResult` 契约；复用 Task 05 的 UID/用户删除预览，并在执行前严格校验删除范围、确认 payload 与目标 `user_id`，不匹配时不产生副作用。
+- SQLite 级联删除在单事务内处理账号绑定、凭据、用户级个人隐私和计划快照中的全部 UID 签到历史；单 UID 删除强制清除该 UID 的全局签到历史，即使该 UID 仍被其他用户绑定。群隐私、群订阅、群结果和通知资源明确以 `preserved` 逐项返回。
+- 新增签到历史批量删除与个人隐私删除 repository；新增 `SubscriptionStore.delete_personal_subscriptions()`，只删除指定用户的个人密函记录（`type + user_id + uid` 精确匹配），JSON 写盘失败时恢复内存快照，允许同一计划安全重试。
+- SQLite 提交后才执行 JSON 步骤；数据库回滚返回 `failed` 并跳过 JSON，JSON 失败返回 `partial` 和逐项状态，重复执行返回 `already_absent` 或完成状态。响应不包含异常原文或存储路径。
 - 验证证据：
+- TDD Red：先运行 `tests/test_goal2_task07_deletion.py`，因尚不存在 `AccountDeletionCoordinator` 在收集阶段 `ImportError`；实现后同一套件 `4 passed, 1 warning`。
+- 受影响回归：`tests/test_goal2_task07_deletion.py tests/test_subscription_store.py tests/test_persistence.py tests/test_account.py tests/test_goal2_task03_global_identity.py tests/test_goal2_task04_global_consumers.py tests/test_goal2_task05_admin_accounts.py tests/test_goal2_task06_admin_preview.py`：`54 passed, 1 warning`。
+- `/Users/flanchan/.local/bin/ruff check .`：`All checks passed!`；定向 Pyright（Task 07 生产文件及测试）：`0 errors, 0 warnings, 0 informations`；`.venv/bin/python -m compileall -q .` 与 `git diff --check`：通过。
+- 测试覆盖确认：错误确认串无副作用；用户删除清理全部关联 UID、个人隐私和个人密函并保留群级资源；共享 UID 的签到历史强制删除；SQLite 回滚不触碰 JSON；JSON partial 可用原计划重试。
 - 剩余风险：
+- SQLite 与 `subscriptions.json` 仍无法共享同一物理事务；协调器仅提供串行、逐项状态、内存回滚和原计划重试语义，无法把跨存储操作提升为原子提交。
+- 成员探测、删除前跨群二次复核、认证 Web adapter 和 Dashboard 路由留给 Task 09/10/12；当前协调器为框架无关 service。
+- 当前工具集未提供 LSP/blast-radius 能力，本轮以精确引用扫描、定向 Pyright、pytest、ruff、compileall 和 diff 检查替代。
 - 下一步：
+- Task 08：建立四个内置任务 registry、可观测调度状态、暂停/恢复和不可恢复 tombstone。
 
 ## Task 08 — 调度器可观测状态、暂停与 tombstone
 

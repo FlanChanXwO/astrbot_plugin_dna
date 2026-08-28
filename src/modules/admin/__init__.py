@@ -10,7 +10,16 @@ from .contracts import (
     AdminError,
     AdminErrorCode,
     CredentialPayload,
+    DeletionExecution,
+    DeletionExecutionStatus,
     DeletionPreview,
+    DeletionStepResult,
+    DeletionStepStatus,
+)
+from .deletion import (
+    AccountDeletionCoordinator,
+    DeletionCoordinator,
+    UserDeletionCoordinator,
 )
 from .preview import (
     AdminPreviewImage,
@@ -35,5 +44,12 @@ __all__ = [
     "AdminPreviewRequest",
     "AdminPreviewService",
     "CredentialPayload",
+    "AccountDeletionCoordinator",
+    "DeletionCoordinator",
+    "DeletionExecution",
+    "DeletionExecutionStatus",
     "DeletionPreview",
+    "DeletionStepResult",
+    "DeletionStepStatus",
+    "UserDeletionCoordinator",
 ]

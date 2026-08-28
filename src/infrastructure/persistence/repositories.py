@@ -6,6 +6,7 @@ repository 只接收调用方明确传入的 ``AsyncSession``，不创建全局 
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 from typing import cast
 
@@ -445,6 +446,21 @@ class SignRecordRepository:
         )
         return int(getattr(result, "rowcount", 0) or 0)
 
+    @staticmethod
+    async def delete_for_uids(
+        session: AsyncSession,
+        uids: Iterable[str],
+    ) -> int:
+        """删除一组 UID 的全部签到历史，供用户级联删除强制清理。"""
+
+        unique_uids = tuple(dict.fromkeys(uids))
+        if not unique_uids:
+            return 0
+        result = await session.execute(
+            delete(SignRecord).where(SignRecord.uid.in_(unique_uids))
+        )
+        return int(getattr(result, "rowcount", 0) or 0)
+
 
 class PrivacySettingRepository:
     """个人隐私设置的基础读写入口。"""
@@ -517,6 +533,21 @@ class PrivacySettingRepository:
             record.uid_hidden = uid_hidden
         await session.flush()
         return record
+
+    @staticmethod
+    async def delete_all(
+        session: AsyncSession,
+        *,
+        user_id: str,
+    ) -> int:
+        """删除一个用户的全局及个人群组隐私设置，不触碰群强制设置。"""
+
+        result = await session.execute(
+            delete(PrivacySetting).where(
+                PrivacySetting.user_id == user_id,
+            )
+        )
+        return int(getattr(result, "rowcount", 0) or 0)
 
 
 _NO_CHANGE = object()

@@ -293,6 +293,79 @@ class DeletionPreview:
         return self.preserve_resources
 
 
+class DeletionStepStatus(StrEnum):
+    """级联删除中单个资源的可观测状态。"""
+
+    DELETED = "deleted"
+    ALREADY_ABSENT = "already_absent"
+    PRESERVED = "preserved"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+@dataclass(frozen=True, slots=True)
+class DeletionStepResult:
+    """不携带异常原文的单个级联步骤结果。"""
+
+    resource: str
+    status: DeletionStepStatus
+    count: int = 0
+    message: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "status", DeletionStepStatus(self.status))
+        if self.count < 0:
+            raise ValueError("删除步骤数量不能为负数")
+
+
+class DeletionExecutionStatus(StrEnum):
+    """一次删除协调的总状态。"""
+
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class DeletionExecution:
+    """可重试的级联删除结果及逐资源状态。"""
+
+    user_id: str
+    uid: str | None
+    affected_uids: tuple[str, ...]
+    confirmation_payload: str
+    status: DeletionExecutionStatus
+    steps: tuple[DeletionStepResult, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "status", DeletionExecutionStatus(self.status))
+
+    @property
+    def items(self) -> tuple[DeletionStepResult, ...]:
+        """``steps`` 的 API 友好别名。"""
+
+        return self.steps
+
+    def step(self, resource: str) -> DeletionStepResult:
+        """按资源名取得步骤；未知资源显式报错。"""
+
+        for step in self.steps:
+            if step.resource == resource:
+                return step
+        raise KeyError(resource)
+
+    def __repr__(self) -> str:
+        """诊断表示仅保留删除范围，不展开任何存储异常原文。"""
+
+        return (
+            "DeletionExecution("
+            f"user_id={self.user_id!r}, uid={self.uid!r}, "
+            f"affected_uids={self.affected_uids!r}, "
+            f"confirmation_payload={self.confirmation_payload!r}, "
+            f"status={self.status.value!r}, steps={self.steps!r})"
+        )
+
+
 __all__ = [
     "ADMIN_NO_STORE_HEADERS",
     "CREDENTIAL_FIELDS",
@@ -303,5 +376,9 @@ __all__ = [
     "AdminError",
     "AdminErrorCode",
     "CredentialPayload",
+    "DeletionExecution",
+    "DeletionExecutionStatus",
     "DeletionPreview",
+    "DeletionStepResult",
+    "DeletionStepStatus",
 ]
