@@ -42,11 +42,19 @@
 - 剩余风险：O03 的 At 目标解析红契约仍失败（当前实现取第一个有效 At），下一任务处理；本任务未执行生产重载或真实平台副作用。
 - 下一步：O03，按计划修复最后一个有效 At、机器人/AtAll 过滤与隐私目标边界。
 
-### O03 — 卡片、面板、体力、周报与梦魇残声 At 对齐 `[pending]`
+### O03 — 卡片、面板、体力、周报与梦魇残声 At 对齐 `[completed]`
 
 - TDD 实现最后一个有效 At、忽略机器人/全体 At、隐私检查与全局内容身份边界。
 - 覆盖 `d卡片@xx`、空格、多 At、权限与未绑定目标等原版行为。
 - 统一相关 handler 对目标用户身份的解析方式。
+
+完成记录：
+
+- 实际完成：`target_user_from_event` 现在遍历完整 AstrBot 公开消息链并保留最后一个有效 `At`；继续忽略 `AtAll`、机器人自身、空值以及 `all`，同时规范化 bot ID。生成 handler 的目标快照测试确认目标会统一进入 `CommandRequest`；玩家、体力、周报、签到和梦魇残声适配器均透传该目标，隐私 service 先做目标解析，日历仍只使用调用者上下文。
+- Red/Green/Refactor 证据：先运行两个 O03 Red 测试得到 `target-first != target-last` 的 2 个失败；补齐最小事件夹具后失败原因仍准确指向旧实现；修改解析函数后同两测 `2 passed`，并以 `tests/test_goal1_phase1_red.py` 与 `tests/test_privacy_commands.py` 回归为 `14 passed`。命令适配器回归 `player_commands 5 passed`、`encyclopedia_commands 4 passed`、`checkin_commands 4 passed`、`notices_commands 6 passed`。
+- 验证命令与结果：`.venv/bin/python -m ruff check src/entry/event.py tests/test_goal1_phase1_red.py` 通过；`.venv/bin/python -m compileall -q src main.py scripts` 通过；`git diff --check` 通过。涉及数据库绑定的深层玩家/百科/隐私/签到回归被并行的全局身份迁移工作区阻断，具体为当前 `AccountBinding` 暂无测试所传 `bot_id`、`GroupPrivacySetting` 暂无 `bot_id`；未修改或暂存该外部范围。
+- 剩余风险：O03 未执行生产重载或真实签到等副作用；数据库目标身份深层回归需待并行迁移完成后由 D01/后续门禁重跑。当前 O03 改动仅涉及事件解析与其行为契约，未发现其它已知阻塞。
+- 下一步：D01，集中审查 O01–O03 的范围、权限/目标引用、文档与相关质量门禁。
 
 ### D01 — 调试审查 O01–O03 `[pending]`
 

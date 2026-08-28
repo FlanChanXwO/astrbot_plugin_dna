@@ -144,6 +144,75 @@ async def test_handler_snapshots_effective_permission_for_the_use_case() -> None
 
 
 @pytest.mark.asyncio
+async def test_handler_passes_last_valid_target_to_use_case() -> None:
+    """所有命令 handler 都应把消息链最后一个有效 At 传给 use case。"""
+
+    seen: list[str | None] = []
+
+    async def use_case(
+        request: CommandRequest,
+        _registry: CommandRegistry,
+        **_parameters: object,
+    ) -> str:
+        seen.append(request.target_user_id)
+        return "ok"
+
+    class GeneratedTargetPlugin:
+        __module__ = "tests.generated_target_plugin"
+
+    spec = CommandSpec(
+        id="target_snapshot",
+        pattern=r"^目标测试$",
+        group="测试",
+        name="目标测试",
+        description="目标测试",
+        examples=("目标测试",),
+        permission="user",
+        use_case=use_case,
+    )
+    registry = CommandRegistry((spec,))
+    install_command_handlers(GeneratedTargetPlugin, registry)
+    plugin = GeneratedTargetPlugin()
+    object.__setattr__(
+        plugin,
+        "_runtime",
+        SimpleNamespace(commands=registry, responses=ResponseFactory(), services={}),
+    )
+
+    class MentionEvent:
+        def get_message_str(self) -> str:
+            return "目标测试"
+
+        def plain_result(self, text: str) -> str:
+            return text
+
+        def get_sender_id(self) -> str:
+            return "actor-1"
+
+        def get_self_id(self) -> str:
+            return "bot-1"
+
+        def get_group_id(self) -> str:
+            return "group-1"
+
+        def get_messages(self) -> list[object]:
+            return [
+                At(qq="target-first"),
+                At(qq="bot-1"),
+                AtAll(),
+                At(qq="target-last"),
+            ]
+
+    result = [
+        item
+        async for item in plugin.handle_target_snapshot(MentionEvent())
+    ]
+
+    assert result == ["ok"]
+    assert seen == ["target-last"]
+
+
+@pytest.mark.asyncio
 async def test_help_card_uses_visible_registry_commands_and_metadata_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
