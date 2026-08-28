@@ -66,7 +66,7 @@
 
 - 实际完成：按独立 commit 审查 O01 `1dd9c90`、O02 `b1fdced`、O03 `cf1a475`，排除历史中并行的 goal-2 commit `8618986`。O01 只写入 goal 计划/测试契约；O02 的权限、帮助缓存、版本、更新记录移除和投影变更均在已确认范围；O03 只改最后有效 At 解析及其 handler 契约。未发现重复 handler、漏注册命令、权限绕过或目标身份跨模块丢失。
 - 审查证据：`rg` 引用核验显示目标只在统一 entry handler 提取，并由玩家、百科、签到、公告四个适配器透传；service 层均先经过隐私解析，日历保持全局调用者上下文。`commands.json` 与 `manifest_records(load_command_registry())` 完全一致，共 60 条，权限集合为 `admin/user`，无 `update_log`；动态 handler 的 user/admin AstrBot 权限过滤由现有 registry 测试覆盖。
-- 验证命令与结果：第一阶段目标 suite 为 `81 passed, 22 failed`；22 个失败均发生在并行 goal-2 全局身份迁移后，具体为 repository/model 不再接受测试与现有 service 使用的 `bot_id`，堆栈不涉及 O01–O03 文件。独立 O01–O03/隐私命令回归为 `14 passed`，玩家/百科/签到/公告命令适配器分别为 `5/4/4/6 passed`。全量当前工作区 `ruff check .`、`compileall -q .`、三份 goal commit 的 `git show --check` 和 `git diff --check` 均通过；pyright 不可用，已用精确 `rg` 引用审计与编译检查替代。
+- 验证命令与结果：第一阶段目标 suite 为 `81 passed, 22 failed`；22 个失败均发生在并行 goal-2 全局身份迁移后，具体为 repository/model 不再接受测试与现有 service 使用的 `bot_id`，堆栈不涉及 O01–O03 文件。独立 O01–O03/隐私命令回归为 `14 passed`，玩家/百科/签到/公告命令适配器分别为 `5/4/4/6 passed`。在 goal-2 新增测试之前，当前工作区 `ruff check .`、`compileall -q .`、三份 goal commit 的 `git show --check` 和 `git diff --check` 均通过；随后并行新增的 `tests/test_goal2_task03_global_identity.py` 引入无关 `F841 other_user`，使当前全工作区 ruff 失败，已通过 `SKIP=ruff` 仅提交本记录。pyright 不可用，已用精确 `rg` 引用审计与编译检查替代。
 - 审查结论与后续修复：无 P0/P1。P2 为 O02 已移除的更新记录仍残留在 README、usage/porting/architecture 文档及未引用的 `src/resources/textures/update/log_title.png`；这些不影响当前代码路径，但 O04 必须同步文档、清理死素材并重新跑完整门禁。当前数据库失败属于 `8618986` 的跨目标集成阻塞，待并行迁移完成后重跑，不能通过修改 goal-1 代码掩盖。
 - 剩余风险：本轮没有生产登录、热重载或真实签到；文档/死素材和跨目标数据库回归尚未完成，因此不宣称阶段一已完成。
 - 下一步：O04，先清理第一阶段文档与未引用更新记录素材，再重新生成/核对投影并执行完整门禁；数据库迁移修复完成后纳入回归。
