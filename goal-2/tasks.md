@@ -358,13 +358,25 @@
 
 ## Task 13 — Plugin Pages 基础壳、bridge 与样式系统
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD/静态契约先行创建 `pages/dashboard/`，接入 PetiteVue、bridge API wrapper、四项导航、全局状态、toast/dialog/drawer、暗色和响应式样式；左下角显示后端版本。
 - 验收：无 Node 构建链和 Chart.js；bridge 缺失显式报错；移动端导航可用；页面无帮助/首页统计；vendor 许可保留。
 - 实际工作：
+- 新增 `pages/dashboard/` 页面壳：四项导航（面板图、任务与探测、账号与预览、角色别名）、加载/错误/空状态、toast/dialog/drawer 和后端版本展示；Task 14/15 的业务区域保留为明确占位，不提前实现业务操作。
+- 新增原生 ES module bridge/store/app：仅通过 `window.AstrBotPluginPage` 调用管理 API，bridge 缺失、方法缺失和统一错误均显式暴露；首次只读取 bootstrap，不在浏览器持久化数据或 secret。
+- 复用本地参考页的 PetiteVue IIFE vendor，并随页保留 `petite-vue.LICENSE.md` MIT 许可文本；未引入 npm/build chain、CDN 或 Chart.js。
+- 新增轻量自包含样式系统：浅色/系统暗色 token、白色卡片/蓝色主色、inline SVG 图标、桌面侧栏与移动端可展开的横向导航、44px 触控目标、focus-visible、loading spinner、overlay 层级和 reduced-motion 支持。
 - 验证证据：
+- TDD Red：`.venv/bin/python -m pytest tests/test_goal2_task13_pages.py -q` 在页面壳缺失时实际 `6 failed`；实现后同命令 `6 passed`，移动端菜单契约补强后再次 `6 passed`。
+- 定向相关回归：`.venv/bin/python -m pytest tests/test_goal2_task*.py tests/test_entry_skeleton.py tests/test_migration_boundaries.py tests/test_config.py -q`：`133 passed, 5 warnings`。
+- 全仓回归：`.venv/bin/python -m pytest -q`：`500 passed, 1 skipped, 5 warnings`；警告仅为 AstrBot `audioop` 弃用及动态插件命名空间 `__package__` 弃用提示。
+- 依次执行 `node --check pages/dashboard/app.js`、`node --check pages/dashboard/js/bridge.js`、`node --check pages/dashboard/js/store.js`：均通过；`/Users/flanchan/.local/bin/ruff check .`、Task 13 测试 `ruff format --check`、`compileall -q src main.py tests`：均通过。
+- 按 `ui-ux-pro-max` 执行设计系统与 UX 检索；已落实加载反馈、明确 overlay z-index、无装饰性无限动画、键盘焦点、移动断点与 reduced-motion。
 - 剩余风险：
+- 真实 AstrBot Plugin Pages 注入环境、桌面/移动/暗色视觉和跨页面实际交互仍留给 Task 16；业务页内容与读写确认流留给 Task 14/15。
+- 页面依赖宿主注入 `AstrBotPluginPage`；未注入时会呈现明确错误，不提供静默网络回退。
 - 下一步：
+- Task 14：实现面板图、任务与离群扫描页面。
 
 ## Task 14 — 面板图、任务与离群扫描页面
 

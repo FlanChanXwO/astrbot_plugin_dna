@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>DNABY 管理面板</title>
+    <link rel="stylesheet" href="./css/dashboard.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <div id="app" v-scope v-cloak @keydown.esc="closeOverlay">
+      <header class="mobile-header">
+        <a class="brand brand--compact" href="#main-content" aria-label="DNABY 管理面板">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img">
+              <path d="M8 5c8 4 8 18 16 22M24 5C16 9 16 23 8 27M9 10h14M9 16h14M9 22h14" />
+            </svg>
+          </span>
+          <span class="brand-name">DNABY</span>
+        </a>
+        <button
+          class="icon-button"
+          type="button"
+          :aria-label="mobileNavOpen ? '收起导航' : '展开导航'"
+          aria-controls="primary-navigation"
+          :aria-expanded="mobileNavOpen"
+          @click="mobileNavOpen = !mobileNavOpen"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+      </header>
+
+      <aside class="sidebar" :class="{ 'is-open': mobileNavOpen }" aria-label="管理面板侧栏">
+        <div class="sidebar-top">
+          <a class="brand" href="#main-content" aria-label="DNABY 管理面板">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32" role="img">
+                <path d="M8 5c8 4 8 18 16 22M24 5C16 9 16 23 8 27M9 10h14M9 16h14M9 22h14" />
+              </svg>
+            </span>
+            <span>
+              <span class="brand-name">DNABY</span>
+              <span class="brand-subtitle">管理面板</span>
+            </span>
+          </a>
+
+          <nav id="primary-navigation" class="primary-nav" aria-label="主要功能">
+            <button
+              class="nav-item"
+              type="button"
+              data-page="panels"
+              :class="{ 'is-active': activePage === 'panels' }"
+              :aria-current="activePage === 'panels' ? 'page' : undefined"
+              @click="navigate('panels')"
+            >
+              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-6" />
+              </svg>
+              <span>面板图</span>
+            </button>
+            <button
+              class="nav-item"
+              type="button"
+              data-page="tasks"
+              :class="{ 'is-active': activePage === 'tasks' }"
+              :aria-current="activePage === 'tasks' ? 'page' : undefined"
+              @click="navigate('tasks')"
+            >
+              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4" />
+              </svg>
+              <span>任务与探测</span>
+            </button>
+            <button
+              class="nav-item"
+              type="button"
+              data-page="accounts"
+              :class="{ 'is-active': activePage === 'accounts' }"
+              :aria-current="activePage === 'accounts' ? 'page' : undefined"
+              @click="navigate('accounts')"
+            >
+              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" />
+              </svg>
+              <span>账号与预览</span>
+            </button>
+            <button
+              class="nav-item"
+              type="button"
+              data-page="aliases"
+              :class="{ 'is-active': activePage === 'aliases' }"
+              :aria-current="activePage === 'aliases' ? 'page' : undefined"
+              @click="navigate('aliases')"
+            >
+              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7h14M5 12h9M5 17h14M17 10v8m-3-3 3 3 3-3" />
+              </svg>
+              <span>角色别名</span>
+            </button>
+          </nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <span class="sidebar-footer-label">插件版本</span>
+          <strong class="sidebar-version">{{ pluginVersion || '读取中…' }}</strong>
+        </div>
+      </aside>
+
+      <div class="page-column">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">DNABY / ADMIN</p>
+            <h1>{{ activePageLabel }}</h1>
+            <p class="page-description">集中管理插件运行所需的配置与资源。</p>
+          </div>
+          <span v-if="capabilities" class="connection-badge">
+            <span class="connection-dot" aria-hidden="true"></span>
+            服务已连接
+          </span>
+        </header>
+
+        <main id="main-content" class="main-content" tabindex="-1">
+          <section v-if="loading" class="state-panel" role="status" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <div>
+              <h2>正在连接管理服务</h2>
+              <p>正在读取插件状态，请稍候。</p>
+            </div>
+          </section>
+
+          <section v-else-if="errorMessage" class="state-panel state-panel--error" role="alert">
+            <div class="state-icon state-icon--error" aria-hidden="true">!</div>
+            <div>
+              <h2>无法载入管理面板</h2>
+              <p>{{ errorMessage }}</p>
+              <button class="button button--primary" type="button" @click="initialize">
+                重新连接
+              </button>
+            </div>
+          </section>
+
+          <template v-else>
+            <section v-if="activePage === 'panels'" class="content-section" aria-labelledby="panels-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">OVERVIEW</p>
+                  <h2 id="panels-title">面板图</h2>
+                </div>
+                <span class="section-status">准备就绪</span>
+              </div>
+              <div class="empty-state">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-6" />
+                  </svg>
+                </div>
+                <h3>面板图即将就绪</h3>
+                <p>这里将呈现插件的核心运行概况，详细内容会在后续页面任务中接入。</p>
+              </div>
+            </section>
+
+            <section v-if="activePage === 'tasks'" class="content-section" aria-labelledby="tasks-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">OPERATIONS</p>
+                  <h2 id="tasks-title">任务与探测</h2>
+                </div>
+                <span class="section-status">等待配置</span>
+              </div>
+              <div class="empty-state">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4" />
+                  </svg>
+                </div>
+                <h3>任务工具将在这里管理</h3>
+                <p>定时任务与探测状态的操作界面将在后续任务中接入。</p>
+              </div>
+            </section>
+
+            <section v-if="activePage === 'accounts'" class="content-section" aria-labelledby="accounts-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">IDENTITY</p>
+                  <h2 id="accounts-title">账号与预览</h2>
+                </div>
+                <span class="section-status">安全模式</span>
+              </div>
+              <div class="empty-state">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" />
+                  </svg>
+                </div>
+                <h3>账号管理将在这里展开</h3>
+                <p>账号列表、凭据操作与角色预览将在后续任务中接入。</p>
+              </div>
+            </section>
+
+            <section v-if="activePage === 'aliases'" class="content-section" aria-labelledby="aliases-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">VOCABULARY</p>
+                  <h2 id="aliases-title">角色别名</h2>
+                </div>
+                <span class="section-status">等待配置</span>
+              </div>
+              <div class="empty-state">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M5 7h14M5 12h9M5 17h14M17 10v8m-3-3 3 3 3-3" />
+                  </svg>
+                </div>
+                <h3>别名词库将在这里维护</h3>
+                <p>角色别名的查看与编辑界面将在后续任务中接入。</p>
+              </div>
+            </section>
+          </template>
+        </main>
+
+        <footer class="page-footer">
+          <span>DNABY 管理面板</span>
+          <span>所有修改都会通过确认流程提交。</span>
+        </footer>
+      </div>
+
+      <div v-if="toast.open" class="toast" :data-tone="toast.tone" role="status" aria-live="polite">
+        <span>{{ toast.message }}</span>
+        <button class="toast-close" type="button" aria-label="关闭提示" @click="closeToast">关闭</button>
+      </div>
+
+      <div v-if="dialog.open" class="overlay" @click.self="closeDialog">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+          <button class="dialog-close" type="button" aria-label="关闭对话框" @click="closeDialog">×</button>
+          <h2 id="dialog-title">{{ dialog.title }}</h2>
+          <p>{{ dialog.description }}</p>
+          <div class="dialog-actions">
+            <button class="button" type="button" @click="closeDialog">取消</button>
+            <button
+              class="button button--primary"
+              type="button"
+              :disabled="dialog.submitting"
+              @click="confirmDialog"
+            >
+              {{ dialog.submitting ? '提交中…' : dialog.confirmLabel }}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div v-if="drawer.open" class="overlay overlay--drawer" @click.self="closeDrawer">
+        <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+          <div class="drawer-header">
+            <div>
+              <p class="section-kicker">DETAIL</p>
+              <h2 id="drawer-title">{{ drawer.title }}</h2>
+            </div>
+            <button class="dialog-close" type="button" aria-label="关闭抽屉" @click="closeDrawer">×</button>
+          </div>
+          <p>{{ drawer.description }}</p>
+          <div class="drawer-footer">
+            <button class="button" type="button" @click="closeDrawer">返回</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <script src="./lib/petite-vue.iife.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
