@@ -47,6 +47,7 @@ from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
+from .modules.admin import AiocqhttpMembershipProbe, MembershipService
 from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
@@ -152,6 +153,12 @@ def build_runtime(
     )
     subscriptions = SubscriptionStore(
         runtime_database.path.parent / "subscriptions.json"
+    )
+    membership_probe = AiocqhttpMembershipProbe(context=context)
+    membership_service = MembershipService(
+        runtime_database,
+        subscriptions,
+        membership_probe,
     )
     scheduler_registry = SchedulerRegistry(
         runtime_database.path.parent / "scheduler_state.json"
@@ -298,6 +305,8 @@ def build_runtime(
         "encyclopedia_resources": encyclopedia_resources,
         "checkin_service": checkin_service,
         "subscriptions": subscriptions,
+        "membership_probe": membership_probe,
+        "membership_service": membership_service,
         "scheduler_registry": scheduler_registry,
         "sign_scheduler": sign_scheduler,
         "notices_service": notices_service,

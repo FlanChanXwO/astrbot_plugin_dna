@@ -238,13 +238,24 @@
 
 ## Task 09 — aiocqhttp 成员探测与跨群复核
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD 实现可注入 membership probe、aiocqhttp raw client 适配、capability 判定、三态结果、关联群扫描、单群清理和全局删除前二次复核。
 - 验收：present/absent/unknown、API/网络/平台失败、非 aiocqhttp 禁用、任一 unknown 阻止全局删除、群内个人订阅精确清理由 fake client 覆盖。
 - 实际工作：
+- 新增 `src/modules/admin/membership.py`：提供可注入 `MembershipProbe`、`MembershipCapability`、`MembershipProbeResult` 三态 DTO、跨账号绑定/个人密函订阅的关联群扫描、单群清理和全局删除前强制全量二次扫描；`unknown`、`present`、`unsupported` 均不会越过删除安全门禁。
+- 新增 `AiocqhttpMembershipProbe`：仅接受 aiocqhttp/OneBot V11 raw client，调用 `get_group_member_list`，严格解析 list/响应包装；API、网络、平台及不完整响应统一返回 `unknown`，非 aiocqhttp 明确 disabled。bootstrap 暴露 `membership_probe` 与 `membership_service`，供后续 Admin API adapter 使用。
+- 为 `SubscriptionStore` 增加用户 + 群 + `uid` + `user_type=group` 的个人密函精确删除方法，保留其他群、私聊、公告和其他用户记录，并沿用 JSON 原子写失败回滚语义。
+- 新增 `tests/test_goal2_task09_membership.py`，覆盖 raw client 三态、失败映射、非 aiocqhttp 禁用、关联群扫描、单群精确清理、unknown/过期扫描阻止全局删除、全 absent 才委托协调器和 bootstrap wiring。
 - 验证证据：
+- TDD Red：初次运行 Task 09 专项测试在收集阶段因 membership 类型尚未导出而 `ImportError`；新增“无关联群仍禁用非 aiocqhttp”和“raw client 不得覆盖 discord 平台”边界测试后分别实际得到失败，再实现后转 Green。
+- `.venv/bin/python -m pytest tests/test_goal2_task09_membership.py -q`：`17 passed, 1 warning`。
+- 相关回归 `.venv/bin/python -m pytest tests/test_goal2_task07_deletion.py tests/test_goal2_task08_scheduler_state.py tests/test_subscription_store.py tests/test_notices_subscriptions.py tests/test_subscriptions.py tests/test_config.py -q`：`55 passed, 1 warning`。
+- `/Users/flanchan/.local/bin/ruff check .`、Task 09 生产文件的 runtime-root Ruff、`/opt/homebrew/bin/pyright --project pyrightconfig.json` 定向文件检查、`.venv/bin/python -m compileall -q src main.py tests` 和改动文件 LSP diagnostics：均通过；定向 Pyright 为 `0 errors, 0 warnings, 0 informations`，改动 Python 文件 LSP 为 `0 diagnostics`。
 - 剩余风险：
+- 成员状态与删除协调器之间仍存在跨平台 API 的自然 TOCTOU 窗口；实现已保证删除前立即重新扫描，但无法把外部群成员状态与 SQLite/JSON 操作组成同一事务。SQLite 与 `subscriptions.json` 的跨存储部分失败仍由既有协调器以逐项状态和可重试语义处理。
+- 生产成员探测当前刻意限定 aiocqhttp/OneBot V11；其他平台前后端均禁用。实际 `members/*` API、认证错误映射和 Dashboard 按钮留给 Task 10/12/14。
 - 下一步：
+- Task 10：实现任务、目标与成员 Admin API，并接入统一认证/错误映射。
 
 ## 集中检查 D03 — Task 07–09
 

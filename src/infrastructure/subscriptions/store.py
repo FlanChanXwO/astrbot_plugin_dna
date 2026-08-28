@@ -188,6 +188,44 @@ class SubscriptionStore:
                 raise
             return deleted
 
+    async def delete_personal_subscriptions_for_group(
+        self,
+        user_id: str,
+        group_id: str,
+        *,
+        subscription_type: str,
+    ) -> int:
+        """删除指定用户在指定群中的个人订阅，保留其他作用域记录。
+
+        群级清理必须同时匹配个人 UID、群会话和 ``user_type=group``，避免误删
+        同一用户的其他群、私聊订阅或公告等非个人密函记录。
+        """
+
+        async with self._lock:
+            await self.load()
+            previous = self._subs
+            remaining = [
+                sub
+                for sub in previous
+                if not (
+                    sub.type == subscription_type
+                    and sub.user_id == user_id
+                    and sub.uid == user_id
+                    and sub.group_id == group_id
+                    and sub.user_type == "group"
+                )
+            ]
+            deleted = len(previous) - len(remaining)
+            if deleted == 0:
+                return 0
+            self._subs = remaining
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._subs = previous
+                raise
+            return deleted
+
     async def update(
         self,
         sub_type: str,
