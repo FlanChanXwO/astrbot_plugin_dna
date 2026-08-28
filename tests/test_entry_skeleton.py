@@ -1,5 +1,6 @@
 """v0.1 入口骨架的 AstrBot 集成契约测试。"""
 
+from builtins import ExceptionGroup
 from pathlib import Path
 
 import pytest
@@ -77,6 +78,73 @@ async def test_plugin_lifecycle_preserves_hook_order_and_is_idempotent():
     await lifecycle.terminate()
 
     assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+
+
+@pytest.mark.asyncio
+async def test_plugin_lifecycle_cleans_up_when_start_hook_fails():
+    """启动中途失败时，已组装的扩展点仍需按逆序清理。"""
+
+    calls: list[str] = []
+
+    async def start_one() -> None:
+        calls.append("start-one")
+
+    async def start_two() -> None:
+        calls.append("start-two")
+        raise RuntimeError("start-two failed")
+
+    async def stop_one() -> None:
+        calls.append("stop-one")
+
+    async def stop_two() -> None:
+        calls.append("stop-two")
+
+    lifecycle = PluginLifecycle(
+        start_hooks=(start_one, start_two),
+        stop_hooks=(stop_one, stop_two),
+    )
+
+    with pytest.raises(RuntimeError, match="start-two failed"):
+        await lifecycle.initialize()
+
+    assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+    assert lifecycle.started is False
+
+
+@pytest.mark.asyncio
+async def test_plugin_lifecycle_reports_cleanup_errors_after_start_failure():
+    """清理 hook 失败时仍继续清理，并同时暴露启动与清理异常。"""
+
+    calls: list[str] = []
+
+    async def start_one() -> None:
+        calls.append("start-one")
+
+    async def start_two() -> None:
+        calls.append("start-two")
+        raise RuntimeError("start-two failed")
+
+    async def stop_one() -> None:
+        calls.append("stop-one")
+
+    async def stop_two() -> None:
+        calls.append("stop-two")
+        raise ValueError("stop-two failed")
+
+    lifecycle = PluginLifecycle(
+        start_hooks=(start_one, start_two),
+        stop_hooks=(stop_one, stop_two),
+    )
+
+    with pytest.raises(ExceptionGroup) as error_info:
+        await lifecycle.initialize()
+
+    assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+    assert lifecycle.started is False
+    assert {str(error) for error in error_info.value.exceptions} == {
+        "start-two failed",
+        "stop-two failed",
+    }
 
 
 @pytest.mark.asyncio
