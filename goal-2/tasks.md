@@ -338,13 +338,21 @@
 
 ## 集中检查 D04 — Task 10–12
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 检查：API 契约、Dashboard 鉴权边界、路由冲突、错误分类、缓存头、服务分层、启动/停止、全量相关后端测试和静态检查。
 - 处理：确认 handler 无业务编排和 secret 日志；发现问题修复或追加 task。
 - 实际工作：
+- 逐项复核 Task 10–12：Admin API 仅允许四个内置任务、任务删除/调度更新遵循 typed schedule 与 tombstone 边界，目标 ID 固定现有订阅的类型/会话/UID；面板文件操作继续受 `panel_custom/` 根目录和符号链接边界保护；角色默认别名只读，自定义别名独立写入运行期 custom 层。
+- 复核 Dashboard handler：所有管理路由先校验已认证 `PluginRequest.username`，仅负责请求解析、service 委托和 DTO 序列化；没有数据库/文件业务编排、`print` 或异常/secret 日志。统一响应强制 `no-store`、安全响应头和安全错误文案，内部异常、未知 DTO 和路径信息不穿透 HTTP 边界。
+- 使用 AstrBot 4.27.1 实际 matcher 复核 37 条 `(path, method)` 路由唯一性及字面路径优先级；核对 bootstrap、WebRegistrar、scheduler 和数据库 stop hook 的启动/逆序停止，重复 initialize/terminate 不重复注册或遗留任务。审查中发现的用户删除动态路由抢匹配、bootstrap 掩盖 membership capability 失败和错误文案原文回退问题均已在 Task 12 修复并有回归覆盖。
 - 验证证据：
+- Task 10–12、Task 03–09 及入口/迁移/配置相关回归：`.venv` runtime Python 执行 `pytest`，`122 passed, 5 warnings`；警告仅为 AstrBot `audioop` 弃用和动态插件命名空间 `__package__` 弃用提示。
+- `/Users/flanchan/.local/bin/ruff check .` 通过；Task 10–12 变更的 21 个 Python 文件 `ruff format --check` 通过；相关源码与测试定向 Pyright 为 `0 errors, 0 warnings, 0 informations`；`compileall`、`git diff --check` 和显式 `pre-commit run --files ...` 均通过。
 - 剩余风险：
+- 真实 Plugin Pages 页面、浏览器交互和前端 bridge 尚未实现，属于 Task 13–16；本审查未扩大到前端。
+- runtime 根目录与插件目录采用不同 Ruff 配置，根目录整仓扫描仍会包含范围外历史诊断；插件目录项目门禁已通过。当前仅有上述 5 条环境/动态导入弃用警告，无 D04 阻塞项。
 - 下一步：
+- Task 13：实现 Plugin Pages 基础壳、bridge 与样式系统。
 
 ---
 
