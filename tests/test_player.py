@@ -334,7 +334,6 @@ async def _database_with_binding(
         await AccountBindingRepository.add(
             session,
             user_id=user_id,
-            bot_id="bot-1",
             uid=uid,
             group_id="group-1",
             is_active=True,

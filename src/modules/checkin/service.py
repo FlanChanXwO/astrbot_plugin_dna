@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from ...entry.event import EventActor
+from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
 from ...entry.response import ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import (
     AccountBindingRepository,
@@ -78,7 +78,6 @@ class CheckinService:
             binding = await AccountBindingRepository.current(
                 session,
                 user_id=target_user_id,
-                bot_id=request.actor.bot_id,
             )
         if binding is None:
             return PlainTextResponse(messages.CHECKIN_UID_INVALID)
@@ -401,8 +400,7 @@ class CheckinService:
         )
         uid_hidden = await self.privacy.is_uid_hidden(
             target_user_id,
-            request.actor.bot_id,
-            request.actor.group_id,
+            group_id=request.actor.group_id,
         )
         rendered = await self.renderer.render_calendar(
             data,
@@ -412,11 +410,11 @@ class CheckinService:
         )
         return ImageResponse(str(rendered.path), temporary=True)
 
-    async def _run_all_signs(self, *, bot_id: str | None = None) -> CheckinSummary:
+    async def _run_all_signs(self) -> CheckinSummary:
         """为全部已绑定账号执行签到并按并发/间隔聚合结果。"""
 
         async with self.database.session() as session:
-            bindings = await AccountBindingRepository.list_all(session, bot_id=bot_id)
+            bindings = await AccountBindingRepository.list_all(session)
         if not bindings:
             return CheckinSummary()
 
@@ -429,7 +427,13 @@ class CheckinService:
         async def process(binding) -> CheckinOutcome:
             async with semaphore:
                 return await self._sign_one(
-                    EventActor(binding.user_id, binding.bot_id, None),
+                    # 计划任务没有入站事件；此 sentinel 仅供 legacy DNAUser
+                    # 构造和请求上下文使用，绝不写入全局身份表。
+                    EventActor(
+                        binding.user_id,
+                        SCHEDULED_ACTOR_BOT_ID,
+                        binding.group_id,
+                    ),
                     binding.uid,
                     binding.user_id,
                 )
@@ -463,9 +467,7 @@ class CheckinService:
     async def sign_all(self, request: CheckinCommandRequest):
         """为所有已绑定账号执行签到并按并发/间隔聚合结果。"""
 
-        summary = await self._run_all_signs(
-            bot_id=request.actor.bot_id if request.actor is not None else None,
-        )
+        summary = await self._run_all_signs()
         if summary.success == 0 and summary.failed == 0:
             return PlainTextResponse(messages.CHECKIN_NO_USERS)
         lines = [

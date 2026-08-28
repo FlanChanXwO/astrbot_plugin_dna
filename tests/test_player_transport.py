@@ -82,7 +82,6 @@ async def test_legacy_user_preserves_target_credential_owner(tmp_path) -> None:
         await CredentialRepository.add(
             session,
             user_id="target-1",
-            bot_id="bot-1",
             uid="9876543210987",
         )
 

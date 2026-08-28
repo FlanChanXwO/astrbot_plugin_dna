@@ -72,7 +72,6 @@ class NoticesService:
             binding = await AccountBindingRepository.current(
                 session,
                 user_id=target_user_id,
-                bot_id=request.actor.bot_id,
             )
         if binding is None:
             return PlainTextResponse(messages.NOTICES_UID_INVALID, need_at=True)

@@ -507,7 +507,6 @@ async def test_sign_write_touches_only_injected_transport(tmp_path) -> None:
             await AccountBindingRepository.add(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 uid="1234567890123",
                 group_id="group-1",
                 is_active=True,

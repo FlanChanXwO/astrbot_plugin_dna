@@ -108,7 +108,6 @@ async def _transport_with_credential(tmp_path: Path) -> tuple[DnaApiNoticesTrans
         await CredentialRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="1234567890123",
             app_cookie="cookie-secret-999",
             app_device_code="dev-secret-001",
@@ -217,14 +216,12 @@ async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, mo
         await AccountBindingRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="1000000000001",
             is_active=True,
         )
         await AccountBindingRepository.add(
             session,
             user_id="user-2",
-            bot_id="bot-1",
             uid="1000000000002",
             is_active=True,
         )
@@ -232,7 +229,6 @@ async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, mo
         await CredentialRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="1000000000001",
             app_cookie="cookie-1",
             app_device_code="dev-1",
@@ -248,7 +244,6 @@ async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, mo
         await CredentialRepository.add(
             session,
             user_id="user-2",
-            bot_id="bot-1",
             uid="1000000000002",
             app_cookie="cookie-2",
             app_device_code="dev-2",

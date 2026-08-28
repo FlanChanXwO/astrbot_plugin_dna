@@ -14,7 +14,7 @@ from typing import Any
 
 import aiohttp
 
-from ...entry.event import EventActor
+from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -77,7 +77,6 @@ class DnaApiNoticesTransport:
             record = await CredentialRepository.get(
                 session,
                 user_id=credential_user_id,
-                bot_id=actor.bot_id,
                 uid=uid,
             )
         if record is None:
@@ -202,7 +201,6 @@ class DnaApiNoticesTransport:
                 record = await CredentialRepository.get(
                     session,
                     user_id=binding.user_id,
-                    bot_id=binding.bot_id,
                     uid=binding.uid,
                 )
                 if record is not None and record.app_status != "无效":
@@ -220,7 +218,11 @@ class DnaApiNoticesTransport:
         for binding, record in records:
             try:
                 user = await self._legacy_user(
-                    EventActor(binding.user_id, binding.bot_id, None),
+                    EventActor(
+                        binding.user_id,
+                        SCHEDULED_ACTOR_BOT_ID,
+                        binding.group_id,
+                    ),
                     binding.uid,
                     binding.user_id,
                 )

@@ -178,7 +178,6 @@ class DnaApiEncyclopediaTransport:
             record = await CredentialRepository.get(
                 session,
                 user_id=credential_user_id,
-                bot_id=actor.bot_id,
                 uid=uid,
             )
         if record is None:
