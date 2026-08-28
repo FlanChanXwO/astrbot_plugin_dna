@@ -43,6 +43,7 @@ from .infrastructure.rendering import (
 from .infrastructure.resources import EncyclopediaResourceStore, ResourceManifest
 from .infrastructure.resources.paths import PLUGIN_NAME, resource_repository_dir
 from .infrastructure.scheduler import SignScheduler
+from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
@@ -143,16 +144,25 @@ def build_runtime(
         runtime_database,
         encyclopedia_transport or DnaApiEncyclopediaTransport(runtime_database),
         privacy_service,
-        EncyclopediaRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+        EncyclopediaRenderer(
+            runtime_database.path.parent / "rendered", encyclopedia_resources
+        ),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
     )
-    subscriptions = SubscriptionStore(runtime_database.path.parent / "subscriptions.json")
+    subscriptions = SubscriptionStore(
+        runtime_database.path.parent / "subscriptions.json"
+    )
+    scheduler_registry = SchedulerRegistry(
+        runtime_database.path.parent / "scheduler_state.json"
+    )
     checkin_service = CheckinService(
         runtime_database,
         checkin_transport or DnaApiCheckinTransport(runtime_database),
         privacy_service,
-        CheckinRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+        CheckinRenderer(
+            runtime_database.path.parent / "rendered", encyclopedia_resources
+        ),
         community_tasks=tuple(settings.sign_in.community_tasks),
         concurrency=settings.sign_in.concurrency,
         interval_range=settings.sign_in.concurrency_interval_seconds,
@@ -169,6 +179,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(f"[dnaby][push_sign] 推送至 {origin} 失败: {error}")
+
     sign_scheduler = SignScheduler(
         checkin_service,
         subscriptions,
@@ -176,6 +187,7 @@ def build_runtime(
         scheduled_enabled=settings.sign_in.scheduled_enabled,
         enable_all_users=settings.sign_in.enable_all_users,
         push=_push_sign,
+        registry=scheduler_registry,
     )
     notices_renderer = NoticesRenderer(
         runtime_database.path.parent / "rendered",
@@ -191,12 +203,17 @@ def build_runtime(
         chain: list[Any] = []
         user_ids: list[str] = []
         if at_user_id:
-            raw_ids = [at_user_id] if isinstance(at_user_id, (str, int)) else list(at_user_id)
+            raw_ids = (
+                [at_user_id] if isinstance(at_user_id, (str, int)) else list(at_user_id)
+            )
             user_ids = [str(uid) for uid in raw_ids if uid]
 
         if isinstance(payload, Path) or (
             isinstance(payload, str)
-            and (payload.endswith((".png", ".jpg", ".jpeg", ".webp")) or Path(payload).exists())
+            and (
+                payload.endswith((".png", ".jpg", ".jpeg", ".webp"))
+                or Path(payload).exists()
+            )
         ):
             chain.append(AstrImage.fromFileSystem(str(payload)))
         else:
@@ -220,6 +237,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(f"[dnaby][push_notice] 推送至 {origin} 失败: {error}")
+
     notices_service = NoticesService(
         runtime_database,
         notices_transport or DnaApiNoticesTransport(runtime_database),
@@ -236,7 +254,9 @@ def build_runtime(
         announcement_enabled=settings.notifications.announcement_enabled,
         push_time=settings.notifications.secret_push_time,
         poll_minutes=settings.notifications.announcement_check_minutes,
+        registry=scheduler_registry,
     )
+
     def _resolve_char_id(char_name: str) -> str | None:
         from .utils.name_convert import char_name_to_char_id
 
@@ -278,6 +298,7 @@ def build_runtime(
         "encyclopedia_resources": encyclopedia_resources,
         "checkin_service": checkin_service,
         "subscriptions": subscriptions,
+        "scheduler_registry": scheduler_registry,
         "sign_scheduler": sign_scheduler,
         "notices_service": notices_service,
         "notices_scheduler": notices_scheduler,
@@ -304,11 +325,13 @@ def build_runtime(
                         if sub.group_id and str(sub.group_id) not in groups:
                             groups[str(sub.group_id)] = True
                             modified = True
-            if modified and hasattr(config, "save_config"):
-                config.save_config()
+            if modified:
+                save_config = getattr(config, "save_config", None)
+                if callable(save_config):
+                    save_config()
 
-        if settings.notifications.announcement_groups:
-            cfg_groups = settings.notifications.announcement_groups
+        cfg_groups: object = settings.notifications.announcement_groups
+        if cfg_groups:
             configured_ids: set[str] = set()
             if isinstance(cfg_groups, dict):
                 configured_ids = {str(k) for k, v in cfg_groups.items() if v}
@@ -327,8 +350,18 @@ def build_runtime(
 
     web = WebRegistrar(context)
     lifecycle = PluginLifecycle(
-        start_hooks=(web.initialize, _sync_ann_config_on_startup, sign_scheduler.start, notices_scheduler.start),
-        stop_hooks=(notices_scheduler.stop, sign_scheduler.stop, runtime_database.dispose),
+        start_hooks=(
+            web.initialize,
+            _sync_ann_config_on_startup,
+            sign_scheduler.start,
+            notices_scheduler.start,
+        ),
+        # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler，再释放数据库。
+        stop_hooks=(
+            runtime_database.dispose,
+            sign_scheduler.stop,
+            notices_scheduler.stop,
+        ),
     )
     return PluginRuntime(
         context=context,

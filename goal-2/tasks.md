@@ -215,13 +215,25 @@
 
 ## Task 08 — 调度器可观测状态、暂停与 tombstone
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD 建立四个内置任务 registry、timezone-aware `next_run_at`、运行/暂停/异常状态、暂停/恢复控制和 `scheduler_state.json` 原子 tombstone。
 - 验收：注入时钟下四任务时间准确；三个业务任务永久删除后重启不再创建且列表隐藏；清理任务拒绝永久删除；无恢复 API。
 - 实际工作：
+- 新增共享 `SchedulerRegistry`、`SchedulerTaskDefinition`、`SchedulerTaskSnapshot` 和 `SchedulerStateStore`，统一登记每日自动签到、签到记录清理、密函推送、公告轮询四个内置任务；快照提供 `id/name/state/schedule/next_run_at/targets/can_pause/can_delete`，异常状态只保留安全固定文案。
+- 两个 scheduler 的 loop 均在睡眠前登记带时区的 `next_run_at`，执行异常进入 `error`、成功恢复 `running`；提供暂停/恢复/永久删除控制，并在 pause/delete 时取消对应 asyncio task，重复 start/stop 保持幂等。
+- `scheduler_state.json` 只保存业务任务永久删除 tombstone，使用临时文件替换；写盘失败恢复内存状态。启动加载 tombstone 后过滤任务列表并跳过任务创建；签到记录清理标记为不可永久删除，未提供 restore API。
+- bootstrap 创建运行期 data root 下的共享 registry 并注入两个 scheduler，暴露 `scheduler_registry` service；同时修正生命周期 stop hook 声明，使 `PluginLifecycle` 逆序执行时先停 scheduler、后释放数据库。
 - 验证证据：
+- TDD Red：先运行 `tests/test_goal2_task08_scheduler_state.py`，因尚不存在 `src.infrastructure.scheduler_state` 在收集阶段 `ModuleNotFoundError`；实现后专项套件 `6 passed, 1 warning`。
+- 相关回归：`tests/test_goal2_task08_scheduler_state.py tests/test_scheduler.py tests/test_notices_scheduler.py tests/test_config.py tests/test_entry_skeleton.py tests/test_migration_boundaries.py`：`52 passed, 5 warnings`。
+- `/Users/flanchan/.local/bin/ruff check .`：`All checks passed!`；本轮文件 Ruff format check 通过；定向 `/opt/homebrew/bin/pyright --project pyrightconfig.json ...`：`0 errors, 0 warnings, 0 informations`；`.venv/bin/python -m compileall -q .`、`git diff --check`：通过。
+- 专项测试实际证明：四任务 registry 与重启隐藏 tombstone、cleanup 永久删除拒绝、暂停/恢复、每日下一次运行时间、异常状态脱敏、tombstone 写盘失败保留旧文件，以及 bootstrap 共享 registry wiring。
 - 剩余风险：
+- 实际 Dashboard `tasks/*` API、任务目标编辑与认证错误映射留给 Task 10/12；当前 `targets` 是 scheduler 级目标类别，尚未呈现可编辑的具体群聊列表。
+- aiocqhttp 成员探测、跨群二次复核和删除前安全门禁留给 Task 09；本 task 只负责调度状态与 tombstone，不执行成员判断。
+- 跨进程/跨存储分布式锁不在当前 scheduler 范围；状态文件写入已在进程内串行并采用临时文件原子替换。
 - 下一步：
+- Task 09：实现 aiocqhttp 成员探测、三态结果、跨群复核和单群清理。
 
 ## Task 09 — aiocqhttp 成员探测与跨群复核
 

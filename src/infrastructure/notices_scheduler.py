@@ -16,6 +16,13 @@ from zoneinfo import ZoneInfo
 
 from astrbot.api import logger
 
+from .scheduler_state import (
+    SchedulerRegistry,
+    SchedulerTaskDefinition,
+    SchedulerTaskNotFound,
+    SchedulerTaskState,
+)
+
 TZ = ZoneInfo("Asia/Shanghai")
 NowCallable = Callable[[], datetime]
 SleepCallable = Callable[[float], Awaitable[None]]
@@ -63,6 +70,7 @@ class NoticesScheduler:
         poll_minutes: int = 10,
         sleep: SleepCallable = asyncio.sleep,
         now: NowCallable | None = None,
+        registry: SchedulerRegistry | None = None,
     ) -> None:
         self.notices = notices
         self.announcement_enabled = announcement_enabled
@@ -70,67 +78,174 @@ class NoticesScheduler:
         self.poll_minutes = max(1, int(poll_minutes))
         self._sleep = sleep
         self._now = now if now is not None else lambda: datetime.now(TZ)
+        self.registry = registry or SchedulerRegistry()
         self._tasks: list[asyncio.Task] = []
+        self._task_by_id: dict[str, asyncio.Task] = {}
+        self._enabled_tasks = {
+            _MH_PUSH_TASK_NAME: True,
+            _ANN_POLL_TASK_NAME: self.announcement_enabled,
+        }
+        self._task_specs: dict[str, tuple[str, Callable[[], Awaitable[object]]]] = {
+            _MH_PUSH_TASK_NAME: ("mh_push", self.notices.push_mh_now),
+            _ANN_POLL_TASK_NAME: ("ann_poll", self.notices.poll_ann_now),
+        }
+        self.registry.register(
+            SchedulerTaskDefinition(
+                id=_MH_PUSH_TASK_NAME,
+                name="密函推送",
+                schedule=f"hourly@{self.push_time[0]:02d}:{self.push_time[1]:02d}",
+                targets=("mh_subscriptions",),
+            ),
+            enabled=self._enabled_tasks[_MH_PUSH_TASK_NAME],
+        )
+        self.registry.register(
+            SchedulerTaskDefinition(
+                id=_ANN_POLL_TASK_NAME,
+                name="公告轮询",
+                schedule=f"interval@{self.poll_minutes}m",
+                targets=("ann_subscriptions",),
+            ),
+            enabled=self._enabled_tasks[_ANN_POLL_TASK_NAME],
+        )
         self._started = False
 
     @property
     def started(self) -> bool:
         return self._started
 
-    async def _run_hourly(self, coro: Callable[[], Awaitable[object]]) -> None:
+    async def _run_hourly(
+        self,
+        task_id: str,
+        coro: Callable[[], Awaitable[object]],
+    ) -> None:
         while True:
-            delay = (_next_hourly(self._now(), *self.push_time) - self._now()).total_seconds()
+            now = self._now()
+            next_run = _next_hourly(now, *self.push_time)
+            await self.registry.set_next_run(task_id, next_run)
+            delay = (next_run - now).total_seconds()
             await self._sleep(max(0.0, delay))
+            snapshot = await self.registry.get_snapshot(task_id)
+            if snapshot is None or snapshot.state is SchedulerTaskState.PAUSED:
+                return
             try:
                 await coro()
             except asyncio.CancelledError:
                 raise
             except Exception as error:  # noqa: BLE001
+                await self.registry.mark_error(task_id)
                 logger.warning(f"[dnaby][{_MH_PUSH_TASK_NAME}] 定时任务异常: {error}")
+            else:
+                await self.registry.mark_running(task_id)
             # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标秒内重复触发
             await self._sleep(1.0)
 
-    async def _run_periodic(self, coro: Callable[[], Awaitable[object]]) -> None:
+    async def _run_periodic(
+        self,
+        task_id: str,
+        coro: Callable[[], Awaitable[object]],
+    ) -> None:
         while True:
+            now = self._now()
+            next_run = now + timedelta(minutes=self.poll_minutes)
+            await self.registry.set_next_run(task_id, next_run)
             await self._sleep(self.poll_minutes * 60)
+            snapshot = await self.registry.get_snapshot(task_id)
+            if snapshot is None or snapshot.state is SchedulerTaskState.PAUSED:
+                return
             try:
                 await coro()
             except asyncio.CancelledError:
                 raise
             except Exception as error:  # noqa: BLE001
+                await self.registry.mark_error(task_id)
                 logger.warning(f"[dnaby][{_ANN_POLL_TASK_NAME}] 定时任务异常: {error}")
+            else:
+                await self.registry.mark_running(task_id)
+
+    def _create_task(self, task_id: str) -> asyncio.Task:
+        if task_id in self._task_by_id:
+            return self._task_by_id[task_id]
+        if not self._enabled_tasks[task_id]:
+            raise ValueError(f"任务当前配置未启用: {task_id}")
+        _name, coro = self._task_specs[task_id]
+        if task_id == _MH_PUSH_TASK_NAME:
+            task = asyncio.create_task(
+                self._run_hourly(task_id, coro),
+                name=task_id,
+            )
+        else:
+            task = asyncio.create_task(
+                self._run_periodic(task_id, coro),
+                name=task_id,
+            )
+        self._tasks.append(task)
+        self._task_by_id[task_id] = task
+        return task
+
+    async def _cancel_task(self, task_id: str) -> None:
+        task = self._task_by_id.pop(task_id, None)
+        if task is None:
+            return
+        if task in self._tasks:
+            self._tasks.remove(task)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
     async def start(self) -> None:
         """幂等创建计划任务；重复 start 不创建重复任务。"""
 
+        await self.registry.initialize()
         if self._started:
             return
-        tasks: list[asyncio.Task] = [
-            asyncio.create_task(
-                self._run_hourly(self.notices.push_mh_now),
-                name=_MH_PUSH_TASK_NAME,
-            ),
-        ]
-        if self.announcement_enabled:
-            tasks.append(
-                asyncio.create_task(
-                    self._run_periodic(self.notices.poll_ann_now),
-                    name=_ANN_POLL_TASK_NAME,
-                )
-            )
-        self._tasks = tasks
+        for task_id, enabled in self._enabled_tasks.items():
+            if not enabled or await self.registry.is_deleted(task_id):
+                continue
+            await self.registry.activate(task_id)
+            self._create_task(task_id)
         self._started = True
 
     async def stop(self) -> None:
         """取消全部计划任务并等待其退出；重复 stop 幂等。"""
 
+        active_ids = tuple(self._task_by_id)
         tasks, self._tasks = self._tasks, []
+        self._task_by_id = {}
         self._started = False
         if not tasks:
             return
+        for task_id in active_ids:
+            await self.registry.deactivate(task_id)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def pause_task(self, task_id: str) -> None:
+        if task_id not in self._task_specs:
+            raise SchedulerTaskNotFound(task_id)
+        await self.registry.pause(task_id)
+        await self._cancel_task(task_id)
+
+    async def resume_task(self, task_id: str) -> None:
+        if task_id not in self._task_specs:
+            raise SchedulerTaskNotFound(task_id)
+        await self.registry.resume(task_id)
+        if self._started:
+            self._create_task(task_id)
+
+    async def delete_task(self, task_id: str) -> None:
+        if task_id not in self._task_specs:
+            raise SchedulerTaskNotFound(task_id)
+        await self.registry.delete(task_id)
+        await self._cancel_task(task_id)
+
+    async def pause(self, task_id: str) -> None:
+        await self.pause_task(task_id)
+
+    async def resume(self, task_id: str) -> None:
+        await self.resume_task(task_id)
+
+    async def delete(self, task_id: str) -> None:
+        await self.delete_task(task_id)
 
 
 __all__ = ["NoticesScheduler"]

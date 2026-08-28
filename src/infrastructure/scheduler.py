@@ -16,6 +16,12 @@ from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from ..modules.checkin import messages
+from .scheduler_state import (
+    SchedulerRegistry,
+    SchedulerTaskDefinition,
+    SchedulerTaskNotFound,
+    SchedulerTaskState,
+)
 from .subscriptions import SubscriptionStore
 
 TZ = ZoneInfo("Asia/Shanghai")
@@ -69,6 +75,7 @@ class SignScheduler:
         sleep: SleepCallable = asyncio.sleep,
         now: NowCallable | None = None,
         push: PushCallable | None = None,
+        registry: SchedulerRegistry | None = None,
     ) -> None:
         self.checkin = checkin
         self.subscriptions = subscriptions
@@ -79,7 +86,43 @@ class SignScheduler:
         self._sleep = sleep
         self._now = now if now is not None else lambda: datetime.now(TZ)
         self._push = push
+        self.registry = registry or SchedulerRegistry()
         self._tasks: list[asyncio.Task] = []
+        self._task_by_id: dict[str, asyncio.Task] = {}
+        self._enabled_tasks = {
+            _SIGN_TASK_NAME: self.scheduled_enabled and self.enable_all_users,
+            _CLEANUP_TASK_NAME: True,
+        }
+        self._task_specs: dict[
+            str,
+            tuple[str, Callable[[], Awaitable[None]], tuple[int, int]],
+        ] = {
+            _SIGN_TASK_NAME: ("auto_sign", self._on_sign_time, self.sign_time),
+            _CLEANUP_TASK_NAME: (
+                "clear_sign_record",
+                self._on_cleanup_time,
+                self.cleanup_time,
+            ),
+        }
+        self.registry.register(
+            SchedulerTaskDefinition(
+                id=_SIGN_TASK_NAME,
+                name="每日自动签到",
+                schedule=f"daily@{self.sign_time[0]:02d}:{self.sign_time[1]:02d}",
+                targets=("sign_result_subscriptions",),
+            ),
+            enabled=self._enabled_tasks[_SIGN_TASK_NAME],
+        )
+        self.registry.register(
+            SchedulerTaskDefinition(
+                id=_CLEANUP_TASK_NAME,
+                name="签到记录清理",
+                schedule=f"daily@{self.cleanup_time[0]:02d}:{self.cleanup_time[1]:02d}",
+                targets=("sign_records",),
+                can_delete=False,
+            ),
+            enabled=self._enabled_tasks[_CLEANUP_TASK_NAME],
+        )
         self._started = False
 
     @property
@@ -88,63 +131,123 @@ class SignScheduler:
 
         return self._started
 
-    async def _run_daily(self, name: str, coro: Callable[[], Awaitable[None]], hour: int, minute: int) -> None:
+    async def _run_daily(
+        self,
+        task_id: str,
+        name: str,
+        coro: Callable[[], Awaitable[None]],
+        hour: int,
+        minute: int,
+    ) -> None:
         while True:
-            delay = (_next_daily(self._now(), hour, minute) - self._now()).total_seconds()
+            now = self._now()
+            next_run = _next_daily(now, hour, minute)
+            await self.registry.set_next_run(task_id, next_run)
+            delay = (next_run - now).total_seconds()
             await self._sleep(max(0.0, delay))
+            snapshot = await self.registry.get_snapshot(task_id)
+            if snapshot is None or snapshot.state is SchedulerTaskState.PAUSED:
+                return
             try:
                 await coro()
             except asyncio.CancelledError:
                 raise
             except Exception as error:  # noqa: BLE001
+                await self.registry.mark_error(task_id)
                 from astrbot.api import logger
 
                 logger.warning(f"[dnaby][{name}] 定时任务异常: {error}")
+            else:
+                await self.registry.mark_running(task_id)
             # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标分钟内重复触发
             await self._sleep(1.0)
+
+    def _create_task(self, task_id: str) -> asyncio.Task:
+        if task_id in self._task_by_id:
+            return self._task_by_id[task_id]
+        if not self._enabled_tasks[task_id]:
+            raise ValueError(f"任务当前配置未启用: {task_id}")
+        name, coro, (hour, minute) = self._task_specs[task_id]
+        task = asyncio.create_task(
+            self._run_daily(task_id, name, coro, hour, minute),
+            name=task_id,
+        )
+        self._tasks.append(task)
+        self._task_by_id[task_id] = task
+        return task
+
+    async def _cancel_task(self, task_id: str) -> None:
+        task = self._task_by_id.pop(task_id, None)
+        if task is None:
+            return
+        if task in self._tasks:
+            self._tasks.remove(task)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
     async def start(self) -> None:
         """幂等创建计划任务；重复 start 不创建重复任务。"""
 
+        await self.registry.initialize()
         if self._started:
             return
-        tasks: list[asyncio.Task] = []
         # 自动签到需要「定时开启 + 全部账号授权」；新 schema 没有 per-user 签到开关，
         # enable_all_users 承担 legacy SigninMaster 对全账号自动签到的门控语义。
-        if self.scheduled_enabled and self.enable_all_users:
-            tasks.append(
-                asyncio.create_task(
-                    self._run_daily(
-                        "auto_sign",
-                        self._on_sign_time,
-                        *self.sign_time,
-                    ),
-                    name=_SIGN_TASK_NAME,
-                )
-            )
-        tasks.append(
-            asyncio.create_task(
-                self._run_daily(
-                    "clear_sign_record",
-                    self._on_cleanup_time,
-                    *self.cleanup_time,
-                ),
-                name=_CLEANUP_TASK_NAME,
-            )
-        )
-        self._tasks = tasks
+        for task_id, enabled in self._enabled_tasks.items():
+            if not enabled or await self.registry.is_deleted(task_id):
+                continue
+            await self.registry.activate(task_id)
+            self._create_task(task_id)
         self._started = True
 
     async def stop(self) -> None:
         """取消全部计划任务并等待其退出；重复 stop 幂等。"""
 
+        active_ids = tuple(self._task_by_id)
         tasks, self._tasks = self._tasks, []
+        self._task_by_id = {}
         self._started = False
         if not tasks:
             return
+        for task_id in active_ids:
+            await self.registry.deactivate(task_id)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def pause_task(self, task_id: str) -> None:
+        """暂停一个归属本 scheduler 的任务。"""
+
+        if task_id not in self._task_specs:
+            raise SchedulerTaskNotFound(task_id)
+        await self.registry.pause(task_id)
+        await self._cancel_task(task_id)
+
+    async def resume_task(self, task_id: str) -> None:
+        """恢复一个归属本 scheduler 的任务。"""
+
+        if task_id not in self._task_specs:
+            raise SchedulerTaskNotFound(task_id)
+        await self.registry.resume(task_id)
+        if self._started:
+            self._create_task(task_id)
+
+    async def delete_task(self, task_id: str) -> None:
+        """永久删除一个归属本 scheduler 的业务任务。"""
+
+        if task_id not in self._task_specs:
+            raise SchedulerTaskNotFound(task_id)
+        await self.registry.delete(task_id)
+        await self._cancel_task(task_id)
+
+    async def pause(self, task_id: str) -> None:
+        await self.pause_task(task_id)
+
+    async def resume(self, task_id: str) -> None:
+        await self.resume_task(task_id)
+
+    async def delete(self, task_id: str) -> None:
+        await self.delete_task(task_id)
 
     async def _on_sign_time(self) -> None:
         await self.run_sign_once()
