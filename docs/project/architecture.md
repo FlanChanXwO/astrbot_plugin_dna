@@ -43,7 +43,7 @@
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
   snapshot 生成可审查的 PNG，不按资料条目截断。
 - 签到：`src/modules/checkin/` 通过 `CheckinTransport` 协调游戏/社区签到、签到日历和
-  owner 批量签到；当天计数落到 `sign_records` 表（Task 9 的 `SignRecordRepository`）。owner 身份由全局 `admins_id` 精确授权。
+  admin 批量签到；当天计数落到 `sign_records` 表（Task 9 的 `SignRecordRepository`）。admin 身份由 AstrBot 权限过滤器授权。
   真实写操作只走注入 transport（默认 `DnaApiCheckinTransport` 复用 legacy 纯 API），
   服务层不接触旧事件/数据库/消息段；`CheckinRenderer` 生成 1300 宽日历 PNG。
 - 订阅与计划任务：`src/infrastructure/subscriptions/` 提供框架无关的 JSON 订阅存储
@@ -64,15 +64,16 @@
   写操作只在隔离 fixture 验证；命令层经 `CommandRequest.images` 从 AstrBot 公开消息链提取
   图片载荷（`images_from_event`）。
   资源更新经 `ResourceUpdateService` 复用 `ResourceSynchronizer`（浅克隆/`pull --ff-only`），
-  `下载全部资源` 与 `更新记录` 把 Git 缺失/认证/远端/非快进/本地修改映射为可见错误，不自动
+  `下载全部资源` 把 Git 缺失/认证/远端/非快进/本地修改映射为可见错误，不自动
   覆盖本地修改。
+- 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
   `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
   强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与
   `EncyclopediaResourceStore`，字体不再从源码读取。生成 PNG 仅在受控 `rendered/` 根登记给
   AstrBot 事件期清理，资源资产不会被登记为临时文件。
-- 当前阶段：当前 main 已注册 `commands.json` 中的 61 条命令，权限为
-  `user=32/admin=14/owner=15`；未迁移命令不会在新入口中隐式注册。
+- 当前阶段：当前 main 已注册 `commands.json` 中的 60 条命令，权限为
+  `user=32/admin=28`；未迁移命令不会在新入口中隐式注册。
 
 ## HTML/T2I 图片渲染
 

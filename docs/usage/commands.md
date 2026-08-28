@@ -1,11 +1,12 @@
 # 命令
 
-所有命令现在都必须以 `kk` 开头，例如 `kk帮助`、`kk签到`、`kk登录`。为保持文档
-紧凑，下文命令列表省略这个统一前缀；发送时请在命令主体前加上 `kk`。
+插件默认命令前缀为 `kk`，例如 `kk帮助`、`kk签到`、`kk登录`；实际触发前缀以 Dashboard
+配置项 `display.command_prefixes` 为准。为保持文档紧凑，下文命令列表省略前缀；发送时请
+在命令主体前加上当前配置的前缀。
 
-当前 main 注册 `commands.json` 中的 61 条命令，覆盖账号/UID、玩家查询、资料读取、隐私、签到、通知、面板和资源管理。命令声明位于
+当前 main 注册 `commands.json` 中的 60 条命令，覆盖账号/UID、玩家查询、资料读取、隐私、签到、通知、面板和资源管理。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
-`scripts/generate_commands_manifest.py` 生成的可审阅清单；发送 `kk帮助` 查看同一
+`scripts/generate_commands_manifest.py` 生成的可审阅清单；以当前配置前缀发送 `帮助` 查看同一
 registry 的帮助文本。
 
 ## 当前账号命令
@@ -48,7 +49,7 @@ registry 的帮助文本。
 - `<名称>图鉴`、`<名称>wiki`：按角色、武器或魔灵的运行期资源索引返回图鉴图片。
 - `<角色名>攻略`：按已配置的攻略作者返回单图，或每位作者一条文案后跟随其全部图片的消息链。
 - `兑换码`、`cdk`、`code`：读取 provider 中所有有效兑换码；不同截止时间会与各自兑换码一同显示。
-- `<角色/武器名>别名`：查看只读别名列表，沿用 legacy 的 `owner` 权限。
+- `<角色/武器名>别名`：查看只读别名列表，使用 `admin` 权限。
 - `角色列表`、`武器列表`：查看运行期资源中已索引的 canonical 名称，使用 `user` 权限。
 
 ## 签到命令
@@ -59,11 +60,11 @@ registry 的帮助文本。
   测试使用 fake transport。
 - `签到日历`、`签到记录`、`签到历史`：渲染签到日历（皎皎积分、社区/游戏累计签到、
   社区任务进度和逐日奖励），使用 `user` 权限。
-- `全部签到`：对所有已绑定账号执行签到并按并发/间隔聚合成功/失败结果，使用 `owner`
+- `全部签到`：对所有已绑定账号执行签到并按并发/间隔聚合成功/失败结果，使用 `admin`
   权限。真实账户不执行批量写操作，仅离线 fixture 覆盖契约。
 - `订阅签到结果`、`取消订阅签到结果`：在 `sign_in.scheduled_enabled` 开启时，每日
   `sign_in.sign_time` 由计划任务执行全账号自动签到，并把摘要推送给订阅者；订阅按
-  type+会话去重，使用 `owner` 权限。真实推送只走注入的 `context.send_message`，
+  type+会话去重，使用 `admin` 权限。真实推送只走注入的 `context.send_message`，
   离线测试用 fixture 验证。
 
 ## 通知命令
@@ -84,13 +85,13 @@ registry 的帮助文本。
 - `订阅密函时间17:23`、`订阅密函周期17:23`：设置密函推送时间窗口（`user`）。
 - `订阅密函图片`/`取消订阅密函图片`、`订阅密函文本`/`取消订阅密函文本`：会话作用域
   图片/文本推送开关（`admin`）。
-- `密函测试`：向当前会话发送一次测试推送（`owner`）。
+- `密函测试`：向当前会话发送一次测试推送（`admin`）。
 - `订阅公告`、`取消订阅公告`：群聊作用域公告推送开关（`admin`）。
 - 每小时按 `notifications.secret_push_time` 推送密函，按
   `notifications.announcement_check_minutes` 轮询公告并推送新条目；真实推送只走注入的
   `context.send_message`，离线测试用 fixture 验证。
 
-## 面板图与资源状态命令（owner）
+## 面板图与资源状态命令（admin）
 
 - `上传<角色>面板图`：随命令附带图片上传角色自定义面板图（保存为 WebP 到运行期数据目录
   `panel_custom/`，按内容 sha1 去重）。
@@ -101,11 +102,13 @@ registry 的帮助文本。
 - `资源状态`：展示公共资源仓库目录、manifest 版本/必需目录和自定义面板数量。
 - 上传/删除/压缩等写操作只在隔离 fixture 验证，不操作真实账户或参考区。
 
-## 资源管理命令（owner）
+## 资源管理命令（admin）
 
 - `下载全部资源`：浅克隆或 `git pull --ff-only` 同步公共资源仓库并校验 manifest；Git
   缺失、认证失败、远端失败、非快进和本地修改均返回可见错误，不自动覆盖本地修改。
-- `更新记录`、`更新日志`：读取插件仓库最近提交。
+
+更新历史不再提供聊天命令，统一记录在仓库根目录的 `CHANGELOG.md`；因此不会出现在帮助或
+`commands.json` 中。
 
 资料读取的图片与索引只使用
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录
@@ -145,5 +148,5 @@ pattern 和重复模块加载。
 ## 权限
 
 - `user`：AstrBot `PermissionType.MEMBER`。
-- `admin`：AstrBot `PermissionType.ADMIN`。
-- `owner`：仅允许发送者 ID 位于 AstrBot 全局 `admins_id` 的 bot owner；群管理员身份本身不能执行 owner 命令，私聊与群聊使用同一身份边界。
+- `admin`：AstrBot `PermissionType.ADMIN`；当前所有原管理命令均归入此权限，具体以
+  `commands.json` 和运行时 registry 为准。

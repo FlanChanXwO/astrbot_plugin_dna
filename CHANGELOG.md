@@ -1,5 +1,13 @@
 # Changelog
 
+## goal-1 O04 — 第一阶段命令与文档收口（2026-08-28）
+
+### Changed
+
+- 聊天内的 `update_log`/“更新记录”命令及其渲染链已移除；更新历史统一以本文件作为长期载体。
+- 当前 `commands.json` 由代码 registry 生成，共 60 条命令，仅保留 `user` 与 `admin` 权限。
+- 使用文档改为说明可配置的 `display.command_prefixes`，并同步管理员权限与命令清单事实。
+
 ## 本地离线渲染对比工具（Task 30 前置）
 
 ### Added

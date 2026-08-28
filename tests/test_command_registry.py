@@ -389,8 +389,21 @@ def test_commands_manifest_is_generated_from_registry():
 
 
 @pytest.mark.asyncio
-async def test_help_shows_implemented_commands_only():
+async def test_help_shows_implemented_commands_only(monkeypatch: pytest.MonkeyPatch):
     """帮助输出来自同一个 registry，未迁移命令不得出现。"""
+
+    from io import BytesIO
+
+    from PIL import Image
+
+    class FakeRenderer:
+        async def render(self, _template_name, _data, _spec):
+            image = Image.new("RGB", (2020, 5001), "white")
+            output = BytesIO()
+            image.save(output, format="JPEG")
+            return output.getvalue()
+
+    monkeypatch.setattr("src.infrastructure.rendering.help._RENDERER", FakeRenderer())
 
     class Event:
         def get_message_str(self) -> str:
@@ -403,7 +416,6 @@ async def test_help_shows_implemented_commands_only():
     result = [item async for item in plugin.handle_help(Event())]
 
     assert len(result) == 1
-    from PIL import Image
 
     with Image.open(result[0]) as image:
         assert image.width == 2020

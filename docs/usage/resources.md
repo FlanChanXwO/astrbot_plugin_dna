@@ -53,7 +53,7 @@
 - `dnaby.sqlite3` — SQLAlchemy 2 async 数据库（账号绑定、凭据、隐私、签到记录）。
 - `subscriptions.json` — 订阅存储；`ann_state.json` — 公告轮询已知 id。
 - `rendered/` — 玩家/资料/通知 renderer 生成的临时 PNG。
-- `panel_custom/` — owner 上传的自定义面板图（WebP，按内容 sha1 去重）；它是本地数据
+- `panel_custom/` — admin 上传的自定义面板图（WebP，按内容 sha1 去重）；它是本地数据
   目录，与资源仓库的 `panel/`（只读原始面板）分离。
 
 玩家和资料 renderer 生成的 `rendered/*.png` 会在响应边界确认其位于受控渲染目录后，交给

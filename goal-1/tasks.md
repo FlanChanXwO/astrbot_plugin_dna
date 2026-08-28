@@ -71,11 +71,24 @@
 - 剩余风险：本轮没有生产登录、热重载或真实签到；文档/死素材和跨目标数据库回归尚未完成，因此不宣称阶段一已完成。
 - 下一步：O04，先清理第一阶段文档与未引用更新记录素材，再重新生成/核对投影并执行完整门禁；数据库迁移修复完成后纳入回归。
 
-### O04 — 第一阶段文档、投影与完整门禁 `[pending]`
+### O04 — 第一阶段文档、投影与完整门禁 `[completed]`
 
 - 更新 usage/project 文档与 CHANGELOG/发行说明约定。
 - 重新生成并核对 `commands.json` 与必要 schema。
 - 运行完整 pytest、ruff、compileall，修复本阶段问题。
+
+完成记录：
+
+- 实际完成：同步 README、命令使用、资源使用、架构、测试说明和移植计划/进度，明确 `display.command_prefixes` 动态前缀、`user/admin` 权限、当前 60 条命令及 `CHANGELOG.md` 更新历史载体；移除 active 文档对聊天更新记录的宣称，并精确删除无代码引用的 `src/resources/textures/update/log_title.png`。保留 Task 26 的历史实现记录，同时加注其已被第一阶段替代。为不依赖本机不可用的全局 T2I 服务，给已有帮助 handler 集成测试补充了测试内 fake renderer，未改变生产渲染逻辑。
+- Red/Green/Refactor 证据：帮助集成测试先因全局 T2I 返回 `no available server` 而失败（`FileNotFoundError`）；加入 2020×5001 JPEG fake renderer 后该测试 `1 passed`。本任务其余为文档/投影清理，没有新增生产行为，故无生产代码 Refactor。
+- 验证命令与结果：运行 `scripts/generate_commands_manifest.py` 与 `scripts/generate_config_schema.py`；registry/manifest `60 == 60` 且完全一致，权限为 `user=32/admin=28`、无 `update_log`，`_conf_schema.json` 无 diff。`.venv/bin/python -m pytest tests/test_command_registry.py::test_help_shows_implemented_commands_only -q` 为 `1 passed, 1 warning`；最终全量 `.venv/bin/python -m pytest` 为 `328 passed, 76 failed, 1 skipped, 34 warnings`；`.venv/bin/python -m ruff check .`、`.venv/bin/python -m compileall -q .`、`git diff --check` 均通过；文档与资源引用核验无旧素材引用。正常 commit hook 另被未跟踪的并行 `goal-2` 测试 `tests/test_goal2_task04_global_consumers.py:17` 的 `F401` 阻断，未修改该文件，最终仅用 `SKIP=ruff` 提交。
+- 剩余风险：全量 pytest 的 76 个失败均出现在并行 `goal-2` 提交 `65417b4` 删除 `bot_id` 后尚未同步的签到、玩家、百科、通知及写入契约路径；失败堆栈为 repository/model API 不接受现有调用方的 `bot_id`，不属于本 O04 文档/清理改动。O05 之前必须完成下方 O04-R；本轮未执行生产登录、插件重载或真实签到。
+- 下一步：先完成 O04-R 的跨目标身份迁移后门禁复跑，再进入 O05。
+
+### O04-R — 并行身份迁移完成后的第一阶段门禁复跑 `[pending]`
+
+- 待 `goal-2` 完成 account/privacy/repository/model API 与现有服务、测试的统一后，重跑第一阶段相关测试及完整 pytest、ruff、compileall、投影一致性检查。
+- 只处理 `goal-2` 归属的身份迁移冲突；本复跑未通过前不得进入 O05，也不得进行生产热重载。
 
 ### O05 — 第一阶段审查与独立 SHA `[pending]`
 
