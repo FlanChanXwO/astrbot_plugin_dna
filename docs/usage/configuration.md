@@ -14,6 +14,9 @@
 - `display`：攻略来源、未拥有角色展示和 AT 查询开关；
   `allow_mention_query` 控制是否允许查询被 @ 的他人。（角色原图引用因公开结果边界
   无消息 ID 交付点暂不支持，不再提供开关。）
+- `resources`：公共资源仓库的 GitHub 加速模式和自定义 HTTP(S) 加速前缀。默认
+  `github_acceleration=off` 直连；`edgeone`、`hk`、`gh_proxy`、`dpik` 使用内置前缀，
+  `custom` 只使用经过规范化的自定义基础 URL。镜像失败会直接报告，不会静默回退直连。
 
 新入口在 bootstrap 边界将 AstrBot 配置转换为 `DnabySettings`；use case 不直接读取
 未类型化字典。legacy `dnaby/dna_config` 的 `DNAConfig.get_config("Key").data` 语义
@@ -43,6 +46,10 @@ Web 路由。未注入实际 page provider 时，无参数登录会显式报告�
 
 共享密钥使用 Pydantic `SecretStr`，schema 默认值保持为空；不得把实际密钥写入
 Git、日志、异常或用户可见响应。
+
+资源加速配置中的自定义 URL 只允许 HTTP(S) 基础地址，自动去除首尾空白和尾部斜杠，
+拒绝控制字符、反斜杠、userinfo、query、fragment 及相对路径段；无效配置不会回显原始
+输入。该配置只影响公共资源 Git/Raw 请求，不复用 `network.local_proxy_url`。
 
 ## HTML/T2I 图片渲染
 

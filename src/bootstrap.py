@@ -308,7 +308,10 @@ def build_runtime(
     def _synchronize_resources():
         from .infrastructure.resources import download_all_resources
 
-        return download_all_resources(data_dir=runtime_database.path.parent)
+        return download_all_resources(
+            data_dir=runtime_database.path.parent,
+            acceleration_prefix=settings.resources.acceleration_prefix,
+        )
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,

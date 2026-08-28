@@ -72,9 +72,11 @@
   `下载全部资源` 把 Git 缺失/认证/远端/非快进/本地修改映射为可见错误，不自动
   覆盖本地修改。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
-- 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
-  `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
-  强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与
+- 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
+  GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `pull --ff-only --no-tags origin main`，
+  可用临时 `url.*.insteadOf` 注入 GitHub 加速前缀。同步前后检查 origin、main checkout、
+  干净 worktree 和完整 `resource_manifest.json`；不强制覆盖本地修改。bootstrap 从同一运行期
+  `resources/` 根注入玩家的 `ResourceMap` 与
   `EncyclopediaResourceStore`，字体不再从源码读取。生成 PNG 仅在受控 `rendered/` 根登记给
   AstrBot 事件期清理，资源资产不会被登记为临时文件。
 - 当前阶段：当前 main 已注册 `commands.json` 中的 60 条命令，权限为

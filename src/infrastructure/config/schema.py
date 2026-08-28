@@ -15,6 +15,7 @@ from .settings import (
     LoginSettings,
     NetworkSettings,
     NotificationSettings,
+    ResourceSettings,
     SignInSettings,
 )
 
@@ -24,6 +25,7 @@ _GROUPS: tuple[tuple[str, type[BaseModel]], ...] = (
     ("sign_in", SignInSettings),
     ("notifications", NotificationSettings),
     ("display", DisplaySettings),
+    ("resources", ResourceSettings),
 )
 
 
@@ -113,7 +115,8 @@ def generate_astrbot_schema() -> dict[str, dict[str, Any]]:
 
     return {
         group_name: {
-            "description": DnabySettings.model_fields[group_name].description or group_name,
+            "description": DnabySettings.model_fields[group_name].description
+            or group_name,
             "type": "object",
             "items": {
                 field_name: _field_schema(field)

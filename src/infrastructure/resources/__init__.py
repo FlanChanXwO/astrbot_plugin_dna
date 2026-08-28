@@ -1,5 +1,15 @@
 """公共资源仓库的 manifest、路径和 Git 同步入口。"""
 
+from .acceleration import (
+    BUILTIN_GITHUB_ACCELERATION_PREFIXES,
+    GITHUB_ORIGIN_PREFIX,
+    GithubAccelerationMode,
+    accelerate_github_url,
+    build_git_instead_of_config,
+    normalize_github_repository_url,
+    normalize_http_base_url,
+    resolve_github_acceleration_prefix,
+)
 from .encyclopedia import (
     AliasCatalog,
     EncyclopediaResourceError,
@@ -11,6 +21,7 @@ from .git import (
     GitCommandError,
     GitCommandResult,
     GitUnavailableError,
+    ResourceBranchMismatchError,
     ResourceLocalChangesError,
     ResourceRemoteMismatchError,
     ResourceSyncError,
@@ -32,7 +43,9 @@ from .paths import (
 )
 
 __all__ = [
+    "BUILTIN_GITHUB_ACCELERATION_PREFIXES",
     "DEFAULT_RESOURCE_REMOTE",
+    "GITHUB_ORIGIN_PREFIX",
     "PLUGIN_NAME",
     "RESOURCE_REPOSITORY_NAME",
     "RUNTIME_RESOURCE_DIRECTORIES",
@@ -42,7 +55,9 @@ __all__ = [
     "GitCommandError",
     "GitCommandResult",
     "GitUnavailableError",
+    "GithubAccelerationMode",
     "GuideAsset",
+    "ResourceBranchMismatchError",
     "ResourceLocalChangesError",
     "ResourceManifest",
     "ResourceManifestError",
@@ -50,8 +65,13 @@ __all__ = [
     "ResourceSyncError",
     "ResourceSyncResult",
     "ResourceSynchronizer",
+    "accelerate_github_url",
+    "build_git_instead_of_config",
     "default_resource_repository_dir",
     "download_all_resources",
+    "normalize_github_repository_url",
+    "normalize_http_base_url",
+    "resolve_github_acceleration_prefix",
     "resource_repository_dir",
     "run_git",
 ]

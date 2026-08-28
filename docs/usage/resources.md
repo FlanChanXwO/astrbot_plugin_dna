@@ -38,10 +38,14 @@
 
 同步规则：
 
-- 目标目录不存在时执行 `git clone --depth 1`。
-- 目标目录存在时先检查 `origin` 和 `git status --porcelain --untracked-files=all`，再执行 `git pull --ff-only`。
+- 规范 origin 始终是 `https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git`；
+  镜像只通过当前 Git 子进程的 `url.*.insteadOf` 配置替换请求，不改写本地 origin。
+- 目标目录不存在时执行 `git clone --depth 1 --single-branch --branch main --no-tags`。
+- 目标目录存在时先确认当前 checkout 为 `main`、origin 和
+  `git status --porcelain --untracked-files=all`，再执行
+  `git pull --ff-only --no-tags origin main`；不会抓取 tags 或其他投稿分支。
 - Git 缺失、认证/远端错误、origin 不一致、非快进、manifest 无效或本地有修改时直接报告失败。
-- 不执行 force checkout、强制覆盖、自动删除或静默降级；本地修改必须由部署者自行处理。
+- 加速镜像不支持 Git smart HTTP 时直接报告失败，不改走 ZIP、不静默直连；本地修改必须由部署者自行处理。
 
 资源仓库为公开仓库；插件仍只通过 manifest + Git fast-forward-only 同步接口读取，
 不在资源仓库中保存账号凭据或其他运行期私有数据。
