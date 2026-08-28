@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-
 from src.infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
