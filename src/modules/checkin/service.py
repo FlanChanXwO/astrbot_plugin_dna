@@ -488,7 +488,7 @@ class CheckinService:
         )
 
     async def subscribe_sign_result(self, request: CheckinCommandRequest):
-        """订阅/取消订阅签到结果推送（owner）。"""
+        """订阅/取消订阅签到结果推送（admin）。"""
 
         if self.subscriptions is None:
             return PlainTextResponse(messages.CHECKIN_SERVICE_UNAVAILABLE)

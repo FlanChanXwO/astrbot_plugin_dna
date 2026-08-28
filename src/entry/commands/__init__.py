@@ -16,7 +16,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mappi
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
@@ -33,12 +33,12 @@ from ..event import (
 )
 from ..response import CommandResponse, PlainTextResponse
 
-PermissionName = str
+PermissionName = Literal["user", "admin"]
 CommandUseCase = Callable[
     ..., Awaitable[CommandResponse | str | None] | AsyncGenerator[CommandResponse | str, None]
 ]
 
-_PERMISSIONS = {"user", "admin", "owner"}
+_PERMISSIONS = {"user", "admin"}
 COMMAND_PREFIX = "kk"
 
 
@@ -50,11 +50,18 @@ class CommandRequest:
     text: str
     parameters: Mapping[str, Any]
     actor: EventActor | None = None
+    permission: PermissionName = "user"
     services: Mapping[str, object] = field(default_factory=dict)
     target_user_id: str | None = None
     reply_id: str | None = None
     images: tuple[str, ...] = ()
     matched_prefix: str = "kk"
+
+    def __post_init__(self) -> None:
+        """校验入口已经快照的调用者权限，避免 use case 接收未知角色。"""
+
+        if self.permission not in _PERMISSIONS:
+            raise ValueError(f"调用者权限无效: {self.permission!r}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,11 +193,20 @@ class CommandRegistry:
                 )
         return None
 
-    def render_help(self) -> str:
-        """从同一 registry 渲染当前已实现命令的帮助文本。"""
+    def visible_specs(self, permission: PermissionName = "user") -> tuple[CommandSpec, ...]:
+        """返回当前调用者可见的命令；admin 同时继承 user 命令。"""
+
+        if permission not in _PERMISSIONS:
+            raise ValueError(f"调用者权限无效: {permission!r}")
+        if permission == "admin":
+            return self._specs
+        return tuple(spec for spec in self._specs if spec.permission == "user")
+
+    def render_help(self, permission: PermissionName = "user") -> str:
+        """从同一 registry 渲染当前已实现且对调用者可见的帮助文本。"""
 
         grouped: dict[str, list[CommandSpec]] = {}
-        for spec in self._specs:
+        for spec in self.visible_specs(permission):
             grouped.setdefault(spec.group, []).append(spec)
 
         lines = ["可用命令："]
@@ -315,19 +331,14 @@ def _permission_filter(permission: PermissionName) -> filter.PermissionType:
 
     if permission == "user":
         return filter.PermissionType.MEMBER
-    # AstrBot 公开 API 没有 bot-owner 独立类型；owner 沿用 admin 边界，
-    # 具体 owner 语义在对应 use case 迁移时再补充，不在入口静默放行。
     return filter.PermissionType.ADMIN
 
 
-class _BotOwnerFilter(filter.CustomFilter):
-    """仅允许 AstrBot 全局配置 ``admins_id`` 中的 bot owner。"""
+def _permission_from_event(event: AstrMessageEvent) -> PermissionName:
+    """从 AstrBot 当前事件快照调用者权限，不读取配置或插件自定义角色。"""
 
-    def filter(self, event: AstrMessageEvent, cfg: Any) -> bool:
-        configured = cfg.get("admins_id", []) if hasattr(cfg, "get") else []
-        owner_ids = {str(value) for value in configured if value is not None}
-        sender_id = event.get_sender_id()
-        return str(sender_id) in owner_ids
+    is_admin = getattr(event, "is_admin", None)
+    return "admin" if callable(is_admin) and bool(is_admin()) else "user"
 
 
 async def execute_use_case(
@@ -446,6 +457,7 @@ def _make_handler(
             text=message,
             parameters=parameters,
             actor=actor,
+            permission=_permission_from_event(event),
             target_user_id=target_user_from_event(
                 event,
                 bot_id=actor.bot_id if actor is not None else None,
@@ -499,10 +511,7 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
         handler_name = f"handle_{spec.id}"
         handler = _make_handler(spec, plugin_cls.__module__, handler_name, registry)
         handler = filter.regex(spec.pattern, desc=spec.description)(handler)
-        if spec.permission == "owner":
-            handler = filter.custom_filter(_BotOwnerFilter)(handler)
-        else:
-            handler = filter.permission_type(_permission_filter(spec.permission))(handler)
+        handler = filter.permission_type(_permission_filter(spec.permission))(handler)
         from astrbot.core.star.star_handler import EventType
         handler_md = get_handler_or_create(handler, EventType.AdapterMessageEvent)
         for idx, f in enumerate(handler_md.event_filters):
@@ -518,6 +527,7 @@ __all__ = [
     "CommandRequest",
     "CommandSpec",
     "CommandUseCase",
+    "PermissionName",
     "execute_use_case",
     "install_command_handlers",
     "load_command_registry",

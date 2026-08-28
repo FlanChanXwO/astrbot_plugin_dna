@@ -34,7 +34,7 @@ def test_notices_commands_are_registered_with_legacy_semantics() -> None:
     assert specs["mh_subscribe_cycle"].permission == "user"
     assert specs["mh_pic_subscribe"].permission == "admin"
     assert specs["mh_text_subscribe"].permission == "admin"
-    assert specs["mh_test"].permission == "owner"
+    assert specs["mh_test"].permission == "admin"
     assert specs["ann_sub"].permission == "admin"
     assert specs["ann_unsub"].permission == "admin"
 

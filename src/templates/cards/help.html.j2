@@ -24,7 +24,7 @@
 {% if icon %}<img class="help-card__icon" src="{{ icon }}" alt="" />{% endif %}
 <h1 class="help-card__title">DNA帮助</h1>
 {% if subtitle %}<p class="help-card__subtitle">{{ subtitle }}</p>{% endif %}
-<span class="help-card__badge">v1.0.0</span>
+<span class="help-card__badge">{{ version }}</span>
 {% set ns = namespace(top=766) %}
 {% for section in sections %}
 <section class="help-card__section" style="top: {{ ns.top }}px">
@@ -38,7 +38,7 @@
     <article class="help-card__item" style="left: {{ (loop.index0 % 4) * 490 }}px; top: {{ (loop.index0 // 4) * 175 }}px">
       {% if item.icon %}<img class="help-card__item-icon" src="{{ item.icon }}" alt="" />{% endif %}
       <p class="help-card__item-name">{{ item.name }}</p>
-      <p class="help-card__item-example">d{{ item.example }}</p>
+      <p class="help-card__item-example">{{ item.example }}</p>
     </article>
     {% endfor %}
   </div>

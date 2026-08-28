@@ -103,7 +103,7 @@ class AccountBindingRepository:
         *,
         bot_id: str | None = None,
     ) -> list[AccountBinding]:
-        """返回全部绑定；供 owner 批量签到读取，不在此处暴露凭据。"""
+        """返回全部绑定；供 admin 批量签到读取，不在此处暴露凭据。"""
         statement = select(AccountBinding)
         if bot_id is not None:
             statement = statement.where(AccountBinding.bot_id == bot_id)

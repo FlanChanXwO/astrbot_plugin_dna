@@ -86,10 +86,7 @@ def _resource_service(request: CommandRequest) -> ResourceUpdateService | PlainT
     if request.actor is None:
         return PlainTextResponse(messages.OPERATIONS_CONTEXT_UNAVAILABLE)
     service = request.services.get("resource_update_service")
-    if service is None or not all(
-        callable(getattr(service, method, None))
-        for method in ("download_all", "update_log")
-    ):
+    if service is None or not callable(getattr(service, "download_all", None)):
         return PlainTextResponse(messages.OPERATIONS_SERVICE_UNAVAILABLE)
     return cast(ResourceUpdateService, service)
 
@@ -99,13 +96,6 @@ async def resource_download_use_case(request: CommandRequest, _registry: Command
     if isinstance(service, PlainTextResponse):
         return service
     return await service.download_all(None)
-
-
-async def resource_update_log_use_case(request: CommandRequest, _registry: CommandRegistry, **_parameters: Any):
-    service = _resource_service(request)
-    if isinstance(service, PlainTextResponse):
-        return service
-    return await service.update_log(None)
 
 
 def _alias_service(request: CommandRequest) -> AliasService | PlainTextResponse:
@@ -145,7 +135,7 @@ async def alias_recover_use_case(request: CommandRequest, _registry: CommandRegi
 
 _COMMON = {
     "group": "面板图管理",
-    "permission": "owner",
+    "permission": "admin",
 }
 
 COMMAND_SPECS = (
@@ -219,18 +209,8 @@ COMMAND_SPECS = (
         name="下载全部资源",
         description="下载全部资源",
         examples=("下载全部资源",),
-        permission="owner",
+        permission="admin",
         use_case=cast(Any, resource_download_use_case),
-    ),
-    CommandSpec(
-        id="update_log",
-        pattern=r"^(?:更新记录|更新日志)$",
-        group="资源管理",
-        name="更新记录",
-        description="查看插件更新记录",
-        examples=("更新记录",),
-        permission="owner",
-        use_case=cast(Any, resource_update_log_use_case),
     ),
     CommandSpec(
         id="alias_add_delete",
@@ -239,7 +219,7 @@ COMMAND_SPECS = (
         name="添加/删除别名",
         description="添加或删除角色/武器别名",
         examples=("添加角色辛西娅别名小辛",),
-        permission="owner",
+        permission="admin",
         use_case=cast(Any, alias_add_delete_use_case),
     ),
     CommandSpec(
@@ -249,7 +229,7 @@ COMMAND_SPECS = (
         name="恢复别名",
         description="恢复/强制恢复内置别名",
         examples=("恢复别名",),
-        permission="owner",
+        permission="admin",
         use_case=cast(Any, alias_recover_use_case),
     ),
 )
@@ -267,5 +247,4 @@ __all__ = [
     "panel_resource_status_use_case",
     "panel_upload_use_case",
     "resource_download_use_case",
-    "resource_update_log_use_case",
 ]

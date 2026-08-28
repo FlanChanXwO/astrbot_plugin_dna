@@ -198,7 +198,7 @@ COMMAND_SPECS = (
         name="别名列表",
         description="查看角色/武器别名列表",
         examples=("角色名别名",),
-        permission="owner",
+        permission="admin",
         use_case=cast(Any, alias_list_use_case),
     ),
     CommandSpec(

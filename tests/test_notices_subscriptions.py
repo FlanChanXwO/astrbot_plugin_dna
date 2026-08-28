@@ -410,7 +410,7 @@ async def test_poll_ann_now_pushes_only_new_announcements(tmp_path: Path) -> Non
 
 @pytest.mark.asyncio
 async def test_test_mh_push_sends_to_current_session(tmp_path: Path) -> None:
-    """owner 密函测试向当前会话发送。"""
+    """admin 密函测试向当前会话发送。"""
 
     database = await _database_with_binding(tmp_path)
     pushed: list[tuple[str, str]] = []

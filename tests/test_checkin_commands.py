@@ -29,9 +29,9 @@ def test_checkin_commands_are_registered_with_legacy_semantics() -> None:
     assert specs["sign_calendar"].pattern == r"^kk(?:签到日历|签到记录|签到历史)$"
     assert specs["sign_calendar"].permission == "user"
     assert specs["sign_all"].pattern == r"^kk全部签到$"
-    assert specs["sign_all"].permission == "owner"
+    assert specs["sign_all"].permission == "admin"
     assert specs["sign_result_subscribe"].pattern == r"^kk(订阅|取消订阅)签到结果$"
-    assert specs["sign_result_subscribe"].permission == "owner"
+    assert specs["sign_result_subscribe"].permission == "admin"
 
 
 @pytest.mark.asyncio
@@ -69,7 +69,7 @@ async def test_sign_handler_reports_service_missing() -> None:
 
 @pytest.mark.asyncio
 async def test_generated_sign_all_handler_yields_aggregate_result() -> None:
-    """真实生成 handler 必须把 owner 批量结果转换为 AstrBot 纯文本结果。"""
+    """真实生成 handler 必须把 admin 批量结果转换为 AstrBot 纯文本结果。"""
 
     class FakeCheckinService:
         async def manual_sign(self, _request: object) -> PlainTextResponse:

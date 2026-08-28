@@ -399,7 +399,7 @@ class NoticesService:
         return False
 
     async def test_mh_push(self, request: NoticeRequest):
-        """向当前会话发送一次密函测试推送（owner）。"""
+        """向当前会话发送一次密函测试推送（admin）。"""
 
         if self.push is None:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)

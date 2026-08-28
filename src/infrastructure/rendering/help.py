@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from ...version import PLUGIN_VERSION
 from .assets import font_data_uri, image_data_uri
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
+
+if TYPE_CHECKING:
+    from ...entry.commands import CommandRegistry, PermissionName
 
 HELP_DATA = Path(__file__).parents[2] / "resources" / "help" / "help.json"
 BACKGROUND_PATH = Path(__file__).parents[2] / "resources" / "textures" / "help" / "bg.jpg"
@@ -22,6 +26,13 @@ _ICON_ALIASES = {
     "基本信息卡片": "基本信息.png",
     "查看UID列表": "UID.png",
 }
+_HELP_CACHE: dict[tuple[object, str, str, str], bytes] = {}
+
+
+def invalidate_help_cache() -> None:
+    """清除帮助卡缓存，使插件重载后不会复用旧 registry 或版本。"""
+
+    _HELP_CACHE.clear()
 
 
 def _load_help_data() -> dict[str, Any]:
@@ -95,10 +106,59 @@ def _help_sections(plugin_help: dict[str, Any], prefix: str = "kk") -> list[dict
     return sections
 
 
-async def get_help(prefix: str = "kk") -> bytes:
+def _registry_help_sections(
+    registry: CommandRegistry,
+    permission: PermissionName,
+    prefix: str,
+    plugin_help: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """以 registry 为命令唯一来源，同时沿用资源文件中的分组说明和图标。"""
+
+    descriptions = {
+        name: str(value.get("desc", ""))
+        for name, value in plugin_help.items()
+        if isinstance(value, dict)
+    }
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for spec in registry.visible_specs(permission):
+        example = " / ".join(spec.examples)
+        grouped.setdefault(spec.group, []).append(
+            {
+                "example": _format_example(example, prefix=prefix),
+                "icon": image_data_uri(_find_icon(spec.name)),
+                "name": spec.name,
+            },
+        )
+    return [
+        {
+            "description": descriptions.get(group, ""),
+            "items": items,
+            "name": group,
+        }
+        for group, items in grouped.items()
+    ]
+
+
+async def get_help(
+    prefix: str = "kk",
+    *,
+    registry: CommandRegistry | None = None,
+    permission: PermissionName = "user",
+    version: str = PLUGIN_VERSION,
+) -> bytes:
     """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
+
+    cache_key = (registry, prefix, permission, version) if registry is not None else None
+    if cache_key is not None and cache_key in _HELP_CACHE:
+        return _HELP_CACHE[cache_key]
+
     plugin_help = _load_help_data()
-    sections = _help_sections(plugin_help, prefix=prefix)
+    if registry is None:
+        sections = _help_sections(plugin_help, prefix=prefix)
+        lines = list(_iter_help_lines(plugin_help, prefix=prefix))
+    else:
+        sections = _registry_help_sections(registry, permission, prefix, plugin_help)
+        lines = []
     template_data = {
         "background": image_data_uri(BACKGROUND_PATH),
         "banner": image_data_uri(
@@ -115,9 +175,10 @@ async def get_help(prefix: str = "kk") -> bytes:
         "item_background": image_data_uri(
             Path(__file__).parents[2] / "resources" / "textures" / "help" / "item.png",
         ),
-        "lines": list(_iter_help_lines(plugin_help, prefix=prefix)),
+        "lines": lines,
         "sections": sections,
         "subtitle": "穿过寒夜，去往有你的春天。",
+        "version": version,
         "width": CARD_W,
     }
     spec = RenderSpec(
@@ -126,4 +187,10 @@ async def get_help(prefix: str = "kk") -> bytes:
         output_format="jpeg",
         quality=85,
     )
-    return await _RENDERER.render("cards/help.html.j2", template_data, spec)
+    payload = await _RENDERER.render("cards/help.html.j2", template_data, spec)
+    if cache_key is not None:
+        _HELP_CACHE[cache_key] = payload
+    return payload
+
+
+__all__ = ["get_help", "invalidate_help_cache"]

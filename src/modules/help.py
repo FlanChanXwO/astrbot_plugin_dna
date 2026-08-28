@@ -7,6 +7,7 @@ from typing import Any
 
 from ..entry.commands import CommandRegistry, CommandRequest, CommandSpec
 from ..entry.response import ImageResponse, write_temporary_image
+from ..version import PLUGIN_VERSION
 
 
 async def help_use_case(
@@ -18,7 +19,12 @@ async def help_use_case(
 
     from ..infrastructure.rendering.help import get_help
 
-    payload = await get_help(prefix=request.matched_prefix)
+    payload = await get_help(
+        prefix=request.matched_prefix,
+        registry=registry,
+        permission=request.permission,
+        version=PLUGIN_VERSION,
+    )
     rendered_root = request.services.get("rendered_root")
     if not isinstance(rendered_root, (str, Path)):
         raise TypeError("帮助卡缺少受控渲染目录")

@@ -28,12 +28,12 @@ OPERATIONS_SPEC_IDS = {
 }
 
 
-def test_operations_commands_are_registered_owner() -> None:
+def test_operations_commands_are_registered_for_admin() -> None:
     specs = {spec.id: spec for spec in load_command_registry()}
 
     assert OPERATIONS_SPEC_IDS <= specs.keys()
     for command_id in OPERATIONS_SPEC_IDS:
-        assert specs[command_id].permission == "owner", command_id
+        assert specs[command_id].permission == "admin", command_id
         assert specs[command_id].group == "面板图管理"
 
 

@@ -51,7 +51,7 @@ async def test_help_card_keeps_groups_and_examples(monkeypatch: pytest.MonkeyPat
     assert font_paths[0].name == "MiSansVF.woff2"
     assert call.data["lines"] == [
         {"is_group": True, "name": "信息查询", "example": ""},
-        {"is_group": False, "name": "日常", "example": "日常"},
+        {"is_group": False, "name": "日常", "example": "kk日常"},
     ]
 
 
@@ -60,21 +60,6 @@ def test_help_ambiguous_icons_match_gscore_selection() -> None:
 
     assert module._find_icon("查看UID列表").name == "UID.png"
     assert module._find_icon("基本信息卡片").name == "基本信息.png"
-
-
-@pytest.mark.asyncio
-async def test_update_log_card_preserves_existing_log_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = importlib.import_module("src.infrastructure.rendering.update_log")
-    renderer = RendererSpy()
-    monkeypatch.setattr(module, "_RENDERER", renderer)
-    monkeypatch.setattr(module, "font_data_uri", lambda _: "data:font/ttf;base64,AA==")
-    monkeypatch.setattr(module, "image_data_uri", lambda _: "data:image/png;base64,AA==")
-    monkeypatch.setattr(module, "_get_cached_logs", lambda: ["✨ fix(123) `details`"])
-
-    assert await module.draw_update_log_img() == b"png"
-    call = renderer.calls[0]
-    assert call.template_name == "cards/update_log.html.j2"
-    assert call.data["logs"] == [{"emojis": "✨", "text": "fix(123)"}]
 
 
 @pytest.mark.asyncio
@@ -145,12 +130,6 @@ def test_simple_card_templates_keep_key_text_and_css_width() -> None:
         width=2020,
         lines=[{"is_group": False, "name": "<命令>", "example": "示例"}],
     )
-    update_html = environment.get_template("cards/update_log.html.j2").render(
-        **base,
-        width=950,
-        title_image="data:image/png;base64,AA==",
-        logs=[{"emojis": "✨", "text": "更新内容"}],
-    )
     announcement_html = environment.get_template("cards/announcement_list.html.j2").render(
         **base,
         width=1080,
@@ -165,8 +144,6 @@ def test_simple_card_templates_keep_key_text_and_css_width() -> None:
     )
 
     assert "width: 2020px" in help_html and "&lt;命令&gt;" in help_html
-    assert "DNAUID 更新记录" in update_html and "更新内容" in update_html
-    assert "min-width: 76px" in update_html and "font-size: 30px" in update_html
     assert "二重螺旋公告" in announcement_html and "公告正文" in announcement_html
     assert "min-height: 250px" in sign_html and "签到标题" in sign_html
 

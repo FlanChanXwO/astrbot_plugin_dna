@@ -84,7 +84,12 @@ class PluginRuntime:
     async def terminate(self) -> None:
         """停止 runtime 扩展点。"""
 
-        await self.lifecycle.terminate()
+        try:
+            await self.lifecycle.terminate()
+        finally:
+            from .infrastructure.rendering.help import invalidate_help_cache
+
+            invalidate_help_cache()
 
 
 def build_runtime(
@@ -255,8 +260,6 @@ def build_runtime(
         return download_all_resources(data_dir=runtime_database.path.parent)
 
     resource_update_service = ResourceUpdateService(
-        repo_root=Path(__file__).resolve().parents[2],
-        rendered_root=runtime_database.path.parent / "rendered",
         synchronize=_synchronize_resources,
     )
     alias_service = AliasService(

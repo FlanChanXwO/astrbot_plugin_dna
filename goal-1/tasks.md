@@ -27,12 +27,20 @@
 - 剩余风险：当前工作目录虽是已注册 Git worktree，但仍为 `main` 主工作树，未另建 task-specific `codex/` worktree；这是因用户直接指定该项目路径且 goal-mode 禁止交互式停问所作的执行假设，后续 commit 仅纳入本轮明确文件。系统 `python3` 缺少 `astrbot`，验证必须使用项目 `.venv`；帮助图生命周期基线与新增 Red 契约仍待 O02/O03 实现后转绿。
 - 下一步：O02，先实现权限快照、registry 帮助过滤、动态前缀/版本缓存及移除更新记录命令。
 
-### O02 — 权限、registry 帮助、动态前缀与版本 `[pending]`
+### O02 — 权限、registry 帮助、动态前缀与版本 `[completed]`
 
 - TDD 实现 user/admin 权限快照和帮助过滤。
 - 帮助命令从 registry 构建，纳入角色列表等全部可见命令。
 - 移除隐式 `d` 前缀，版本改为单一 metadata 源，按前缀/权限/版本缓存并在生命周期结束时失效。
 - 移除更新记录命令与长 Git log 渲染链。
+
+完成记录：
+
+- 实际完成：权限枚举收敛为 `user/admin`，handler 在 `CommandRequest` 中一次快照事件管理员权限；所有原 `owner` 命令统一映射 AstrBot `admin`。帮助卡从 registry 的可见命令构建，保留表现层分组说明/图标，普通用户过滤管理员命令；移除模板隐式 `d` 和硬编码版本，版本统一读取 `metadata.yaml`。帮助缓存按 registry 身份、前缀、权限、版本索引，并在 runtime terminate 的 `finally` 中失效；registry 模式不再生成静态 help fallback。删除聊天“更新记录”命令、资源 service 的 Git log/图片链、模板、脚本调用和静态帮助条目，重新生成 `commands.json`。
+- Red/Green/Refactor 证据：先实际运行 O01 Red 契约，权限/帮助/版本缓存与更新日志行为均出现预期失败；新增生命周期失效契约后先以旧实现运行得到 `1 failed`，恢复失效逻辑后 `1 passed`。发现 registry payload 仍带旧静态 `lines` 后补 Red 断言，旧实现实际失败，再改为 registry 模式空 fallback 并转绿。保留 O03 的最后有效 At 红契约，未在本任务越界实现。
+- 验证命令与结果：项目 `.venv/bin/python -m pytest` 相关 O02 文件并排除 `test_target_user_uses_the_last_valid_mention` 为 `112 passed, 1 deselected, 5 warnings`；项目 `.venv/bin/python -m ruff check .` 通过；项目 `.venv/bin/python -m compileall -q src main.py scripts` 通过；`git diff --check` 通过；命令清单检查为 60 条、权限集合仅 `admin/user`、无 `update_log`。
+- 剩余风险：O03 的 At 目标解析红契约仍失败（当前实现取第一个有效 At），下一任务处理；本任务未执行生产重载或真实平台副作用。
+- 下一步：O03，按计划修复最后一个有效 At、机器人/AtAll 过滤与隐私目标边界。
 
 ### O03 — 卡片、面板、体力、周报与梦魇残声 At 对齐 `[pending]`
 

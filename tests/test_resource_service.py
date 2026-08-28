@@ -1,4 +1,4 @@
-"""Task 26 资源更新与更新日志展示的隔离测试。"""
+"""Task 26 公共资源更新的隔离测试。"""
 
 from __future__ import annotations
 
@@ -14,16 +14,12 @@ from src.infrastructure.resources import (
     ResourceSyncError,
     ResourceSyncResult,
 )
-from src.modules.operations import messages
 from src.modules.operations.resource_service import ResourceUpdateService
 
 
-def _service(tmp_path: Path, *, synchronize=None, commit_log=None) -> ResourceUpdateService:
+def _service(tmp_path: Path, *, synchronize=None) -> ResourceUpdateService:
     return ResourceUpdateService(
-        repo_root=tmp_path / "repo",
-        rendered_root=tmp_path / "rendered",
         synchronize=synchronize or (lambda: ResourceSyncResult(repository=tmp_path / "r", action="cloned", resource_version="1.0")),
-        commit_log=commit_log or (lambda root: []),
     )
 
 @pytest.mark.asyncio
@@ -62,19 +58,3 @@ async def test_download_all_failures_are_visible(tmp_path: Path, error: Exceptio
 
     assert isinstance(response, PlainTextResponse)
     assert expected in response.text
-
-
-@pytest.mark.asyncio
-async def test_update_log_shows_commits_or_visible_failure(tmp_path: Path) -> None:
-    """更新日志展示最近提交；Git 不可用返回可见失败。"""
-
-    service = _service(tmp_path, commit_log=lambda root: ["abc123 fix resource", "def456 feat panel"])
-    with_commits = await service.update_log(None)
-    from src.entry.response import ImageResponse
-
-    assert isinstance(with_commits, ImageResponse)
-
-    empty_service = _service(tmp_path, commit_log=lambda root: [])
-    empty = await empty_service.update_log(None)
-    assert isinstance(empty, PlainTextResponse)
-    assert empty.text == messages.UPDATE_LOG_UNAVAILABLE

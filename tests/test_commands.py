@@ -33,7 +33,7 @@ def test_handlers_callable():
 
 def test_permission_valid():
     for cmd in load_command_registry():
-        assert cmd.permission in ("user", "admin", "owner")
+        assert cmd.permission in ("user", "admin")
 
 
 def test_examples_match_their_regex():

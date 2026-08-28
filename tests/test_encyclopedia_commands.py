@@ -41,7 +41,7 @@ def test_encyclopedia_commands_are_explicit_and_legacy_patterns_are_preserved() 
     assert specs["weekly_report_last"].pattern == r"^kk上周周报$"
     assert specs["calendar"].pattern == r"^kk日历$"
     assert specs["dna_code"].pattern == r"^kk(?:兑换码|cdk|CDK|code)$"
-    assert specs["alias_list"].permission == "owner"
+    assert specs["alias_list"].permission == "admin"
     assert specs["alias_all_list"].permission == "user"
     assert specs["dna_wiki"].pattern.startswith(r"^kk(?P<name>")
     assert specs["dna_guide"].pattern.startswith(r"^kk(?P<char_name>")

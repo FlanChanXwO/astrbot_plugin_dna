@@ -5,23 +5,6 @@ import sys
 from pathlib import Path
 
 
-def test_update_log_git_lookup_is_lazy(monkeypatch):
-    """导入更新记录模块不应执行 git 命令，首次使用时才读取日志。"""
-    from src.infrastructure.rendering import update_log as draw_update_log
-
-    calls = []
-    monkeypatch.setattr(
-        draw_update_log,
-        "_get_git_logs",
-        lambda: calls.append("git-log") or ["✨ test"],
-    )
-    monkeypatch.setattr(draw_update_log, "_CACHED_LOGS", None)
-
-    assert draw_update_log._get_cached_logs() == ["✨ test"]
-    assert draw_update_log._get_cached_logs() == ["✨ test"]
-    assert calls == ["git-log"]
-
-
 def test_web_routes_match_astrbot_registration_contract():
     """Web 路由元组必须与 ``Context.register_web_api`` 的调用顺序一致。"""
     from src.modules.account.login_router import get_routes
@@ -183,7 +166,7 @@ assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
-assert len(module.COMMAND_REGISTRY) == 61
+assert len(module.COMMAND_REGISTRY) == 60
 '''
     result = subprocess.run(
         [sys.executable, "-c", script, str(Path(__file__).resolve().parent.parent)],
