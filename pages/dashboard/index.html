@@ -147,19 +147,120 @@
             <section v-if="activePage === 'panels'" class="content-section" aria-labelledby="panels-title">
               <div class="section-heading">
                 <div>
-                  <p class="section-kicker">OVERVIEW</p>
-                  <h2 id="panels-title">面板图</h2>
+                  <p class="section-kicker">PANEL ASSETS</p>
+                  <h2 id="panels-title">角色面板图</h2>
+                  <p class="section-help">按角色管理自定义面板图；图片只在需要查看时读取。</p>
                 </div>
-                <span class="section-status">准备就绪</span>
+                <span class="section-status">{{ panelRoles.length }} 个角色</span>
               </div>
-              <div class="empty-state">
+
+              <div class="panel-toolbar">
+                <label class="field field--search">
+                  <span>搜索角色</span>
+                  <input
+                    v-model="panelSearch"
+                    type="search"
+                    placeholder="输入角色名称"
+                    autocomplete="off"
+                  />
+                </label>
+                <label class="field">
+                  <span>当前角色</span>
+                  <select v-model="selectedPanelRole" @change="reloadPanelState">
+                    <option value="">请选择角色</option>
+                    <option v-for="role in filteredPanels" :key="role" :value="role">{{ role }}</option>
+                  </select>
+                </label>
+                <button class="button button--secondary" type="button" @click="selectPanelRole(panelSearch)">
+                  载入角色
+                </button>
+                <label class="button button--primary file-button" :class="{ 'is-busy': panelActionBusy }">
+                  上传面板图
+                  <input
+                    id="panel-upload-input"
+                    class="file-input"
+                    type="file"
+                    accept="image/*"
+                    :disabled="!selectedPanelRole || panelActionBusy"
+                    @change="prepareUploadPanel($event)"
+                  />
+                </label>
+                <button
+                  class="button button--secondary"
+                  type="button"
+                  :disabled="panelActionBusy"
+                  @click="confirmCompressPanels"
+                >
+                  压缩全部
+                </button>
+                <button
+                  class="button button--danger"
+                  type="button"
+                  :disabled="!selectedPanelRole || panelActionBusy"
+                  @click="confirmDeleteAllPanels"
+                >
+                  删除当前角色全部
+                </button>
+              </div>
+
+              <p v-if="panelError" class="inline-error" role="alert">{{ panelError }}</p>
+              <div v-if="panelsLoading" class="section-loading" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                正在读取面板图元数据…
+              </div>
+              <div v-else-if="!selectedPanelRole" class="empty-state empty-state--compact">
                 <div class="empty-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-6" />
-                  </svg>
+                  <svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-6" /></svg>
                 </div>
-                <h3>面板图即将就绪</h3>
-                <p>这里将呈现插件的核心运行概况，详细内容会在后续页面任务中接入。</p>
+                <h3>选择一个角色开始</h3>
+                <p>可以从角色目录选择，也可以输入角色名称后载入。</p>
+              </div>
+              <div v-else-if="!panelImages.length" class="empty-state empty-state--compact">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 15l3-3 2 2 2-2 3 3M8 9h.01" /></svg>
+                </div>
+                <h3>当前角色暂无面板图</h3>
+                <p>上传一张自定义图片后，它会出现在这里。</p>
+              </div>
+              <div v-else class="panel-grid">
+                <article v-for="panel in panelImages" :key="panel.id" class="panel-card">
+                  <div class="panel-preview">
+                    <img
+                      v-if="panelImageUrl(panel)"
+                      class="panel-thumbnail"
+                      :src="panelImageUrl(panel)"
+                      :alt="`${panel.filename} 缩略图`"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <button
+                      v-else
+                      class="thumbnail-button"
+                      type="button"
+                      :disabled="panel.loading"
+                      @click="loadPanelImage(panel)"
+                    >
+                      {{ panel.loading ? '读取中…' : '按需读取缩略图' }}
+                    </button>
+                  </div>
+                  <div class="panel-card-meta">
+                    <strong>{{ panel.filename }}</strong>
+                    <span>{{ formatBytes(panel.size) }}</span>
+                  </div>
+                  <div class="panel-card-actions">
+                    <button class="button button--secondary button--small" type="button" @click="loadPanelImage(panel)">
+                      {{ panelImageUrl(panel) ? '重新读取' : '查看缩略图' }}
+                    </button>
+                    <button
+                      class="button button--danger button--small"
+                      type="button"
+                      :disabled="panelActionBusy"
+                      @click="confirmDeletePanel(panel)"
+                    >
+                      删除
+                    </button>
+                  </div>
+                </article>
               </div>
             </section>
 
@@ -168,18 +269,188 @@
                 <div>
                   <p class="section-kicker">OPERATIONS</p>
                   <h2 id="tasks-title">任务与探测</h2>
+                  <p class="section-help">只管理已有内置任务，不创建新的任务类型。</p>
                 </div>
-                <span class="section-status">等待配置</span>
+                <span class="section-status">{{ tasks.length }} 个任务</span>
               </div>
-              <div class="empty-state">
-                <div class="empty-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4" />
-                  </svg>
+
+              <p v-if="bootstrapError" class="inline-warning" role="status">{{ bootstrapError }}</p>
+              <div v-if="tasksLoading" class="section-loading" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                正在读取任务状态…
+              </div>
+              <p v-else-if="taskError" class="inline-error" role="alert">{{ taskError }}</p>
+              <div v-else class="task-layout">
+                <div class="task-list">
+                  <article v-for="task in tasks" :key="task.id" class="task-card">
+                    <div class="task-card-heading">
+                      <div>
+                        <h3>{{ task.name }}</h3>
+                        <code>{{ task.id }}</code>
+                      </div>
+                      <span class="task-state" :data-state="task.state">{{ formatTaskState(task.state) }}</span>
+                    </div>
+                    <dl class="task-facts">
+                      <div>
+                        <dt>调度规则</dt>
+                        <dd>{{ task.schedule }}</dd>
+                      </div>
+                      <div>
+                        <dt>下一次运行</dt>
+                        <dd>{{ formatNextRun(task.next_run_at) }}</dd>
+                      </div>
+                      <div>
+                        <dt>关联目标</dt>
+                        <dd>
+                          <span v-if="task.targets && task.targets.length">{{ task.targets.join('、') }}</span>
+                          <span v-else>无</span>
+                        </dd>
+                      </div>
+                    </dl>
+                    <label class="field">
+                      <span>编辑调度规则</span>
+                      <input
+                        v-model="taskScheduleDrafts[task.id]"
+                        type="text"
+                        :placeholder="task.schedule"
+                        autocomplete="off"
+                      />
+                    </label>
+                    <div class="task-actions">
+                      <button
+                        class="button button--secondary button--small"
+                        type="button"
+                        :disabled="taskActionBusy === task.id"
+                        @click="confirmTaskSchedule(task)"
+                      >
+                        保存规则
+                      </button>
+                      <button
+                        v-if="task.can_pause && task.state === 'running'"
+                        class="button button--secondary button--small"
+                        type="button"
+                        :disabled="taskActionBusy === task.id"
+                        @click="confirmTaskAction(task, 'pauseTask')"
+                      >
+                        暂停
+                      </button>
+                      <button
+                        v-if="task.can_pause && task.state === 'paused'"
+                        class="button button--secondary button--small"
+                        type="button"
+                        :disabled="taskActionBusy === task.id"
+                        @click="confirmTaskAction(task, 'resumeTask')"
+                      >
+                        恢复
+                      </button>
+                      <button
+                        v-if="task.can_delete"
+                        class="button button--danger button--small"
+                        type="button"
+                        :disabled="taskActionBusy === task.id"
+                        @click="confirmTaskAction(task, 'deleteTask')"
+                      >
+                        永久删除
+                      </button>
+                    </div>
+                  </article>
                 </div>
-                <h3>任务工具将在这里管理</h3>
-                <p>定时任务与探测状态的操作界面将在后续任务中接入。</p>
+
+                <section class="target-panel" aria-labelledby="targets-title">
+                  <div class="subsection-heading">
+                    <div>
+                      <p class="section-kicker">DELIVERY</p>
+                      <h3 id="targets-title">投递目标</h3>
+                    </div>
+                    <label class="select-inline">
+                      <span class="sr-only">选择任务</span>
+                      <select v-model="selectedTaskId" @change="loadTargets(selectedTaskId)">
+                        <option v-for="task in tasks" :key="task.id" :value="task.id">{{ task.name }}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div v-if="targetsLoading" class="section-loading" role="status">
+                    <span class="spinner" aria-hidden="true"></span>
+                    正在读取目标…
+                  </div>
+                  <p v-else-if="targetsError" class="inline-error" role="alert">{{ targetsError }}</p>
+                  <div v-else-if="!targets.length" class="empty-state empty-state--compact">
+                    <p>当前任务没有可展示的投递目标。</p>
+                  </div>
+                  <ul v-else class="target-list">
+                    <li v-for="target in targets" :key="target.id">
+                      <strong>{{ target.group_id || target.unified_msg_origin || '会话目标' }}</strong>
+                      <span>{{ target.user_type || '未知类型' }} · {{ target.uid || '无 UID' }}</span>
+                      <small>{{ target.subscription_type || target.type }}</small>
+                    </li>
+                  </ul>
+                </section>
               </div>
+
+              <section class="membership-panel" aria-labelledby="membership-title">
+                <div class="subsection-heading">
+                  <div>
+                    <p class="section-kicker">MEMBERSHIP</p>
+                    <h3 id="membership-title">离群用户探测</h3>
+                    <p class="section-help">只有 aiocqhttp（OneBot V11）平台可以可靠探测群成员。</p>
+                  </div>
+                  <span class="capability-label" :data-supported="membershipCapability.supported">
+                    {{ membershipCapability.platform || '平台能力未确认' }}
+                  </span>
+                </div>
+                <div class="membership-toolbar">
+                  <label class="field">
+                    <span>user_id</span>
+                    <input v-model="memberUserId" type="text" placeholder="输入要探测的 user_id" autocomplete="off" />
+                  </label>
+                  <button
+                    class="button button--primary"
+                    type="button"
+                    :disabled="!canScanMembers"
+                    :aria-busy="memberScanLoading"
+                    @click="scanMembers"
+                  >
+                    {{ memberScanLoading ? '探测中…' : '扫描关联群' }}
+                  </button>
+                  <span v-if="!canScanMembers" class="field-hint">仅支持 aiocqhttp（OneBot V11），并需填写 user_id。</span>
+                </div>
+                <p v-if="membershipError" class="inline-error" role="alert">{{ membershipError }}</p>
+                <div v-if="memberScan" class="membership-results">
+                  <div class="membership-summary">
+                    <span>扫描到 {{ membershipResults.length }} 个关联群</span>
+                    <span v-if="memberScan.can_delete_user" class="safe-label">可以进入全局删除确认</span>
+                    <span v-else class="field-hint">present / unknown 都不会进入全局删除</span>
+                  </div>
+                  <ul class="membership-results-list">
+                    <li v-for="result in membershipResults" :key="result.group_id" :data-status="result.status">
+                      <div>
+                        <strong>{{ result.group_id }}</strong>
+                        <span class="membership-status">{{ membershipStatusLabel(result.status) }}</span>
+                        <small>{{ result.status }}</small>
+                      </div>
+                      <button
+                        v-if="result.status === 'absent'"
+                        class="button button--secondary button--small"
+                        type="button"
+                        :disabled="memberActionBusy"
+                        @click="confirmCleanup(result)"
+                      >
+                        清理该群
+                      </button>
+                      <span v-else-if="result.status === 'present'" class="field-hint">仍在群中，不清理</span>
+                      <span v-else class="field-hint">状态未知，不清理</span>
+                    </li>
+                  </ul>
+                  <button
+                    class="button button--danger"
+                    type="button"
+                    :disabled="!memberScan.can_delete_user || memberActionBusy || memberDeletePreviewLoading"
+                    @click="confirmDeleteMemberUser"
+                  >
+                    {{ memberDeletePreviewLoading ? '读取删除预览…' : '准备全局删除用户' }}
+                  </button>
+                </div>
+              </section>
             </section>
 
             <section v-if="activePage === 'accounts'" class="content-section" aria-labelledby="accounts-title">

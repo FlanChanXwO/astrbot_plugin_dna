@@ -380,13 +380,27 @@
 
 ## Task 14 — 面板图、任务与离群扫描页面
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：实现角色面板图页和任务页，包括搜索、按需缩略图、上传/删除/压缩、任务状态/规则/next-run/目标、暂停/恢复/永久删除、探测与清理确认流。
 - 验收：非 aiocqhttp 扫描按钮预先禁用并说明原因；不可恢复删除和全删二次确认；所有成功操作重新拉取服务端状态；移动端可操作。
 - 实际工作：
+- 扩展 `pages/dashboard/index.html` 的面板图区域：角色搜索/选择、元数据列表、按需读取图片、上传、单删、当前角色全删和全量压缩；不可恢复动作统一进入确认弹窗，图片引用只在读取后进入前端状态。
+- 扩展任务区域：展示四个内置任务的状态、schedule、准确的 `next_run_at`、关联 targets，支持已有规则编辑、暂停/恢复和不可恢复 tombstone 删除；不提供任务创建入口。
+- 集成离群用户探测：读取 capability 后仅在 `aiocqhttp`（OneBot V11）且填写 `user_id` 时启用扫描；结果保持 `present/absent/unknown` 三态，只有明确 absent 才能单群清理，只有后端允许的全 absent 结果才能进入全局删除预览和确认。
+- 扩展 bridge/store API 映射及 factory 注入，覆盖 panel/task/target/membership 读写、文件上传和删除确认串；上传、删除、压缩、任务动作、群清理和用户删除成功后均重新读取服务端状态。
+- 采用移动端单列/卡片布局、按需图片加载、加载/错误/空状态、44px 控件和确认成功 toast；未新增依赖、图表、分页或帮助管理。
 - 验证证据：
+- TDD Red：首次执行 Task 14 专项测试实际 `4 failed`（页面尚无 Task 14 契约）；实现及确认流程契约补强后 `.venv/bin/python -m pytest tests/test_goal2_task14_pages.py -q`：`5 passed`。
+- 跨 Task 13/14 静态回归：`.venv/bin/python -m pytest tests/test_goal2_task13_pages.py tests/test_goal2_task14_pages.py -q`：`11 passed`。
+- 相关 Goal-2/入口/迁移/配置回归：`.venv/bin/python -m pytest tests/test_goal2_task*.py tests/test_entry_skeleton.py tests/test_migration_boundaries.py tests/test_config.py -q`：`138 passed, 5 warnings`；警告仅为 AstrBot `audioop` 和动态插件命名空间 `__package__` 弃用提示。
+- `node --check` 依次检查 `app.js`、`bridge.js`、`store.js` 通过；无依赖 Node harness 验证 API factory 暴露全部 Task 14 方法、动态路径编码、删除确认串，以及 panel delete/task pause/member cleanup 后的 server-state reload。
+- `/Users/flanchan/.local/bin/ruff check .`、两项 Task 页面 `ruff format --check`、正确插件目录下 `compileall -q src main.py tests`、目标文件 `pre-commit run --files ...`：均通过。
+- 按 `ui-ux-pro-max` 执行操作型页面 UX 检索；已落实不可恢复动作确认、可见焦点、成功反馈、加载状态、移动卡片化目标列表和图片按需加载。
 - 剩余风险：
+- 真实 AstrBot Plugin Pages 注入环境、桌面/移动/暗色视觉和真实交互证据留给 Task 16；本 task 未操作真实账号、订阅或生产 data root。
+- 账号/完整预览/角色别名页面仍由 Task 15 实现；target 编辑/删除 API 已存在但本 task 按需求只展示任务投递目标。
 - 下一步：
+- Task 15：实现账号预览与角色别名页面。
 
 ## Task 15 — 账号预览与角色别名页面
 
