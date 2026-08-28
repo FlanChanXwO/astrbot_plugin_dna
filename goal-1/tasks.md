@@ -98,6 +98,14 @@
 - 剩余风险：`goal-2` Task 04 仍为 pending，`tests/test_player_transport.py` 的旧 fixture 尚未迁移，因此 O04-R 不能完成；外部 T2I 服务不可用也使全量 pytest 当前不能全绿。O05、生产热重载和后续阶段均保持禁止。
 - 下一步：待并行身份迁移提交并同步该 fixture 后，重跑本记录中的第一阶段 suite 与完整 pytest；确认 T2I 测试环境后再重新收敛全量门禁。
 
+二次复跑记录（2026-08-28）：
+
+- 实际完成：`goal-2` Task 04 已提交为 `c9e157a`，包含 Player/Encyclopedia/Checkin/Notices 消费者、transport 及 `tests/test_player_transport.py` fixture 的全局身份迁移；身份相关回归已解除。
+- Red/Green/Refactor 证据：`tests/test_player_transport.py`、`tests/test_goal2_task04_global_consumers.py`、`tests/test_write_contracts.py` 共 `56 passed, 1 warning`；完整 pytest 为 `413 passed, 1 skipped, 5 warnings`。本轮没有新增实现或 Refactor。
+- 验证命令与结果：compileall、`git diff --check`、命令/配置生成器及投影核对通过；全仓 ruff 当前唯一失败为并行 `goal-2` Task 05 新增 `tests/test_goal2_task05_admin_accounts.py` 的 `I001` import 排序，未涉及 O04-R 文件，且未由本轮修改。
+- 剩余风险：并行 `goal-2` Task 05 尚在进行，全仓 ruff 尚未恢复全绿；O04-R 的全量静态门禁因此仍未完成。O05、生产热重载和后续阶段继续禁止。
+- 下一步：待并行 Task 05 自行修正其 lint 后，重跑全仓 ruff 和必要的 O04-R 门禁；静态门禁全绿后再标记 O04-R completed。
+
 ### O05 — 第一阶段审查与独立 SHA `[pending]`
 
 - 自审并使用 `code-review-expert`，处理所有阻塞发现。
