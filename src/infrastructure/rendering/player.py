@@ -92,8 +92,12 @@ async def _item_payload(item: ItemTemp) -> dict[str, object]:
         element = await get_weapon_attr_img(pic_url=item.element_icon)
 
     # 仅当条目已解锁且命座等级大于 0 时才显示命座徽章，0 命或未解锁不渲染徽章
-    has_grade = item.unlocked and item.grade_level is not None and item.grade_level > 0
-    grade_uri = pil_image_data_uri(get_grade_img(item.grade_level)) if has_grade else None
+    grade_level = item.grade_level
+    grade_uri = (
+        pil_image_data_uri(get_grade_img(grade_level))
+        if item.unlocked and grade_level is not None and grade_level > 0
+        else None
+    )
 
     return {
         "element": pil_image_data_uri(element.resize((element.width // 2, element.height // 2))),
@@ -642,6 +646,9 @@ class RenderedPlayerImage:
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
     original_image_path: Path | None = None
+    # 管理 API 会在读取 base64 后立即释放这类 renderer 生成的临时文件；
+    # 非临时资源路径必须显式保持 False，避免被管理预览误删。
+    temporary: bool = False
 
 
 class PlayerRenderer:
@@ -703,6 +710,7 @@ class PlayerRenderer:
             text_lines=tuple(lines),
             resources=tuple(resources),
             sections=tuple(sections),
+            temporary=True,
             original_image_path=original_image_path,
         )
 

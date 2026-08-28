@@ -177,6 +177,7 @@ class RecordingRenderer:
             text_lines=(name,),
             resources=(),
             sections=(),
+            temporary=True,
         )
 
     async def render_overview(

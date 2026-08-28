@@ -171,13 +171,23 @@
 
 ## 集中检查 D02 — Task 04–06
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 检查：跨 Bot 回归、transport 契约、凭据泄露、隐私旁路仅限管理 API、图片生命周期、相关 pytest/ruff/pyright/compileall。
 - 处理：发现问题修复或追加 task；不得以 fixture 占位冒充真实渲染契约通过。
 - 实际工作：
+- 对照 `goal-2` 设计、Task 04–06 交付物和调用链复核：账号/凭据 repository 查询已统一使用全局 `user_id + uid`；`EventActor.bot_id` 只保留为事件投递和 legacy `DNAUser` 上下文；Player、Encyclopedia、Checkin、Notices 的跨 Bot 消费者与 transport 没有恢复 Bot 隔离。管理预览仅从已认证请求提供的身份键读取绑定，不调用 `PrivacyService.resolve_query()`。
+- 发现并修复管理预览图片生命周期缺口：`AdminPreviewService` 读取 renderer 生成的 base64 后原先未释放运行期图片。`RenderedPlayerImage` 增加显式 `temporary` 所有权标记，`PlayerRenderer` 生成结果标记为临时文件，管理预览读取后立即清理；未标记为临时的资源路径不会被服务删除，清理失败会返回 `internal` 而非伪造成功。
+- 新增 `tests/test_goal2_d02_review.py`：使用真实 `HtmlRenderer`、真实 `PlayerRenderer` 和合法 JPEG T2I 替身验证总览/详情模板、完整 UID、管理隐私旁路、全局凭据身份和临时图片清理；没有用假的 renderer 结果冒充渲染链通过。同步 Task 06 的 renderer fixture 标记临时文件所有权。
 - 验证证据：
+- 生命周期测试先实际复现 Red：服务返回成功但 `rendered/` 仍残留生成图片；修复后 `.venv/bin/python -m pytest tests/test_player_transport.py tests/test_notices_transport.py tests/test_goal2_task04_global_consumers.py tests/test_goal2_task05_admin_accounts.py tests/test_goal2_task06_admin_preview.py tests/test_goal2_d02_review.py -q`：`36 passed, 1 warning`。
+- `/Users/flanchan/.local/bin/ruff check .`：`All checks passed!`；`/opt/homebrew/bin/pyright --project pyrightconfig.json src/infrastructure/rendering/player.py src/modules/admin/preview.py tests/test_goal2_task05_admin_accounts.py tests/test_goal2_task06_admin_preview.py tests/test_goal2_d02_review.py`：`0 errors, 0 warnings, 0 informations`；`.venv/bin/python -m compileall -q .`：通过。
+- 精确引用扫描确认相关 `AccountBindingRepository`、`CredentialRepository` 和 `PrivacyService` 身份查询未重新引入 `bot_id`；Task 04/05/06 的 transport、凭据脱敏、管理 no-store、隐私旁路和 DTO 路径隐藏契约均有相关测试覆盖。
 - 剩余风险：
+- `tests/test_player.py` 仍为 `12 passed, 3 failed`；失败都在既有真实详情渲染用例的外部 T2I 返回不可解码 JPEG 链路，未触及 Task 04–06 生产改动，后续需在合适的渲染/T2I 任务中处理或隔离环境依赖。
+- Admin preview 仍是框架无关 service，WebRoute、认证上下文和 Dashboard overlay 留给 Task 10/12–16；后续 renderer 若返回合成临时文件也必须设置 `temporary=True` 才会启用 service 清理。
+- 当前工具集未提供 LSP/blast-radius 能力，本轮以精确引用扫描、targeted Pyright、pytest、ruff 和 compileall 替代；未发现属于 D02 的阻塞问题。
 - 下一步：
+- Task 07：实现用户级联删除协调器，覆盖 SQLite/JSON 的幂等、部分失败和共享 UID 签到历史清理。
 
 ---
 

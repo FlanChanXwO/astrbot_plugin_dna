@@ -45,7 +45,11 @@ _MASTER_ALIASES = {
 
 
 class AdminPreviewRenderer(Protocol):
-    """管理员预览需要的最小渲染器协议。"""
+    """管理员预览需要的最小渲染器协议。
+
+    renderer 生成的合成图片应标记 ``RenderedPlayerImage.temporary=True``；
+    service 将其读入 base64 后立即释放，避免管理预览在运行期目录留下图片。
+    """
 
     async def render_overview(
         self,
@@ -268,6 +272,15 @@ class AdminPreviewService:
             return AdminApiResponse.failure(
                 AdminError(AdminErrorCode.INTERNAL, "玩家预览图片读取失败"),
             )
+        if rendered.temporary:
+            try:
+                rendered.path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError:
+                return AdminApiResponse.failure(
+                    AdminError(AdminErrorCode.INTERNAL, "玩家预览图片清理失败"),
+                )
         if not payload:
             return AdminApiResponse.failure(
                 AdminError(AdminErrorCode.INTERNAL, "玩家预览图片为空"),
