@@ -316,13 +316,25 @@
 
 ## Task 12 — Admin Web 路由、生命周期与安全契约
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD 组装 `/astrbot_plugin_dnaby/admin/*` 路由，接入 WebRegistrar/bootstrap；统一 `AdminApiResponse`、错误映射、版本读取、Dashboard 请求能力和凭据 no-store。
 - 验收：所有路由只注册一次、插件初始化/终止正常、无独立未认证入口、内部异常不泄露凭据或路径、原“无业务路由”测试按新契约更新。
 - 实际工作：
+- 新增 `src/entry/admin_web.py`，将账号/删除预览与执行、玩家总览/详情预览、任务/目标、成员探测/清理、面板图和角色别名的 37 个管理 API 路由统一适配到 AstrBot Dashboard extension dispatcher；所有 handler 先校验 `PluginRequest.username`，只解析请求和委托框架无关 service，不直接编排数据库/文件。
+- 统一 JSON envelope、HTTP 状态、固定 no-store 与安全响应头；内部异常、未知 DTO 和下游错误不向浏览器传播异常文本、路径或凭据，凭据只在显式认证账号详情/列表请求中序列化。版本每次从 `metadata.yaml` 读取，成员 capability 失败不再伪装为“不支持”。
+- 在 bootstrap 注入共享 deletion coordinator、admin account/preview service 和 37 条路由；WebRegistrar 仍负责单 runtime 幂等注册，生命周期重复 initialize/terminate 不重复注册，用户删除字面路径置于 UID 通配路由之前以符合 AstrBot `<param>` matcher。
+- 更新入口/迁移边界测试和架构文档，使原“无业务路由”断言改为 Dashboard 路由唯一性与生命周期契约；新增 `tests/test_goal2_task12_web.py` 覆盖认证、路由冲突、错误映射、版本、明文凭据、异常脱敏、破坏性操作确认和 runtime wiring。
 - 验证证据：
+- TDD Red：新增测试首次收集因 `src.entry.admin_web` 不存在而 `ModuleNotFoundError`；审查补充的用户字面路由冲突与 bootstrap failure masking 测试分别实际失败，再修复为 Green。
+- Task 12 定向：`.venv/bin/python -m pytest tests/test_goal2_task12_web.py -q`：`16 passed, 1 warning`。
+- Goal-2 Task 03–12、入口/迁移和配置相关回归：`122 passed, 5 warnings`；警告为 AstrBot `audioop` 弃用及动态插件命名空间既有 `__package__` 弃用提示。
+- `/Users/flanchan/.local/bin/ruff check .`、Task 12 文件 `ruff format --check`、`pyright --project pyrightconfig.json` 定向检查、`python -m compileall -q src main.py tests`、`git diff --check` 和显式 `pre-commit run --files ...`：均通过；Pyright `0 errors, 0 warnings, 0 informations`，LSP 对 adapter/bootstrap/Task 12 测试为 `0 diagnostics`。
+- 使用 AstrBot 4.27.1 实际 dispatcher matcher 核验 37 条 `(path, method)` 唯一，确认 `accounts/users/*`、`aliases/restore-all` 等字面路径不会被动态路由抢先匹配。
 - 剩余风险：
+- 真实 Dashboard 页面、浏览器交互、移动端/暗色布局和前端 bridge 尚未实现，留给 Task 13–16；当前仅完成认证 API 边界和后端 wiring。
+- runtime 根目录 Ruff 配置将插件内 `src` 归类不同于插件目录配置，整仓额外扫描仍包含范围外历史/未提交 Task 12 诊断；本 task 只按插件目录项目门禁收口，不扩修其他 task。
 - 下一步：
+- 集中检查 D04：复核 Task 10–12 的 API、鉴权、路由冲突、错误分类、缓存头、分层、生命周期和相关后端门禁。
 
 ## 集中检查 D04 — Task 10–12
 

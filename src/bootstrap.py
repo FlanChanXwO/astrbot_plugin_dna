@@ -18,6 +18,7 @@ from astrbot.core.message.components import At, Plain
 from astrbot.core.message.components import Image as AstrImage
 from astrbot.core.message.message_event_result import MessageChain
 
+from .entry.admin_web import build_admin_web_routes
 from .entry.commands import CommandRegistry, load_command_registry
 from .entry.event import EmptyEventEntryPoint, EventEntryPoint
 from .entry.lifecycle import PluginLifecycle
@@ -48,9 +49,12 @@ from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
 from .modules.admin import (
+    AccountDeletionCoordinator,
+    AdminAccountService,
     AdminAliasService,
     AdminApiService,
     AdminPanelService,
+    AdminPreviewService,
     AiocqhttpMembershipProbe,
     MembershipService,
 )
@@ -160,11 +164,13 @@ def build_runtime(
     subscriptions = SubscriptionStore(
         runtime_database.path.parent / "subscriptions.json"
     )
+    deletion_coordinator = AccountDeletionCoordinator(runtime_database, subscriptions)
     membership_probe = AiocqhttpMembershipProbe(context=context)
     membership_service = MembershipService(
         runtime_database,
         subscriptions,
         membership_probe,
+        deletion_coordinator=deletion_coordinator,
     )
     scheduler_registry = SchedulerRegistry(
         runtime_database.path.parent / "scheduler_state.json"
@@ -317,6 +323,12 @@ def build_runtime(
         resource_root=resource_root,
         custom_path=runtime_database.path.parent / "alias_custom.json",
     )
+    admin_account_service = AdminAccountService(runtime_database)
+    admin_preview_service = AdminPreviewService(
+        runtime_database,
+        player_service.transport,
+        player_service.renderer,
+    )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
@@ -331,11 +343,14 @@ def build_runtime(
         "subscriptions": subscriptions,
         "membership_probe": membership_probe,
         "membership_service": membership_service,
+        "deletion_coordinator": deletion_coordinator,
         "scheduler_registry": scheduler_registry,
         "sign_scheduler": sign_scheduler,
         "notices_service": notices_service,
         "notices_scheduler": notices_scheduler,
         "admin_api_service": admin_api_service,
+        "admin_account_service": admin_account_service,
+        "admin_preview_service": admin_preview_service,
         "admin_panel_service": admin_panel_service,
         "admin_alias_service": admin_alias_service,
         "panel_service": panel_service,
@@ -384,7 +399,7 @@ def build_runtime(
                     user_type="group",
                 )
 
-    web = WebRegistrar(context)
+    web = WebRegistrar(context, build_admin_web_routes(resolved_services))
     lifecycle = PluginLifecycle(
         start_hooks=(
             web.initialize,

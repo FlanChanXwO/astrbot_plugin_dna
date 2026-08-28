@@ -14,7 +14,7 @@
 - 清单/帮助：`commands.json` 由 `scripts/generate_commands_manifest.py` 从代码 registry
   生成，帮助 use case 读取同一 registry。未迁移命令不会注册，也不会出现在帮助中。
 - 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；异常向上暴露，不伪造成功。
-- Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；当前 v0.1 没有业务路由，因此不会注册 Web API。
+- Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；`src/entry/admin_web.py` 提供统一认证、请求解析、错误/HTTP 状态映射和 no-store JSON，管理路由仅通过 Dashboard extension dispatcher 注册在 `/astrbot_plugin_dnaby/admin/*`，不建立独立未认证入口。
 - 事件边界：`src/entry/event.py` 只通过 AstrBot 公开的 sender/self/group 方法提取
   `EventActor`，从公开消息链的 `At` 和 `Reply` 组件分别提取可选目标用户与引用消息
   ID；消息命令由每个动态 handler 的 AstrBot 正则过滤器接管，业务 use case 不持有原始

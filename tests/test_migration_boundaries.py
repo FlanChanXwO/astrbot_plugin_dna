@@ -68,7 +68,9 @@ def test_http_poll_surfaces_network_failure(monkeypatch):
     async def no_sleep(_seconds):
         return None
 
-    monkeypatch.setattr(transport.httpx, "AsyncClient", lambda **kwargs: FailingClient())
+    monkeypatch.setattr(
+        transport.httpx, "AsyncClient", lambda **kwargs: FailingClient()
+    )
     monkeypatch.setattr(transport, "LOGIN_TTL_S", 1)
     monkeypatch.setattr(transport, "POLL_INTERVAL_S", 1)
     monkeypatch.setattr(transport.asyncio, "sleep", no_sleep)
@@ -112,15 +114,14 @@ def _load_worktree_main_module():
     return module
 
 
-
 def test_plugin_entrypoint_imports_in_astrbot_namespace():
     """AstrBot 的动态模块命名空间必须能加载包内业务模块。"""
     module = _load_worktree_main_module()
     assert module.DnabyPlugin.__name__ == "DnabyPlugin"
 
 
-def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
-    """动态命名空间下的入口必须能组装 v0.1 空 runtime。"""
+def test_dynamic_plugin_builds_admin_runtime_from_package_namespace():
+    """动态命名空间下的入口必须能组装并注册 Dashboard 管理 runtime。"""
     import types
 
     module = _load_worktree_main_module()
@@ -138,14 +139,16 @@ def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
 
     asyncio.run(lifecycle())
 
-    assert registered == []
+    assert registered
+    assert "/astrbot_plugin_dnaby/admin/bootstrap" in {args[0] for args in registered}
+    assert len({(args[0], tuple(args[2])) for args in registered}) == len(registered)
 
 
 def test_package_namespace_import_does_not_depend_on_top_level_src():
     """包名加载必须在没有顶层 ``src`` 兼容模块的干净进程中成立。"""
     import subprocess
 
-    script = r'''
+    script = r"""
 import importlib.util
 import sys
 import types
@@ -167,7 +170,7 @@ module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 assert len(module.COMMAND_REGISTRY) == 60
-'''
+"""
     result = subprocess.run(
         [sys.executable, "-c", script, str(Path(__file__).resolve().parent.parent)],
         capture_output=True,
