@@ -38,14 +38,19 @@ class Base(DeclarativeBase):
 
 
 class AccountBinding(Base):
-    """用户、Bot 和 UID 的归一化绑定记录。"""
+    """用户和 UID 的全局归一化绑定记录。"""
 
     __tablename__ = "account_bindings"
     __table_args__ = (
-        Index("ix_account_bindings_lookup", "user_id", "bot_id"),
+        Index("ix_account_bindings_lookup", "user_id"),
+        Index(
+            "uq_account_bindings_active_user",
+            "user_id",
+            unique=True,
+            sqlite_where=text("is_active = 1"),
+        ),
         UniqueConstraint(
             "user_id",
-            "bot_id",
             "uid",
             name="uq_account_bindings_identity",
         ),
@@ -53,7 +58,6 @@ class AccountBinding(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(Text, nullable=False)
-    bot_id: Mapped[str] = mapped_column(Text, nullable=False)
     group_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     uid: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(
@@ -73,10 +77,9 @@ class CredentialRecord(Base):
 
     __tablename__ = "credential_records"
     __table_args__ = (
-        Index("ix_credential_records_lookup", "user_id", "bot_id"),
+        Index("ix_credential_records_lookup", "user_id"),
         UniqueConstraint(
             "user_id",
-            "bot_id",
             "uid",
             name="uq_credential_records_identity",
         ),
@@ -84,7 +87,6 @@ class CredentialRecord(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(Text, nullable=False)
-    bot_id: Mapped[str] = mapped_column(Text, nullable=False)
     uid: Mapped[str] = mapped_column(Text, nullable=False)
 
     app_cookie: Mapped[str] = mapped_column(
@@ -153,7 +155,7 @@ class CredentialRecord(Base):
         """仅返回非敏感字段，避免 ORM 对象被日志意外序列化时泄露凭据。"""
         return (
             "CredentialRecord("
-            f"id={self.id!r}, user_id={self.user_id!r}, bot_id={self.bot_id!r}, "
+            f"id={self.id!r}, user_id={self.user_id!r}, "
             f"uid={self.uid!r}, app_status={self.app_status!r}, "
             f"web_status={self.web_status!r}, "
             f"has_app_credentials={self.has_app_credentials!r}, "
@@ -189,7 +191,6 @@ class CredentialRecord(Base):
         return {
             "id": self.id,
             "user_id": self.user_id,
-            "bot_id": self.bot_id,
             "uid": self.uid,
             "app_status": self.app_status,
             "web_status": self.web_status,
@@ -249,21 +250,19 @@ class SignRecord(Base):
 
 
 class PrivacySetting(Base):
-    """用户在 Bot 或群组作用域内的隐私设置。"""
+    """用户在全局或群组作用域内的隐私设置。"""
 
     __tablename__ = "privacy_settings"
     __table_args__ = (
-        Index("ix_privacy_settings_lookup", "user_id", "bot_id"),
+        Index("ix_privacy_settings_lookup", "user_id"),
         Index(
             "uq_privacy_settings_global_identity",
             "user_id",
-            "bot_id",
             unique=True,
             sqlite_where=text("group_id IS NULL"),
         ),
         UniqueConstraint(
             "user_id",
-            "bot_id",
             "group_id",
             name="uq_privacy_settings_identity",
         ),
@@ -271,7 +270,6 @@ class PrivacySetting(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[str] = mapped_column(Text, nullable=False)
-    bot_id: Mapped[str] = mapped_column(Text, nullable=False)
     group_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     allow_peek: Mapped[bool] = mapped_column(
         Boolean,
@@ -288,16 +286,15 @@ class PrivacySetting(Base):
 
 
 class GroupPrivacySetting(Base):
-    """群组级强制隐私设置。"""
+    """跨 Bot 共享的群组级强制隐私设置。"""
 
     __tablename__ = "group_privacy_settings"
     __table_args__ = (
-        UniqueConstraint("group_id", "bot_id", name="uq_group_privacy_settings_identity"),
+        UniqueConstraint("group_id", name="uq_group_privacy_settings_identity"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     group_id: Mapped[str] = mapped_column(Text, nullable=False)
-    bot_id: Mapped[str] = mapped_column(Text, nullable=False)
     force_allow_peek: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     force_uid_hidden: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
