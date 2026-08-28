@@ -173,6 +173,14 @@ D02 审查记录（2026-08-28，REQUEST_CHANGES）：
 - **P2 风险**：重载后出现 5 条 SQLModel `SAWarning`，涉及 `DNABind`、`DNAUser`、`DNASign`、`DNAPrivacy`、`DNAGroupPrivacy` 的重复类名替换 string-lookup 表（容器 `/usr/local/lib/python3.12/site-packages/sqlmodel/main.py:681`）；本次未观察到功能错误，但应在后续生命周期/导入隔离审查中解释并消除或明确接受。
 - 修复门禁：在阶段二前必须先为半初始化失败增加 Red 测试，最小修复应保证已成功启动的前置 hook 按逆序清理、原异常继续显式向上抛出，并覆盖 cleanup 异常的可观测性；随后需重新形成阶段一插件 SHA、通过同等门禁并取得新的生产部署授权后再替换 atri 当前 SHA。本轮未修改生产代码、未重载新 SHA，也未启动 O07。
 
+D02 本地修复复跑记录（2026-08-28）：
+
+- 已按 Red → Green 完成本地 P1 修复，修复提交为 `eda0333`（`fix(goal-1): clean up partial lifecycle initialization`）。`PluginLifecycle.initialize()` 在 start hook 失败时临时进入已启动清理路径，按既有 stop hook 的逆序回收前置资源；清理失败以 `BaseExceptionGroup` 显式保留原初始化异常和清理异常，成功清理时继续向上抛出原异常，并在所有路径复位 `_started`。
+- Red 证据：旧实现下先后运行半初始化清理测试，分别得到 `1 failed` 与 `2 failed`；失败表现为前置 hook 已执行但 stop hook 未执行，以及清理异常被遗漏且未形成可观测异常组。
+- Green/回归证据：生命周期目标测试 `3 passed, 1 warning`；第一阶段相关回归 suite `150 passed, 5 warnings`；`ruff check src/entry/lifecycle.py tests/test_entry_skeleton.py` 通过；目标文件 `compileall` 通过；LSP 影响面核验与修改后诊断均无错误。
+- 已基于已部署阶段一 SHA `a97317e1a8c41112fb0220bca941120010076edf` 形成候选精确快照 `d19bcaeb7f3e8bd518acaa0dc0580d20fd98d4f3`，候选与该基线的差异仅为 `src/entry/lifecycle.py` 和 `tests/test_entry_skeleton.py`；候选隔离快照同等回归为 `150 passed, 5 warnings`。候选目前仅存在本地 ref `codex/goal-1-phase1-lifecycle-fix`，尚未推送。
+- D02 仍保持 `[pending]`：本地修复及候选验证已完成，但尚未取得本轮新的“推送候选 ref、在 atri 切换精确 SHA 并 reload”的明确授权；本轮未修改生产环境、未调用新的生产 reload，O07 不启动。
+
 ## 第二阶段：资源、下载、卡片与公告缓存
 
 ### O07 — CacheManager 契约与核心状态机 `[pending]`
