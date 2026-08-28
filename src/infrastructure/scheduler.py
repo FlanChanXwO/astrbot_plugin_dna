@@ -21,6 +21,7 @@ from .scheduler_state import (
     SchedulerTaskDefinition,
     SchedulerTaskNotFound,
     SchedulerTaskState,
+    parse_scheduler_schedule,
 )
 from .subscriptions import SubscriptionStore
 
@@ -239,6 +240,34 @@ class SignScheduler:
             raise SchedulerTaskNotFound(task_id)
         await self.registry.delete(task_id)
         await self._cancel_task(task_id)
+
+    async def update_task(self, task_id: str, schedule: str) -> str:
+        """更新现有每日任务时间，并立即重建运行中的 loop。"""
+
+        if task_id not in self._task_specs:
+            raise SchedulerTaskNotFound(task_id)
+        normalized, values = parse_scheduler_schedule(task_id, schedule)
+        if not isinstance(values, tuple):
+            raise ValueError("签到任务 schedule 类型错误")
+
+        await self.registry.update_definition(task_id, schedule=normalized)
+        name, coro, _old_values = self._task_specs[task_id]
+        self._task_specs[task_id] = (name, coro, values)
+        if task_id == _SIGN_TASK_NAME:
+            self.sign_time = values
+        else:
+            self.cleanup_time = values
+
+        snapshot = await self.registry.get_snapshot(task_id)
+        if (
+            self._started
+            and snapshot is not None
+            and snapshot.state is not SchedulerTaskState.PAUSED
+            and self._enabled_tasks[task_id]
+        ):
+            await self._cancel_task(task_id)
+            self._create_task(task_id)
+        return normalized
 
     async def pause(self, task_id: str) -> None:
         await self.pause_task(task_id)

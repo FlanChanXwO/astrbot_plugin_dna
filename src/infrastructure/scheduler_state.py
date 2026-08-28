@@ -4,11 +4,88 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+from .config.settings import NotificationSettings, SignInSettings
+
+
+BUILTIN_SCHEDULER_TASK_IDS = (
+    "dnaby_sign_daily",
+    "dnaby_sign_cleanup",
+    "dnaby_mh_push",
+    "dnaby_ann_poll",
+)
+
+_DAILY_TASK_IDS = frozenset(("dnaby_sign_daily", "dnaby_sign_cleanup"))
+_HOURLY_TASK_IDS = frozenset(("dnaby_mh_push",))
+_INTERVAL_TASK_IDS = frozenset(("dnaby_ann_poll",))
+
+
+def parse_scheduler_schedule(
+    task_id: str,
+    schedule: object,
+) -> tuple[str, tuple[int, int] | int]:
+    """严格解析现有任务的调度参数并返回规范值。
+
+    API 更新不能复用 scheduler 构造函数的“非法值回退默认值”语义，否则管理页
+    会把用户的错误输入伪装成成功。每日时间沿用 ``SignInSettings`` 的边界，公告
+    interval 沿用 ``NotificationSettings`` 的 1--60 分钟约束。
+    """
+
+    if task_id not in BUILTIN_SCHEDULER_TASK_IDS:
+        raise SchedulerTaskNotFound(task_id)
+    if not isinstance(schedule, str):
+        raise ValueError("schedule 必须是字符串")
+    normalized = schedule.strip()
+
+    if task_id in _DAILY_TASK_IDS:
+        match = re.fullmatch(r"daily@(\d{1,2}):(\d{1,2})", normalized)
+        if match is None:
+            raise ValueError("每日任务 schedule 必须为 daily@HH:MM")
+        hour, minute = (int(item) for item in match.groups())
+        canonical_time = f"{hour:02d}:{minute:02d}"
+        try:
+            SignInSettings(sign_time=canonical_time)
+        except ValueError as error:
+            raise ValueError("每日任务时间超出范围") from error
+        if hour > 23 or minute > 59:
+            raise ValueError("每日任务时间超出范围")
+        return f"daily@{canonical_time}", (hour, minute)
+
+    if task_id in _HOURLY_TASK_IDS:
+        match = re.fullmatch(r"hourly@(\d{1,2}):(\d{1,2})", normalized)
+        if match is None:
+            raise ValueError("每小时任务 schedule 必须为 hourly@MM:SS")
+        minute, second = (int(item) for item in match.groups())
+        if minute > 59 or second > 59:
+            raise ValueError("每小时任务时间超出范围")
+        return f"hourly@{minute:02d}:{second:02d}", (minute, second)
+
+    if task_id in _INTERVAL_TASK_IDS:
+        match = re.fullmatch(r"interval@(\d+)m", normalized)
+        if match is None:
+            raise ValueError("公告任务 schedule 必须为 interval@Nm")
+        minutes = int(match.group(1))
+        try:
+            NotificationSettings(announcement_check_minutes=minutes)
+        except ValueError as error:
+            raise ValueError("公告轮询间隔必须为 1--60 分钟") from error
+        if minutes < 1:
+            raise ValueError("公告轮询间隔必须大于 0")
+        return f"interval@{minutes}m", minutes
+
+    raise SchedulerTaskNotFound(task_id)
+
+
+def normalize_scheduler_schedule(task_id: str, schedule: object) -> str:
+    """返回管理 API 可持久化的规范 schedule 字符串。"""
+
+    return parse_scheduler_schedule(task_id, schedule)[0]
 
 
 class SchedulerTaskState(StrEnum):
@@ -333,6 +410,36 @@ class SchedulerRegistry:
                 last_error=None,
             )
 
+    async def update_definition(
+        self,
+        task_id: str,
+        *,
+        schedule: str | None = None,
+        targets: tuple[str, ...] | None = None,
+    ) -> SchedulerTaskSnapshot:
+        """更新现有任务的可编辑定义并清空旧的下一次运行时间。"""
+
+        if schedule is None and targets is None:
+            raise ValueError("至少需要更新 schedule 或 targets")
+        await self._ensure_initialized()
+        async with self._lock:
+            current = self._require_locked(task_id)
+            definition = self._definitions[task_id]
+            updated_definition = replace(
+                definition,
+                schedule=schedule if schedule is not None else definition.schedule,
+                targets=targets if targets is not None else definition.targets,
+            )
+            updated_snapshot = replace(
+                current,
+                schedule=updated_definition.schedule,
+                targets=updated_definition.targets,
+                next_run_at=None,
+            )
+            self._definitions[task_id] = updated_definition
+            self._snapshots[task_id] = updated_snapshot
+            return updated_snapshot
+
     async def delete(self, task_id: str) -> None:
         """永久删除任务并原子写入 tombstone；不提供恢复操作。"""
 
@@ -384,6 +491,9 @@ class SchedulerRegistry:
 
 
 __all__ = [
+    "BUILTIN_SCHEDULER_TASK_IDS",
+    "normalize_scheduler_schedule",
+    "parse_scheduler_schedule",
     "SchedulerRegistry",
     "SchedulerStateError",
     "SchedulerStateStore",

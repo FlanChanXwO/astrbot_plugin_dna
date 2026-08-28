@@ -64,7 +64,9 @@ class SubscriptionStore:
                     extra_data=str(item.get("extra_data", "")),
                 )
                 for item in raw
-                if isinstance(item, dict) and item.get("type") and item.get("unified_msg_origin")
+                if isinstance(item, dict)
+                and item.get("type")
+                and item.get("unified_msg_origin")
             ]
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
             self._subs = []
@@ -78,7 +80,9 @@ class SubscriptionStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".json.tmp")
         tmp.write_text(
-            json.dumps([asdict(sub) for sub in self._subs], ensure_ascii=False, indent=2),
+            json.dumps(
+                [asdict(sub) for sub in self._subs], ensure_ascii=False, indent=2
+            ),
             encoding="utf-8",
         )
         tmp.replace(self.path)
@@ -262,7 +266,9 @@ class SubscriptionStore:
                     bot_id=sub.bot_id,
                     user_type=sub.user_type,
                     uid=sub.uid,
-                    extra_message=extra_message if extra_message is not None else sub.extra_message,
+                    extra_message=extra_message
+                    if extra_message is not None
+                    else sub.extra_message,
                     extra_data=extra_data if extra_data is not None else sub.extra_data,
                 )
                 if (
@@ -275,6 +281,56 @@ class SubscriptionStore:
             ]
             self._save_unlocked()
             return True
+
+    async def replace_target(
+        self,
+        sub_type: str,
+        origin: str,
+        uid: str,
+        replacement: Subscription,
+    ) -> Subscription | None:
+        """原子替换一条目标的可编辑路由/附加字段。
+
+        ``type``、``origin`` 和 ``uid`` 是管理 API 目标标识的一部分，替换时必须
+        保持不变；这样目标 ID 在修改 bot/group 元数据后仍然稳定，也不会借更新
+        动作把一条订阅悄悄移动到另一个用户或订阅类型。
+        """
+
+        if not isinstance(replacement, Subscription):
+            raise TypeError("replacement 必须是 Subscription")
+        if (
+            replacement.type != sub_type
+            or replacement.unified_msg_origin != origin
+            or replacement.uid != uid
+        ):
+            raise ValueError("目标身份字段不可更新")
+
+        async with self._lock:
+            await self.load()
+            index = next(
+                (
+                    index
+                    for index, sub in enumerate(self._subs)
+                    if (
+                        sub.type == sub_type
+                        and sub.unified_msg_origin == origin
+                        and sub.uid == uid
+                    )
+                ),
+                None,
+            )
+            if index is None:
+                return None
+            previous = self._subs
+            updated = list(previous)
+            updated[index] = replacement
+            self._subs = updated
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._subs = previous
+                raise
+            return replacement
 
     async def get(
         self,

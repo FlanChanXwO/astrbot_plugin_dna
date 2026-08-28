@@ -47,7 +47,11 @@ from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
-from .modules.admin import AiocqhttpMembershipProbe, MembershipService
+from .modules.admin import (
+    AdminApiService,
+    AiocqhttpMembershipProbe,
+    MembershipService,
+)
 from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
@@ -263,6 +267,18 @@ def build_runtime(
         poll_minutes=settings.notifications.announcement_check_minutes,
         registry=scheduler_registry,
     )
+    admin_api_service = AdminApiService(
+        scheduler_registry,
+        subscriptions,
+        {
+            "dnaby_sign_daily": sign_scheduler,
+            "dnaby_sign_cleanup": sign_scheduler,
+            "dnaby_mh_push": notices_scheduler,
+            "dnaby_ann_poll": notices_scheduler,
+        },
+        membership_service,
+        config_store=config if isinstance(config, dict) else None,
+    )
 
     def _resolve_char_id(char_name: str) -> str | None:
         from .utils.name_convert import char_name_to_char_id
@@ -311,6 +327,7 @@ def build_runtime(
         "sign_scheduler": sign_scheduler,
         "notices_service": notices_service,
         "notices_scheduler": notices_scheduler,
+        "admin_api_service": admin_api_service,
         "panel_service": panel_service,
         "resource_update_service": resource_update_service,
         "alias_service": alias_service,

@@ -271,13 +271,27 @@
 
 ## Task 10 — 任务、目标与成员 Admin API
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD 暴露任务快照、调度参数更新、暂停、恢复、永久删除、现有目标更新/删除、成员扫描和清理 API；不允许创建任务。
 - 验收：任务 ID allowlist、typed settings 校验、不可删除维护任务、不可恢复 tombstone、partial/unsupported/upstream 错误契约均通过 API 测试。
 - 实际工作：
+- 新增 `src/modules/admin/api.py`，提供框架无关的 `AdminApiService`、`TaskSnapshot`、`TaskTarget` 和 `TaskTargetUpdate`；任务 API 只接受四个内置任务 ID，提供列表、严格 schedule 更新、暂停、恢复和永久删除，不提供创建/恢复入口。
+- 调度 registry 增加原子定义更新；每日签到/清理、密函推送、公告轮询复用 typed settings 边界校验，成功更新后重建运行中的 loop 并清空旧 `next_run_at`，已配置的签到/通知参数同步回配置存储。
+- 订阅存储增加保持 `(type, unified_msg_origin, uid)` 身份键不变的原子目标替换；Admin API 支持按任务过滤目标、更新路由元数据/附加字段和删除现有目标，写盘失败显式返回 `internal`。
+- Admin API 委托 Task 09 membership service，保留 `unsupported`、`partial`、`upstream` envelope；bootstrap 暴露共享 `admin_api_service`，本 task 不注册 WebRoute，认证和 HTTP 映射留给后续 task。
+- 新增 `tests/test_goal2_task10_admin_api.py`，覆盖 allowlist、typed schedule 校验、运行中重排、配置失败回滚、维护任务删除拒绝、tombstone 不可恢复、目标原子更新/删除、bootstrap wiring 和成员错误契约。
 - 验证证据：
+- TDD Red：首次运行 Task 10 专项测试在收集阶段因 `AdminApiService` 尚未导出而实际 `ImportError`；实现后转 Green。
+- runtime `.venv/bin/python -m pytest tests/test_goal2_task10_admin_api.py -q`：`9 passed, 1 warning`。
+- 相关回归（Task 03--09、账号/隐私/持久化、scheduler/notices、订阅、配置、entry、migration、write contracts）：`177 passed, 5 warnings`。
+- `/Users/flanchan/.local/bin/ruff check .`、定向 `ruff format --check`、定向 `/opt/homebrew/bin/pyright --project pyrightconfig.json`、`.venv/bin/python -m compileall -q src main.py tests`、`git diff --check`、改动文件 LSP diagnostics 和显式 `pre-commit run --files ...`：均通过。
+- 包含未改动 `tests/test_notices_subscriptions.py` 的更宽回归另有 `147 passed, 4 failed`；失败均发生在既有渲染/外部图片链路（T2I 返回不可解码图片或既有 payload 类型断言），Task 10 改动文件无交集，未越界修复。
 - 剩余风险：
+- Task 12 仍需把该框架无关 service 接入 `/astrbot_plugin_dnaby/admin/*` WebRoute，并在 handler 层接入 AstrBot Dashboard 认证、HTTP 状态和 JSON 序列化；当前 service 本身不接收 request，也不应被视为认证边界。
+- `dnaby_sign_cleanup` 当前没有 typed 配置字段，API 更新可立即影响当前进程但不会跨重启持久化；后续若产品需要持久化，应先补充明确的配置字段与 schema 测试。
+- 目标 ID 固定现有订阅的类型/会话/UID，更新不允许把目标移动到另一身份；跨 SQLite、JSON 和外部成员状态仍不存在单一物理事务，失败保持可重试的显式 envelope。
 - 下一步：
+- Task 11：实现面板图与角色别名 Admin API；完成后再进入 Task 12 Web 路由、生命周期与认证。
 
 ## Task 11 — 面板图与角色别名 Admin API
 

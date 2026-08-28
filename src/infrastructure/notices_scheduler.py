@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Protocol, cast
 from zoneinfo import ZoneInfo
 
 from astrbot.api import logger
@@ -21,6 +21,7 @@ from .scheduler_state import (
     SchedulerTaskDefinition,
     SchedulerTaskNotFound,
     SchedulerTaskState,
+    parse_scheduler_schedule,
 )
 
 TZ = ZoneInfo("Asia/Shanghai")
@@ -237,6 +238,35 @@ class NoticesScheduler:
             raise SchedulerTaskNotFound(task_id)
         await self.registry.delete(task_id)
         await self._cancel_task(task_id)
+
+    async def update_task(self, task_id: str, schedule: str) -> str:
+        """更新现有通知任务参数，并立即重建运行中的 loop。"""
+
+        if task_id not in self._task_specs:
+            raise SchedulerTaskNotFound(task_id)
+        normalized, values = parse_scheduler_schedule(task_id, schedule)
+        if task_id == _MH_PUSH_TASK_NAME:
+            if not isinstance(values, tuple):
+                raise ValueError("密函任务 schedule 类型错误")
+        else:
+            if not isinstance(values, int):
+                raise ValueError("公告任务 schedule 类型错误")
+        await self.registry.update_definition(task_id, schedule=normalized)
+        if task_id == _MH_PUSH_TASK_NAME:
+            self.push_time = cast(tuple[int, int], values)
+        else:
+            self.poll_minutes = cast(int, values)
+
+        snapshot = await self.registry.get_snapshot(task_id)
+        if (
+            self._started
+            and snapshot is not None
+            and snapshot.state is not SchedulerTaskState.PAUSED
+            and self._enabled_tasks[task_id]
+        ):
+            await self._cancel_task(task_id)
+            self._create_task(task_id)
+        return normalized
 
     async def pause(self, task_id: str) -> None:
         await self.pause_task(task_id)

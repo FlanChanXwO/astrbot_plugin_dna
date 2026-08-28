@@ -16,6 +16,14 @@ from .contracts import (
     DeletionStepResult,
     DeletionStepStatus,
 )
+from .api import (
+    AdminApiService,
+    AdminTaskService,
+    TaskAdminService,
+    TaskSnapshot,
+    TaskTarget,
+    TaskTargetUpdate,
+)
 from .deletion import (
     AccountDeletionCoordinator,
     DeletionCoordinator,
@@ -45,6 +53,8 @@ from .service import AdminAccountService
 
 __all__ = [
     "ADMIN_NO_STORE_HEADERS",
+    "AdminApiService",
+    "AdminTaskService",
     "CREDENTIAL_FIELDS",
     "UNSET",
     "AccountDeletionCoordinator",
@@ -77,5 +87,9 @@ __all__ = [
     "MembershipScanResult",
     "MembershipService",
     "MembershipStatus",
+    "TaskAdminService",
+    "TaskSnapshot",
+    "TaskTarget",
+    "TaskTargetUpdate",
     "UserDeletionCoordinator",
 ]
