@@ -43,7 +43,6 @@ async def test_repository_uses_explicit_transaction_and_rolls_back_on_error(tmp_
             binding = await AccountBindingRepository.add(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 uid="1001",
                 group_id="group-1",
             )
@@ -53,7 +52,6 @@ async def test_repository_uses_explicit_transaction_and_rolls_back_on_error(tmp_
             stored = await AccountBindingRepository.get(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 uid="1001",
             )
         assert stored is not None
@@ -64,7 +62,6 @@ async def test_repository_uses_explicit_transaction_and_rolls_back_on_error(tmp_
                 await AccountBindingRepository.add(
                     session,
                     user_id="user-2",
-                    bot_id="bot-1",
                     uid="2001",
                 )
                 raise RuntimeError("rollback-fixture")
@@ -73,7 +70,6 @@ async def test_repository_uses_explicit_transaction_and_rolls_back_on_error(tmp_
             rolled_back = await AccountBindingRepository.get(
                 session,
                 user_id="user-2",
-                bot_id="bot-1",
                 uid="2001",
             )
         assert rolled_back is None
@@ -95,7 +91,6 @@ async def test_credential_repository_keeps_secret_fields_out_of_repr_and_snapsho
             record = await CredentialRepository.add(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 uid="1001",
                 app_cookie=app_cookie,
                 app_refresh_token=refresh_token,
@@ -112,7 +107,6 @@ async def test_credential_repository_keeps_secret_fields_out_of_repr_and_snapsho
             stored = await CredentialRepository.get(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 uid="1001",
             )
         assert stored is not None
