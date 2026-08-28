@@ -295,13 +295,23 @@
 
 ## Task 11 — 面板图与角色别名 Admin API
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD 暴露角色面板图元数据/按需图片/上传/单删/全删/压缩；建立 `alias_custom.json` 多值追加层、冲突校验和按角色/全部恢复。
 - 验收：路径逃逸继续拒绝；默认 alias 文件无 diff；默认别名不可替换；custom 原子写、重复与跨角色冲突、恢复默认均有测试。
 - 实际工作：
+- 新增框架无关 `AdminPanelService` 及面板图元数据/按需载荷/上传、单删、确认式全删、全量压缩 DTO；`PanelService` 增加受 `panel_custom/` 根目录约束的安全文件操作，拒绝越界目录与越界符号链接。
+- 新增 `AdminAliasService`，默认 `char_alias.json` 只读，角色 custom 多值追加写入运行期 `alias_custom.json`；完成默认别名保护、重复/跨角色冲突校验、原子替换写入、按角色/全部恢复，并让既有角色别名命令复用 custom 层。
+- `EncyclopediaResourceStore` 启动时合并默认与 custom 角色别名；bootstrap 暴露 `admin_panel_service` 与 `admin_alias_service`，未提前注册 Task 12 Web 路由或认证边界。
 - 验证证据：
+- TDD Red：专项测试初次收集实际因 Admin alias 类型未导出触发 `ImportError`；custom 路径、默认文件保护、资源重载和非布尔全删确认测试均先实际失败，再实现转 Green。
+- `.venv/bin/python -m pytest tests/test_goal2_task11_admin_assets.py -q`：`11 passed, 1 warning`；相关回归（Task 10、操作、alias IO、资源配置、写入契约）：`87 passed, 1 warning`。
+- `/Users/flanchan/.local/bin/ruff check .`、定向 `ruff format --check`、定向 `/opt/homebrew/bin/pyright --project pyrightconfig.json`、`.venv/bin/python -m compileall -q src main.py tests`、`git diff --check` 和改动文件 LSP diagnostics：均通过（Pyright `0 errors, 0 warnings, 0 informations`，LSP `0 diagnostics`）。
+- 额外安全回归确认 `confirmed` 必须为真正的 `True`，字符串等真值不能绕过全删二次确认。
 - 剩余风险：
+- Task 12 仍需把这些框架无关 service 接入 `/astrbot_plugin_dnaby/admin/*` WebRoute，并完成 Dashboard 认证、HTTP 状态和 JSON 映射；当前 service 本身不是认证边界。
+- 武器别名旧命令仍保持既有实现，未纳入本 task 的角色 custom 层；默认资源仓库文件不由本 task 的角色管理 API 写入。
 - 下一步：
+- Task 12：实现 Admin Web 路由、生命周期与安全契约。
 
 ## Task 12 — Admin Web 路由、生命周期与安全契约
 

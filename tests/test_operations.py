@@ -22,7 +22,9 @@ def _service(tmp_path: Path) -> PanelService:
     )
 
 
-def _request(text: str, parameters: dict | None = None, images: tuple[str, ...] = ()) -> PanelCommandRequest:
+def _request(
+    text: str, parameters: dict | None = None, images: tuple[str, ...] = ()
+) -> PanelCommandRequest:
     return PanelCommandRequest(
         actor=EventActor("user-1", "bot-1", "group-1"),
         parameters=parameters or {},
@@ -68,7 +70,9 @@ async def test_upload_requires_image(tmp_path: Path) -> None:
     """无图片返回显式提示。"""
 
     service = _service(tmp_path)
-    response = await service.upload_panel_img(_request("上传角色甲面板图", {"char_name": "角色甲"}))
+    response = await service.upload_panel_img(
+        _request("上传角色甲面板图", {"char_name": "角色甲"})
+    )
 
     assert isinstance(response, PlainTextResponse)
     assert response.text == messages.PANEL_IMAGE_REQUIRED
@@ -80,7 +84,9 @@ async def test_upload_unknown_char_is_visible(tmp_path: Path) -> None:
 
     service = _service(tmp_path)
     response = await service.upload_panel_img(
-        _request("上传不存在面板图", {"char_name": "不存在"}, images=(str(_png(tmp_path)),)),
+        _request(
+            "上传不存在面板图", {"char_name": "不存在"}, images=(str(_png(tmp_path)),)
+        ),
     )
 
     assert isinstance(response, PlainTextResponse)
@@ -108,10 +114,14 @@ async def test_list_panel_imgs_returns_chain_with_images(tmp_path: Path) -> None
 
     service = _service(tmp_path)
     await service.upload_panel_img(
-        _request("上传角色甲面板图", {"char_name": "角色甲"}, images=(str(_png(tmp_path)),)),
+        _request(
+            "上传角色甲面板图", {"char_name": "角色甲"}, images=(str(_png(tmp_path)),)
+        ),
     )
 
-    response = await service.list_panel_imgs(_request("角色甲面板图列表", {"char_name": "角色甲"}))
+    response = await service.list_panel_imgs(
+        _request("角色甲面板图列表", {"char_name": "角色甲"})
+    )
 
     assert isinstance(response, ChainResponse)
     components = response.components
@@ -125,7 +135,9 @@ async def test_delete_panel_img_by_id(tmp_path: Path) -> None:
 
     service = _service(tmp_path)
     await service.upload_panel_img(
-        _request("上传角色甲面板图", {"char_name": "角色甲"}, images=(str(_png(tmp_path)),)),
+        _request(
+            "上传角色甲面板图", {"char_name": "角色甲"}, images=(str(_png(tmp_path)),)
+        ),
     )
     image_id = next(_panel_dir(tmp_path).iterdir()).stem
 
@@ -138,9 +150,14 @@ async def test_delete_panel_img_by_id(tmp_path: Path) -> None:
 
     assert isinstance(ok, PlainTextResponse)
     assert "已删除角色甲面板图" in ok.text
-    assert not _panel_dir(tmp_path).exists() or list(_panel_dir(tmp_path).iterdir()) == []
+    assert (
+        not _panel_dir(tmp_path).exists() or list(_panel_dir(tmp_path).iterdir()) == []
+    )
     assert isinstance(missing, PlainTextResponse)
-    assert messages.PANEL_DELETED_NOT_FOUND.format(name="角色甲", image_id="missing") in missing.text
+    assert (
+        messages.PANEL_DELETED_NOT_FOUND.format(name="角色甲", image_id="missing")
+        in missing.text
+    )
 
 
 @pytest.mark.asyncio
@@ -149,10 +166,14 @@ async def test_delete_all_panel_imgs_removes_directory(tmp_path: Path) -> None:
 
     service = _service(tmp_path)
     await service.upload_panel_img(
-        _request("上传角色甲面板图", {"char_name": "角色甲"}, images=(str(_png(tmp_path)),)),
+        _request(
+            "上传角色甲面板图", {"char_name": "角色甲"}, images=(str(_png(tmp_path)),)
+        ),
     )
 
-    response = await service.delete_all_panel_imgs(_request("删除角色甲全部面板图", {"char_name": "角色甲"}))
+    response = await service.delete_all_panel_imgs(
+        _request("删除角色甲全部面板图", {"char_name": "角色甲"})
+    )
 
     assert isinstance(response, PlainTextResponse)
     assert "已删除角色甲全部面板图：1张" in response.text
@@ -246,18 +267,53 @@ async def test_alias_add_delete_and_recover(tmp_path: Path) -> None:
     refreshed = []
     from src.modules.operations.alias_service import AliasService
 
-    service = AliasService(tmp_path / "alias", refresh=lambda: refreshed.append(True))
+    alias_root = tmp_path / "alias"
+    alias_root.mkdir()
+    (alias_root / "char_alias.json").write_text('{"辛西娅": []}', encoding="utf-8")
+    service = AliasService(alias_root, refresh=lambda: refreshed.append(True))
     add = await service.add_delete_alias(
-        _request("添加角色辛西娅别名小辛", {"action": "添加", "alias_type": "角色", "name": "辛西娅", "new_alias": "小辛"}),
+        _request(
+            "添加角色辛西娅别名小辛",
+            {
+                "action": "添加",
+                "alias_type": "角色",
+                "name": "辛西娅",
+                "new_alias": "小辛",
+            },
+        ),
     )
     dup = await service.add_delete_alias(
-        _request("添加角色辛西娅别名小辛", {"action": "添加", "alias_type": "角色", "name": "辛西娅", "new_alias": "小辛"}),
+        _request(
+            "添加角色辛西娅别名小辛",
+            {
+                "action": "添加",
+                "alias_type": "角色",
+                "name": "辛西娅",
+                "new_alias": "小辛",
+            },
+        ),
     )
     delete = await service.add_delete_alias(
-        _request("删除角色辛西娅别名小辛", {"action": "删除", "alias_type": "角色", "name": "辛西娅", "new_alias": "小辛"}),
+        _request(
+            "删除角色辛西娅别名小辛",
+            {
+                "action": "删除",
+                "alias_type": "角色",
+                "name": "辛西娅",
+                "new_alias": "小辛",
+            },
+        ),
     )
     missing = await service.add_delete_alias(
-        _request("删除角色辛西娅别名小辛", {"action": "删除", "alias_type": "角色", "name": "辛西娅", "new_alias": "小辛"}),
+        _request(
+            "删除角色辛西娅别名小辛",
+            {
+                "action": "删除",
+                "alias_type": "角色",
+                "name": "辛西娅",
+                "new_alias": "小辛",
+            },
+        ),
     )
     recover = await service.recover_alias(None)
 
@@ -267,7 +323,7 @@ async def test_alias_add_delete_and_recover(tmp_path: Path) -> None:
     assert messages.ALIAS_NOT_FOUND.format(name="辛西娅", alias="小辛") in missing.text
     assert recover.text == messages.ALIAS_RECOVERED
     assert len(refreshed) == 3  # 添加 + 删除 + 恢复各刷新一次
-    assert (tmp_path / "alias" / "char_alias.json").exists()
+    assert (tmp_path / "alias_custom.json").exists()
 
 
 @pytest.mark.asyncio
@@ -278,6 +334,9 @@ async def test_alias_input_empty_is_visible(tmp_path: Path) -> None:
 
     service = AliasService(tmp_path / "alias")
     response = await service.add_delete_alias(
-        _request("添加角色别名", {"action": "添加", "alias_type": "角色", "name": "", "new_alias": ""}),
+        _request(
+            "添加角色别名",
+            {"action": "添加", "alias_type": "角色", "name": "", "new_alias": ""},
+        ),
     )
     assert response.text == messages.ALIAS_INPUT_EMPTY

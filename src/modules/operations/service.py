@@ -59,20 +59,104 @@ class PanelService:
         char_id = self.resolve_char_id(char_name)
         if char_id is None:
             return None
+        root = self.panel_root.resolve()
         resolved = (self.panel_root / self.panel_dir_for(char_id)).resolve()
-        if not str(resolved).startswith(str(self.panel_root.resolve()) + "/"):
-            # 防御性拒绝路径逃逸；正常 CharId 来自内置/资源数据，不产生相对路径。
+        try:
+            relative = resolved.relative_to(root)
+        except ValueError:
+            return None
+        if not relative.parts:
+            # 角色目录必须是 panel_root 下的子目录，不能把根目录当作某个角色目录。
             return None
         return resolved
+
+    def resolve_panel_dir(self, char_name: str) -> Path | None:
+        """返回角色面板目录；调用方只能获得受 ``panel_root`` 约束的路径。"""
+
+        return self._char_panel_dir(char_name)
 
     def _panel_files(self, char_dir: Path) -> list[Path]:
         if not char_dir.is_dir():
             return []
+        root = self.panel_root.resolve()
+        files: list[Path] = []
+        for path in char_dir.iterdir():
+            if not path.is_file() or path.suffix.lower() not in _IMAGE_SUFFIXES:
+                continue
+            try:
+                path.resolve().relative_to(root)
+            except ValueError:
+                # 不读取通过符号链接逃出运行期面板目录的文件。
+                continue
+            files.append(path)
         return sorted(
-            path
-            for path in char_dir.iterdir()
-            if path.is_file() and path.suffix.lower() in _IMAGE_SUFFIXES
+            files,
         )
+
+    def list_panel_files(self, char_name: str) -> tuple[Path, ...] | None:
+        """列出角色面板文件；未知角色或越界目录返回 ``None``。"""
+
+        char_dir = self._char_panel_dir(char_name)
+        return None if char_dir is None else tuple(self._panel_files(char_dir))
+
+    def find_panel_file(self, char_name: str, image_id: str) -> Path | None:
+        """按稳定 ID 查找面板图，绝不按用户提供的路径直接拼接。"""
+
+        for image_path in self.list_panel_files(char_name) or ():
+            if image_path.stem == image_id or image_path.name == image_id:
+                return image_path
+        return None
+
+    def save_panel_bytes(self, char_name: str, image_bytes: bytes) -> Path | None:
+        """把已读取的图片字节保存到角色自定义目录并返回内部路径。"""
+
+        char_dir = self._char_panel_dir(char_name)
+        if char_dir is None:
+            return None
+        image_path = char_dir / f"{hashlib.sha1(image_bytes).hexdigest()[:16]}.webp"
+        self._save_webp(image_bytes, image_path)
+        return image_path
+
+    def remove_panel_file(self, char_name: str, image_id: str) -> Path | None:
+        """删除一张已解析的面板图，并在目录为空时移除角色目录。"""
+
+        image_path = self.find_panel_file(char_name, image_id)
+        if image_path is None:
+            return None
+        image_path.unlink()
+        char_dir = image_path.parent
+        if char_dir.is_dir() and not any(char_dir.iterdir()):
+            char_dir.rmdir()
+        return image_path
+
+    def remove_all_panel_files(self, char_name: str) -> int | None:
+        """删除角色目录下的全部面板图，返回删除数量。"""
+
+        char_dir = self._char_panel_dir(char_name)
+        if char_dir is None:
+            return None
+        panel_files = self._panel_files(char_dir)
+        if panel_files:
+            shutil.rmtree(char_dir)
+        return len(panel_files)
+
+    def compress_all_panel_files(self) -> tuple[int, int]:
+        """压缩全部角色面板图并返回 ``(总数, 成功压缩数)``。"""
+
+        from ...utils.image import compress_to_webp
+
+        if not self.panel_root.is_dir():
+            return 0, 0
+        all_files: list[Path] = []
+        for panel_dir in sorted(self.panel_root.iterdir()):
+            if panel_dir.is_dir() and not panel_dir.is_symlink():
+                all_files.extend(self._panel_files(panel_dir))
+        compressed = 0
+        for image_path in all_files:
+            is_compressed, _ = compress_to_webp(image_path)
+            if is_compressed:
+                compressed += 1
+        return len(all_files), compressed
 
     @staticmethod
     def _image_bytes(source: str) -> bytes:
@@ -91,7 +175,11 @@ class PanelService:
     def _save_webp(image_bytes: bytes, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
         with Image.open(io.BytesIO(image_bytes)) as image:
-            mode = "RGBA" if "A" in image.getbands() or "transparency" in image.info else "RGB"
+            mode = (
+                "RGBA"
+                if "A" in image.getbands() or "transparency" in image.info
+                else "RGB"
+            )
             image.convert(mode).save(target, "WEBP", quality=90, method=4)
 
     async def upload_panel_img(self, request: PanelCommandRequest):
@@ -102,15 +190,16 @@ class PanelService:
         char_name = request.parameters.get("char_name", "").strip()
         char_dir = self._char_panel_dir(char_name)
         if char_dir is None:
-            return PlainTextResponse(messages.PANEL_CHAR_NOT_FOUND.format(name=char_name))
+            return PlainTextResponse(
+                messages.PANEL_CHAR_NOT_FOUND.format(name=char_name)
+            )
 
         saved = 0
         failed = 0
         for source in request.images:
             try:
                 image_bytes = self._image_bytes(source)
-                image_path = char_dir / f"{hashlib.sha1(image_bytes).hexdigest()[:16]}.webp"
-                self._save_webp(image_bytes, image_path)
+                self.save_panel_bytes(char_name, image_bytes)
                 saved += 1
             except (OSError, ValueError, TypeError):
                 failed += 1
@@ -127,12 +216,16 @@ class PanelService:
         char_name = request.parameters.get("char_name", "").strip()
         char_dir = self._char_panel_dir(char_name)
         if char_dir is None:
-            return PlainTextResponse(messages.PANEL_CHAR_NOT_FOUND.format(name=char_name))
+            return PlainTextResponse(
+                messages.PANEL_CHAR_NOT_FOUND.format(name=char_name)
+            )
         panel_files = self._panel_files(char_dir)
         if not panel_files:
             return PlainTextResponse(messages.PANEL_EMPTY.format(name=char_name))
         components: list[PlainTextResponse | ImageResponse] = [
-            PlainTextResponse(messages.PANEL_LIST_TITLE.format(name=char_name, count=len(panel_files))),
+            PlainTextResponse(
+                messages.PANEL_LIST_TITLE.format(name=char_name, count=len(panel_files))
+            ),
         ]
         for image_path in panel_files:
             components.append(PlainTextResponse(f"\nID：{image_path.stem}\n"))
@@ -146,7 +239,9 @@ class PanelService:
         image_id = request.parameters.get("image_id", "").strip()
         char_dir = self._char_panel_dir(char_name)
         if char_dir is None:
-            return PlainTextResponse(messages.PANEL_CHAR_NOT_FOUND.format(name=char_name))
+            return PlainTextResponse(
+                messages.PANEL_CHAR_NOT_FOUND.format(name=char_name)
+            )
         for image_path in self._panel_files(char_dir):
             if image_path.stem != image_id and image_path.name != image_id:
                 continue
@@ -156,7 +251,9 @@ class PanelService:
             return PlainTextResponse(
                 messages.PANEL_DELETED.format(name=char_name, image_id=image_path.stem),
             )
-        return PlainTextResponse(messages.PANEL_DELETED_NOT_FOUND.format(name=char_name, image_id=image_id))
+        return PlainTextResponse(
+            messages.PANEL_DELETED_NOT_FOUND.format(name=char_name, image_id=image_id)
+        )
 
     async def delete_all_panel_imgs(self, request: PanelCommandRequest):
         """删除角色全部面板图。"""
@@ -164,10 +261,14 @@ class PanelService:
         char_name = request.parameters.get("char_name", "").strip()
         char_dir = self._char_panel_dir(char_name)
         if char_dir is None:
-            return PlainTextResponse(messages.PANEL_CHAR_NOT_FOUND.format(name=char_name))
+            return PlainTextResponse(
+                messages.PANEL_CHAR_NOT_FOUND.format(name=char_name)
+            )
         panel_files = self._panel_files(char_dir)
         if not panel_files:
-            return PlainTextResponse(messages.PANEL_DELETED_ALL_EMPTY.format(name=char_name))
+            return PlainTextResponse(
+                messages.PANEL_DELETED_ALL_EMPTY.format(name=char_name)
+            )
         shutil.rmtree(char_dir)
         return PlainTextResponse(
             messages.PANEL_DELETED_ALL.format(name=char_name, count=len(panel_files)),
@@ -181,26 +282,14 @@ class PanelService:
     async def compress_panel_imgs(self, _request: PanelCommandRequest):
         """压缩全部自定义面板图为 WebP。"""
 
-        from ...utils.image import compress_to_webp
-
-        if not self.panel_root.is_dir():
+        total, compressed = self.compress_all_panel_files()
+        if not total:
             return PlainTextResponse(messages.PANEL_EMPTY.format(name="全部"))
-        all_files = []
-        for panel_dir in sorted(self.panel_root.iterdir()):
-            if panel_dir.is_dir():
-                all_files.extend(self._panel_files(panel_dir))
-        if not all_files:
-            return PlainTextResponse(messages.PANEL_EMPTY.format(name="全部"))
-        compressed = 0
-        for image_path in all_files:
-            is_compressed, _ = compress_to_webp(image_path)
-            if is_compressed:
-                compressed += 1
         return PlainTextResponse(
             messages.PANEL_COMPRESS_DONE.format(
-                total=len(all_files),
+                total=total,
                 compressed=compressed,
-                skipped=len(all_files) - compressed,
+                skipped=total - compressed,
             ),
         )
 
@@ -208,19 +297,29 @@ class PanelService:
         """展示公共资源仓库与本地面板数据的状态。"""
 
         lines = [messages.RESOURCE_STATUS_HEADER]
-        lines.append(messages.resource_status_line("资源仓库目录", str(self.resource_root)))
+        lines.append(
+            messages.resource_status_line("资源仓库目录", str(self.resource_root))
+        )
         if self.resource_root.is_dir():
             manifest_path = self.resource_root / "resource_manifest.json"
             if manifest_path.is_file():
                 try:
                     manifest = ResourceManifest.load(manifest_path)
                     lines.append(
-                        messages.resource_status_line("manifest", f"v{manifest.format_version}")
+                        messages.resource_status_line(
+                            "manifest", f"v{manifest.format_version}"
+                        )
                     )
                     lines.append(
-                        messages.resource_status_line("资源版本", manifest.resource_version)
+                        messages.resource_status_line(
+                            "资源版本", manifest.resource_version
+                        )
                     )
-                    present = [d for d in manifest.required_dirs if (self.resource_root / d).is_dir()]
+                    present = [
+                        d
+                        for d in manifest.required_dirs
+                        if (self.resource_root / d).is_dir()
+                    ]
                     lines.append(
                         messages.resource_status_line(
                             "必需目录",
@@ -228,14 +327,22 @@ class PanelService:
                         ),
                     )
                 except Exception:  # noqa: BLE001
-                    lines.append(messages.resource_status_line("manifest", "损坏或不可读"))
+                    lines.append(
+                        messages.resource_status_line("manifest", "损坏或不可读")
+                    )
             else:
                 lines.append(messages.resource_status_line("manifest", "缺失"))
         else:
             lines.append(messages.RESOURCE_STATUS_EMPTY)
-        lines.append(messages.resource_status_line("自定义面板目录", str(self.panel_root)))
+        lines.append(
+            messages.resource_status_line("自定义面板目录", str(self.panel_root))
+        )
         if self.panel_root.is_dir():
-            total = sum(len(self._panel_files(d)) for d in self.panel_root.iterdir() if d.is_dir())
+            total = sum(
+                len(self._panel_files(d))
+                for d in self.panel_root.iterdir()
+                if d.is_dir()
+            )
             lines.append(messages.resource_status_line("自定义面板数量", str(total)))
         return PlainTextResponse("\n".join(lines))
 

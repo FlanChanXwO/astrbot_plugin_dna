@@ -48,7 +48,9 @@ from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
 from .modules.admin import (
+    AdminAliasService,
     AdminApiService,
+    AdminPanelService,
     AiocqhttpMembershipProbe,
     MembershipService,
 )
@@ -307,7 +309,13 @@ def build_runtime(
     )
     alias_service = AliasService(
         resource_root / "alias",
+        custom_path=runtime_database.path.parent / "alias_custom.json",
         refresh=lambda: None,
+    )
+    admin_panel_service = AdminPanelService(panel_service)
+    admin_alias_service = AdminAliasService(
+        resource_root=resource_root,
+        custom_path=runtime_database.path.parent / "alias_custom.json",
     )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
@@ -328,6 +336,8 @@ def build_runtime(
         "notices_service": notices_service,
         "notices_scheduler": notices_scheduler,
         "admin_api_service": admin_api_service,
+        "admin_panel_service": admin_panel_service,
+        "admin_alias_service": admin_alias_service,
         "panel_service": panel_service,
         "resource_update_service": resource_update_service,
         "alias_service": alias_service,
