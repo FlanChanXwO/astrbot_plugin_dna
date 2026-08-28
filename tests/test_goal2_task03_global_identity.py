@@ -1,6 +1,7 @@
 """Goal 2 / Task 03：repository 与账号、隐私 service 的全局身份契约。"""
 
 from collections.abc import AsyncIterator
+from typing import cast
 
 import pytest
 import pytest_asyncio
@@ -13,6 +14,7 @@ from src.infrastructure.persistence import (
     GroupPrivacySettingRepository,
     PrivacySettingRepository,
 )
+from src.modules.account.contracts import AccountTransport
 from src.modules.account.service import AccountService
 from src.modules.privacy.service import PrivacyService
 
@@ -133,7 +135,11 @@ async def test_global_repositories_share_identity_and_keep_users_isolated(databa
 async def test_account_service_reads_global_accounts_from_another_bot(database):
     """账号 service 在不同 Bot 事件下读取同一用户的绑定和凭据。"""
 
-    service = AccountService(database, object(), max_bind_count=3)
+    service = AccountService(
+        database,
+        cast(AccountTransport, object()),
+        max_bind_count=3,
+    )
     first_bot = EventActor(user_id="user-1", bot_id="bot-1", group_id="group-1")
     second_bot = EventActor(user_id="user-1", bot_id="bot-2", group_id="group-2")
     other_user = EventActor(user_id="user-2", bot_id="bot-2", group_id="group-2")
