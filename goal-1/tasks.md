@@ -90,6 +90,14 @@
 - 待 `goal-2` 完成 account/privacy/repository/model API 与现有服务、测试的统一后，重跑第一阶段相关测试及完整 pytest、ruff、compileall、投影一致性检查。
 - 只处理 `goal-2` 归属的身份迁移冲突；本复跑未通过前不得进入 O05，也不得进行生产热重载。
 
+本轮复跑记录（2026-08-28）：
+
+- 实际完成：使用 runtime 根目录 `.venv`（AstrBot 4.27.1）重跑第一阶段相关测试、完整 pytest、ruff、compileall、命令/配置生成器和投影核对；未修改或暂存并行 `goal-2`/`goal-3` 文件。
+- Red/Green/Refactor 证据：第一阶段相关 suite `91 passed, 1 warning`；完整 pytest 暴露 1 个仍属身份迁移的 Red：`tests/test_player_transport.py::test_legacy_user_preserves_target_credential_owner` 仍向已移除 `bot_id` 参数的 `CredentialRepository.add()` 传值，抛出 `TypeError`。另有 5 个既有玩家渲染测试因外部 T2I 服务连接失败而失败，未归因于身份迁移；本轮为门禁复跑，没有新增实现或 Refactor。
+- 验证命令与结果：`/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m pytest` 为 `407 passed, 6 failed, 1 skipped, 5 warnings`；`/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m ruff check .`、`/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m compileall -q .`、`git diff --check` 均通过；重新运行 `/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python scripts/generate_commands_manifest.py` 与 `/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python scripts/generate_config_schema.py` 后 `commands.json` 与 `_conf_schema.json` 无 diff，第一阶段目标 suite 通过。
+- 剩余风险：`goal-2` Task 04 仍为 pending，`tests/test_player_transport.py` 的旧 fixture 尚未迁移，因此 O04-R 不能完成；外部 T2I 服务不可用也使全量 pytest 当前不能全绿。O05、生产热重载和后续阶段均保持禁止。
+- 下一步：待并行身份迁移提交并同步该 fixture 后，重跑本记录中的第一阶段 suite 与完整 pytest；确认 T2I 测试环境后再重新收敛全量门禁。
+
 ### O05 — 第一阶段审查与独立 SHA `[pending]`
 
 - 自审并使用 `code-review-expert`，处理所有阻塞发现。
