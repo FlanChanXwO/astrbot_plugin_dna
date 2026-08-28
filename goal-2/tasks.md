@@ -149,13 +149,25 @@
 
 ## Task 06 — 管理员完整玩家卡片预览
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD 新增 admin preview service，复用现有总览/详情 transport 与 renderer，固定完整 UID 显示并绕过 PrivacyService；支持选择角色和可选武器。
 - 验收：基本卡和详情卡内容与命令渲染链一致；任意隐私设置下均完整渲染；上游失败分类安全；本地路径不出现在 API DTO。
 - 实际工作：
+- 新增框架无关的 `AdminPreviewService`、`AdminPreviewRequest` 与 `AdminPreviewImage`；以全局 `(user_id, uid)` 绑定确认目标身份，不读取或修改个人/群隐私设置。
+- 总览复用 `PlayerTransport.get_overview` 与现有 renderer，详情复用角色/武器/伤害 transport 与 `render_detail`；固定传入 `uid_hidden=False`、`show_unowned=True`，支持角色别名和最多两种武器选择，并始终把目标 `user_id` 作为凭据归属传递。
+- 预览结果在 service 内读取为 base64 图片 DTO，`repr`/`to_dict` 不暴露 renderer 本地路径；统一附带 `Cache-Control: no-store`，上游、渲染和空图片失败分别返回安全的 `upstream`/`internal` 错误。
+- 新增 `tests/test_goal2_task06_admin_preview.py`，覆盖隐私旁路、完整 UID、跨全局身份参数、角色/武器选择、失败脱敏、未绑定身份和空图片拒绝。
 - 验证证据：
+- TDD Red：实现前运行 `tests/test_goal2_task06_admin_preview.py`，因尚不存在 `AdminPreviewImage` 导致收集阶段 `ImportError`；实现后定向套件 `6 passed, 1 warning`。
+- `.venv/bin/python -m pytest tests/test_goal2_task06_admin_preview.py tests/test_goal2_task05_admin_accounts.py tests/test_player_transport.py -vv`：`17 passed, 1 warning`。
+- `.venv/bin/python -m pytest tests/test_persistence.py tests/test_account.py tests/test_goal2_task03_global_identity.py tests/test_goal2_task04_global_consumers.py -q`：`32 passed, 1 warning`。
+- `/Users/flanchan/.local/bin/ruff check .`：`All checks passed!`；`/opt/homebrew/bin/pyright --project pyrightconfig.json src/modules/admin tests/test_goal2_task06_admin_preview.py`：`0 errors, 0 warnings, 0 informations`；全仓 `python -m compileall -q .` 通过。
+- `tests/test_player.py` 单文件实际为 `12 passed, 3 failed`；3 项均在既有 `PlayerRenderer` 的 T2I 返回不可解码 JPEG 链路失败，未触及本 task 文件，已保留为环境/既有回归风险。
 - 剩余风险：
+- Admin preview service 尚未接入 WebRoute、认证上下文和 Dashboard 页面，留给后续 Task 10/12–16；当前 service 只提供框架无关管理用例。
+- 真实 `PlayerRenderer` 详情路径仍受现有 T2I 测试环境返回不可解码 JPEG 影响；不改变普通玩家命令，也不在本 task 扩大到渲染器/T2I 修复。
 - 下一步：
+- 集中检查 D02：复核 Task 04–06 的跨 Bot 回归、transport 契约、凭据/图片路径泄露、隐私旁路边界和真实渲染验证。
 
 ## 集中检查 D02 — Task 04–06
 
