@@ -163,6 +163,16 @@
 - 检查是否存在重复 handler、残留 scheduler 或无权限命令泄露。
 - 阶段一未稳定前不得启动缓存重构。
 
+D02 审查记录（2026-08-28，REQUEST_CHANGES）：
+
+- 已按 `code-review-expert` 的 preflight、SOLID、security/reliability、error-handling 清单，针对第一阶段恢复点 `9a33b60ed3545020b97acb11e18b91041c1f80de` 与部署 SHA
+  `a97317e1a8c41112fb0220bca941120010076edf` 做只读复核。精确快照定向 suite 为 `105 passed, 5 warnings`；registry/manifest 为 `60/60`，权限为 `user=32/admin=28`，handler 名称唯一，未发现命令权限泄露、重复 registry 或成功重载后的重复 scheduler 证据。
+- 本地结构证据：`src/entry/commands/__init__.py:352-356` 从事件一次快照 `user/admin` 权限，`:470-479` 注入请求；`src/entry/event.py:60-88` 保留最后一个有效 At 并排除机器人/AtAll；`src/entry/commands/__init__.py:508-536` 防止同一插件类重复安装不同 registry；`src/bootstrap.py:328-332` 只组装一套生命周期 scheduler hooks。
+- **P1 阻塞**：`src/entry/lifecycle.py:34-42` 只有全部 start hook 成功后才设置 `_started=True`，而 `:44-48` 在 `_started=False` 时直接跳过 terminate。最小失败注入实际得到：前置 hook 已执行、后置 hook 抛错、`terminate()` 不执行任何 stop hook。生产 AstrBot 4.27.4 的 `star_manager.py:1433-1449` 在 load 失败时只记录失败并 `_cleanup_plugin_state`，未调用该半初始化实例的 `terminate()`；因此 scheduler/资源可能残留，违反本 D02 的生命周期清理门禁。当前测试仅覆盖成功启动后的幂等路径（`tests/test_entry_skeleton.py:51-79`）。
+- 生产复核：atri 当前 HEAD 仍为目标 SHA，工作树 clean、插件 `astrbot_plugin_dnaby`/`v0.1.0` 激活，容器 restart count `0`；重载窗口有旧实例 terminate 和 60 条 handler 移除后新实例加载，未见插件 `Traceback`/`Exception`/`ERROR`。但当前生命周期代码无 hook 计数日志，生产日志不能单独证明 initialize/terminate 的每个 hook 调用次数。
+- **P2 风险**：重载后出现 5 条 SQLModel `SAWarning`，涉及 `DNABind`、`DNAUser`、`DNASign`、`DNAPrivacy`、`DNAGroupPrivacy` 的重复类名替换 string-lookup 表（容器 `/usr/local/lib/python3.12/site-packages/sqlmodel/main.py:681`）；本次未观察到功能错误，但应在后续生命周期/导入隔离审查中解释并消除或明确接受。
+- 修复门禁：在阶段二前必须先为半初始化失败增加 Red 测试，最小修复应保证已成功启动的前置 hook 按逆序清理、原异常继续显式向上抛出，并覆盖 cleanup 异常的可观测性；随后需重新形成阶段一插件 SHA、通过同等门禁并取得新的生产部署授权后再替换 atri 当前 SHA。本轮未修改生产代码、未重载新 SHA，也未启动 O07。
+
 ## 第二阶段：资源、下载、卡片与公告缓存
 
 ### O07 — CacheManager 契约与核心状态机 `[pending]`
