@@ -129,7 +129,7 @@
 - 部署前/回滚记录：沿用 `plan.md §4.1` 于 2026-08-28 对 `atri` 的只读基线，部署前 SHA 与回滚 SHA 均记录为 `9a33b60ed3545020b97acb11e18b91041c1f80de`；本轮未重新连接生产、未切换 SHA、未调用 reload，O06 必须在部署前重新确认该恢复点、目标 SHA 已可 fetch 且工作树干净。
 - 剩余风险：全量测试的 4 条 T2I 失败仍需具备可用渲染服务或隔离 fake 后再做全量绿门禁；阶段一独立提交目前只建立在本地 ref，未发布到 `atri`，因此不构成生产验收证据。下一步进入 O06 前仍不得重载生产。
 
-### O06 — 第一阶段 atri 精确 SHA 热重载验收 `[pending]`
+### O06 — 第一阶段 atri 精确 SHA 热重载验收 `[completed]`
 
 - 严格按 `plan.md §4.2` 完成插件 ID 预检、精确 SHA 切换、定向 reload、生命周期核对和失败回滚。
 - 运行权限/帮助/At 行为 adapter 模拟。
@@ -144,6 +144,18 @@
 - 目标阶段 SHA `a97317e1a8c41112fb0220bca941120010076edf` 不在 `atri` 本地对象库，且
   `origin` 也没有 `codex/goal-1-phase1` ref；因此在目标 SHA 可 fetch 前停止，未切换生产工作树、未调用 reload。
 - 剩余前置：需要明确授权将本地 `codex/goal-1-phase1` 发布到项目远端（或提供等效的受控交付方式），之后才能继续按 §4.2 执行 fetch、精确切换、热重载和验收。
+
+完成记录（2026-08-28，用户已授权发布阶段一 ref）：
+
+- 目标 ref `codex/goal-1-phase1` 已发布到项目远端，远端解析到精确 SHA
+  `a97317e1a8c41112fb0220bca941120010076edf`。`atri` 默认 fetch refspec 不追踪该非默认分支，首次按计划尝试后改用显式目标 refspec 非破坏性 fetch；服务器随后确认目标 commit 存在、部署工作树 clean。
+- 按 `plan.md §4.2` 记录恢复点 `9a33b60ed3545020b97acb11e18b91041c1f80de`，确认插件 ID 为
+  `astrbot_plugin_dnaby`、插件已激活且版本 `v0.1.0`；切换到目标精确 SHA 后通过容器内
+  `compileall`、动态 import、schema JSON 解析和 registry/manifest `60/60` 一致性检查。
+- 使用已认证 Dashboard API 定向调用 `POST /api/v1/plugins/astrbot_plugin_dnaby/reload`，HTTP 与业务状态均成功，业务消息为“重载成功”。重载后 HEAD 仍为目标 SHA，容器未重启（restart count `0`），日志起点之后无插件 error 或 traceback；再次 GET 确认 ID、激活状态和版本均正常。未触发回滚，恢复 SHA 已留档。
+- 使用目标 SHA 隔离快照和 runtime 根 `.venv`（AstrBot 4.27.1）运行第一阶段 adapter suite，覆盖普通用户/管理员权限、帮助、At 目标、命令 registry、配置、隐私、玩家/百科/签到/公告/运营命令及写契约：`136 passed, 5 warnings`。未执行真实登录、签到或管理写操作。
+- 从同一目标 SHA 生成并复制实际图片到 `output/goal1-visual/`，由 Agent 实际查看帮助、角色总览、体力便签、本周周报和上周周报；产物均可解码且版式、中文文案、权限分组、进度条、角色/武器区块和周报日期/资源条目可见。代表性尺寸为帮助 `2020x5059`、角色卡 `1200x1970`、体力 `2000x1100`、周报 `1200x820`。
+- 既有全量测试仍有 4 条外部 T2I 不可解码失败；它们不在本阶段目标 adapter suite 内，也未因本次生产切换新增。该环境风险保留给后续全量审计，不阻塞 O06 的阶段性验收。
 
 ### D02 — 调试审查 O04–O06 `[pending]`
 
