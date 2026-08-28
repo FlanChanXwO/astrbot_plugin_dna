@@ -126,13 +126,26 @@
 
 ## Task 05 — Admin 账号管理服务与明文凭据 DTO
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：TDD 新增框架无关 AdminAccountService 和 DTO，支持列表、编辑来源群/active/全部 App-Web 凭据、删除单 UID/用户的预览；禁止创建账号和修改身份键。
 - 验收：DTO 明文完整、普通 repr/日志仍脱敏；active 校验、重复更新、冲突和 no-store 响应契约均有测试。
 - 实际工作：
+- 新增 `src/modules/admin/contracts.py` 与 `src/modules/admin/service.py`，提供框架无关的 `AdminAccountService`、`AdminAccount`、`CredentialPayload`、`AdminAccountUpdate`、`DeletionPreview` 和统一 `AdminApiResponse`。
+- `CredentialPayload` 覆盖全部 App/Web cookie、token、device code、d_num、refresh token 和状态字段；默认 `repr`、账号 DTO/patch 表示只显示状态与存在性，明文仅能通过显式 `to_plaintext_dict()` 导出。
+- 账号列表默认只返回全局 `(user_id, uid)` 绑定及凭据状态；详情和更新返回完整明文 DTO。更新在已有绑定的同一事务内替换全部十个凭据字段，允许显式清空来源群/active，不创建账号；只读身份键回显不一致时返回 `conflict`。
+- 删除 UID/用户仅生成包含受影响 UID、删除/保留资源和二次确认 payload 的 `DeletionPreview`，不执行删除。所有 admin response 固定附带 `Cache-Control: no-store`。
+- 新增 `tests/test_goal2_task05_admin_accounts.py`，覆盖明文完整性与脱敏、全局列表、来源群/active/全量凭据更新、重复更新幂等、active/目标校验、身份冲突、未知账号拒绝、删除预览无副作用和 no-store。
 - 验证证据：
+- TDD Red：实现前运行新增测试，因 `src.modules.admin` 尚不存在而在收集阶段失败（`ModuleNotFoundError`）。
+- TDD Green/回归：`.venv/bin/python -m pytest tests/test_goal2_task05_admin_accounts.py tests/test_persistence.py tests/test_account.py tests/test_goal2_task03_global_identity.py tests/test_goal2_task04_global_consumers.py -q`：`39 passed, 1 warning`。
+- `.venv/bin/ruff check .`：`All checks passed!`；此前唯一的 Task 05 新增测试 I001 已按最新委派修正并重新验证全仓通过。
+- 定向 Pyright：`pyright --project pyrightconfig.json src/modules/admin tests/test_goal2_task05_admin_accounts.py`：`0 errors, 0 warnings, 0 informations`。
 - 剩余风险：
+- admin service 尚未注册 WebRoute；框架 adapter、认证上下文和实际 Dashboard 路由留给 Task 10/12，当前 service 不提供普通命令入口。
+- 删除预览只描述影响范围，不执行 SQLite/JSON 级联；真实删除、membership probe 和 partial 状态留给后续 Task 07–09。
+- no-store 是框架无关响应 metadata；HTTP handler 尚未接入，因此本 task 未声称已完成浏览器端缓存策略或前端 secret 生命周期。
 - 下一步：
+- Task 06：新增管理员完整玩家卡片预览 service，复用既有 transport/renderer 并固定绕过普通隐私链路。
 
 ## Task 06 — 管理员完整玩家卡片预览
 
