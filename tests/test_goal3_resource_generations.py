@@ -330,6 +330,23 @@ def test_validator_rejects_containment_ambiguous_aliases(tmp_path: Path) -> None
         ResourceGenerationValidator().validate(candidate, "a" * 40)
 
 
+def test_validator_rejects_canonical_alias_collision(tmp_path: Path) -> None:
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    (candidate / "alias" / "char_alias.json").write_text(
+        json.dumps(
+            {
+                "角色甲": ["仅甲"],
+                "角色乙": ["角色甲"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ResourceGenerationError, match="资源候选别名存在歧义"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
 def test_validator_rejects_schema_without_draft_identifier(tmp_path: Path) -> None:
     candidate = tmp_path / "candidate"
     _write_resources(candidate, "v1")
