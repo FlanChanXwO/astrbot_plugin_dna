@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from builtins import BaseExceptionGroup, ExceptionGroup
 from collections.abc import Awaitable, Callable, Iterable
 
 LifecycleHook = Callable[[], Awaitable[None]]
@@ -37,8 +38,21 @@ class PluginLifecycle:
         if self._started:
             return
 
-        for hook in self._start_hooks:
-            await hook()
+        try:
+            for hook in self._start_hooks:
+                await hook()
+        except BaseException as start_error:
+            # 临时标记为已启动，复用 terminate 的逆序清理路径；terminate 会在
+            # 清理完成后复位，确保 AstrBot 不调用 terminate 时也不会遗留任务。
+            self._started = True
+            try:
+                await self.terminate()
+            except BaseException as cleanup_error:  # noqa: BLE001
+                raise BaseExceptionGroup(
+                    "插件初始化失败且清理失败",
+                    [start_error, cleanup_error],
+                ) from start_error
+            raise
         self._started = True
 
     async def terminate(self) -> None:
@@ -47,6 +61,18 @@ class PluginLifecycle:
         if not self._started:
             return
 
-        for hook in reversed(self._stop_hooks):
-            await hook()
-        self._started = False
+        errors: list[Exception] = []
+        try:
+            for hook in reversed(self._stop_hooks):
+                try:
+                    await hook()
+                except Exception as error:  # noqa: BLE001
+                    errors.append(error)
+        finally:
+            self._started = False
+
+        if not errors:
+            return
+        if len(errors) == 1:
+            raise errors[0]
+        raise ExceptionGroup("多个插件清理 hook 失败", errors)

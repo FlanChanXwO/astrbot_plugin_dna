@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>DNABY 管理面板</title>
+    <link rel="stylesheet" href="./css/dashboard.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <div id="app" v-scope v-cloak @keydown.esc="closeOverlay">
+      <header class="mobile-header">
+        <a class="brand brand--compact" href="#main-content" aria-label="DNABY 管理面板">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img">
+              <path d="M8 5c8 4 8 18 16 22M24 5C16 9 16 23 8 27M9 10h14M9 16h14M9 22h14" />
+            </svg>
+          </span>
+          <span class="brand-name">DNABY</span>
+        </a>
+        <button
+          class="icon-button"
+          type="button"
+          :aria-label="mobileNavOpen ? '收起导航' : '展开导航'"
+          aria-controls="primary-navigation"
+          :aria-expanded="mobileNavOpen"
+          @click="mobileNavOpen = !mobileNavOpen"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+      </header>
+
+      <aside class="sidebar" :class="{ 'is-open': mobileNavOpen }" aria-label="管理面板侧栏">
+        <div class="sidebar-top">
+          <a class="brand" href="#main-content" aria-label="DNABY 管理面板">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32" role="img">
+                <path d="M8 5c8 4 8 18 16 22M24 5C16 9 16 23 8 27M9 10h14M9 16h14M9 22h14" />
+              </svg>
+            </span>
+            <span>
+              <span class="brand-name">DNABY</span>
+              <span class="brand-subtitle">管理面板</span>
+            </span>
+          </a>
+
+          <nav id="primary-navigation" class="primary-nav" aria-label="主要功能">
+            <button
+              class="nav-item"
+              type="button"
+              data-page="panels"
+              :class="{ 'is-active': activePage === 'panels' }"
+              :aria-current="activePage === 'panels' ? 'page' : undefined"
+              @click="navigate('panels')"
+            >
+              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-6" />
+              </svg>
+              <span>面板图</span>
+            </button>
+            <button
+              class="nav-item"
+              type="button"
+              data-page="tasks"
+              :class="{ 'is-active': activePage === 'tasks' }"
+              :aria-current="activePage === 'tasks' ? 'page' : undefined"
+              @click="navigate('tasks')"
+            >
+              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4" />
+              </svg>
+              <span>任务与探测</span>
+            </button>
+            <button
+              class="nav-item"
+              type="button"
+              data-page="accounts"
+              :class="{ 'is-active': activePage === 'accounts' }"
+              :aria-current="activePage === 'accounts' ? 'page' : undefined"
+              @click="navigate('accounts')"
+            >
+              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" />
+              </svg>
+              <span>账号与预览</span>
+            </button>
+            <button
+              class="nav-item"
+              type="button"
+              data-page="aliases"
+              :class="{ 'is-active': activePage === 'aliases' }"
+              :aria-current="activePage === 'aliases' ? 'page' : undefined"
+              @click="navigate('aliases')"
+            >
+              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7h14M5 12h9M5 17h14M17 10v8m-3-3 3 3 3-3" />
+              </svg>
+              <span>角色别名</span>
+            </button>
+          </nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <span class="sidebar-footer-label">插件版本</span>
+          <strong class="sidebar-version">{{ pluginVersion || '读取中…' }}</strong>
+        </div>
+      </aside>
+
+      <div class="page-column">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">DNABY / ADMIN</p>
+            <h1>{{ activePageLabel }}</h1>
+            <p class="page-description">集中管理插件运行所需的配置与资源。</p>
+          </div>
+          <span v-if="capabilities" class="connection-badge">
+            <span class="connection-dot" aria-hidden="true"></span>
+            服务已连接
+          </span>
+        </header>
+
+        <main id="main-content" class="main-content" tabindex="-1">
+          <section v-if="loading" class="state-panel" role="status" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <div>
+              <h2>正在连接管理服务</h2>
+              <p>正在读取插件状态，请稍候。</p>
+            </div>
+          </section>
+
+          <section v-else-if="errorMessage" class="state-panel state-panel--error" role="alert">
+            <div class="state-icon state-icon--error" aria-hidden="true">!</div>
+            <div>
+              <h2>无法载入管理面板</h2>
+              <p>{{ errorMessage }}</p>
+              <button class="button button--primary" type="button" @click="initialize">
+                重新连接
+              </button>
+            </div>
+          </section>
+
+          <div v-else class="page-content">
+            <section v-if="activePage === 'panels'" class="content-section" aria-labelledby="panels-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">PANEL ASSETS</p>
+                  <h2 id="panels-title">角色面板图</h2>
+                  <p class="section-help">按角色管理自定义面板图；图片只在需要查看时读取。</p>
+                </div>
+                <span class="section-status">{{ panelRoles.length }} 个角色</span>
+              </div>
+
+              <div class="panel-toolbar">
+                <label class="field field--search">
+                  <span>搜索角色</span>
+                  <input
+                    v-model="panelSearch"
+                    type="search"
+                    placeholder="输入角色名称"
+                    autocomplete="off"
+                  />
+                </label>
+                <label class="field">
+                  <span>当前角色</span>
+                  <select v-model="selectedPanelRole" @change="reloadPanelState">
+                    <option value="">请选择角色</option>
+                    <option v-for="role in filteredPanels" :key="role" :value="role">{{ role }}</option>
+                  </select>
+                </label>
+                <button class="button button--secondary" type="button" @click="selectPanelRole(panelSearch)">
+                  载入角色
+                </button>
+                <label class="button button--primary file-button" :class="{ 'is-busy': panelActionBusy }">
+                  上传面板图
+                  <input
+                    id="panel-upload-input"
+                    class="file-input"
+                    type="file"
+                    accept="image/*"
+                    :disabled="!selectedPanelRole || panelActionBusy"
+                    @change="prepareUploadPanel($event)"
+                  />
+                </label>
+                <button
+                  class="button button--secondary"
+                  type="button"
+                  :disabled="panelActionBusy"
+                  @click="confirmCompressPanels"
+                >
+                  压缩全部
+                </button>
+                <button
+                  class="button button--danger"
+                  type="button"
+                  :disabled="!selectedPanelRole || panelActionBusy"
+                  @click="confirmDeleteAllPanels"
+                >
+                  删除当前角色全部
+                </button>
+              </div>
+
+              <p v-if="panelError" class="inline-error" role="alert">{{ panelError }}</p>
+              <div v-if="panelsLoading" class="section-loading" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                正在读取面板图元数据…
+              </div>
+              <div v-else-if="!selectedPanelRole" class="empty-state empty-state--compact">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-6" /></svg>
+                </div>
+                <h3>选择一个角色开始</h3>
+                <p>可以从角色目录选择，也可以输入角色名称后载入。</p>
+              </div>
+              <div v-else-if="!panelImages.length" class="empty-state empty-state--compact">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 15l3-3 2 2 2-2 3 3M8 9h.01" /></svg>
+                </div>
+                <h3>当前角色暂无面板图</h3>
+                <p>上传一张自定义图片后，它会出现在这里。</p>
+              </div>
+              <div v-else class="panel-grid">
+                <article v-for="panel in panelImages" :key="panel.id" class="panel-card">
+                  <div class="panel-preview">
+                    <img
+                      v-if="panelImageUrl(panel)"
+                      class="panel-thumbnail"
+                      :src="panelImageUrl(panel)"
+                      :alt="`${panel.filename} 缩略图`"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <button
+                      v-else
+                      class="thumbnail-button"
+                      type="button"
+                      :disabled="panel.loading"
+                      @click="loadPanelImage(panel)"
+                    >
+                      {{ panel.loading ? '读取中…' : '按需读取缩略图' }}
+                    </button>
+                  </div>
+                  <div class="panel-card-meta">
+                    <strong>{{ panel.filename }}</strong>
+                    <span>{{ formatBytes(panel.size) }}</span>
+                  </div>
+                  <div class="panel-card-actions">
+                    <button class="button button--secondary button--small" type="button" @click="loadPanelImage(panel)">
+                      {{ panelImageUrl(panel) ? '重新读取' : '查看缩略图' }}
+                    </button>
+                    <button
+                      class="button button--danger button--small"
+                      type="button"
+                      :disabled="panelActionBusy"
+                      @click="confirmDeletePanel(panel)"
+                    >
+                      删除
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section v-if="activePage === 'tasks'" class="content-section" aria-labelledby="tasks-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">OPERATIONS</p>
+                  <h2 id="tasks-title">任务与探测</h2>
+                  <p class="section-help">只管理已有内置任务，不创建新的任务类型。</p>
+                </div>
+                <span class="section-status">{{ tasks.length }} 个任务</span>
+              </div>
+
+              <p v-if="bootstrapError" class="inline-warning" role="status">{{ bootstrapError }}</p>
+              <div v-if="tasksLoading" class="section-loading" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                正在读取任务状态…
+              </div>
+              <p v-else-if="taskError" class="inline-error" role="alert">{{ taskError }}</p>
+              <div v-else class="task-layout">
+                <div class="task-list">
+                  <article v-for="task in tasks" :key="task.id" class="task-card">
+                    <div class="task-card-heading">
+                      <div>
+                        <h3>{{ task.name }}</h3>
+                        <code>{{ task.id }}</code>
+                      </div>
+                      <span class="task-state" :data-state="task.state">{{ formatTaskState(task.state) }}</span>
+                    </div>
+                    <dl class="task-facts">
+                      <div>
+                        <dt>调度规则</dt>
+                        <dd>{{ task.schedule }}</dd>
+                      </div>
+                      <div>
+                        <dt>下一次运行</dt>
+                        <dd>{{ formatNextRun(task.next_run_at) }}</dd>
+                      </div>
+                      <div>
+                        <dt>关联目标</dt>
+                        <dd>
+                          <span v-if="task.targets && task.targets.length">{{ task.targets.join('、') }}</span>
+                          <span v-else>无</span>
+                        </dd>
+                      </div>
+                    </dl>
+                    <label class="field">
+                      <span>编辑调度规则</span>
+                      <input
+                        v-model="taskScheduleDrafts[task.id]"
+                        type="text"
+                        :placeholder="task.schedule"
+                        autocomplete="off"
+                      />
+                    </label>
+                    <div class="task-actions">
+                      <button
+                        class="button button--secondary button--small"
+                        type="button"
+                        :disabled="taskActionBusy === task.id"
+                        @click="confirmTaskSchedule(task)"
+                      >
+                        保存规则
+                      </button>
+                      <button
+                        v-if="task.can_pause && task.state === 'running'"
+                        class="button button--secondary button--small"
+                        type="button"
+                        :disabled="taskActionBusy === task.id"
+                        @click="confirmTaskAction(task, 'pauseTask')"
+                      >
+                        暂停
+                      </button>
+                      <button
+                        v-if="task.can_pause && task.state === 'paused'"
+                        class="button button--secondary button--small"
+                        type="button"
+                        :disabled="taskActionBusy === task.id"
+                        @click="confirmTaskAction(task, 'resumeTask')"
+                      >
+                        恢复
+                      </button>
+                      <button
+                        v-if="task.can_delete"
+                        class="button button--danger button--small"
+                        type="button"
+                        :disabled="taskActionBusy === task.id"
+                        @click="confirmTaskAction(task, 'deleteTask')"
+                      >
+                        永久删除
+                      </button>
+                    </div>
+                  </article>
+                </div>
+
+                <section class="target-panel" aria-labelledby="targets-title">
+                  <div class="subsection-heading">
+                    <div>
+                      <p class="section-kicker">DELIVERY</p>
+                      <h3 id="targets-title">投递目标</h3>
+                    </div>
+                    <label class="select-inline">
+                      <span class="sr-only">选择任务</span>
+                      <select v-model="selectedTaskId" @change="loadTargets(selectedTaskId)">
+                        <option v-for="task in tasks" :key="task.id" :value="task.id">{{ task.name }}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div v-if="targetsLoading" class="section-loading" role="status">
+                    <span class="spinner" aria-hidden="true"></span>
+                    正在读取目标…
+                  </div>
+                  <p v-else-if="targetsError" class="inline-error" role="alert">{{ targetsError }}</p>
+                  <div v-else-if="!targets.length" class="empty-state empty-state--compact">
+                    <p>当前任务没有可展示的投递目标。</p>
+                  </div>
+                  <ul v-else class="target-list">
+                    <li v-for="target in targets" :key="target.id">
+                      <strong>{{ target.group_id || target.unified_msg_origin || '会话目标' }}</strong>
+                      <span>{{ target.user_type || '未知类型' }} · {{ target.uid || '无 UID' }}</span>
+                      <small>{{ target.subscription_type || target.type }}</small>
+                    </li>
+                  </ul>
+                </section>
+              </div>
+
+              <section class="membership-panel" aria-labelledby="membership-title">
+                <div class="subsection-heading">
+                  <div>
+                    <p class="section-kicker">MEMBERSHIP</p>
+                    <h3 id="membership-title">离群用户探测</h3>
+                    <p class="section-help">只有 aiocqhttp（OneBot V11）平台可以可靠探测群成员。</p>
+                  </div>
+                  <span class="capability-label" :data-supported="membershipCapability.supported">
+                    {{ membershipCapability.platform || '平台能力未确认' }}
+                  </span>
+                </div>
+                <div class="membership-toolbar">
+                  <label class="field">
+                    <span>user_id</span>
+                    <input v-model="memberUserId" type="text" placeholder="输入要探测的 user_id" autocomplete="off" />
+                  </label>
+                  <button
+                    class="button button--primary"
+                    type="button"
+                    :disabled="!canScanMembers"
+                    :aria-busy="memberScanLoading"
+                    @click="scanMembers"
+                  >
+                    {{ memberScanLoading ? '探测中…' : '扫描关联群' }}
+                  </button>
+                  <span v-if="!canScanMembers" class="field-hint">仅支持 aiocqhttp（OneBot V11），并需填写 user_id。</span>
+                </div>
+                <p v-if="membershipError" class="inline-error" role="alert">{{ membershipError }}</p>
+                <div v-if="memberScan" class="membership-results">
+                  <div class="membership-summary">
+                    <span>扫描到 {{ membershipResults.length }} 个关联群</span>
+                    <span v-if="memberScan.can_delete_user" class="safe-label">可以进入全局删除确认</span>
+                    <span v-else class="field-hint">present / unknown 都不会进入全局删除</span>
+                  </div>
+                  <ul class="membership-results-list">
+                    <li v-for="result in membershipResults" :key="result.group_id" :data-status="result.status">
+                      <div>
+                        <strong>{{ result.group_id }}</strong>
+                        <span class="membership-status">{{ membershipStatusLabel(result.status) }}</span>
+                        <small>{{ result.status }}</small>
+                      </div>
+                      <button
+                        v-if="result.status === 'absent'"
+                        class="button button--secondary button--small"
+                        type="button"
+                        :disabled="memberActionBusy"
+                        @click="confirmCleanup(result)"
+                      >
+                        清理该群
+                      </button>
+                      <span v-else-if="result.status === 'present'" class="field-hint">仍在群中，不清理</span>
+                      <span v-else class="field-hint">状态未知，不清理</span>
+                    </li>
+                  </ul>
+                  <button
+                    class="button button--danger"
+                    type="button"
+                    :disabled="!memberScan.can_delete_user || memberActionBusy || memberDeletePreviewLoading"
+                    @click="confirmDeleteMemberUser"
+                  >
+                    {{ memberDeletePreviewLoading ? '读取删除预览…' : '准备全局删除用户' }}
+                  </button>
+                </div>
+              </section>
+            </section>
+
+            <section v-if="activePage === 'accounts'" class="content-section" aria-labelledby="accounts-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">IDENTITY</p>
+                  <h2 id="accounts-title">账号与预览</h2>
+                  <p class="section-help">账号按全局 user_id 折叠；没有手工新建入口，身份键只能查看。</p>
+                </div>
+                <span class="section-status">{{ accounts.length }} 个 UID</span>
+              </div>
+              <div class="account-toolbar">
+                <label class="field field--search">
+                  <span>搜索 user_id / UID</span>
+                  <input
+                    v-model="accountSearch"
+                    type="search"
+                    placeholder="输入用户或 UID"
+                    autocomplete="off"
+                  />
+                </label>
+                <button class="button button--secondary" type="button" :disabled="accountsLoading" @click="reloadAccountState">
+                  {{ accountsLoading ? '读取中…' : '刷新账号' }}
+                </button>
+              </div>
+              <p v-if="accountsError" class="inline-error" role="alert">{{ accountsError }}</p>
+              <div v-if="accountsLoading" class="section-loading" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                正在读取全局账号摘要…
+              </div>
+              <div v-else-if="!filteredAccountGroups.length" class="empty-state empty-state--compact">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" /></svg>
+                </div>
+                <h3>{{ accountSearch ? '没有匹配的账号' : '暂无已登录账号' }}</h3>
+                <p>{{ accountSearch ? '换一个 user_id 或 UID 试试。' : '账号仍由现有登录和绑定流程产生，管理页不提供手工创建。' }}</p>
+              </div>
+              <div v-else class="account-groups">
+                <details v-for="group in filteredAccountGroups" :key="group.user_id" class="account-group" open>
+                  <summary class="account-group-summary">
+                    <span>
+                      <strong>{{ group.user_id }}</strong>
+                      <small>{{ group.accounts.length }} 个 UID</small>
+                    </span>
+                    <span class="summary-chevron" aria-hidden="true">⌄</span>
+                  </summary>
+                  <div class="account-group-body">
+                    <div class="account-group-actions">
+                      <span class="field-hint">用户级操作会影响该 user_id 的全部 UID。</span>
+                      <button
+                        class="button button--danger button--small"
+                        type="button"
+                        :disabled="accountDeleteLoading || accountActionBusy === group.user_id"
+                        @click="confirmDeleteUser(group.user_id)"
+                      >
+                        删除用户
+                      </button>
+                    </div>
+                    <article v-for="account in group.accounts" :key="accountKey(account)" class="account-card">
+                      <div class="account-card-heading">
+                        <div>
+                          <h3>UID {{ account.uid }}</h3>
+                          <span class="account-state" :data-active="account.is_active">
+                            {{ account.is_active ? '当前 active' : '未激活' }}
+                          </span>
+                        </div>
+                        <span class="account-source">来源群：{{ account.group_id || '未设置' }}</span>
+                      </div>
+                      <dl class="account-facts">
+                        <div>
+                          <dt>App 凭据</dt>
+                          <dd>{{ account.has_app_credentials ? account.app_status || '已配置' : '未配置' }}</dd>
+                        </div>
+                        <div>
+                          <dt>Web 凭据</dt>
+                          <dd>{{ account.has_web_credentials ? account.web_status || '已配置' : '未配置' }}</dd>
+                        </div>
+                        <div>
+                          <dt>身份范围</dt>
+                          <dd>全局 user_id + uid</dd>
+                        </div>
+                      </dl>
+                      <div class="account-card-actions">
+                        <button class="button button--secondary button--small" type="button" @click="openAccountEditor(account)">
+                          编辑明文凭据
+                        </button>
+                        <button class="button button--secondary button--small" type="button" :disabled="accountPreviewLoading" @click="previewOverview(account)">
+                          基本信息卡
+                        </button>
+                        <button class="button button--secondary button--small" type="button" :disabled="accountPreviewLoading" @click="openDetailForm(account)">
+                          详情卡
+                        </button>
+                        <button
+                          class="button button--danger button--small"
+                          type="button"
+                          :disabled="accountDeleteLoading || accountActionBusy === accountKey(account)"
+                          @click="confirmDeleteUid(account)"
+                        >
+                          删除 UID
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section v-if="activePage === 'aliases'" class="content-section" aria-labelledby="aliases-title">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">VOCABULARY</p>
+                  <h2 id="aliases-title">角色别名</h2>
+                  <p class="section-help">默认别名只读；自定义别名可以追加多个值，恢复默认只清除 custom。</p>
+                </div>
+                <button class="button button--secondary button--small" type="button" :disabled="aliasActionBusy !== ''" @click="confirmRestoreAllAliases">
+                  恢复全部默认
+                </button>
+              </div>
+              <div class="alias-toolbar">
+                <label class="field field--search">
+                  <span>搜索角色或别名</span>
+                  <input v-model="aliasSearch" type="search" placeholder="输入角色名或别名" autocomplete="off" />
+                </label>
+              </div>
+              <p v-if="aliasesError" class="inline-error" role="alert">{{ aliasesError }}</p>
+              <div v-if="aliasesLoading" class="section-loading" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                正在读取角色别名…
+              </div>
+              <div v-else-if="!filteredAliasRoles.length" class="empty-state empty-state--compact">
+                <div class="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h9M5 17h14M17 10v8m-3-3 3 3 3-3" /></svg>
+                </div>
+                <h3>{{ aliasSearch ? '没有匹配的角色或别名' : '暂无角色别名' }}</h3>
+                <p>角色默认别名由资源服务提供。</p>
+              </div>
+              <div v-else class="alias-list">
+                <article v-for="role in filteredAliasRoles" :key="role.canonical_name" class="alias-card">
+                  <div class="alias-card-heading">
+                    <div>
+                      <p class="section-kicker">CHARACTER</p>
+                      <h3>{{ role.canonical_name }}</h3>
+                    </div>
+                    <button class="button button--secondary button--small" type="button" :disabled="aliasActionBusy !== ''" @click="confirmRestoreAlias(role)">
+                      恢复默认
+                    </button>
+                  </div>
+                  <div class="alias-block">
+                    <span class="alias-block-label">默认别名（只读）</span>
+                    <div class="alias-tags alias-tags--readonly" aria-readonly="true">
+                      <span v-for="alias in role.default_aliases" :key="`default-${alias}`" class="alias-tag">{{ alias }}</span>
+                      <span v-if="!role.default_aliases?.length" class="field-hint">无默认别名</span>
+                    </div>
+                  </div>
+                  <div class="alias-block">
+                    <span class="alias-block-label">自定义别名</span>
+                    <div class="alias-tags">
+                      <span v-for="alias in role.custom_aliases" :key="`custom-${alias}`" class="alias-tag alias-tag--custom">
+                        <span>{{ alias }}</span>
+                        <button class="alias-tag-remove" type="button" :aria-label="`删除自定义别名 ${alias}`" :disabled="aliasActionBusy !== ''" @click="confirmDeleteAlias(role, alias)">×</button>
+                      </span>
+                      <span v-if="!role.custom_aliases?.length" class="field-hint">暂无自定义追加</span>
+                    </div>
+                  </div>
+                  <div class="alias-block">
+                    <span class="alias-block-label">有效别名</span>
+                    <div class="alias-tags alias-tags--effective">
+                      <span v-for="alias in role.effective_aliases" :key="`effective-${alias}`" class="alias-tag">{{ alias }}</span>
+                    </div>
+                  </div>
+                  <div class="alias-add-row">
+                    <label class="field">
+                      <span>追加一个自定义别名</span>
+                      <input v-model="aliasDrafts[role.canonical_name]" type="text" placeholder="例如：小名" autocomplete="off" />
+                    </label>
+                    <button class="button button--primary button--small" type="button" :disabled="aliasActionBusy !== ''" @click="confirmAddAlias(role)">
+                      添加别名
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <footer class="page-footer">
+          <span>DNABY 管理面板</span>
+          <span>所有修改都会通过确认流程提交。</span>
+        </footer>
+      </div>
+
+      <div v-if="toast.open" class="toast" :data-tone="toast.tone" role="status" aria-live="polite">
+        <span>{{ toast.message }}</span>
+        <button class="toast-close" type="button" aria-label="关闭提示" @click="closeToast">关闭</button>
+      </div>
+
+      <div v-if="dialog.open" class="overlay" @click.self="closeDialog">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+          <button class="dialog-close" type="button" aria-label="关闭对话框" @click="closeDialog">×</button>
+          <h2 id="dialog-title">{{ dialog.title }}</h2>
+          <p>{{ dialog.description }}</p>
+          <div class="dialog-actions">
+            <button class="button" type="button" @click="closeDialog">取消</button>
+            <button
+              class="button button--primary"
+              type="button"
+              :disabled="dialog.submitting"
+              @click="confirmDialog"
+            >
+              {{ dialog.submitting ? '提交中…' : dialog.confirmLabel }}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div v-if="drawer.open" class="overlay overlay--drawer" @click.self="closeDrawer">
+        <aside
+          class="drawer"
+          :class="{ 'drawer--wide': drawer.kind === 'account-edit' || drawer.kind === 'preview' }"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="drawer-title"
+        >
+          <div class="drawer-header">
+            <div>
+              <p class="section-kicker">DETAIL</p>
+              <h2 id="drawer-title">{{ drawer.title }}</h2>
+            </div>
+            <button class="dialog-close" type="button" aria-label="关闭抽屉" @click="closeDrawer">×</button>
+          </div>
+          <template v-if="drawer.kind === 'account-edit'">
+            <form class="drawer-form" @submit.prevent="confirmSaveAccount">
+              <p class="drawer-help">{{ drawer.description }}</p>
+              <div class="identity-grid">
+                <label class="field">
+                  <span>user_id（只读）</span>
+                  <input v-model="accountForm.user_id" type="text" readonly aria-readonly="true" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>uid（只读）</span>
+                  <input v-model="accountForm.uid" type="text" readonly aria-readonly="true" autocomplete="off" />
+                </label>
+              </div>
+              <div class="account-edit-grid">
+                <label class="field">
+                  <span>来源 group_id</span>
+                  <input v-model="accountForm.group_id" type="text" placeholder="可留空" autocomplete="off" />
+                </label>
+                <label class="checkbox-field">
+                  <input v-model="accountForm.is_active" type="checkbox" />
+                  <span>设为 active UID</span>
+                </label>
+              </div>
+              <fieldset class="credential-fieldset">
+                <legend>App 全部明文凭据</legend>
+                <label class="field">
+                  <span>App Cookie</span>
+                  <input v-model="accountForm.credentials.app_cookie" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <span>App device code</span>
+                  <input v-model="accountForm.credentials.app_device_code" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <span>App d_num</span>
+                  <input v-model="accountForm.credentials.app_d_num" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <span>App refresh token</span>
+                  <input v-model="accountForm.credentials.app_refresh_token" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <span>App status</span>
+                  <input v-model="accountForm.credentials.app_status" type="text" autocomplete="off" />
+                </label>
+              </fieldset>
+              <fieldset class="credential-fieldset">
+                <legend>Web 全部明文凭据</legend>
+                <label class="field">
+                  <span>Web token</span>
+                  <input v-model="accountForm.credentials.web_token" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <span>Web device code</span>
+                  <input v-model="accountForm.credentials.web_device_code" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <span>Web d_num</span>
+                  <input v-model="accountForm.credentials.web_d_num" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <span>Web refresh token</span>
+                  <input v-model="accountForm.credentials.web_refresh_token" type="text" autocomplete="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <span>Web status</span>
+                  <input v-model="accountForm.credentials.web_status" type="text" autocomplete="off" />
+                </label>
+              </fieldset>
+              <div class="drawer-footer">
+                <button class="button" type="button" @click="closeAccountEditor">取消</button>
+                <button class="button button--primary" type="submit" :disabled="accountSaving">
+                  {{ accountSaving ? '保存中…' : '确认保存' }}
+                </button>
+              </div>
+            </form>
+          </template>
+          <template v-else-if="drawer.kind === 'detail-form'">
+            <div class="drawer-form">
+              <p class="drawer-help">{{ drawer.description }}</p>
+              <label class="field">
+                <span>角色名称</span>
+                <input v-model="previewCharName" type="text" placeholder="例如：女主-光" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>可选武器名称</span>
+                <input v-model="previewWeaponNames" type="text" placeholder="多个名称用逗号分隔" autocomplete="off" />
+              </label>
+              <p class="field-hint">角色名应来自该 UID 的基本信息卡；武器留空表示只生成角色详情。</p>
+              <div class="drawer-footer">
+                <button class="button" type="button" @click="closeDrawer">取消</button>
+                <button class="button button--primary" type="button" :disabled="accountPreviewLoading" @click="previewDetailFromDrawer">
+                  {{ accountPreviewLoading ? '生成中…' : '生成详情卡' }}
+                </button>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="drawer.kind === 'preview'">
+            <div class="preview-drawer-content">
+              <p class="drawer-help">{{ drawer.description }}</p>
+              <div v-if="accountPreviewLoading" class="section-loading" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                正在生成预览图片…
+              </div>
+              <p v-else-if="accountPreviewError" class="inline-error" role="alert">{{ accountPreviewError }}</p>
+              <figure v-else-if="accountPreview && previewImageUrl()" class="preview-figure">
+                <img class="account-preview-image" :src="previewImageUrl()" :alt="`${accountPreview.view || '玩家'}预览卡片`" decoding="async" />
+                <figcaption>UID {{ accountPreview.uid }} · {{ accountPreview.view === 'detail' ? '详情卡' : '基本信息卡' }}</figcaption>
+              </figure>
+              <p v-else class="empty-state empty-state--compact">暂无预览图片。</p>
+              <div class="drawer-footer">
+                <button class="button" type="button" @click="closeDrawer">关闭预览</button>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <p>{{ drawer.description }}</p>
+            <div class="drawer-footer">
+              <button class="button" type="button" @click="closeDrawer">返回</button>
+            </div>
+          </template>
+        </aside>
+      </div>
+    </div>
+
+    <script src="./lib/petite-vue.iife.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

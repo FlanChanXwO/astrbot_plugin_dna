@@ -12,6 +12,8 @@ from typing import Any, Protocol
 
 from astrbot.api.message_components import At, AtAll, Reply
 
+SCHEDULED_ACTOR_BOT_ID = "dnaby-scheduler"
+
 
 @dataclass(frozen=True, slots=True)
 class EventActor:
@@ -67,7 +69,7 @@ def target_user_from_event(
     *,
     bot_id: str | None = None,
 ) -> str | None:
-    """从 AstrBot 公开消息链提取第一个有效 @ 用户。"""
+    """从 AstrBot 公开消息链提取最后一个有效 @ 用户。"""
 
     get_messages = getattr(event, "get_messages", None)
     if not callable(get_messages):
@@ -75,14 +77,23 @@ def target_user_from_event(
     messages = get_messages()
     if not isinstance(messages, Iterable):
         return None
+    normalized_bot_id = str(bot_id).strip() if bot_id is not None else None
+    target_user_id: str | None = None
     for component in messages:
         if isinstance(component, AtAll) or not isinstance(component, At):
             continue
-        target_user_id = str(component.qq).strip()
-        if not target_user_id or target_user_id == "all" or target_user_id == bot_id:
+        raw_target = getattr(component, "qq", None)
+        if raw_target is None:
             continue
-        return target_user_id
-    return None
+        candidate = str(raw_target).strip()
+        if (
+            not candidate
+            or candidate.lower() == "all"
+            or candidate == normalized_bot_id
+        ):
+            continue
+        target_user_id = candidate
+    return target_user_id
 
 
 def images_from_event(event: Any) -> tuple[str, ...]:

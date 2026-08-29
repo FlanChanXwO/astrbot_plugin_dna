@@ -36,7 +36,9 @@ class AliasCatalog:
         object.__setattr__(self, "weapon_aliases", self._normalize(self.weapon_aliases))
 
     @staticmethod
-    def _normalize(data: Mapping[str, tuple[str, ...] | list[str]]) -> dict[str, tuple[str, ...]]:
+    def _normalize(
+        data: Mapping[str, tuple[str, ...] | list[str]],
+    ) -> dict[str, tuple[str, ...]]:
         return {
             str(name): tuple(str(alias) for alias in aliases)
             for name, aliases in data.items()
@@ -56,6 +58,28 @@ class AliasCatalog:
             if normalized in canonical or any(normalized in alias for alias in aliases):
                 return canonical
         return None
+
+    @staticmethod
+    def merge(
+        defaults: Mapping[str, tuple[str, ...] | list[str]],
+        custom: Mapping[str, tuple[str, ...] | list[str]],
+    ) -> dict[str, tuple[str, ...]]:
+        """合并只读默认别名与运行期 custom 追加，不修改任一输入映射。"""
+
+        merged = {
+            str(name): tuple(str(alias) for alias in aliases)
+            for name, aliases in defaults.items()
+        }
+        for name, aliases in custom.items():
+            current = list(merged.setdefault(str(name), ()))
+            seen = {alias.casefold() for alias in current}
+            for alias in aliases:
+                normalized = str(alias)
+                if normalized.casefold() not in seen:
+                    current.append(normalized)
+                    seen.add(normalized.casefold())
+            merged[str(name)] = tuple(current)
+        return merged
 
     def resolve_char(self, name: str) -> str | None:
         """将角色别名解析为 canonical name。"""
@@ -105,10 +129,7 @@ class EncyclopediaResourceStore:
         object.__setattr__(
             self,
             "guide_assets",
-            {
-                str(name): tuple(assets)
-                for name, assets in self.guide_assets.items()
-            },
+            {str(name): tuple(assets) for name, assets in self.guide_assets.items()},
         )
         object.__setattr__(
             self,
@@ -141,13 +162,27 @@ class EncyclopediaResourceStore:
         return result
 
     @classmethod
-    def from_root(cls, root: str | Path) -> EncyclopediaResourceStore:
-        """从运行期资源根读取 alias/wiki/guide 索引，不创建或覆盖任何文件。"""
+    def from_root(
+        cls,
+        root: str | Path,
+        *,
+        custom_alias_path: str | Path | None = None,
+    ) -> EncyclopediaResourceStore:
+        """读取默认 alias 与运行期 custom alias，不创建或覆盖任何文件。"""
 
         root_path = Path(root).expanduser().resolve()
         alias_root = root_path / "alias"
+        custom_path = (
+            Path(custom_alias_path).expanduser().resolve()
+            if custom_alias_path is not None
+            else root_path.parent / "alias_custom.json"
+        )
+        default_char_aliases = cls._read_alias_file(alias_root / "char_alias.json")
         aliases = AliasCatalog(
-            char_aliases=cls._read_alias_file(alias_root / "char_alias.json"),
+            char_aliases=AliasCatalog.merge(
+                default_char_aliases,
+                cls._read_alias_file(custom_path),
+            ),
             weapon_aliases=cls._read_alias_file(alias_root / "weapon_alias.json"),
         )
 
@@ -157,7 +192,12 @@ class EncyclopediaResourceStore:
             if not kind_root.is_dir():
                 continue
             for path in sorted(kind_root.iterdir()):
-                if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                if path.is_file() and path.suffix.lower() in {
+                    ".png",
+                    ".jpg",
+                    ".jpeg",
+                    ".webp",
+                }:
                     wiki_assets[(kind, path.stem)] = path
 
         weekly_assets: dict[int, Path] = {}
@@ -182,7 +222,9 @@ class EncyclopediaResourceStore:
 
         guides: dict[str, list[GuideAsset]] = {}
         guide_root = root_path / "guide"
-        for provider_root in sorted(guide_root.iterdir()) if guide_root.is_dir() else ():
+        for provider_root in (
+            sorted(guide_root.iterdir()) if guide_root.is_dir() else ()
+        ):
             if not provider_root.is_dir():
                 continue
             provider = provider_root.name
@@ -192,7 +234,9 @@ class EncyclopediaResourceStore:
                 filename = path.name.casefold()
                 for canonical in aliases.char_aliases:
                     if canonical.casefold() in filename:
-                        guides.setdefault(canonical, []).append(GuideAsset(provider, path))
+                        guides.setdefault(canonical, []).append(
+                            GuideAsset(provider, path)
+                        )
 
         return cls(
             aliases=aliases,
@@ -209,7 +253,11 @@ class EncyclopediaResourceStore:
     def font_status(self) -> str:
         """暴露字体资源状态，供 renderer 记录资源差异。"""
 
-        return "provided" if self.font_path is not None and self.font_path.is_file() else "fallback"
+        return (
+            "provided"
+            if self.font_path is not None and self.font_path.is_file()
+            else "fallback"
+        )
 
     def wiki_asset(self, name: str) -> tuple[str, Path] | None:
         """按角色、武器、魔灵顺序返回已存在的图鉴素材。"""
@@ -244,7 +292,9 @@ class EncyclopediaResourceStore:
         path = self.calendar_assets.get(pic) or self.calendar_assets.get(normalized)
         return path if path is not None and path.is_file() else None
 
-    def guides_for(self, name: str, providers: tuple[str, ...]) -> tuple[GuideAsset, ...]:
+    def guides_for(
+        self, name: str, providers: tuple[str, ...]
+    ) -> tuple[GuideAsset, ...]:
         """解析角色并按配置选择攻略作者，保持资源索引顺序。"""
 
         canonical = self.aliases.resolve_char(name)
@@ -253,7 +303,8 @@ class EncyclopediaResourceStore:
         assets = tuple(
             asset
             for asset in self.guide_assets.get(canonical, ())
-            if asset.path.is_file() and ("all" in providers or asset.provider in providers)
+            if asset.path.is_file()
+            and ("all" in providers or asset.provider in providers)
         )
         return assets
 

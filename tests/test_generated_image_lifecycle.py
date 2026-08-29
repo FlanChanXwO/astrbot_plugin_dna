@@ -1,4 +1,4 @@
-"""帮助卡与更新日志图片必须进入 AstrBot 可追踪的临时文件生命周期。"""
+"""帮助卡图片必须进入 AstrBot 可追踪的临时文件生命周期。"""
 
 from __future__ import annotations
 
@@ -8,9 +8,7 @@ import pytest
 
 from src.entry.commands import CommandRegistry, CommandRequest
 from src.entry.response import ImageResponse, ResponseFactory
-from src.infrastructure.resources import ResourceSyncResult
 from src.modules.help import help_use_case
-from src.modules.operations.resource_service import ResourceUpdateService
 
 
 class CleanupEvent:
@@ -31,7 +29,7 @@ class CleanupEvent:
 
 @pytest.mark.asyncio
 async def test_help_image_is_tracked_and_cleaned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    async def render_help() -> bytes:
+    async def render_help(**_kwargs: object) -> bytes:
         return b"help-image"
 
     monkeypatch.setattr("src.infrastructure.rendering.help.get_help", render_help)
@@ -44,32 +42,6 @@ async def test_help_image_is_tracked_and_cleaned(monkeypatch: pytest.MonkeyPatch
     )
 
     response = await help_use_case(request, CommandRegistry(()))
-
-    assert isinstance(response, ImageResponse)
-    assert response.temporary is True
-    assert Path(response.image).parent == rendered_root
-    event = CleanupEvent()
-    ResponseFactory(temporary_roots=(rendered_root,)).build(event, response)
-    assert event.tracked == [str(response.image)]
-    event.cleanup_temporary_local_files()
-    assert not Path(response.image).exists()
-
-
-@pytest.mark.asyncio
-async def test_update_log_image_is_tracked_and_cleaned(tmp_path: Path) -> None:
-    rendered_root = tmp_path / "rendered"
-    service = ResourceUpdateService(
-        repo_root=tmp_path / "repo",
-        rendered_root=rendered_root,
-        synchronize=lambda: ResourceSyncResult(
-            repository=tmp_path / "repo",
-            action="cloned",
-            resource_version="test",
-        ),
-        commit_log=lambda _root: ["abc123 fix"],
-    )
-
-    response = await service.update_log(None)
 
     assert isinstance(response, ImageResponse)
     assert response.temporary is True

@@ -126,7 +126,6 @@ async def _database_with_binding(tmp_path: Path) -> AsyncDatabase:
         await AccountBindingRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid=UID,
             group_id="group-1",
             is_active=True,

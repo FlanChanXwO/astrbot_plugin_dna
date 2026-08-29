@@ -44,14 +44,14 @@ class SubscriptionStore:
 
         if self._loaded:
             return
-        self._loaded = True
         if not self.path.exists():
+            self._loaded = True
             return
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             if not isinstance(raw, list):
                 raise TypeError("subscription file must be a list")
-            self._subs = [
+            subscriptions = [
                 Subscription(
                     type=str(item["type"]),
                     unified_msg_origin=str(item["unified_msg_origin"]),
@@ -64,13 +64,16 @@ class SubscriptionStore:
                     extra_data=str(item.get("extra_data", "")),
                 )
                 for item in raw
-                if isinstance(item, dict) and item.get("type") and item.get("unified_msg_origin")
+                if isinstance(item, dict)
+                and item.get("type")
+                and item.get("unified_msg_origin")
             ]
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
-            self._subs = []
             raise RuntimeError(
                 f"订阅文件损坏: {self.path.name} ({type(error).__name__})"
             ) from error
+        self._subs = subscriptions
+        self._loaded = True
 
     def _save_unlocked(self) -> None:
         """调用方已持有 ``_lock`` 时原子写盘。"""
@@ -78,7 +81,9 @@ class SubscriptionStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".json.tmp")
         tmp.write_text(
-            json.dumps([asdict(sub) for sub in self._subs], ensure_ascii=False, indent=2),
+            json.dumps(
+                [asdict(sub) for sub in self._subs], ensure_ascii=False, indent=2
+            ),
             encoding="utf-8",
         )
         tmp.replace(self.path)
@@ -153,6 +158,79 @@ class SubscriptionStore:
             self._save_unlocked()
             return True
 
+    async def delete_personal_subscriptions(
+        self,
+        user_id: str,
+        *,
+        subscription_type: str,
+    ) -> int:
+        """删除指定用户的个人订阅类型，保留群级/会话级订阅。
+
+        个人密函记录以 ``uid=user_id`` 标识；群级订阅没有该个人 UID。内存快照
+        只有在 JSON 原子写成功后才提交，写盘失败时恢复原列表，保证协调器可重试。
+        """
+
+        async with self._lock:
+            await self.load()
+            previous = self._subs
+            remaining = [
+                sub
+                for sub in previous
+                if not (
+                    sub.type == subscription_type
+                    and sub.user_id == user_id
+                    and sub.uid == user_id
+                )
+            ]
+            deleted = len(previous) - len(remaining)
+            if deleted == 0:
+                return 0
+            self._subs = remaining
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._subs = previous
+                raise
+            return deleted
+
+    async def delete_personal_subscriptions_for_group(
+        self,
+        user_id: str,
+        group_id: str,
+        *,
+        subscription_type: str,
+    ) -> int:
+        """删除指定用户在指定群中的个人订阅，保留其他作用域记录。
+
+        群级清理必须同时匹配个人 UID、群会话和 ``user_type=group``，避免误删
+        同一用户的其他群、私聊订阅或公告等非个人密函记录。
+        """
+
+        async with self._lock:
+            await self.load()
+            previous = self._subs
+            remaining = [
+                sub
+                for sub in previous
+                if not (
+                    sub.type == subscription_type
+                    and sub.user_id == user_id
+                    and sub.uid == user_id
+                    and sub.group_id == group_id
+                    and sub.user_type == "group"
+                )
+            ]
+            deleted = len(previous) - len(remaining)
+            if deleted == 0:
+                return 0
+            self._subs = remaining
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._subs = previous
+                raise
+            return deleted
+
     async def update(
         self,
         sub_type: str,
@@ -189,7 +267,9 @@ class SubscriptionStore:
                     bot_id=sub.bot_id,
                     user_type=sub.user_type,
                     uid=sub.uid,
-                    extra_message=extra_message if extra_message is not None else sub.extra_message,
+                    extra_message=extra_message
+                    if extra_message is not None
+                    else sub.extra_message,
                     extra_data=extra_data if extra_data is not None else sub.extra_data,
                 )
                 if (
@@ -202,6 +282,56 @@ class SubscriptionStore:
             ]
             self._save_unlocked()
             return True
+
+    async def replace_target(
+        self,
+        sub_type: str,
+        origin: str,
+        uid: str,
+        replacement: Subscription,
+    ) -> Subscription | None:
+        """原子替换一条目标的可编辑路由/附加字段。
+
+        ``type``、``origin`` 和 ``uid`` 是管理 API 目标标识的一部分，替换时必须
+        保持不变；这样目标 ID 在修改 bot/group 元数据后仍然稳定，也不会借更新
+        动作把一条订阅悄悄移动到另一个用户或订阅类型。
+        """
+
+        if not isinstance(replacement, Subscription):
+            raise TypeError("replacement 必须是 Subscription")
+        if (
+            replacement.type != sub_type
+            or replacement.unified_msg_origin != origin
+            or replacement.uid != uid
+        ):
+            raise ValueError("目标身份字段不可更新")
+
+        async with self._lock:
+            await self.load()
+            index = next(
+                (
+                    index
+                    for index, sub in enumerate(self._subs)
+                    if (
+                        sub.type == sub_type
+                        and sub.unified_msg_origin == origin
+                        and sub.uid == uid
+                    )
+                ),
+                None,
+            )
+            if index is None:
+                return None
+            previous = self._subs
+            updated = list(previous)
+            updated[index] = replacement
+            self._subs = updated
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._subs = previous
+                raise
+            return replacement
 
     async def get(
         self,

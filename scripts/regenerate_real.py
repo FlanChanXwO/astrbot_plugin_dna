@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""全量重新生成 output/real/astrbot/ 下所有 14 类真实卡片并计算 MAD/生成接触图。"""
+"""全量重新生成 output/real/astrbot/ 下所有 13 类真实卡片并计算 MAD/生成接触图。"""
 
 from __future__ import annotations
 
@@ -34,7 +34,6 @@ from src.infrastructure.rendering.player import (
     _draw_role_detail_card,
     _draw_role_overview_card,
 )
-from src.infrastructure.rendering.update_log import draw_update_log_img
 from src.modules.notices.ann_utils import extract_blocks, format_post_time
 from src.utils.api.model import (
     DNACalendarSignRes,
@@ -84,52 +83,23 @@ async def main() -> None:
     role_show = RoleShowForTool.model_validate(live["role"]["roleInfo"]["roleShow"])
 
     print("==================================================")
-    print("开始重新生成 14 类真实卡片 (AstrBot T2I)")
+    print("开始重新生成 13 类真实卡片 (AstrBot T2I)")
     print("==================================================")
 
     # 1. 帮助卡
-    print("[1/14] 渲染 help.jpg ...")
+    print("[1/13] 渲染 help.jpg ...")
     help_bytes = await get_help()
     save_image("help.jpg", help_bytes)
     print(f"       -> help.jpg 完成: {len(help_bytes):,} 字节")
 
-    # 2. 更新日志
-    print("[2/14] 渲染 update_log.jpg ...")
-    update_bytes = await draw_update_log_img()
-    if not isinstance(update_bytes, bytes):
-        sample_commits = [
-            "✨ 优化委托密函轮换提示",
-            "🐛 修复体力便签满溢时间计算错误",
-            "⚡ 优化角色总览魔之楔纹理缓存与加载速度",
-            "🎨 对齐全量 14 类卡片布局与字体排版",
-            "📝 更新 AstrBot 插件配置与渲染文档",
-            "💄 调整实时体力便签圆角与进度条渐变",
-            "🔧 升级 Playwright T2I 渲染服务配置",
-            "🚀 新增公告详情多页自适应裁切",
-            "🎉 发布 astrbot_plugin_dnaby 重构版本",
-            "✨ 新增二重螺旋自动签到与社区签到",
-            "🐛 修复签到日历累计签到天数显示异常",
-            "✨ 支持深红凝珠与皎皎积分展示",
-            "⚡ 优化活动日历与委托密函轮换查询性能",
-            "🎨 统一所有 HTML/T2I 模版设计语言",
-            "📝 补充角色详情魔之楔与伤害计算文档",
-            "🔧 修复跨平台字体加载路径解析问题",
-            "🐛 修复公告列表第一页索引显示错位",
-            "🎉 二重螺旋助手插件全面支持 T2I 渲染",
-        ]
-        update_bytes = await draw_update_log_img(sample_commits)
-    if isinstance(update_bytes, bytes):
-        save_image("update_log.jpg", update_bytes)
-        print(f"       -> update_log.jpg 完成: {len(update_bytes):,} 字节")
-
-    # 3. 公告列表
-    print("[3/14] 渲染 ann_list.jpg ...")
+    # 2. 公告列表
+    print("[2/13] 渲染 ann_list.jpg ...")
     ann_list_bytes = await draw_ann_list_img(live["ann_posts"])
     save_image("ann_list.jpg", ann_list_bytes)
     print(f"       -> ann_list.jpg 完成: {len(ann_list_bytes):,} 字节")
 
-    # 4. 公告详情
-    print("[4/14] 渲染 ann_detail_01.jpg ...")
+    # 3. 公告详情
+    print("[3/13] 渲染 ann_detail_01.jpg ...")
     post_id = live.get("ann_post_id", "869763934406576545")
     ann_detail = live["ann_detail"]
     blocks = extract_blocks(ann_detail.get("postContent") or [])
@@ -145,28 +115,28 @@ async def main() -> None:
         save_image("ann_detail.jpg", ann_detail_pages)
         print(f"       -> ann_detail_01.jpg 完成: {len(ann_detail_pages):,} 字节")
 
-    # 5. 密函简图
-    print("[5/14] 渲染 mh_simple.png ...")
+    # 4. 密函简图
+    print("[4/13] 渲染 mh_simple.png ...")
     mh_objs = [DNARoleForToolInstanceInfo.model_validate(x) for x in live["mh"]]
     mh_sim_bytes = await draw_mh_simple(mh_objs, remaining_seconds=3599, subscribe_list=[])
     save_image("mh_simple.png", mh_sim_bytes)
     save_image("mh.png", mh_sim_bytes)
     print(f"       -> mh_simple.png 完成: {len(mh_sim_bytes):,} 字节")
 
-    # 6. 密函卡片
-    print("[6/14] 渲染 mh_card.jpg ...")
+    # 5. 密函卡片
+    print("[5/13] 渲染 mh_card.jpg ...")
     mh_card_bytes = await draw_mh_card(mh_objs, remaining_seconds=3599, subscribe_list=[], bg_name="bg3.jpg")
     save_image("mh_card.jpg", mh_card_bytes)
     print(f"       -> mh_card.jpg 完成: {len(mh_card_bytes):,} 字节")
 
-    # 7. 活动日历
-    print("[7/14] 渲染 calendar.jpg ...")
+    # 6. 活动日历
+    print("[6/13] 渲染 calendar.jpg ...")
     cal_bytes = await draw_calendar_img(ctx)
     save_image("calendar.jpg", cal_bytes)
     print(f"       -> calendar.jpg 完成: {len(cal_bytes):,} 字节")
 
-    # 8. 签到日历
-    print("[8/14] 渲染 sign_calendar.jpg ...")
+    # 7. 签到日历
+    print("[7/13] 渲染 sign_calendar.jpg ...")
     sign_obj = DNACalendarSignRes.model_validate(live["sign"])
     task_obj = DNATaskProcessRes.model_validate(live["tasks"])
     sign_cal_bytes = await _draw_sign_calendar(
@@ -180,28 +150,28 @@ async def main() -> None:
     save_image("sign_calendar.jpg", sign_cal_bytes)
     print(f"       -> sign_calendar.jpg 完成: {len(sign_cal_bytes):,} 字节")
 
-    # 9. 签到报告
-    print("[9/14] 渲染 sign_report.png ...")
+    # 8. 签到报告
+    print("[8/13] 渲染 sign_report.png ...")
     sign_rep_bytes = await create_sign_info_image("✅[二重螺旋]签到成功！\n今天已获得奖励：深红凝珠x200", theme="green")
     save_image("sign_report.png", sign_rep_bytes)
     print(f"       -> sign_report.png 完成: {len(sign_rep_bytes):,} 字节")
 
-    # 10. 实时便签
-    print("[10/14] 渲染 stamina.jpg ...")
+    # 9. 实时便签
+    print("[9/13] 渲染 stamina.jpg ...")
     sn = DNARoleShortNoteRes.model_validate(live["short_note"])
     stam_bg = ROOT / "src" / "resources" / "textures" / "stamina" / "bg" / "bg6.png"
     stam_bytes = await _draw_stamina_card(ctx, role_show, sn, uid_hidden=False, bg_path=stam_bg)
     save_image("stamina.jpg", stam_bytes)
     print(f"       -> stamina.jpg 完成: {len(stam_bytes):,} 字节")
 
-    # 11. 角色总览
-    print("[11/14] 渲染 role_overview.jpg ...")
+    # 10. 角色总览
+    print("[10/13] 渲染 role_overview.jpg ...")
     ro_bytes = await _draw_role_overview_card(ctx, role_show, uid_hidden=False)
     save_image("role_overview.jpg", ro_bytes)
     print(f"       -> role_overview.jpg 完成: {len(ro_bytes):,} 字节")
 
-    # 12. 角色详情
-    print("[12/14] 渲染 role_detail.jpg ...")
+    # 11. 角色详情
+    print("[11/13] 渲染 role_detail.jpg ...")
     weapons = json.loads((FIXTURES_DIR / "weapon-detail.json").read_text(encoding="utf-8"))
     rd = RoleDetail.model_validate(live["role_detail"]["charDetail"])
     con_weapon = WeaponDetail.model_validate(weapons["weaponDetail"])
@@ -221,27 +191,26 @@ async def main() -> None:
     save_image("role_detail.jpg", rd_bytes)
     print(f"       -> role_detail.jpg 完成: {len(rd_bytes):,} 字节")
 
-    # 13. 本周周报
-    print("[13/14] 渲染 weekly_current.jpg ...")
+    # 12. 本周周报
+    print("[12/13] 渲染 weekly_current.jpg ...")
     wc = DNAItemWeeklyReportRes.model_validate(live["weekly_current"])
     wc_bytes = await _draw_weekly_report_card(ctx, role_show, wc, week_type=1, uid_hidden=False)
     save_image("weekly_current.jpg", wc_bytes)
     print(f"       -> weekly_current.jpg 完成: {len(wc_bytes):,} 字节")
 
-    # 14. 上周周报
-    print("[14/14] 渲染 weekly_last.jpg ...")
+    # 13. 上周周报
+    print("[13/13] 渲染 weekly_last.jpg ...")
     wl = DNAItemWeeklyReportRes.model_validate(live["weekly_last"])
     wl_bytes = await _draw_weekly_report_card(ctx, role_show, wl, week_type=2, uid_hidden=False)
     save_image("weekly_last.jpg", wl_bytes)
     print(f"       -> weekly_last.jpg 完成: {len(wl_bytes):,} 字节")
 
     print("\n==================================================")
-    print("全量 14 类卡片渲染完毕，开始计算 MAD 并生成接触图")
+    print("全量 13 类卡片渲染完毕，开始计算 MAD 并生成接触图")
     print("==================================================")
 
     pairs = [
         ("help", "help.jpg", "help.jpg"),
-        ("update_log", "update_log.jpg", "update_log.jpg"),
         ("ann_list", "ann_list.jpg", "ann_list.jpg"),
         ("ann_detail", "ann_detail.jpg", "ann_detail.jpg"),
         ("calendar", "calendar.jpg", "calendar.jpg"),
@@ -411,7 +380,7 @@ async def main() -> None:
 
     report_content.extend([
         "",
-        "自检结论：14 类固定画布全部一致，文本与真实素材完整，无占位图、裁切、缺列或 PIL 静默回退。",
+        "自检结论：13 类固定画布全部一致，文本与真实素材完整，无占位图、裁切、缺列或 PIL 静默回退。",
         "帮助图和角色总览超过 1 MiB 注意线，已保留完整内容并记录；其余 T2I 图片低于 1 MiB。",
         "日历热运行 T2I 为 9.5-11.4 秒，密函简图 8.0 秒，密函卡片 8.8 秒，角色详情约 9.2 秒。",
         "最终视觉结论仍需人工逐图签收。",

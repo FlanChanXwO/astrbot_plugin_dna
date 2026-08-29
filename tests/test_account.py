@@ -94,13 +94,11 @@ async def test_login_success_persists_roles_and_credentials_without_leaking_secr
         binding = await AccountBindingRepository.get(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="1234567890123",
         )
         credential = await CredentialRepository.get(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="1234567890123",
         )
     assert binding is not None
@@ -118,7 +116,6 @@ async def test_login_default_role_becomes_current_even_when_bindings_exist(datab
         await AccountBindingRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="1234567890123",
             group_id="group-1",
             is_active=True,
@@ -150,7 +147,6 @@ async def test_login_default_role_becomes_current_even_when_bindings_exist(datab
         bindings = await AccountBindingRepository.list(
             session,
             user_id="user-1",
-            bot_id="bot-1",
         )
     assert [(binding.uid, binding.is_active) for binding in bindings] == [
         ("1234567890123", False),
@@ -188,12 +184,10 @@ async def test_login_rolls_back_bindings_when_credential_write_fails(database, m
         assert await AccountBindingRepository.list(
             session,
             user_id="user-1",
-            bot_id="bot-1",
         ) == []
         assert await CredentialRepository.list(
             session,
             user_id="user-1",
-            bot_id="bot-1",
         ) == []
 
 
@@ -250,7 +244,6 @@ async def test_login_transport_errors_are_visible_but_do_not_leak_details(
             await AccountBindingRepository.get(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 uid="1234567890123",
             )
             is None
@@ -277,7 +270,6 @@ async def test_bind_switch_delete_logout_lifecycle_uses_normalized_records(datab
         await CredentialRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="2234567890123",
             app_cookie="cookie-logout-fixture",
             app_device_code="device-logout-fixture",
@@ -293,7 +285,6 @@ async def test_bind_switch_delete_logout_lifecycle_uses_normalized_records(datab
             await AccountBindingRepository.get(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 uid="1234567890123",
             )
             is None
@@ -309,7 +300,6 @@ async def test_credential_query_returns_status_summary_not_raw_tokens(database):
         await CredentialRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="1234567890123",
             app_cookie=app_cookie,
             app_device_code="device-query-task10",
@@ -341,7 +331,6 @@ async def test_list_and_delete_all_remove_normalized_records(database):
         await CredentialRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             uid="1234567890123",
             app_cookie="cookie-delete-all-fixture",
         )
@@ -357,7 +346,6 @@ async def test_list_and_delete_all_remove_normalized_records(database):
             await AccountBindingRepository.list(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
             )
             == []
         )
@@ -365,7 +353,6 @@ async def test_list_and_delete_all_remove_normalized_records(database):
             await CredentialRepository.list(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
             )
             == []
         )

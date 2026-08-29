@@ -23,7 +23,6 @@ class PrivacyService:
     async def get_privacy_setting(
         self,
         user_id: str,
-        bot_id: str,
         group_id: str | None = None,
     ) -> PrivacySnapshot:
         """读取指定作用域的个人设置；群组作用域缺失时回退全局个人值。"""
@@ -32,14 +31,12 @@ class PrivacyService:
             record = await PrivacySettingRepository.get(
                 session,
                 user_id=user_id,
-                bot_id=bot_id,
                 group_id=group_id,
             )
             if record is None and group_id is not None:
                 record = await PrivacySettingRepository.get(
                     session,
                     user_id=user_id,
-                    bot_id=bot_id,
                     group_id=None,
                 )
         if record is None:
@@ -52,7 +49,6 @@ class PrivacyService:
     async def is_peek_allowed(
         self,
         user_id: str,
-        bot_id: str,
         group_id: str | None = None,
     ) -> bool:
         """判断目标是否允许被查看；群强制值优先于个人全局设置。"""
@@ -62,7 +58,6 @@ class PrivacyService:
                 group = await GroupPrivacySettingRepository.get(
                     session,
                     group_id=group_id,
-                    bot_id=bot_id,
                 )
                 if group is not None and group.force_allow_peek is not None:
                     return group.force_allow_peek
@@ -70,7 +65,6 @@ class PrivacyService:
             personal = await self._personal_record(
                 session,
                 user_id=user_id,
-                bot_id=bot_id,
                 group_id=group_id,
             )
         return True if personal is None else personal.allow_peek
@@ -78,7 +72,6 @@ class PrivacyService:
     async def is_uid_hidden(
         self,
         user_id: str,
-        bot_id: str,
         group_id: str | None = None,
     ) -> bool:
         """判断目标 UID 是否应隐藏；群强制值优先于个人全局设置。"""
@@ -88,7 +81,6 @@ class PrivacyService:
                 group = await GroupPrivacySettingRepository.get(
                     session,
                     group_id=group_id,
-                    bot_id=bot_id,
                 )
                 if group is not None and group.force_uid_hidden is not None:
                     return group.force_uid_hidden
@@ -96,7 +88,6 @@ class PrivacyService:
             personal = await self._personal_record(
                 session,
                 user_id=user_id,
-                bot_id=bot_id,
                 group_id=group_id,
             )
         return False if personal is None else personal.uid_hidden
@@ -114,7 +105,6 @@ class PrivacyService:
             return QueryResolution(target_user_id, actor.user_id, blocked=True)
         if not await self.is_peek_allowed(
             target_user_id,
-            actor.bot_id,
             actor.group_id,
         ):
             return QueryResolution(target_user_id, actor.user_id, blocked=True)
@@ -138,7 +128,6 @@ class PrivacyService:
             await PrivacySettingRepository.set(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 group_id=None,
                 allow_peek=allow_peek,
             )
@@ -166,7 +155,6 @@ class PrivacyService:
             await PrivacySettingRepository.set(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 group_id=None,
                 uid_hidden=uid_hidden,
             )
@@ -205,13 +193,11 @@ class PrivacyService:
             if not await AccountBindingRepository.exists(
                 session,
                 user_id=target_user_id,
-                bot_id=actor.bot_id,
             ):
                 return PlainTextResponse(messages.TARGET_NOT_BOUND)
             await PrivacySettingRepository.set(
                 session,
                 user_id=target_user_id,
-                bot_id=actor.bot_id,
                 group_id=None,
                 allow_peek=allow_peek,
             )
@@ -250,13 +236,11 @@ class PrivacyService:
             if not await AccountBindingRepository.exists(
                 session,
                 user_id=target_user_id,
-                bot_id=actor.bot_id,
             ):
                 return PlainTextResponse(messages.TARGET_NOT_BOUND)
             await PrivacySettingRepository.set(
                 session,
                 user_id=target_user_id,
-                bot_id=actor.bot_id,
                 group_id=None,
                 uid_hidden=uid_hidden,
             )
@@ -282,7 +266,6 @@ class PrivacyService:
             await GroupPrivacySettingRepository.set(
                 session,
                 group_id=group_id,
-                bot_id=actor.bot_id,
                 force_allow_peek=force_allow_peek,
             )
         return PlainTextResponse(
@@ -303,7 +286,6 @@ class PrivacyService:
             await GroupPrivacySettingRepository.set(
                 session,
                 group_id=group_id,
-                bot_id=actor.bot_id,
                 force_allow_peek=None,
             )
         return PlainTextResponse(messages.GROUP_PEEK_CANCELLED)
@@ -324,7 +306,6 @@ class PrivacyService:
             await GroupPrivacySettingRepository.set(
                 session,
                 group_id=group_id,
-                bot_id=actor.bot_id,
                 force_uid_hidden=force_uid_hidden,
             )
         return PlainTextResponse(
@@ -345,7 +326,6 @@ class PrivacyService:
             await GroupPrivacySettingRepository.set(
                 session,
                 group_id=group_id,
-                bot_id=actor.bot_id,
                 force_uid_hidden=None,
             )
         return PlainTextResponse(messages.GROUP_UID_CANCELLED)
@@ -370,7 +350,6 @@ class PrivacyService:
         group = await GroupPrivacySettingRepository.get(
             session,
             group_id=actor.group_id,
-            bot_id=actor.bot_id,
         )
         if group is None:
             return None
@@ -387,7 +366,6 @@ class PrivacyService:
         session,
         *,
         user_id: str,
-        bot_id: str,
         group_id: str | None,
     ):
         """按群组个人设置优先、全局个人设置回退读取记录。"""
@@ -396,7 +374,6 @@ class PrivacyService:
             scoped = await PrivacySettingRepository.get(
                 session,
                 user_id=user_id,
-                bot_id=bot_id,
                 group_id=group_id,
             )
             if scoped is not None:
@@ -404,7 +381,6 @@ class PrivacyService:
         return await PrivacySettingRepository.get(
             session,
             user_id=user_id,
-            bot_id=bot_id,
             group_id=None,
         )
 

@@ -68,7 +68,7 @@ rewrite 临时图保留 `dnaby.text`、`dnaby.layout` 与 `dnaby.resources` 元�
 | `dna_wiki` / `<名称>图鉴` | 本地资源索引、别名与图片 fixture | `fixture/待实测`；公共资源内容未纳入该次 staging，不能据此声称真实素材等价。 |
 | `dna_guide` / `<角色名>攻略` | 作者分组、图片顺序与 chain fixture | `fixture/待实测`；需在公共资源内容可用时对图片顺序和作者文本复核。 |
 | `dna_code` / `兑换码` | provider 与逐码截止时间 fixture | `fixture/待实测`；真实 provider 是时间敏感外部来源，后续需记录响应日期与失败语义。 |
-| `alias_list` / `<角色/武器>别名` | alias JSON fixture；`owner` 权限已在 registry 测试 | `fixture/待实测`；该次 staging 未装载 alias 资源内容。 |
+| `alias_list` / `<角色/武器>别名` | alias JSON fixture；`admin` 权限已在 registry 测试 | `fixture/待实测`；该次 staging 未装载 alias 资源内容。 |
 | `alias_all_list` / `角色列表` | alias JSON fixture | `fixture/待实测`；同上。 |
 
 ## 未接受差异与下一步

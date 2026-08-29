@@ -24,8 +24,6 @@ RESOURCE_REMOTE_MISMATCH = "资源 Git origin 与配置的公共资源仓库不�
 RESOURCE_LOCAL_CHANGES = "{detail}"
 RESOURCE_SYNC_FAILED = "资源同步失败：{detail}"
 RESOURCE_DOWNLOADED = "资源{action}完成，版本 {version}"
-UPDATE_LOG_UNAVAILABLE = "无法读取更新记录（Git 不可用或当前目录不是仓库）"
-UPDATE_LOG_TITLE = "更新记录："
 ALIAS_INPUT_EMPTY = "名称或别名不能为空"
 ALIAS_ADDED = "已添加别名【{name}】→ {alias}"
 ALIAS_DELETED = "已删除别名【{name}】→ {alias}"
@@ -67,7 +65,5 @@ __all__ = [
     "RESOURCE_STATUS_EMPTY",
     "RESOURCE_STATUS_HEADER",
     "RESOURCE_SYNC_FAILED",
-    "UPDATE_LOG_TITLE",
-    "UPDATE_LOG_UNAVAILABLE",
     "resource_status_line",
 ]

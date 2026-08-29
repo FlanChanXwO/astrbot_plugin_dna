@@ -55,7 +55,6 @@ class EncyclopediaService:
             binding = await AccountBindingRepository.current(
                 session,
                 user_id=target_user_id,
-                bot_id=request.actor.bot_id,
             )
         if binding is None:
             return PlainTextResponse(messages.UID_INVALID)
@@ -86,8 +85,7 @@ class EncyclopediaService:
             return self._transport_response(error)
         uid_hidden = await self.privacy.is_uid_hidden(
             target_user_id,
-            request.actor.bot_id,
-            request.actor.group_id,
+            group_id=request.actor.group_id,
         )
         rendered = await self.renderer.render_stamina(
             snapshot,
@@ -119,8 +117,7 @@ class EncyclopediaService:
             return self._transport_response(error)
         uid_hidden = await self.privacy.is_uid_hidden(
             target_user_id,
-            request.actor.bot_id,
-            request.actor.group_id,
+            group_id=request.actor.group_id,
         )
         rendered = await self.renderer.render_weekly_report(
             report,

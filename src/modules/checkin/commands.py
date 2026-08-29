@@ -105,7 +105,7 @@ COMMAND_SPECS = (
         name="全部签到",
         description="手动触发全部账号签到",
         examples=("全部签到",),
-        permission="owner",
+        permission="admin",
         use_case=cast(Any, checkin_sign_all_use_case),
     ),
     CommandSpec(
@@ -115,7 +115,7 @@ COMMAND_SPECS = (
         name="订阅签到结果",
         description="订阅/取消订阅签到结果推送",
         examples=("订阅签到结果",),
-        permission="owner",
+        permission="admin",
         use_case=cast(Any, checkin_sign_result_subscribe_use_case),
     ),
 )

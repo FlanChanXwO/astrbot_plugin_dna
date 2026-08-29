@@ -5,23 +5,6 @@ import sys
 from pathlib import Path
 
 
-def test_update_log_git_lookup_is_lazy(monkeypatch):
-    """导入更新记录模块不应执行 git 命令，首次使用时才读取日志。"""
-    from src.infrastructure.rendering import update_log as draw_update_log
-
-    calls = []
-    monkeypatch.setattr(
-        draw_update_log,
-        "_get_git_logs",
-        lambda: calls.append("git-log") or ["✨ test"],
-    )
-    monkeypatch.setattr(draw_update_log, "_CACHED_LOGS", None)
-
-    assert draw_update_log._get_cached_logs() == ["✨ test"]
-    assert draw_update_log._get_cached_logs() == ["✨ test"]
-    assert calls == ["git-log"]
-
-
 def test_web_routes_match_astrbot_registration_contract():
     """Web 路由元组必须与 ``Context.register_web_api`` 的调用顺序一致。"""
     from src.modules.account.login_router import get_routes
@@ -85,7 +68,9 @@ def test_http_poll_surfaces_network_failure(monkeypatch):
     async def no_sleep(_seconds):
         return None
 
-    monkeypatch.setattr(transport.httpx, "AsyncClient", lambda **kwargs: FailingClient())
+    monkeypatch.setattr(
+        transport.httpx, "AsyncClient", lambda **kwargs: FailingClient()
+    )
     monkeypatch.setattr(transport, "LOGIN_TTL_S", 1)
     monkeypatch.setattr(transport, "POLL_INTERVAL_S", 1)
     monkeypatch.setattr(transport.asyncio, "sleep", no_sleep)
@@ -129,15 +114,14 @@ def _load_worktree_main_module():
     return module
 
 
-
 def test_plugin_entrypoint_imports_in_astrbot_namespace():
     """AstrBot 的动态模块命名空间必须能加载包内业务模块。"""
     module = _load_worktree_main_module()
     assert module.DnabyPlugin.__name__ == "DnabyPlugin"
 
 
-def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
-    """动态命名空间下的入口必须能组装 v0.1 空 runtime。"""
+def test_dynamic_plugin_builds_admin_runtime_from_package_namespace():
+    """动态命名空间下的入口必须能组装并注册 Dashboard 管理 runtime。"""
     import types
 
     module = _load_worktree_main_module()
@@ -155,14 +139,16 @@ def test_dynamic_plugin_builds_empty_runtime_from_package_namespace():
 
     asyncio.run(lifecycle())
 
-    assert registered == []
+    assert registered
+    assert "/astrbot_plugin_dnaby/admin/bootstrap" in {args[0] for args in registered}
+    assert len({(args[0], tuple(args[2])) for args in registered}) == len(registered)
 
 
 def test_package_namespace_import_does_not_depend_on_top_level_src():
     """包名加载必须在没有顶层 ``src`` 兼容模块的干净进程中成立。"""
     import subprocess
 
-    script = r'''
+    script = r"""
 import importlib.util
 import sys
 import types
@@ -183,8 +169,8 @@ assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
-assert len(module.COMMAND_REGISTRY) == 61
-'''
+assert len(module.COMMAND_REGISTRY) == 60
+"""
     result = subprocess.run(
         [sys.executable, "-c", script, str(Path(__file__).resolve().parent.parent)],
         capture_output=True,

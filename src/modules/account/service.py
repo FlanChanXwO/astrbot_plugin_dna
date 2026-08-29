@@ -149,7 +149,6 @@ class AccountService:
                 bindings = await AccountBindingRepository.list(
                     session,
                     user_id=actor.user_id,
-                    bot_id=actor.bot_id,
                 )
                 bound_uids = {binding.uid for binding in bindings}
                 new_roles = [role for role in roles if role.uid not in bound_uids]
@@ -164,14 +163,12 @@ class AccountService:
                     binding = await AccountBindingRepository.get(
                         session,
                         user_id=actor.user_id,
-                        bot_id=actor.bot_id,
                         uid=role.uid,
                     )
                     if binding is None:
                         await AccountBindingRepository.add(
                             session,
                             user_id=actor.user_id,
-                            bot_id=actor.bot_id,
                             uid=role.uid,
                             group_id=actor.group_id,
                             is_active=False,
@@ -180,7 +177,6 @@ class AccountService:
                         await CredentialRepository.save_app(
                             session,
                             user_id=actor.user_id,
-                            bot_id=actor.bot_id,
                             uid=role.uid,
                             token=result.credentials.token,
                             device_code=result.credentials.dev_code,
@@ -191,7 +187,6 @@ class AccountService:
                         await CredentialRepository.save_web(
                             session,
                             user_id=actor.user_id,
-                            bot_id=actor.bot_id,
                             uid=role.uid,
                             token=result.credentials.token,
                             device_code=result.credentials.dev_code,
@@ -208,7 +203,6 @@ class AccountService:
                     await AccountBindingRepository.set_active(
                         session,
                         user_id=actor.user_id,
-                        bot_id=actor.bot_id,
                         uid=target.uid,
                     )
         except _BindingLimitReached:
@@ -234,7 +228,6 @@ class AccountService:
             bindings = await AccountBindingRepository.list(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
             )
             if any(binding.uid == normalized_uid for binding in bindings):
                 return PlainTextResponse(messages.UID_BIND_DUPLICATE)
@@ -243,7 +236,6 @@ class AccountService:
             await AccountBindingRepository.add(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 uid=normalized_uid,
                 group_id=actor.group_id,
                 is_active=not bindings,
@@ -266,7 +258,6 @@ class AccountService:
             switched = await AccountBindingRepository.set_active(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 uid=normalized_uid,
             )
         if not switched:
@@ -289,13 +280,11 @@ class AccountService:
             deleted_binding = await AccountBindingRepository.delete(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 uid=normalized_uid,
             )
             deleted_credential = await CredentialRepository.delete(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 uid=normalized_uid,
             )
             if not deleted_binding and not deleted_credential:
@@ -304,13 +293,11 @@ class AccountService:
             remaining = await AccountBindingRepository.list(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
             )
             if remaining and not any(binding.is_active for binding in remaining):
                 await AccountBindingRepository.set_active(
                     session,
                     user_id=actor.user_id,
-                    bot_id=actor.bot_id,
                     uid=remaining[0].uid,
                 )
         return PlainTextResponse(messages.UID_DELETE_SUCCESS)
@@ -322,12 +309,10 @@ class AccountService:
             bindings = await AccountBindingRepository.delete_all(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
             )
             credentials = await CredentialRepository.delete_all(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
             )
         if not bindings and not credentials:
             return PlainTextResponse(messages.UID_EMPTY)
@@ -340,14 +325,12 @@ class AccountService:
             current = await AccountBindingRepository.current(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
             )
             if current is None:
                 return PlainTextResponse(messages.NOT_LOGGED_IN)
             credential = await CredentialRepository.get(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 uid=current.uid,
             )
             if credential is None or not (
@@ -358,25 +341,21 @@ class AccountService:
             await AccountBindingRepository.delete(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 uid=current.uid,
             )
             await CredentialRepository.delete(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
                 uid=current.uid,
             )
             remaining = await AccountBindingRepository.list(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
             )
             if remaining:
                 await AccountBindingRepository.set_active(
                     session,
                     user_id=actor.user_id,
-                    bot_id=actor.bot_id,
                     uid=remaining[0].uid,
                 )
         return PlainTextResponse(messages.LOGOUT_SUCCESS)
@@ -388,7 +367,6 @@ class AccountService:
             bindings = await AccountBindingRepository.list(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
             )
         if not bindings:
             return PlainTextResponse(messages.UID_EMPTY)
@@ -405,7 +383,6 @@ class AccountService:
             records = await CredentialRepository.list(
                 session,
                 user_id=actor.user_id,
-                bot_id=actor.bot_id,
             )
         if not records:
             return PlainTextResponse(messages.CREDENTIALS_EMPTY)

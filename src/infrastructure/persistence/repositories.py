@@ -6,10 +6,11 @@ repository 只接收调用方明确传入的 ``AsyncSession``，不创建全局 
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 from typing import cast
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
@@ -29,14 +30,12 @@ class AccountBindingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
         group_id: str | None = None,
         is_active: bool = True,
     ) -> AccountBinding:
         record = AccountBinding(
             user_id=user_id,
-            bot_id=bot_id,
             uid=uid,
             group_id=group_id,
             is_active=is_active,
@@ -50,12 +49,10 @@ class AccountBindingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
     ) -> AccountBinding | None:
         statement = select(AccountBinding).where(
             AccountBinding.user_id == user_id,
-            AccountBinding.bot_id == bot_id,
             AccountBinding.uid == uid,
         )
         return await session.scalar(statement)
@@ -65,7 +62,6 @@ class AccountBindingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
     ) -> bool:
         """检查用户是否有任意 UID 绑定，不把目标 UID 暴露给调用方。"""
 
@@ -73,7 +69,6 @@ class AccountBindingRepository:
             select(AccountBinding.id)
             .where(
                 AccountBinding.user_id == user_id,
-                AccountBinding.bot_id == bot_id,
             )
             .limit(1)
         )
@@ -84,14 +79,12 @@ class AccountBindingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
     ) -> list[AccountBinding]:
-        """按绑定建立顺序返回一个用户在 Bot 下的全部 UID。"""
+        """按绑定建立顺序返回一个用户的全部 UID。"""
         statement = (
             select(AccountBinding)
             .where(
                 AccountBinding.user_id == user_id,
-                AccountBinding.bot_id == bot_id,
             )
             .order_by(AccountBinding.id)
         )
@@ -100,13 +93,9 @@ class AccountBindingRepository:
     @staticmethod
     async def list_all(
         session: AsyncSession,
-        *,
-        bot_id: str | None = None,
     ) -> list[AccountBinding]:
-        """返回全部绑定；供 owner 批量签到读取，不在此处暴露凭据。"""
+        """返回全部全局绑定；供批量签到读取，不在此处暴露凭据。"""
         statement = select(AccountBinding)
-        if bot_id is not None:
-            statement = statement.where(AccountBinding.bot_id == bot_id)
         statement = statement.order_by(AccountBinding.id)
         return list((await session.scalars(statement)).all())
 
@@ -115,14 +104,12 @@ class AccountBindingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
     ) -> AccountBinding | None:
-        """返回当前 active UID；数据异常时按最新记录确定性选择。"""
+        """返回用户当前 active UID；数据异常时按最新记录确定性选择。"""
         statement = (
             select(AccountBinding)
             .where(
                 AccountBinding.user_id == user_id,
-                AccountBinding.bot_id == bot_id,
                 AccountBinding.is_active.is_(True),
             )
             .order_by(AccountBinding.id.desc())
@@ -134,20 +121,22 @@ class AccountBindingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
     ) -> bool:
-        """在同一 session 中保证一个 Bot 作用域只有一个当前 UID。"""
+        """在同一 session 中保证一个用户只有一个当前 UID。"""
         records = await AccountBindingRepository.list(
             session,
             user_id=user_id,
-            bot_id=bot_id,
         )
         target = next((record for record in records if record.uid == uid), None)
         if target is None:
             return False
-        for record in records:
-            record.is_active = record is target
+        await session.execute(
+            update(AccountBinding)
+            .where(AccountBinding.user_id == user_id)
+            .values(is_active=False)
+        )
+        target.is_active = True
         await session.flush()
         return True
 
@@ -156,14 +145,12 @@ class AccountBindingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
     ) -> bool:
         """删除一个 UID 绑定，并显式返回是否命中记录。"""
         record = await AccountBindingRepository.get(
             session,
             user_id=user_id,
-            bot_id=bot_id,
             uid=uid,
         )
         if record is None:
@@ -177,13 +164,11 @@ class AccountBindingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
     ) -> int:
-        """删除一个用户在 Bot 下的全部绑定。"""
+        """删除一个用户的全部绑定。"""
         result = await session.execute(
             delete(AccountBinding).where(
                 AccountBinding.user_id == user_id,
-                AccountBinding.bot_id == bot_id,
             )
         )
         return int(getattr(result, "rowcount", 0) or 0)
@@ -197,7 +182,6 @@ class CredentialRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
         app_cookie: str = "",
         app_device_code: str = "",
@@ -212,7 +196,6 @@ class CredentialRepository:
     ) -> CredentialRecord:
         record = CredentialRecord(
             user_id=user_id,
-            bot_id=bot_id,
             uid=uid,
             app_cookie=app_cookie,
             app_device_code=app_device_code,
@@ -234,12 +217,10 @@ class CredentialRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
     ) -> CredentialRecord | None:
         statement = select(CredentialRecord).where(
             CredentialRecord.user_id == user_id,
-            CredentialRecord.bot_id == bot_id,
             CredentialRecord.uid == uid,
         )
         return await session.scalar(statement)
@@ -249,14 +230,12 @@ class CredentialRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
     ) -> list[CredentialRecord]:
         """按记录建立顺序返回凭据状态；调用方不得直接序列化 secret 字段。"""
         statement = (
             select(CredentialRecord)
             .where(
                 CredentialRecord.user_id == user_id,
-                CredentialRecord.bot_id == bot_id,
             )
             .order_by(CredentialRecord.id)
         )
@@ -267,7 +246,6 @@ class CredentialRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
         token: str,
         device_code: str,
@@ -279,14 +257,12 @@ class CredentialRepository:
         record = await CredentialRepository.get(
             session,
             user_id=user_id,
-            bot_id=bot_id,
             uid=uid,
         )
         if record is None:
             record = await CredentialRepository.add(
                 session,
                 user_id=user_id,
-                bot_id=bot_id,
                 uid=uid,
                 app_cookie=token,
                 app_device_code=device_code,
@@ -308,7 +284,6 @@ class CredentialRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
         token: str,
         device_code: str,
@@ -320,14 +295,12 @@ class CredentialRepository:
         record = await CredentialRepository.get(
             session,
             user_id=user_id,
-            bot_id=bot_id,
             uid=uid,
         )
         if record is None:
             record = await CredentialRepository.add(
                 session,
                 user_id=user_id,
-                bot_id=bot_id,
                 uid=uid,
                 web_token=token,
                 web_device_code=device_code,
@@ -349,14 +322,12 @@ class CredentialRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         uid: str,
     ) -> bool:
         """删除一个 UID 的全部凭据。"""
         record = await CredentialRepository.get(
             session,
             user_id=user_id,
-            bot_id=bot_id,
             uid=uid,
         )
         if record is None:
@@ -370,14 +341,12 @@ class CredentialRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
     ) -> int:
-        """删除一个用户在 Bot 下的全部渠道凭据。"""
+        """删除一个用户的全部渠道凭据。"""
 
         result = await session.execute(
             delete(CredentialRecord).where(
                 CredentialRecord.user_id == user_id,
-                CredentialRecord.bot_id == bot_id,
             )
         )
         return int(getattr(result, "rowcount", 0) or 0)
@@ -477,6 +446,21 @@ class SignRecordRepository:
         )
         return int(getattr(result, "rowcount", 0) or 0)
 
+    @staticmethod
+    async def delete_for_uids(
+        session: AsyncSession,
+        uids: Iterable[str],
+    ) -> int:
+        """删除一组 UID 的全部签到历史，供用户级联删除强制清理。"""
+
+        unique_uids = tuple(dict.fromkeys(uids))
+        if not unique_uids:
+            return 0
+        result = await session.execute(
+            delete(SignRecord).where(SignRecord.uid.in_(unique_uids))
+        )
+        return int(getattr(result, "rowcount", 0) or 0)
+
 
 class PrivacySettingRepository:
     """个人隐私设置的基础读写入口。"""
@@ -486,14 +470,12 @@ class PrivacySettingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         group_id: str | None = None,
         allow_peek: bool = True,
         uid_hidden: bool = False,
     ) -> PrivacySetting:
         record = PrivacySetting(
             user_id=user_id,
-            bot_id=bot_id,
             group_id=group_id,
             allow_peek=allow_peek,
             uid_hidden=uid_hidden,
@@ -507,12 +489,10 @@ class PrivacySettingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         group_id: str | None = None,
     ) -> PrivacySetting | None:
         statement = select(PrivacySetting).where(
             PrivacySetting.user_id == user_id,
-            PrivacySetting.bot_id == bot_id,
         )
         statement = statement.where(
             PrivacySetting.group_id.is_(None)
@@ -527,7 +507,6 @@ class PrivacySettingRepository:
         session: AsyncSession,
         *,
         user_id: str,
-        bot_id: str,
         group_id: str | None = None,
         allow_peek: bool | None = None,
         uid_hidden: bool | None = None,
@@ -537,14 +516,12 @@ class PrivacySettingRepository:
         record = await PrivacySettingRepository.get(
             session,
             user_id=user_id,
-            bot_id=bot_id,
             group_id=group_id,
         )
         if record is None:
             return await PrivacySettingRepository.add(
                 session,
                 user_id=user_id,
-                bot_id=bot_id,
                 group_id=group_id,
                 allow_peek=True if allow_peek is None else allow_peek,
                 uid_hidden=False if uid_hidden is None else uid_hidden,
@@ -556,6 +533,21 @@ class PrivacySettingRepository:
             record.uid_hidden = uid_hidden
         await session.flush()
         return record
+
+    @staticmethod
+    async def delete_all(
+        session: AsyncSession,
+        *,
+        user_id: str,
+    ) -> int:
+        """删除一个用户的全局及个人群组隐私设置，不触碰群强制设置。"""
+
+        result = await session.execute(
+            delete(PrivacySetting).where(
+                PrivacySetting.user_id == user_id,
+            )
+        )
+        return int(getattr(result, "rowcount", 0) or 0)
 
 
 _NO_CHANGE = object()
@@ -569,13 +561,11 @@ class GroupPrivacySettingRepository:
         session: AsyncSession,
         *,
         group_id: str,
-        bot_id: str,
         force_allow_peek: bool | None = None,
         force_uid_hidden: bool | None = None,
     ) -> GroupPrivacySetting:
         record = GroupPrivacySetting(
             group_id=group_id,
-            bot_id=bot_id,
             force_allow_peek=force_allow_peek,
             force_uid_hidden=force_uid_hidden,
         )
@@ -588,11 +578,9 @@ class GroupPrivacySettingRepository:
         session: AsyncSession,
         *,
         group_id: str,
-        bot_id: str,
     ) -> GroupPrivacySetting | None:
         statement = select(GroupPrivacySetting).where(
             GroupPrivacySetting.group_id == group_id,
-            GroupPrivacySetting.bot_id == bot_id,
         )
         return await session.scalar(statement)
 
@@ -601,7 +589,6 @@ class GroupPrivacySettingRepository:
         session: AsyncSession,
         *,
         group_id: str,
-        bot_id: str,
         force_allow_peek: bool | None | object = _NO_CHANGE,
         force_uid_hidden: bool | None | object = _NO_CHANGE,
     ) -> GroupPrivacySetting:
@@ -610,13 +597,11 @@ class GroupPrivacySettingRepository:
         record = await GroupPrivacySettingRepository.get(
             session,
             group_id=group_id,
-            bot_id=bot_id,
         )
         if record is None:
             record = await GroupPrivacySettingRepository.add(
                 session,
                 group_id=group_id,
-                bot_id=bot_id,
                 force_allow_peek=cast(
                     bool | None,
                     None if force_allow_peek is _NO_CHANGE else force_allow_peek,

@@ -18,6 +18,7 @@ from astrbot.core.message.components import At, Plain
 from astrbot.core.message.components import Image as AstrImage
 from astrbot.core.message.message_event_result import MessageChain
 
+from .entry.admin_web import build_admin_web_routes
 from .entry.commands import CommandRegistry, load_command_registry
 from .entry.event import EmptyEventEntryPoint, EventEntryPoint
 from .entry.lifecycle import PluginLifecycle
@@ -43,9 +44,20 @@ from .infrastructure.rendering import (
 from .infrastructure.resources import EncyclopediaResourceStore, ResourceManifest
 from .infrastructure.resources.paths import PLUGIN_NAME, resource_repository_dir
 from .infrastructure.scheduler import SignScheduler
+from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
+from .modules.admin import (
+    AccountDeletionCoordinator,
+    AdminAccountService,
+    AdminAliasService,
+    AdminApiService,
+    AdminPanelService,
+    AdminPreviewService,
+    AiocqhttpMembershipProbe,
+    MembershipService,
+)
 from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
@@ -84,7 +96,12 @@ class PluginRuntime:
     async def terminate(self) -> None:
         """停止 runtime 扩展点。"""
 
-        await self.lifecycle.terminate()
+        try:
+            await self.lifecycle.terminate()
+        finally:
+            from .infrastructure.rendering.help import invalidate_help_cache
+
+            invalidate_help_cache()
 
 
 def build_runtime(
@@ -138,16 +155,33 @@ def build_runtime(
         runtime_database,
         encyclopedia_transport or DnaApiEncyclopediaTransport(runtime_database),
         privacy_service,
-        EncyclopediaRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+        EncyclopediaRenderer(
+            runtime_database.path.parent / "rendered", encyclopedia_resources
+        ),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
     )
-    subscriptions = SubscriptionStore(runtime_database.path.parent / "subscriptions.json")
+    subscriptions = SubscriptionStore(
+        runtime_database.path.parent / "subscriptions.json"
+    )
+    deletion_coordinator = AccountDeletionCoordinator(runtime_database, subscriptions)
+    membership_probe = AiocqhttpMembershipProbe(context=context)
+    membership_service = MembershipService(
+        runtime_database,
+        subscriptions,
+        membership_probe,
+        deletion_coordinator=deletion_coordinator,
+    )
+    scheduler_registry = SchedulerRegistry(
+        runtime_database.path.parent / "scheduler_state.json"
+    )
     checkin_service = CheckinService(
         runtime_database,
         checkin_transport or DnaApiCheckinTransport(runtime_database),
         privacy_service,
-        CheckinRenderer(runtime_database.path.parent / "rendered", encyclopedia_resources),
+        CheckinRenderer(
+            runtime_database.path.parent / "rendered", encyclopedia_resources
+        ),
         community_tasks=tuple(settings.sign_in.community_tasks),
         concurrency=settings.sign_in.concurrency,
         interval_range=settings.sign_in.concurrency_interval_seconds,
@@ -164,6 +198,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(f"[dnaby][push_sign] 推送至 {origin} 失败: {error}")
+
     sign_scheduler = SignScheduler(
         checkin_service,
         subscriptions,
@@ -171,6 +206,7 @@ def build_runtime(
         scheduled_enabled=settings.sign_in.scheduled_enabled,
         enable_all_users=settings.sign_in.enable_all_users,
         push=_push_sign,
+        registry=scheduler_registry,
     )
     notices_renderer = NoticesRenderer(
         runtime_database.path.parent / "rendered",
@@ -186,12 +222,17 @@ def build_runtime(
         chain: list[Any] = []
         user_ids: list[str] = []
         if at_user_id:
-            raw_ids = [at_user_id] if isinstance(at_user_id, (str, int)) else list(at_user_id)
+            raw_ids = (
+                [at_user_id] if isinstance(at_user_id, (str, int)) else list(at_user_id)
+            )
             user_ids = [str(uid) for uid in raw_ids if uid]
 
         if isinstance(payload, Path) or (
             isinstance(payload, str)
-            and (payload.endswith((".png", ".jpg", ".jpeg", ".webp")) or Path(payload).exists())
+            and (
+                payload.endswith((".png", ".jpg", ".jpeg", ".webp"))
+                or Path(payload).exists()
+            )
         ):
             chain.append(AstrImage.fromFileSystem(str(payload)))
         else:
@@ -215,6 +256,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(f"[dnaby][push_notice] 推送至 {origin} 失败: {error}")
+
     notices_service = NoticesService(
         runtime_database,
         notices_transport or DnaApiNoticesTransport(runtime_database),
@@ -231,7 +273,21 @@ def build_runtime(
         announcement_enabled=settings.notifications.announcement_enabled,
         push_time=settings.notifications.secret_push_time,
         poll_minutes=settings.notifications.announcement_check_minutes,
+        registry=scheduler_registry,
     )
+    admin_api_service = AdminApiService(
+        scheduler_registry,
+        subscriptions,
+        {
+            "dnaby_sign_daily": sign_scheduler,
+            "dnaby_sign_cleanup": sign_scheduler,
+            "dnaby_mh_push": notices_scheduler,
+            "dnaby_ann_poll": notices_scheduler,
+        },
+        membership_service,
+        config_store=config if isinstance(config, dict) else None,
+    )
+
     def _resolve_char_id(char_name: str) -> str | None:
         from .utils.name_convert import char_name_to_char_id
 
@@ -255,13 +311,23 @@ def build_runtime(
         return download_all_resources(data_dir=runtime_database.path.parent)
 
     resource_update_service = ResourceUpdateService(
-        repo_root=Path(__file__).resolve().parents[2],
-        rendered_root=runtime_database.path.parent / "rendered",
         synchronize=_synchronize_resources,
     )
     alias_service = AliasService(
         resource_root / "alias",
+        custom_path=runtime_database.path.parent / "alias_custom.json",
         refresh=lambda: None,
+    )
+    admin_panel_service = AdminPanelService(panel_service)
+    admin_alias_service = AdminAliasService(
+        resource_root=resource_root,
+        custom_path=runtime_database.path.parent / "alias_custom.json",
+    )
+    admin_account_service = AdminAccountService(runtime_database)
+    admin_preview_service = AdminPreviewService(
+        runtime_database,
+        player_service.transport,
+        player_service.renderer,
     )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
@@ -275,9 +341,18 @@ def build_runtime(
         "encyclopedia_resources": encyclopedia_resources,
         "checkin_service": checkin_service,
         "subscriptions": subscriptions,
+        "membership_probe": membership_probe,
+        "membership_service": membership_service,
+        "deletion_coordinator": deletion_coordinator,
+        "scheduler_registry": scheduler_registry,
         "sign_scheduler": sign_scheduler,
         "notices_service": notices_service,
         "notices_scheduler": notices_scheduler,
+        "admin_api_service": admin_api_service,
+        "admin_account_service": admin_account_service,
+        "admin_preview_service": admin_preview_service,
+        "admin_panel_service": admin_panel_service,
+        "admin_alias_service": admin_alias_service,
         "panel_service": panel_service,
         "resource_update_service": resource_update_service,
         "alias_service": alias_service,
@@ -301,11 +376,13 @@ def build_runtime(
                         if sub.group_id and str(sub.group_id) not in groups:
                             groups[str(sub.group_id)] = True
                             modified = True
-            if modified and hasattr(config, "save_config"):
-                config.save_config()
+            if modified:
+                save_config = getattr(config, "save_config", None)
+                if callable(save_config):
+                    save_config()
 
-        if settings.notifications.announcement_groups:
-            cfg_groups = settings.notifications.announcement_groups
+        cfg_groups: object = settings.notifications.announcement_groups
+        if cfg_groups:
             configured_ids: set[str] = set()
             if isinstance(cfg_groups, dict):
                 configured_ids = {str(k) for k, v in cfg_groups.items() if v}
@@ -322,10 +399,20 @@ def build_runtime(
                     user_type="group",
                 )
 
-    web = WebRegistrar(context)
+    web = WebRegistrar(context, build_admin_web_routes(resolved_services))
     lifecycle = PluginLifecycle(
-        start_hooks=(web.initialize, _sync_ann_config_on_startup, sign_scheduler.start, notices_scheduler.start),
-        stop_hooks=(notices_scheduler.stop, sign_scheduler.stop, runtime_database.dispose),
+        start_hooks=(
+            web.initialize,
+            _sync_ann_config_on_startup,
+            sign_scheduler.start,
+            notices_scheduler.start,
+        ),
+        # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler，再释放数据库。
+        stop_hooks=(
+            runtime_database.dispose,
+            sign_scheduler.stop,
+            notices_scheduler.stop,
+        ),
     )
     return PluginRuntime(
         context=context,

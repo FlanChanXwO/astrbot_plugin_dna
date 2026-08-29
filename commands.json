@@ -405,7 +405,7 @@
     "examples": [
       "kk角色名别名"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.encyclopedia.commands.alias_list_use_case"
   },
   {
@@ -453,7 +453,7 @@
     "examples": [
       "kk全部签到"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.checkin.commands.checkin_sign_all_use_case"
   },
   {
@@ -465,7 +465,7 @@
     "examples": [
       "kk订阅签到结果"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.checkin.commands.checkin_sign_result_subscribe_use_case"
   },
   {
@@ -575,7 +575,7 @@
     "examples": [
       "kk密函测试"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.notices.commands.notices_mh_test_use_case"
   },
   {
@@ -611,7 +611,7 @@
     "examples": [
       "kk上传角色面板图"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.panel_upload_use_case"
   },
   {
@@ -623,7 +623,7 @@
     "examples": [
       "kk角色面板图列表"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.panel_list_use_case"
   },
   {
@@ -635,7 +635,7 @@
     "examples": [
       "kk删除角色面板图abc"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.panel_delete_by_id_use_case"
   },
   {
@@ -647,7 +647,7 @@
     "examples": [
       "kk删除角色全部面板图"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.panel_delete_all_use_case"
   },
   {
@@ -659,7 +659,7 @@
     "examples": [
       "kk原图删除"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.panel_delete_original_use_case"
   },
   {
@@ -671,7 +671,7 @@
     "examples": [
       "kk压缩面板图"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.panel_compress_use_case"
   },
   {
@@ -683,7 +683,7 @@
     "examples": [
       "kk资源状态"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.panel_resource_status_use_case"
   },
   {
@@ -695,20 +695,8 @@
     "examples": [
       "kk下载全部资源"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.resource_download_use_case"
-  },
-  {
-    "id": "update_log",
-    "pattern": "^kk(?:更新记录|更新日志)$",
-    "group": "资源管理",
-    "name": "更新记录",
-    "description": "查看插件更新记录",
-    "examples": [
-      "kk更新记录"
-    ],
-    "permission": "owner",
-    "use_case": "src.modules.operations.commands.resource_update_log_use_case"
   },
   {
     "id": "alias_add_delete",
@@ -719,7 +707,7 @@
     "examples": [
       "kk添加角色辛西娅别名小辛"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.alias_add_delete_use_case"
   },
   {
@@ -731,7 +719,7 @@
     "examples": [
       "kk恢复别名"
     ],
-    "permission": "owner",
+    "permission": "admin",
     "use_case": "src.modules.operations.commands.alias_recover_use_case"
   }
 ]

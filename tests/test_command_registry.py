@@ -107,7 +107,6 @@ def test_explicit_registry_loads_only_implemented_commands():
         "compress_panel_imgs",
         "resource_status",
         "download_resource",
-        "update_log",
         "alias_add_delete",
         "alias_recover",
     ]
@@ -193,44 +192,24 @@ def test_generated_method_is_a_real_async_generator_with_public_filters():
     assert permission_filters[0].permission_type == filter.PermissionType.MEMBER
 
 
-def test_generated_owner_handler_uses_bot_owner_ids_in_private_and_group_chat():
-    """owner 命令只接受全局 bot owner，不能把普通群管理员当 owner。"""
+def test_generated_admin_handler_uses_public_admin_permission_filter():
+    """admin 命令统一使用 AstrBot 的管理员权限过滤器。"""
 
-    class GeneratedOwnerPlugin:
-        __module__ = "tests.generated_owner_plugin"
+    class GeneratedAdminPlugin:
+        __module__ = "tests.generated_admin_plugin"
 
-    registry = CommandRegistry((_spec("owner_generated", permission="owner"),))
-    install_command_handlers(GeneratedOwnerPlugin, registry)
+    registry = CommandRegistry((_spec("admin_generated", permission="admin"),))
+    install_command_handlers(GeneratedAdminPlugin, registry)
     metadata = star_handlers_registry.get_handler_by_full_name(
-        "tests.generated_owner_plugin_handle_owner_generated",
+        "tests.generated_admin_plugin_handle_admin_generated",
     )
 
     assert metadata is not None
-    assert not any(
-        isinstance(item, PermissionTypeFilter) for item in metadata.event_filters
-    )
-    owner_filters = [
-        item for item in metadata.event_filters if isinstance(item, filter.CustomFilter)
+    permission_filters = [
+        item for item in metadata.event_filters if isinstance(item, PermissionTypeFilter)
     ]
-    assert len(owner_filters) == 1
-    owner_filter = owner_filters[0]
-
-    class Event:
-        def __init__(self, sender_id: str, group_id: str | None) -> None:
-            self.sender_id = sender_id
-            self.group_id = group_id
-
-        def get_sender_id(self) -> str:
-            return self.sender_id
-
-        def get_group_id(self) -> str | None:
-            return self.group_id
-
-    cfg = {"admins_id": ["owner-1"]}
-    assert owner_filter.filter(Event("admin-1", "group-1"), cfg) is False
-    assert owner_filter.filter(Event("owner-1", "group-1"), cfg) is True
-    assert owner_filter.filter(Event("owner-1", None), cfg) is True
-    assert owner_filter.filter(Event("owner-1", None), {}) is False
+    assert len(permission_filters) == 1
+    assert permission_filters[0].permission_type == filter.PermissionType.ADMIN
 
 
 @pytest.mark.asyncio
@@ -404,15 +383,27 @@ def test_commands_manifest_is_generated_from_registry():
         "compress_panel_imgs",
         "resource_status",
         "download_resource",
-        "update_log",
         "alias_add_delete",
         "alias_recover",
     }
 
 
 @pytest.mark.asyncio
-async def test_help_shows_implemented_commands_only():
+async def test_help_shows_implemented_commands_only(monkeypatch: pytest.MonkeyPatch):
     """帮助输出来自同一个 registry，未迁移命令不得出现。"""
+
+    from io import BytesIO
+
+    from PIL import Image
+
+    class FakeRenderer:
+        async def render(self, _template_name, _data, _spec):
+            image = Image.new("RGB", (2020, 5001), "white")
+            output = BytesIO()
+            image.save(output, format="JPEG")
+            return output.getvalue()
+
+    monkeypatch.setattr("src.infrastructure.rendering.help._RENDERER", FakeRenderer())
 
     class Event:
         def get_message_str(self) -> str:
@@ -425,7 +416,6 @@ async def test_help_shows_implemented_commands_only():
     result = [item async for item in plugin.handle_help(Event())]
 
     assert len(result) == 1
-    from PIL import Image
 
     with Image.open(result[0]) as image:
         assert image.width == 2020

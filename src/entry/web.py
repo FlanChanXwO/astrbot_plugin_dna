@@ -1,7 +1,8 @@
 """AstrBot Web API 注册边界。
 
-业务模块只提供 ``WebRoute``，由这一层把框架无关的路由描述转换成
-``Context.register_web_api`` 调用。v0.1 尚未声明业务路由，因此默认注册集合为空。
+业务模块只提供 ``WebRoute``，由这一层把路由描述转换成
+``Context.register_web_api`` 调用。管理页路由由 bootstrap 注入；本层不实现业务逻辑，
+也不建立独立的未认证 HTTP 入口。
 """
 
 from __future__ import annotations
@@ -57,4 +58,3 @@ class WebRegistrar:
                 route.description,
             )
         self._registered = True
-

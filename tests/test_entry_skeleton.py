@@ -1,5 +1,6 @@
 """v0.1 入口骨架的 AstrBot 集成契约测试。"""
 
+from builtins import ExceptionGroup
 from pathlib import Path
 
 import pytest
@@ -34,8 +35,8 @@ class FakeContext:
 
 
 @pytest.mark.asyncio
-async def test_plugin_can_initialize_and_terminate_without_web_registrations():
-    """v0.1 入口可被 AstrBot 加载和卸载，且不注册尚未实现的 Web 入口。"""
+async def test_plugin_can_initialize_and_terminate_with_admin_web_registrations():
+    """入口可被 AstrBot 加载和卸载，并注册唯一的 Dashboard 管理路由。"""
 
     context = FakeContext()
     plugin = DnabyPlugin(context)
@@ -45,7 +46,13 @@ async def test_plugin_can_initialize_and_terminate_without_web_registrations():
     await plugin.initialize()
     await plugin.terminate()
 
-    assert context.web_apis == []
+    assert context.web_apis
+    assert "/astrbot_plugin_dnaby/admin/bootstrap" in {
+        route[0] for route in context.web_apis
+    }
+    assert len({(route[0], tuple(route[2])) for route in context.web_apis}) == len(
+        context.web_apis
+    )
 
 
 @pytest.mark.asyncio
@@ -77,6 +84,73 @@ async def test_plugin_lifecycle_preserves_hook_order_and_is_idempotent():
     await lifecycle.terminate()
 
     assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+
+
+@pytest.mark.asyncio
+async def test_plugin_lifecycle_cleans_up_when_start_hook_fails():
+    """启动中途失败时，已组装的扩展点仍需按逆序清理。"""
+
+    calls: list[str] = []
+
+    async def start_one() -> None:
+        calls.append("start-one")
+
+    async def start_two() -> None:
+        calls.append("start-two")
+        raise RuntimeError("start-two failed")
+
+    async def stop_one() -> None:
+        calls.append("stop-one")
+
+    async def stop_two() -> None:
+        calls.append("stop-two")
+
+    lifecycle = PluginLifecycle(
+        start_hooks=(start_one, start_two),
+        stop_hooks=(stop_one, stop_two),
+    )
+
+    with pytest.raises(RuntimeError, match="start-two failed"):
+        await lifecycle.initialize()
+
+    assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+    assert lifecycle.started is False
+
+
+@pytest.mark.asyncio
+async def test_plugin_lifecycle_reports_cleanup_errors_after_start_failure():
+    """清理 hook 失败时仍继续清理，并同时暴露启动与清理异常。"""
+
+    calls: list[str] = []
+
+    async def start_one() -> None:
+        calls.append("start-one")
+
+    async def start_two() -> None:
+        calls.append("start-two")
+        raise RuntimeError("start-two failed")
+
+    async def stop_one() -> None:
+        calls.append("stop-one")
+
+    async def stop_two() -> None:
+        calls.append("stop-two")
+        raise ValueError("stop-two failed")
+
+    lifecycle = PluginLifecycle(
+        start_hooks=(start_one, start_two),
+        stop_hooks=(stop_one, stop_two),
+    )
+
+    with pytest.raises(ExceptionGroup) as error_info:
+        await lifecycle.initialize()
+
+    assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+    assert lifecycle.started is False
+    assert {str(error) for error in error_info.value.exceptions} == {
+        "start-two failed",
+        "stop-two failed",
+    }
 
 
 @pytest.mark.asyncio
@@ -120,7 +194,9 @@ def test_response_factory_converts_framework_free_dtos():
     assert factory.build(event, ImageResponse(b"image")) == ("image", b"image")
 
 
-def test_response_factory_tracks_only_generated_images_for_event_cleanup(tmp_path: Path):
+def test_response_factory_tracks_only_generated_images_for_event_cleanup(
+    tmp_path: Path,
+):
     """合成图片交给 AstrBot 事件清理，原始资源不能被一并删除。"""
 
     class Event(AstrMessageEvent):
@@ -219,10 +295,14 @@ def test_response_factory_plain_with_need_at_in_group_creates_at_chain():
     assert isinstance(components[1], Plain)
     assert components[1].text == "测试消息"
 
-    direct_res = factory.build(DirectEvent(), PlainTextResponse("测试消息", need_at=True))
+    direct_res = factory.build(
+        DirectEvent(), PlainTextResponse("测试消息", need_at=True)
+    )
     assert direct_res == ("plain", "测试消息")
 
-    no_at_res = factory.build(GroupEvent(), PlainTextResponse("测试消息", need_at=False))
+    no_at_res = factory.build(
+        GroupEvent(), PlainTextResponse("测试消息", need_at=False)
+    )
     assert no_at_res == ("plain", "测试消息")
 
 

@@ -72,7 +72,6 @@ class NoticesService:
             binding = await AccountBindingRepository.current(
                 session,
                 user_id=target_user_id,
-                bot_id=request.actor.bot_id,
             )
         if binding is None:
             return PlainTextResponse(messages.NOTICES_UID_INVALID, need_at=True)
@@ -391,15 +390,15 @@ class NoticesService:
                 if inspect.isawaitable(res):
                     await res
                 return True
-            except Exception as error:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 from astrbot.api import logger
 
-                logger.warning(f"[dnaby][push] 发送给 {origin} 失败: {error}")
+                logger.warning("[dnaby][push] 推送失败")
                 return False
         return False
 
     async def test_mh_push(self, request: NoticeRequest):
-        """向当前会话发送一次密函测试推送（owner）。"""
+        """向当前会话发送一次密函测试推送（admin）。"""
 
         if self.push is None:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)

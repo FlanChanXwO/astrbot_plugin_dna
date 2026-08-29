@@ -11,7 +11,7 @@ use case / service，service 只调用注入的 fake transport（或直接写隔
 公开 API 的 mock fixture，最后断言产出框架无关的 `CommandResponse`。全部写入命令的权限
 边界与离线契约在 `tests/test_write_contracts.py` 中集中审计：
 
-- `WRITE_COMMANDS`：写入命令 id → 期望权限（`user`/`admin`/`owner`）。
+- `WRITE_COMMANDS`：写入命令 id → 期望权限（`user`/`admin`）。
 - `CONTRACT_COVERAGE`：命令 id → 覆盖它的离线契约测试文件与代表性用例。
 - `test_every_write_command_dispatches_offline`：每条写入命令都能离线分发并产出结果。
 - `test_sign_write_touches_only_injected_transport`：离线写路径只调用注入 transport。
@@ -20,12 +20,12 @@ use case / service，service 只调用注入的 fake transport（或直接写隔
 
 | 权限 | 写入命令 |
 | --- | --- |
-| `user` | `account_login/logout/bind/switch/delete_all/delete`、`privacy_enable/disable_peek_personal`、`privacy_enable/disable_uid_hidden`、`sign` |
-| `admin` | `privacy_*_peek_admin`、`privacy_*_peek_all`、`privacy_cancel_peek_all`、`privacy_*_uid_hidden_admin`、`privacy_*_uid_hidden_all`、`privacy_cancel_uid_hidden_all` |
-| `owner` | `sign_all`、`sign_result_subscribe` |
+| `user` | `account_login/logout/bind/switch/delete_all/delete`、个人 `privacy` 四条、`sign`、`mh_subscribe_by_name`、`mh_subscribe_cycle` |
+| `admin` | 群管理 `privacy` 十条、`sign_all`、`sign_result_subscribe`、`mh_pic_subscribe`、`mh_text_subscribe`、`mh_test`、`ann_sub`、`ann_unsub`、面板图六条、`resource_status`、`download_resource`、`alias_add_delete`、`alias_recover` |
 
-AstrBot 公开 API 没有独立的 owner 权限类型；插件使用自定义入口过滤器，将发送者 ID
-与 AstrBot 全局 `admins_id` 精确匹配。群管理员身份本身不能通过 owner 命令边界。
+`admin` 统一映射 AstrBot 公开的 `PermissionType.ADMIN`；插件不再保留自定义 owner
+入口过滤器，也不自行读取 `admins_id`。普通群成员不能通过 AstrBot 的 admin 过滤器执行
+这些命令。
 
 ## 逐能力离线覆盖
 
@@ -44,7 +44,6 @@ AstrBot 公开 API 没有独立的 owner 权限类型；插件使用自定义入
 ## 未覆盖/边界
 
 - 真实平台推送、真实账户签到、真实面板上传/删除/压缩、别名修改、资源更新等写入行为
-  未在真实账户上执行；对应能力的离线契约在后续 Task 19 之后的阶段补齐（面板/资源见
-  Task 25/26）。
-- 面板上传/删除、别名修改等写入命令尚未注册；未实现能力不注册、不展示。
+  未在真实账户上执行；面板、资源和别名命令已注册，但当前只由隔离 fixture/ fake
+  transport 覆盖，不把离线结果当作真实平台验收。
 - 最终真实平台写入能力验收边界由本次 goal 终审统一记录，不得以本离线契约替代。

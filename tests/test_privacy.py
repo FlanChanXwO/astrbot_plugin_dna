@@ -38,25 +38,25 @@ async def test_personal_privacy_defaults_and_group_force_precedence(database):
     """个人默认值可修改；群强制值优先，并能在取消后恢复个人设置。"""
     service = PrivacyService(database)
 
-    assert await service.is_peek_allowed("user-1", "bot-1", "group-1") is True
-    assert await service.is_uid_hidden("user-1", "bot-1", "group-1") is False
+    assert await service.is_peek_allowed("user-1", group_id="group-1") is True
+    assert await service.is_uid_hidden("user-1", group_id="group-1") is False
 
     personal_peek = await service.set_personal_peek(_actor(), False)
     personal_uid = await service.set_personal_uid_hidden(_actor(), True)
     assert personal_peek.text == "已禁止他人查看你的游戏信息~"
     assert personal_uid.text == "已隐藏你的UID，其他人将无法查看~"
-    assert await service.is_peek_allowed("user-1", "bot-1", "group-1") is False
-    assert await service.is_uid_hidden("user-1", "bot-1", "group-1") is True
+    assert await service.is_peek_allowed("user-1", group_id="group-1") is False
+    assert await service.is_uid_hidden("user-1", group_id="group-1") is True
 
     await service.set_group_peek(_actor(), True)
     await service.set_group_uid_hidden(_actor(), False)
-    assert await service.is_peek_allowed("user-1", "bot-1", "group-1") is True
-    assert await service.is_uid_hidden("user-1", "bot-1", "group-1") is False
+    assert await service.is_peek_allowed("user-1", group_id="group-1") is True
+    assert await service.is_uid_hidden("user-1", group_id="group-1") is False
 
     await service.cancel_group_peek(_actor())
     await service.cancel_group_uid_hidden(_actor())
-    assert await service.is_peek_allowed("user-1", "bot-1", "group-1") is False
-    assert await service.is_uid_hidden("user-1", "bot-1", "group-1") is True
+    assert await service.is_peek_allowed("user-1", group_id="group-1") is False
+    assert await service.is_uid_hidden("user-1", group_id="group-1") is True
 
 
 @pytest.mark.asyncio
@@ -75,7 +75,6 @@ async def test_personal_write_is_rejected_by_group_force_without_mutating_record
             await PrivacySettingRepository.get(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 group_id=None,
             )
             is None
@@ -101,14 +100,13 @@ async def test_target_admin_setting_requires_group_mention_and_binding(database)
         await AccountBindingRepository.add(
             session,
             user_id="target-1",
-            bot_id="bot-1",
             uid="1234567890123",
             group_id="group-1",
         )
 
     response = await service.set_target_peek(_actor(), "target-1", False)
     assert response.text == "已禁止该用户被他人查看游戏信息~"
-    assert await service.is_peek_allowed("target-1", "bot-1", "group-1") is False
+    assert await service.is_peek_allowed("target-1", group_id="group-1") is False
 
 
 @pytest.mark.asyncio
@@ -141,17 +139,17 @@ async def test_query_resolution_preserves_self_query_and_group_override(database
 
 
 @pytest.mark.asyncio
-async def test_uid_and_peek_group_settings_are_scoped_by_bot_and_group(database):
-    """群强制设置不会串到另一个 Bot 或群组。"""
+async def test_uid_and_peek_group_settings_are_shared_by_bot_and_scoped_by_group(database):
+    """群强制设置跨 Bot 共享，但不会串到另一个群组。"""
     service = PrivacyService(database)
     await service.set_group_peek(_actor(), False)
     await service.set_group_uid_hidden(_actor(), True)
 
-    assert await service.is_peek_allowed("user-1", "bot-1", "group-1") is False
-    assert await service.is_uid_hidden("user-1", "bot-1", "group-1") is True
-    assert await service.is_peek_allowed("user-1", "bot-1", "group-2") is True
-    assert await service.is_uid_hidden("user-1", "bot-1", "group-2") is False
-    assert await service.is_peek_allowed("user-1", "bot-2", "group-1") is True
+    assert await service.is_peek_allowed("user-1", group_id="group-1") is False
+    assert await service.is_uid_hidden("user-1", group_id="group-1") is True
+    assert await service.is_peek_allowed("user-1", group_id="group-2") is True
+    assert await service.is_uid_hidden("user-1", group_id="group-2") is False
+    assert await service.is_peek_allowed("user-1", group_id="group-1") is False
 
 
 @pytest.mark.asyncio
@@ -174,7 +172,6 @@ async def test_concurrent_personal_upserts_keep_one_global_record(database):
                 await session.scalars(
                     select(PrivacySetting).where(
                         PrivacySetting.user_id == "user-1",
-                        PrivacySetting.bot_id == "bot-1",
                         PrivacySetting.group_id.is_(None),
                     ),
                 )
@@ -190,7 +187,6 @@ async def test_global_privacy_identity_is_unique_in_sqlite(database):
         await PrivacySettingRepository.add(
             session,
             user_id="user-1",
-            bot_id="bot-1",
             group_id=None,
         )
 
@@ -199,6 +195,5 @@ async def test_global_privacy_identity_is_unique_in_sqlite(database):
             await PrivacySettingRepository.add(
                 session,
                 user_id="user-1",
-                bot_id="bot-1",
                 group_id=None,
             )

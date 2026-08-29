@@ -263,7 +263,7 @@ COMMAND_SPECS = (
         name="密函测试",
         description="向当前会话发送密函测试推送",
         examples=("密函测试",),
-        permission="owner",
+        permission="admin",
         use_case=cast(Any, notices_mh_test_use_case),
     ),
     CommandSpec(

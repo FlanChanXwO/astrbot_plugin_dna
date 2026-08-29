@@ -187,7 +187,6 @@ async def _database_with_binding(
         await AccountBindingRepository.add(
             session,
             user_id=user_id,
-            bot_id="bot-1",
             uid=uid,
             group_id="group-1",
             is_active=True,
@@ -435,7 +434,6 @@ async def test_sign_all_aggregates_success_and_failure(tmp_path: Path) -> None:
         await AccountBindingRepository.add(
             session,
             user_id="user-2",
-            bot_id="bot-1",
             uid="2222222222222",
             group_id="group-1",
             is_active=True,
@@ -477,7 +475,6 @@ async def test_manual_sign_peek_blocked_visible(tmp_path: Path) -> None:
         await PrivacySettingRepository.add(
             session,
             user_id="target-1",
-            bot_id="bot-1",
             group_id=None,
             allow_peek=False,
         )

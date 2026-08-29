@@ -347,7 +347,7 @@ def test_git_error_does_not_echo_embedded_credentials() -> None:
 def test_generated_metadata_files_are_present() -> None:
     metadata = Path("metadata.yaml").read_text(encoding="utf-8")
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-    assert "version: v0.1.0" in metadata
+    assert "version: v0.2.0" in metadata
     assert 'astrbot_version: ">=4.27.1"' in metadata
     assert Path("logo.png").is_file()
-    assert "v0.1.0" in changelog
+    assert "v0.2.0" in changelog

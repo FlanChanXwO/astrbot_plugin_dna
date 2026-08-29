@@ -1,12 +1,12 @@
 # 移植进度（progress.md）
 
-> 更新于 2026-08-12。superpowers 迁移记录；当前 rewrite 阶段审查见
+> 更新于 2026-08-28。superpowers 迁移记录；当前 rewrite 阶段审查见
 > [review-v0.2-debug.md](review-v0.2-debug.md)、[review-v0.3-player.md](review-v0.3-player.md) 和
 > [review-v0.3-encyclopedia.md](review-v0.3-encyclopedia.md)、[review-v0.3-debug.md](review-v0.3-debug.md)，legacy 完整审查见 [review.md](review.md)，
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 59 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 60 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -153,6 +153,9 @@
   覆盖；新增资源下载成功/失败分支与更新日志测试。staging runtime 全量 pytest
   `288 passed, 1 skipped, 1 warning`，全部门禁通过。
 
+> 历史说明：本节保留 Task 26 当时的实现与验证记录；后续 `goal-1` 第一阶段已移除聊天内
+> `update_log`/“更新记录”命令及其渲染链，更新历史统一由仓库根目录 `CHANGELOG.md` 承担。
+
 ## 当前状态
 
 ### 渲染等价修复（2026-08-13）
@@ -164,9 +167,9 @@
   staging runtime 根执行，是既有嵌套 worktree 测试限制。
 
 > 本节描述的是 `legacy-reference` 的历史移植状态；`rewrite/v0.1` 的当前状态见上方各 Task
-> 记录与 `commands.json`（59 条命令）。
+> 记录与 `commands.json`（60 条命令）。
 
-以下为历史移植阶段记录；当前 main 以 `commands.json` 为准，已注册 61 条命令、16 个功能组和 5 张 SQLAlchemy 表。历史数字与验证结果不代表当前 main 的最终状态。
+以下为历史移植阶段记录；当前 main 以 `commands.json` 为准，已注册 60 条命令、16 个功能组和 5 张 SQLAlchemy 表，权限仅为 `user/admin`（32/28）。历史数字与验证结果不代表当前 main 的最终状态。
 
 硬约束已核对：源码不 import `gsuid_core` / `gsucore`；运行期数据库、订阅和资源写入 AstrBot `plugin_data` 数据目录；`commands.json` 与分发表同步；入口不承载业务编排。
 
@@ -190,7 +193,7 @@
 
 ### Phase 2–6 — 功能域 ✅（代码层）
 
-- 免登录查询：角色、伤害、日历、体力、周报、公告、攻略、图鉴、兑换码、更新记录。
+- 免登录查询：角色、伤害、日历、体力、周报、公告、攻略、图鉴、兑换码。
 - 账号与隐私：绑定/切换/删除 UID、App/Web/token/短信登录、退出、token 查看、隐私设置。
 - 订阅与定时：签到、密函、公告推送、记录清理；`initialize()` 启动，`terminate()` 等待取消完成。
 - 别名、资源下载、自定义面板图、原图和状态模块；`dna_status` 按设计作为可选能力保留统计函数，不注册 Dashboard 指标。
@@ -198,7 +201,7 @@
 ### 真实 E2E ✅（2026-08-09）
 
 - 历史阶段曾通过本机 AstrBot `6196`、OneBot HTTP `6199`、NapCat 出站链路覆盖当时
-  `commands.json` 的 56 条命令；该记录不替代当前 61 条命令矩阵。
+  `commands.json` 的 56 条命令；该记录不替代当前 60 条命令矩阵。
 - 已验证真实数据库中的登录数据仍可被查询，原绑定 UID 未变化；测试用户、订阅、别名和
   自定义面板图均在收尾检查后清理。
 - `dna登录` 已验证消息命中、链接立即出站、登录页 `HTTP 200` 和表单 DOM；旧 auth 返回
@@ -219,7 +222,7 @@
 | `python -m compileall -q .` | 通过 |
 | `import main` | 通过 |
 | `import data.plugins.astrbot_plugin_dnaby.main` | 通过 |
-| 历史命令清单/分发 | 当时 56 条、18 模块；当前 main 以 61 条、16 组为准 |
+| 历史命令清单/分发 | 当时 56 条、18 模块；当前 main 以 60 条、16 组为准 |
 | Dashboard 重载 | `ASTRBOT_SKIP_PLUGIN_REQUIREMENTS_SYNC=1 ... reload-plugins.sh 6196 astrbot_plugin_dnaby` 返回 `重载成功` |
 | 历史本机真实 E2E | 当时 56 条命令有入站 `204`；当前 goal 的生产事件级 E2E 另按矩阵记录 |
 
