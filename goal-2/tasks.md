@@ -495,13 +495,23 @@
 
 ## Task 18 — 全量质量门禁与代码审查修复
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：运行全量 pytest、ruff、pyright、compileall、pre-commit、diff-check；使用 `code-review-expert` 审查数据库、权限、敏感信息、并发和 UI，修复所有阻塞问题。
 - 验收：全部适用门禁通过；既有无关失败被准确分类；审查无未解决阻塞项；工作树只含本 goal 预期变化。
 - 实际工作：
+- 按 `code-review-expert` 的安全、质量和并发清单复核 Goal-2 变更：发现调度器/通知推送日志仍拼接异常原文与会话路由，面板“全删”使用 `rmtree` 会误删角色目录内的非图片文件；均先以新增专项测试实际 Red，再做最小修复。调度、通知适配器改为固定脱敏文案，面板删除改为只 unlink 已识别图片并仅在目录为空时移除目录。
+- 新增 `tests/test_goal2_task18_review.py`，覆盖日志不插入异常/路由详情、管理 API 与旧命令入口均保留非图片运维文件；提交 `83d76e8 fix(goal-2): close task 18 review findings`，暂存区仅含 4 个 Goal-2 生产文件和该测试，未修改或暂存 Goal-1/Goal-3 文件。
 - 验证证据：
+- Task 18 专项：Red 实际 `5 failed`；修复后 `../../../.venv/bin/python -m pytest tests/test_goal2_task18_review.py -q` 为 `5 passed, 1 warning`。受影响回归（scheduler、通知、面板、Admin API 和 operations）为 `44 passed, 1 warning`；Goal-2/入口/迁移/配置相关 suite 为 `154 passed, 5 warnings`。
+- 全量 pytest 首轮（审查修复前）为 `516 passed, 1 skipped, 5 warnings`。修复后复跑为 `1 failed, 520 passed, 1 skipped, 5 warnings`；唯一失败是历史 `tests/test_player.py::test_damage_failure_payload_never_reaches_detail_image[Cookie: session=secret-cookie-002]` 的外部 T2I 临时返回不可解码图片，未涉及本 task 文件，单独重跑该参数为 `1 passed, 1 warning`，据此分类为环境性/既有失败而未越界修改。
+- `/Users/flanchan/.local/bin/ruff check .`、`../../../.venv/bin/python -m compileall -q .`、`pre-commit run --all-files`、`git diff --check` 与文档尾随空白检查均通过；Goal-2 定向 Pyright（scheduler、notices scheduler、operations、Task 18 测试）为 `0 errors, 0 warnings, 0 informations`。
+- 全仓 `/opt/homebrew/bin/pyright --project pyrightconfig.json` 为 `68 errors, 0 warnings, 0 informations`，均落在既有命令 registry、配置、Goal-1 red、渲染、通知和测试类型基线；`src/modules/notices/service.py` 的 9 个既有诊断未在本 task 扩修，未发现 Goal-2 本轮新增类型错误。`ruff format --check` 对该历史通知文件的既有格式差异同样未扩大处理。
+- 复核确认工作树除既有未跟踪 `docs/superpowers/`、`goal-2/input.md`、`goal-2/plan.md`、`goal-3/` 外无未提交变更；浏览器/页面静态契约、secret 生命周期、任务 tombstone、成员三态、删除一致性和回滚边界无新的阻塞项。
 - 剩余风险：
+- 全量 pytest 的外部渲染失败仍依赖 AstrBot T2I 临时服务；孤立重跑通过，相关 Goal-2 suite 全绿。全仓 Pyright 仍保留上述 68 个基线诊断，需由各自所属 task 处理。
+- `src/bootstrap.py` 中历史推送日志与 Goal-1/Goal-3 共享 wiring 未改动，以遵守本 goal 的文件边界；本 task 修复了 Goal-2 调度/通知模块中的同类日志，bootstrap 历史问题不作为 Goal-2 新增阻塞项。
 - 下一步：
+- 集中检查 D06：终审 Task 16–18 的真实页面证据、代码/安全/数据一致性、文档回滚、调试残留和最终 diff。
 
 ## 集中检查 D06 — Task 16–18
 
