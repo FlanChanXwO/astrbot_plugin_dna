@@ -347,8 +347,6 @@ def build_runtime(
         return resource_snapshots.synchronize()
 
     resource_update_service = ResourceUpdateService(
-        repo_root=Path(__file__).resolve().parents[2],
-        rendered_root=runtime_database.path.parent / "rendered",
         synchronize=_synchronize_resources,
     )
     admin_panel_service = AdminPanelService(panel_service)
