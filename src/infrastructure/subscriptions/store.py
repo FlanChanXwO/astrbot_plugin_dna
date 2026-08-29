@@ -44,14 +44,14 @@ class SubscriptionStore:
 
         if self._loaded:
             return
-        self._loaded = True
         if not self.path.exists():
+            self._loaded = True
             return
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             if not isinstance(raw, list):
                 raise TypeError("subscription file must be a list")
-            self._subs = [
+            subscriptions = [
                 Subscription(
                     type=str(item["type"]),
                     unified_msg_origin=str(item["unified_msg_origin"]),
@@ -69,10 +69,11 @@ class SubscriptionStore:
                 and item.get("unified_msg_origin")
             ]
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
-            self._subs = []
             raise RuntimeError(
                 f"订阅文件损坏: {self.path.name} ({type(error).__name__})"
             ) from error
+        self._subs = subscriptions
+        self._loaded = True
 
     def _save_unlocked(self) -> None:
         """调用方已持有 ``_lock`` 时原子写盘。"""
