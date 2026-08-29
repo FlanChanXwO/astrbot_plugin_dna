@@ -54,6 +54,9 @@ async def test_help_card_keeps_groups_and_examples(monkeypatch: pytest.MonkeyPat
         {"is_group": False, "name": "日常", "example": "kk日常"},
     ]
 
+    assert await module.get_help(prefix="dna") == b"png"
+    assert renderer.calls[-1].data["lines"][1]["example"] == "dna日常"
+
 
 def test_help_ambiguous_icons_match_gscore_selection() -> None:
     module = importlib.import_module("src.infrastructure.rendering.help")

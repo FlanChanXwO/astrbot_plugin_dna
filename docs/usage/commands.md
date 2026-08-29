@@ -4,7 +4,7 @@
 配置项 `display.command_prefixes` 为准。为保持文档紧凑，下文命令列表省略前缀；发送时请
 在命令主体前加上当前配置的前缀。
 
-当前 main 注册 `commands.json` 中的 60 条命令，覆盖账号/UID、玩家查询、资料读取、隐私、签到、通知、面板和资源管理。命令声明位于
+当前 main 注册 `commands.json` 中的 58 条命令，覆盖账号/UID、玩家查询、资料读取、隐私、签到、通知、面板和资源管理。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；以当前配置前缀发送 `帮助` 查看同一
 registry 的帮助文本。
@@ -48,7 +48,7 @@ registry 的帮助文本。
 - `日历`：读取活动日历；它不读取或修改账号数据。
 - `<名称>图鉴`、`<名称>wiki`：按角色、武器或魔灵的运行期资源索引返回图鉴图片。
 - `<角色名>攻略`：按已配置的攻略作者返回单图，或每位作者一条文案后跟随其全部图片的消息链。
-- `兑换码`、`cdk`、`code`：读取 provider 中所有有效兑换码；不同截止时间会与各自兑换码一同显示。
+- `兑换码`、`cdk`、`code`：读取资源仓库中当前有效的兑换码；奖励、生效时间、截止时间、平台和区服等已提供字段会随各码显示。
 - `<角色/武器名>别名`：查看只读别名列表，使用 `admin` 权限。
 - `角色列表`、`武器列表`：查看运行期资源中已索引的 canonical 名称，使用 `user` 权限。
 
@@ -104,15 +104,16 @@ registry 的帮助文本。
 
 ## 资源管理命令（admin）
 
-- `下载全部资源`：浅克隆或 `git pull --ff-only` 同步公共资源仓库并校验 manifest；Git
-  缺失、认证失败、远端失败、非快进和本地修改均返回可见错误，不自动覆盖本地修改。
+- `下载全部资源`：获取 `main` 的 `FETCH_HEAD`，先校验候选 generation，再以 fast-forward
+  发布公共资源；Git、候选校验错误和本地修改均返回可见错误，上一份已验证资源继续可用。
 
 更新历史不再提供聊天命令，统一记录在仓库根目录的 `CHANGELOG.md`；因此不会出现在帮助或
 `commands.json` 中。
 
 资料读取的图片与索引只使用
-`StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录
-写入或下载素材。图像语义、已知差异和 fixture 边界见
+`StarTools.get_data_dir("astrbot_plugin_dnaby")/resource_generations/`（首次生成前兼容读取
+`resources/` 缓存）和 `rendered/`，不从插件源码目录写入或下载素材。图像语义、已知差异和
+fixture 边界见
 [v0.3 资料查询行为矩阵](../porting/review-v0.3-encyclopedia.md)。
 
 资源同步后的完整目录已接入玩家与百科 renderer；metadata 会把实际读取到的素材标为

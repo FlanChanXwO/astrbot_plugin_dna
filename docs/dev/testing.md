@@ -14,7 +14,14 @@ ruff check .
   `test_dispatch.py`，不属于 rewrite 入口。
 - `test_config.py` — legacy 配置 wrapper 的兼容回归。
 - `test_config_resources.py` — Pydantic 分组配置、生成 schema 的 AstrBotConfig 递归解析、
-  resource manifest 路径校验、私有 Git clone/pull 失败可见性和本地修改保护。
+  resource manifest 路径校验、私有 Git clone/fetch/fast-forward 失败可见性和本地修改保护。
+- `test_goal3_resource_acceleration.py` — Task 16 的资源加速、canonical origin、单分支 Git
+  参数与 bootstrap 注入。
+- `test_goal3_resource_generations.py` — Task 17 的 `FETCH_HEAD` archive 候选、完整校验、原子
+  generation 发布、失败保留旧快照、并发 lease、renderer 绑定与重启孤立物清理。
+- `test_goal3_task19.py` — 使用临时 bare Git 和编辑器 `test:task19` 联合验证公共资源
+  manifest/schema、Worker PR Check、插件 `main` 下载/generation/兑换码消费，以及旧数据目录
+  与 `panel_custom`/数据库/订阅文件的无损升级。
 - `test_persistence.py` — SQLAlchemy async SQLite 路径、repository 显式事务提交/回滚、五表
   metadata、凭据脱敏和 Alembic 初始 revision；Alembic 未安装时真实 upgrade/downgrade 测试会
   显式 skip，静态 revision 契约仍执行。
@@ -75,3 +82,21 @@ ruff check .
 当前阶段只用 AstrBot 本地 SDK、fake Context、事件 fixture 和原生响应构造方法验证
 插件加载、handler 注册和响应结果。账号与隐私写入只在隔离 SQLite 中执行；不执行真实
 NapCat、OneBot、手机号验证码、token 或外部登录服务。
+
+## 三仓发布前门禁
+
+编辑器仓库从其根目录执行：
+
+```bash
+npm ci
+npm test
+npm run typecheck
+npm run build
+npm run deploy:dry-run
+```
+
+`npm test` 不隐式运行跨仓 `test:task19`；插件测试会创建 fixture 并注入
+`DNA_TASK19_FIXTURE` 后调用它。资源仓库不承载编辑器测试或依赖，发布前至少用 Python/JSON
+工具检查 manifest、schema 和 data 语法，并通过编辑器 `resource-contract` Check。真实
+Cloudflare/GitHub App/Turnstile/Webhook/ruleset 验收仍须按外部运维 runbook 单独记录，不能以
+本地 fixture 或 `deploy:dry-run` 冒充。

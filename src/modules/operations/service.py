@@ -13,7 +13,7 @@ from PIL import Image
 
 from ...entry.event import EventActor
 from ...entry.response import ChainResponse, ImageResponse, PlainTextResponse
-from ...infrastructure.resources import ResourceManifest
+from ...infrastructure.resources import ResourceManifest, ResourceSnapshotCoordinator
 from . import messages
 
 ResolveCharId = Callable[[str], str | None]
@@ -46,11 +46,13 @@ class PanelService:
         resource_root: str | Path,
         resolve_char_id: ResolveCharId,
         panel_dir_for: PanelDirFor,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.panel_root = Path(panel_root)
         self.resource_root = Path(resource_root)
         self.resolve_char_id = resolve_char_id
         self.panel_dir_for = panel_dir_for
+        self.resource_snapshots = resource_snapshots
 
     def _char_panel_dir(self, char_name: str) -> Path | None:
         """解析角色 canonical 名与 CharId，返回其面板目录（限定在 panel_root 内）。"""
@@ -305,12 +307,19 @@ class PanelService:
     async def resource_status(self, _request: PanelCommandRequest):
         """展示公共资源仓库与本地面板数据的状态。"""
 
+        if self.resource_snapshots is None:
+            return self._resource_status_response(self.resource_root)
+        with self.resource_snapshots.optional_lease() as snapshot:
+            resource_root = snapshot.root if snapshot is not None else self.resource_root
+            return self._resource_status_response(resource_root)
+
+    def _resource_status_response(self, resource_root: Path) -> PlainTextResponse:
+        """在调用方持有的 generation lease 内生成资源状态响应。"""
+
         lines = [messages.RESOURCE_STATUS_HEADER]
-        lines.append(
-            messages.resource_status_line("资源仓库目录", str(self.resource_root))
-        )
-        if self.resource_root.is_dir():
-            manifest_path = self.resource_root / "resource_manifest.json"
+        lines.append(messages.resource_status_line("资源仓库目录", str(resource_root)))
+        if resource_root.is_dir():
+            manifest_path = resource_root / "resource_manifest.json"
             if manifest_path.is_file():
                 try:
                     manifest = ResourceManifest.load(manifest_path)
@@ -324,11 +333,7 @@ class PanelService:
                             "资源版本", manifest.resource_version
                         )
                     )
-                    present = [
-                        d
-                        for d in manifest.required_dirs
-                        if (self.resource_root / d).is_dir()
-                    ]
+                    present = [d for d in manifest.required_dirs if (resource_root / d).is_dir()]
                     lines.append(
                         messages.resource_status_line(
                             "必需目录",

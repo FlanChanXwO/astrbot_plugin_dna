@@ -21,8 +21,9 @@ SynchronizeFn = Callable[[], ResourceSyncResult]
 class ResourceUpdateService:
     """公共资源同步。
 
-    同步只调用参数列表形式的 ``git``（浅克隆 / ``pull --ff-only``），Git 缺失、认证失败、
-    远端失败、非快进和本地修改均通过异常显露为可见文案，不自动覆盖本地修改。
+    同步只调用参数列表形式的 ``git``（浅克隆 / ``fetch`` / 候选校验 / fast-forward），
+    Git 缺失、认证失败、远端失败、候选无效、非快进和本地修改均通过异常显露为可见文案，
+    不自动覆盖本地修改。
     """
 
     def __init__(

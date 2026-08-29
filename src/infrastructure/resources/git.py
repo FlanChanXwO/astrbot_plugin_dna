@@ -1,8 +1,9 @@
 """公共资源 Git 同步接口。
 
 同步器只调用参数列表形式的 ``git``，不经过 shell；它不会 force checkout、
-删除本地目录或覆盖本地修改。首次同步使用浅克隆，后续只允许
-``git pull --ff-only``，所有失败通过异常显露给上层。
+删除本地目录或覆盖本地修改。首次同步使用 ``main`` 的浅克隆，后续只允许
+``git fetch --no-tags origin main``，候选验证通过后再 fast-forward 到
+``FETCH_HEAD``，所有失败通过异常显露给上层。
 """
 
 from __future__ import annotations
@@ -14,10 +15,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from .acceleration import (
+    build_git_instead_of_config,
+    normalize_github_repository_url,
+    normalize_http_base_url,
+)
 from .manifest import ResourceManifest
 from .paths import default_resource_repository_dir, resource_repository_dir
 
-DEFAULT_RESOURCE_REMOTE = "https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git"
+DEFAULT_RESOURCE_REMOTE = (
+    "https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git"
+)
 
 
 class ResourceSyncError(RuntimeError):
@@ -70,11 +78,20 @@ class ResourceRemoteMismatchError(ResourceSyncError):
         super().__init__("资源 Git origin 与配置的公共资源仓库不一致")
 
 
+class ResourceBranchMismatchError(ResourceSyncError):
+    """资源 checkout 未停在唯一受支持的 main 分支。"""
+
+    def __init__(self) -> None:
+        super().__init__("资源 Git 当前 checkout 不是 main 分支")
+
+
 class ResourceLocalChangesError(ResourceSyncError):
     """资源仓库有本地修改，不允许自动覆盖。"""
 
     def __init__(self, status: str) -> None:
-        super().__init__(f"资源仓库存在本地修改，已停止同步，不会覆盖：{status.strip()}")
+        super().__init__(
+            f"资源仓库存在本地修改，已停止同步，不会覆盖：{status.strip()}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,13 +111,22 @@ class GitRunner(Protocol):
     ) -> GitCommandResult: ...
 
 
+def _git_operation(args: tuple[str, ...]) -> str:
+    """从可能带临时 ``-c`` 参数的 Git 参数中取得子命令名。"""
+
+    index = 0
+    while index < len(args) and args[index] == "-c":
+        index += 2
+    return args[index] if index < len(args) else "command"
+
+
 def run_git(args: tuple[str, ...], cwd: Path | None = None) -> GitCommandResult:
     """通过参数列表执行 Git；不把参数拼接为 shell 命令。"""
 
     executable = shutil.which("git")
     if executable is None:
         raise GitUnavailableError
-    operation = args[0] if args else "command"
+    operation = _git_operation(args)
     try:
         completed = subprocess.run(
             (executable, *args),
@@ -128,6 +154,8 @@ class ResourceSyncResult:
     repository: Path
     action: str
     resource_version: str
+    commit_sha: str = ""
+    generation_root: Path | None = None
 
 
 class ResourceSynchronizer:
@@ -138,23 +166,36 @@ class ResourceSynchronizer:
         repository: str | Path,
         *,
         remote: str = DEFAULT_RESOURCE_REMOTE,
+        acceleration_prefix: str | None = None,
         runner: GitRunner = run_git,
     ) -> None:
-        if not remote or any(character in remote for character in "\0\r\n"):
-            raise ValueError("资源 Git remote 不能为空或包含控制字符")
         self.repository = Path(repository)
-        self.remote = remote
+        self.remote = normalize_github_repository_url(remote)
+        normalized_prefix = normalize_http_base_url(acceleration_prefix or "")
+        self.acceleration_prefix = normalized_prefix or None
         self._runner = runner
 
+    def _configured_args(self, args: tuple[str, ...]) -> tuple[str, ...]:
+        # 只有会访问远端的命令需要镜像替换；对 remote get-url 等本地状态查询
+        # 注入 insteadOf 会让 Git 输出被改写后的镜像 URL，破坏 origin 契约校验。
+        if self.acceleration_prefix is None or _git_operation(args) not in {
+            "clone",
+            "fetch",
+            "pull",
+        }:
+            return args
+        return ("-c", build_git_instead_of_config(self.acceleration_prefix), *args)
+
     def _run(self, args: tuple[str, ...], cwd: Path | None = None) -> GitCommandResult:
+        configured_args = self._configured_args(args)
         try:
-            result = self._runner(args, cwd)
+            result = self._runner(configured_args, cwd)
         except ResourceSyncError:
             raise
         except OSError as exc:
-            raise GitCommandError(args[0] if args else "command", str(exc)) from exc
+            raise GitCommandError(_git_operation(args), str(exc)) from exc
         if result.returncode:
-            raise GitCommandError(args[0] if args else "command", result.stderr)
+            raise GitCommandError(_git_operation(args), result.stderr or result.stdout)
         return result
 
     def _validate_git_state(self) -> None:
@@ -169,6 +210,10 @@ class ResourceSynchronizer:
         if origin.stdout.strip() != self.remote:
             raise ResourceRemoteMismatchError
 
+        branch = self._run(("symbolic-ref", "--short", "HEAD"), self.repository)
+        if branch.stdout.strip() != "main":
+            raise ResourceBranchMismatchError
+
         status = self._run(
             ("status", "--porcelain", "--untracked-files=all"),
             self.repository,
@@ -180,6 +225,47 @@ class ResourceSynchronizer:
         return ResourceManifest.load(
             self.repository / "resource_manifest.json"
         ).validate_runtime_layout(self.repository)
+
+    def fetch_main(self) -> None:
+        """显式获取 ``origin/main``，为候选 generation 准备 ``FETCH_HEAD``。"""
+
+        self._run(
+            ("fetch", "--no-tags", "origin", "main"),
+            self.repository,
+        )
+
+    def fetch_head_revision(self) -> str:
+        """返回最近一次 main fetch/pull 写入的 FETCH_HEAD 提交。"""
+
+        result = self._run(("rev-parse", "FETCH_HEAD"), self.repository)
+        revision = result.stdout.strip()
+        if not revision or re.fullmatch(r"[0-9a-fA-F]+", revision) is None:
+            raise ResourceSyncError("资源 Git FETCH_HEAD 不是有效提交")
+        return revision
+
+    def archive_fetch_head(self, archive_path: str | Path) -> None:
+        """把 ``FETCH_HEAD`` 导出为 tar，供 generation 候选物化。"""
+
+        target = Path(archive_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        self._run(
+            (
+                "archive",
+                "--format=tar",
+                "--output",
+                str(target),
+                "FETCH_HEAD",
+            ),
+            self.repository,
+        )
+
+    def fast_forward_fetch_head(self) -> None:
+        """候选校验通过后，仅把当前 main fast-forward 到 ``FETCH_HEAD``。"""
+
+        self._run(
+            ("merge", "--ff-only", "FETCH_HEAD"),
+            self.repository,
+        )
 
     def validate(self) -> ResourceManifest:
         """检查 Git 状态、origin 和 manifest，但不拉取远端。"""
@@ -193,14 +279,27 @@ class ResourceSynchronizer:
         if not self.repository.exists():
             self.repository.parent.mkdir(parents=True, exist_ok=True)
             self._run(
-                ("clone", "--depth", "1", self.remote, str(self.repository)),
+                (
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--single-branch",
+                    "--branch",
+                    "main",
+                    "--no-tags",
+                    self.remote,
+                    str(self.repository),
+                ),
                 self.repository.parent,
             )
             action = "cloned"
             self._validate_git_state()
         else:
             self._validate_git_state()
-            self._run(("pull", "--ff-only"), self.repository)
+            self._run(
+                ("pull", "--ff-only", "--no-tags", "origin", "main"),
+                self.repository,
+            )
             action = "updated"
             self._validate_git_state()
 
@@ -217,6 +316,7 @@ def download_all_resources(
     *,
     data_dir: str | Path | None = None,
     remote: str = DEFAULT_RESOURCE_REMOTE,
+    acceleration_prefix: str | None = None,
     runner: GitRunner = run_git,
 ) -> ResourceSyncResult:
     """下载并验证全部公共资源；首次浅克隆，后续 fast-forward-only 更新。"""
@@ -232,7 +332,12 @@ def download_all_resources(
             else default_resource_repository_dir()
         )
     )
-    return ResourceSynchronizer(target, remote=remote, runner=runner).sync()
+    return ResourceSynchronizer(
+        target,
+        remote=remote,
+        acceleration_prefix=acceleration_prefix,
+        runner=runner,
+    ).sync()
 
 
 __all__ = [
@@ -240,6 +345,7 @@ __all__ = [
     "GitCommandError",
     "GitCommandResult",
     "GitUnavailableError",
+    "ResourceBranchMismatchError",
     "ResourceLocalChangesError",
     "ResourceRemoteMismatchError",
     "ResourceSyncError",

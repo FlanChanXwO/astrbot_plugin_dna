@@ -51,7 +51,14 @@ def test_settings_are_grouped_and_typed() -> None:
 def test_generated_schema_is_astrbot_compatible(tmp_path: Path) -> None:
     schema = generate_astrbot_schema()
     assert json.loads(Path("_conf_schema.json").read_text(encoding="utf-8")) == schema
-    assert set(schema) == {"login", "network", "sign_in", "notifications", "display"}
+    assert set(schema) == {
+        "login",
+        "network",
+        "sign_in",
+        "notifications",
+        "display",
+        "resources",
+    }
     assert schema["login"]["type"] == "object"
     assert schema["login"]["items"]["transport"]["options"] == [
         "local",
@@ -187,6 +194,7 @@ def test_resource_sync_rejects_manifest_missing_runtime_layout(tmp_path: Path) -
         {
             ("rev-parse", "--is-inside-work-tree"): GitCommandResult(stdout="true\n"),
             ("remote", "get-url", "origin"): GitCommandResult(stdout=f"{remote}\n"),
+            ("symbolic-ref", "--short", "HEAD"): GitCommandResult(stdout="main\n"),
             ("status", "--porcelain", "--untracked-files=all"): GitCommandResult(),
         },
     )
@@ -261,9 +269,20 @@ def test_resource_sync_clones_once_and_pulls_after_clean_check(tmp_path: Path) -
     remote = "https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git"
     clone = FakeGit(
         {
-            ("clone", "--depth", "1", remote, str(target)): GitCommandResult(),
+            (
+                "clone",
+                "--depth",
+                "1",
+                "--single-branch",
+                "--branch",
+                "main",
+                "--no-tags",
+                remote,
+                str(target),
+            ): GitCommandResult(),
             ("rev-parse", "--is-inside-work-tree"): GitCommandResult(stdout="true\n"),
             ("remote", "get-url", "origin"): GitCommandResult(stdout=f"{remote}\n"),
+            ("symbolic-ref", "--short", "HEAD"): GitCommandResult(stdout="main\n"),
             ("status", "--porcelain", "--untracked-files=all"): GitCommandResult(),
         }
     )
@@ -286,6 +305,7 @@ def test_resource_sync_clones_once_and_pulls_after_clean_check(tmp_path: Path) -
         "clone",
         "rev-parse",
         "remote",
+        "symbolic-ref",
         "status",
     ]
 
@@ -295,8 +315,9 @@ def test_resource_sync_clones_once_and_pulls_after_clean_check(tmp_path: Path) -
     responses = {
         ("rev-parse", "--is-inside-work-tree"): GitCommandResult(stdout="true\n"),
         ("remote", "get-url", "origin"): GitCommandResult(stdout=f"{remote}\n"),
+        ("symbolic-ref", "--short", "HEAD"): GitCommandResult(stdout="main\n"),
         ("status", "--porcelain", "--untracked-files=all"): GitCommandResult(),
-        ("pull", "--ff-only"): GitCommandResult(),
+        ("pull", "--ff-only", "--no-tags", "origin", "main"): GitCommandResult(),
     }
     existing = FakeGit(responses)
     result = ResourceSynchronizer(target2, remote=remote, runner=existing).sync()
@@ -304,10 +325,12 @@ def test_resource_sync_clones_once_and_pulls_after_clean_check(tmp_path: Path) -
     assert [call[0][0] for call in existing.calls] == [
         "rev-parse",
         "remote",
+        "symbolic-ref",
         "status",
         "pull",
         "rev-parse",
         "remote",
+        "symbolic-ref",
         "status",
     ]
 
@@ -321,6 +344,7 @@ def test_resource_sync_reports_local_changes_without_pull(tmp_path: Path) -> Non
         {
             ("rev-parse", "--is-inside-work-tree"): GitCommandResult(stdout="true\n"),
             ("remote", "get-url", "origin"): GitCommandResult(stdout=f"{remote}\n"),
+            ("symbolic-ref", "--short", "HEAD"): GitCommandResult(stdout="main\n"),
             ("status", "--porcelain", "--untracked-files=all"): GitCommandResult(
                 stdout=" M wiki/index.json\n"
             ),

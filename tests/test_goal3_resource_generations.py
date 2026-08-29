@@ -1,0 +1,446 @@
+"""Goal 3 Task 17：资源 generation、候选校验和运行期快照契约。"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+from PIL import Image
+
+from src.bootstrap import build_runtime
+from src.infrastructure.persistence import AsyncDatabase
+from src.infrastructure.resources import (
+    DEFAULT_RESOURCE_REMOTE,
+    GitCommandError,
+    GitCommandResult,
+    ResourceGenerationError,
+    ResourceGenerationValidator,
+    ResourceSnapshotCoordinator,
+    run_git,
+)
+from src.infrastructure.resources.manifest import RUNTIME_RESOURCE_DIRECTORIES
+
+
+def _git(*args: str, cwd: Path | None = None) -> str:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+def _operation(args: tuple[str, ...]) -> str:
+    return args[2] if args[:1] == ("-c",) else args[0]
+
+
+def _write_resources(root: Path, version: str, *, broken: bool = False) -> None:
+    required_dirs = (*RUNTIME_RESOURCE_DIRECTORIES, "data", "schemas")
+    for relative in required_dirs:
+        directory = root / relative
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / ".keep").write_text("fixture\n", encoding="utf-8")
+    (root / "resource_manifest.json").write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "required_dirs": list(required_dirs),
+                "resource_version": version,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / "alias" / "char_alias.json").write_text(
+        json.dumps({"角色甲": ["角色甲", "小甲"]}),
+        encoding="utf-8",
+    )
+    (root / "alias" / "weapon_alias.json").write_text(
+        json.dumps({"武器甲": ["武器甲"]}),
+        encoding="utf-8",
+    )
+    (root / "data" / "redeem_codes.json").write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "data": [{"code": "CODE-" + version}],
+            }
+            if not broken
+            else {"format_version": 1, "data": [{"code": ""}]}
+        ),
+        encoding="utf-8",
+    )
+    (root / "schemas" / "redeem-codes.v1.schema.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "required": ["format_version", "data"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    image_path = root / "images" / "role_avatar" / "1.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    if broken:
+        image_path.write_bytes(b"not-a-png")
+    else:
+        Image.new("RGBA", (2, 2), (255, 0, 0, 255)).save(image_path, format="PNG")
+        wiki_path = root / "wiki" / "role" / "角色甲.png"
+        Image.new("RGBA", (2, 2), (0, 255, 0, 255)).save(wiki_path, format="PNG")
+    (root / "fonts" / "dna_fonts.ttf").write_bytes(b"\x00\x01\x00\x00fixture")
+
+
+def _commit_main(source: Path, version: str, *, broken: bool = False) -> None:
+    _write_resources(source, version, broken=broken)
+    _git("add", ".", cwd=source)
+    _git("commit", "-m", version, cwd=source)
+    _git("push", "fixture", "main", cwd=source)
+
+
+class LocalBareRunner:
+    """把 canonical GitHub URL 映射到本地 bare fixture，不改产品调用参数。"""
+
+    def __init__(self, bare: Path, target: Path) -> None:
+        self.bare = bare
+        self.target = target
+        self.calls: list[tuple[str, ...]] = []
+
+    def __call__(
+        self,
+        args: tuple[str, ...],
+        cwd: Path | None = None,
+    ) -> GitCommandResult:
+        self.calls.append(args)
+        operation = _operation(args)
+        if operation in {"clone", "fetch", "pull"}:
+            mapping = f"url.{self.bare.as_uri()}.insteadOf={DEFAULT_RESOURCE_REMOTE}"
+            result = run_git(("-c", mapping, *args), cwd)
+        else:
+            result = run_git(args, cwd)
+        if operation == "clone":
+            _git("remote", "set-url", "origin", DEFAULT_RESOURCE_REMOTE, cwd=self.target)
+        return result
+
+
+def _fixture(tmp_path: Path) -> tuple[Path, Path, LocalBareRunner]:
+    bare = tmp_path / "remote.git"
+    source = tmp_path / "source"
+    source.mkdir()
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+    _git("init", "--initial-branch=main", str(source), cwd=tmp_path)
+    _git("config", "user.name", "Task 17 Fixture", cwd=source)
+    _git("config", "user.email", "task17@example.invalid", cwd=source)
+    _git("remote", "add", "fixture", bare.as_uri(), cwd=source)
+    _commit_main(source, "v1")
+    _git("checkout", "-b", "feature", cwd=source)
+    (source / "feature.txt").write_text("feature\n", encoding="utf-8")
+    _git("add", "feature.txt", cwd=source)
+    _git("commit", "-m", "feature", cwd=source)
+    _git("tag", "feature-tag", cwd=source)
+    _git("checkout", "main", cwd=source)
+    _git("push", "fixture", "feature", "--tags", cwd=source)
+    target = tmp_path / "resources"
+    return source, target, LocalBareRunner(bare, target)
+
+
+def _coordinator(tmp_path: Path, runner: LocalBareRunner) -> ResourceSnapshotCoordinator:
+    return ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+    )
+
+
+def test_sync_archives_fetch_head_and_publishes_only_valid_main_generation(
+    tmp_path: Path,
+) -> None:
+    source, target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    published = []
+    coordinator.subscribe(published.append)
+
+    result = coordinator.synchronize()
+    snapshot = coordinator.current_snapshot
+
+    assert snapshot is not None
+    assert result.commit_sha == snapshot.commit_sha
+    assert snapshot.root == tmp_path / "resource_generations" / result.commit_sha
+    assert snapshot.player_resources.root == snapshot.root
+    assert all(
+        path.is_relative_to(snapshot.root) and path.is_file()
+        for path in snapshot.encyclopedia_resources.wiki_assets.values()
+    )
+    assert (snapshot.root / "main").exists() is False
+    assert not (snapshot.root / "feature.txt").exists()
+    assert (snapshot.root / "resource_manifest.json").is_file()
+    assert _git("remote", "get-url", "origin", cwd=target).strip() == DEFAULT_RESOURCE_REMOTE
+    assert _git("branch", "--show-current", cwd=target).strip() == "main"
+    assert _git("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin", cwd=target).splitlines() == [
+        "origin/main"
+    ]
+    assert _git("tag", cwd=target).strip() == ""
+    assert any(_operation(call) == "archive" and "FETCH_HEAD" in call for call in runner.calls)
+    assert json.loads(coordinator.state_path.read_text(encoding="utf-8"))["generation"] == result.commit_sha
+    assert [item.commit_sha for item in published] == [result.commit_sha]
+    assert source.exists()
+
+
+def test_invalid_candidate_keeps_last_verified_snapshot_and_cleans_temp_files(
+    tmp_path: Path,
+) -> None:
+    source, target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    old = coordinator.current_snapshot
+    assert old is not None
+    old_checkout = _git("rev-parse", "HEAD", cwd=target).strip()
+
+    _git("checkout", "main", cwd=source)
+    _commit_main(source, "broken", broken=True)
+
+    with pytest.raises(ResourceGenerationError, match="资源候选 generation 校验失败"):
+        coordinator.synchronize()
+
+    current = coordinator.current_snapshot
+    assert current is old
+    assert current.commit_sha == first.commit_sha
+    assert old.root.is_dir()
+    assert _git("rev-parse", "HEAD", cwd=target).strip() == old_checkout
+    assert json.loads(coordinator.state_path.read_text(encoding="utf-8"))["generation"] == first.commit_sha
+    assert not any(path.name.startswith((".candidate-", ".archive-")) for path in coordinator.generations_root.iterdir())
+
+
+def test_git_failure_keeps_last_verified_snapshot(tmp_path: Path) -> None:
+    _source, _target, healthy_runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, healthy_runner)
+    first = coordinator.synchronize()
+
+    class FailingRunner(LocalBareRunner):
+        def __call__(self, args: tuple[str, ...], cwd: Path | None = None):
+            if _operation(args) in {"pull", "fetch"}:
+                raise GitCommandError(_operation(args), "mirror unavailable")
+            return super().__call__(args, cwd)
+
+    restarted = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=FailingRunner(healthy_runner.bare, healthy_runner.target),
+    )
+    restarted.initialize()
+    with pytest.raises(GitCommandError, match="mirror unavailable"):
+        restarted.synchronize()
+
+    assert restarted.current_snapshot is not None
+    assert restarted.current_snapshot.commit_sha == first.commit_sha
+    assert restarted.current_snapshot.root.is_dir()
+
+
+def test_lease_keeps_old_generation_until_all_readers_release(tmp_path: Path) -> None:
+    source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    lease_one = coordinator.acquire()
+    lease_two = coordinator.acquire()
+    old_root = lease_one.root
+
+    _git("checkout", "main", cwd=source)
+    _commit_main(source, "v2")
+    second = coordinator.synchronize()
+
+    assert second.commit_sha != first.commit_sha
+    assert coordinator.current_snapshot is not None
+    assert coordinator.current_snapshot.commit_sha == second.commit_sha
+    assert old_root.is_dir()
+
+    lease_one.release()
+    assert old_root.is_dir()
+    lease_two.release()
+    assert not old_root.exists()
+
+
+def test_renderer_binding_pins_generation_for_render_duration(tmp_path: Path) -> None:
+    source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    old_root = first.generation_root
+    assert old_root is not None
+    first_snapshot = coordinator.current_snapshot
+    assert first_snapshot is not None
+
+    class Renderer:
+        resources = None
+
+    renderer = Renderer()
+    with coordinator.bind_renderer(renderer, "player_resources") as bound:
+        assert bound is not renderer
+        assert bound.resources is coordinator.current_snapshot.player_resources
+
+        _git("checkout", "main", cwd=source)
+        _commit_main(source, "v2")
+        coordinator.synchronize()
+
+        assert bound.resources is first_snapshot.player_resources
+
+    assert not old_root.exists()
+
+
+def test_resource_binding_does_not_mask_consumer_attribute_errors(tmp_path: Path) -> None:
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    coordinator.synchronize()
+
+    with pytest.raises(AttributeError, match="consumer failure"), coordinator.bind_resource(
+        "player_resources"
+    ):
+        raise AttributeError("consumer failure")
+
+
+def test_validator_rejects_duplicate_alias_under_one_canonical_name(tmp_path: Path) -> None:
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    (candidate / "alias" / "char_alias.json").write_text(
+        json.dumps({"角色甲": ["角色甲", "角色甲"]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ResourceGenerationError, match="资源候选别名重复"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
+def test_validator_rejects_containment_ambiguous_aliases(tmp_path: Path) -> None:
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    (candidate / "alias" / "char_alias.json").write_text(
+        json.dumps(
+            {
+                "角色甲": ["短名"],
+                "角色乙": ["短名后缀"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ResourceGenerationError, match="资源候选别名存在歧义"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
+def test_validator_rejects_canonical_alias_collision(tmp_path: Path) -> None:
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    (candidate / "alias" / "char_alias.json").write_text(
+        json.dumps(
+            {
+                "角色甲": ["仅甲"],
+                "角色乙": ["角色甲"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ResourceGenerationError, match="资源候选别名存在歧义"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
+def test_validator_rejects_schema_without_draft_identifier(tmp_path: Path) -> None:
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    (candidate / "schemas" / "redeem-codes.v1.schema.json").write_text(
+        json.dumps({"type": "object", "required": ["format_version", "data"]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ResourceGenerationError, match="资源候选兑换码 schema 格式错误"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
+def test_validator_rejects_symlinked_resource_files(tmp_path: Path) -> None:
+    """generation 内的资源文件不得通过符号链接读取 generation 外部内容。"""
+
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    outside = tmp_path / "outside-alias.json"
+    outside.write_text(json.dumps({"角色甲": ["外部别名"]}), encoding="utf-8")
+    alias_path = candidate / "alias" / "char_alias.json"
+    alias_path.unlink()
+    alias_path.symlink_to(outside)
+
+    with pytest.raises(ResourceGenerationError, match="资源候选不允许符号链接"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
+def test_validator_reads_binary_headers_without_loading_full_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """候选校验只读取文件头，不把完整图片和字体载入内存。"""
+
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+
+    def fail_read_bytes(_path: Path) -> bytes:
+        raise AssertionError("候选头部校验不应读取完整文件")
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read_bytes)
+
+    snapshot = ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+    assert snapshot.commit_sha == "a" * 40
+
+
+def test_restart_loads_active_generation_and_removes_orphans_without_touching_panel_custom(
+    tmp_path: Path,
+) -> None:
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    result = coordinator.synchronize()
+    orphan = coordinator.generations_root / ("f" * 40)
+    orphan.mkdir(parents=True)
+    (orphan / "stale.txt").write_text("stale", encoding="utf-8")
+    panel_custom = tmp_path / "panel_custom"
+    panel_custom.mkdir()
+    keep = panel_custom / "keep.webp"
+    keep.write_bytes(b"panel")
+
+    restarted = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+    )
+    snapshot = restarted.initialize()
+
+    assert snapshot is not None
+    assert snapshot.commit_sha == result.commit_sha
+    assert not orphan.exists()
+    assert keep.read_bytes() == b"panel"
+    assert (restarted.generations_root / result.commit_sha).is_dir()
+
+
+def test_bootstrap_removes_alias_write_service_and_keeps_panel_custom(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """移除别名写服务时仍保留 panel_custom 运行期数据边界。"""
+
+    generation_root = tmp_path / "resource_generations" / ("a" * 40)
+    generation_root.mkdir(parents=True)
+    snapshot = SimpleNamespace(
+        root=generation_root,
+        player_resources=object(),
+        encyclopedia_resources=object(),
+    )
+    monkeypatch.setattr(ResourceSnapshotCoordinator, "initialize", lambda self: snapshot)
+
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *args: None),
+        {},
+        database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
+    )
+
+    assert "alias_service" not in runtime.services
+    assert runtime.services["panel_service"].panel_root == tmp_path / "panel_custom"

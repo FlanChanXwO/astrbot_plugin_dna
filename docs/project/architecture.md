@@ -68,17 +68,26 @@
   引用缓存显式报告不支持；`resource_status` 展示公共资源仓库 manifest/必需目录与面板数量。
   写操作只在隔离 fixture 验证；命令层经 `CommandRequest.images` 从 AstrBot 公开消息链提取
   图片载荷（`images_from_event`）。
-  资源更新经 `ResourceUpdateService` 复用 `ResourceSynchronizer`（浅克隆/`pull --ff-only`），
-  `下载全部资源` 把 Git 缺失/认证/远端/非快进/本地修改映射为可见错误，不自动
-  覆盖本地修改。
+  资源更新经 `ResourceUpdateService` 调用 `ResourceSnapshotCoordinator`：Git cache 只执行
+  `main` 的浅克隆/fetch，候选先由 `git archive FETCH_HEAD` 物化并完整校验，再
+  `merge --ff-only FETCH_HEAD`，最后原子发布 `resource_generations/<sha>/` 和当前指针。
+  `下载全部资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
-- 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，首次浅克隆、后续
-  `pull --ff-only`，同步前后检查 origin、干净 worktree 和完整 `resource_manifest.json`；不
-  强制覆盖本地修改。bootstrap 从同一运行期 `resources/` 根注入玩家的 `ResourceMap` 与
-  `EncyclopediaResourceStore`，字体不再从源码读取。生成 PNG 仅在受控 `rendered/` 根登记给
-  AstrBot 事件期清理，资源资产不会被登记为临时文件。
-- 当前阶段：当前 main 已注册 `commands.json` 中的 60 条命令，权限为
-  `user=32/admin=28`；未迁移命令不会在新入口中隐式注册。
+- 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
+  GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `fetch --no-tags origin main`，可用临时
+  `url.*.insteadOf` 注入 GitHub 加速前缀。同步前后检查 origin、main checkout、干净 worktree
+  和完整 `resource_manifest.json`；不强制覆盖本地修改。bootstrap 从当前已验证 generation
+  注入玩家的 `ResourceMap` 与 `EncyclopediaResourceStore`，并订阅发布事件刷新 renderer、
+  别名和资源状态视图。每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
+  回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材
+  的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理。
+- 三仓边界：公共资源仓库只承载 manifest、素材、兑换码和 schema；GPL-3.0 编辑器仓库独立
+  提供类型化表单、GitHub App OAuth/投稿/Webhook Check。编辑器生成的 PR 必须落到资源仓库
+  `main` 后，插件才会从 canonical GitHub origin 的 `main` fetch、校验并发布 generation；
+  插件不拉取编辑器源码，也不把镜像或投稿分支当作发布源。资源仓库的第三方素材不因仓库
+  公开或插件 GPL-3.0 而获得统一许可。
+- 当前阶段：当前 main 已注册 `commands.json` 中的 58 条命令，权限为
+  `user=32/admin=26`；未迁移命令不会在新入口中隐式注册，别名仅保留读取命令。
 
 ## HTML/T2I 图片渲染
 

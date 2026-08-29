@@ -239,6 +239,51 @@ async def test_resource_status_reports_manifest_state(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_resource_status_uses_a_generation_lease(tmp_path: Path) -> None:
+    """资源状态读取期间固定同一个 generation，避免热刷新切换根目录。"""
+
+    generation_root = tmp_path / "resource_generations" / ("a" * 40)
+    (generation_root / "fonts").mkdir(parents=True)
+    (generation_root / "resource_manifest.json").write_text(
+        '{"format_version": 1, "required_dirs": ["fonts"], "resource_version": "v1"}',
+        encoding="utf-8",
+    )
+
+    class Snapshot:
+        root = generation_root
+
+    class LeaseProbe:
+        entered = False
+        exited = False
+
+        def optional_lease(self):
+            return self
+
+        def __enter__(self):
+            self.entered = True
+            return Snapshot()
+
+        def __exit__(self, _exc_type, _exc_value, _traceback):
+            self.exited = True
+
+    lease_probe = LeaseProbe()
+    service = PanelService(
+        tmp_path / "panel_custom",
+        resource_root=tmp_path / "legacy-resources",
+        resolve_char_id=lambda name: None,
+        panel_dir_for=lambda char_id: "unused",
+        resource_snapshots=lease_probe,
+    )
+
+    response = await service.resource_status(_request("资源状态"))
+
+    assert isinstance(response, PlainTextResponse)
+    assert str(generation_root) in response.text
+    assert lease_probe.entered
+    assert lease_probe.exited
+
+
+@pytest.mark.asyncio
 async def test_upload_rejects_path_escaping_char_id(tmp_path: Path) -> None:
     """角色目录解析越界时拒绝写入，不逃逸 panel_root。"""
 
@@ -258,85 +303,3 @@ async def test_upload_rejects_path_escaping_char_id(tmp_path: Path) -> None:
     assert "角色别名【角色甲】" in response.text
     assert not (tmp_path / "escape").exists()
     assert not (tmp_path / "panel_custom" / ".." / "escape").exists()
-
-
-@pytest.mark.asyncio
-async def test_alias_add_delete_and_recover(tmp_path: Path) -> None:
-    """别名写入在隔离目录 fixture 中可增删并刷新。"""
-
-    refreshed = []
-    from src.modules.operations.alias_service import AliasService
-
-    alias_root = tmp_path / "alias"
-    alias_root.mkdir()
-    (alias_root / "char_alias.json").write_text('{"辛西娅": []}', encoding="utf-8")
-    service = AliasService(alias_root, refresh=lambda: refreshed.append(True))
-    add = await service.add_delete_alias(
-        _request(
-            "添加角色辛西娅别名小辛",
-            {
-                "action": "添加",
-                "alias_type": "角色",
-                "name": "辛西娅",
-                "new_alias": "小辛",
-            },
-        ),
-    )
-    dup = await service.add_delete_alias(
-        _request(
-            "添加角色辛西娅别名小辛",
-            {
-                "action": "添加",
-                "alias_type": "角色",
-                "name": "辛西娅",
-                "new_alias": "小辛",
-            },
-        ),
-    )
-    delete = await service.add_delete_alias(
-        _request(
-            "删除角色辛西娅别名小辛",
-            {
-                "action": "删除",
-                "alias_type": "角色",
-                "name": "辛西娅",
-                "new_alias": "小辛",
-            },
-        ),
-    )
-    missing = await service.add_delete_alias(
-        _request(
-            "删除角色辛西娅别名小辛",
-            {
-                "action": "删除",
-                "alias_type": "角色",
-                "name": "辛西娅",
-                "new_alias": "小辛",
-            },
-        ),
-    )
-    recover = await service.recover_alias(None)
-
-    assert messages.ALIAS_ADDED.format(name="辛西娅", alias="小辛") in add.text
-    assert messages.ALIAS_DUPLICATE.format(name="辛西娅", alias="小辛") in dup.text
-    assert messages.ALIAS_DELETED.format(name="辛西娅", alias="小辛") in delete.text
-    assert messages.ALIAS_NOT_FOUND.format(name="辛西娅", alias="小辛") in missing.text
-    assert recover.text == messages.ALIAS_RECOVERED
-    assert len(refreshed) == 3  # 添加 + 删除 + 恢复各刷新一次
-    assert (tmp_path / "alias_custom.json").exists()
-
-
-@pytest.mark.asyncio
-async def test_alias_input_empty_is_visible(tmp_path: Path) -> None:
-    """别名名称/别名为空返回显式提示。"""
-
-    from src.modules.operations.alias_service import AliasService
-
-    service = AliasService(tmp_path / "alias")
-    response = await service.add_delete_alias(
-        _request(
-            "添加角色别名",
-            {"action": "添加", "alias_type": "角色", "name": "", "new_alias": ""},
-        ),
-    )
-    assert response.text == messages.ALIAS_INPUT_EMPTY

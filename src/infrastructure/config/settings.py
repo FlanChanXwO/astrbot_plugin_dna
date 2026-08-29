@@ -10,8 +10,20 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 
+from ..resources.acceleration import (
+    GithubAccelerationMode,
+    normalize_http_base_url,
+    resolve_github_acceleration_prefix,
+)
 from .legacy import _LEGACY_MAP, DNA_PREFIX, DNAConfig, DNASignConfig
 
 
@@ -27,7 +39,9 @@ class LoginSettings(_SettingsModel):
     url: str = Field(
         default="",
         description="登录服务地址",
-        json_schema_extra={"hint": "登录页或外置 dna-login 服务的 base URL；留空使用内置服务"},
+        json_schema_extra={
+            "hint": "登录页或外置 dna-login 服务的 base URL；留空使用内置服务"
+        },
     )
     bind_host: str = Field(
         default="127.0.0.1",
@@ -112,6 +126,56 @@ class NetworkSettings(_SettingsModel):
         description="WebSocket 连接等待时间",
         json_schema_extra={"hint": "等待 WebSocket 建立连接的时间（秒）"},
     )
+
+
+class ResourceSettings(_SettingsModel):
+    """公共资源仓库下载和 GitHub 加速配置。"""
+
+    # Pydantic 默认会把无效字段的原始 input 写进 ValidationError 文本；加速 URL
+    # 可能包含凭据样式内容，因此该配置组必须隐藏原始输入，避免错误回显。
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        hide_input_in_errors=True,
+    )
+
+    github_acceleration: GithubAccelerationMode = Field(
+        default="off",
+        description="GitHub 资源加速模式",
+        json_schema_extra={
+            "hint": "默认直连；镜像失败会直接报告，不自动回退直连",
+        },
+    )
+    custom_github_acceleration_url: str = Field(
+        default="",
+        description="自定义 GitHub 加速前缀",
+        json_schema_extra={
+            "hint": "仅 custom 模式使用；填写不含 query、fragment 或凭据的 HTTP(S) 基础 URL",
+        },
+    )
+
+    @field_validator("custom_github_acceleration_url", mode="before")
+    @classmethod
+    def _normalize_custom_url(cls, value: Any) -> str:
+        return normalize_http_base_url(value)
+
+    @model_validator(mode="after")
+    def _validate_custom_mode(self) -> ResourceSettings:
+        if (
+            self.github_acceleration == "custom"
+            and not self.custom_github_acceleration_url
+        ):
+            raise ValueError("custom 模式必须配置自定义 GitHub 加速前缀")
+        return self
+
+    @property
+    def acceleration_prefix(self) -> str | None:
+        """返回本次资源 Git/Raw 请求应使用的加速前缀。"""
+
+        return resolve_github_acceleration_prefix(
+            self.github_acceleration,
+            self.custom_github_acceleration_url,
+        )
 
 
 class SignInSettings(_SettingsModel):
@@ -204,7 +268,9 @@ class NotificationSettings(_SettingsModel):
     announcement_groups: dict[str, Any] = Field(
         default_factory=dict,
         description="公告推送群组",
-        json_schema_extra={"hint": "公告推送群组配置（群内输入 kk订阅公告 也会自动同步到此处）"},
+        json_schema_extra={
+            "hint": "公告推送群组配置（群内输入 kk订阅公告 也会自动同步到此处）"
+        },
     )
     announcement_ids: list[int] = Field(
         default_factory=list,
@@ -246,7 +312,9 @@ class DisplaySettings(_SettingsModel):
     command_prefixes: list[str] = Field(
         default_factory=lambda: ["kk"],
         description="命令触发前缀列表",
-        json_schema_extra={"hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发"},
+        json_schema_extra={
+            "hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发"
+        },
     )
     guide_providers: list[Literal["all", "狩月庭攻略组", "猫冬"]] = Field(
         default_factory=lambda: ["all"],
@@ -287,6 +355,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
         "sign_in": {},
         "notifications": {},
         "display": {},
+        "resources": {},
     }
     if raw is None:
         return result
@@ -315,15 +384,27 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
                 result[group][field] = v
 
     # 3. 合并已有的 typed 分组配置（typed 配置优先）
-    for group_name in ("login", "network", "sign_in", "notifications", "display"):
+    for group_name in (
+        "login",
+        "network",
+        "sign_in",
+        "notifications",
+        "display",
+        "resources",
+    ):
         group_data = raw_dict.get(group_name)
         if isinstance(group_data, Mapping):
             for k, v in group_data.items():
-                if group_name == "sign_in" and k in {"game_enabled", "community_enabled"}:
+                if group_name == "sign_in" and k in {
+                    "game_enabled",
+                    "community_enabled",
+                }:
                     continue
                 if group_name == "display" and k == "command_prefix":
                     if "command_prefixes" not in group_data:
-                        result[group_name]["command_prefixes"] = [v] if isinstance(v, str) else list(v)
+                        result[group_name]["command_prefixes"] = (
+                            [v] if isinstance(v, str) else list(v)
+                        )
                     continue
                 result[group_name][k] = v
 
@@ -334,13 +415,22 @@ class DnabySettings(_SettingsModel):
     """插件完整 typed 配置。"""
 
     login: LoginSettings = Field(default_factory=LoginSettings, description="登录设置")
-    network: NetworkSettings = Field(default_factory=NetworkSettings, description="网络设置")
-    sign_in: SignInSettings = Field(default_factory=SignInSettings, description="签到设置")
+    network: NetworkSettings = Field(
+        default_factory=NetworkSettings, description="网络设置"
+    )
+    sign_in: SignInSettings = Field(
+        default_factory=SignInSettings, description="签到设置"
+    )
     notifications: NotificationSettings = Field(
         default_factory=NotificationSettings,
         description="通知设置",
     )
-    display: DisplaySettings = Field(default_factory=DisplaySettings, description="显示设置")
+    display: DisplaySettings = Field(
+        default_factory=DisplaySettings, description="显示设置"
+    )
+    resources: ResourceSettings = Field(
+        default_factory=ResourceSettings, description="资源设置"
+    )
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
@@ -372,6 +462,7 @@ __all__ = [
     "LoginSettings",
     "NetworkSettings",
     "NotificationSettings",
+    "ResourceSettings",
     "SignInSettings",
     "migrate_config_dict",
 ]

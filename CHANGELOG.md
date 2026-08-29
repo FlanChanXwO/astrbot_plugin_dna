@@ -26,8 +26,32 @@
 ### Changed
 
 - 聊天内的 `update_log`/“更新记录”命令及其渲染链已移除；更新历史统一以本文件作为长期载体。
-- 当前 `commands.json` 由代码 registry 生成，共 60 条命令，仅保留 `user` 与 `admin` 权限。
+- 当前 `commands.json` 由代码 registry 生成，共 58 条命令，仅保留 `user` 与 `admin` 权限。
 - 使用文档改为说明可配置的 `display.command_prefixes`，并同步管理员权限与命令清单事实。
+
+## Goal 3 — 公共资源编辑器、兑换码与下载运维（2026-08-29）
+
+### Added
+
+- 公共资源仓库 `FlanChanXwO/astrbot_plugin_dna_resources` 成为 manifest、素材、兑换码 v1
+  和 schema 的唯一资源边界；独立 `dna-resource-editor` 负责类型化投稿、PR 和
+  `resource-contract` Check。
+- 资源同步从 `main` 的候选 `FETCH_HEAD` 生成并校验 generation，再原子热刷新；资源失败时
+  保留上一份已验证快照，`panel_custom/`、数据库、订阅和公告状态不参与 generation 清理。
+- 新增 [资源运维文档](docs/usage/resources.md)、[配置说明](docs/usage/configuration.md) 和
+  [三仓维护/回滚说明](docs/dev/maintenance.md)，记录旧 GitCode `end_at` 迁移、镜像信任、
+  main-only 发布顺序和三类回滚。
+
+### Changed
+
+- 兑换码改读资源仓库 `data/redeem_codes.json` 的 v1 契约；旧 GitCode 不是回退来源。
+- 聊天内的别名写入命令已移除；公共资源中的默认别名保持只读，插件管理页的自定义别名覆盖层仍独立存放。
+
+### Verification boundary
+
+- 本地跨仓 fixture 已验证资源 Check、插件 main-only 下载/generation 和兑换码消费；真实
+  Cloudflare/GitHub App/Turnstile/Webhook/required ruleset 仍需按编辑器运维文档使用外部凭据
+  单独验收。公共资源仓库不对第三方素材授予统一许可。
 
 ## 本地离线渲染对比工具（Task 30 前置）
 

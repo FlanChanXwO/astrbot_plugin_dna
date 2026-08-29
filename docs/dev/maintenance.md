@@ -89,3 +89,55 @@ JSON/目录。
   SQLite、fake transport、fake aiocqhttp 和临时数据目录。
 - `subscriptions.json`、SQLite、任务状态和文件目录没有跨存储物理事务；恢复和重试都必须依照
   管理响应逐项核对，不能仅凭“请求返回”推断全部成功。
+
+## 三仓发布顺序
+
+1. 在资源仓库通过编辑器表单投稿；检查 `resource_manifest.json`、兑换码 schema/语义、文件
+   头、路径和素材来源说明，等待 `resource-contract` Check 后合并 `main`。
+2. 记录资源 `main` 的 commit SHA 与 `resource_version`，再运行插件跨仓契约回归和目标资源
+   generation 测试。
+3. 编辑器部署/配置按其 [operations runbook](https://github.com/FlanChanXwO/dna-resource-editor/blob/main/docs/operations.md)
+   执行；GitHub App、Turnstile、Webhook 和 required ruleset 未真实验收前，不宣称公众投稿可用。
+4. 最后发布插件；默认 `resources.github_acceleration=off`，完成一次资源下载、热刷新和兑换码
+   读取冒烟，再向用户开放镜像选项。
+
+禁止插件直接消费资源投稿分支、镜像-only ref 或未进入 `main` 的 commit。资源仓库不放编辑器
+源码、依赖、构建产物、凭据或数据库；第三方素材也没有统一许可，发布前必须核对各自上游条款。
+
+## 资源升级与迁移
+
+升级插件前备份整个 `data/plugin_data/astrbot_plugin_dnaby/`，至少确认
+`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json` 和 `panel_custom/` 可恢复。资源更新
+本身只在 `resources/` 使用 Git 增量缓存，并在 `resource_generations/<commit-sha>/` 生成已验证
+快照；`resource_generations/current.json` 不存在时，启动会保留旧缓存并等待下一次下载生成
+首个快照。启动或下载过程不会删除/迁移面板图、数据库、订阅或公告状态。
+
+旧 GitCode 兑换码的 `end_at` 只能在资源仓库迁移阶段转换成带时区的 `expires_at`；未知奖励、
+平台、区服和起始时间保持缺失。资源仓库成为唯一事实源后，插件不回退旧 GitCode。
+
+## 三类回滚
+
+### 资源数据
+
+对错误资源在资源仓库创建 `git revert` PR，等待 Check 通过后合并；不 force-push、不删除坏
+commit、不把镜像内容直接提升为发布源。插件候选校验失败时继续提供上一份已验证 generation，
+成功回滚后再执行 admin `下载全部资源`。
+
+### 编辑器 Worker
+
+记录 Worker version 与资源 SHA，按编辑器 runbook 执行 `npx wrangler deployments status`
+和 `npx wrangler rollback <VERSION_ID>`。Worker 代码回滚不会自动恢复 Cloudflare secrets；
+若事故伴随密钥轮换，须经授权重新写入兼容旧值并重新验证 `/api/health`、登录和 webhook。
+
+### 插件发布/镜像
+
+安装上一份已验收的插件 revision，保留整个 runtime data 目录；镜像故障将
+`resources.github_acceleration` 切回 `off`，确认规范 origin 后重试。不要删除
+`panel_custom/`、`dnaby.sqlite3`、订阅或公告文件；generation 可由可信 `main` 重建。
+
+## 备份与安全
+
+备份存放在插件数据目录之外并限制权限；不把 Cookie、token、SQLite、日志或 Dashboard 密钥
+提交到任一仓库。错误消息保留稳定错误类别，诊断时记录资源 commit、manifest/resource version
+和配置模式，不记录上传内容或凭据。完整公共资源/编辑器运维步骤见
+[公共资源说明](../usage/resources.md)和[编辑器运维文档](https://github.com/FlanChanXwO/dna-resource-editor/blob/main/docs/operations.md)。

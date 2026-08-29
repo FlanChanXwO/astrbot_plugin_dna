@@ -287,5 +287,31 @@
         "default": true
       }
     }
+  },
+  "resources": {
+    "description": "资源设置",
+    "type": "object",
+    "items": {
+      "github_acceleration": {
+        "type": "string",
+        "description": "GitHub 资源加速模式",
+        "hint": "默认直连；镜像失败会直接报告，不自动回退直连",
+        "default": "off",
+        "options": [
+          "off",
+          "edgeone",
+          "hk",
+          "gh_proxy",
+          "dpik",
+          "custom"
+        ]
+      },
+      "custom_github_acceleration_url": {
+        "type": "string",
+        "description": "自定义 GitHub 加速前缀",
+        "hint": "仅 custom 模式使用；填写不含 query、fragment 或凭据的 HTTP(S) 基础 URL",
+        "default": ""
+      }
+    }
   }
 }

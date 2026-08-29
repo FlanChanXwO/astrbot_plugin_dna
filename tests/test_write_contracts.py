@@ -83,8 +83,6 @@ WRITE_COMMANDS: dict[str, str] = {
     "compress_panel_imgs": "admin",
     "resource_status": "admin",
     "download_resource": "admin",
-    "alias_add_delete": "admin",
-    "alias_recover": "admin",
 }
 
 # 每条写入型命令对应的离线契约测试文件与其代表性用例（审计注册的覆盖）。
@@ -219,14 +217,6 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     "download_resource": (
         "test_resource_service.py",
         ("test_download_all_reports_clone_and_update", "test_download_all_failures_are_visible"),
-    ),
-    "alias_add_delete": (
-        "test_operations.py",
-        ("test_alias_add_delete_and_recover",),
-    ),
-    "alias_recover": (
-        "test_operations.py",
-        ("test_alias_add_delete_and_recover",),
     ),
 }
 

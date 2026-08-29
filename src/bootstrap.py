@@ -41,8 +41,17 @@ from .infrastructure.rendering import (
     PlayerRenderer,
     ResourceMap,
 )
-from .infrastructure.resources import EncyclopediaResourceStore, ResourceManifest
-from .infrastructure.resources.paths import PLUGIN_NAME, resource_repository_dir
+from .infrastructure.resources import (
+    EncyclopediaResourceStore,
+    ResourceManifest,
+    ResourceSnapshot,
+    ResourceSnapshotCoordinator,
+)
+from .infrastructure.resources.paths import (
+    PLUGIN_NAME,
+    resource_generations_dir,
+    resource_repository_dir,
+)
 from .infrastructure.scheduler import SignScheduler
 from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
@@ -65,7 +74,6 @@ from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.contracts import NoticesTransport
 from .modules.notices.service import NoticesService
-from .modules.operations.alias_service import AliasService
 from .modules.operations.resource_service import ResourceUpdateService
 from .modules.operations.service import PanelService
 from .modules.player.contracts import PlayerTransport
@@ -136,30 +144,55 @@ def build_runtime(
         runtime_database,
         allow_mention_query=settings.display.allow_mention_query,
     )
-    resource_root = resource_repository_dir(runtime_database.path.parent)
+    resource_cache_root = resource_repository_dir(runtime_database.path.parent)
+    resource_snapshots = ResourceSnapshotCoordinator(
+        resource_cache_root,
+        generations_root=resource_generations_dir(runtime_database.path.parent),
+        acceleration_prefix=settings.resources.acceleration_prefix,
+    )
+    initial_resource_snapshot = resource_snapshots.initialize()
+    resource_root = (
+        initial_resource_snapshot.root
+        if initial_resource_snapshot is not None
+        else resource_cache_root
+    )
     manifest_path = resource_root / "resource_manifest.json"
     if manifest_path.exists():
         ResourceManifest.load(
             manifest_path,
         ).validate_runtime_layout(resource_root)
-    player_resources = ResourceMap.from_root(resource_root)
-    encyclopedia_resources = EncyclopediaResourceStore.from_root(resource_root)
+    player_resources = (
+        initial_resource_snapshot.player_resources
+        if initial_resource_snapshot is not None
+        else ResourceMap.from_root(resource_root)
+    )
+    encyclopedia_resources = (
+        initial_resource_snapshot.encyclopedia_resources
+        if initial_resource_snapshot is not None
+        else EncyclopediaResourceStore.from_root(resource_root)
+    )
     player_service = PlayerService(
         runtime_database,
         player_transport or DnaApiPlayerTransport(runtime_database),
         privacy_service,
         PlayerRenderer(runtime_database.path.parent / "rendered", player_resources),
         show_unowned_roles=settings.display.show_unowned_roles,
+        resource_snapshots=resource_snapshots,
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,
-        encyclopedia_transport or DnaApiEncyclopediaTransport(runtime_database),
+        encyclopedia_transport
+        or DnaApiEncyclopediaTransport(
+            runtime_database,
+            acceleration_prefix=settings.resources.acceleration_prefix,
+        ),
         privacy_service,
         EncyclopediaRenderer(
             runtime_database.path.parent / "rendered", encyclopedia_resources
         ),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
+        resource_snapshots=resource_snapshots,
     )
     subscriptions = SubscriptionStore(
         runtime_database.path.parent / "subscriptions.json"
@@ -175,17 +208,20 @@ def build_runtime(
     scheduler_registry = SchedulerRegistry(
         runtime_database.path.parent / "scheduler_state.json"
     )
+    checkin_renderer = CheckinRenderer(
+        runtime_database.path.parent / "rendered",
+        encyclopedia_resources,
+    )
     checkin_service = CheckinService(
         runtime_database,
         checkin_transport or DnaApiCheckinTransport(runtime_database),
         privacy_service,
-        CheckinRenderer(
-            runtime_database.path.parent / "rendered", encyclopedia_resources
-        ),
+        checkin_renderer,
         community_tasks=tuple(settings.sign_in.community_tasks),
         concurrency=settings.sign_in.concurrency,
         interval_range=settings.sign_in.concurrency_interval_seconds,
         subscriptions=subscriptions,
+        resource_snapshots=resource_snapshots,
     )
 
     async def _push_sign(origin: str, text: str) -> None:
@@ -267,6 +303,7 @@ def build_runtime(
         secret_simple_image=settings.notifications.secret_simple_image,
         push=_push_notice,
         config_store=config if isinstance(config, dict) else None,
+        resource_snapshots=resource_snapshots,
     )
     notices_scheduler = NoticesScheduler(
         notices_service,
@@ -303,20 +340,14 @@ def build_runtime(
         resource_root=resource_root,
         resolve_char_id=_resolve_char_id,
         panel_dir_for=_panel_dir_for,
+        resource_snapshots=resource_snapshots,
     )
 
     def _synchronize_resources():
-        from .infrastructure.resources import download_all_resources
-
-        return download_all_resources(data_dir=runtime_database.path.parent)
+        return resource_snapshots.synchronize()
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
-    )
-    alias_service = AliasService(
-        resource_root / "alias",
-        custom_path=runtime_database.path.parent / "alias_custom.json",
-        refresh=lambda: None,
     )
     admin_panel_service = AdminPanelService(panel_service)
     admin_alias_service = AdminAliasService(
@@ -355,8 +386,25 @@ def build_runtime(
         "admin_alias_service": admin_alias_service,
         "panel_service": panel_service,
         "resource_update_service": resource_update_service,
-        "alias_service": alias_service,
+        "resource_snapshots": resource_snapshots,
     }
+
+    def _refresh_resource_views(snapshot: ResourceSnapshot) -> None:
+        """在 generation 原子发布后替换所有只读资源视图。"""
+
+        new_player_resources = snapshot.player_resources
+        new_encyclopedia_resources = snapshot.encyclopedia_resources
+        player_service.renderer.resources = new_player_resources
+        encyclopedia_service.renderer.resources = new_encyclopedia_resources
+        encyclopedia_service.resources = new_encyclopedia_resources
+        checkin_renderer.resources = new_encyclopedia_resources
+        notices_renderer.resources = new_encyclopedia_resources
+        panel_service.resource_root = snapshot.root
+        resolved_services["resource_root"] = snapshot.root
+        resolved_services["player_resources"] = new_player_resources
+        resolved_services["encyclopedia_resources"] = new_encyclopedia_resources
+
+    resource_snapshots.subscribe(_refresh_resource_views)
     if services is not None:
         resolved_services.update(services)
 
