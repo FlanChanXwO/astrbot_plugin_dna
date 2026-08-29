@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import random
 from collections.abc import Awaitable, Callable
+from contextlib import nullcontext
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -21,6 +22,7 @@ from ...infrastructure.persistence import (
     SignRecordRepository,
 )
 from ...infrastructure.rendering import CheckinRenderer
+from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
 from ..privacy import PrivacyService
 from . import messages
@@ -56,6 +58,7 @@ class CheckinService:
         concurrency: int = 1,
         interval_range: tuple[int, int] = (0, 0),
         subscriptions: SubscriptionStore | None = None,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -65,6 +68,12 @@ class CheckinService:
         self.concurrency = max(1, concurrency)
         self.interval_range = interval_range
         self.subscriptions = subscriptions
+        self.resource_snapshots = resource_snapshots
+
+    def _renderer_context(self):
+        if self.resource_snapshots is None:
+            return nullcontext(self.renderer)
+        return self.resource_snapshots.bind_renderer(self.renderer, "encyclopedia_resources")
 
     async def _resolve_uid(
         self,
@@ -402,12 +411,13 @@ class CheckinService:
             target_user_id,
             group_id=request.actor.group_id,
         )
-        rendered = await self.renderer.render_calendar(
-            data,
-            actor=request.actor,
-            target_user_id=target_user_id,
-            uid_hidden=uid_hidden,
-        )
+        with self._renderer_context() as renderer:
+            rendered = await renderer.render_calendar(
+                data,
+                actor=request.actor,
+                target_user_id=target_user_id,
+                uid_hidden=uid_hidden,
+            )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def _run_all_signs(self) -> CheckinSummary:

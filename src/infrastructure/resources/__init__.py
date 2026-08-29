@@ -16,6 +16,14 @@ from .encyclopedia import (
     EncyclopediaResourceStore,
     GuideAsset,
 )
+from .generation import (
+    ResourceGenerationError,
+    ResourceGenerationManager,
+    ResourceGenerationValidator,
+    ResourceLease,
+    ResourceSnapshot,
+    ResourceSnapshotCoordinator,
+)
 from .git import (
     DEFAULT_RESOURCE_REMOTE,
     GitCommandError,
@@ -37,8 +45,12 @@ from .manifest import (
 )
 from .paths import (
     PLUGIN_NAME,
+    RESOURCE_GENERATION_STATE_NAME,
+    RESOURCE_GENERATIONS_NAME,
     RESOURCE_REPOSITORY_NAME,
     default_resource_repository_dir,
+    resource_generation_state_path,
+    resource_generations_dir,
     resource_repository_dir,
 )
 
@@ -47,6 +59,8 @@ __all__ = [
     "DEFAULT_RESOURCE_REMOTE",
     "GITHUB_ORIGIN_PREFIX",
     "PLUGIN_NAME",
+    "RESOURCE_GENERATIONS_NAME",
+    "RESOURCE_GENERATION_STATE_NAME",
     "RESOURCE_REPOSITORY_NAME",
     "RUNTIME_RESOURCE_DIRECTORIES",
     "AliasCatalog",
@@ -58,10 +72,16 @@ __all__ = [
     "GithubAccelerationMode",
     "GuideAsset",
     "ResourceBranchMismatchError",
+    "ResourceGenerationError",
+    "ResourceGenerationManager",
+    "ResourceGenerationValidator",
+    "ResourceLease",
     "ResourceLocalChangesError",
     "ResourceManifest",
     "ResourceManifestError",
     "ResourceRemoteMismatchError",
+    "ResourceSnapshot",
+    "ResourceSnapshotCoordinator",
     "ResourceSyncError",
     "ResourceSyncResult",
     "ResourceSynchronizer",
@@ -72,6 +92,8 @@ __all__ = [
     "normalize_github_repository_url",
     "normalize_http_base_url",
     "resolve_github_acceleration_prefix",
+    "resource_generation_state_path",
+    "resource_generations_dir",
     "resource_repository_dir",
     "run_git",
 ]

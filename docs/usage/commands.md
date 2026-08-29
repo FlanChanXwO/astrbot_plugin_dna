@@ -104,15 +104,16 @@ registry 的帮助文本。
 
 ## 资源管理命令（admin）
 
-- `下载全部资源`：浅克隆或 `git pull --ff-only` 同步公共资源仓库并校验 manifest；Git
-  缺失、认证失败、远端失败、非快进和本地修改均返回可见错误，不自动覆盖本地修改。
+- `下载全部资源`：获取 `main` 的 `FETCH_HEAD`，先校验候选 generation，再以 fast-forward
+  发布公共资源；Git、候选校验错误和本地修改均返回可见错误，上一份已验证资源继续可用。
 
 更新历史不再提供聊天命令，统一记录在仓库根目录的 `CHANGELOG.md`；因此不会出现在帮助或
 `commands.json` 中。
 
 资料读取的图片与索引只使用
-`StarTools.get_data_dir("astrbot_plugin_dnaby")/resources/` 和 `rendered/`，不从插件源码目录
-写入或下载素材。图像语义、已知差异和 fixture 边界见
+`StarTools.get_data_dir("astrbot_plugin_dnaby")/resource_generations/`（首次生成前兼容读取
+`resources/` 缓存）和 `rendered/`，不从插件源码目录写入或下载素材。图像语义、已知差异和
+fixture 边界见
 [v0.3 资料查询行为矩阵](../porting/review-v0.3-encyclopedia.md)。
 
 资源同步后的完整目录已接入玩家与百科 renderer；metadata 会把实际读取到的素材标为

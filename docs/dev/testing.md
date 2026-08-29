@@ -14,7 +14,11 @@ ruff check .
   `test_dispatch.py`，不属于 rewrite 入口。
 - `test_config.py` — legacy 配置 wrapper 的兼容回归。
 - `test_config_resources.py` — Pydantic 分组配置、生成 schema 的 AstrBotConfig 递归解析、
-  resource manifest 路径校验、私有 Git clone/pull 失败可见性和本地修改保护。
+  resource manifest 路径校验、私有 Git clone/fetch/fast-forward 失败可见性和本地修改保护。
+- `test_goal3_resource_acceleration.py` — Task 16 的资源加速、canonical origin、单分支 Git
+  参数与 bootstrap 注入。
+- `test_goal3_resource_generations.py` — Task 17 的 `FETCH_HEAD` archive 候选、完整校验、原子
+  generation 发布、失败保留旧快照、并发 lease、renderer 绑定与重启孤立物清理。
 - `test_persistence.py` — SQLAlchemy async SQLite 路径、repository 显式事务提交/回滚、五表
   metadata、凭据脱敏和 Alembic 初始 revision；Alembic 未安装时真实 upgrade/downgrade 测试会
   显式 skip，静态 revision 契约仍执行。

@@ -23,6 +23,7 @@ from src.infrastructure.resources import (
     DEFAULT_RESOURCE_REMOTE,
     GitCommandError,
     GitCommandResult,
+    ResourceSnapshotCoordinator,
     ResourceSynchronizer,
     ResourceSyncResult,
     accelerate_github_url,
@@ -93,15 +94,13 @@ def test_bootstrap_passes_resource_acceleration_to_downloader(
 ) -> None:
     calls: list[tuple[Path, str | None]] = []
 
-    def fake_download_all_resources(
-        *, data_dir: Path, acceleration_prefix: str | None
-    ) -> ResourceSyncResult:
-        calls.append((data_dir, acceleration_prefix))
-        return ResourceSyncResult(data_dir / "resources", "updated", "fixture")
+    def fake_synchronize(self: ResourceSnapshotCoordinator) -> ResourceSyncResult:
+        calls.append((self.repository.parent, self.acceleration_prefix))
+        return ResourceSyncResult(self.repository, "updated", "fixture")
 
     monkeypatch.setattr(
-        "src.infrastructure.resources.download_all_resources",
-        fake_download_all_resources,
+        "src.infrastructure.resources.ResourceSnapshotCoordinator.synchronize",
+        fake_synchronize,
     )
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),

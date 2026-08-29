@@ -2,7 +2,8 @@
 
 同步器只调用参数列表形式的 ``git``，不经过 shell；它不会 force checkout、
 删除本地目录或覆盖本地修改。首次同步使用 ``main`` 的浅克隆，后续只允许
-``git pull --ff-only --no-tags origin main``，所有失败通过异常显露给上层。
+``git fetch --no-tags origin main``，候选验证通过后再 fast-forward 到
+``FETCH_HEAD``，所有失败通过异常显露给上层。
 """
 
 from __future__ import annotations
@@ -153,6 +154,8 @@ class ResourceSyncResult:
     repository: Path
     action: str
     resource_version: str
+    commit_sha: str = ""
+    generation_root: Path | None = None
 
 
 class ResourceSynchronizer:
@@ -222,6 +225,47 @@ class ResourceSynchronizer:
         return ResourceManifest.load(
             self.repository / "resource_manifest.json"
         ).validate_runtime_layout(self.repository)
+
+    def fetch_main(self) -> None:
+        """显式获取 ``origin/main``，为候选 generation 准备 ``FETCH_HEAD``。"""
+
+        self._run(
+            ("fetch", "--no-tags", "origin", "main"),
+            self.repository,
+        )
+
+    def fetch_head_revision(self) -> str:
+        """返回最近一次 main fetch/pull 写入的 FETCH_HEAD 提交。"""
+
+        result = self._run(("rev-parse", "FETCH_HEAD"), self.repository)
+        revision = result.stdout.strip()
+        if not revision or re.fullmatch(r"[0-9a-fA-F]+", revision) is None:
+            raise ResourceSyncError("资源 Git FETCH_HEAD 不是有效提交")
+        return revision
+
+    def archive_fetch_head(self, archive_path: str | Path) -> None:
+        """把 ``FETCH_HEAD`` 导出为 tar，供 generation 候选物化。"""
+
+        target = Path(archive_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        self._run(
+            (
+                "archive",
+                "--format=tar",
+                "--output",
+                str(target),
+                "FETCH_HEAD",
+            ),
+            self.repository,
+        )
+
+    def fast_forward_fetch_head(self) -> None:
+        """候选校验通过后，仅把当前 main fast-forward 到 ``FETCH_HEAD``。"""
+
+        self._run(
+            ("merge", "--ff-only", "FETCH_HEAD"),
+            self.repository,
+        )
 
     def validate(self) -> ResourceManifest:
         """检查 Git 状态、origin 和 manifest，但不拉取远端。"""

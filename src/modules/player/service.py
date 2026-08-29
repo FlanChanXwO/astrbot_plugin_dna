@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Iterable
+from contextlib import nullcontext
 
 from ...entry.response import ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import PlayerRenderer
+from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (
@@ -48,12 +50,19 @@ class PlayerService:
         renderer: PlayerRenderer,
         *,
         show_unowned_roles: bool = True,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
         self.privacy = privacy
         self.renderer = renderer
         self.show_unowned_roles = show_unowned_roles
+        self.resource_snapshots = resource_snapshots
+
+    def _renderer_context(self):
+        if self.resource_snapshots is None:
+            return nullcontext(self.renderer)
+        return self.resource_snapshots.bind_renderer(self.renderer, "player_resources")
 
     async def _resolve_uid(self, request: PlayerCommandRequest) -> tuple[str, str] | PlainTextResponse:
         """解析目标用户和当前绑定 UID，先应用隐私策略再读取账号。"""
@@ -100,18 +109,19 @@ class PlayerService:
             target_user_id,
             group_id=request.actor.group_id,
         )
-        rendered_res = self.renderer.render_overview(
-            overview,
-            actor=request.actor,
-            target_user_id=target_user_id,
-            uid=uid,
-            uid_hidden=uid_hidden,
-            show_unowned=self.show_unowned_roles,
-        )
-        if asyncio.iscoroutine(rendered_res):
-            rendered = await rendered_res
-        else:
-            rendered = rendered_res
+        with self._renderer_context() as renderer:
+            rendered_res = renderer.render_overview(
+                overview,
+                actor=request.actor,
+                target_user_id=target_user_id,
+                uid=uid,
+                uid_hidden=uid_hidden,
+                show_unowned=self.show_unowned_roles,
+            )
+            if asyncio.iscoroutine(rendered_res):
+                rendered = await rendered_res
+            else:
+                rendered = rendered_res
         return ImageResponse(str(rendered.path), temporary=True)
 
     @staticmethod
@@ -258,16 +268,17 @@ class PlayerService:
             target_user_id,
             group_id=request.actor.group_id,
         )
-        rendered = await self.renderer.render_detail(
-            role_detail,
-            weapon_sections,
-            damage,
-            uid=uid,
-            uid_hidden=uid_hidden,
-            overview=overview,
-            actor=request.actor,
-            target_user_id=target_user_id,
-        )
+        with self._renderer_context() as renderer:
+            rendered = await renderer.render_detail(
+                role_detail,
+                weapon_sections,
+                damage,
+                uid=uid,
+                uid_hidden=uid_hidden,
+                overview=overview,
+                actor=request.actor,
+                target_user_id=target_user_id,
+            )
         return ImageResponse(
             str(rendered.path),
             temporary=True,

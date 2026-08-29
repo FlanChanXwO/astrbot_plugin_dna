@@ -239,6 +239,51 @@ async def test_resource_status_reports_manifest_state(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_resource_status_uses_a_generation_lease(tmp_path: Path) -> None:
+    """资源状态读取期间固定同一个 generation，避免热刷新切换根目录。"""
+
+    generation_root = tmp_path / "resource_generations" / ("a" * 40)
+    (generation_root / "fonts").mkdir(parents=True)
+    (generation_root / "resource_manifest.json").write_text(
+        '{"format_version": 1, "required_dirs": ["fonts"], "resource_version": "v1"}',
+        encoding="utf-8",
+    )
+
+    class Snapshot:
+        root = generation_root
+
+    class LeaseProbe:
+        entered = False
+        exited = False
+
+        def optional_lease(self):
+            return self
+
+        def __enter__(self):
+            self.entered = True
+            return Snapshot()
+
+        def __exit__(self, _exc_type, _exc_value, _traceback):
+            self.exited = True
+
+    lease_probe = LeaseProbe()
+    service = PanelService(
+        tmp_path / "panel_custom",
+        resource_root=tmp_path / "legacy-resources",
+        resolve_char_id=lambda name: None,
+        panel_dir_for=lambda char_id: "unused",
+        resource_snapshots=lease_probe,
+    )
+
+    response = await service.resource_status(_request("资源状态"))
+
+    assert isinstance(response, PlainTextResponse)
+    assert str(generation_root) in response.text
+    assert lease_probe.entered
+    assert lease_probe.exited
+
+
+@pytest.mark.asyncio
 async def test_upload_rejects_path_escaping_char_id(tmp_path: Path) -> None:
     """角色目录解析越界时拒绝写入，不逃逸 panel_root。"""
 

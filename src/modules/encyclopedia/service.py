@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
 from datetime import datetime
+from pathlib import Path
 
-from ...entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from ...entry.response import (
+    ChainResponse,
+    ImageResponse,
+    PlainTextResponse,
+    write_temporary_image,
+)
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import EncyclopediaRenderer
-from ...infrastructure.resources import EncyclopediaResourceStore
+from ...infrastructure.resources import (
+    EncyclopediaResourceStore,
+    ResourceSnapshotCoordinator,
+)
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (
@@ -30,6 +41,7 @@ class EncyclopediaService:
         resources: EncyclopediaResourceStore,
         *,
         guide_providers: tuple[str, ...] = ("all",),
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -37,6 +49,28 @@ class EncyclopediaService:
         self.renderer = renderer
         self.resources = resources
         self.guide_providers = guide_providers
+        self.resource_snapshots = resource_snapshots
+
+    def _renderer_context(self):
+        if self.resource_snapshots is None:
+            return nullcontext(self.renderer)
+        return self.resource_snapshots.bind_renderer(self.renderer, "encyclopedia_resources")
+
+    @contextmanager
+    def _resource_context(self) -> Iterator[EncyclopediaResourceStore]:
+        if self.resource_snapshots is None:
+            yield self.resources
+            return
+        with self.resource_snapshots.bind_resource("encyclopedia_resources") as resources:
+            yield resources or self.resources
+
+    def _copy_resource_image(self, path: Path) -> ImageResponse:
+        return write_temporary_image(
+            self.database.path.parent / "rendered",
+            path.read_bytes(),
+            prefix="dnaby-resource-",
+            suffix=path.suffix or ".bin",
+        )
 
     async def _resolve_uid(
         self,
@@ -87,13 +121,14 @@ class EncyclopediaService:
             target_user_id,
             group_id=request.actor.group_id,
         )
-        rendered = await self.renderer.render_stamina(
-            snapshot,
-            actor=request.actor,
-            target_user_id=target_user_id,
-            uid=uid,
-            uid_hidden=uid_hidden,
-        )
+        with self._renderer_context() as renderer:
+            rendered = await renderer.render_stamina(
+                snapshot,
+                actor=request.actor,
+                target_user_id=target_user_id,
+                uid=uid,
+                uid_hidden=uid_hidden,
+            )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def weekly_report(self, request: EncyclopediaRequest):
@@ -119,13 +154,14 @@ class EncyclopediaService:
             target_user_id,
             group_id=request.actor.group_id,
         )
-        rendered = await self.renderer.render_weekly_report(
-            report,
-            actor=request.actor,
-            target_user_id=target_user_id,
-            uid=uid,
-            uid_hidden=uid_hidden,
-        )
+        with self._renderer_context() as renderer:
+            rendered = await renderer.render_weekly_report(
+                report,
+                actor=request.actor,
+                target_user_id=target_user_id,
+                uid=uid,
+                uid_hidden=uid_hidden,
+            )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def calendar(self, request: EncyclopediaRequest):
@@ -135,40 +171,59 @@ class EncyclopediaService:
             snapshot = await self.transport.get_calendar(request.actor)
         except EncyclopediaTransportError as error:
             return self._transport_response(error)
-        rendered = await self.renderer.render_calendar(
-            snapshot,
-            actor=request.actor,
-        )
+        with self._renderer_context() as renderer:
+            rendered = await renderer.render_calendar(
+                snapshot,
+                actor=request.actor,
+            )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def wiki(self, request: EncyclopediaRequest):
         """按角色、武器、魔灵别名读取本地图鉴素材。"""
 
         name = str(request.parameters.get("name", "")).strip()
-        asset = self.resources.wiki_asset(name)
-        if asset is None:
-            return PlainTextResponse(messages.not_found(f"【{name}】图鉴"))
-        _kind, path = asset
-        return ImageResponse(str(path))
+        with self._resource_context() as resources:
+            asset = resources.wiki_asset(name)
+            if asset is None:
+                return PlainTextResponse(messages.not_found(f"【{name}】图鉴"))
+            _kind, path = asset
+            if (
+                self.resource_snapshots is not None
+                and self.resource_snapshots.current_snapshot is not None
+            ):
+                return self._copy_resource_image(path)
+            return ImageResponse(str(path))
 
     async def guide(self, request: EncyclopediaRequest):
         """按配置作者读取攻略图片，保留作者文本和图片顺序。"""
 
         name = str(request.parameters.get("char_name", "")).strip()
-        assets = self.resources.guides_for(name, self.guide_providers)
-        if not assets:
-            return PlainTextResponse(messages.not_found(f"角色【{name}】攻略"))
-        if "all" not in self.guide_providers and len(assets) == 1:
-            return ImageResponse(str(assets[0].path))
-        components: list[PlainTextResponse | ImageResponse] = []
-        previous_provider: str | None = None
-        for asset in assets:
-            # legacy 按作者目录读取图片，作者文案只在每个作者组的首张图前出现。
-            if asset.provider != previous_provider:
-                components.append(PlainTextResponse(f"攻略作者：{asset.provider}"))
-                previous_provider = asset.provider
-            components.append(ImageResponse(str(asset.path)))
-        return ChainResponse(components)
+        with self._resource_context() as resources:
+            assets = resources.guides_for(name, self.guide_providers)
+            if not assets:
+                return PlainTextResponse(messages.not_found(f"角色【{name}】攻略"))
+            active_generation = (
+                self.resource_snapshots is not None
+                and self.resource_snapshots.current_snapshot is not None
+            )
+            if "all" not in self.guide_providers and len(assets) == 1:
+                if active_generation:
+                    return self._copy_resource_image(assets[0].path)
+                return ImageResponse(str(assets[0].path))
+            components: list[PlainTextResponse | ImageResponse] = []
+            previous_provider: str | None = None
+            for asset in assets:
+                # legacy 按作者目录读取图片，作者文案只在每个作者组的首张图前出现。
+                if asset.provider != previous_provider:
+                    components.append(PlainTextResponse(f"攻略作者：{asset.provider}"))
+                    previous_provider = asset.provider
+                image = (
+                    self._copy_resource_image(asset.path)
+                    if active_generation
+                    else ImageResponse(str(asset.path))
+                )
+                components.append(image)
+            return ChainResponse(components)
 
     @staticmethod
     def _format_expiry(value: datetime | None) -> str:
@@ -216,27 +271,29 @@ class EncyclopediaService:
 
         alias_type = str(request.parameters.get("alias_type") or "角色")
         name = str(request.parameters.get("name", "")).strip()
-        if alias_type == "武器":
-            canonical = self.resources.aliases.resolve_weapon(name)
-            aliases = self.resources.aliases.weapon_alias_list(name)
-            if canonical is None or aliases is None:
-                return PlainTextResponse(f"武器【{name}】不存在，请检查名称")
+        with self._resource_context() as resources:
+            if alias_type == "武器":
+                canonical = resources.aliases.resolve_weapon(name)
+                aliases = resources.aliases.weapon_alias_list(name)
+                if canonical is None or aliases is None:
+                    return PlainTextResponse(f"武器【{name}】不存在，请检查名称")
+                return PlainTextResponse(
+                    f"武器【{canonical}】别名列表：\n" + "\n".join(aliases),
+                )
+            aliases = resources.aliases.char_alias_list(name)
+            if aliases is None:
+                return PlainTextResponse(f"角色【{name}】不存在，请检查名称")
             return PlainTextResponse(
-                f"武器【{canonical}】别名列表：\n" + "\n".join(aliases),
+                f"角色【{name}】别名列表：\n" + "\n".join(aliases),
             )
-        aliases = self.resources.aliases.char_alias_list(name)
-        if aliases is None:
-            return PlainTextResponse(f"角色【{name}】不存在，请检查名称")
-        return PlainTextResponse(
-            f"角色【{name}】别名列表：\n" + "\n".join(aliases),
-        )
 
     async def alias_all_list(self, request: EncyclopediaRequest):
         """读取全部角色或武器 canonical name。"""
 
-        if request.text == "武器列表":
-            return PlainTextResponse("武器列表：\n" + "\n".join(self.resources.aliases.all_weapons()))
-        return PlainTextResponse("角色列表：\n" + "\n".join(self.resources.aliases.all_chars()))
+        with self._resource_context() as resources:
+            if request.text == "武器列表":
+                return PlainTextResponse("武器列表：\n" + "\n".join(resources.aliases.all_weapons()))
+            return PlainTextResponse("角色列表：\n" + "\n".join(resources.aliases.all_chars()))
 
 
 __all__ = ["EncyclopediaService"]

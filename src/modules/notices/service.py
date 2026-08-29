@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from ...entry.event import EventActor
 from ...entry.response import ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import NoticesRenderer
+from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
 from ..privacy import PrivacyService
 from . import messages
@@ -48,6 +50,7 @@ class NoticesService:
         secret_simple_image: bool = False,
         config_store: dict[str, Any] | None = None,
         sync_ann_group_cb: Callable[[str, bool], None] | None = None,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -59,6 +62,12 @@ class NoticesService:
         self.secret_simple_image = secret_simple_image
         self.config_store = config_store
         self._sync_ann_group_cb = sync_ann_group_cb
+        self.resource_snapshots = resource_snapshots
+
+    def _renderer_context(self):
+        if self.resource_snapshots is None:
+            return nullcontext(self.renderer)
+        return self.resource_snapshots.bind_renderer(self.renderer, "encyclopedia_resources")
 
     async def _resolve_uid(
         self,
@@ -98,10 +107,11 @@ class NoticesService:
             return self._transport_response(error)
         if not snapshot.sections:
             return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
-        rendered = await self.renderer.render_mh(
-            snapshot,
-            simple_image=self.secret_simple_image,
-        )
+        with self._renderer_context() as renderer:
+            rendered = await renderer.render_mh(
+                snapshot,
+                simple_image=self.secret_simple_image,
+            )
         return ImageResponse(str(rendered.path), temporary=True)
 
     async def mh_list(self, _request: NoticeRequest):
@@ -123,7 +133,8 @@ class NoticesService:
             return PlainTextResponse(messages.ANN_LIST_FAILED, need_at=True)
 
         if not index:
-            rendered = await self.renderer.render_ann_list(snapshot)
+            with self._renderer_context() as renderer:
+                rendered = await renderer.render_ann_list(snapshot)
             return ImageResponse(str(rendered.path), temporary=True)
 
         from .ann_utils import build_index_map, resolve_index
@@ -138,7 +149,8 @@ class NoticesService:
             detail = await self.transport.get_ann_detail(post_id)
         except NoticesTransportError as error:
             return self._transport_response(error)
-        rendered = await self.renderer.render_ann_detail(detail)
+        with self._renderer_context() as renderer:
+            rendered = await renderer.render_ann_detail(detail)
         return ImageResponse(str(rendered.path), temporary=True)
 
 
@@ -592,10 +604,11 @@ class NoticesService:
         # 3. 图片密函订阅 (MH_PIC_SUBSCRIBE)
         pic_subs = await self.subscriptions.get(messages.MH_PIC_SUBSCRIBE)
         if pic_subs:
-            rendered = await self.renderer.render_mh(
-                snapshot,
-                simple_image=self.secret_simple_image,
-            )
+            with self._renderer_context() as renderer:
+                rendered = await renderer.render_mh(
+                    snapshot,
+                    simple_image=self.secret_simple_image,
+                )
             for sub in pic_subs:
                 if await self._invoke_push(sub.unified_msg_origin, rendered.path, at_user_id=None):
                     pushed += 1
@@ -628,7 +641,8 @@ class NoticesService:
             payload: Path | str
             try:
                 detail = await self.transport.get_ann_detail(str(post_id))
-                rendered = await self.renderer.render_ann_detail(detail)
+                with self._renderer_context() as renderer:
+                    rendered = await renderer.render_ann_detail(detail)
                 payload = rendered.path
             except Exception:  # noqa: BLE001
                 title = title_by_id.get(str(post_id), str(post_id))

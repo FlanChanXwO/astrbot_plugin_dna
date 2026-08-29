@@ -1,8 +1,10 @@
 # 公共资源
 
 运行期资源位于 AstrBot 的插件数据目录下：
-`StarTools.get_data_dir("astrbot_plugin_dnaby") / "resources"`。插件源码目录的
-`data/` 不承担运行期资源写入。
+`StarTools.get_data_dir("astrbot_plugin_dnaby")`。插件源码目录的 `data/` 不承担运行期资源
+写入；`resources/` 只作为 Git 增量传输缓存，已发布运行期快照位于同级的
+`resource_generations/<commit-sha>/`，当前 generation 由 `resource_generations/current.json`
+原子指针标识。
 
 资源内容由公共 Git 仓库 `FlanChanXwO/astrbot_plugin_dna_resources` 提供。仓库根目录必须有：
 
@@ -40,12 +42,25 @@
 
 - 规范 origin 始终是 `https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git`；
   镜像只通过当前 Git 子进程的 `url.*.insteadOf` 配置替换请求，不改写本地 origin。
-- 目标目录不存在时执行 `git clone --depth 1 --single-branch --branch main --no-tags`。
-- 目标目录存在时先确认当前 checkout 为 `main`、origin 和
-  `git status --porcelain --untracked-files=all`，再执行
-  `git pull --ff-only --no-tags origin main`；不会抓取 tags 或其他投稿分支。
-- Git 缺失、认证/远端错误、origin 不一致、非快进、manifest 无效或本地有修改时直接报告失败。
+- 首次同步先执行 `git clone --depth 1 --single-branch --branch main --no-tags`，再显式
+  `fetch --no-tags origin main`；已有 checkout
+  先确认当前为 `main`、origin、干净状态，再只 fetch `origin/main`。
+- fetch 得到的 `FETCH_HEAD` 会先导出为临时 archive，校验 manifest、别名、兑换码及 schema、
+  图片/字体文件头和完整运行期索引；候选通过后才以 `merge --ff-only FETCH_HEAD` 更新缓存，
+  并原子发布对应的 `resource_generations/<commit-sha>/`。
+- Git 缺失、认证/远端错误、origin 不一致、非快进、候选无效或本地有修改时直接报告失败，
+  当前已验证 generation 保持不变。
 - 加速镜像不支持 Git smart HTTP 时直接报告失败，不改走 ZIP、不静默直连；本地修改必须由部署者自行处理。
+
+## Generation 与无停机热刷新
+
+发布成功后 bootstrap 会一次性替换玩家、图鉴、签到、密函和别名的读取资源视图，新请求无需
+重启即可使用新版本。renderer 在一次读取开始时取得 generation lease，并在渲染结束后释放；
+热刷新期间旧 generation 会保留到最后一个 lease 释放。Wiki/攻略的直出图片会在 lease 内复制到
+受控 `rendered/`，再交给事件生命周期清理，避免响应返回后源 generation 被删除。
+
+进程重启时只加载 `current.json` 指向的已验证 generation，并清理同目录下未被当前指针引用的
+generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `panel_custom/`、数据库和订阅文件。
 
 资源仓库为公开仓库；插件仍只通过 manifest + Git fast-forward-only 同步接口读取，
 不在资源仓库中保存账号凭据或其他运行期私有数据。
@@ -62,5 +77,5 @@
   目录，与资源仓库的 `panel/`（只读原始面板）分离。
 
 玩家和资料 renderer 生成的 `rendered/*.png` 会在响应边界确认其位于受控渲染目录后，交给
-AstrBot 当前事件的临时文件生命周期清理。`panel/`、`wiki/`、`guide/` 等资源文件不会被
-登记为临时文件，也不采用无依据的保留时长或数量限制。
+AstrBot 当前事件的临时文件生命周期清理。generation 内的 `panel/`、`wiki/`、`guide/` 等源
+资源不会直接登记为临时文件；需要直出时复制出的响应图片属于 `rendered/` 临时物。
