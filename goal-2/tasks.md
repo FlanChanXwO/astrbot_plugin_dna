@@ -524,13 +524,23 @@
 
 ## 集中检查 D06 — Task 16–18
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 检查：C 端体验、代码质量、安全、数据一致性、权限、错误处理、测试覆盖、构建产物、文档、回滚和实际 diff；确认无调试残留或超范围改动。
 - 处理：发现任何问题则在本文件末尾追加修复 task；只有全部问题关闭后才进入终审。
 - 实际工作：
+- 复核 Task 16 的真实 AstrBot 4.27.1 Plugin Pages 证据：隔离实例完成桌面、`390×844` 移动端、暗色主题、四页导航、账号明文抽屉、别名写入、错误/空态和非 aiocqhttp 能力禁用交互；未接触真实账号、凭据或生产 data root。
+- 复核 Task 17–18 的文档、安全与代码变更：全局 `user_id`/`uid` 语义、凭据 no-store/内存生命周期、成员三态和删除复核、tombstone、面板/别名回滚均有现行说明；Task 18 已修复日志异常原文泄露与面板目录过度递归删除，D03 已修复订阅损坏文件的同实例重试问题。
+- 按实际提交路径核对 Task 16–18、D03 修复和记录提交，未发现 Goal-1/Goal-3 文件进入本轮暂存或新增修复；页面排除预期的 PetiteVue vendor 后无 `localStorage`/`sessionStorage`、危险 HTML、外链 CDN、npm 构建链、console/debugger/断点或 TODO 调试残留，也没有新增数据面板、帮助命令、图表、分页或武器别名入口。
 - 验证证据：
+- 可复核截图为 `/Users/flanchan/.codex/visualizations/2026/08/29/goal2-task16/desktop-accounts-fixed.png`、`mobile-accounts.png`、`mobile-dark-accounts.png`；三份文件均存在且非空。`node --check` 对 `app.js`、`bridge.js`、`store.js` 均通过。
+- 当前 Goal-2 相关 suite（含 D03/Task 18 审查用例）为 `155 passed, 5 warnings`；warnings 仅为 AstrBot `audioop` 与动态插件命名空间 `__package__` 弃用提示。全仓 Ruff、compileall、pre-commit、diff-check 和文档尾随空白检查通过。
+- Task 18 全量 pytest 已实际运行：首轮 `516 passed, 1 skipped, 5 warnings`；修复后复跑的唯一失败为外部 T2I 返回不可解码图片，孤立重跑该参数 `1 passed, 1 warning`，其余 `520 passed, 1 skipped`。全仓 Pyright 的 `68` 个诊断均为既有基线，D03/Task 18 相关新增文件和生产文件定向类型检查无新增诊断。
+- `git status --short --untracked-files=all` 仅显示既有 `docs/superpowers/specs/2026-08-28-dnaby-pages-management-design.md`、`goal-2/input.md`、`goal-2/plan.md`、`goal-3/input.md`、`goal-3/plan.md`、`goal-3/tasks.md`，无 tracked 未提交或 staged 变更。
 - 剩余风险：
+- 隔离浏览器未配置真实 `aiocqhttp` 或游戏凭据，因此成员实际 API 和生产预览上游仍需部署环境验证；页面已验证对应禁用/失败边界，文档已明确不能以隔离成功替代生产验收。
+- 外部 T2I 临时服务偶发不可解码响应，属于既有渲染测试环境依赖；全仓 Pyright 保留既有诊断，均不属于本 Goal-2 D06 阻塞项。破坏性迁移、永久删除和明文备份仍需运维侧按文档执行受控备份。
 - 下一步：
+- Goal 终审：最大范围复核目标达成、用户体验、全局身份、破坏性迁移、明文凭据、任务 tombstone、成员探测、级联删除、别名、浏览器、文档和回滚。
 
 ---
 
