@@ -8,7 +8,8 @@
 
 `alembic/versions/0001_initial.py` 从空库创建 rewrite 的五张 normalized 表；
 `0002_privacy_global_identity` 是旧 schema 的补充约束，当前 head
-`0003_global_identity` 已将账号、凭据和隐私改为跨 Bot 的全局语义：
+`0003_global_identity` 已将账号、凭据和隐私改为跨 AstrBot 平台、跨 Bot 的全局语义：
+相同的 `user_id` 字符串在不同平台或 Bot 上视为同一身份，平台/Bot 不再是持久化身份键。
 
 | 表 | 用途 | 关键字段 |
 |---|---|---|
@@ -36,6 +37,30 @@
 `credential_records` 的 Cookie、refresh token、设备标识和 d_num 只在私有 SQLite
 字段中保存。`CredentialRecord.__repr__()` 与 `redacted_snapshot()` 只返回标识、状态
 和是否存在凭据，不返回 secret 值；日志、异常和 DTO 仍必须沿用同一脱敏边界。
+
+## 管理页与运行期文件边界
+
+Dashboard 管理页的账号列表默认只返回 App/Web 凭据状态；只有已认证管理员发起显式管理请求
+（页面通常在打开账号详情时）才在管理 API 响应中携带全部明文凭据。该响应使用
+`Cache-Control: no-store`，
+页面不写 `localStorage`/`sessionStorage`，关闭编辑器会清空前端凭据副本；这不能替代管理员对
+屏幕、剪贴板、浏览器扩展、代理和截图的保护。日志、异常、普通命令响应、DTO `repr` 和备份
+索引均不得出现 Cookie、token、refresh token、设备码或 d_num 原文。
+
+管理员预览只允许从已认证的管理 API 发起，并固定绕过普通隐私显示策略；它不改变隐私表，也不
+向响应暴露 renderer 的本地路径。没有可用凭据或上游/T2I 服务时，预览应返回可观察的安全错误，
+不能伪造成功图片。
+
+除 SQLite 外，以下文件/目录也位于同一 `StarTools.get_data_dir()` 运行期根目录，均不得提交：
+
+- `scheduler_state.json` — 内置任务永久删除 tombstone；删除的业务任务没有管理 API 恢复操作。
+- `alias_custom.json` — 角色自定义别名覆盖层；默认资源别名只读且不被覆盖层改写。
+- `panel_custom/` — 管理页上传的自定义面板图；删除沿用不可恢复语义，需在操作前自行备份。
+- `subscriptions.json`、`ann_state.json` 和 `rendered/` — 订阅/公告状态及受控的运行期渲染文件。
+
+SQLite、JSON 和文件目录之间不存在同一物理事务。账号删除协调器按串行、逐项、可重试的步骤
+报告 `failed`/`partial`，不能把跨存储操作表述为原子提交；运维备份与恢复步骤见
+[maintenance.md](../dev/maintenance.md) 和 [admin-pages.md](../usage/admin-pages.md)。
 
 ## 账号 use case 约束
 
@@ -66,6 +91,9 @@
 账号、凭据或隐私表的查询键。
 
 ## legacy-reference 迁移参考
+
+以下表格只描述待迁移 legacy schema 的历史字段，不是当前 rewrite 的持久化契约；其中出现的
+`bot_id` 不表示当前账号或隐私仍按 Bot 隔离。
 
 旧 SQLModel 5 表（`dnaby/utils/database/models.py`）及其 DB 文件
 `data/plugin_data/astrbot_plugin_dnaby/dnaby.db` 仅供后续行为迁移参考：

@@ -15,6 +15,9 @@
   生成，帮助 use case 读取同一 registry。未迁移命令不会注册，也不会出现在帮助中。
 - 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；异常向上暴露，不伪造成功。
 - Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；`src/entry/admin_web.py` 提供统一认证、请求解析、错误/HTTP 状态映射和 no-store JSON，管理路由仅通过 Dashboard extension dispatcher 注册在 `/astrbot_plugin_dnaby/admin/*`，不建立独立未认证入口。
+- 管理页：`pages/dashboard/` 是由 AstrBot Dashboard 承载的 PetiteVue 静态页，只通过上述已认证
+  dispatcher 访问四个功能区（面板图、任务/探测、账号/预览、角色别名）；写操作在服务端确认并
+  成功后重新读取状态，不提供账号/任务创建或帮助命令管理。
 - 事件边界：`src/entry/event.py` 只通过 AstrBot 公开的 sender/self/group 方法提取
   `EventActor`，从公开消息链的 `At` 和 `Reply` 组件分别提取可选目标用户与引用消息
   ID；消息命令由每个动态 handler 的 AstrBot 正则过滤器接管，业务 use case 不持有原始
@@ -31,8 +34,10 @@
   normalized repository，`DnaApiAccountTransport` 只复用 legacy 纯 API，不复用旧事件、
   数据库或消息段类型。
 - 隐私：`src/modules/privacy/` 提供个人偷窥/UID 开关、群强制设置、指定目标设置和
-  查询解析；个人设置按 user+Bot 全局记录保存，群强制设置按 group+Bot 独立保存，群强制
-  值按字段优先。指定命令要求 AstrBot admin 权限、群聊、有效 `At` 和目标绑定。
+  查询解析；个人设置按裸 `user_id` 全局记录保存，群强制设置按裸 `group_id` 独立保存，
+  群强制值按字段优先。相同 `user_id` 在不同平台或 Bot 上视为同一身份，跨平台字符串碰撞
+  是已接受的部署风险；指定命令要求 AstrBot admin 权限、群聊、有效 `At` 和目标绑定。
+  `EventActor.bot_id` 只保留为运行期投递/legacy transport 上下文，不参与账号或隐私查询。
 - 玩家查询：`src/modules/player/` 通过 typed transport 读取角色/武器展柜、角色详情
   和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，详情响应携带
   per-response 的 `original_image_path` 原面板引用。AstrBot 4.27.x 公开结果边界没有
