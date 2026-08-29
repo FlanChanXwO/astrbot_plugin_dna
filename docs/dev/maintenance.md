@@ -114,6 +114,20 @@ JSON/目录。
 启动预热不阻塞插件初始化，管理员下载会等待同一同步任务；终止时会排空该任务。没有摘要的旧
 指针会在校验后补写；启动或下载过程不会删除/迁移面板图、数据库、订阅或公告状态。
 
+### 共享下载器旧缓存的一次性清理
+
+从旧共享下载器迁移到 `ImageFetcher` 时，部署者可在停写、完成备份并核对目录归属后，人工清理
+以下两个旧图片缓存范围：
+
+- `data/plugin_data/astrbot_plugin_dnaby/resource/`
+- `data/plugin_data/astrbot_plugin_dnaby/other/ann_card/`
+
+清理只针对上述公告/资源图片缓存；不得递归删除整个插件数据目录，也不得删除
+`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`scheduler_state.json`、账号凭据、
+`panel_custom/`、`resources/` 或 `resource_generations/`。清理后由下一次受控图片请求重新下载，
+空响应、非图片或解码失败会显式失败而不会留下透明假文件。该步骤不在插件启动时自动执行，
+避免把缓存迁移误当成账号或订阅数据清理。
+
 旧 GitCode 兑换码的 `end_at` 只能在资源仓库迁移阶段转换成带时区的 `expires_at`；未知奖励、
 平台、区服和起始时间保持缺失。资源仓库成为唯一事实源后，插件不回退旧 GitCode。
 

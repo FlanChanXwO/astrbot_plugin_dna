@@ -22,6 +22,8 @@ ruff check .
   绑定与重启孤立物清理。
 - `test_resource_service.py`、`test_goal1_o08_resources.py` — 资源预热与管理员下载 single-flight、
   终止排空和 bootstrap 生命周期注入。
+- `test_goal1_o09_image_fetcher.py` — 图片下载的瞬态重试、`Retry-After`、非重试状态、PIL 完整
+  校验、原子缓存、损坏缓存修复、single-flight、legacy 调用方复用和失败日志脱敏。
 - `test_goal3_task19.py` — 使用临时 bare Git 和编辑器 `test:task19` 联合验证公共资源
   manifest/schema、Worker PR Check、插件 `main` 下载/generation/兑换码消费，以及旧数据目录
   与 `panel_custom`/数据库/订阅文件的无损升级。

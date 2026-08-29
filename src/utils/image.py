@@ -8,6 +8,7 @@ from astrbot.api import logger
 from PIL import Image, ImageDraw, ImageOps
 
 from .image_utils import (
+    ImageFetchError,
     crop_center_img,
     download,
     get_event_avatar,
@@ -108,14 +109,24 @@ async def download_pic_from_url(
     if name is None:
         name = pic_url.split("/")[-1]
     _path = path / name
-    if not _path.exists():
-        _ = await download(pic_url, path, name, tag="[DNA]")
+    _ = await download(pic_url, path, name, tag="[DNA]")
 
     img = Image.open(_path)
     if size:
         img = img.resize(size)
 
     return img.convert("RGBA")
+
+
+async def _download_optional_image(path: Path, name: str, pic_url: str) -> bool:
+    """下载可退化卡片素材；失败只允许本次内存占位，不写假缓存。"""
+
+    try:
+        await download(pic_url, path, name, tag="[DNA]")
+    except (ImageFetchError, httpx.HTTPError):
+        # 角色卡已有明确的内存占位语义，严格图片链路仍直接使用 download()。
+        return False
+    return True
 
 
 async def get_skill_img(char_id: str | int, skill_name: str, pic_url: str | None = None) -> Image.Image:
@@ -125,8 +136,8 @@ async def get_skill_img(char_id: str | int, skill_name: str, pic_url: str | None
     skill_name = skill_name.strip()
     name = f"skill_{skill_name}.png"
     skill_path = char_skill_dir / name
-    if not skill_path.exists() and pic_url:
-        _ = await download(pic_url, char_skill_dir, name, tag="[DNA]")
+    if pic_url and not await _download_optional_image(char_skill_dir, name, pic_url):
+        return Image.new("RGBA", (128, 128))
     if not skill_path.exists():
         return Image.new("RGBA", (128, 128))
 
@@ -139,8 +150,8 @@ async def get_avatar_img(char_id: str | int, pic_url: str | None = None) -> Imag
 
     name = f"avatar_{char_id}.png"
     avatar_path = char_avatar_dir / name
-    if not avatar_path.exists() and pic_url:
-        _ = await download(pic_url, char_avatar_dir, name, tag="[DNA]")
+    if pic_url and not await _download_optional_image(char_avatar_dir, name, pic_url):
+        return Image.new("RGBA", (256, 256))
     if not avatar_path.exists():
         return Image.new("RGBA", (256, 256))
 
@@ -153,8 +164,8 @@ async def get_weapon_img(weapon_id: str | int, pic_url: str | None = None) -> Im
 
     name = f"weapon_{weapon_id}.png"
     weapon_path = weapon_dir / name
-    if not weapon_path.exists() and pic_url:
-        _ = await download(pic_url, weapon_dir, name, tag="[DNA]")
+    if pic_url and not await _download_optional_image(weapon_dir, name, pic_url):
+        return Image.new("RGBA", (256, 256))
     if not weapon_path.exists():
         return Image.new("RGBA", (256, 256))
 
@@ -173,8 +184,10 @@ async def get_attr_img(attr_id: str | int | None = None, pic_url: str | None = N
 
     name = f"attr_{attr_id}.png"
     attr_path = attr_dir / name
-    if not attr_path.exists() and pic_url:
-        _ = await download(pic_url, attr_dir, name, tag="[DNA]")
+    if pic_url and not await _download_optional_image(attr_dir, name, pic_url):
+        return Image.new("RGBA", (128, 128))
+    if not attr_path.exists():
+        return Image.new("RGBA", (128, 128))
 
     return Image.open(attr_path).convert("RGBA")
 
@@ -191,8 +204,10 @@ async def get_weapon_attr_img(attr_id: str | int | None = None, pic_url: str | N
 
     name = f"attr_{attr_id}.png"
     attr_path = attr_dir / name
-    if not attr_path.exists() and pic_url:
-        _ = await download(pic_url, attr_dir, name, tag="[DNA]")
+    if pic_url and not await _download_optional_image(attr_dir, name, pic_url):
+        return Image.new("RGBA", (128, 128))
+    if not attr_path.exists():
+        return Image.new("RGBA", (128, 128))
 
     return Image.open(attr_path).convert("RGBA")
 
@@ -203,8 +218,8 @@ async def get_paint_img(char_id: str | int, pic_url: str | None = None) -> Image
 
     name = f"paint_{char_id}.png"
     paint_path = paint_dir / name
-    if not paint_path.exists() and pic_url:
-        _ = await download(pic_url, paint_dir, name, tag="[DNA]")
+    if pic_url and not await _download_optional_image(paint_dir, name, pic_url):
+        return Image.new("RGBA", (1320, 1320))
     if not paint_path.exists():
         return Image.new("RGBA", (1320, 1320))
 
@@ -235,8 +250,8 @@ async def get_mod_img(mod_id: str | int, pic_url: str | None = None) -> Image.Im
 
     name = f"mod_{mod_id}.png"
     mod_path = mod_dir / name
-    if not mod_path.exists() and pic_url:
-        _ = await download(pic_url, mod_dir, name, tag="[DNA]")
+    if pic_url and not await _download_optional_image(mod_dir, name, pic_url):
+        return Image.new("RGBA", (256, 256))
     if not mod_path.exists():
         return Image.new("RGBA", (256, 256))
 

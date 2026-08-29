@@ -78,8 +78,7 @@ async def _fetch_image(path: Path, pic_url: str, *, name: str | None = None) -> 
     path.mkdir(parents=True, exist_ok=True)
     file_name = name or pic_url.split("/")[-1]
     target = path / file_name
-    if not target.exists():
-        await download(pic_url, path, file_name, tag="[DNA]")
+    await download(pic_url, path, file_name, tag="[DNA]")
     return Image.open(target).convert("RGBA")
 
 

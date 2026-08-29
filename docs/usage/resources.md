@@ -99,6 +99,23 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 AstrBot 当前事件的临时文件生命周期清理。generation 内的 `panel/`、`wiki/`、`guide/` 等源
 资源不会直接登记为临时文件；需要直出时复制出的响应图片属于 `rendered/` 临时物。
 
+## 图片下载与资源分层
+
+公共基础资源与运行期补充资源是两个边界：`resources/` Git 增量缓存和
+`resource_generations/<commit-sha>/` 只接收公共仓库 `main` 的已校验内容；legacy 兼容图片目录
+`resource/{avatar,weapon,paint,skill,attr,mod,weapon_attr,weekly_item}/` 以及
+`other/ann_card/`、`other/sign/`、`other/calendar/` 是插件数据目录内的运行期缓存或补充资源，
+不属于公共资源仓库，也不会被上传或提交。`panel_custom/` 继续由面板服务独立维护。
+
+`ImageFetcher` 是共享图片下载边界。调用方必须把目标限制在上述运行期目录；它会对已有文件做
+PIL 完整解码校验，下载先写同目录临时文件，校验通过后才原子替换。连接/超时、429 和 5xx
+按 1 秒、2 秒退避重试并遵循 `Retry-After`；404、鉴权失败、空响应和非图片响应直接失败。
+失败不会生成透明假图、空文件或伪成功路径，同一 URL/目标的并发请求共享一次下载。失败日志不
+记录完整 URL、响应正文或凭据。
+
+账号相关的私有补充资源只能落在插件运行期数据目录，不能复制到公共资源 checkout、manifest
+或 generation；公共资源仓库不得保存 Cookie、token、签名 URL、SQLite、订阅和其他账号状态。
+
 ## 三仓发布与迁移
 
 资源仓库、编辑器和插件是三个独立边界。资源投稿应使用独立的

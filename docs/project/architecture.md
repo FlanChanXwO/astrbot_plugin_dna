@@ -83,6 +83,12 @@
   别名和资源状态视图。每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
   回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材
   的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理。
+- 图片下载：`src/utils/image_utils.py` 的 `ImageFetcher` 是 legacy 图片调用方共用的 HTTP/缓存
+  边界；连接/超时、429、5xx 的重试、`Retry-After`、PIL 校验、同目录临时文件和原子替换均在
+  此处完成。`download()` 只保留参数兼容入口；失败不写透明假图，已有文件复用前必须解码校验。
+- 资源分层：公共基础资源只来自 `resources/` 与已验证的 `resource_generations/`；legacy
+  `resource/`、`other/ann_card/` 等是插件数据目录内的运行期图片缓存/补充资源，
+  `panel_custom/` 单独保存用户上传内容。账号私有资源不得进入公共资源仓库或 manifest。
 - 三仓边界：公共资源仓库只承载 manifest、素材、兑换码和 schema；GPL-3.0 编辑器仓库独立
   提供类型化表单、GitHub App OAuth/投稿/Webhook Check。编辑器生成的 PR 必须落到资源仓库
   `main` 后，插件才会从 canonical GitHub origin 的 `main` fetch、校验并发布 generation；
