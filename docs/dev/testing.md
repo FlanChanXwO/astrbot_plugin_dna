@@ -19,6 +19,9 @@ ruff check .
   参数与 bootstrap 注入。
 - `test_goal3_resource_generations.py` — Task 17 的 `FETCH_HEAD` archive 候选、完整校验、原子
   generation 发布、失败保留旧快照、并发 lease、renderer 绑定与重启孤立物清理。
+- `test_goal3_task19.py` — 使用临时 bare Git 和编辑器 `test:task19` 联合验证公共资源
+  manifest/schema、Worker PR Check、插件 `main` 下载/generation/兑换码消费，以及旧数据目录
+  与 `panel_custom`/数据库/订阅文件的无损升级。
 - `test_persistence.py` — SQLAlchemy async SQLite 路径、repository 显式事务提交/回滚、五表
   metadata、凭据脱敏和 Alembic 初始 revision；Alembic 未安装时真实 upgrade/downgrade 测试会
   显式 skip，静态 revision 契约仍执行。
