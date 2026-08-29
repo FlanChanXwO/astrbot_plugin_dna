@@ -81,8 +81,8 @@
   别名和资源状态视图。每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
   回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材
   的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理。
-- 当前阶段：当前 main 已注册 `commands.json` 中的 60 条命令，权限为
-  `user=32/admin=28`；未迁移命令不会在新入口中隐式注册。
+- 当前阶段：当前 main 已注册 `commands.json` 中的 58 条命令，权限为
+  `user=32/admin=26`；未迁移命令不会在新入口中隐式注册，别名仅保留读取命令。
 
 ## HTML/T2I 图片渲染
 

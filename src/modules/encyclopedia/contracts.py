@@ -20,6 +20,7 @@ class EncyclopediaFailureKind(StrEnum):
 
     NETWORK = "network"
     STATUS = "status"
+    CONTRACT = "contract"
     SERVER = "server"
     NOT_FOUND = "not_found"
     RESOURCE = "resource"
@@ -130,10 +131,14 @@ class CalendarSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class CodeEntry:
-    """一个兑换码和独立截止时间。"""
+    """资源仓库中的一个兑换码及其可选展示/适用范围字段。"""
 
     code: str
     expires_at: datetime | None = None
+    reward: str | None = None
+    valid_from: datetime | None = None
+    platforms: tuple[str, ...] = ()
+    servers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

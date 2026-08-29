@@ -244,10 +244,7 @@ class EncyclopediaService:
                     PlainTextResponse(messages.CODE_TITLE),
                     *(
                         PlainTextResponse(
-                            messages.code_entry(
-                                entry.code,
-                                self._format_expiry(entry.expires_at),
-                            ),
+                            messages.code_entry(entry),
                         )
                         for entry in snapshot.entries
                     ),

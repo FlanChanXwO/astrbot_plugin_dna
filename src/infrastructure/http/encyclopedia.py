@@ -20,6 +20,7 @@ import aiohttp
 
 from ...entry.event import EventActor
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
+from ...infrastructure.resources.acceleration import accelerate_github_url
 from ...modules.encyclopedia.contracts import (
     CalendarEvent,
     CalendarSnapshot,
@@ -36,12 +37,62 @@ from ...modules.encyclopedia.contracts import (
 from ...modules.player.contracts import RoleOverview
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
-DEFAULT_CODE_URL = "https://raw.gitcode.com/m0_69204072/dna/raw/main/dna_codes.json"
+DEFAULT_CODE_URL = (
+    "https://raw.githubusercontent.com/FlanChanXwO/"
+    "astrbot_plugin_dna_resources/main/data/redeem_codes.json"
+)
 CodeProvider = Callable[[EventActor], Awaitable[Any] | Any]
+_CODE_FIELDS = frozenset(
+    {"code", "reward", "valid_from", "expires_at", "platforms", "servers"}
+)
+_CODE_PLATFORMS = frozenset({"pc", "android", "ios"})
+_CODE_SERVERS = frozenset({"cn", "global"})
 _CALENDAR_ROTATIONS = (
     ("魔灵", "moling", datetime(2026, 1, 3, 5, 0, tzinfo=SHANGHAI_TZ), 86400 * 3),
     ("周本", "zhouben", datetime(2025, 12, 29, 5, 0, tzinfo=SHANGHAI_TZ), 86400 * 7),
 )
+
+
+class _CodeContractError(ValueError):
+    """兑换码 provider 返回值不符合资源仓库 v1 契约。"""
+
+
+def _code_contract_error(message: str) -> _CodeContractError:
+    """统一构造内部契约异常；上层只暴露稳定 failure kind。"""
+
+    return _CodeContractError(message)
+
+
+def _parse_code_datetime(value: object, *, field_name: str) -> datetime:
+    """解析必须带时区的资源仓库 ISO 8601 时间并统一到上海时区。"""
+
+    if not isinstance(value, str) or not value:
+        raise _code_contract_error(f"{field_name} must be an aware ISO datetime")
+    candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError as exc:
+        raise _code_contract_error(f"{field_name} is not a valid datetime") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise _code_contract_error(f"{field_name} must include a timezone")
+    return parsed.astimezone(SHANGHAI_TZ)
+
+
+def _parse_code_enum_list(
+    value: object,
+    *,
+    field_name: str,
+    allowed: frozenset[str],
+) -> tuple[str, ...]:
+    """校验可选枚举列表并保留资源文件中的顺序。"""
+
+    if not isinstance(value, list) or not value:
+        raise _code_contract_error(f"{field_name} must be a non-empty list")
+    if any(not isinstance(item, str) or item not in allowed for item in value):
+        raise _code_contract_error(f"{field_name} contains an unsupported value")
+    if len(set(value)) != len(value):
+        raise _code_contract_error(f"{field_name} contains duplicates")
+    return tuple(value)
 
 
 def _error_kind(response: Any) -> EncyclopediaFailureKind:
@@ -161,10 +212,12 @@ class DnaApiEncyclopediaTransport:
         *,
         code_provider: CodeProvider | None = None,
         code_url: str = DEFAULT_CODE_URL,
+        acceleration_prefix: str | None = None,
     ) -> None:
         self.database = database
         self._code_provider = code_provider
-        self.code_url = code_url
+        self.acceleration_prefix = acceleration_prefix
+        self.code_url = accelerate_github_url(code_url, acceleration_prefix)
 
     async def _legacy_user(
         self,
@@ -487,7 +540,7 @@ class DnaApiEncyclopediaTransport:
             ) from None
 
     async def _default_code_provider(self, _actor: EventActor) -> Any:
-        """读取 legacy 使用的只读兑换码 JSON URL。"""
+        """读取资源仓库中的只读兑换码 JSON。"""
 
         async with aiohttp.ClientSession() as session, session.get(self.code_url) as response:
             if response.status >= 400:
@@ -507,20 +560,89 @@ class DnaApiEncyclopediaTransport:
 
     @staticmethod
     def _codes(data: Any, *, now: datetime | None = None) -> CodeSnapshot:
-        """映射 provider JSON，保留所有当前有效码及其截止时间。"""
+        """解析资源仓库兑换码契约并过滤计划中/已过期条目。"""
 
-        if not isinstance(data, Mapping) or not isinstance(data.get("data"), list):
-            raise TypeError("code provider payload shape is invalid")
-        current = now or datetime.now(tz=SHANGHAI_TZ)
+        if not isinstance(data, Mapping):
+            raise _code_contract_error("payload must be an object")
+        if set(data) - {"format_version", "data"}:
+            raise _code_contract_error("payload contains unknown fields")
+        if type(data.get("format_version")) is not int or data.get("format_version") != 1:
+            raise _code_contract_error("unsupported format_version")
+        if not isinstance(data.get("data"), list):
+            raise _code_contract_error("data must be a list")
+
+        current = (
+            datetime.now(tz=SHANGHAI_TZ)
+            if now is None
+            else now.replace(tzinfo=SHANGHAI_TZ)
+            if now.tzinfo is None
+            else now.astimezone(SHANGHAI_TZ)
+        )
         entries: list[CodeEntry] = []
+        seen_codes: set[str] = set()
         for item in data["data"]:
-            if not isinstance(item, Mapping) or not isinstance(item.get("code"), str):
-                raise TypeError("code provider item shape is invalid")
-            expires_at = _parse_datetime(item.get("end_at"))
-            if expires_at is None:
-                raise ValueError("code provider expiry is missing")
-            if expires_at > current:
-                entries.append(CodeEntry(item["code"], expires_at))
+            if not isinstance(item, Mapping):
+                raise _code_contract_error("code entry must be an object")
+            if set(item) - _CODE_FIELDS:
+                raise _code_contract_error("code entry contains unknown fields")
+
+            raw_code = item.get("code")
+            if not isinstance(raw_code, str) or not raw_code.strip():
+                raise _code_contract_error("code must be non-empty text")
+            code = raw_code.strip()
+            if code in seen_codes:
+                raise _code_contract_error("code values must be unique")
+            seen_codes.add(code)
+
+            reward = item.get("reward")
+            if "reward" in item and not isinstance(reward, str):
+                raise _code_contract_error("reward must be text")
+
+            valid_from = (
+                _parse_code_datetime(item["valid_from"], field_name="valid_from")
+                if "valid_from" in item
+                else None
+            )
+            expires_at = (
+                _parse_code_datetime(item["expires_at"], field_name="expires_at")
+                if "expires_at" in item
+                else None
+            )
+            if valid_from is not None and expires_at is not None and valid_from >= expires_at:
+                raise _code_contract_error("valid_from must be before expires_at")
+
+            platforms = (
+                _parse_code_enum_list(
+                    item["platforms"],
+                    field_name="platforms",
+                    allowed=_CODE_PLATFORMS,
+                )
+                if "platforms" in item
+                else ()
+            )
+            servers = (
+                _parse_code_enum_list(
+                    item["servers"],
+                    field_name="servers",
+                    allowed=_CODE_SERVERS,
+                )
+                if "servers" in item
+                else ()
+            )
+
+            if (valid_from is None or valid_from <= current) and (
+                expires_at is None or expires_at > current
+            ):
+                entries.append(
+                    CodeEntry(
+                        code=code,
+                        expires_at=expires_at,
+                        reward=reward,
+                        valid_from=valid_from,
+                        platforms=platforms,
+                        servers=servers,
+                    ),
+                )
         return CodeSnapshot(
             codes=tuple(entry.code for entry in entries),
             expires_at=entries[0].expires_at if entries else None,
@@ -537,7 +659,17 @@ class DnaApiEncyclopediaTransport:
                 EncyclopediaFailureKind.NETWORK,
                 resource="兑换码",
             ) from None
-        except (AttributeError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        except _CodeContractError:
+            raise EncyclopediaTransportError(
+                EncyclopediaFailureKind.CONTRACT,
+                resource="兑换码",
+            ) from None
+        except (TypeError, ValueError, json.JSONDecodeError):
+            raise EncyclopediaTransportError(
+                EncyclopediaFailureKind.CONTRACT,
+                resource="兑换码",
+            ) from None
+        except (AttributeError, KeyError):
             raise EncyclopediaTransportError(
                 EncyclopediaFailureKind.SERVER,
                 resource="兑换码",

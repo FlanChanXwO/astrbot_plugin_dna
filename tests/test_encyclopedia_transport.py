@@ -88,14 +88,15 @@ def test_legacy_weekly_payload_maps_all_categories_and_items() -> None:
 
 
 def test_code_provider_maps_all_valid_entries_with_their_own_expiry() -> None:
-    """provider 的逐码截止时间必须进入 typed transport 输出。"""
+    """资源仓库 provider 的逐码截止时间必须进入 typed transport 输出。"""
 
     snapshot = DnaApiEncyclopediaTransport._codes(
         {
+            "format_version": 1,
             "data": [
-                {"code": "CODE-A", "end_at": 1787241599},
-                {"code": "CODE-B", "end_at": 1787327999},
-                {"code": "EXPIRED", "end_at": 1787068799},
+                {"code": " CODE-A ", "expires_at": "2026-08-20T23:59:59+08:00"},
+                {"code": "CODE-B", "expires_at": "2026-08-21T23:59:59+08:00"},
+                {"code": "EXPIRED", "expires_at": "2026-08-19T23:59:59+08:00"},
             ],
         },
         now=datetime(2026, 8, 20, 0, 0, tzinfo=SHANGHAI),

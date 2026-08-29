@@ -6,7 +6,7 @@
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 60 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 58 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -70,7 +70,8 @@
 - 每条写入命令都能通过生成后的 handler 在 fake transport + 隔离 SQLite + 模拟事件下离线
   分发并产出框架无关响应；`sign` 路径额外断言只调用注入 transport，不触碰真实网络边界。
 - 新增 [offline-write-contracts.md](offline-write-contracts.md)：明确“离线验证 ≠ 真实行为
-  已验证”，面板/资源/别名等未注册写入能力及其真实平台验收边界仍由后续阶段与 Task 30 记录。
+  已验证”；面板等未注册写入能力及其真实平台验收边界仍由后续阶段与 Task 30 记录，别名
+  写命令已移除，仅保留只读查询。
 
 ### rewrite Task 20 — 签到阶段集中审查 ✅
 
@@ -167,9 +168,9 @@
   staging runtime 根执行，是既有嵌套 worktree 测试限制。
 
 > 本节描述的是 `legacy-reference` 的历史移植状态；`rewrite/v0.1` 的当前状态见上方各 Task
-> 记录与 `commands.json`（60 条命令）。
+> 记录与 `commands.json`（58 条命令）。
 
-以下为历史移植阶段记录；当前 main 以 `commands.json` 为准，已注册 60 条命令、16 个功能组和 5 张 SQLAlchemy 表，权限仅为 `user/admin`（32/28）。历史数字与验证结果不代表当前 main 的最终状态。
+以下为历史移植阶段记录；当前 main 以 `commands.json` 为准，已注册 58 条命令、16 个功能组和 5 张 SQLAlchemy 表，权限仅为 `user/admin`（32/26）。历史数字与验证结果不代表当前 main 的最终状态。
 
 硬约束已核对：源码不 import `gsuid_core` / `gsucore`；运行期数据库、订阅和资源写入 AstrBot `plugin_data` 数据目录；`commands.json` 与分发表同步；入口不承载业务编排。
 
@@ -201,7 +202,7 @@
 ### 真实 E2E ✅（2026-08-09）
 
 - 历史阶段曾通过本机 AstrBot `6196`、OneBot HTTP `6199`、NapCat 出站链路覆盖当时
-  `commands.json` 的 56 条命令；该记录不替代当前 60 条命令矩阵。
+  `commands.json` 的 56 条命令；该记录不替代当前 58 条命令矩阵。
 - 已验证真实数据库中的登录数据仍可被查询，原绑定 UID 未变化；测试用户、订阅、别名和
   自定义面板图均在收尾检查后清理。
 - `dna登录` 已验证消息命中、链接立即出站、登录页 `HTTP 200` 和表单 DOM；旧 auth 返回
@@ -222,7 +223,7 @@
 | `python -m compileall -q .` | 通过 |
 | `import main` | 通过 |
 | `import data.plugins.astrbot_plugin_dnaby.main` | 通过 |
-| 历史命令清单/分发 | 当时 56 条、18 模块；当前 main 以 60 条、16 组为准 |
+| 历史命令清单/分发 | 当时 56 条、18 模块；当前 main 以 58 条、16 组为准 |
 | Dashboard 重载 | `ASTRBOT_SKIP_PLUGIN_REQUIREMENTS_SYNC=1 ... reload-plugins.sh 6196 astrbot_plugin_dnaby` 返回 `重载成功` |
 | 历史本机真实 E2E | 当时 56 条命令有入站 `204`；当前 goal 的生产事件级 E2E 另按矩阵记录 |
 

@@ -404,11 +404,11 @@ def test_restart_loads_active_generation_and_removes_orphans_without_touching_pa
     assert (restarted.generations_root / result.commit_sha).is_dir()
 
 
-def test_bootstrap_keeps_alias_writes_out_of_immutable_generation(
+def test_bootstrap_removes_alias_write_service_and_keeps_panel_custom(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """旧别名写命令仍存在时，不得把不可变 generation 当作写入根。"""
+    """移除别名写服务时仍保留 panel_custom 运行期数据边界。"""
 
     generation_root = tmp_path / "resource_generations" / ("a" * 40)
     generation_root.mkdir(parents=True)
@@ -425,5 +425,5 @@ def test_bootstrap_keeps_alias_writes_out_of_immutable_generation(
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
     )
 
-    alias_service = runtime.services["alias_service"]
-    assert alias_service.alias_root == tmp_path / "resources" / "alias"
+    assert "alias_service" not in runtime.services
+    assert runtime.services["panel_service"].panel_root == tmp_path / "panel_custom"

@@ -21,7 +21,7 @@ use case / service，service 只调用注入的 fake transport（或直接写隔
 | 权限 | 写入命令 |
 | --- | --- |
 | `user` | `account_login/logout/bind/switch/delete_all/delete`、个人 `privacy` 四条、`sign`、`mh_subscribe_by_name`、`mh_subscribe_cycle` |
-| `admin` | 群管理 `privacy` 十条、`sign_all`、`sign_result_subscribe`、`mh_pic_subscribe`、`mh_text_subscribe`、`mh_test`、`ann_sub`、`ann_unsub`、面板图六条、`resource_status`、`download_resource`、`alias_add_delete`、`alias_recover` |
+| `admin` | 群管理 `privacy` 十条、`sign_all`、`sign_result_subscribe`、`mh_pic_subscribe`、`mh_text_subscribe`、`mh_test`、`ann_sub`、`ann_unsub`、面板图六条、`resource_status`、`download_resource` |
 
 `admin` 统一映射 AstrBot 公开的 `PermissionType.ADMIN`；插件不再保留自定义 owner
 入口过滤器，也不自行读取 `admins_id`。普通群成员不能通过 AstrBot 的 admin 过滤器执行
@@ -43,7 +43,9 @@ use case / service，service 只调用注入的 fake transport（或直接写隔
 
 ## 未覆盖/边界
 
-- 真实平台推送、真实账户签到、真实面板上传/删除/压缩、别名修改、资源更新等写入行为
-  未在真实账户上执行；面板、资源和别名命令已注册，但当前只由隔离 fixture/ fake
-  transport 覆盖，不把离线结果当作真实平台验收。
+- 真实平台推送、真实账户签到、真实面板上传/删除/压缩、资源更新等写入行为未在真实账户
+  上执行；面板和资源命令当前只由隔离 fixture/fake transport 覆盖，不把离线结果当作
+  真实平台验收。
+- 别名添加、删除和恢复命令已移除，当前只保留只读别名查询；未实现能力不注册、不展示，
+  `panel_custom/` 仍由面板服务独立维护。
 - 最终真实平台写入能力验收边界由本次 goal 终审统一记录，不得以本离线契约替代。

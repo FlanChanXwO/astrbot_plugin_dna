@@ -33,6 +33,9 @@
   已实现平台回复引用。
 - `alias/`、`wiki/{role,weapon,spirit}/`、`guide/<作者>/`、`weekly_item/` 与 `calendar/`：
   分别供别名、图鉴、攻略、周报和日历索引使用。
+- `data/redeem_codes.json`：兑换码 v1 清单，保留计划中、当前有效和已过期条目；插件只
+  展示当前有效项。每项必须有 `code`，可选 `reward`、带时区的 `valid_from`/`expires_at`、
+  `platforms`（`pc`/`android`/`ios`）和 `servers`（`cn`/`global`）。
 
 资源根不存在时，插件仍可启动：图片 renderer 会明确输出 `placeholder`/`fallback` metadata，
 资料命令对缺失图鉴或攻略返回未找到。资源根存在但 manifest 不完整时则显式失败，便于部署者
@@ -62,8 +65,10 @@
 进程重启时只加载 `current.json` 指向的已验证 generation，并清理同目录下未被当前指针引用的
 generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `panel_custom/`、数据库和订阅文件。
 
-资源仓库为公开仓库；插件仍只通过 manifest + Git fast-forward-only 同步接口读取，
-不在资源仓库中保存账号凭据或其他运行期私有数据。
+兑换码读取默认使用该仓库的 Raw URL，并沿用配置的 GitHub 加速前缀；网络、HTTP 状态码和
+契约解析失败分别对外报告稳定类别，不把 URL、响应原文或凭据带入消息。资源仓库为公开仓库；
+插件仍只通过 manifest + Git fast-forward-only 同步接口读取，不在资源仓库中保存账号凭据或
+其他运行期私有数据。
 
 ## 运行期数据目录边界
 

@@ -414,30 +414,6 @@
         "need_ck": false,
         "need_sk": false,
         "need_admin": true
-      },
-      {
-        "name": "添加/删除角色别名",
-        "desc": "添加/删除角色别名",
-        "eg": "添加妮弗尔夫人别名夫人",
-        "need_ck": false,
-        "need_sk": false,
-        "need_admin": true
-      },
-      {
-        "name": "添加/删除武器别名",
-        "desc": "添加/删除武器别名",
-        "eg": "添加武器失乡的獠牙别名獠牙",
-        "need_ck": false,
-        "need_sk": false,
-        "need_admin": true
-      },
-      {
-        "name": "(强制)?恢复别名",
-        "desc": "(强制)?恢复别名",
-        "eg": "恢复别名",
-        "need_ck": false,
-        "need_sk": false,
-        "need_admin": true
       }
     ]
   },

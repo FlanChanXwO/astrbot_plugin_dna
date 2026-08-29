@@ -74,7 +74,6 @@ from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.contracts import NoticesTransport
 from .modules.notices.service import NoticesService
-from .modules.operations.alias_service import AliasService
 from .modules.operations.resource_service import ResourceUpdateService
 from .modules.operations.service import PanelService
 from .modules.player.contracts import PlayerTransport
@@ -182,7 +181,11 @@ def build_runtime(
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,
-        encyclopedia_transport or DnaApiEncyclopediaTransport(runtime_database),
+        encyclopedia_transport
+        or DnaApiEncyclopediaTransport(
+            runtime_database,
+            acceleration_prefix=settings.resources.acceleration_prefix,
+        ),
         privacy_service,
         EncyclopediaRenderer(
             runtime_database.path.parent / "rendered", encyclopedia_resources
@@ -348,11 +351,6 @@ def build_runtime(
         rendered_root=runtime_database.path.parent / "rendered",
         synchronize=_synchronize_resources,
     )
-    alias_service = AliasService(
-        resource_cache_root / "alias",
-        custom_path=runtime_database.path.parent / "alias_custom.json",
-        refresh=lambda: None,
-    )
     admin_panel_service = AdminPanelService(panel_service)
     admin_alias_service = AdminAliasService(
         resource_root=resource_root,
@@ -391,7 +389,6 @@ def build_runtime(
         "panel_service": panel_service,
         "resource_update_service": resource_update_service,
         "resource_snapshots": resource_snapshots,
-        "alias_service": alias_service,
     }
 
     def _refresh_resource_views(snapshot: ResourceSnapshot) -> None:
