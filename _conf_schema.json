@@ -313,5 +313,35 @@
         "default": ""
       }
     }
+  },
+  "cache": {
+    "description": "缓存设置",
+    "type": "object",
+    "items": {
+      "fresh_ttl_minutes": {
+        "type": "int",
+        "description": "缓存 fresh 保持时间（分钟）",
+        "hint": "缓存内容在此时间内视为 fresh",
+        "default": 30
+      },
+      "retention_ttl_hours": {
+        "type": "int",
+        "description": "缓存硬保留时间（小时）",
+        "hint": "缓存超过此时间后允许清理",
+        "default": 24
+      },
+      "announcement_ttl_hours": {
+        "type": "int",
+        "description": "公告缓存保留时间（小时）",
+        "hint": "公告缓存的绝对保留时间",
+        "default": 24
+      },
+      "refresh_send_card": {
+        "type": "bool",
+        "description": "刷新后发送卡片",
+        "hint": "刷新成功后是否立即发送新卡片",
+        "default": true
+      }
+    }
   }
 }

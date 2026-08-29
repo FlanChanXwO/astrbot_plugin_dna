@@ -11,6 +11,7 @@ from .legacy import (
 )
 from .schema import generate_astrbot_schema, write_astrbot_schema
 from .settings import (
+    CacheSettings,
     DisplaySettings,
     DnabySettings,
     LoginSettings,
@@ -24,6 +25,7 @@ from .settings import (
 __all__ = [
     "CONFIG_DEFAULT",
     "DNA_PREFIX",
+    "CacheSettings",
     "DNAConfig",
     "DNASignConfig",
     "DisplaySettings",

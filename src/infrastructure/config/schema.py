@@ -10,6 +10,7 @@ from typing import Any, Literal, Union, get_args, get_origin
 from pydantic import BaseModel, SecretStr
 
 from .settings import (
+    CacheSettings,
     DisplaySettings,
     DnabySettings,
     LoginSettings,
@@ -26,6 +27,7 @@ _GROUPS: tuple[tuple[str, type[BaseModel]], ...] = (
     ("notifications", NotificationSettings),
     ("display", DisplaySettings),
     ("resources", ResourceSettings),
+    ("cache", CacheSettings),
 )
 
 

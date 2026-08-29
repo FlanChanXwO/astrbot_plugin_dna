@@ -58,6 +58,7 @@ def test_generated_schema_is_astrbot_compatible(tmp_path: Path) -> None:
         "notifications",
         "display",
         "resources",
+        "cache",
     }
     assert schema["login"]["type"] == "object"
     assert schema["login"]["items"]["transport"]["options"] == [

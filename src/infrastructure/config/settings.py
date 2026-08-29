@@ -178,6 +178,34 @@ class ResourceSettings(_SettingsModel):
         )
 
 
+class CacheSettings(_SettingsModel):
+    """统一文件缓存的时间和发送策略。"""
+
+    fresh_ttl_minutes: int = Field(
+        default=30,
+        ge=0,
+        description="缓存 fresh 保持时间（分钟）",
+        json_schema_extra={"hint": "缓存内容在此时间内视为 fresh"},
+    )
+    retention_ttl_hours: int = Field(
+        default=24,
+        gt=0,
+        description="缓存硬保留时间（小时）",
+        json_schema_extra={"hint": "缓存超过此时间后允许清理"},
+    )
+    announcement_ttl_hours: int = Field(
+        default=24,
+        gt=0,
+        description="公告缓存保留时间（小时）",
+        json_schema_extra={"hint": "公告缓存的绝对保留时间"},
+    )
+    refresh_send_card: bool = Field(
+        default=True,
+        description="刷新后发送卡片",
+        json_schema_extra={"hint": "刷新成功后是否立即发送新卡片"},
+    )
+
+
 class SignInSettings(_SettingsModel):
     """游戏签到、社区任务和签到报告配置。"""
 
@@ -356,6 +384,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
         "notifications": {},
         "display": {},
         "resources": {},
+        "cache": {},
     }
     if raw is None:
         return result
@@ -391,6 +420,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
         "notifications",
         "display",
         "resources",
+        "cache",
     ):
         group_data = raw_dict.get(group_name)
         if isinstance(group_data, Mapping):
@@ -431,6 +461,9 @@ class DnabySettings(_SettingsModel):
     resources: ResourceSettings = Field(
         default_factory=ResourceSettings, description="资源设置"
     )
+    cache: CacheSettings = Field(
+        default_factory=CacheSettings, description="缓存设置"
+    )
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
@@ -455,6 +488,7 @@ class DnabySettings(_SettingsModel):
 
 __all__ = [
     "DNA_PREFIX",
+    "CacheSettings",
     "DNAConfig",
     "DNASignConfig",
     "DisplaySettings",
