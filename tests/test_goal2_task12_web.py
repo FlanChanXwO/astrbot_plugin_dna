@@ -171,7 +171,7 @@ async def test_bootstrap_exposes_metadata_version_and_membership_capability() ->
     assert response.status_code == 200
     assert body["ok"] is True
     data = cast(dict[str, Any], body["data"])
-    assert data["version"] == "v0.1.0"
+    assert data["version"] == "v0.2.0"
     assert data["capabilities"]["membership_probe"]["supported"] is True
 
 

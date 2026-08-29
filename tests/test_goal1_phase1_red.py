@@ -259,7 +259,7 @@ async def test_help_card_uses_visible_registry_commands_and_metadata_version(
     assert [item["name"] for item in items] == ["用户命令"]
     assert items[0]["example"] == "dna用户命令"
     assert renderer.data["lines"] == []
-    assert renderer.data["version"] == "v0.1.0"
+    assert renderer.data["version"] == "v0.2.0"
 
 
 @pytest.mark.asyncio
