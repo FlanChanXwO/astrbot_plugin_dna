@@ -260,13 +260,22 @@
 
 ## 集中检查 D03 — Task 07–09
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 检查：删除安全、跨存储一致性、永久 tombstone、下一次运行时间、探测误判、平台能力、敏感日志、相关门禁。
 - 处理：重点验证失败不被伪装成 absent/success；发现问题修复或追加 task。
 - 实际工作：
+- 逐项复核 Task 07–09 的删除计划/确认串、SQLite 事务与 JSON 逐项回报、个人/群资源边界、调度 tombstone/时区 next-run，以及 aiocqhttp 三态探测和全局删除前即时复核；确认 `present`、`unknown`、`unsupported` 和存储失败均不会伪装成可删除或成功。
+- 发现 `SubscriptionStore.load()` 在解析前设置 `_loaded`，导致损坏 JSON 首次报错后修复文件无法由同一实例重试；新增 D03 回归先实际 Red，再将 loaded 标记延后至成功解析，并提交 `0349d93 fix(goal-2): make subscription loading retryable`。
+- 复核调度/通知错误日志只输出固定脱敏文案，删除确认与成员探测错误均不传播异常原文；未修改 Goal-1/Goal-3 共享 wiring 或其历史问题。
 - 验证证据：
+- `../../../.venv/bin/python -m pytest tests/test_goal2_d03_audit.py -q`：Red `1 failed`，修复后 `1 passed`；Task 07–09、持久化、账号/全局身份回归：`64 passed, 1 warning`。
+- `../../../.venv/bin/python -m pytest tests/test_goal2_task*.py tests/test_goal2_d03_audit.py tests/test_entry_skeleton.py tests/test_migration_boundaries.py tests/test_config.py -q`：`155 passed, 5 warnings`；警告仅为 AstrBot `audioop` 与动态命名空间 `__package__` 弃用提示。
+- `/Users/flanchan/.local/bin/ruff check .`、D03 定向 Pyright（订阅、删除、成员、调度与 D03 测试）为 `0 errors, 0 warnings, 0 informations`；`compileall -q .`、`pre-commit run --all-files`、`git diff --check` 和文档尾随空白检查通过。
 - 剩余风险：
+- SQLite 与 `subscriptions.json` 仍无法形成同一物理事务；协调器继续依靠串行步骤、逐项状态、内存回滚和同一计划重试，部分失败会显式返回 `partial`，这是设计边界而非伪成功。
+- 成员外部状态与删除操作之间仍有自然 TOCTOU 窗口；删除前已强制重新扫描，非 `aiocqhttp`、`present`、`unknown` 均阻止全局删除。D03 未发现新的阻塞问题。
 - 下一步：
+- Task 10：实现任务、目标与成员 Admin API，并接入统一认证/错误映射。
 
 ---
 
