@@ -473,13 +473,25 @@
 
 ## Task 17 — 文档、迁移与运维回滚说明
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：同步 docs 索引、架构、数据模型、Pages 使用、跨 Bot/平台身份、明文凭据风险、aiocqhttp 限制、永久任务删除、破坏性迁移和回滚步骤；按仓库纪律更新相关说明。
 - 验收：文档不再声称账号/隐私按 bot_id 隔离；明确备份和旧版本回退要求；不泄露真实 token、Cookie、数据库或 Dashboard 密钥。
 - 实际工作：
+- 新增 `docs/usage/admin-pages.md`，说明 Dashboard 认证入口、四个功能区、全局账号/隐私身份、明文凭据编辑和完整预览、任务/目标、成员探测、面板/角色别名、备份迁移与回滚边界。
+- 更新 `docs/project/architecture.md` 与 `docs/project/data-model.md`：将现行账号、凭据和隐私明确为跨 AstrBot 平台/跨 Bot 全局语义；注明 `EventActor.bot_id` 仅为运行期投递/legacy 上下文，并把 legacy 表中的旧 `bot_id` 标为历史参考而非当前契约。
+- 更新 `docs/dev/maintenance.md`、`docs/usage/resources.md` 和 `docs/README.md`：补齐运行期文件清单、受控备份流程、`0003_global_identity` 的四表清空范围、`downgrade` 不恢复数据、旧代码与迁移前数据库必须配套回退，以及 `scheduler_state.json` tombstone 的人工恢复边界。
+- 在现行文档中明确管理响应 `Cache-Control: no-store`、页面不使用浏览器持久化、明文凭据仍需防截图/剪贴板/扩展/宿主记录；明确成员探测只支持 `aiocqhttp`/OneBot V11，`unknown` 不得转为 `absent`，以及任务永久删除不可由页面恢复。文档未写入任何真实凭据、数据库内容或 Dashboard 密钥。
+- 文档实现提交为 `0c9129d`；仅包含上述 6 个 goal-2 文档文件，未暂存既有 `docs/superpowers/`、`goal-2/` 或 `goal-3/` 文件。
 - 验证证据：
+- `../../../.venv/bin/python -m pytest tests/test_goal2_task*.py tests/test_entry_skeleton.py tests/test_migration_boundaries.py tests/test_config.py -q`：`149 passed, 5 warnings`；警告仍为 AstrBot `audioop` 与动态命名空间 `__package__` 弃用提示。
+- `/Users/flanchan/.local/bin/ruff check .`：通过；本 task 6 个文档执行 `pre-commit run --files ...`：`ruff check` 通过；`git diff --check` 及文档尾随空白扫描通过。
+- 现行 `docs/README.md`、`docs/project/`、`docs/usage/`、`docs/dev/` 的语义扫描未发现按 `bot_id` 隔离账号/隐私的当前契约；仅 `data-model.md` 的 `legacy-reference` 历史表保留旧字段，并有明确非当前语义说明。
 - 剩余风险：
+- `docs/porting/` 与 `docs/legacy/` 保留历史移植/排查语义，不能替代现行 `docs/project/` 与 `docs/usage/`；本 task 未修改 goal-1/goal-3 相关存档。
+- 迁移、全局删除和永久文件删除仍需部署者在真实环境执行前自行保留并验证受控备份；备份可能包含明文凭据，文档只能规定保护要求，不能替代部署侧访问控制。
+- `0003_global_identity` 的真实生产升级仍会丢弃四张身份/隐私表旧行，且 `downgrade` 不具备数据恢复能力；Task 18 继续负责全量门禁与终审，不把文档检查当作生产迁移演练。
 - 下一步：
+- Task 18：运行全量质量门禁并使用 `code-review-expert` 审查数据库、权限、敏感信息、并发、UI、文档和回滚边界。
 
 ## Task 18 — 全量质量门禁与代码审查修复
 
