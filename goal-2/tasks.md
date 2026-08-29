@@ -450,13 +450,26 @@
 
 ## Task 16 — 真实浏览器与 AstrBot Plugin Pages 验证
 
-- 状态：`[ ] pending`
+- 状态：`[x] completed`
 - 目标：使用浏览器类 skill 在真实 AstrBot Dashboard/隔离数据环境打开页面，验证桌面、移动端、暗色、四页导航、抽屉/弹窗、图片、能力禁用和错误状态；只修复本 goal 问题。
 - 验收：保留截图或可复核日志；关键读写流程有实际交互证据；不抢占焦点、不操作真实账号/生产数据。
 - 实际工作：
+- 按 `browser:control-in-app-browser` skill 使用真实 AstrBot Dashboard（v4.27.1）与隔离临时根 `/tmp/dnaby-goal2-browser.MCdcpy`（6197 端口），物理复制当前插件并只写入虚构 binding、角色别名和运行期 schema；未读取或修改真实账号、Cookie、凭据、生产 data root。
+- 从 Dashboard 已安装插件卡实际打开 Plugin Page，核验四个导航入口（面板图、任务与探测、账号与预览、角色别名）及桌面浅色布局；保留 `desktop-accounts-fixed.png`、`mobile-accounts.png`、`mobile-dark-accounts.png` 三份截图。
+- 实际交互账号页：查看虚构 UID，打开明文凭据抽屉，确认 `user_id`/`uid` 只读且十项 App/Web 字段可见；修改来源群并通过确认弹窗保存，点击刷新后仍为新值。发现抽屉 overlay 与确认 overlay 同层导致真实点击被拦截，先以测试复现后将普通 overlay 提升到 `z-index: 30`。
+- 实际交互别名页：通过确认流程为中文角色追加自定义别名，切换页面后重新加载仍保留；发现桥接层 URL 编码的中文角色名被 Web 适配器原样传给服务，先以测试复现后在统一 Web 边界解码动态路径参数。
+- 实际观察任务页四个内置任务、无目标空态和无 `aiocqhttp` 时成员扫描禁用/501 能力提示；面板页观察无自定义图片的 404 错误与空态。移动视口设为 `390×844`，验证导航展开、账号内容可操作且 `scrollWidth=390`；经 Dashboard 可见主题菜单切换深色并实际核验暗色背景/文字，随后恢复浅色和默认视口。
+- 修复真实宿主发现的两个初始化问题：`src/modules/admin/service.py` 改为包相对导入以支持 `data.plugins.astrbot_plugin_dnaby` 命名空间；将顶层 `v-else` template 包裹为元素，避免 PetiteVue 在 DocumentFragment 中访问空 `parentElement`。
 - 验证证据：
+- TDD Red：新增浏览器契约首次实际 `1 failed, 2 passed`（确认 overlay）；修复后 `../../../.venv/bin/python -m pytest tests/test_goal2_task16_browser.py -q`：`3 passed`。新增 URL 编码角色名回归再次实际 `1 failed, 3 passed`；路径解码修复后：`4 passed, 1 warning`。
+- Goal-2 相关回归：`../../../.venv/bin/python -m pytest tests/test_goal2_task*.py tests/test_entry_skeleton.py tests/test_migration_boundaries.py tests/test_config.py -q`：`149 passed, 5 warnings`；警告仍仅为 AstrBot `audioop` 与动态插件命名空间 `__package__` 弃用提示。
+- `/Users/flanchan/.local/bin/ruff check .`、`../../../.venv/bin/python -m compileall .`、三份 Dashboard JS `node --check`、`pyright tests/test_goal2_task16_browser.py`、`git diff --check`：均通过；按插件/PetiteVue/DNABY 过滤的浏览器 dev logs 无相关错误或警告。
+- 可复核截图：`/Users/flanchan/.codex/visualizations/2026/08/29/goal2-task16/desktop-accounts-fixed.png`、`/Users/flanchan/.codex/visualizations/2026/08/29/goal2-task16/mobile-accounts.png`、`/Users/flanchan/.codex/visualizations/2026/08/29/goal2-task16/mobile-dark-accounts.png`。
 - 剩余风险：
+- 隔离实例没有真实 `aiocqhttp` 平台，因此 bootstrap 的成员能力保持预期 501/禁用；没有真实游戏凭据，未执行上游图片/角色详情预览，只核验了面板图片错误/空态和账号页面结构。
+- Task 17 文档同步、Task 18 全量质量门禁与 D06/Goal 终审仍待执行。
 - 下一步：
+- Task 17：同步文档、迁移、敏感信息和回滚说明。
 
 ## Task 17 — 文档、迁移与运维回滚说明
 
