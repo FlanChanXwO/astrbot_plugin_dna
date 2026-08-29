@@ -13,14 +13,15 @@ from starlette.datastructures import Headers, QueryParams
 
 from src.entry.admin_web import ADMIN_WEB_PREFIX, AdminWebAdapter, _response
 from src.infrastructure.persistence import AsyncDatabase
+from src.infrastructure.resources import ResourceSnapshotCoordinator, ResourceSyncResult
 from src.modules.admin import (
     AdminAccount,
     AdminAccountService,
     AdminApiResponse,
     AdminError,
     AdminErrorCode,
-    CredentialPayload,
     AdminPreviewService,
+    CredentialPayload,
     MembershipCapability,
 )
 
@@ -297,6 +298,7 @@ async def test_task_permanent_delete_requires_explicit_confirmation() -> None:
 @pytest.mark.asyncio
 async def test_build_runtime_wires_admin_web_services_and_registers_once(
     tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.bootstrap import build_runtime
 
@@ -313,6 +315,15 @@ async def test_build_runtime_wires_admin_web_services_and_registers_once(
     context = SimpleNamespace(
         register_web_api=register_web_api,
     )
+
+    def fake_synchronize(self: ResourceSnapshotCoordinator) -> ResourceSyncResult:
+        return ResourceSyncResult(
+            repository=self.repository,
+            action="updated",
+            resource_version="test",
+        )
+
+    monkeypatch.setattr(ResourceSnapshotCoordinator, "synchronize", fake_synchronize)
     runtime = build_runtime(
         context,
         {},

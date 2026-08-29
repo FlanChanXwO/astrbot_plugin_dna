@@ -15,13 +15,17 @@
     "fonts", "images", "panel", "alias", "data", "schemas",
     "wiki/role", "wiki/weapon", "wiki/spirit", "guide", "weekly_item", "calendar"
   ],
-  "resource_version": "2026.08.11"
+  "resource_version": "2026.08.11",
+  "file_hashes": {
+    "alias/char_alias.json": "<64 位十六进制 SHA-256>"
+  }
 }
 ```
 
 `required_dirs` 必须包含上述运行期布局；插件会校验目录均存在且不能通过相对路径逃逸仓库
 根目录。同步器和 bootstrap 都会拒绝已有但缺少/未声明该布局的资源根，不能把一次不完整
-同步当作可用资源。`resource_version` 只作为经过校验的资源版本返回。
+同步当作可用资源。`file_hashes` 是可选的逐文件 SHA-256 声明；声明的路径和摘要任一不匹配
+都会拒绝候选。`resource_version` 只作为经过校验的资源版本返回。
 
 目录约定如下：
 
@@ -48,9 +52,10 @@
 - 首次同步先执行 `git clone --depth 1 --single-branch --branch main --no-tags`，再显式
   `fetch --no-tags origin main`；已有 checkout
   先确认当前为 `main`、origin、干净状态，再只 fetch `origin/main`。
-- fetch 得到的 `FETCH_HEAD` 会先导出为临时 archive，校验 manifest、别名、兑换码及 schema、
-  图片/字体文件头和完整运行期索引；候选通过后才以 `merge --ff-only FETCH_HEAD` 更新缓存，
-  并原子发布对应的 `resource_generations/<commit-sha>/`。
+- fetch 得到的 `FETCH_HEAD` 会先导出为临时 archive，校验 manifest、声明的文件哈希、别名、
+  兑换码及 schema、图片的文件头与 PIL 完整解码、字体签名和运行期索引；同时计算候选完整
+  文件树的 SHA-256。候选通过后才以 `merge --ff-only FETCH_HEAD` 更新缓存，并原子发布对应
+  的 `resource_generations/<commit-sha>/`。
 - Git 缺失、认证/远端错误、origin 不一致、非快进、候选无效或本地有修改时直接报告失败，
   当前已验证 generation 保持不变。
 - 加速镜像不支持 Git smart HTTP 时直接报告失败，不改走 ZIP、不静默直连；本地修改必须由部署者自行处理。
@@ -64,6 +69,15 @@
 
 进程重启时只加载 `current.json` 指向的已验证 generation，并清理同目录下未被当前指针引用的
 generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `panel_custom/`、数据库和订阅文件。
+
+`current.json` 同时保存 `generation` 和 `content_sha256`。重启恢复时会重新校验 generation 并
+比对完整文件树摘要；摘要不一致时拒绝激活，避免指针指向被篡改的内容。没有摘要字段的旧指针
+只在完成同样的 generation 校验后自动补写摘要。
+
+插件启动阶段会在后台发起一次资源预热，不阻塞生命周期初始化；管理员命令“下载全部资源”
+会等待同一个 single-flight 同步任务，不会并发重复执行 Git。预热失败保留真实异常并写入日志，
+不会返回伪成功；终止阶段取消预热协程，并等待底层同步线程完成后再释放数据库。候选物化的
+`.candidate-*`、`.archive-*` 临时物仍由同步流程的 `finally` 清理。
 
 兑换码读取默认使用该仓库的 Raw URL，并沿用配置的 GitHub 加速前缀；网络、HTTP 状态码和
 契约解析失败分别对外报告稳定类别，不把 URL、响应原文或凭据带入消息。资源仓库为公开仓库；

@@ -156,6 +156,7 @@ class ResourceSyncResult:
     resource_version: str
     commit_sha: str = ""
     generation_root: Path | None = None
+    content_sha256: str = ""
 
 
 class ResourceSynchronizer:

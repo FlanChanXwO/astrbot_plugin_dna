@@ -17,8 +17,11 @@ ruff check .
   resource manifest 路径校验、私有 Git clone/fetch/fast-forward 失败可见性和本地修改保护。
 - `test_goal3_resource_acceleration.py` — Task 16 的资源加速、canonical origin、单分支 Git
   参数与 bootstrap 注入。
-- `test_goal3_resource_generations.py` — Task 17 的 `FETCH_HEAD` archive 候选、完整校验、原子
-  generation 发布、失败保留旧快照、并发 lease、renderer 绑定与重启孤立物清理。
+- `test_goal3_resource_generations.py` — Task 17/O08 的 `FETCH_HEAD` archive 候选、manifest 文件
+  哈希、PIL 图片解码、完整内容摘要、原子 generation 发布、失败保留旧快照、并发 lease、renderer
+  绑定与重启孤立物清理。
+- `test_resource_service.py`、`test_goal1_o08_resources.py` — 资源预热与管理员下载 single-flight、
+  终止排空和 bootstrap 生命周期注入。
 - `test_goal3_task19.py` — 使用临时 bare Git 和编辑器 `test:task19` 联合验证公共资源
   manifest/schema、Worker PR Check、插件 `main` 下载/generation/兑换码消费，以及旧数据目录
   与 `panel_custom`/数据库/订阅文件的无损升级。

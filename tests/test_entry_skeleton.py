@@ -17,6 +17,7 @@ from src.entry.response import (
     ResponseFactory,
 )
 from src.entry.web import WebRegistrar, WebRoute
+from src.infrastructure.resources import ResourceSnapshotCoordinator, ResourceSyncResult
 
 
 class FakeContext:
@@ -36,9 +37,19 @@ class FakeContext:
 
 
 @pytest.mark.asyncio
-async def test_plugin_can_initialize_and_terminate_with_admin_web_registrations():
+async def test_plugin_can_initialize_and_terminate_with_admin_web_registrations(
+    monkeypatch: pytest.MonkeyPatch,
+):
     """入口可被 AstrBot 加载和卸载，并注册唯一的 Dashboard 管理路由。"""
 
+    def fake_synchronize(self: ResourceSnapshotCoordinator) -> ResourceSyncResult:
+        return ResourceSyncResult(
+            repository=self.repository,
+            action="updated",
+            resource_version="test",
+        )
+
+    monkeypatch.setattr(ResourceSnapshotCoordinator, "synchronize", fake_synchronize)
     context = FakeContext()
     plugin = DnabyPlugin(context)
 

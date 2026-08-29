@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from typing import TypeVar
+
+from astrbot.api import logger
 
 from ...entry.response import PlainTextResponse
 from ...infrastructure.resources import (
@@ -16,6 +19,36 @@ from ...infrastructure.resources import (
 from . import messages
 
 SynchronizeFn = Callable[[], ResourceSyncResult]
+_TaskValue = TypeVar("_TaskValue")
+
+
+async def _drain_task(
+    task: asyncio.Task[_TaskValue],
+) -> tuple[_TaskValue | None, Exception | None, asyncio.CancelledError | None]:
+    """在保留取消语义的同时等待任务结束，不用固定超时截断同步线程。"""
+
+    interruption: asyncio.CancelledError | None = None
+    while not task.done():
+        try:
+            result = await asyncio.shield(task)
+        except asyncio.CancelledError as error:
+            if task.done():
+                break
+            if interruption is None:
+                interruption = error
+        except Exception as error:  # noqa: BLE001 - 排空边界必须观察注入任务的任意失败。
+            return None, error, interruption
+        else:
+            return result, None, interruption
+
+    if task.cancelled():
+        return None, None, interruption
+    try:
+        return task.result(), None, interruption
+    except asyncio.CancelledError:
+        return None, None, interruption
+    except Exception as error:  # noqa: BLE001 - 读取任务结果以避免未观察异常。
+        return None, error, interruption
 
 
 class ResourceUpdateService:
@@ -32,12 +65,90 @@ class ResourceUpdateService:
         synchronize: SynchronizeFn,
     ) -> None:
         self.synchronize = synchronize
+        self._flight_lock = asyncio.Lock()
+        self._inflight: asyncio.Task[ResourceSyncResult] | None = None
+        self._preheat_task: asyncio.Task[None] | None = None
+        self._preheat_error: Exception | None = None
+
+    @property
+    def preheat_error(self) -> Exception | None:
+        """返回最近一次后台预热的真实异常，供状态页和测试观察。"""
+
+        return self._preheat_error
+
+    async def synchronize_once(self) -> ResourceSyncResult:
+        """取得共享同步任务；取消单个等待者不会取消底层同步。"""
+
+        async with self._flight_lock:
+            task = self._inflight
+            if task is None or task.done():
+                task = asyncio.create_task(asyncio.to_thread(self.synchronize))
+                self._inflight = task
+        try:
+            return await asyncio.shield(task)
+        finally:
+            if task.done():
+                async with self._flight_lock:
+                    if self._inflight is task:
+                        self._inflight = None
+
+    async def start_preheat(self) -> None:
+        """启动非阻塞资源预热；已有预热或同步任务时不重复发起。"""
+
+        async with self._flight_lock:
+            if self._preheat_task is not None and not self._preheat_task.done():
+                return
+            self._preheat_error = None
+            self._preheat_task = asyncio.create_task(self._run_preheat())
+
+    async def _run_preheat(self) -> None:
+        try:
+            await self.synchronize_once()
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:  # noqa: BLE001 - 预热失败需记录真实异常。
+            self._preheat_error = error
+            logger.warning(f"[dnaby][resources] 后台预热失败: {error}")
+
+    async def stop(self) -> None:
+        """取消预热并排空共享同步，确保线程不会在 runtime 销毁后继续写资源。"""
+
+        async with self._flight_lock:
+            preheat_task = self._preheat_task
+        if preheat_task is not None and not preheat_task.done():
+            preheat_task.cancel()
+
+        interruption: asyncio.CancelledError | None = None
+        if preheat_task is not None:
+            _, preheat_error, preheat_interruption = await _drain_task(preheat_task)
+            interruption = preheat_interruption
+            if preheat_error is not None:
+                self._preheat_error = preheat_error
+                logger.warning(f"[dnaby][resources] 后台预热失败: {preheat_error}")
+
+        async with self._flight_lock:
+            inflight = self._inflight
+        if inflight is not None:
+            _, sync_error, sync_interruption = await _drain_task(inflight)
+            if interruption is None:
+                interruption = sync_interruption
+            if sync_error is not None:
+                self._preheat_error = sync_error
+                logger.warning(f"[dnaby][resources] 资源同步结束但失败: {sync_error}")
+
+        async with self._flight_lock:
+            if self._preheat_task is preheat_task:
+                self._preheat_task = None
+            if self._inflight is inflight:
+                self._inflight = None
+        if interruption is not None:
+            raise interruption
 
     async def download_all(self, _request: object):
         """下载全部公共资源（浅克隆或 ff-only 更新）。"""
 
         try:
-            result = await asyncio.to_thread(self.synchronize)
+            result = await self.synchronize_once()
         except ResourceLocalChangesError as error:
             return PlainTextResponse(messages.RESOURCE_LOCAL_CHANGES.format(detail=str(error)))
         except ResourceRemoteMismatchError:

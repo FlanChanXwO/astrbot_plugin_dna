@@ -70,8 +70,10 @@
   图片载荷（`images_from_event`）。
   资源更新经 `ResourceUpdateService` 调用 `ResourceSnapshotCoordinator`：Git cache 只执行
   `main` 的浅克隆/fetch，候选先由 `git archive FETCH_HEAD` 物化并完整校验，再
-  `merge --ff-only FETCH_HEAD`，最后原子发布 `resource_generations/<sha>/` 和当前指针。
+  `merge --ff-only FETCH_HEAD`，计算完整文件树 SHA-256，最后原子发布 `resource_generations/<sha>/`
+  和带摘要的当前指针。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
   `下载全部资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
+  启动预热与该命令共享 single-flight，同步终止前会排空后台任务。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
   GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `fetch --no-tags origin main`，可用临时

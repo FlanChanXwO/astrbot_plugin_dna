@@ -9,6 +9,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from PIL import Image
+
 from src.infrastructure.http.encyclopedia import DnaApiEncyclopediaTransport
 from src.infrastructure.resources import (
     DEFAULT_RESOURCE_REMOTE,
@@ -94,12 +96,10 @@ def _resource_files(root: Path, redeem_codes: object, public_resources: Path) ->
         ),
         encoding="utf-8",
     )
-    # 两侧只需校验 magic header；PNG 仍使用真实签名，避免把错误伪装成完整图片。
+    # 使用真实可解码图片，匹配插件对候选素材的完整 PIL 校验。
     image_path = root / "images" / "role_avatar" / "1101.png"
     image_path.parent.mkdir(parents=True, exist_ok=True)
-    image_path.write_bytes(
-        bytes((137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0)),
-    )
+    Image.new("RGBA", (2, 2), (255, 0, 0, 255)).save(image_path, format="PNG")
     (root / "fonts" / "dna_fonts.ttf").write_bytes(b"\x00\x01\x00\x00task19")
     (root / "README.md").write_text("Task 19 fixture\n", encoding="utf-8")
 

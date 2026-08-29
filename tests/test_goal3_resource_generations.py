@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -170,6 +171,8 @@ def test_sync_archives_fetch_head_and_publishes_only_valid_main_generation(
 
     assert snapshot is not None
     assert result.commit_sha == snapshot.commit_sha
+    assert result.content_sha256 == snapshot.content_sha256
+    assert len(snapshot.content_sha256) == 64
     assert snapshot.root == tmp_path / "resource_generations" / result.commit_sha
     assert snapshot.player_resources.root == snapshot.root
     assert all(
@@ -186,7 +189,9 @@ def test_sync_archives_fetch_head_and_publishes_only_valid_main_generation(
     ]
     assert _git("tag", cwd=target).strip() == ""
     assert any(_operation(call) == "archive" and "FETCH_HEAD" in call for call in runner.calls)
-    assert json.loads(coordinator.state_path.read_text(encoding="utf-8"))["generation"] == result.commit_sha
+    state = json.loads(coordinator.state_path.read_text(encoding="utf-8"))
+    assert state["generation"] == result.commit_sha
+    assert state["content_sha256"] == result.content_sha256
     assert [item.commit_sha for item in published] == [result.commit_sha]
     assert source.exists()
 
@@ -374,11 +379,11 @@ def test_validator_rejects_symlinked_resource_files(tmp_path: Path) -> None:
         ResourceGenerationValidator().validate(candidate, "a" * 40)
 
 
-def test_validator_reads_binary_headers_without_loading_full_files(
+def test_validator_handles_complete_binary_assets_without_path_read_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """候选校验只读取文件头，不把完整图片和字体载入内存。"""
+    """候选校验读取文件头后仍能正常处理完整的图片和字体。"""
 
     candidate = tmp_path / "candidate"
     _write_resources(candidate, "v1")
@@ -391,6 +396,59 @@ def test_validator_reads_binary_headers_without_loading_full_files(
     snapshot = ResourceGenerationValidator().validate(candidate, "a" * 40)
 
     assert snapshot.commit_sha == "a" * 40
+
+
+def test_validator_rejects_truncated_image_after_valid_header(tmp_path: Path) -> None:
+    """仅伪造图片文件头的候选不能通过完整解码校验。"""
+
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    (candidate / "images" / "role_avatar" / "1.png").write_bytes(
+        b"\x89PNG\r\n\x1a\n" + b"truncated"
+    )
+
+    with pytest.raises(ResourceGenerationError, match="图片不可解码"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
+def test_validator_checks_optional_manifest_file_hashes(tmp_path: Path) -> None:
+    """manifest 声明的文件哈希必须匹配候选内容。"""
+
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    alias_path = candidate / "alias" / "char_alias.json"
+    manifest_path = candidate / "resource_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["file_hashes"] = {
+        "alias/char_alias.json": hashlib.sha256(alias_path.read_bytes()).hexdigest()
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    snapshot = ResourceGenerationValidator().validate(candidate, "a" * 40)
+    assert snapshot.manifest.file_hashes["alias/char_alias.json"] == manifest["file_hashes"]["alias/char_alias.json"]
+
+    alias_path.write_text('{"角色甲": ["被篡改"]}', encoding="utf-8")
+    with pytest.raises(ResourceGenerationError, match="文件哈希不匹配"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
+def test_initialize_rejects_tampered_content_hash_pointer(tmp_path: Path) -> None:
+    """active pointer 中的内容哈希不匹配时不得恢复该 generation。"""
+
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    coordinator.synchronize()
+    state = json.loads(coordinator.state_path.read_text(encoding="utf-8"))
+    state["content_sha256"] = "0" * 64
+    coordinator.state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    restarted = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+    )
+    with pytest.raises(ResourceGenerationError, match="内容哈希不匹配"):
+        restarted.initialize()
 
 
 def test_restart_loads_active_generation_and_removes_orphans_without_touching_panel_custom(

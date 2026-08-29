@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -16,6 +17,8 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
+
+from PIL import Image
 
 from .encyclopedia import EncyclopediaResourceStore
 from .git import (
@@ -45,6 +48,7 @@ class ResourceSnapshot:
     manifest: ResourceManifest
     player_resources: ResourceMap
     encyclopedia_resources: EncyclopediaResourceStore
+    content_sha256: str = ""
 
     @property
     def resource_version(self) -> str:
@@ -220,6 +224,58 @@ def _validate_image_header(path: Path) -> None:
         raise ResourceGenerationError(f"资源候选图片文件头无效: {path.name}")
 
 
+def _validate_image_decodability(path: Path) -> None:
+    """用 PIL 实际校验图片结构和像素解码，而不是只信任文件头。"""
+
+    _validate_image_header(path)
+    try:
+        with Image.open(path) as image:
+            image.verify()
+        with Image.open(path) as image:
+            image.load()
+    except (OSError, SyntaxError, ValueError) as exc:
+        raise ResourceGenerationError(f"资源候选图片不可解码: {path.name}") from exc
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        while chunk := file.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _content_sha256(root: Path) -> str:
+    """按稳定的相对路径和完整文件内容计算 generation 摘要。"""
+
+    digest = hashlib.sha256()
+    files = sorted(
+        (path for path in root.rglob("*") if path.is_file()),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
+    for path in files:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        with path.open("rb") as file:
+            while chunk := file.read(1024 * 1024):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_declared_file_hashes(
+    root: Path,
+    manifest: ResourceManifest,
+) -> None:
+    for relative, expected in manifest.file_hashes.items():
+        path = root.joinpath(*relative.split("/"))
+        if path.is_symlink() or not path.is_file():
+            raise ResourceGenerationError(f"资源候选文件哈希目标不存在: {relative}")
+        actual = _sha256_file(path)
+        if actual.casefold() != expected.casefold():
+            raise ResourceGenerationError(f"资源候选文件哈希不匹配: {relative}")
+
+
 def _validate_no_symlinks(root: Path) -> None:
     """拒绝 generation 根及其子项的符号链接，避免校验时读取外部文件。"""
 
@@ -239,7 +295,7 @@ def _validate_asset_headers(root: Path) -> None:
             if not path.is_file() or path.name == ".keep":
                 continue
             if path.suffix.lower() in _IMAGE_SUFFIXES:
-                _validate_image_header(path)
+                _validate_image_decodability(path)
     font_root = root / "fonts"
     for path in sorted(font_root.rglob("*")):
         if path.is_symlink():
@@ -263,6 +319,7 @@ class ResourceGenerationValidator:
             _validate_no_symlinks(root_input)
             root_path = root_input.resolve()
             manifest = ResourceManifest.load(root_path / "resource_manifest.json").validate_runtime_layout(root_path)
+            _validate_declared_file_hashes(root_path, manifest)
             for filename in _ALIAS_FILES:
                 _validate_alias_file(root_path / "alias" / filename)
             _validate_redeem_file(root_path / "data" / "redeem_codes.json")
@@ -272,6 +329,7 @@ class ResourceGenerationValidator:
 
             player_resources = ResourceMap.from_root(root_path)
             encyclopedia_resources = EncyclopediaResourceStore.from_root(root_path)
+            content_sha256 = _content_sha256(root_path)
         except ResourceGenerationError as exc:
             raise ResourceGenerationError(f"资源候选 generation 校验失败：{exc}") from exc
         except (OSError, UnicodeError, ValueError, TypeError) as exc:
@@ -282,6 +340,7 @@ class ResourceGenerationValidator:
             manifest=manifest,
             player_resources=player_resources,
             encyclopedia_resources=encyclopedia_resources,
+            content_sha256=content_sha256,
         )
 
 
@@ -373,9 +432,9 @@ class ResourceSnapshotCoordinator:
 
         return unsubscribe
 
-    def _read_generation_id(self) -> str | None:
+    def _read_generation_pointer(self) -> tuple[str | None, str | None]:
         if not self.state_path.exists():
-            return None
+            return None, None
         try:
             raw = json.loads(self.state_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -383,6 +442,18 @@ class ResourceSnapshotCoordinator:
         generation = raw.get("generation") if isinstance(raw, dict) else None
         if not isinstance(generation, str) or re.fullmatch(r"[0-9a-fA-F]+", generation) is None:
             raise ResourceGenerationError("当前资源 generation 指针无效")
+        content_sha256 = raw.get("content_sha256") if isinstance(raw, dict) else None
+        if content_sha256 is not None and (
+            not isinstance(content_sha256, str)
+            or re.fullmatch(r"[0-9a-fA-F]{64}", content_sha256) is None
+        ):
+            raise ResourceGenerationError("当前资源 generation 内容哈希指针无效")
+        return generation, content_sha256
+
+    def _read_generation_id(self) -> str | None:
+        """兼容旧调用方，只返回 active pointer 中的 generation 标识。"""
+
+        generation, _content_sha256 = self._read_generation_pointer()
         return generation
 
     def _generation_path(self, commit_sha: str) -> Path:
@@ -415,14 +486,21 @@ class ResourceSnapshotCoordinator:
 
         with self._lock:
             self.generations_root.mkdir(parents=True, exist_ok=True)
-            generation = self._read_generation_id()
+            generation, expected_content_sha256 = self._read_generation_pointer()
             if generation is None:
                 self._current = None
                 self._cleanup_orphans(None)
                 return None
             root = self._generation_path(generation)
             snapshot = self._validator.validate(root, generation)
+            if (
+                expected_content_sha256 is not None
+                and expected_content_sha256.casefold() != snapshot.content_sha256.casefold()
+            ):
+                raise ResourceGenerationError("当前资源 generation 内容哈希不匹配")
             self._current = snapshot
+            if expected_content_sha256 is None:
+                self._write_state(snapshot)
             self._cleanup_orphans(generation)
             return snapshot
 
@@ -494,11 +572,18 @@ class ResourceSnapshotCoordinator:
                 self._remove_generation(path)
             self._retired.remove(commit_sha)
 
-    def _write_state(self, commit_sha: str) -> None:
+    def _write_state(self, snapshot: ResourceSnapshot) -> None:
         temporary = self.generations_root / f".current-{uuid4().hex}.tmp"
         try:
             temporary.write_text(
-                json.dumps({"generation": commit_sha}, ensure_ascii=False) + "\n",
+                json.dumps(
+                    {
+                        "generation": snapshot.commit_sha,
+                        "content_sha256": snapshot.content_sha256,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
                 encoding="utf-8",
             )
             os.replace(temporary, self.state_path)
@@ -508,7 +593,7 @@ class ResourceSnapshotCoordinator:
 
     def _activate(self, snapshot: ResourceSnapshot) -> None:
         previous = self._current
-        self._write_state(snapshot.commit_sha)
+        self._write_state(snapshot)
         self._current = snapshot
         if previous is not None and previous.commit_sha != snapshot.commit_sha:
             self._retired.add(previous.commit_sha)
@@ -577,6 +662,7 @@ class ResourceSnapshotCoordinator:
                 resource_version=snapshot.resource_version,
                 commit_sha=commit_sha,
                 generation_root=snapshot.root,
+                content_sha256=snapshot.content_sha256,
             )
 
 

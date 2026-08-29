@@ -10,7 +10,7 @@ import inspect
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from astrbot.api.star import Context
 from astrbot.core import AstrBotConfig
@@ -349,6 +349,12 @@ def build_runtime(
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
     )
+    if services is not None and "resource_update_service" in services:
+        # 复用现有 services 注入边界，使生命周期测试和宿主可提供同契约实现。
+        resource_update_service = cast(
+            ResourceUpdateService,
+            services["resource_update_service"],
+        )
     admin_panel_service = AdminPanelService(panel_service)
     admin_alias_service = AdminAliasService(
         resource_root=resource_root,
@@ -452,12 +458,14 @@ def build_runtime(
         start_hooks=(
             web.initialize,
             _sync_ann_config_on_startup,
+            resource_update_service.start_preheat,
             sign_scheduler.start,
             notices_scheduler.start,
         ),
-        # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler，再释放数据库。
+        # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler、资源线程，再释放数据库。
         stop_hooks=(
             runtime_database.dispose,
+            resource_update_service.stop,
             sign_scheduler.stop,
             notices_scheduler.stop,
         ),

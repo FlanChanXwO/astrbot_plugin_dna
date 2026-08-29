@@ -92,8 +92,9 @@ JSON/目录。
 
 ## 三仓发布顺序
 
-1. 在资源仓库通过编辑器表单投稿；检查 `resource_manifest.json`、兑换码 schema/语义、文件
-   头、路径和素材来源说明，等待 `resource-contract` Check 后合并 `main`。
+1. 在资源仓库通过编辑器表单投稿；检查 `resource_manifest.json`、声明的文件 SHA-256、兑换码
+   schema/语义、路径、图片可由 PIL 解码、文件头和素材来源说明，等待 `resource-contract` Check
+   后合并 `main`。
 2. 记录资源 `main` 的 commit SHA 与 `resource_version`，再运行插件跨仓契约回归和目标资源
    generation 测试。
 3. 编辑器部署/配置按其 [operations runbook](https://github.com/FlanChanXwO/dna-resource-editor/blob/main/docs/operations.md)
@@ -109,8 +110,9 @@ JSON/目录。
 升级插件前备份整个 `data/plugin_data/astrbot_plugin_dnaby/`，至少确认
 `dnaby.sqlite3`、`subscriptions.json`、`ann_state.json` 和 `panel_custom/` 可恢复。资源更新
 本身只在 `resources/` 使用 Git 增量缓存，并在 `resource_generations/<commit-sha>/` 生成已验证
-快照；`resource_generations/current.json` 不存在时，启动会保留旧缓存并等待下一次下载生成
-首个快照。启动或下载过程不会删除/迁移面板图、数据库、订阅或公告状态。
+快照；快照保存完整文件树 SHA-256，`resource_generations/current.json` 同时保存 commit 和摘要。
+启动预热不阻塞插件初始化，管理员下载会等待同一同步任务；终止时会排空该任务。没有摘要的旧
+指针会在校验后补写；启动或下载过程不会删除/迁移面板图、数据库、订阅或公告状态。
 
 旧 GitCode 兑换码的 `end_at` 只能在资源仓库迁移阶段转换成带时区的 `expires_at`；未知奖励、
 平台、区服和起始时间保持缺失。资源仓库成为唯一事实源后，插件不回退旧 GitCode。

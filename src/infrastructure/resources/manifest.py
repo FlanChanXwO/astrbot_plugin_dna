@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -36,6 +37,10 @@ class ResourceManifest(BaseModel):
         description="资源仓库必须存在的相对目录。",
     )
     resource_version: str = Field(description="资源内容版本。")
+    file_hashes: dict[str, str] = Field(
+        default_factory=dict,
+        description="可选的相对文件路径到 SHA-256 摘要映射。",
+    )
 
     @field_validator("format_version")
     @classmethod
@@ -69,6 +74,22 @@ class ResourceManifest(BaseModel):
     def _check_resource_version(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("resource_version 不能为空")
+        return value
+
+    @field_validator("file_hashes")
+    @classmethod
+    def _check_file_hashes(cls, value: dict[str, str]) -> dict[str, str]:
+        for relative, digest in value.items():
+            parts = relative.split("/")
+            if (
+                not relative
+                or Path(relative).is_absolute()
+                or "\\" in relative
+                or any(part in {"", ".", ".."} for part in parts)
+            ):
+                raise ValueError(f"file_hashes 含有不安全路径: {relative!r}")
+            if re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
+                raise ValueError(f"file_hashes 摘要不是 SHA-256: {relative!r}")
         return value
 
     @classmethod
