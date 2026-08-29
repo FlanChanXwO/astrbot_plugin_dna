@@ -132,9 +132,9 @@ class NoticesScheduler:
                 await coro()
             except asyncio.CancelledError:
                 raise
-            except Exception as error:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 await self.registry.mark_error(task_id)
-                logger.warning(f"[dnaby][{_MH_PUSH_TASK_NAME}] 定时任务异常: {error}")
+                logger.warning(f"[dnaby][{_MH_PUSH_TASK_NAME}] 定时任务异常")
             else:
                 await self.registry.mark_running(task_id)
             # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标秒内重复触发
@@ -157,9 +157,9 @@ class NoticesScheduler:
                 await coro()
             except asyncio.CancelledError:
                 raise
-            except Exception as error:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 await self.registry.mark_error(task_id)
-                logger.warning(f"[dnaby][{_ANN_POLL_TASK_NAME}] 定时任务异常: {error}")
+                logger.warning(f"[dnaby][{_ANN_POLL_TASK_NAME}] 定时任务异常")
             else:
                 await self.registry.mark_running(task_id)
 

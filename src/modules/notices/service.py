@@ -390,10 +390,10 @@ class NoticesService:
                 if inspect.isawaitable(res):
                     await res
                 return True
-            except Exception as error:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 from astrbot.api import logger
 
-                logger.warning(f"[dnaby][push] 发送给 {origin} 失败: {error}")
+                logger.warning("[dnaby][push] 推送失败")
                 return False
         return False
 

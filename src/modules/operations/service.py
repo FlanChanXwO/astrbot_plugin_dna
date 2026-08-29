@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
-import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -137,8 +136,18 @@ class PanelService:
             return None
         panel_files = self._panel_files(char_dir)
         if panel_files:
-            shutil.rmtree(char_dir)
+            self._remove_panel_files(panel_files)
         return len(panel_files)
+
+    @staticmethod
+    def _remove_panel_files(panel_files: list[Path]) -> None:
+        """只删除已识别的图片，保留角色目录中的其他运维文件。"""
+
+        for image_path in panel_files:
+            image_path.unlink()
+        char_dir = panel_files[0].parent
+        if char_dir.is_dir() and not any(char_dir.iterdir()):
+            char_dir.rmdir()
 
     def compress_all_panel_files(self) -> tuple[int, int]:
         """压缩全部角色面板图并返回 ``(总数, 成功压缩数)``。"""
@@ -269,7 +278,7 @@ class PanelService:
             return PlainTextResponse(
                 messages.PANEL_DELETED_ALL_EMPTY.format(name=char_name)
             )
-        shutil.rmtree(char_dir)
+        self._remove_panel_files(panel_files)
         return PlainTextResponse(
             messages.PANEL_DELETED_ALL.format(name=char_name, count=len(panel_files)),
         )

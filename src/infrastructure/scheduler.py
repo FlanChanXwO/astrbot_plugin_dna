@@ -153,11 +153,11 @@ class SignScheduler:
                 await coro()
             except asyncio.CancelledError:
                 raise
-            except Exception as error:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 await self.registry.mark_error(task_id)
                 from astrbot.api import logger
 
-                logger.warning(f"[dnaby][{name}] 定时任务异常: {error}")
+                logger.warning(f"[dnaby][{name}] 定时任务异常")
             else:
                 await self.registry.mark_running(task_id)
             # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标分钟内重复触发
@@ -296,12 +296,10 @@ class SignScheduler:
                 res = self._push(subscription.unified_msg_origin, text)
                 if inspect.isawaitable(res):
                     await res
-            except Exception as error:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 from astrbot.api import logger
 
-                logger.warning(
-                    f"[dnaby][sign_push] 发送给 {subscription.unified_msg_origin} 失败: {error}"
-                )
+                logger.warning("[dnaby][sign_push] 推送失败")
         return text
 
     async def run_cleanup_once(self) -> int:
