@@ -28,17 +28,43 @@ class CleanupEvent:
 
 
 @pytest.mark.asyncio
-async def test_help_image_is_tracked_and_cleaned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    async def render_help(**_kwargs: object) -> bytes:
+async def test_help_use_case_accepts_injected_renderer(
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+
+    async def render_help(prefix: str) -> bytes:
+        calls.append(prefix)
         return b"help-image"
 
-    monkeypatch.setattr("src.infrastructure.rendering.help.get_help", render_help)
+    rendered_root = tmp_path / "rendered"
+    request = CommandRequest(
+        command_id="help",
+        text="dna帮助",
+        parameters={},
+        services={"rendered_root": rendered_root, "help_renderer": render_help},
+        matched_prefix="dna",
+    )
+
+    response = await help_use_case(request, CommandRegistry(()))
+
+    assert calls == ["dna"]
+    assert isinstance(response, ImageResponse)
+    assert Path(response.image).read_bytes() == b"help-image"
+
+
+@pytest.mark.asyncio
+async def test_help_image_is_tracked_and_cleaned(tmp_path: Path) -> None:
+    async def render_help(prefix: str) -> bytes:
+        assert prefix == "kk"
+        return b"help-image"
+
     rendered_root = tmp_path / "rendered"
     request = CommandRequest(
         command_id="help",
         text="kk帮助",
         parameters={},
-        services={"rendered_root": rendered_root},
+        services={"rendered_root": rendered_root, "help_renderer": render_help},
     )
 
     response = await help_use_case(request, CommandRegistry(()))

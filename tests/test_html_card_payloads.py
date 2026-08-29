@@ -43,7 +43,7 @@ async def test_help_card_keeps_groups_and_examples(monkeypatch: pytest.MonkeyPat
         lambda: {"信息查询": {"data": [{"name": "日常", "eg": "日常"}]}},
     )
 
-    assert await module.get_help() == b"png"
+    assert await module.get_help(prefix="") == b"png"
     call = renderer.calls[0]
     assert call.template_name == "cards/help.html.j2"
     assert call.spec.width == 2020 and call.spec.full_page is True
@@ -53,6 +53,9 @@ async def test_help_card_keeps_groups_and_examples(monkeypatch: pytest.MonkeyPat
         {"is_group": True, "name": "信息查询", "example": ""},
         {"is_group": False, "name": "日常", "example": "kk日常"},
     ]
+
+    assert await module.get_help(prefix="dna") == b"png"
+    assert renderer.calls[-1].data["lines"][1]["example"] == "dna日常"
 
 
 def test_help_ambiguous_icons_match_gscore_selection() -> None:
