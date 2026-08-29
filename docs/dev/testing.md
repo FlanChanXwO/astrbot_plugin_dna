@@ -82,3 +82,21 @@ ruff check .
 当前阶段只用 AstrBot 本地 SDK、fake Context、事件 fixture 和原生响应构造方法验证
 插件加载、handler 注册和响应结果。账号与隐私写入只在隔离 SQLite 中执行；不执行真实
 NapCat、OneBot、手机号验证码、token 或外部登录服务。
+
+## 三仓发布前门禁
+
+编辑器仓库从其根目录执行：
+
+```bash
+npm ci
+npm test
+npm run typecheck
+npm run build
+npm run deploy:dry-run
+```
+
+`npm test` 不隐式运行跨仓 `test:task19`；插件测试会创建 fixture 并注入
+`DNA_TASK19_FIXTURE` 后调用它。资源仓库不承载编辑器测试或依赖，发布前至少用 Python/JSON
+工具检查 manifest、schema 和 data 语法，并通过编辑器 `resource-contract` Check。真实
+Cloudflare/GitHub App/Turnstile/Webhook/ruleset 验收仍须按外部运维 runbook 单独记录，不能以
+本地 fixture 或 `deploy:dry-run` 冒充。

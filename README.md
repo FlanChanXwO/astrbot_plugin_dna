@@ -15,7 +15,7 @@
 - **密函**：当前密函、密函列表、指定密函订阅与推送周期、图片/文本订阅
 - **公告**：官方公告查看与群推送订阅
 - **图鉴 / 攻略 / 兑换码**：角色/武器/灵核图鉴、攻略组图片、兑换码
-- **管理**：别名管理、自定义面板图上传/管理、全部签到、下载资源
+- **管理**：只读别名查询、自定义面板图上传/管理、全部签到、下载资源
 
 ## 安装
 
@@ -30,14 +30,14 @@
 及其订阅推送（按 `notifications.secret_push_time` 每小时推送、`announcement_check_minutes`
 轮询公告），以及管理员面板图管理（上传/列表/删除/压缩）、资源状态与资源下载。
 玩家和资料素材已从公共运行期
-资源根加载；真实资源内容与视觉等价仍待 Task 30 只读验收。`原图` 因 AstrBot 4.27.x 公开
+资源根加载；三仓契约与本地跨仓回归已覆盖，但真实公共资源内容和生产视觉输出仍需单独验收。`原图` 因 AstrBot 4.27.x 公开
 结果边界没有已发送消息 ID 交付点，显式标记为暂不支持，不作可用平台功能宣称。签到写操作
 与推送只在离线 fixture 验证，未对真实账户执行。命令清单见 `commands.json` 与
 [docs/usage/commands.md](docs/usage/commands.md)。
 
 ## 配置
 
-插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），由 `src/infrastructure/config` 的 Pydantic 定义生成，按登录、网络、签到、通知、显示和资源分组。资源仓库默认直连，也可使用 GitHub 加速前缀；首次同步只克隆 `main`，后续只允许 `main` 的 fast-forward 更新；详见 [docs/usage/resources.md](docs/usage/resources.md)。
+插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），由 `src/infrastructure/config` 的 Pydantic 定义生成，按登录、网络、签到、通知、显示和资源分组。资源仓库默认直连，也可使用 GitHub 加速前缀；首次同步只克隆 `main`，后续只允许 `main` 的 fast-forward 更新；资源契约、迁移、镜像信任和回滚详见 [docs/usage/resources.md](docs/usage/resources.md) 与 [docs/dev/maintenance.md](docs/dev/maintenance.md)。资源编辑使用独立的 [dna-resource-editor](https://github.com/FlanChanXwO/dna-resource-editor)，不把编辑器代码放入资源仓库。
 
 生成型图片卡片统一使用 AstrBot 4.27.1 及以上版本的全局 HTML/T2I 服务；插件不会覆盖全局
 T2I 地址。模板和素材由 `src/infrastructure/rendering/` 统一处理，渲染失败时记录内部原因并向用户
@@ -50,4 +50,6 @@ T2I 地址。模板和素材由 `src/infrastructure/rendering/` 统一处理，�
 
 ## License
 
-[GPL-3.0](LICENSE)（源自 DNAUID 的 GPL-3.0 许可证）。仅供学习使用。
+[GPL-3.0](LICENSE)（源自 DNAUID 的 GPL-3.0 许可证）。公共资源仓库不对第三方素材授予统一许可，
+请按 [资源仓库说明](https://github.com/FlanChanXwO/astrbot_plugin_dna_resources#resource-contract)
+核对来源与上游条款。

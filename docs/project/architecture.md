@@ -81,6 +81,11 @@
   别名和资源状态视图。每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
   回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材
   的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理。
+- 三仓边界：公共资源仓库只承载 manifest、素材、兑换码和 schema；GPL-3.0 编辑器仓库独立
+  提供类型化表单、GitHub App OAuth/投稿/Webhook Check。编辑器生成的 PR 必须落到资源仓库
+  `main` 后，插件才会从 canonical GitHub origin 的 `main` fetch、校验并发布 generation；
+  插件不拉取编辑器源码，也不把镜像或投稿分支当作发布源。资源仓库的第三方素材不因仓库
+  公开或插件 GPL-3.0 而获得统一许可。
 - 当前阶段：当前 main 已注册 `commands.json` 中的 58 条命令，权限为
   `user=32/admin=26`；未迁移命令不会在新入口中隐式注册，别名仅保留读取命令。
 

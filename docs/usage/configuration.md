@@ -18,9 +18,21 @@
   `github_acceleration=off` 直连；`edgeone`、`hk`、`gh_proxy`、`dpik` 使用内置前缀，
   `custom` 只使用经过规范化的自定义基础 URL。镜像失败会直接报告，不会静默回退直连。
 
+资源配置的唯一字段是：
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `resources.github_acceleration` | `off` | `off/edgeone/hk/gh_proxy/dpik/custom`；只影响公共资源 Git/Raw 请求。 |
+| `resources.custom_github_acceleration_url` | 空字符串 | 仅 `custom` 使用；必须是无凭据、无 query/fragment 的 HTTP(S) 基础 URL。 |
+
+公共资源仓库、manifest、兑换码 v1、旧 GitCode `end_at` 迁移和镜像切换步骤见
+[资源运维说明](resources.md)。插件没有传统 HTTP/SOCKS 代理配置；不要把
+`network.local_proxy_url` 当作资源镜像配置。
+
 新入口在 bootstrap 边界将 AstrBot 配置转换为 `DnabySettings`；use case 不直接读取
 未类型化字典。legacy `dnaby/dna_config` 的 `DNAConfig.get_config("Key").data` 语义
-仅为迁移参考，旧 SQLite 和旧配置不会在本阶段自动迁移。
+仅为迁移参考，旧 SQLite 和旧配置不会在本阶段自动迁移；新资源下载不会回写旧配置或旧
+数据库。
 
 ## 新数据库首次初始化
 
@@ -50,6 +62,11 @@ Git、日志、异常或用户可见响应。
 资源加速配置中的自定义 URL 只允许 HTTP(S) 基础地址，自动去除首尾空白和尾部斜杠，
 拒绝控制字符、反斜杠、userinfo、query、fragment 及相对路径段；无效配置不会回显原始
 输入。该配置只影响公共资源 Git/Raw 请求，不复用 `network.local_proxy_url`。
+
+切换加速前先执行 owner 命令 `资源状态` 记录当前 manifest/resource version；修改配置后执行
+`下载全部资源`，确认新 generation 的 commit 和状态，再保留配置。镜像只负责传输，插件仍
+校验规范 GitHub origin、`main`、manifest 和完整资源候选；镜像不可用时会显式失败，不能把
+失败当作已更新，也不会自动直连或改走 ZIP。
 
 ## HTML/T2I 图片渲染
 

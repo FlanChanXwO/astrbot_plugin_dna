@@ -12,8 +12,8 @@
 {
   "format_version": 1,
   "required_dirs": [
-    "fonts", "images", "panel", "alias", "wiki/role", "wiki/weapon",
-    "wiki/spirit", "guide", "weekly_item", "calendar"
+    "fonts", "images", "panel", "alias", "data", "schemas",
+    "wiki/role", "wiki/weapon", "wiki/spirit", "guide", "weekly_item", "calendar"
   ],
   "resource_version": "2026.08.11"
 }
@@ -84,3 +84,51 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 玩家和资料 renderer 生成的 `rendered/*.png` 会在响应边界确认其位于受控渲染目录后，交给
 AstrBot 当前事件的临时文件生命周期清理。generation 内的 `panel/`、`wiki/`、`guide/` 等源
 资源不会直接登记为临时文件；需要直出时复制出的响应图片属于 `rendered/` 临时物。
+
+## 三仓发布与迁移
+
+资源仓库、编辑器和插件是三个独立边界。资源投稿应使用独立的
+[dna-resource-editor](https://github.com/FlanChanXwO/dna-resource-editor) 类型化表单；编辑器
+源码、依赖和构建产物不能进入资源 checkout。编辑器 webhook 的 `resource-contract` Check
+通过后，维护者才合并资源仓库 `main`。发布插件前记录资源 `main` commit SHA 与
+`resource_version`，再运行插件的跨仓契约回归；禁止引用投稿分支或仅存在于镜像的 ref。
+
+旧 GitCode 兑换码源使用 `end_at` Unix 秒数。迁移时只把它转换为带时区的 ISO 8601
+`expires_at`（初始迁移归一到 `Asia/Shanghai`），可信字段之外的奖励、平台、区服和起始时间
+保持缺失；保留旧 JSON 作为仓库外审计 fixture。新资源仓库一旦发布，`data/redeem_codes.json`
+是唯一事实源，插件不再回退旧 GitCode 或读取 `end_at`。完整数据字段见编辑器的
+[resource contract](https://github.com/FlanChanXwO/dna-resource-editor/blob/main/docs/resource-contract.md)。
+
+## 镜像信任与切换
+
+加速前缀只是 Git/Raw 传输路径：规范 origin 仍为
+`https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git`，信任边界仍是资源仓库
+`main` 的 commit、manifest、schema 和完整 generation 校验。镜像不能改变 remote、分支或
+资源版本，也不能作为只存在于镜像的发布源。
+
+切换前执行 owner 命令 `资源状态`，记录 origin、main HEAD、manifest/resource version、加速
+模式和最近刷新结果；修改 `resources.github_acceleration` 后执行 `下载全部资源` 并核对
+状态。`off` 为默认直连；内置模式为 `edgeone`、`hk`、`gh_proxy`、`dpik`，`custom` 只接受
+安全 HTTP(S) 基础 URL。镜像不支持 Git smart HTTP、返回错误或候选校验失败时会直接报告；
+不会静默直连、改走 ZIP、伪造成功或截断合法资源。故障时切回 `off`，不要手工把 origin 改成
+镜像地址。
+
+## 资源升级、备份与回滚
+
+升级插件前备份整个 `StarTools.get_data_dir("astrbot_plugin_dnaby")`，至少包含
+`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json` 和 `panel_custom/`。已有
+`resources/` 仍作为 Git 增量缓存；`resource_generations/current.json` 缺失时启动只保留
+旧缓存并等待下一次下载，下载成功后从 `FETCH_HEAD` 生成新的已验证快照。启动清理只针对孤立
+generation/candidate/archive，不删除面板图、数据库、订阅或公告状态。
+
+三类回滚分别执行：
+
+1. **资源数据**：对错误的 `main` commit 创建 `git revert` PR，等待 `resource-contract`
+   Check 后合并；不 force-push、删 commit 或提升镜像-only 内容。
+2. **编辑器 Worker**：在编辑器 runbook 中以 `npx wrangler deployments status` 找到版本，再
+   执行 `npx wrangler rollback <VERSION_ID>`；Worker 代码回滚不自动恢复 secrets。
+3. **插件或镜像**：安装上一份已验收插件 revision，把 `github_acceleration` 切回 `off`，
+   保留 runtime data 和当前 generation；确认 canonical origin 后再下载。
+
+编辑器的完整部署、GitHub App/Turnstile、required ruleset、密钥轮换和事故 runbook 见
+[operations.md](https://github.com/FlanChanXwO/dna-resource-editor/blob/main/docs/operations.md)。
