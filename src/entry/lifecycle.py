@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from builtins import BaseExceptionGroup, ExceptionGroup
+import asyncio
+from builtins import BaseExceptionGroup
 from collections.abc import Awaitable, Callable, Iterable
 
 LifecycleHook = Callable[[], Awaitable[None]]
@@ -25,6 +26,8 @@ class PluginLifecycle:
         self._start_hooks = tuple(start_hooks)
         self._stop_hooks = tuple(stop_hooks)
         self._started = False
+        # 生命周期转换必须串行，否则并发重载会重复注册或重复释放同一资源。
+        self._lifecycle_lock = asyncio.Lock()
 
     @property
     def started(self) -> bool:
@@ -35,38 +38,47 @@ class PluginLifecycle:
     async def initialize(self) -> None:
         """按声明顺序启动扩展点；重复初始化不重复注册资源。"""
 
-        if self._started:
-            return
+        async with self._lifecycle_lock:
+            if self._started:
+                return
 
-        try:
-            for hook in self._start_hooks:
-                await hook()
-        except BaseException as start_error:
-            # 临时标记为已启动，复用 terminate 的逆序清理路径；terminate 会在
-            # 清理完成后复位，确保 AstrBot 不调用 terminate 时也不会遗留任务。
-            self._started = True
             try:
-                await self.terminate()
-            except BaseException as cleanup_error:  # noqa: BLE001
-                raise BaseExceptionGroup(
-                    "插件初始化失败且清理失败",
-                    [start_error, cleanup_error],
-                ) from start_error
-            raise
-        self._started = True
+                for hook in self._start_hooks:
+                    await hook()
+            except BaseException as start_error:
+                # 临时标记为已启动，复用 terminate 的逆序清理路径；清理完成后
+                # 会复位状态，确保 AstrBot 不调用 terminate 时也不会遗留任务。
+                self._started = True
+                try:
+                    await self._terminate_locked()
+                except BaseException as cleanup_error:  # noqa: BLE001
+                    raise BaseExceptionGroup(
+                        "插件初始化失败且清理失败",
+                        [start_error, cleanup_error],
+                    ) from start_error
+                raise
+            self._started = True
 
     async def terminate(self) -> None:
         """按逆序停止扩展点；停止异常向上暴露，便于 AstrBot 记录。"""
 
+        async with self._lifecycle_lock:
+            await self._terminate_locked()
+
+    async def _terminate_locked(self) -> None:
+        """在已持有生命周期锁时完成清理。"""
+
         if not self._started:
             return
 
-        errors: list[Exception] = []
+        errors: list[BaseException] = []
         try:
             for hook in reversed(self._stop_hooks):
                 try:
                     await hook()
-                except Exception as error:  # noqa: BLE001
+                except BaseException as error:  # noqa: BLE001
+                    # CancelledError 也不能中断剩余清理；循环结束后再把取消
+                    # 语义传回调用方，避免资源只清理了一半。
                     errors.append(error)
         finally:
             self._started = False
@@ -75,4 +87,4 @@ class PluginLifecycle:
             return
         if len(errors) == 1:
             raise errors[0]
-        raise ExceptionGroup("多个插件清理 hook 失败", errors)
+        raise BaseExceptionGroup("多个插件清理 hook 失败", errors)

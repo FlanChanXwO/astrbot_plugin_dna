@@ -1,5 +1,6 @@
 """v0.1 入口骨架的 AstrBot 集成契约测试。"""
 
+import asyncio
 from builtins import ExceptionGroup
 from pathlib import Path
 
@@ -84,6 +85,87 @@ async def test_plugin_lifecycle_preserves_hook_order_and_is_idempotent():
     await lifecycle.terminate()
 
     assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+
+
+@pytest.mark.asyncio
+async def test_plugin_lifecycle_serializes_concurrent_initialization():
+    """并发初始化只允许一次完整启动，后续调用共享同一完成结果。"""
+
+    calls: list[str] = []
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def start() -> None:
+        calls.append("start")
+        entered.set()
+        await release.wait()
+
+    lifecycle = PluginLifecycle(start_hooks=(start,))
+    first = asyncio.create_task(lifecycle.initialize())
+    await entered.wait()
+    second = asyncio.create_task(lifecycle.initialize())
+    await asyncio.sleep(0)
+    release.set()
+
+    await asyncio.gather(first, second)
+
+    assert calls == ["start"]
+    assert lifecycle.started is True
+
+
+@pytest.mark.asyncio
+async def test_plugin_lifecycle_serializes_concurrent_termination():
+    """并发终止只允许一次逆序清理。"""
+
+    calls: list[str] = []
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def stop() -> None:
+        calls.append("stop")
+        entered.set()
+        await release.wait()
+
+    lifecycle = PluginLifecycle(stop_hooks=(stop,))
+    await lifecycle.initialize()
+    first = asyncio.create_task(lifecycle.terminate())
+    await entered.wait()
+    second = asyncio.create_task(lifecycle.terminate())
+    await asyncio.sleep(0)
+    release.set()
+
+    await asyncio.gather(first, second)
+
+    assert calls == ["stop"]
+    assert lifecycle.started is False
+
+
+@pytest.mark.asyncio
+async def test_plugin_lifecycle_finishes_cleanup_after_cancellation():
+    """终止任务被取消后仍执行剩余清理，并继续暴露取消语义。"""
+
+    calls: list[str] = []
+    entered = asyncio.Event()
+
+    async def stop_first() -> None:
+        calls.append("stop-first")
+
+    async def stop_second() -> None:
+        calls.append("stop-second")
+        entered.set()
+        await asyncio.Event().wait()
+
+    lifecycle = PluginLifecycle(stop_hooks=(stop_first, stop_second))
+    await lifecycle.initialize()
+    termination = asyncio.create_task(lifecycle.terminate())
+    await entered.wait()
+    termination.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await termination
+
+    assert calls == ["stop-second", "stop-first"]
+    assert lifecycle.started is False
 
 
 @pytest.mark.asyncio
