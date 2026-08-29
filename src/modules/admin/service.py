@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from src.infrastructure.persistence import (
+from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
     CredentialRepository,
 )
-from src.infrastructure.persistence.models import AccountBinding, CredentialRecord
+from ...infrastructure.persistence.models import AccountBinding, CredentialRecord
 
 from .contracts import (
     CREDENTIAL_FIELDS,

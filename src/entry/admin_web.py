@@ -14,6 +14,7 @@ from datetime import datetime
 from enum import Enum
 from functools import wraps
 from typing import Any, cast
+from urllib.parse import unquote
 
 from astrbot.api.web import json_response, request
 
@@ -269,7 +270,16 @@ def _admin_handler(method: WebHandler) -> WebHandler:
             username = request.username
             if not isinstance(username, str) or not username.strip():
                 return _unauthorized_response()
-            return await method(self, *args, **kwargs)
+            # AstrBot 的插件页桥接层会对动态路径段做 URL 编码；在统一 Web
+            # 边界解码，确保中文角色名、用户标识等仍按服务层的规范值处理。
+            decoded_args = tuple(
+                unquote(value) if isinstance(value, str) else value for value in args
+            )
+            decoded_kwargs = {
+                key: unquote(value) if isinstance(value, str) else value
+                for key, value in kwargs.items()
+            }
+            return await method(self, *decoded_args, **decoded_kwargs)
         except _RequestValidation:
             return _response(
                 AdminApiResponse.failure(

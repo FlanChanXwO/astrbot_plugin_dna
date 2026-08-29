@@ -1134,6 +1134,10 @@ code {
   background: rgb(15 23 42 / 0.58);
 }
 
+.overlay:not(.overlay--drawer) {
+  z-index: 30;
+}
+
 .dialog,
 .drawer {
   position: relative;
