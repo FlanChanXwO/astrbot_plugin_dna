@@ -1,6 +1,6 @@
 """通知（密函/公告）的 asyncio 计划任务。
 
-每小时按 ``push_time`` 推送一次密函，按 ``poll_minutes`` 轮询公告并推送新条目。
+每小时固定在 ``HH:30`` 推送一次密函，按 ``poll_minutes`` 轮询公告并推送新条目。
 任务在 ``start()`` 创建、``stop()`` 取消，``initialize()/terminate()`` 通过生命周期
 钩子驱动；``sleep``/``now`` 可注入以便离线测试，不依赖真实时钟。推送失败由
 ``_run`` 记录日志，不静默。
@@ -17,6 +17,8 @@ from zoneinfo import ZoneInfo
 from astrbot.api import logger
 
 from .scheduler_state import (
+    MH_PUSH_AT,
+    MH_PUSH_SCHEDULE,
     SchedulerRegistry,
     SchedulerTaskDefinition,
     SchedulerTaskNotFound,
@@ -39,19 +41,6 @@ class SchedulableNotices(Protocol):
     async def poll_ann_now(self) -> int: ...
 
 
-def _parse_hhmm(value: object, default: tuple[int, int] = (0, 30)) -> tuple[int, int]:
-    try:
-        if isinstance(value, (tuple, list)):
-            minute, second = int(value[0]), int(value[1])
-        else:
-            minute, second = (int(x) for x in str(value).split(":"))
-    except (ValueError, TypeError):
-        minute, second = default
-    if minute < 0 or minute > 59 or second < 0 or second > 59:
-        minute, second = default
-    return minute, second
-
-
 def _next_hourly(now: datetime, minute: int, second: int) -> datetime:
     target = now.replace(minute=minute, second=second, microsecond=0)
     if target <= now:
@@ -67,7 +56,6 @@ class NoticesScheduler:
         notices: SchedulableNotices,
         *,
         announcement_enabled: bool = True,
-        push_time: str | tuple[int, int] = (0, 30),
         poll_minutes: int = 10,
         sleep: SleepCallable = asyncio.sleep,
         now: NowCallable | None = None,
@@ -75,7 +63,6 @@ class NoticesScheduler:
     ) -> None:
         self.notices = notices
         self.announcement_enabled = announcement_enabled
-        self.push_time = _parse_hhmm(push_time)
         self.poll_minutes = max(1, int(poll_minutes))
         self._sleep = sleep
         self._now = now if now is not None else lambda: datetime.now(TZ)
@@ -94,7 +81,7 @@ class NoticesScheduler:
             SchedulerTaskDefinition(
                 id=_MH_PUSH_TASK_NAME,
                 name="密函推送",
-                schedule=f"hourly@{self.push_time[0]:02d}:{self.push_time[1]:02d}",
+                schedule=MH_PUSH_SCHEDULE,
                 targets=("mh_subscriptions",),
             ),
             enabled=self._enabled_tasks[_MH_PUSH_TASK_NAME],
@@ -114,6 +101,12 @@ class NoticesScheduler:
     def started(self) -> bool:
         return self._started
 
+    @property
+    def push_time(self) -> tuple[int, int]:
+        """返回固定的每小时 HH:30 触发点，不能由配置或管理页修改。"""
+
+        return MH_PUSH_AT
+
     async def _run_hourly(
         self,
         task_id: str,
@@ -121,7 +114,7 @@ class NoticesScheduler:
     ) -> None:
         while True:
             now = self._now()
-            next_run = _next_hourly(now, *self.push_time)
+            next_run = _next_hourly(now, *MH_PUSH_AT)
             await self.registry.set_next_run(task_id, next_run)
             delay = (next_run - now).total_seconds()
             await self._sleep(max(0.0, delay))
@@ -252,9 +245,7 @@ class NoticesScheduler:
             if not isinstance(values, int):
                 raise ValueError("公告任务 schedule 类型错误")
         await self.registry.update_definition(task_id, schedule=normalized)
-        if task_id == _MH_PUSH_TASK_NAME:
-            self.push_time = cast(tuple[int, int], values)
-        else:
+        if task_id != _MH_PUSH_TASK_NAME:
             self.poll_minutes = cast(int, values)
 
         snapshot = await self.registry.get_snapshot(task_id)

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any, Literal
 
@@ -25,6 +26,10 @@ from ..resources.acceleration import (
     resolve_github_acceleration_prefix,
 )
 from .legacy import _LEGACY_MAP, DNA_PREFIX, DNAConfig, DNASignConfig
+
+logger = logging.getLogger(__name__)
+_REMOVED_MH_LEGACY_KEYS = frozenset(("MHPushSubscribe", "MHCache"))
+_REMOVED_MH_TYPED_FIELDS = frozenset(("secret_push_time", "secret_cache"))
 
 
 class _SettingsModel(BaseModel):
@@ -317,16 +322,6 @@ class NotificationSettings(_SettingsModel):
         description="密函订阅作用域",
         json_schema_extra={"hint": "密函订阅作用域 (private/group)"},
     )
-    secret_push_time: str = Field(
-        default="00:30",
-        description="密函推送时间",
-        json_schema_extra={"hint": "密函推送时间，格式为 分钟:秒"},
-    )
-    secret_cache: bool = Field(
-        default=True,
-        description="密函数据缓存",
-        json_schema_extra={"hint": "是否缓存密函数据"},
-    )
     secret_simple_image: bool = Field(
         default=False,
         description="简易密函图片",
@@ -391,6 +386,8 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
 
     raw_dict = dict(raw)
 
+    _log_discarded_mh_config(raw_dict)
+
     # 1. 检查并迁移 GScore 嵌套 section ("DNAUID配置", "DNAUID签到配置")
     for section_key in ("DNAUID配置", "DNAUID签到配置"):
         section_data = raw_dict.get(section_key)
@@ -436,6 +433,8 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
                             [v] if isinstance(v, str) else list(v)
                         )
                     continue
+                if group_name == "notifications" and k in _REMOVED_MH_TYPED_FIELDS:
+                    continue
                 result[group_name][k] = v
 
     return result
@@ -473,6 +472,7 @@ class DnabySettings(_SettingsModel):
 
         # 若传入的是可变字典（例如 AstrBotConfig），同步更新其标准分组键
         if isinstance(config, dict):
+            _discard_removed_mh_config(config)
             for group_name, group_values in migrated.items():
                 if group_name not in config or not isinstance(config[group_name], dict):
                     config[group_name] = dict(group_values)
@@ -484,6 +484,44 @@ class DnabySettings(_SettingsModel):
         if hasattr(DNASignConfig, "bind"):
             DNASignConfig.bind(dict(config) if config is not None else migrated)
         return settings
+
+
+def _log_discarded_mh_config(raw: Mapping[str, Any]) -> None:
+    """记录旧版全局密函配置被丢弃，但不输出配置值。"""
+
+    locations: list[tuple[str, str]] = []
+    for key in _REMOVED_MH_LEGACY_KEYS:
+        if key in raw:
+            locations.append(("top-level", key))
+    for section_name in ("DNAUID配置", "DNAUID签到配置"):
+        section = raw.get(section_name)
+        if isinstance(section, Mapping):
+            for key in _REMOVED_MH_LEGACY_KEYS:
+                if key in section:
+                    locations.append((section_name, key))
+    notifications = raw.get("notifications")
+    if isinstance(notifications, Mapping):
+        for field in _REMOVED_MH_TYPED_FIELDS:
+            if field in notifications:
+                locations.append(("notifications", field))
+    for location, key in locations:
+        logger.warning("[dnaby][config] 丢弃已移除的全局密函配置 %s.%s", location, key)
+
+
+def _discard_removed_mh_config(raw: dict[str, Any]) -> None:
+    """从 AstrBot 可变配置中移除已废弃密函全局键，避免再次持久化。"""
+
+    for key in _REMOVED_MH_LEGACY_KEYS:
+        raw.pop(key, None)
+    for section_name in ("DNAUID配置", "DNAUID签到配置"):
+        section = raw.get(section_name)
+        if isinstance(section, dict):
+            for key in _REMOVED_MH_LEGACY_KEYS:
+                section.pop(key, None)
+    notifications = raw.get("notifications")
+    if isinstance(notifications, dict):
+        for field in _REMOVED_MH_TYPED_FIELDS:
+            notifications.pop(field, None)
 
 
 __all__ = [

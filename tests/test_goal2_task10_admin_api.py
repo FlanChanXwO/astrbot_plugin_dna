@@ -6,9 +6,9 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
-from zoneinfo import ZoneInfo
 
 from src.infrastructure.notices_scheduler import NoticesScheduler
 from src.infrastructure.scheduler import SignScheduler
@@ -16,9 +16,9 @@ from src.infrastructure.scheduler_state import SchedulerRegistry
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.admin import (
     AdminApiResponse,
+    AdminApiService,
     AdminError,
     AdminErrorCode,
-    AdminApiService,
     TaskTargetUpdate,
 )
 from src.modules.notices import messages as notices_messages
@@ -84,14 +84,12 @@ def admin_api(
     )
     notices_scheduler = NoticesScheduler(
         _Notices(),
-        push_time="00:30",
         poll_minutes=10,
         registry=registry,
     )
     config: dict[str, object] = {
         "sign_in": {"sign_time": "00:05"},
         "notifications": {
-            "secret_push_time": "00:30",
             "announcement_check_minutes": 10,
         },
     }
@@ -153,10 +151,10 @@ async def test_task_api_validates_schedule_updates_and_preserves_tombstone_bound
     assert unknown.error.code is AdminErrorCode.NOT_FOUND
 
     mh_updated = await api.update_task("dnaby_mh_push", schedule="hourly@07:08")
-    assert mh_updated.ok is True
-    assert mh_updated.data is not None
-    assert mh_updated.data.schedule == "hourly@07:08"
-    assert config["notifications"]["secret_push_time"] == "07:08"  # type: ignore[index]
+    assert mh_updated.ok is False
+    assert mh_updated.error is not None
+    assert mh_updated.error.code is AdminErrorCode.CONFLICT
+    assert "secret_push_time" not in config["notifications"]  # type: ignore[operator]
 
     ann_updated = await api.update_task("dnaby_ann_poll", schedule="interval@20m")
     assert ann_updated.ok is True

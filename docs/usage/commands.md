@@ -94,8 +94,9 @@ registry 的帮助文本。
   图片/文本推送开关（`admin`）。
 - `密函测试`：向当前会话发送一次测试推送（`admin`）。
 - `订阅公告`、`取消订阅公告`：群聊作用域公告推送开关（`admin`）。
-- 每小时按 `notifications.secret_push_time` 推送密函，按
-  `notifications.announcement_check_minutes` 轮询公告并推送新条目；真实推送只走注入的
+- 密函自动推送固定在每小时 `HH:30`，不提供全局推送时间或缓存开关；订阅级时间窗口仍按
+  `订阅密函时间17:23`/`订阅密函周期17:23` 过滤目标。公告按
+  `notifications.announcement_check_minutes` 轮询并推送新条目；真实推送只走注入的
   `context.send_message`，离线测试用 fixture 验证。
 
 ## 面板图与资源状态命令（admin）

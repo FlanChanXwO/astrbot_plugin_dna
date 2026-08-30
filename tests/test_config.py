@@ -27,7 +27,8 @@ def test_schema_generation():
     assert default_items["DNAQRLogin"]["type"] == "bool"
     assert default_items["DNALoginBindHost"]["default"] == "127.0.0.1"
     assert default_items["DNALoginPort"]["default"] == 6189
-    assert default_items["MHPushSubscribe"]["type"] == "string"
+    assert "MHPushSubscribe" not in default_items
+    assert "MHCache" not in default_items
     assert default_items["MHSubscribe"]["type"] == "list"
     assert default_items["DNAAnnGroups"]["type"] == "object"
     assert default_items["DNAAnnGroups"]["items"] == {}
@@ -161,8 +162,6 @@ def test_all_config_items_resolve_from_typed_config():
             "announcement_ids": [101, 102],
             "announcement_check_minutes": 15,
             "secret_subscriptions": ["private", "group"],
-            "secret_push_time": "01:00",
-            "secret_cache": False,
             "secret_simple_image": True,
         },
         "display": {
@@ -207,8 +206,6 @@ def test_all_config_items_resolve_from_typed_config():
     assert settings.notifications.announcement_ids == [101, 102]
     assert settings.notifications.announcement_check_minutes == 15
     assert settings.notifications.secret_subscriptions == ["private", "group"]
-    assert settings.notifications.secret_push_time == "01:00"
-    assert settings.notifications.secret_cache is False
     assert settings.notifications.secret_simple_image is True
 
     assert settings.display.command_prefix == "dna"
@@ -276,7 +273,6 @@ def test_build_runtime_propagates_all_settings(tmp_path):
         "notifications": {
             "announcement_enabled": False,
             "announcement_check_minutes": 20,
-            "secret_push_time": "02:10",
             "secret_simple_image": True,
         },
     }
@@ -297,7 +293,6 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     assert runtime.settings.sign_in.concurrency_interval_seconds == (2, 6)
     assert runtime.settings.notifications.announcement_enabled is False
     assert runtime.settings.notifications.announcement_check_minutes == 20
-    assert runtime.settings.notifications.secret_push_time == "02:10"
     assert runtime.settings.notifications.secret_simple_image is True
 
     # 2. 验证下发到各个具体 service / scheduler
@@ -325,7 +320,7 @@ def test_build_runtime_propagates_all_settings(tmp_path):
 
     notices_scheduler = runtime.services["notices_scheduler"]
     assert notices_scheduler.announcement_enabled is False
-    assert notices_scheduler.push_time == (2, 10)
+    assert notices_scheduler.push_time == (30, 0)
     assert notices_scheduler.poll_minutes == 20
 
     # 3. 验证命令前缀动态生效

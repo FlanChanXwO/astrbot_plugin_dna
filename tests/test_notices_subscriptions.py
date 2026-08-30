@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -18,6 +20,8 @@ from src.modules.notices.ann_state import AnnStateStore
 from src.modules.notices.service import NoticesService
 from src.modules.privacy import PrivacyService
 from tests.test_notices import FakeNoticesTransport, _ann_snapshot
+
+SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 async def _database_with_binding(tmp_path: Path) -> AsyncDatabase:
@@ -57,6 +61,7 @@ def _service(
         ann_state=AnnStateStore(tmp_path / "ann_state.json"),
         push=push,
         secret_simple_image=secret_simple_image,
+        clock=lambda: datetime(2026, 8, 30, 12, 35, tzinfo=SHANGHAI),
     )
 
 

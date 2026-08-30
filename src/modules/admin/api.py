@@ -48,7 +48,6 @@ _TASK_TARGET_TYPES: dict[str, frozenset[str]] = {
 }
 _CONFIG_FIELDS: dict[str, tuple[str, str]] = {
     "dnaby_sign_daily": ("sign_in", "sign_time"),
-    "dnaby_mh_push": ("notifications", "secret_push_time"),
     "dnaby_ann_poll": ("notifications", "announcement_check_minutes"),
 }
 _MISSING = object()
@@ -317,6 +316,8 @@ class AdminApiService:
 
         if not self._is_known_task(task_id):
             return _failure(AdminErrorCode.NOT_FOUND, "任务不存在")
+        if task_id == "dnaby_mh_push":
+            return _failure(AdminErrorCode.CONFLICT, "密函任务时间固定为每小时 HH:30")
         try:
             normalized = normalize_scheduler_schedule(task_id, schedule)
         except Exception as error:  # noqa: BLE001
@@ -370,8 +371,6 @@ class AdminApiService:
             raise TypeError("配置分组不可写")
         if task_id == "dnaby_sign_daily":
             value: object = schedule.split("@", 1)[1]
-        elif task_id == "dnaby_mh_push":
-            value = schedule.split("@", 1)[1]
         else:
             value = int(schedule.removeprefix("interval@").removesuffix("m"))
         previous = section.get(field_name, _MISSING)

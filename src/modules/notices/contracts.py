@@ -69,6 +69,37 @@ class MhSnapshot:
     sections: tuple[MhSection, ...] = ()
 
 
+def validate_mh_snapshot(snapshot: MhSnapshot) -> MhSnapshot:
+    """校验可用于缓存或自动推送的完整密函快照。
+
+    实时查询仍可把空快照映射为“未找到”，但缓存和自动推送必须拒绝空分区、
+    空名称或非整数实例 ID，避免把结构异常误记为当前小时的成功结果。
+    """
+
+    if not isinstance(snapshot, MhSnapshot) or not snapshot.sections:
+        raise ValueError("密函快照缺少有效分区")
+    for section in snapshot.sections:
+        if (
+            not isinstance(section, MhSection)
+            or not section.instances
+            or not isinstance(section.mh_type, str)
+            or not isinstance(section.type_name, str)
+            or not section.mh_type.strip()
+            or not section.type_name.strip()
+        ):
+            raise ValueError("密函快照分区结构不完整")
+        for instance in section.instances:
+            if (
+                not isinstance(instance, MhInstance)
+                or type(instance.instance_id) is not int
+                or not isinstance(instance.name, str)
+            ):
+                raise ValueError("密函实例结构不完整")
+            if not instance.name.strip():
+                raise ValueError("密函实例名称为空")
+    return snapshot
+
+
 @dataclass(frozen=True, slots=True)
 class AnnPost:
     """公告列表中的一项。"""
@@ -154,4 +185,5 @@ __all__ = [
     "NoticesFailureKind",
     "NoticesTransport",
     "NoticesTransportError",
+    "validate_mh_snapshot",
 ]

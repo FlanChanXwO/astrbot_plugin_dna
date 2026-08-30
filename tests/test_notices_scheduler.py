@@ -47,16 +47,15 @@ async def test_notices_scheduler_start_stop_is_idempotent() -> None:
 
 @pytest.mark.asyncio
 async def test_notices_scheduler_task_names_and_config() -> None:
-    """任务名稳定且 push_time/poll_minutes 被解析。"""
+    """任务名稳定且密函时间固定为每小时 HH:30。"""
 
     scheduler = NoticesScheduler(
         _FakeNotices(),
-        push_time="25:99",  # 越界 → 回落默认 0:30
         poll_minutes=5,
         sleep=_noop_sleep,
     )
 
-    assert scheduler.push_time == (0, 30)
+    assert scheduler.push_time == (30, 0)
     assert scheduler.poll_minutes == 5
 
 @pytest.mark.asyncio

@@ -13,7 +13,6 @@ from typing import Any
 
 from .config.settings import NotificationSettings, SignInSettings
 
-
 BUILTIN_SCHEDULER_TASK_IDS = (
     "dnaby_sign_daily",
     "dnaby_sign_cleanup",
@@ -24,6 +23,8 @@ BUILTIN_SCHEDULER_TASK_IDS = (
 _DAILY_TASK_IDS = frozenset(("dnaby_sign_daily", "dnaby_sign_cleanup"))
 _HOURLY_TASK_IDS = frozenset(("dnaby_mh_push",))
 _INTERVAL_TASK_IDS = frozenset(("dnaby_ann_poll",))
+MH_PUSH_AT: tuple[int, int] = (30, 0)
+MH_PUSH_SCHEDULE = "hourly@30:00"
 
 
 def parse_scheduler_schedule(
@@ -40,7 +41,7 @@ def parse_scheduler_schedule(
     if task_id not in BUILTIN_SCHEDULER_TASK_IDS:
         raise SchedulerTaskNotFound(task_id)
     if not isinstance(schedule, str):
-        raise ValueError("schedule 必须是字符串")
+        raise TypeError("schedule 必须是字符串")
     normalized = schedule.strip()
 
     if task_id in _DAILY_TASK_IDS:
@@ -58,13 +59,9 @@ def parse_scheduler_schedule(
         return f"daily@{canonical_time}", (hour, minute)
 
     if task_id in _HOURLY_TASK_IDS:
-        match = re.fullmatch(r"hourly@(\d{1,2}):(\d{1,2})", normalized)
-        if match is None:
-            raise ValueError("每小时任务 schedule 必须为 hourly@MM:SS")
-        minute, second = (int(item) for item in match.groups())
-        if minute > 59 or second > 59:
-            raise ValueError("每小时任务时间超出范围")
-        return f"hourly@{minute:02d}:{second:02d}", (minute, second)
+        if normalized != MH_PUSH_SCHEDULE:
+            raise ValueError("密函任务时间固定为每小时 HH:30")
+        return MH_PUSH_SCHEDULE, MH_PUSH_AT
 
     if task_id in _INTERVAL_TASK_IDS:
         match = re.fullmatch(r"interval@(\d+)m", normalized)
@@ -492,8 +489,8 @@ class SchedulerRegistry:
 
 __all__ = [
     "BUILTIN_SCHEDULER_TASK_IDS",
-    "normalize_scheduler_schedule",
-    "parse_scheduler_schedule",
+    "MH_PUSH_AT",
+    "MH_PUSH_SCHEDULE",
     "SchedulerRegistry",
     "SchedulerStateError",
     "SchedulerStateStore",
@@ -505,4 +502,6 @@ __all__ = [
     "SchedulerTaskSnapshot",
     "SchedulerTaskState",
     "SchedulerTaskUnavailable",
+    "normalize_scheduler_schedule",
+    "parse_scheduler_schedule",
 ]

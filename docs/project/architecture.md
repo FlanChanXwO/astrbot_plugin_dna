@@ -70,7 +70,7 @@
   手动详情图片失败返回固定失败文案，不合成透明/深色占位图；运行期的公告源图、列表卡和详情
   页面使用 `CacheManager` 的 `announcement` 类型，以内容 fingerprint 和 24 小时绝对保留期隔离。
   订阅复用 `SubscriptionStore`（密函按 user+会话、公告按群聊作用域，`extra_message`/`extra_data`
-  存密函名称与推送时间）；`NoticesScheduler` 每小时推送密函、按分钟轮询公告
+  存密函名称与订阅级时间窗口）；`NoticesScheduler` 固定每小时 `HH:30` 推送密函、按分钟轮询公告
   （`AnnStateStore` 保留旧 ID 列表，`AnnDeliveryStateStore` 记录首次观察目标与成功目标），详情、
   渲染或目标发送失败时保留待重试目标，不发送标题 fallback。推送经注入闭包绑定
   `Context.send_message`，只有发送成功才落成功状态；文本/图片载荷分别映射为 Plain/Image 组件。

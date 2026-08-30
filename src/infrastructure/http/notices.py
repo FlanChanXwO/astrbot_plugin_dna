@@ -30,6 +30,7 @@ from ...modules.notices.contracts import (
     MhSnapshot,
     NoticesFailureKind,
     NoticesTransportError,
+    validate_mh_snapshot,
 )
 
 
@@ -130,7 +131,7 @@ class DnaApiNoticesTransport:
                     ),
                 ),
             )
-        return MhSnapshot(sections=tuple(sections))
+        return validate_mh_snapshot(MhSnapshot(sections=tuple(sections)))
 
     @staticmethod
     def _ann_snapshot(posts: list[dict[str, Any]]) -> AnnSnapshot:

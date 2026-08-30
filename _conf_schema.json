@@ -229,18 +229,6 @@
           "group"
         ]
       },
-      "secret_push_time": {
-        "type": "string",
-        "description": "密函推送时间",
-        "hint": "密函推送时间，格式为 分钟:秒",
-        "default": "00:30"
-      },
-      "secret_cache": {
-        "type": "bool",
-        "description": "密函数据缓存",
-        "hint": "是否缓存密函数据",
-        "default": true
-      },
       "secret_simple_image": {
         "type": "bool",
         "description": "简易密函图片",

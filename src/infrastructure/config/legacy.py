@@ -115,16 +115,6 @@ CONFIG_DEFAULT = {
                 "type": "list",
                 "default": ["group"],
             },
-            "MHPushSubscribe": {
-                "description": "密函推送时间 (分:秒)",
-                "type": "string",
-                "default": "00:30",
-            },
-            "MHCache": {
-                "description": "密函数据缓存",
-                "type": "bool",
-                "default": True,
-            },
             "MHSimplePic": {
                 "description": "简易密函图片",
                 "type": "bool",
@@ -239,8 +229,6 @@ _LEGACY_MAP: dict[str, tuple[str, str]] = {
     "DNAAnnIds": ("notifications", "announcement_ids"),
     "AnnMinuteCheck": ("notifications", "announcement_check_minutes"),
     "MHSubscribe": ("notifications", "secret_subscriptions"),
-    "MHPushSubscribe": ("notifications", "secret_push_time"),
-    "MHCache": ("notifications", "secret_cache"),
     "MHSimplePic": ("notifications", "secret_simple_image"),
     "MHPushTask": ("notifications", "announcement_enabled"),
     # network

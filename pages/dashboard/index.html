@@ -307,7 +307,7 @@
                         </dd>
                       </div>
                     </dl>
-                    <label class="field">
+                    <label v-if="task.id !== 'dnaby_mh_push'" class="field">
                       <span>编辑调度规则</span>
                       <input
                         v-model="taskScheduleDrafts[task.id]"
@@ -318,6 +318,7 @@
                     </label>
                     <div class="task-actions">
                       <button
+                        v-if="task.id !== 'dnaby_mh_push'"
                         class="button button--secondary button--small"
                         type="button"
                         :disabled="taskActionBusy === task.id"

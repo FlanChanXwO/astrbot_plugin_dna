@@ -375,6 +375,7 @@ def build_runtime(
             runtime_database.path.parent / "ann_delivery_state.json",
         ),
         secret_simple_image=settings.notifications.secret_simple_image,
+        cache_manager=cache_manager,
         push=_push_notice,
         config_store=config if isinstance(config, dict) else None,
         resource_snapshots=resource_snapshots,
@@ -382,7 +383,6 @@ def build_runtime(
     notices_scheduler = NoticesScheduler(
         notices_service,
         announcement_enabled=settings.notifications.announcement_enabled,
-        push_time=settings.notifications.secret_push_time,
         poll_minutes=settings.notifications.announcement_check_minutes,
         registry=scheduler_registry,
     )

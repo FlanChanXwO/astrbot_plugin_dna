@@ -34,7 +34,7 @@ def test_settings_are_grouped_and_typed() -> None:
     assert settings.login.port == 6189
     assert settings.network.websocket_wait_seconds == 5
     assert settings.sign_in.concurrency == 1
-    assert settings.notifications.secret_push_time == "00:30"
+    assert not hasattr(settings.notifications, "secret_push_time")
     assert settings.display.guide_providers == ["all"]
 
     loaded = DnabySettings.from_config(

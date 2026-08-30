@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable
 from contextlib import nullcontext
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ import httpx
 
 from ...entry.event import EventActor
 from ...entry.response import ImageResponse, MultiImageResponse, PlainTextResponse
+from ...infrastructure.cache import CacheManager
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import NoticesRenderer, RenderedNoticesImage
 from ...infrastructure.rendering.errors import HtmlRenderError
@@ -22,13 +24,22 @@ from . import messages
 from .ann_delivery_state import AnnDeliveryStateStore
 from .ann_state import AnnStateStore
 from .contracts import (
+    MhSnapshot,
     NoticeRequest,
     NoticesTransport,
     NoticesTransportError,
+    validate_mh_snapshot,
+)
+from .mh_cache import (
+    SHANGHAI,
+    MhSnapshotCache,
+    MhSnapshotEnvelope,
+    snapshot_fingerprint,
 )
 
 NoticePayload = str | Path | tuple[Path, ...]
 PushCallable = Callable[[str, NoticePayload], Awaitable[Any]]
+ClockCallable = Callable[[], datetime]
 _MH_TYPE_KEYS = ("角色", "武器", "魔之楔")
 
 
@@ -56,6 +67,8 @@ class NoticesService:
         config_store: dict[str, Any] | None = None,
         sync_ann_group_cb: Callable[[str, bool], None] | None = None,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
+        cache_manager: CacheManager | None = None,
+        clock: ClockCallable | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -73,6 +86,47 @@ class NoticesService:
         self.config_store = config_store
         self._sync_ann_group_cb = sync_ann_group_cb
         self.resource_snapshots = resource_snapshots
+        self.mh_cache = MhSnapshotCache(cache_manager) if cache_manager is not None else None
+        self._clock = clock
+
+    def _now(self) -> datetime:
+        if self._clock is not None:
+            value = self._clock()
+        else:
+            from ...utils import get_datetime
+
+            value = get_datetime()
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("密函时钟必须带时区")
+        return value.astimezone(SHANGHAI)
+
+    @staticmethod
+    def _mh_gate_open(now: datetime) -> bool:
+        window_start = MhSnapshotCache.window_start(now)
+        return now >= window_start + timedelta(minutes=30)
+
+    async def _verified_mh_snapshot(
+        self,
+        now: datetime,
+        fetch: Callable[[], Awaitable[Any]],
+    ) -> MhSnapshot:
+        """读取或写入当前小时的已验证密函快照。"""
+
+        window_start = MhSnapshotCache.window_start(now)
+        if self.mh_cache is not None:
+            cached = await self.mh_cache.get(window_start, now=now)
+            if cached is not None:
+                return cached.snapshot
+        snapshot = validate_mh_snapshot(await fetch())
+        if self.mh_cache is not None:
+            envelope = MhSnapshotEnvelope(
+                snapshot=snapshot,
+                window_start=window_start,
+                fetched_at=now,
+                fingerprint=snapshot_fingerprint(snapshot),
+            )
+            await self.mh_cache.put(envelope)
+        return snapshot
 
     def _renderer_context(self):
         if self.resource_snapshots is None:
@@ -119,14 +173,20 @@ class NoticesService:
             return resolved
         target_user_id, uid = resolved
         try:
-            snapshot = await self.transport.get_mh(
-                request.actor,
-                uid,
-                credential_user_id=target_user_id,
-            )
-        except NoticesTransportError:
-            return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
-        if not snapshot.sections:
+            now = self._now()
+
+            async def fetch() -> Any:
+                return await self.transport.get_mh(
+                    request.actor,
+                    uid,
+                    credential_user_id=target_user_id,
+                )
+
+            if self._mh_gate_open(now):
+                snapshot = await self._verified_mh_snapshot(now, fetch)
+            else:
+                snapshot = validate_mh_snapshot(await fetch())
+        except (NoticesTransportError, ValueError):
             return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         with self._renderer_context() as renderer:
             rendered = await renderer.render_mh(
@@ -434,6 +494,22 @@ class NoticesService:
                 return False
         return False
 
+    @staticmethod
+    def _mh_subscription_in_window(subscription: Any, current_hour: int) -> bool:
+        """按订阅自身的普通或跨午夜小时窗口判断是否投递。"""
+
+        extra_data = getattr(subscription, "extra_data", "")
+        if not extra_data or ":" not in extra_data:
+            return True
+        try:
+            start_text, end_text = extra_data.split(":", 1)
+            start_hour, end_hour = int(start_text), int(end_text)
+        except (TypeError, ValueError):
+            return True
+        if start_hour <= end_hour:
+            return start_hour <= current_hour <= end_hour
+        return current_hour >= start_hour or current_hour <= end_hour
+
     async def test_mh_push(self, request: NoticeRequest):
         """向当前会话发送一次密函测试推送（admin）。"""
 
@@ -524,20 +600,23 @@ class NoticesService:
 
         if self.subscriptions is None or self.push is None:
             return 0
+        now = self._now()
+        if not self._mh_gate_open(now):
+            from astrbot.api import logger
+
+            logger.info("[dnaby][push_mh] 当前小时尚未到 HH:30，跳过密函推送")
+            return 0
         try:
-            snapshot = await self.transport.get_mh_any()
-        except NoticesTransportError:
+            snapshot = await self._verified_mh_snapshot(
+                now,
+                self.transport.get_mh_any,
+            )
+        except (NoticesTransportError, ValueError):
             from astrbot.api import logger
 
             logger.warning("[dnaby][push_mh] 获取密函数据失败，跳过本次定时推送")
             return 0
-
-        if not snapshot.sections:
-            return 0
-
-        from ...utils import get_datetime
-
-        current_hour = get_datetime().hour
+        current_hour = now.hour
 
         available_names: set[str] = set()
         by_type: dict[str, list[str]] = {}
@@ -558,19 +637,8 @@ class NoticesService:
         text_subs = await self.subscriptions.get(messages.MH_SUBSCRIBE)
         subs_by_origin: dict[str, list[Any]] = {}
         for sub in text_subs:
-            # 检查时间段限制: "17:23" -> start 17, end 23
-            if sub.extra_data and ":" in sub.extra_data:
-                try:
-                    s_str, e_str = sub.extra_data.split(":", 1)
-                    start_h, end_h = int(s_str), int(e_str)
-                    if start_h <= end_h:
-                        if current_hour < start_h or current_hour > end_h:
-                            continue
-                    else:
-                        if current_hour < start_h and current_hour > end_h:
-                            continue
-                except (ValueError, TypeError):
-                    pass
+            if not self._mh_subscription_in_window(sub, current_hour):
+                continue
             subs_by_origin.setdefault(sub.unified_msg_origin, []).append(sub)
 
         for origin, group_subs in subs_by_origin.items():
@@ -614,7 +682,11 @@ class NoticesService:
                 pushed += 1
 
         # 2. 全量文本密函订阅 (MH_TEXT_SUBSCRIBE)
-        all_text_subs = await self.subscriptions.get(messages.MH_TEXT_SUBSCRIBE)
+        all_text_subs = [
+            sub
+            for sub in await self.subscriptions.get(messages.MH_TEXT_SUBSCRIBE)
+            if self._mh_subscription_in_window(sub, current_hour)
+        ]
         if all_text_subs:
             text_lines = ["【密函已刷新】"]
             for type_name in ("角色", "武器", "魔之楔"):
@@ -627,7 +699,11 @@ class NoticesService:
                     pushed += 1
 
         # 3. 图片密函订阅 (MH_PIC_SUBSCRIBE)
-        pic_subs = await self.subscriptions.get(messages.MH_PIC_SUBSCRIBE)
+        pic_subs = [
+            sub
+            for sub in await self.subscriptions.get(messages.MH_PIC_SUBSCRIBE)
+            if self._mh_subscription_in_window(sub, current_hour)
+        ]
         if pic_subs:
             with self._renderer_context() as renderer:
                 rendered = await renderer.render_mh(
