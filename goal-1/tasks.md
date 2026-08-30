@@ -767,11 +767,40 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
   不属于本轮。未执行生产 reload、真实图片投递或真实签到。
 - 下一步：进入 O21，按清单在授权的 `atri` 环境对该候选 SHA 做定向热重载和 fake adapter 验收。
 
-### O21 — 第三阶段 atri 热重载与工具验收 `[pending]`
+### O21 — 第三阶段 atri 热重载与工具验收 `[completed]`
 
 - 按 `plan.md §4.2` 精确 SHA 部署和定向 reload。
 - 验证工具只注册一次、身份来自事件、查询 JSON 正确、可选图片能直接发送。
 - 签到只使用 fake transport/模拟，不触发真实副作用。
+
+完成记录（2026-08-30）：
+
+- 生产前置：记录第二阶段恢复点 `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`，确认插件 ID
+  `astrbot_plugin_dnaby` 唯一且已激活；候选分支 `codex/goal-1-phase3` 已发布，生产非破坏性
+  fetch 后精确切换到第三阶段 SHA `8c7ac4c8ee0910574d2602e41756400ccef0899a`。插件仓库和
+  资源仓库均为 clean；资源 active pointer 保持 generation
+  `5d76860141d9ab5052417df25ccc9f5a929ff06b`、content SHA
+  `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`，未修改运行期数据。
+- 生产预检：容器内 `compileall` 通过，`commands.json` 与 registry 均为 `61/61`，只读 Agent
+  Tools 为 `16` 个，签到工具名为 `dnaby_sign`。已认证 Dashboard GET 在 reload 前后均为
+  HTTP `200`、插件记录唯一、`activated=true`、版本 `v0.2.0`；插件配置保持
+  `agent_tools.enabled=false`，因此生产实例不会注册工具或触发真实签到，启用路径由 fake
+  adapter 覆盖。
+- 按 `plan.md §4.2` 只调用一次已确认的定向
+  `POST /api/v1/plugins/astrbot_plugin_dnaby/reload`，HTTP `200`、业务状态 `ok`、消息为成功。
+  reload 后生产 HEAD 仍为候选 SHA，插件/资源工作树 clean，容器 `running=true` 且
+  `restart_count=0`；日志起点后的 dnaby error-like、traceback、exception、ERROR 计数均为
+  `0`。未执行容器重启或回滚。
+- 在生产候选容器内按发布清单运行 O16/O17/O18/D06、配置资源和 lifecycle fake adapter 矩阵：
+  `63 passed, 1 warning`（唯一警告为 AstrBot 依赖 `audioop` 弃用）。测试覆盖重复
+  initialize/start 的 17 工具去重、事件身份提取与模型身份字段拒绝、固定
+  `ok/kind/data/cache/error` JSON、可选图片直接发送及发送失败、否定/疑问/信息文本拒绝签到、
+  同消息 fake transport 幂等；未执行真实签到、真实图片投递或外部写操作。
+- 验证命令：生产候选容器内目标 suite 通过；reload 后 Dashboard/HEAD/pointer/容器状态复核
+  通过。候选发布与定向 reload 使用了已读入内存的认证信息，未输出或写入凭据。
+- 剩余边界：生产总开关仍为关闭，故本轮不宣称真实 LLM 调用或生产图片投递；注册去重、身份、
+  JSON、图片和签到安全由同一候选版本的 fake adapter 直接验证。后续由 D07 做 O19–O21 的
+  负向审查和生产日志/生命周期再审计。
 
 ### D07 — 调试审查 O19–O21 `[pending]`
 
