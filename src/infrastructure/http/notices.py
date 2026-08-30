@@ -259,6 +259,7 @@ class DnaApiNoticesTransport:
             page_index = 1
             page_size = 20
             posts: list[dict[str, Any]] = []
+            seen_post_ids: set[str] = set()
             seen_pages: set[tuple[str, ...]] = set()
             while True:
                 response = await dna_api.get_ann_list_page(
@@ -295,7 +296,11 @@ class DnaApiNoticesTransport:
                         detail="server returned a repeated page",
                     )
                 seen_pages.add(page_signature)
-                posts.extend(page_posts)
+                for post in page_posts:
+                    post_id = str(post.get("postId", ""))
+                    if post_id and post_id not in seen_post_ids:
+                        seen_post_ids.add(post_id)
+                        posts.append(post)
                 if len(page_posts) < page_size:
                     break
                 page_index += 1

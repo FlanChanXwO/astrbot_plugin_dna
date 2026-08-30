@@ -42,7 +42,8 @@ class _FakeClient:
     async def __aexit__(self, exc_type, exc, traceback):
         return None
 
-    async def get(self, url: str):
+    async def get(self, url: str, **kwargs: object):
+        del kwargs
         self.calls += 1
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, BaseException):
@@ -292,7 +293,8 @@ async def test_fetch_single_flights_same_url_and_target(tmp_path: Path):
     target = tmp_path / "shared.png"
     factory = _ClientFactory([])
 
-    async def blocking_get(request_url: str):
+    async def blocking_get(request_url: str, **kwargs: object):
+        del kwargs
         factory.client.calls += 1
         started.set()
         await release.wait()
@@ -318,7 +320,8 @@ async def test_cancelled_waiter_does_not_cancel_shared_fetch(tmp_path: Path):
     target = tmp_path / "cancellable.png"
     factory = _ClientFactory([])
 
-    async def blocking_get(request_url: str):
+    async def blocking_get(request_url: str, **kwargs: object):
+        del kwargs
         factory.client.calls += 1
         started.set()
         await release.wait()

@@ -148,7 +148,7 @@ class ImageFetcher:
 
     @staticmethod
     def _build_client() -> httpx.AsyncClient:
-        return httpx.AsyncClient(follow_redirects=True, timeout=30)
+        return httpx.AsyncClient(follow_redirects=False, timeout=30)
 
     @staticmethod
     def _is_retryable_status(status_code: int) -> bool:
@@ -186,7 +186,7 @@ class ImageFetcher:
         async with self._client_factory() as client:
             for attempt in range(self._MAX_ATTEMPTS):
                 try:
-                    response = await client.get(url)
+                    response = await client.get(url, follow_redirects=False)
                 except httpx.TransportError:
                     if attempt == self._MAX_ATTEMPTS - 1:
                         raise
@@ -200,6 +200,8 @@ class ImageFetcher:
                     await self._sleep(delay if delay is not None else float(2**attempt))
                     continue
 
+                if 300 <= response.status_code < 400:
+                    raise ImageFetchError("图片下载不允许重定向")
                 response.raise_for_status()
                 if not response.content:
                     raise ImageFetchError("图片响应为空")
@@ -291,7 +293,7 @@ _DEFAULT_IMAGE_FETCHER = ImageFetcher()
 def _resolve_download_target(path: Path, name: str) -> Path:
     """解析兼容入口的目标，拒绝通过文件名越出调用方缓存目录。"""
 
-    if path.is_symlink():
+    if path.is_symlink() or path.parent.is_symlink():
         raise ImageFetchError("图片缓存目录不能是符号链接")
     base = path.resolve()
     target = path / name

@@ -157,7 +157,7 @@
 - 从同一目标 SHA 生成并复制实际图片到 `output/goal1-visual/`，由 Agent 实际查看帮助、角色总览、体力便签、本周周报和上周周报；产物均可解码且版式、中文文案、权限分组、进度条、角色/武器区块和周报日期/资源条目可见。代表性尺寸为帮助 `2020x5059`、角色卡 `1200x1970`、体力 `2000x1100`、周报 `1200x820`。
 - 既有全量测试仍有 4 条外部 T2I 不可解码失败；它们不在本阶段目标 adapter suite 内，也未因本次生产切换新增。该环境风险保留给后续全量审计，不阻塞 O06 的阶段性验收。
 
-### D02 — 调试审查 O04–O06 `[pending]`
+### D02 — 调试审查 O04–O06 `[completed]`
 
 - 核对本地 SHA、生产 SHA、插件版本、registry 投影和日志生命周期一致性。
 - 检查是否存在重复 handler、残留 scheduler 或无权限命令泄露。
@@ -179,75 +179,370 @@ D02 本地修复复跑记录（2026-08-28）：
 - Red 证据：旧实现下先后运行半初始化清理测试，分别得到 `1 failed` 与 `2 failed`；失败表现为前置 hook 已执行但 stop hook 未执行，以及清理异常被遗漏且未形成可观测异常组。
 - Green/回归证据：生命周期目标测试 `3 passed, 1 warning`；第一阶段相关回归 suite `150 passed, 5 warnings`；`ruff check src/entry/lifecycle.py tests/test_entry_skeleton.py` 通过；目标文件 `compileall` 通过；LSP 影响面核验与修改后诊断均无错误。
 - 已基于已部署阶段一 SHA `a97317e1a8c41112fb0220bca941120010076edf` 形成候选精确快照 `d19bcaeb7f3e8bd518acaa0dc0580d20fd98d4f3`，候选与该基线的差异仅为 `src/entry/lifecycle.py` 和 `tests/test_entry_skeleton.py`；候选隔离快照同等回归为 `150 passed, 5 warnings`。候选目前仅存在本地 ref `codex/goal-1-phase1-lifecycle-fix`，尚未推送。
-- D02 仍保持 `[pending]`：本地修复及候选验证已完成，但尚未取得本轮新的“推送候选 ref、在 atri 切换精确 SHA 并 reload”的明确授权；本轮未修改生产环境、未调用新的生产 reload，O07 不启动。
+- 历史状态（2026-08-28）：本地修复及候选验证已完成，但尚未取得当轮新的“推送候选 ref、在 atri 切换精确 SHA 并 reload”的明确授权；本轮未修改生产环境、未调用新的生产 reload，O07 不启动。
+
+D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
+
+- 实际完成：复核 O04–O06 的本地/生产 SHA、生命周期、registry/manifest、权限集合、版本、投影与运行日志。当前本地 `HEAD=ef431dfee672687f046644543d7d7627173e1e4e`，阶段一快照为 `a97317e1a8c41112fb0220bca941120010076edf`，生命周期修复候选为 `d19bcaeb7f3e8bd518acaa0dc0580d20fd98d4f3`；atri 当前为 `31ff8ca63456f496fb9beb4fed764ed9aa4926f3`、detached、clean、v0.2.0、容器 restart count 为 0。生产与 d19/当前 HEAD 的 `src/entry/lifecycle.py` 内容一致，但不是候选 commit 的精确 SHA；当前本地 registry/manifest 为 58/58（`user=32/admin=26`），生产阶段记录中的旧投影为 60 条，差异来自后续已合并的命令收敛，不把当前工作树冒充阶段一精确快照。
+- Red/Green/Refactor 证据：现有 lifecycle 目标测试 `tests/test_entry_skeleton.py` 为 `10 passed, 1 warning`；第一阶段命令/生命周期 suite 为 `42 passed, 1 warning`，配置/迁移 suite 为 `34 passed, 5 warnings`。额外只读并发探针实际观察到两次并发 `initialize()` 产生 `['start', 'start']`，两次并发 `terminate()` 重复执行 `['stop_two', 'stop_one', 'stop_two', 'stop_one']`；首个 stop hook 抛出 `CancelledError` 时后续 stop hook 未执行。此处尚无 Green/Refactor，已转为后续修复 task。
+- 验证命令与结果：目标文件 `ruff check` 通过；`compileall -q src main.py scripts` 与 `git diff --check` 通过；全仓 `ruff check .` 当前报告 18 个既有 goal-2/goal-3 文件问题，未涉及本轮审查文件。生产只读核验确认插件已激活、日志有成功加载记录、Dashboard 可达但接口要求认证；本轮未读取凭据、未调用 POST reload、未 fetch/push/checkout 或重启容器。
+- 审查结论：未发现 P0。P1-1 为生命周期并发竞态：`initialize()`/`terminate()` 在第一次 await 前后没有 single-flight/互斥保护，热重载边界可能重复注册或清理资源；P1-2 为取消清理不完整：`terminate()` 只捕获 `Exception`，`CancelledError` 会中断逆序 stop hook 链。生产当前源码也包含这两个未覆盖语义，因此阶段二不能直接启动。
+- 剩余风险：生产当前有 WebSocket 连接失败和密函定时推送失败告警；当前状态只能证明插件加载成功，不能证明重复调用与取消路径安全。全仓 ruff 的 18 个问题归属并行 goal-2/goal-3 变更，须由其对应任务处理。
+- 下一步：先执行 D02-R 的 TDD 修复并形成候选，再执行 D02-P 的精确 SHA、生产定向 reload、生命周期与 adapter 验收；D02-R/D02-P 完成前不得进入 O07。
+
+### D02-R — 生命周期并发与取消清理门禁 `[completed]`
+
+- 先为并发初始化、并发终止和取消期间继续清理补 Red 测试，测试必须实际证明当前实现失败。
+- 以最小状态机/互斥或 single-flight 修复重复 hook；终止取消时必须完成剩余 stop hook、保留取消语义并显式暴露清理异常，不改变成功路径与半初始化清理契约。
+- 运行生命周期目标 suite、第一阶段相关回归、ruff、compileall；形成可追溯候选 SHA。若发现新的 P1，继续追加更小的修复 task，不越过门禁。
+
+完成记录（2026-08-30）：
+
+- 实际完成：在 `PluginLifecycle` 中加入生命周期转换锁，串行化并发 `initialize()`/`terminate()`；抽出持锁清理路径避免初始化失败时重入同一把锁；停止 hook 捕获并收集 `BaseException`，确保 `CancelledError` 后继续逆序清理，并在清理结束后继续向调用方暴露取消或异常组。新增 3 个公共接口行为测试，提交为 `49d6c1b`（`fix(goal-1): serialize lifecycle transitions`）。
+- Red/Green/Refactor 证据：新测试在旧实现下实际为 `3 failed`，分别复现并发初始化重复 start、并发终止重复 stop、取消后未执行剩余 stop；最小修复后新测试 `3 passed`，完整 `tests/test_entry_skeleton.py tests/test_goal1_phase1_red.py tests/test_commands.py tests/test_command_registry.py` 为 `45 passed, 1 warning`。额外故障探针确认取消与后续清理异常同时形成 `['CancelledError', 'ValueError']` 异常组，且所有 stop hook 已执行。
+- 验证命令与结果：目标 lifecycle/test 文件 LSP 诊断均为空；目标文件 `ruff check`、`compileall`、`git diff --check` 通过；提交前 pre-commit ruff 通过。全仓 ruff 仍有 18 个并行 goal-2/goal-3 文件问题，未涉及本 task 文件。
+- 剩余风险：D02-R 只完成本地行为修复，atri 仍需由 D02-P 按固定候选 SHA 做生产预检、定向 reload、生命周期/adapter 验收；本轮未执行任何生产写操作。O07 继续禁止启动。
+- 下一步：执行 D02-P，先形成包含 `49d6c1b` 的可达精确候选并核验恢复点，再按 `plan.md §4.2` 完成受控生产热重载或验证回滚。
+
+### D02-P — 第一阶段候选精确 SHA 生产热重载与验收 `[completed]`
+
+- 记录 atri 当前恢复 SHA、clean/activated 状态、插件版本、日志起点与容器 restart count；目标 SHA 必须可达且与候选内容一致，工作树非 clean 时停止。
+- 按 `plan.md §4.2` 只调用已认证 Dashboard 的目标插件 reload endpoint；同时核对 HTTP、业务响应、插件状态、生命周期、handler/scheduler 单例和无新增 traceback。禁止重启容器、读取/输出凭据或使用漂移分支头。
+- 运行第一阶段 adapter/权限/At/registry 验收；失败时检出记录的恢复 SHA 并通过同一 endpoint 回滚，复核恢复状态。只有成功或已验证回滚后才允许启动 O07。
+
+完成记录（2026-08-30）：
+
+- 实际完成：发现 `49d6c1b` 直接部署会夹带生产恢复点之后的后续阶段改动，遂以 atri 当前恢复 SHA `31ff8ca63456f496fb9beb4fed764ed9aa4926f3` 为父提交，仅叠加 D02-R 的 `src/entry/lifecycle.py` 与 `tests/test_entry_skeleton.py` 两文件补丁，形成精确候选 `6fda2f16b1ebdf3999b95d36609778bf11de38ce`，并发布为远端 `codex/goal-1-d02p-lifecycle`。候选生命周期源码哈希为 `ec379ad615c8bbec9b2bebff32a5fe5eba2de1286f1e8726f045687af3631785`，与本地已验证实现一致。
+- 生产恢复点记录：atri 插件仓库 `31ff8ca...`、detached、clean；Dashboard detail/list 认证 GET 均为 HTTP 200，插件 ID 唯一匹配 `astrbot_plugin_dnaby`、`activated=true`、版本 `v0.2.0`；日志起点为 `2026-08-29T21:40:12Z`；容器 `astrbot` running=true、restart count 为 0。候选通过显式 ref fetch 后 HEAD 精确切换到 `6fda2f1...`，容器内 compileall、schema JSON、registry/manifest `60/60` 和 `user/admin` 权限集合预检均通过。
+- 热重载证据：仅调用 `POST /api/v1/plugins/astrbot_plugin_dnaby/reload`，HTTP 200 且业务成功；重载后 Dashboard 仍为目标插件唯一匹配、激活、`v0.2.0`，生产 HEAD 为候选 SHA、工作树 clean、容器 restart count 仍为 0。日志窗口统计 `traceback=0`、插件错误=0、关联 handler 记录 60 条、scheduler 相关记录 0 条；加载/终止相关记录分别为 3/1，未见重复注册或残留迹象。认证令牌只在容器内存中生成和使用，未进入命令参数、日志、计划文件或输出。
+- Red/Green/Refactor 证据：D02-P 本身是部署与验收任务，无新增业务代码；沿用 D02-R 已实际完成的 Red `3 failed` → Green `3 passed` 生命周期门禁。候选隔离回归主套件（权限、帮助、At、registry、隐私、玩家/百科/签到/公告/运营、写契约、图片生命周期）为 `126 passed, 1 warning`，补充账号/分发/配置/资源/运营边界套件为 `38 passed, 1 warning`；候选目标文件 `ruff`、`compileall`、`git diff --check` 均通过。
+- 回滚与剩余风险：正式目标 reload 成功，未触发回滚；恢复 SHA 已记录且在正式操作前后可验证。此前一次自动化包装脚本在目标 reload 前出现脚本层错误，未发出目标 reload，随后已切回恢复点并以无参数认证 GET 确认插件激活、clean、restart count 0，正式流程改用已验证脚本成功完成。生产已有的 WebSocket/密函上游告警及 SQLModel 重复类名 warning 未由本任务判定为新回归；全量 pytest 的既有外部 T2I 失败仍按 O06 记录保留。
+- 下一步：D02-P 已收口，下一轮按顺序进入 O07；本轮不提前执行缓存重构或其它阶段任务。
 
 ## 第二阶段：资源、下载、卡片与公告缓存
 
-### O07 — CacheManager 契约与核心状态机 `[pending]`
+### O07 — CacheManager 契约与核心状态机 `[completed]`
 
 - 先写 fresh/stale/miss、sidecar metadata、内容哈希、tags、资源版本、租约和并发 Red 测试。
 - 实现统一 CacheManager 与可配置 TTL，不接入具体业务。
 - 验证失败/空/不可解码内容永不成为成功缓存。
 
-### O08 — ResourceManager 不可变快照与后台预热 `[pending]`
+完成记录（2026-08-30）：
+
+- 实际完成：新增 `src/infrastructure/cache/` 统一文件缓存边界，使用 `.data` payload + `.meta.json` sidecar 记录缓存类型、不可逆 key 摘要、内容 SHA-256、创建/访问时间、资源版本、完整性、去重 tags 与活动租约计数；实现 `fresh`/`stale`/`miss`、硬保留期清理、原子写入、租约保护和同一 manager 内并发租约计数。新增 `CacheSettings` 及 `_conf_schema.json` 的四项默认配置；未接入具体业务。代码提交为 `3e579fa`（`feat(goal-1): add unified cache state machine`）。
+- Red/Green/Refactor 证据：初始缓存契约在实现前实际因模块缺失失败；随后新增租约、读取 validator、完整性状态、metadata 身份绑定和损坏 sidecar 覆盖保护测试，分别实际复现缺失 API/错误成功命中/静默覆盖后再完成最小修复。最终 `tests/test_cache_manager.py tests/test_config.py tests/test_config_resources.py tests/test_resource_service.py` 为 `42 passed, 1 warning`；缓存目标 suite 为 `13 passed`。
+- 验证命令与结果：目标源码、配置、测试 `compileall` 通过；目标文件 `ruff check`、`git diff --check` 通过；LSP diagnostics 对缓存模块、配置模块和缓存测试均为空；提交前 pre-commit ruff 通过；生成的 `_conf_schema.json` 与代码 schema 一致。
+- 审查与剩余风险：按 `code-review-expert` 检查并修复了损坏 sidecar 静默重置租约、sidecar 身份未绑定请求路径等问题。当前租约保护范围是同一 `CacheManager` 实例内的 async 并发；跨进程协调、进程崩溃后的失效租约治理及业务接入留给 D03/O08+，本轮未写入业务缓存或运行期数据。
+- 下一步：进入 O08，实施 `ResourceManager` 不可变资源快照与后台预热；不提前修改 O09 或具体业务缓存调用方。
+
+### O08 — ResourceManager 不可变快照与后台预热 `[completed]`
 
 - TDD 实现 staging 下载、manifest/路径/哈希/图片验证、原子 active pointer 和 single-flight。
 - 启动后台预热；“下载全部资源”加入并等待同一任务。
 - 终止时正确取消后台任务，不残留锁与临时目录。
 
-### O09 — ImageFetcher 重试、原子下载与资源包拆分 `[pending]`
+完成记录（2026-08-30）：
+
+- 实际完成：复用既有 `ResourceSnapshotCoordinator` 的 staging/archive 与原子 generation 发布边界，新增可选 `manifest.file_hashes` 逐文件 SHA-256 校验、完整 generation 文件树 `content_sha256`、带摘要的 `current.json` 及重启时摘要核对/旧指针迁移；候选图片从 magic header 校验提升为 PIL `verify()` + `load()`，损坏图片不会激活。`ResourceUpdateService` 新增 single-flight，同步启动预热、管理员“下载全部资源”共享同一任务，终止时取消预热并无固定超时地排空同步线程；bootstrap 接入 start/stop 生命周期，并保留 services 注入边界。同步文档和跨仓测试 fixture 已同步更新。
+- Red/Green/Refactor 证据：先实际运行 O08 目标测试，旧实现得到 `9 failed, 18 passed, 1 warning`，失败覆盖内容摘要、指针完整性、manifest 文件哈希、伪造图片、并发下载、预热/终止和生命周期接线；实现后同一目标 suite 为 `27 passed, 1 warning`。task19 伪 PNG fixture 改为真实可解码图片后专项测试为 `1 passed, 1 warning`。
+- 验证命令与结果：资源/生命周期相关扩展回归为 `84 passed, 1 failed, 1 warning`，唯一失败是 O07 遗留的 `test_resource_schema_projects_acceleration_group` 仍按旧 schema 排除 `cache`；目标源码、测试 `ruff check`、`compileall`、`git diff --check` 均通过，5 个变更源码文件 LSP diagnostics 为空。全量 pytest 在 fixture 修正前为 `580 passed, 1 skipped, 14 failed`；失败还包含本地缺少外部资源 checkout 的契约测试和不可用 T2I/代理环境，均非 O08 代码回归。
+- 剩余风险：`file_hashes` 为可选兼容字段，未声明时仍以完整文件树摘要保护 generation；旧资源仓库 manifest 无需改写。生产热重载、真实网络资源下载和外部资源仓库未执行/未修改；O07 旧 schema 断言、外部资源 checkout 路径和 T2I 环境阻塞留待对应任务/环境修复。
+- 下一步：进入 O09，实施 `ImageFetcher` 的瞬态重试、Retry-After、临时文件原子替换和资源包边界；不重复改动 O08 generation/single-flight 契约。
+
+### O09 — ImageFetcher 重试、原子下载与资源包拆分 `[completed]`
 
 - TDD 实现瞬态错误初次加 2 次重试、1/2 秒退避和 `Retry-After`，明确非重试错误。
 - 临时文件写入、PIL 校验、原子替换与 single-flight。
+- 失败、空响应、非图片响应和不可解码内容不得写入透明假文件或返回成功路径；已存在文件复用前必须校验。
+- 记录部署期一次性清理共享下载器旧缓存的运行期目录，不能清理数据库、订阅和账号状态。
 - 整理公共基础资源和账号补充资源边界，禁止秘密进入公共资源仓库。
 
-### D03 — 调试审查 O07–O09 `[pending]`
+完成记录（2026-08-30）：
 
-- 重点检查锁顺序、取消、进程崩溃、原子性、目录穿越、失败缓存与秘密泄露。
-- 运行并发/故障注入测试及相关静态检查。
-- 记录资源 repo 与插件 repo 的版本耦合方式。
+- 实际完成：在 `src/utils/image_utils.py` 增加共享 `ImageFetcher`，对连接/超时、429 和 5xx
+  执行初次请求外的 2 次重试，按 1 秒、2 秒退避并解析 `Retry-After`；404、鉴权失败等非重试
+  状态显式失败。响应先落同目录临时文件，经 PIL `verify()`/`load()` 后用 `os.replace` 原子替换；
+  空响应、HTML/非图片、不可解码内容、损坏已有缓存和目录穿越均不会写透明假图或返回伪成功路径。
+  相同 URL/目标使用 single-flight，单个等待者取消不会取消共享下载；失败日志只记录文件名和
+  状态/异常类型，不泄露签名 URL、响应正文或凭据。
+- 实际完成：`download()` 保留 legacy 参数形状并统一接入新边界；`download_pic_from_url`、
+  `get_event_avatar` 和公告图片入口不再用 `exists()` 绕过校验。角色卡可选素材保留既有内存
+  占位语义，但下载失败会显式返回占位，不跟随被拒绝的符号链接。文档补充公共 `resources/`/
+  `resource_generations/` 与账号私有补充资源的边界，并记录停写、备份后仅人工清理
+  `resource/`、`other/ann_card/` 旧共享缓存；不自动触碰数据库、订阅、账号状态、面板或新资源快照。
+- Red/Green/Refactor 证据：初始 O09 测试在旧模块上实际因缺少 `ImageFetchError` 失败；实现后
+  先得到 `12 passed`。随后分别为 legacy 图片 helper、事件头像和可选素材符号链接补 Red，旧实现
+  实际复现损坏缓存直开和跟随外部链接，最小修复后最终 O09 专项为 `14 passed, 1 warning`。
+- 验证命令与结果：图片/渲染回归 `tests/test_image_utils.py tests/test_rendering_assets.py
+  tests/test_html_announcement_detail.py tests/test_html_qr.py` 为 `16 passed, 1 warning`；公告
+  transport 回归为 `19 passed, 1 warning`。目标源文件和测试的 `ruff check`、`compileall`、
+  `git diff --check` 均通过，4 个受影响文件的 LSP diagnostics 均为空。包含公告订阅的综合回归
+  另有 1 个失败，原因是既有外部 T2I 服务返回不可解码图片（`test_push_mh_pic_and_text_do_not_at_user_while_name_sub_does`），
+  与本任务下载器改动无关。
+- 剩余风险：未执行生产热重载、真实图片网络下载或旧缓存清理；清理步骤仅记录为部署期人工操作。
+  可选角色素材仍按原有产品语义以内存占位继续渲染，严格图片链路会向调用方暴露真实下载/校验
+  异常。全仓其它 goal-2/goal-3 改动仍可能影响全量门禁。
+- 下一步：D03，审查 O07–O09 的锁顺序、取消、崩溃恢复、原子性、目录边界、失败缓存、秘密泄露
+  以及资源仓库/插件仓库版本耦合。
 
-### O10 — 角色数据和卡片缓存接入 `[pending]`
+### D03 — 调试审查 O07–O09 `[completed]`
+
+完成记录（2026-08-30）：
+
+- 实际完成：按 `code-review-expert` 清单复核 O07–O09 的锁顺序、取消传播、进程崩溃后的
+  fail-closed 行为、原子写入、目录边界、失败缓存和秘密泄露。修复 `CacheManager` 根目录、
+  类型目录、payload/metadata 符号链接可被跟随的问题；保留根路径状态并拒绝不安全写目录，
+  cleanup 也不读取链接目标。修复 `ResourceUpdateService` 在所有等待者取消后后台线程失败
+  未被观察的问题，保留真实 warning。修复 `ImageFetcher` 及 legacy 可选图片 helper 对符号
+  链接缓存目录/文件的复用或写入，并为 `ResourceSnapshotCoordinator` 拒绝符号链接的
+  repository、generation 根和 current pointer。同步更新资源运行手册与测试索引，并收口 O07
+  缓存 schema 的遗留断言。
+- Red/Green/Refactor 证据：D03 新增路径和取消故障注入测试，旧实现实际为 `4 failed`；补充
+  图片缓存目录与 generation 根边界测试后旧实现实际为 `2 failed`，可选缓存复用测试在旧
+  helper 上实际为 `1 failed`。最小修复后 D03 专项与缓存、资源、图片并发回归共 `80 passed`。
+- 审查结论：`CacheManager` 的 async lock、资源同步 single-flight 的 `shield`/无固定超时
+  drain、generation lease 和候选/指针原子替换均未发现 P0/P1 阻塞；失败内容不会伪装成
+  成功缓存，generation 校验失败不会激活。payload 与 metadata 仍是两个独立的原子文件，
+  进程崩溃恰在二者之间时会形成哈希不匹配并按 miss 处理，下一次请求可重建，属于不会返回
+  错误内容的 P2 可用性残余风险；租约协调仍限定在同一 `CacheManager` 实例。
+- 版本耦合方式：插件仓库与公共资源仓库保持独立 commit。插件只信任 canonical GitHub
+  `origin` 的 `main`，以 `resource_manifest.json` v1、运行期目录、别名/兑换码/schema 和
+  可选逐文件 SHA-256 作为稳定契约；每次运行期发布另外记录资源 commit SHA、完整内容
+  `content_sha256` 与 `resource_version` 到 `resource_generations/current.json`。插件 release
+  或生产 reload 必须同时记录插件 SHA 与已验证资源 SHA，资源仓库变更先通过自身 contract
+  check 并合并 `main`，不把编辑器仓库、镜像-only ref 或账号私有资源带入插件/公共资源。
+- 验证命令与结果：目标 suite `tests/test_cache_manager.py tests/test_resource_service.py
+  tests/test_goal1_o08_resources.py tests/test_goal1_o09_image_fetcher.py tests/test_goal1_d03_review.py
+  tests/test_goal3_resource_generations.py tests/test_goal3_resource_acceleration.py` 为 `80 passed,
+  1 warning`（依赖的 `audioop` deprecation warning）；目标源码/测试 ruff 通过，目标源码与
+  测试 compileall 通过，7 个受影响 Python 文件 LSP diagnostics 均为空，`git diff --check`
+  通过。全仓 ruff 仍包含其它 goal-2/goal-3 基线文件的既有格式问题，未把无关文件纳入本轮。
+- 剩余风险：本轮未执行真实资源网络下载、生产 reload 或旧缓存人工清理；sidecar 双文件
+  崩溃窗口和跨进程租约需后续按部署约束处理，不影响当前 fail-closed 语义。
+- 下一步：O10，接入角色数据和卡片缓存；不提前实现公告与密函缓存治理。
+
+### O10 — 角色数据和卡片缓存接入 `[completed]`
 
 - TDD 接入 30 分钟 fresh、24 小时 retention、stale 刷新与完整旧卡回退。
 - 缺图允许本次占位发送，但标记 incomplete 且不写入/覆盖完整缓存。
 - 关联数据、面板、素材版本和 tags，确保精准失效。
 
-### O11 — 刷新命令、全量角色缓存清理与渲染租约 `[pending]`
+完成记录（2026-08-30）：
+
+- 实际完成：新增 `PlayerCache`，接入 `PlayerService.role_overview`/`role_detail`；角色数据和完整卡片使用现有 `CacheSettings` 的 30 分钟 fresh、24 小时 retention，stale 数据先刷新，刷新失败时仅回退到带明确过期提示的完整旧卡。
+- 缺图渲染结果带 `incomplete` 标记；占位图允许本次发送，但不写入或覆盖完整卡片缓存。卡片复用通过租约复制到发送临时目录，避免发送期间删除缓存文件。
+- 缓存键和 tags 关联目标身份摘要、UID、角色、面板、overview/detail 数据摘要与资源版本；`CacheManager.invalidate` 支持按类型、键、tags、资源版本精准失效，元数据不暴露原始身份。
+- Red：先运行 `uv run --no-project python -m pytest tests/test_goal1_o10_player_cache.py -q --tb=short`，因缺少 `src.modules.player.cache` 收集失败（`ModuleNotFoundError`）。Green：同一目标测试最终为 `8 passed, 1 warning`；缓存管理器与 O10 合并回归为 `21 passed, 1 warning`。
+- 验证：目标源码/测试 LSP diagnostics 均为空；目标 Pyright 为 `0 errors, 0 warnings, 0 informations`；全插件 `ruff check .`、目标 `compileall` 与 `git diff --check` 通过；`code-review-expert` 自审无阻塞发现。
+- 已知环境残留：既有玩家渲染回归中 `50 passed, 1 failed, 1 warning`，唯一失败是外部 qlogo/T2I 返回不可解码图片的环境依赖，不在 O10 缓存路径；O11 的刷新命令、全量清理与渲染租约治理仍未实现。
+
+### O11 — 刷新命令、全量角色缓存清理与渲染租约 `[completed]`
 
 - TDD 实现用户指定角色刷新、管理员 UID+角色刷新、管理员全量角色缓存清理。
 - 接入 `cache.refresh_send_card`。
 - 清理 `rendered/` 孤儿和过期缓存，同时保护在发送文件；针对已观测 741 MB 增长建立回归测试。
 
-### O12 — 公告完整显示、分页、多图与缓存 `[pending]`
+完成记录（2026-08-30）：
 
-- TDD 修复公告查询参数/hash URL、完整分页、详情与多图同一回复。
+- 实际完成：新增 `刷新<角色名>面板`、`刷新<游戏UID>的<角色名>面板` 和 `清理全部角色缓存` 三条
+  registry 命令；普通用户只能刷新自己的当前 UID，管理员 UID 刷新使用操作者当前账号作用域的
+  凭据，管理员全量清理只触碰 `player_data`/`player_card`。刷新先强制获取概览，按 identity/role
+  tags 精准失效相关数据与卡片，再重建指定角色详情；`cache.refresh_send_card` 控制返回新卡片或
+  成功文案。命令清单、权限审计和用户文档已同步为 61 条命令。
+- 实际完成：新增 `RenderedFileStore` 和 `CacheMaintenance`。维护任务在 runtime 初始化时先执行
+  一次缓存/渲染清理，再按现有 fresh 周期运行；`fresh_ttl_minutes=0` 时复用正值硬保留期作为扫描
+  周期，避免零秒忙循环。`ResponseFactory` 将受控 rendered 图片登记为活动租约，清理器只扫描已知
+  生成前缀、跳过活动文件和不安全路径，不触碰 `panel_custom/` 等持久文件。
+- Red/Green/Refactor 证据：O11 初始目标测试实际因缺少 `CacheMaintenance` 导入失败；实现后曾实际
+  复现 registry 误匹配和全量清理遗漏无 tags 条目的 2 个失败并修复。后续 `fresh_ttl_minutes=0`
+  和 rendered `..` 越界各有 1 个 Red 失败，最小修复后目标测试为 `11 passed, 1 warning`；命令、
+  玩家命令、manifest、写入契约回归为 `79 passed, 1 warning`，bootstrap/缓存/生命周期回归为
+  `37 passed, 1 warning`。
+- 验证命令与结果：受影响源码的 LSP diagnostics 为空；O11 源码/测试 `ruff check` 通过，目标
+  `compileall`、`git diff --check` 和 manifest 投影测试通过；`code-review-expert` 自审发现的
+  点段越界和零周期边界已修复，无 P0/P1 阻塞。未执行真实账户刷新、生产 rendered 清理或生产
+  reload。
+- 剩余风险：rendered 活动租约是单进程内存状态，事件生命周期删除文件后由下一次扫描回收租约记录；
+  未提供跨进程租约协调。下一轮进入 O12 公告完整显示/分页/多图与缓存治理，不提前实现 O12-A/B。
+
+### O12 — 公告完整显示、分页、多图与缓存 `[completed]`
+
+- TDD 修复 `postDetail` 包装解析、公告查询参数/hash URL、无扩展名图片 URL、完整分页、详情与多图同一回复。
 - 去除前 20 条等无依据截断。
-- 公告卡与源图仅完整时缓存，24 小时 TTL 加 fingerprint 提前失效。
+- 公告卡与源图仅完整时缓存，24 小时 TTL 加 fingerprint 提前失效；详情图片失败不得生成透明/深色占位图。
 
-### D04 — 调试审查 O10–O12 `[pending]`
+完成记录（2026-08-30）：
+
+- 实际完成：`NoticesTransport` 解包 `postDetail`、拒绝缺少有效 `postContent` 的详情，并按服务端分页
+  读取完整公告列表；图片解析保留 query/hash 和无扩展名 URL，移除列表 20 条上限与模板 line-clamp。
+  新增 `MultiImageResponse`，详情多页在同一响应中发送；手动列表/详情渲染失败返回固定失败文案，
+  详情正文图片不再合成透明或深色占位图。
+- 实际完成：`NoticesRenderer` 接入统一 `CacheManager` 的 `announcement` 类型，列表卡、详情页、
+  manifest 和已解码源图只有完成后才写入；缓存 key 包含完整内容 fingerprint，公告默认绝对保留
+  24 小时，上游变化自然失效旧缓存。bootstrap 已把统一 manager 注入公告 renderer。
+- Red/Green/Refactor 证据：目标测试先后实际复现 `postDetail` 未解包/空正文未拒绝、分页 API 缺失、
+  序号 21 被旧上限拒绝、多页响应取 `.path`、渲染异常外泄、缓存未接线、列表异常外泄和模板截断；
+  最终 `tests/test_goal1_o12_announcements.py` 为 `11 passed, 1 warning`。
+- 验证命令与结果：公告、传输、详情 HTML、卡片 payload、入口回归共 `53 passed, 1 warning`；受影响
+  源码与测试 `ruff check`、目标 `compileall`、`git diff --check` 及 LSP diagnostics 均通过。
+- 剩余风险：legacy 直接绘制路径仍保留旧兼容目录和可选 QR 行为；自动订阅失败目标按目标重试、状态
+  迁移及自动失败不发送标题文本由下一轮 O12-A 处理。本轮未执行生产 reload 或真实上游图片下载。
+- 下一步：进入 O12-A，处理公告失败缓存与按订阅目标投递，不重复改动本轮完整显示与缓存契约。
+
+### O12-A — 公告失败缓存、订阅投递与跨功能缓存治理 `[completed]`
+
+- TDD 为公告状态新增独立版本化投递记录：旧 `ann_state.json` ID 列表迁移为已处理，按首次观察目标集合与成功目标集合记录投递状态。
+- 自动订阅按目标发送；详情、渲染或图片失败时跳过本轮，成功目标不重发，失败目标在下一轮继续处理；删除标题文本 fallback。
+- 移除公告列表无 TTL 进程缓存；手动查询使用固定详情失败文案，并删除 notices 专用 `transport_error`。
+- 公网 IP/RSA fallback 不写入成功缓存；为 `timed_async_cache` 增加安全参数化 key，验证登录日志、用户帖子列表和 host 隔离。
+- 为上游响应形状、空正文、部分目标失败、旧状态迁移、缓存键污染和日志脱敏补齐故障注入测试。
+
+完成记录（2026-08-30）：
+- 新增版本化 `ann_delivery_state.json`，迁移旧 `ann_state.json` ID 为已处理；自动公告按首次观察目标投递，详情/渲染/图片/目标发送失败均可观测并按失败目标重试，成功目标不重发；旧 ID 列表在当前目标全部成功后同步，保留回滚语义。
+- 移除公告列表无 TTL 缓存与 notices 专用 `transport_error`；手动公告详情使用固定失败文案。公网 IP/RSA fallback 不落成功缓存，登录日志/帖子列表/RSA/IP 缓存按安全 key 隔离，凭据与身份不写入原文日志或缓存键。
+- Red→Green：`tests/test_goal1_o12a_delivery.py` 为 `11 passed, 1 warning`；公告/入口/传输/配置回归为 `55 passed, 1 warning`，`tests/test_notices.py` 为 `10 passed, 1 warning`，账号/传输为 `21 passed, 1 warning`，写入契约为 `44 passed, 1 warning`。目标文件 runtime Ruff、compileall、git diff check 及 LSP diagnostics 均通过；提交钩子 Ruff 通过。实现提交为 `c184f2c`。
+- 剩余风险：未执行生产 reload、真实账户/上游图片访问；旧 `test_notices_subscriptions.py` 全集仍受外部 CDN/T2I 网络不可用影响，相关失败未通过添加静默 fallback 规避。runtime Ruff 全仓仍有其他并行/既有文件的 21 条问题，本轮未越界修改。
+- 下一步：进入 O12-B，处理密函缓存时序与自动推送治理，不提前实现后续任务。
+
+### O12-B — 密函缓存时序与自动推送治理 `[completed]`
+
+- TDD 固定当前小时 `window_start` 的缓存门槛：整点后半小时前的上游结果只用于实时查询，不落缓存、不自动推送；半小时后重新获取并通过 typed `instanceInfo` 结构校验与 fingerprint 后才提交当前小时缓存。
+- 自动推送只使用当前小时已验证快照；失败、空结构或未到门槛时跳过本轮，不复用上一小时数据，并由下一次既有调度或人工触发继续尝试。
+- 移除 `notifications.secret_push_time`、`notifications.secret_cache` 及全局密函任务调度修改参数；`dnaby_mh_push` 仍保留自动订阅能力但固定为每小时 `HH:30` 执行。
+- 保留与 GsCore 一致的 `订阅密函时间17:23`/`订阅密函周期17:23` 订阅级时间窗口：按当前小时 17 点至 23 点（含边界）过滤，支持跨午夜区间；名称订阅、文本/图片订阅、管理员暂停/恢复继续有效，窗口只过滤已验证快照的目标，不改变缓存时序。
+- 旧全局推送配置迁移时显式丢弃并记录提示；缓存键包含 `window_start`，不得跨小时复用。
+- 故障注入覆盖整点前旧数据、半小时后新数据、上游失败、上一小时缓存隔离、订阅窗口过滤和自动推送仍可用。
+
+完成记录（2026-08-30）：
+
+- 实际完成：新增 typed 密函快照校验、`window_start`/`fetched_at`/fingerprint envelope 与统一
+  `CacheManager` 缓存；整点后半小时之前只允许实时查询，半小时后才写入当前小时缓存，缓存键按
+  上海本地小时隔离，旧小时和半小时前数据不会自动推送。自动推送只读当前小时已验证快照，
+  上游失败、空/异常结构和未到门槛均跳过；名称、文本、图片订阅均保留普通/跨午夜时间窗口。
+- 实际完成：移除 typed/legacy 全局密函推送时间与缓存开关，迁移时记录并丢弃旧键；
+  `dnaby_mh_push` 与 scheduler state 固定为 `hourly@30:00`（每小时 `HH:30`），管理 API 与
+  Dashboard 不再提供密函调度编辑参数；README、配置、命令、管理页、架构和移植进度文档已同步。
+- Red→Green：初始目标测试实际因 `src/modules/notices/mh_cache.py` 缺失而收集失败；实现首轮为
+  `4 passed`，边界审查新增 Red 实际为 `3 failed`（UTC 本地小时、异常 typed 分区、半小时前
+  envelope），修复后目标套件为 `8 passed`。
+- 验证：O12-B/配置/调度/管理员回归 `50 passed, 1 warning`；密函读取与 transport `12 passed,
+  1 warning`；写契约 `44 passed, 1 warning`；目标源码 Ruff、compileall、git diff check 和
+  LSP diagnostics 均通过。实现提交为 `34a1c22`（`feat(goal-1): govern MH cache timing and fixed push schedule`）。
+- 剩余风险：既有订阅全集中仍有 1 条依赖全局 T2I 的图片渲染测试因外部返回不可解码内容失败
+  （另有 `15 passed`），未通过静默占位图规避；本轮未执行真实上游、生产 reload 或全量 pytest。
+- 下一步：进入 D04，审查 O10–O12-B 的缓存完整性、订阅投递、视觉产物与失败路径。
+
+### D04 — 调试审查 O10–O12-B `[completed]`
 
 - 检查 incomplete 结果是否可能污染完整缓存、租约是否泄露、精准刷新是否误删他人数据。
-- 对公告做分页、URL、部分图片失败、上游变化和缓存过期故障注入。
+- 对公告做分页、URL、部分图片失败、上游变化、空模板、失败缓存、按目标重试和缓存过期故障注入。
+- 检查公告列表旧缓存、IP/RSA fallback、参数化缓存键是否存在跨身份污染或静默旧数据回退。
+- 对密函做整点前/后半小时、上游结构异常、上一小时缓存误用、固定调度时间、旧配置迁移和订阅级窗口故障注入。
 - 实际打开代表性公告、角色卡、占位图与多图结果。
 
-### O13 — 第二阶段文档、配置、投影与完整门禁 `[pending]`
+完成记录（2026-08-30）：
 
-- 更新 cache/resource/announcement 配置 schema 和文档。
+- 聚焦回归实际通过：`test_cache_manager.py` + O10/O11/D03 为 `39 passed`；O12 公告、O12-A
+  投递、transport 与详情 HTML 为 `35 passed`；O12-B、通知调度、scheduler state 与 admin API 为
+  `26 passed`，均只有 AstrBot `audioop` 弃用警告。
+- 故障注入确认：incomplete 角色卡不写入完整缓存；stale/retention、源图不可解码、空公告、分页、
+  query/hash/无扩展名 URL、公告 fingerprint 变化、详情多页、按目标失败重试、旧状态迁移和
+  IP/RSA fallback 隔离均按契约收口。按身份+角色精准失效保留另一身份及其它角色；密函
+  `12:29:59` 不开门、`12:30:00` 开门，换小时不读旧缓存，固定下一次运行点为 `HH:30`，订阅窗口
+  与旧配置迁移行为符合 O12-B。
+- 实际打开运行期公告列表/详情缓存、角色卡/占位素材、周报占位素材；使用详情分页器生成并打开
+  两页多图 fixture，尺寸分别为 `1080×6000` 与 `1080×4500`，确认没有在发送边界丢页。同步修正
+  架构、测试说明和命令文档中将公告误写为 1300 宽的描述；历史对比文档保持不动。
+- 未发现 O10–O12-B 的 P0；发现需独立处理的失败语义边界：`密函测试` 忽略目标推送失败仍返回
+  “已发送”，密函图片渲染异常会在文本目标已发送后向 scheduler 外抛，缓存 sidecar 在租约释放期间
+  损坏会抛出 `JSONDecodeError` 并使损坏 payload 长期保留。公告详情 manifest 对页号仅校验非负整数，
+  未校验从 0 连续且唯一；这些不影响当前正常路径，但需修复测试后再决定最小实现。
+- 本轮未执行真实上游、生产 reload 或真实 QQ 发送；既有订阅全集仍有 1 条外部 T2I 返回不可解码图片
+  的环境失败，未用静默占位图掩盖。
+
+### D04-R — 修复通知失败语义与缓存租约/详情 manifest 故障边界 `[completed]`
+
+- 先为 `密函测试` 失败返回、密函图片渲染失败、租约释放时 sidecar 损坏和公告 manifest 非连续/重复页号建立 Red 测试，再做最小修复。
+- 保持正常文本/图片订阅、当前小时密函缓存、公告完整缓存与按目标重试语义不变；不得用默认成功、标题 fallback 或占位图掩盖失败。
+- 修复后运行通知/缓存聚焦回归、ruff、compileall、LSP diagnostics，并由 `code-review-expert` 复审。
+
+完成记录（2026-08-30）：
+- Red：新增 `tests/test_goal1_d04_r_failure_boundaries.py`，首次运行为 `5 failed`；分别锁定密函测试假成功、图片渲染异常外溢、租约释放遮蔽 body 异常、重复/倒序 manifest 被直接消费四类问题。
+- Green：失败目标返回 `MH_TEST_FAILED`；密函文本目标成功后图片渲染只捕获已知渲染/I/O/HTTP/值错误并记录日志、跳过图片目标；租约释放仅在已知 sidecar/写入错误时保留损坏现场且不覆盖调用方异常；详情 manifest 仅接受 `0..N-1` 连续页号。
+- 验证：D04-R 边界用例 `5 passed`；通知/缓存聚焦回归排除两条依赖外部 CDN 的既有公告用例后 `91 passed, 2 deselected`；ruff、`compileall`、`git diff --check` 通过；5 个受影响文件 LSP diagnostics 均为空。
+- 审查：`code-review-expert` 未发现 P0–P3 阻塞项。损坏 sidecar 按安全边界保留并记录告警，交由维护流程处理，不伪造租约状态；未执行生产 reload、真实上游发送或真实 QQ 发送。
+- 环境残留：未排除的两条公告轮询用例均因 `cdn.test` 图片下载 `ConnectError` 返回 0，和本轮 manifest/投递语义无关；未增加占位图或静默成功兜底。
+
+### O13 — 第二阶段文档、配置、投影与完整门禁 `[completed]`
+
+- 更新 cache/resource/announcement/secret-letter 配置 schema 和文档，说明全局密函推送时间与缓存开关已移除、订阅级时间窗口仍保留。
 - 重新生成相关投影，运行完整 pytest、ruff、compileall。
 - 验证 data_dir 边界、无插件目录运行期写入。
 
-### O14 — 公共资源仓库独立版本与审查 `[pending]`
+完成记录（2026-08-30）：
+
+- 配置与投影：复核 `DnabySettings`、`src/infrastructure/config/schema.py` 和 `_conf_schema.json`，确认
+  `notifications`、`cache`、`resources` 字段一致，且不含 `secret_push_time`、`secret_cache`、
+  `MHPushSubscribe` 或 `MHCache`；重新运行 `generate_config_schema.py` 与
+  `generate_commands_manifest.py` 均无投影 diff。配置、公告/密函、缓存和公共资源说明已同步到
+  `docs/usage/configuration.md`、`docs/usage/resources.md` 和 README，并明确密函固定每小时 `HH:30`、
+  订阅级时间窗口仍由密函订阅记录保留。
+- data_dir：静态审计确认当前 bootstrap 的数据库、资源 generation、缓存、渲染、订阅和 scheduler
+  状态均从 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 派生；修复 legacy QR 登录路由，把兼容
+  helper 的临时路径移到 runtime `login_qr/`，并用 `user_id` 的 SHA-256 摘要作为文件名，阻止目录穿越
+  或写入插件源码目录。新增 `tests/test_goal1_o13_config_data_dir.py` 覆盖运行期根目录和恶意路径片段。
+- TDD：首次 Red 因路径落在 `src/modules/account/` 失败；增强目录穿越断言后再次 Red；两次 Green 均为
+  `1 passed`。最终 O13 相关配置/通知/缓存/二维码回归为 `54 passed, 1 warning`。
+- 门禁：配置/资源生成器成功且 `_conf_schema.json`、`commands.json` 无 diff；全量 compileall 成功，
+  `git diff --check` 成功，受影响源码/测试的 Ruff check 和 LSP diagnostics 均通过。全量 pytest 为
+  `663 passed, 1 skipped, 10 failed`；失败均为既有环境/后续目标问题（T2I/CDN 网络 3 条、缺少 sibling
+  资源 checkout 5 条、goal-3 命令数期望漂移 1 条、namespace 边界 1 条），没有 O13 相关失败。
+  全仓 Ruff 仍有 15 条既有 goal-2/goal-3/基础设施导入排序及 scheduler/admin 问题，未越界修改。
+- 审查：按 `code-review-expert` 复核 O13 diff，未发现本次变更的 P0–P3 阻塞项；未执行生产 reload、
+  真实账户/上游发送或真实 QQ 发送。下一步进入 O14 公共资源仓库独立版本与审查。
+
+### O14 — 公共资源仓库独立版本与审查 `[completed]`
 
 - 对公共资源仓库做 manifest、许可证/来源、秘密与可解码性审查。
 - 形成独立资源 commit SHA；插件只引用已验证版本。
 - 使用 `code-review-expert` 审查插件第二阶段改动并修复阻塞项。
 
+完成记录（2026-08-30）：
+
+- 资源版本：独立仓库 `/Users/flanchan/Developer/Projects/GithubProjects/astrbot_plugin_dna_resources`
+  已 fetch 远端 `main`，发布候选为 `5d76860141d9ab5052417df25ccc9f5a929ff06b`，完整文件树摘要为
+  `6cf9d38b417825a27d63f8ecdc5f924fc3eb04ed`。候选树与本地分支树一致；工作树中既有的
+  `data/cmd_config.json`、`data/t2i_templates/` 未跟踪文件未被清理，也未进入该 SHA。插件代码仍只接受
+  规范远端的 `main` 和 fast-forward 更新，未改为引用投稿分支或镜像 ref。
+- 资源审查：manifest `format_version=1`、12 个必需目录、109 个 tracked 文件、93 个 tracked PNG
+  均通过路径/普通文件检查和 PIL `verify()+load()`；3 个 TTF 通过 `file`/`fc-scan`；兑换码 3 条通过
+  JSON Schema 2020-12 与跨条目语义校验；Git 树无符号链接；定向 token/cookie/password/private-key
+  等秘密痕迹扫描无命中；`git diff --check` 通过。配置正确的跨仓回归为 `7 passed, 1 warning`。
+- 来源与权利结论：仓库 README/编辑器 contract 明确不授予第三方素材 blanket license，但资源仓库没有
+  统一 `LICENSE`、`NOTICE` 或来源清单；`arial-unicode-ms-bold.ttf` 的元数据标为 Monotype，
+  `dna_fonts.ttf` 标为 Arphic，图片和字体的再分发权不能仅凭插件 GPL-3.0 推断。因此本轮记录了
+  结构/秘密/可解码性审计，但不把该 SHA 宣称为已清权的公开发行版本；O15 生产发布前必须由维护者
+  补齐或确认各资源上游条款。
+- 第二阶段 code review：按 `code-review-expert` 清单审查 `3e579fa^..7b1e3c7` 及 O14 修复，未发现
+  P0。实际 Red 新增 4 个边界用例并全部失败：图片重定向、缓存祖先符号链接、公告跨页重复 `postId`
+  和玩家刷新读后写覆盖；Green 以最小改动分别关闭自动重定向、拒绝直接祖先符号链接、按 `postId`
+  保留首次公告、按身份串行化概览回填。剩余 P2 为 `announcement_check_minutes=0` 的产品语义/配置
+  不一致和 manifest 未形成严格额外文件 allow-list；因语义未确认，本轮不静默改变配置行为，已记录为
+  后续门禁关注项。
+- 验证：O14/图片/缓存/公告/玩家聚焦回归为 `76 passed, 1 warning`；受影响源码 `ruff check` 通过，
+  `pyright` 为 `0 errors, 0 warnings, 0 informations`，目标与全插件 `compileall`、`git diff --check`
+  通过。全量 pytest 为 `668 passed, 1 skipped, 9 failed`；9 条均为既有环境/后续目标边界：资源测试默认
+  sibling 路径缺失 5 条（显式 `DNA_RESOURCE_REPO` 后已通过）、goal-3 命令数期望漂移 1 条、namespace
+  隔离 1 条、外部 CDN/T2I 不可用 2 条；未发现 O14 聚焦回归失败。未执行生产 reload、真实账户、真实
+  上游图片下载或发送；下一步 O15 仅在资源权利门禁明确后形成第二阶段插件精确 SHA 并做受控热重载。
+
 ### O15 — 第二阶段插件 SHA、atri 热重载与视觉验收 `[pending]`
 
 - 形成第二阶段独立插件 SHA，记录上一稳定 SHA。
 - 按 `plan.md §4.2` 部署、定向 reload、核对资源 active pointer 与后台任务单例。
-- 运行缓存/刷新/公告 adapter E2E，复制并实际查看所有代表性图片。
+- 发布前人工清理 `plugin_data/astrbot_plugin_dnaby` 下共享下载器产生的公告/资源图片缓存，再运行缓存/刷新/公告 adapter E2E，复制并实际查看所有代表性图片。
+- 核对公告轮询的列表条数、详情块数、图片成功/失败数和按目标投递成功/失败数；确认失败目标下一轮仍待处理、成功目标不重复。
+- 在整点前、整点后半小时分别验证密函：前者不写当前小时缓存且不自动推送，后者只在上游快照校验通过后向仍符合订阅级时间窗口的目标发送。
 
 ### D05 — 调试审查 O13–O15 `[pending]`
 

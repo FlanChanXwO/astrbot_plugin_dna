@@ -96,6 +96,13 @@ class PlayerService:
         self.cache = cache
         self.refresh_send_card = refresh_send_card
         self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self._overview_locks: dict[tuple[str, str], asyncio.Lock] = {}
+
+    def _overview_lock(self, target_user_id: str, uid: str) -> asyncio.Lock:
+        """串行化同一身份的概览回填，避免旧请求覆盖显式刷新结果。"""
+
+        key = (target_user_id, uid)
+        return self._overview_locks.setdefault(key, asyncio.Lock())
 
     def _renderer_context(self):
         if self.resource_snapshots is None:
@@ -179,6 +186,23 @@ class PlayerService:
                 return self._transport_response(error)
             return _OverviewState(overview, self._value_digest(overview))
 
+        async with self._overview_lock(target_user_id, uid):
+            return await self._load_overview_cached(
+                request,
+                target_user_id,
+                uid,
+                now=now,
+            )
+
+    async def _load_overview_cached(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        *,
+        now: datetime,
+    ) -> _OverviewState | PlainTextResponse:
+        assert self.cache is not None
         key = self.cache.overview_data_key(target_user_id, uid)
         lookup = await self.cache.get_data(key, now=now)
         cached_entry = lookup.entry
@@ -805,28 +829,14 @@ class PlayerService:
             now=now,
         )
 
-    async def refresh_role(
+    async def _refresh_overview(
         self,
         request: PlayerCommandRequest,
+        target_user_id: str,
+        refresh_uid: str,
         *,
-        uid: str | None = None,
-    ):
-        """强制刷新指定角色，并按配置决定是否返回新卡片。"""
-
-        if uid is not None:
-            target_user_id = request.actor.user_id
-            refresh_uid = str(uid).strip()
-            if not refresh_uid:
-                return PlainTextResponse(messages.PLAYER_UID_INVALID)
-        else:
-            if request.target_user_id not in (None, request.actor.user_id):
-                return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
-            resolved = await self._resolve_uid(request)
-            if isinstance(resolved, PlainTextResponse):
-                return resolved
-            target_user_id, refresh_uid = resolved
-
-        now = self._now()
+        now: datetime,
+    ) -> tuple[RoleOverview, str] | PlainTextResponse:
         try:
             overview = await self._fetch_overview(
                 request,
@@ -858,6 +868,49 @@ class PlayerService:
             overview_digest = overview_metadata.content_sha256
         else:
             overview_digest = self._value_digest(overview)
+        return overview, overview_digest
+
+    async def refresh_role(
+        self,
+        request: PlayerCommandRequest,
+        *,
+        uid: str | None = None,
+    ):
+        """强制刷新指定角色，并按配置决定是否返回新卡片。"""
+
+        if uid is not None:
+            target_user_id = request.actor.user_id
+            refresh_uid = str(uid).strip()
+            if not refresh_uid:
+                return PlainTextResponse(messages.PLAYER_UID_INVALID)
+        else:
+            if request.target_user_id not in (None, request.actor.user_id):
+                return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+            resolved = await self._resolve_uid(request)
+            if isinstance(resolved, PlainTextResponse):
+                return resolved
+            target_user_id, refresh_uid = resolved
+
+        now = self._now()
+        if self.cache is not None:
+            async with self._overview_lock(target_user_id, refresh_uid):
+                refreshed = await self._refresh_overview(
+                    request,
+                    target_user_id,
+                    refresh_uid,
+                    now=now,
+                )
+        else:
+            refreshed = await self._refresh_overview(
+                request,
+                target_user_id,
+                refresh_uid,
+                now=now,
+            )
+
+        if isinstance(refreshed, PlainTextResponse):
+            return refreshed
+        overview, overview_digest = refreshed
 
         return await self._role_detail_from_overview(
             request,
