@@ -8,6 +8,7 @@ PLAYER_UID_INVALID = "UID无效，请重新绑定"
 PLAYER_PEEK_BLOCKED = "该用户开启了防偷窥，无法查看其游戏信息"
 PLAYER_ORIGINAL_UNSUPPORTED = "当前平台暂不支持通过引用获取角色原图"
 PLAYER_DAMAGE_FAILED = "伤害计算暂不可用，请稍后再试"
+PLAYER_CACHE_STALE = "玩家数据缓存刷新失败，以下卡片可能已过期"
 PLAYER_OVERVIEW_NOT_FOUND = "角色列表信息未找到，请检查账号是否有效"
 PLAYER_ROLE_NOT_FOUND = "角色未找到，请检查角色名是否正确"
 PLAYER_ROLE_NOT_UNLOCKED = "当前角色暂未拥有，无法查看"
@@ -32,6 +33,7 @@ def transport_error(kind: str) -> str:
 
 __all__ = [
     "PLAYER_CONTEXT_UNAVAILABLE",
+    "PLAYER_CACHE_STALE",
     "PLAYER_DAMAGE_FAILED",
     "PLAYER_DETAIL_NOT_FOUND",
     "PLAYER_ORIGINAL_UNSUPPORTED",

@@ -42,7 +42,9 @@
   和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，详情响应携带
   per-response 的 `original_image_path` 原面板引用。AstrBot 4.27.x 公开结果边界没有
   已发送消息 ID 交付点，`原图` 命令显式报告未支持（Task 16.2）；默认 API 适配器只在
-  transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。
+  transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。`PlayerCache` 将 typed 玩家数据
+  和完整卡片接入统一 `CacheManager`；卡片按 generation 版本、数据摘要、身份和显示参数
+  隔离，placeholder 渲染只允许本次发送，不覆盖完整缓存。
 - 资料读取：`src/modules/encyclopedia/` 协调便签、周报、日历、图鉴、攻略、兑换码和只读
   别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed

@@ -498,6 +498,85 @@ class CacheManager:
                     removed += 1
             return removed
 
+    async def invalidate(
+        self,
+        cache_type: str | None = None,
+        *,
+        key: str | None = None,
+        tags: tuple[str, ...] | list[str] | set[str] = (),
+        resource_version: str | None = None,
+    ) -> int:
+        """按 cache type、key、tags 和素材版本精准删除无租约条目。
+
+        至少提供一个筛选条件，避免调用方误把整个运行期缓存当作无条件
+        清理目标；有活动租约的条目保留到发送完成后再由后续失效调用处理。
+        损坏 sidecar 或非普通文件也保留现场，避免失效操作掩盖安全问题。
+        """
+
+        normalized_type = (
+            None
+            if cache_type is None
+            else self._validate_cache_type(cache_type)
+        )
+        key_digest = None if key is None else self.key_digest(key)
+        normalized_tags = self._normalize_tags(tags)
+        if (
+            normalized_type is None
+            and key_digest is None
+            and not normalized_tags
+            and resource_version is None
+        ):
+            raise ValueError("缓存失效至少需要一个筛选条件")
+        if resource_version is not None and not isinstance(resource_version, str):
+            raise TypeError("resource_version 必须是字符串或 None")
+
+        async with self._lock:
+            if self.root.is_symlink() or not self.root.is_dir():
+                return 0
+            removed = 0
+            for metadata_path in sorted(self.root.rglob("*.meta.json")):
+                data_path = metadata_path.with_name(
+                    f"{metadata_path.name.removesuffix('.meta.json')}.data"
+                )
+                if (
+                    metadata_path.is_symlink()
+                    or data_path.is_symlink()
+                    or metadata_path.parent.is_symlink()
+                    or not metadata_path.is_file()
+                    or (data_path.exists() and not data_path.is_file())
+                ):
+                    continue
+                try:
+                    metadata = self._read_metadata(metadata_path)
+                except (
+                    OSError,
+                    UnicodeError,
+                    json.JSONDecodeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ):
+                    continue
+                if normalized_type is not None and metadata.cache_type != normalized_type:
+                    continue
+                if key_digest is not None and metadata.key != key_digest:
+                    continue
+                if normalized_tags and not set(normalized_tags).issubset(metadata.tags):
+                    continue
+                if (
+                    resource_version is not None
+                    and metadata.resource_version != resource_version
+                ):
+                    continue
+                if metadata.lease_count != 0:
+                    continue
+                if data_path.exists():
+                    data_path.unlink()
+                if metadata_path.exists():
+                    metadata_path.unlink()
+                removed += 1
+            return removed
+
 
 def _parse_datetime(value: object) -> datetime:
     if not isinstance(value, str):

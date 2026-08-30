@@ -94,6 +94,7 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 - `dnaby.sqlite3` — SQLAlchemy 2 async 数据库（账号绑定、凭据、隐私、签到记录）。
 - `subscriptions.json` — 订阅存储；`ann_state.json` — 公告轮询已知 id。
 - `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json` — 角色自定义别名覆盖层。
+- `cache/` — 玩家数据 JSON 与完整 PNG 卡片缓存；缓存 key 和身份 tag 只保存 SHA-256 摘要。
 - `rendered/` — 玩家/资料/通知 renderer 生成的临时 PNG。
 - `panel_custom/` — admin 上传的自定义面板图（WebP，按内容 sha1 去重）；它是本地数据
   目录，与资源仓库的 `panel/`（只读原始面板）分离。
@@ -101,6 +102,19 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 玩家和资料 renderer 生成的 `rendered/*.png` 会在响应边界确认其位于受控渲染目录后，交给
 AstrBot 当前事件的临时文件生命周期清理。generation 内的 `panel/`、`wiki/`、`guide/` 等源
 资源不会直接登记为临时文件；需要直出时复制出的响应图片属于 `rendered/` 临时物。
+
+## 玩家数据与卡片缓存
+
+玩家概览和角色详情分别缓存已校验的 JSON 数据与 PNG 卡片，均位于运行期根目录的 `cache/`
+下。默认 fresh 时间为 30 分钟，硬保留期为 24 小时；超过 fresh 仍在保留期内的条目会先
+尝试向 transport 刷新。刷新失败时，如果存在完整旧卡，会附带“可能已过期”提示发送；没有
+旧卡则用旧数据渲染本次响应，但不会把它重新写成完整卡片。
+
+渲染结果带有 `placeholder` 素材时标记为 `incomplete`，允许本次发送占位图，但不会写入或
+覆盖完整 PNG 卡片。卡片 key 同时关联查询身份、角色/武器参数、隐私显示选项、数据摘要和
+当前 generation 的 commit/content/resource version；资源切换后会自然 miss 并重新渲染，旧
+条目等待硬保留期清理。缓存失效接口支持 cache type、完整 tag 集合、资源版本或精确 key
+组合筛选，只删除无活动租约的普通条目，不会越过运行期目录边界。
 
 ## 图片下载与资源分层
 

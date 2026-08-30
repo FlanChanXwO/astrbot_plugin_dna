@@ -57,6 +57,8 @@ Dashboard 管理页的账号列表默认只返回 App/Web 凭据状态；只有�
 - `alias_custom.json` — 角色自定义别名覆盖层；默认资源别名只读且不被覆盖层改写。
 - `panel_custom/` — 管理页上传的自定义面板图；删除沿用不可恢复语义，需在操作前自行备份。
 - `subscriptions.json`、`ann_state.json` 和 `rendered/` — 订阅/公告状态及受控的运行期渲染文件。
+- `cache/` — 玩家数据 JSON 与完整 PNG 卡片缓存；条目受 30 分钟 fresh、24 小时硬保留和租约
+  保护，身份相关 key/tag 不保存原始 user_id 或 UID。
 
 SQLite、JSON 和文件目录之间不存在同一物理事务。账号删除协调器按串行、逐项、可重试的步骤
 报告 `failed`/`partial`，不能把跨存储操作表述为原子提交；运维备份与恢复步骤见

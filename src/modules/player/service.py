@@ -3,21 +3,26 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import nullcontext
+from dataclasses import dataclass
+from datetime import datetime, timezone
 
-from ...entry.response import ImageResponse, PlainTextResponse
+from ...entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import PlayerRenderer
 from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ..privacy import PrivacyService
 from . import messages
+from .cache import PlayerCache
 from .contracts import (
     DamageCalculation,
+    DamageSnapshot,
     PlayerCommandRequest,
     PlayerFailureKind,
     PlayerTransport,
     PlayerTransportError,
+    RoleDetail,
     RoleItem,
     RoleOverview,
     WeaponDetail,
@@ -39,6 +44,33 @@ _MASTER_ALIASES = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class _OverviewState:
+    overview: RoleOverview
+    digest: str
+    stale: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _RoleDetailBundle:
+    role_detail: RoleDetail
+    weapon_sections: tuple[tuple[str, WeaponDetail], ...]
+    damage: DamageCalculation
+
+    @property
+    def cacheable(self) -> bool:
+        """伤害失败时不把错误结果固化为后续请求的成功缓存。"""
+
+        return self.damage.data is not None
+
+
+@dataclass(frozen=True, slots=True)
+class _DetailState:
+    bundle: _RoleDetailBundle
+    digest: str | None
+    stale: bool = False
+
+
 class PlayerService:
     """玩家读取的事务/隐私/transport/渲染协调器。"""
 
@@ -51,6 +83,8 @@ class PlayerService:
         *,
         show_unowned_roles: bool = True,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
+        cache: PlayerCache | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -58,6 +92,8 @@ class PlayerService:
         self.renderer = renderer
         self.show_unowned_roles = show_unowned_roles
         self.resource_snapshots = resource_snapshots
+        self.cache = cache
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def _renderer_context(self):
         if self.resource_snapshots is None:
@@ -90,25 +126,143 @@ class PlayerService:
             return PlainTextResponse(f"{error.resource}暂未拥有，无法查看")
         return PlainTextResponse(messages.transport_error(error.kind.value))
 
-    async def role_overview(self, request: PlayerCommandRequest):
-        """读取并渲染角色/武器总览。"""
+    def _now(self) -> datetime:
+        return self.clock()
 
-        resolved = await self._resolve_uid(request)
-        if isinstance(resolved, PlainTextResponse):
-            return resolved
-        target_user_id, uid = resolved
-        try:
-            overview = await self.transport.get_overview(
-                request.actor,
-                uid,
-                credential_user_id=target_user_id,
+    def _resource_version(self) -> str:
+        """组合 generation 身份，使动态素材变更自然形成新的卡片 key。"""
+
+        if self.resource_snapshots is None:
+            return "legacy"
+        snapshot = self.resource_snapshots.current_snapshot
+        if snapshot is None:
+            return "legacy"
+        return "|".join(
+            str(value)
+            for value in (
+                snapshot.commit_sha,
+                snapshot.content_sha256,
+                snapshot.resource_version,
             )
+        )
+
+    @staticmethod
+    def _value_digest(value: object) -> str:
+        return PlayerCache.content_digest(PlayerCache.encode_json(value))
+
+    async def _fetch_overview(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+    ) -> RoleOverview:
+        return await self.transport.get_overview(
+            request.actor,
+            uid,
+            credential_user_id=target_user_id,
+        )
+
+    async def _load_overview(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        *,
+        now: datetime,
+    ) -> _OverviewState | PlainTextResponse:
+        if self.cache is None:
+            try:
+                overview = await self._fetch_overview(request, target_user_id, uid)
+            except PlayerTransportError as error:
+                return self._transport_response(error)
+            return _OverviewState(overview, self._value_digest(overview))
+
+        key = self.cache.overview_data_key(target_user_id, uid)
+        lookup = await self.cache.get_data(key, now=now)
+        cached_entry = lookup.entry
+        cached_overview: RoleOverview | None = None
+        if cached_entry is not None:
+            try:
+                cached_overview = RoleOverview.model_validate(
+                    self.cache.decode_json(cached_entry.content),
+                )
+            except (KeyError, TypeError, ValueError):
+                cached_overview = None
+        if cached_overview is not None and lookup.status == "fresh":
+            assert cached_entry is not None
+            return _OverviewState(
+                cached_overview,
+                cached_entry.metadata.content_sha256,
+            )
+        if cached_overview is not None and lookup.status == "stale":
+            assert cached_entry is not None
+            try:
+                overview = await self._fetch_overview(request, target_user_id, uid)
+            except PlayerTransportError:
+                return _OverviewState(
+                    cached_overview,
+                    cached_entry.metadata.content_sha256,
+                    stale=True,
+                )
+            metadata = await self.cache.put_data(
+                key,
+                overview,
+                tags=(
+                    "player_data",
+                    "overview",
+                    self.cache.identity_tag(target_user_id, uid),
+                ),
+                now=now,
+            )
+            return _OverviewState(overview, metadata.content_sha256)
+
+        try:
+            overview = await self._fetch_overview(request, target_user_id, uid)
         except PlayerTransportError as error:
             return self._transport_response(error)
-        uid_hidden = await self.privacy.is_uid_hidden(
-            target_user_id,
-            group_id=request.actor.group_id,
+        metadata = await self.cache.put_data(
+            key,
+            overview,
+            tags=(
+                "player_data",
+                "overview",
+                self.cache.identity_tag(target_user_id, uid),
+            ),
+            now=now,
         )
+        return _OverviewState(overview, metadata.content_sha256)
+
+    async def _cached_card(
+        self,
+        key: str,
+        *,
+        now: datetime,
+        fresh_only: bool,
+    ) -> tuple[str, ImageResponse] | None:
+        if self.cache is None:
+            return None
+        lookup = await self.cache.get_card(key, now=now)
+        if lookup.entry is None or (fresh_only and lookup.status != "fresh"):
+            return None
+        return lookup.status, await self.cache.card_response(key, now=now)
+
+    @staticmethod
+    def _response_from_rendered(rendered) -> ImageResponse:
+        return ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            original_image_path=getattr(rendered, "original_image_path", None),
+            incomplete=bool(getattr(rendered, "incomplete", False)),
+        )
+
+    async def _render_overview(
+        self,
+        overview: RoleOverview,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        uid_hidden: bool,
+    ) -> ImageResponse:
         with self._renderer_context() as renderer:
             rendered_res = renderer.render_overview(
                 overview,
@@ -118,11 +272,103 @@ class PlayerService:
                 uid_hidden=uid_hidden,
                 show_unowned=self.show_unowned_roles,
             )
-            if asyncio.iscoroutine(rendered_res):
-                rendered = await rendered_res
-            else:
-                rendered = rendered_res
-        return ImageResponse(str(rendered.path), temporary=True)
+            rendered = (
+                await rendered_res
+                if asyncio.iscoroutine(rendered_res)
+                else rendered_res
+            )
+        return self._response_from_rendered(rendered)
+
+    async def _store_card(
+        self,
+        key: str,
+        response: ImageResponse,
+        *,
+        tags: tuple[str, ...],
+        resource_version: str,
+        now: datetime,
+    ) -> None:
+        if self.cache is None or response.incomplete:
+            return
+        await self.cache.put_card(
+            key,
+            self.cache.read_rendered_card(response.image),
+            resource_version=resource_version,
+            tags=tags,
+            now=now,
+        )
+
+    @staticmethod
+    def _stale_response(image: ImageResponse) -> ChainResponse:
+        return ChainResponse((PlainTextResponse(messages.PLAYER_CACHE_STALE), image))
+
+    async def role_overview(self, request: PlayerCommandRequest):
+        """读取并渲染角色/武器总览。"""
+
+        resolved = await self._resolve_uid(request)
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        now = self._now()
+        state = await self._load_overview(
+            request,
+            target_user_id,
+            uid,
+            now=now,
+        )
+        if isinstance(state, PlainTextResponse):
+            return state
+        uid_hidden = await self.privacy.is_uid_hidden(
+            target_user_id,
+            group_id=request.actor.group_id,
+        )
+        resource_version = self._resource_version()
+        if self.cache is not None:
+            card_key = self.cache.overview_card_key(
+                target_user_id,
+                uid,
+                state.digest,
+                resource_version,
+                uid_hidden,
+                self.show_unowned_roles,
+            )
+            if state.stale:
+                cached = await self._cached_card(card_key, now=now, fresh_only=False)
+                if cached is not None:
+                    return self._stale_response(cached[1])
+                response = await self._render_overview(
+                    state.overview,
+                    request,
+                    target_user_id,
+                    uid,
+                    uid_hidden,
+                )
+                return self._stale_response(response)
+            cached = await self._cached_card(card_key, now=now, fresh_only=True)
+            if cached is not None:
+                return cached[1]
+        response = await self._render_overview(
+            state.overview,
+            request,
+            target_user_id,
+            uid,
+            uid_hidden,
+        )
+        if self.cache is not None and not state.stale:
+            assert card_key is not None
+            await self._store_card(
+                card_key,
+                response,
+                tags=self.cache.overview_card_tags(
+                    target_user_id,
+                    uid,
+                    state.digest,
+                    resource_version,
+                ),
+                resource_version=resource_version,
+                now=now,
+            )
+        return response
 
     @staticmethod
     def _find_role(overview: RoleOverview, input_name: str) -> RoleItem | None:
@@ -177,75 +423,99 @@ class PlayerService:
             selected.append(found)
         return tuple(selected)
 
-    async def role_detail(self, request: PlayerCommandRequest):
-        """读取角色详情、选定武器和伤害结果后生成一张完整详情图。"""
+    @staticmethod
+    def _detail_payload(bundle: _RoleDetailBundle) -> dict[str, object]:
+        return {
+            "role_detail": bundle.role_detail.model_dump(mode="json", by_alias=True),
+            "weapon_sections": [
+                {
+                    "label": label,
+                    "detail": detail.model_dump(mode="json", by_alias=True),
+                }
+                for label, detail in bundle.weapon_sections
+            ],
+            "damage": {
+                "data": (
+                    None
+                    if bundle.damage.data is None
+                    else bundle.damage.data.model_dump(mode="json", by_alias=True)
+                ),
+                "message": bundle.damage.message,
+            },
+        }
 
-        resolved = await self._resolve_uid(request)
-        if isinstance(resolved, PlainTextResponse):
-            return resolved
-        target_user_id, uid = resolved
-        try:
-            overview = await self.transport.get_overview(
-                request.actor,
-                uid,
-                credential_user_id=target_user_id,
+    @staticmethod
+    def _detail_from_payload(raw: dict[str, object]) -> _RoleDetailBundle:
+        role_raw = raw.get("role_detail")
+        sections_raw = raw.get("weapon_sections")
+        damage_raw = raw.get("damage")
+        if (
+            not isinstance(role_raw, dict)
+            or not isinstance(sections_raw, list)
+            or not isinstance(damage_raw, dict)
+        ):
+            raise ValueError("角色详情缓存结构无效")
+        sections: list[tuple[str, WeaponDetail]] = []
+        for section in sections_raw:
+            if not isinstance(section, dict):
+                raise ValueError("角色详情缓存武器结构无效")
+            label = section.get("label")
+            detail_raw = section.get("detail")
+            if not isinstance(label, str) or not isinstance(detail_raw, dict):
+                raise ValueError("角色详情缓存武器结构无效")
+            sections.append((label, WeaponDetail.model_validate(detail_raw)))
+        damage_data = damage_raw.get("data")
+        if damage_data is None:
+            damage = DamageCalculation.failure(
+                str(damage_raw.get("message") or messages.PLAYER_DAMAGE_FAILED),
             )
-        except PlayerTransportError as error:
-            return self._transport_response(error)
+        elif isinstance(damage_data, dict):
+            damage = DamageCalculation.success(DamageSnapshot.model_validate(damage_data))
+        else:
+            raise ValueError("角色详情缓存伤害结构无效")
+        return _RoleDetailBundle(
+            role_detail=RoleDetail.model_validate(role_raw),
+            weapon_sections=tuple(sections),
+            damage=damage,
+        )
 
-        char_name = str(request.parameters.get("char_name", "")).strip()
-        role = self._find_role(overview, char_name)
-        if role is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
-        if not role.unlocked or role.char_eid is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
-
-        names: list[str] = []
-        for key in ("weapon_name_1", "weapon_name_2"):
-            value = request.parameters.get(key)
-            if value is not None and str(value).strip():
-                names.append(str(value))
-        selected = self._select_weapons(overview, tuple(names))
-        if isinstance(selected, PlainTextResponse):
-            return selected
-
-        try:
-            role_detail = await self.transport.get_role_detail(
-                request.actor,
-                uid,
-                role.char_id,
-                role.char_eid,
-                credential_user_id=target_user_id,
-            )
-        except PlayerTransportError as error:
-            return self._transport_response(error)
+    async def _fetch_detail_bundle(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        role: RoleItem,
+        selected: tuple[tuple[str, WeaponItem], ...],
+    ) -> _RoleDetailBundle:
+        assert role.char_eid is not None
+        role_detail = await self.transport.get_role_detail(
+            request.actor,
+            uid,
+            role.char_id,
+            role.char_eid,
+            credential_user_id=target_user_id,
+        )
 
         weapon_sections: list[tuple[str, WeaponDetail]] = []
         if role_detail.con_weapon_id is not None and role_detail.con_weapon_eid is not None:
-            try:
-                con_weapon = await self.transport.get_weapon_detail(
-                    request.actor,
-                    uid,
-                    role_detail.con_weapon_id,
-                    role_detail.con_weapon_eid,
-                    credential_user_id=target_user_id,
-                )
-            except PlayerTransportError as error:
-                return self._transport_response(error)
+            con_weapon = await self.transport.get_weapon_detail(
+                request.actor,
+                uid,
+                role_detail.con_weapon_id,
+                role_detail.con_weapon_eid,
+                credential_user_id=target_user_id,
+            )
             weapon_sections.append(("同律武器", con_weapon))
 
         for slot, weapon in selected:
             assert weapon.weapon_eid is not None
-            try:
-                weapon_detail = await self.transport.get_weapon_detail(
-                    request.actor,
-                    uid,
-                    weapon.weapon_id,
-                    weapon.weapon_eid,
-                    credential_user_id=target_user_id,
-                )
-            except PlayerTransportError as error:
-                return self._transport_response(error)
+            weapon_detail = await self.transport.get_weapon_detail(
+                request.actor,
+                uid,
+                weapon.weapon_id,
+                weapon.weapon_eid,
+                credential_user_id=target_user_id,
+            )
             weapon_sections.append((slot, weapon_detail))
 
         try:
@@ -263,27 +533,253 @@ class PlayerService:
         if damage.data is None:
             # 任何 transport 的失败正文都不是用户可见契约，避免进入 PNG 文本元数据。
             damage = DamageCalculation.failure(messages.PLAYER_DAMAGE_FAILED)
-
-        uid_hidden = await self.privacy.is_uid_hidden(
-            target_user_id,
-            group_id=request.actor.group_id,
+        return _RoleDetailBundle(
+            role_detail=role_detail,
+            weapon_sections=tuple(weapon_sections),
+            damage=damage,
         )
+
+    async def _load_detail(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        role: RoleItem,
+        selected: tuple[tuple[str, WeaponItem], ...],
+        overview_digest: str,
+        *,
+        now: datetime,
+    ) -> _DetailState | PlainTextResponse:
+        selected_names = tuple(weapon.name for _, weapon in selected)
+        if self.cache is None:
+            try:
+                bundle = await self._fetch_detail_bundle(
+                    request,
+                    target_user_id,
+                    uid,
+                    role,
+                    selected,
+                )
+            except PlayerTransportError as error:
+                return self._transport_response(error)
+            return _DetailState(bundle, self._value_digest(self._detail_payload(bundle)))
+
+        key = self.cache.detail_data_key(
+            target_user_id,
+            uid,
+            role.char_id,
+            selected_names,
+            overview_digest,
+        )
+        lookup = await self.cache.get_data(key, now=now)
+        cached_entry = lookup.entry
+        cached_bundle: _RoleDetailBundle | None = None
+        if cached_entry is not None:
+            try:
+                cached_bundle = self._detail_from_payload(
+                    self.cache.decode_json(cached_entry.content),
+                )
+            except (KeyError, TypeError, ValueError):
+                cached_bundle = None
+        if cached_bundle is not None and lookup.status == "fresh":
+            assert cached_entry is not None
+            return _DetailState(
+                cached_bundle,
+                cached_entry.metadata.content_sha256,
+            )
+        if cached_bundle is not None and lookup.status == "stale":
+            assert cached_entry is not None
+            try:
+                bundle = await self._fetch_detail_bundle(
+                    request,
+                    target_user_id,
+                    uid,
+                    role,
+                    selected,
+                )
+            except PlayerTransportError:
+                return _DetailState(
+                    cached_bundle,
+                    cached_entry.metadata.content_sha256,
+                    stale=True,
+                )
+            if not bundle.cacheable:
+                return _DetailState(
+                    cached_bundle,
+                    cached_entry.metadata.content_sha256,
+                    stale=True,
+                )
+            metadata = await self.cache.put_data(
+                key,
+                self._detail_payload(bundle),
+                tags=self.cache.detail_data_tags(
+                    target_user_id,
+                    uid,
+                    role.char_id,
+                    overview_digest,
+                ),
+                now=now,
+            )
+            digest = metadata.content_sha256
+            return _DetailState(bundle, digest)
+
+        try:
+            bundle = await self._fetch_detail_bundle(
+                request,
+                target_user_id,
+                uid,
+                role,
+                selected,
+            )
+        except PlayerTransportError as error:
+            return self._transport_response(error)
+        if not bundle.cacheable:
+            return _DetailState(bundle, None)
+        metadata = await self.cache.put_data(
+            key,
+            self._detail_payload(bundle),
+            tags=self.cache.detail_data_tags(
+                target_user_id,
+                uid,
+                role.char_id,
+                overview_digest,
+            ),
+            now=now,
+        )
+        return _DetailState(bundle, metadata.content_sha256)
+
+    async def _render_detail(
+        self,
+        bundle: _RoleDetailBundle,
+        overview: RoleOverview,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        uid_hidden: bool,
+    ) -> ImageResponse:
         with self._renderer_context() as renderer:
-            rendered = await renderer.render_detail(
-                role_detail,
-                weapon_sections,
-                damage,
+            rendered_res = renderer.render_detail(
+                bundle.role_detail,
+                list(bundle.weapon_sections),
+                bundle.damage,
                 uid=uid,
                 uid_hidden=uid_hidden,
                 overview=overview,
                 actor=request.actor,
                 target_user_id=target_user_id,
             )
-        return ImageResponse(
-            str(rendered.path),
-            temporary=True,
-            original_image_path=rendered.original_image_path,
+            rendered = (
+                await rendered_res
+                if asyncio.iscoroutine(rendered_res)
+                else rendered_res
+            )
+        return self._response_from_rendered(rendered)
+
+    async def role_detail(self, request: PlayerCommandRequest):
+        """读取角色详情、选定武器和伤害结果后生成一张完整详情图。"""
+
+        resolved = await self._resolve_uid(request)
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        now = self._now()
+        overview_state = await self._load_overview(
+            request,
+            target_user_id,
+            uid,
+            now=now,
         )
+        if isinstance(overview_state, PlainTextResponse):
+            return overview_state
+        overview = overview_state.overview
+
+        char_name = str(request.parameters.get("char_name", "")).strip()
+        role = self._find_role(overview, char_name)
+        if role is None:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        if not role.unlocked or role.char_eid is None:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
+
+        names: list[str] = []
+        for key in ("weapon_name_1", "weapon_name_2"):
+            value = request.parameters.get(key)
+            if value is not None and str(value).strip():
+                names.append(str(value))
+        selected = self._select_weapons(overview, tuple(names))
+        if isinstance(selected, PlainTextResponse):
+            return selected
+        detail_state = await self._load_detail(
+            request,
+            target_user_id,
+            uid,
+            role,
+            selected,
+            overview_state.digest,
+            now=now,
+        )
+        if isinstance(detail_state, PlainTextResponse):
+            return detail_state
+
+        uid_hidden = await self.privacy.is_uid_hidden(
+            target_user_id,
+            group_id=request.actor.group_id,
+        )
+        resource_version = self._resource_version()
+        detail_digest = detail_state.digest
+        stale = overview_state.stale or detail_state.stale
+        card_key: str | None = None
+        if self.cache is not None and detail_digest is not None:
+            selected_names = tuple(weapon.name for _, weapon in selected)
+            card_key = self.cache.detail_card_key(
+                target_user_id,
+                uid,
+                role.char_id,
+                selected_names,
+                overview_state.digest,
+                detail_digest,
+                resource_version,
+                uid_hidden,
+            )
+            if not stale and detail_state.bundle.cacheable:
+                cached = await self._cached_card(card_key, now=now, fresh_only=True)
+                if cached is not None:
+                    return cached[1]
+            if stale:
+                cached = await self._cached_card(card_key, now=now, fresh_only=False)
+                if cached is not None:
+                    return self._stale_response(cached[1])
+
+        response = await self._render_detail(
+            detail_state.bundle,
+            overview,
+            request,
+            target_user_id,
+            uid,
+            uid_hidden,
+        )
+        if (
+            self.cache is not None
+            and card_key is not None
+            and detail_digest is not None
+            and not stale
+            and detail_state.bundle.cacheable
+        ):
+            await self._store_card(
+                card_key,
+                response,
+                tags=self.cache.detail_card_tags(
+                    target_user_id,
+                    uid,
+                    role.char_id,
+                    detail_digest,
+                    resource_version,
+                ),
+                resource_version=resource_version,
+                now=now,
+            )
+        if stale:
+            return self._stale_response(response)
+        return response
 
     async def original_image(self, _request: PlayerCommandRequest):
         """明确报告当前公开 AstrBot 结果边界不支持原图引用。"""

@@ -649,6 +649,8 @@ class RenderedPlayerImage:
     # 管理 API 会在读取 base64 后立即释放这类 renderer 生成的临时文件；
     # 非临时资源路径必须显式保持 False，避免被管理预览误删。
     temporary: bool = False
+    # 缺少角色/面板等素材时可以发送本次占位图，但不能覆盖完整卡片缓存。
+    incomplete: bool = False
 
 
 class PlayerRenderer:
@@ -712,6 +714,10 @@ class PlayerRenderer:
             sections=tuple(sections),
             temporary=True,
             original_image_path=original_image_path,
+            incomplete=any(
+                resource.get("status") == "placeholder"
+                for resource in resources
+            ),
         )
 
     async def render_overview(

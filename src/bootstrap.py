@@ -24,6 +24,7 @@ from .entry.event import EmptyEventEntryPoint, EventEntryPoint
 from .entry.lifecycle import PluginLifecycle
 from .entry.response import ResponseFactory
 from .entry.web import WebRegistrar
+from .infrastructure.cache import CacheManager
 from .infrastructure.config import DnabySettings
 from .infrastructure.http import (
     DnaApiAccountTransport,
@@ -77,6 +78,7 @@ from .modules.notices.service import NoticesService
 from .modules.operations.resource_service import ResourceUpdateService
 from .modules.operations.service import PanelService
 from .modules.player.contracts import PlayerTransport
+from .modules.player.cache import PlayerCache
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
 
@@ -171,6 +173,23 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else EncyclopediaResourceStore.from_root(resource_root)
     )
+    cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
+    player_cache = PlayerCache(
+        cache_manager,
+        runtime_database.path.parent / "rendered",
+    )
+    if services is not None:
+        if "cache_manager" in services:
+            cache_manager = cast(CacheManager, services["cache_manager"])
+        if "player_cache" in services:
+            player_cache = cast(PlayerCache, services["player_cache"])
+            if "cache_manager" not in services:
+                cache_manager = player_cache.manager
+        elif "cache_manager" in services:
+            player_cache = PlayerCache(
+                cache_manager,
+                runtime_database.path.parent / "rendered",
+            )
     player_service = PlayerService(
         runtime_database,
         player_transport or DnaApiPlayerTransport(runtime_database),
@@ -178,6 +197,7 @@ def build_runtime(
         PlayerRenderer(runtime_database.path.parent / "rendered", player_resources),
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
+        cache=player_cache,
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,
@@ -370,6 +390,8 @@ def build_runtime(
         "database": runtime_database,
         "account_service": account_service,
         "privacy_service": privacy_service,
+        "cache_manager": cache_manager,
+        "player_cache": player_cache,
         "player_service": player_service,
         "resource_root": resource_root,
         "rendered_root": runtime_database.path.parent / "rendered",
