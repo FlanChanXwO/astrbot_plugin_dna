@@ -186,3 +186,31 @@ def test_stamina_template_keeps_all_drafts_and_legacy_upward_positions(
     assert "锻造-0" in html and "锻造-11" in html
     assert "top:880px" in html
     assert "top:-220px" in html
+
+
+def test_legacy_profile_uid_stays_on_one_line(environment: Environment) -> None:
+    """legacy 资料头的长 UID 不能换行到卡片正文区域。"""
+
+    html = environment.get_template("cards/weekly_report.html.j2").render(
+        background="data:image/png;base64,AA==",
+        categories=[],
+        font="data:font/woff2;base64,AA==",
+        footer_image="data:image/png;base64,AA==",
+        header={
+            "avatar": "data:image/png;base64,AA==",
+            "avatar_frame": "data:image/png;base64,AA==",
+            "level": 60,
+            "level_background": "data:image/png;base64,AA==",
+            "name": "玩家",
+            "stats": [],
+            "stats_background": "data:image/png;base64,AA==",
+            "uid": "1234567890123",
+        },
+        header_background="data:image/png;base64,AA==",
+        height=820,
+        period="2026-01-01 ~ 2026-01-07",
+        week_label="本周周报",
+        width=1200,
+    )
+
+    assert "white-space: nowrap" in html

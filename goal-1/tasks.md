@@ -893,11 +893,38 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
   本轮未改 registry，记录为非 O22 阻塞项。
 - 下一步：O23，全量质量与视觉审计。
 
-### O23 — 全量质量与视觉审计 `[pending]`
+### O23 — 全量质量与视觉审计 `[completed]`
 
-- 运行完整 pytest、ruff、compileall 与生成物一致性检查。
-- 运行全量 adapter 模拟矩阵。
-- 打开并检查帮助、公告、角色面板、周报、占位退化和 Agent 发送图片。
+- 全量质量与生成物检查：`scripts/generate_commands_manifest.py`、
+  `scripts/generate_config_schema.py` 执行成功，`commands.json` 与 `_conf_schema.json`
+  均无 diff；`python -m compileall -q .` 和 `git diff --check` 通过。完整
+  `python -m pytest -q --tb=short` 实际结果为 `721 passed, 1 skipped, 2 failed,
+  5 warnings`（578.14s）；仅公告轮询的两个用例因测试图片域名 `cdn.test` 在当前
+  运行时经代理 TLS 连接失败而失败，日志保留了 `ConnectError` 和公告 ID，未伪造
+  成功或加入占位 fallback。完整 Ruff 复跑仍报告 13 个既有 admin/Goal 2/D03
+  导入排序、SIM102 与 RUF012 问题；本轮相关测试文件的 Ruff 检查通过，未扩大范围
+  修复其他 goal 的基线问题。
+- 先以 TDD 修正了 O23 暴露的测试契约漂移：资源仓库默认路径会沿父目录寻找实际
+  含 `resource_manifest.json` 的并列 checkout；命令 registry/manifest 的当前事实
+  数量由旧断言 `58` 同步为已核对的 `61`。资源契约、命令投影和迁移边界专项结果
+  为 `20 passed`。
+- adapter 与专项矩阵实际结果为 `136 passed, 3 failed, 1 warning`，覆盖普通用户/管理员、
+  At、隐私、cache fresh/stale/miss、不完整图片、公告多图、MH、热重载生命周期及
+  Agent Tools 重复注册；3 项仍分别是公告 `cdn.test` 图片下载和 MH T2I 返回不可解码
+  内容，业务失败路径均有显式日志。独立 Agent 图片发送模拟返回
+  `ok=true,image_sent=true`，发送 1 个 `MessageChain`，图片路径存在。
+- 实际视觉验收：由项目模板和 renderer 生成临时产物并经本机 `127.0.0.1` 静态服务
+  用 Playwright 打开检查，未把文件存在或 PIL 解码当作视觉通过。帮助卡片检查到 12
+  个分组/33 个命令项；公告详情检查到 2 张不同图片和正文排版；角色面板检查到 3
+  个区块/4 个条目；周报检查到 2 个分类/7 个资源，其中 1 个 provided、6 个
+  placeholder，空分类文案正确。检查发现长 UID 在 legacy profile pill 中换行并侵入
+  正文，已按 Red（`test_legacy_profile_uid_stays_on_one_line` 失败）→ Green
+  修复 `src/templates/cards/macros/layout.html.j2` 的 `white-space: nowrap`，相关
+  模板/卡片回归为 `9 passed`，并重新打开角色/周报固定截图确认 UID 单行且整体布局
+  无溢出。临时图片位于 `/tmp/dnaby-o23-visual/`，未写入插件运行期数据目录。
+- O23 收口：不存在本轮代码或测试契约阻塞项；剩余 pytest/Ruff 结果均已按外部服务
+  可用性或既有基线分类记录。下一步为 O24，更新最终文档并执行获授权的生产只读
+  冒烟与交付记录。
 
 ### O24 — 最终文档、生产冒烟与交付记录 `[pending]`
 

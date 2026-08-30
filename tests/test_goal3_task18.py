@@ -229,7 +229,7 @@ def test_code_entry_message_shows_present_fields_without_empty_labels() -> None:
 
 def test_alias_write_capability_and_all_projections_are_removed() -> None:
     specs = {spec.id: spec for spec in load_command_registry()}
-    assert len(specs) == 58
+    assert len(specs) == 61
     assert "alias_list" in specs
     assert "alias_all_list" in specs
     assert "alias_add_delete" not in specs

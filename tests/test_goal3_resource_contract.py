@@ -11,7 +11,19 @@ from zoneinfo import ZoneInfo
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-_DEFAULT_RESOURCE_ROOT = Path(__file__).resolve().parents[7] / "astrbot_plugin_dna_resources"
+
+def _default_resource_root() -> Path:
+    """在插件与资源仓库并列 checkout 时定位公共资源仓库。"""
+
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "astrbot_plugin_dna_resources"
+        if (candidate / "resource_manifest.json").is_file():
+            return candidate
+    # 保留缺少资源 checkout 时的明确失败路径；CI 可用环境变量覆盖它。
+    return Path(__file__).resolve().parents[5] / "astrbot_plugin_dna_resources"
+
+
+_DEFAULT_RESOURCE_ROOT = _default_resource_root()
 RESOURCE_ROOT = Path(os.environ.get("DNA_RESOURCE_REPO", _DEFAULT_RESOURCE_ROOT))
 LEGACY_FIXTURE = Path(__file__).parent / "fixtures" / "goal3_legacy_dna_codes.json"
 ALLOWED_PLATFORMS = {"pc", "android", "ios"}
