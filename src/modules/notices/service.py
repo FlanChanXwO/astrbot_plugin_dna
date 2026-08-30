@@ -8,10 +8,13 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from ...entry.event import EventActor
-from ...entry.response import ImageResponse, PlainTextResponse
+from ...entry.response import ImageResponse, MultiImageResponse, PlainTextResponse
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
-from ...infrastructure.rendering import NoticesRenderer
+from ...infrastructure.rendering import NoticesRenderer, RenderedNoticesImage
+from ...infrastructure.rendering.errors import HtmlRenderError
 from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
 from ..privacy import PrivacyService
@@ -25,7 +28,6 @@ from .contracts import (
 
 PushCallable = Callable[[str, str | Path], Awaitable[Any]]
 _MH_TYPE_KEYS = ("角色", "武器", "魔之楔")
-_ANN_LIST_LIMIT = 20
 
 
 def _mh_keys(mh_name: str, mh_type: str | None) -> list[str]:
@@ -90,6 +92,21 @@ class NoticesService:
     def _transport_response(error: NoticesTransportError) -> PlainTextResponse:
         return PlainTextResponse(messages.transport_error(error.kind), need_at=True)
 
+    @staticmethod
+    def _image_response(
+        rendered: RenderedNoticesImage
+        | list[RenderedNoticesImage]
+        | tuple[RenderedNoticesImage, ...],
+    ) -> ImageResponse | MultiImageResponse:
+        """把单页或多页渲染结果转换为统一的临时图片响应。"""
+
+        if isinstance(rendered, (list, tuple)):
+            images = tuple(
+                ImageResponse(str(page.path), temporary=True) for page in rendered
+            )
+            return MultiImageResponse(images)
+        return ImageResponse(str(rendered.path), temporary=True)
+
     async def mh(self, request: NoticeRequest):
         """读取并渲染当前小时段的密函数据。"""
 
@@ -133,15 +150,16 @@ class NoticesService:
             return PlainTextResponse(messages.ANN_LIST_FAILED, need_at=True)
 
         if not index:
-            with self._renderer_context() as renderer:
-                rendered = await renderer.render_ann_list(snapshot)
-            return ImageResponse(str(rendered.path), temporary=True)
+            try:
+                with self._renderer_context() as renderer:
+                    rendered = await renderer.render_ann_list(snapshot)
+            except (HtmlRenderError, OSError, httpx.HTTPError, ValueError):
+                return PlainTextResponse(messages.ANN_LIST_FAILED, need_at=True)
+            return self._image_response(rendered)
 
         from .ann_utils import build_index_map, resolve_index
 
-        post_map = build_index_map(
-            {"postId": post.post_id} for post in snapshot.posts[: _ANN_LIST_LIMIT]
-        )
+        post_map = build_index_map({"postId": post.post_id} for post in snapshot.posts)
         post_id = resolve_index(index, post_map)
         if post_id is None:
             return PlainTextResponse(messages.ANN_INDEX_INVALID, need_at=True)
@@ -149,9 +167,12 @@ class NoticesService:
             detail = await self.transport.get_ann_detail(post_id)
         except NoticesTransportError as error:
             return self._transport_response(error)
-        with self._renderer_context() as renderer:
-            rendered = await renderer.render_ann_detail(detail)
-        return ImageResponse(str(rendered.path), temporary=True)
+        try:
+            with self._renderer_context() as renderer:
+                rendered = await renderer.render_ann_detail(detail)
+        except (HtmlRenderError, OSError, httpx.HTTPError, ValueError):
+            return PlainTextResponse(messages.ANN_DETAIL_FAILED, need_at=True)
+        return self._image_response(rendered)
 
 
     @staticmethod

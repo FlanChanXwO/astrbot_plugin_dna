@@ -155,19 +155,24 @@ class DnaApiNoticesTransport:
 
     @staticmethod
     def _ann_detail(data: dict[str, Any], post_id: str) -> AnnDetail:
-        from ...modules.notices.ann_utils import extract_blocks, pick_subject
+        from ...modules.notices.ann_utils import extract_blocks, pick_subject, pick_time
 
-        content = data.get("postContent", [])
+        content = data.get("postContent")
+        if not isinstance(content, list) or not content:
+            raise ValueError("公告详情缺少有效正文")
         parsed = []
         for kind, value in extract_blocks(content):
             if kind == "text":
                 parsed.append(AnnBlock(kind="text", text=value))
             else:
                 parsed.append(AnnBlock(kind="image", image_url=value))
+        if not parsed:
+            raise ValueError("公告详情正文没有有效内容块")
         return AnnDetail(
             post_id=post_id,
             title=pick_subject(data),
             blocks=tuple(parsed),
+            time=pick_time(data),
         )
 
     async def get_mh(
@@ -250,7 +255,49 @@ class DnaApiNoticesTransport:
         try:
             from ...utils import dna_api
 
-            posts = await dna_api.get_ann_list(is_cache=True) or []
+            page_index = 1
+            page_size = 20
+            posts: list[dict[str, Any]] = []
+            seen_pages: set[tuple[str, ...]] = set()
+            while True:
+                response = await dna_api.get_ann_list_page(
+                    page_index=page_index,
+                    page_size=page_size,
+                )
+                data = _response_data(response, resource="公告列表")
+                if not isinstance(data, dict):
+                    raise NoticesTransportError(
+                        NoticesFailureKind.SERVER,
+                        resource="公告列表",
+                        detail="successful response has no dict data",
+                    )
+                page_posts = data.get("postList")
+                if not isinstance(page_posts, list):
+                    raise NoticesTransportError(
+                        NoticesFailureKind.SERVER,
+                        resource="公告列表",
+                        detail="successful response has no postList array",
+                    )
+                if not page_posts:
+                    break
+                if not all(isinstance(post, dict) for post in page_posts):
+                    raise NoticesTransportError(
+                        NoticesFailureKind.SERVER,
+                        resource="公告列表",
+                        detail="postList contains an invalid item",
+                    )
+                page_signature = tuple(str(post.get("postId", "")) for post in page_posts)
+                if page_signature in seen_pages:
+                    raise NoticesTransportError(
+                        NoticesFailureKind.SERVER,
+                        resource="公告列表",
+                        detail="server returned a repeated page",
+                    )
+                seen_pages.add(page_signature)
+                posts.extend(page_posts)
+                if len(page_posts) < page_size:
+                    break
+                page_index += 1
             return self._ann_snapshot(posts)
         except NoticesTransportError:
             raise
@@ -271,7 +318,14 @@ class DnaApiNoticesTransport:
                     resource="公告详情",
                     detail="successful response has no dict data",
                 )
-            return self._ann_detail(data, post_id)
+            detail = data.get("postDetail")
+            if not isinstance(detail, dict):
+                raise NoticesTransportError(
+                    NoticesFailureKind.SERVER,
+                    resource="公告详情",
+                    detail="successful response has no postDetail object",
+                )
+            return self._ann_detail(detail, post_id)
         except NoticesTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):

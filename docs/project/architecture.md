@@ -64,11 +64,15 @@
   可注入，离线测试不依赖真实时钟。
 - 通知读取：`src/modules/notices/` 通过 `NoticesTransport` 读取密函（角色/武器/魔之楔分节，
   复用 legacy `get_default_role_for_tool` 的 `instanceInfo`）、公告列表与详情（公共 BBS，
-  HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）；`NoticesRenderer` 生成 1300 宽 PNG，
-  公告图片块标记为 placeholder 资源。订阅复用 `SubscriptionStore`（密函按 user+会话、
-  公告按群聊作用域，`extra_message`/`extra_data` 存密函名称与推送时间）；`NoticesScheduler`
-  每小时推送密函、按分钟轮询公告（`AnnStateStore` 记录已知公告 id），推送经注入闭包绑定
-  `Context.send_message`，文本/图片载荷分别映射为 Plain/Image 组件。
+  HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）。公告 transport 解包 `postDetail`、完整翻页
+  并保留带 query/hash 或无扩展名的图片 URL；`NoticesRenderer` 生成 1300 宽 PNG，列表和详情
+  均按 typed snapshot 保留完整内容，详情多页通过 `MultiImageResponse` 在同一回复发送。
+  手动详情图片失败返回固定失败文案，不合成透明/深色占位图；运行期的公告源图、列表卡和详情
+  页面使用 `CacheManager` 的 `announcement` 类型，以内容 fingerprint 和 24 小时绝对保留期隔离。
+  订阅复用 `SubscriptionStore`（密函按 user+会话、公告按群聊作用域，`extra_message`/`extra_data`
+  存密函名称与推送时间）；`NoticesScheduler` 每小时推送密函、按分钟轮询公告
+  （`AnnStateStore` 记录已知公告 id），推送经注入闭包绑定 `Context.send_message`，文本/图片载荷
+  分别映射为 Plain/Image 组件。
 - 面板与资源状态：`src/modules/operations/` 管理运行期数据目录 `panel_custom/` 的自定义
   面板图（上传 WebP/sha1 去重、列表、按 ID/全部删除、压缩），原图删除因公开结果边界无
   引用缓存显式报告不支持；`resource_status` 展示公共资源仓库 manifest/必需目录与面板数量。

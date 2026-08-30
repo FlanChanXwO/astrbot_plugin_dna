@@ -97,7 +97,7 @@ def test_ann_detail_non_list_content_is_observable_structure_error() -> None:
 
     data = {"postId": "1001", "postContent": {"weird": 1}}
 
-    with pytest.raises((AttributeError, KeyError, TypeError)):
+    with pytest.raises((AttributeError, KeyError, TypeError, ValueError)):
         DnaApiNoticesTransport._ann_detail(data, "1001")
 
 

@@ -41,7 +41,20 @@ class ImageResponse:
     """素材缺失时允许本次发送，但不应作为完整卡片缓存。"""
 
 
-CommandResponse = PlainTextResponse | ChainResponse | ImageResponse
+@dataclass(frozen=True, slots=True)
+class MultiImageResponse:
+    """需要在同一条消息中连续发送的多页图片响应。"""
+
+    images: tuple[ImageResponse, ...]
+
+    def __post_init__(self) -> None:
+        if not self.images:
+            raise ValueError("多图响应至少需要一张图片")
+        if any(not isinstance(image, ImageResponse) for image in self.images):
+            raise TypeError("多图响应只能包含 ImageResponse")
+
+
+CommandResponse = PlainTextResponse | ChainResponse | ImageResponse | MultiImageResponse
 
 
 def write_temporary_image(
@@ -162,6 +175,14 @@ class ResponseFactory:
                 if self._rendered_store is not None:
                     self._rendered_store.register(path)
             return
+        if isinstance(response, MultiImageResponse):
+            for image in response.images:
+                if image.temporary:
+                    path = self._temporary_path(image.image)
+                    tracker(str(path))
+                    if self._rendered_store is not None:
+                        self._rendered_store.register(path)
+            return
         if isinstance(response, ChainResponse) and isinstance(response.components, (list, tuple)):
             for component in response.components:
                 if isinstance(component, ImageResponse) and component.temporary:
@@ -180,6 +201,8 @@ class ResponseFactory:
             return self.chain(event, response.components)
         if isinstance(response, ImageResponse):
             return self.image(event, response.image)
+        if isinstance(response, MultiImageResponse):
+            return self.chain(event, response.images)
         raise TypeError(f"未知命令响应类型: {type(response).__name__}")
 
 
@@ -187,6 +210,7 @@ __all__ = [
     "ChainResponse",
     "CommandResponse",
     "ImageResponse",
+    "MultiImageResponse",
     "PlainTextResponse",
     "ResponseFactory",
     "write_temporary_image",

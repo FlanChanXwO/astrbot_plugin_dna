@@ -117,7 +117,9 @@ JSON/目录。
 ### 共享下载器旧缓存的一次性清理
 
 从旧共享下载器迁移到 `ImageFetcher` 时，部署者可在停写、完成备份并核对目录归属后，人工清理
-以下两个旧图片缓存范围：
+以下两个旧图片缓存范围。typed 公告 renderer 的当前缓存位于
+`data/plugin_data/astrbot_plugin_dnaby/cache/announcement/`，由 `CacheManager` 按公告绝对保留期
+和租约管理，不属于下面这次 legacy 清理范围：
 
 - `data/plugin_data/astrbot_plugin_dnaby/resource/`
 - `data/plugin_data/astrbot_plugin_dnaby/other/ann_card/`

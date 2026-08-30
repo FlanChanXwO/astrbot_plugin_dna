@@ -296,22 +296,32 @@ async def test_ann_renders_list_image(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ann_detail_renders_text_and_marks_images_placeholder(tmp_path: Path) -> None:
-    """公告带序号时渲染详情，文本完整、图片块标记为 placeholder。"""
+async def test_ann_detail_image_failure_returns_fixed_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """公告详情图片失败时不生成占位图，只返回固定失败文案。"""
 
     database = await _database_with_binding(tmp_path)
     transport = FakeNoticesTransport()
     service = _service(database, transport)
 
+    from src.infrastructure.rendering import notices as notices_rendering
+
+    async def fail_image(*_: object) -> Image.Image:
+        raise OSError("image unavailable")
+
+    async def no_qr(*_: object) -> None:
+        return None
+
+    monkeypatch.setattr(notices_rendering, "_load_detail_image", fail_image)
+    monkeypatch.setattr(notices_rendering, "load_qr_code", no_qr)
+
     response = await service.ann(_request(text="公告 1", parameters={"index": "1"}))
 
-    assert isinstance(response, ImageResponse)
-    with Image.open(Path(response.image)) as image:
-        text = image.info["dnaby.text"]
-        resources = json.loads(image.info["dnaby.resources"])
-    assert "版本更新公告" in text
-    assert "新版本将于今晚更新。" in text
-    assert any(item["kind"] == "ann_image" and item["status"] == "placeholder" for item in resources)
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.ANN_DETAIL_FAILED
+    assert response.need_at is True
     await database.dispose()
 
 

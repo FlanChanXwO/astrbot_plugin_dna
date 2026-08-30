@@ -2,26 +2,27 @@
 
 from __future__ import annotations
 
+import hashlib
 import html
+import json
 import re
 import time
 from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from ...utils import dna_api
+from .contracts import AnnDetail, AnnSnapshot
 
 POST_DETAIL_URL_TPL = "https://dnabbs.yingxiong.com/pc/detail/{post_id}"
-
-LIST_DISPLAY_LIMIT = 20
 
 _HTML_BREAK_RE = re.compile(r"<br\s*/?>", flags=re.IGNORECASE)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _BLANK_LINE_RE = re.compile(r"\n{3,}")
 _RELATIVE_TIME_PARTS = ("小时前", "分钟前", "刚刚")
 _TIME_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d")
-_IMAGE_EXTS = ("jpg", "jpeg", "png", "webp")
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 
 
@@ -31,7 +32,9 @@ def _parse_local_time(text: str, fmt: str) -> datetime:
 
 
 async def fetch_ann_list(*, prefer_cache: bool = True) -> list[dict[str, Any]]:
-    return await dna_api.get_ann_list(is_cache=prefer_cache) or []
+    # 保留参数以兼容 legacy 绘制入口；公告列表不再接受无 TTL 进程缓存。
+    del prefer_cache
+    return await dna_api.get_ann_list(is_cache=False) or []
 
 
 def build_index_map(posts: Iterable[dict[str, Any]]) -> dict[int, dict[str, Any]]:
@@ -109,6 +112,15 @@ def normalize_text(text: str) -> str:
     return raw.strip()
 
 
+def _is_image_url(value: object) -> bool:
+    """接受 CDN 无扩展名 URL，同时拒绝本地路径和非 HTTP(S) 伪 URL。"""
+
+    if not isinstance(value, str) or not value.strip():
+        return False
+    parsed = urlsplit(value.strip())
+    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+
+
 def extract_blocks(post_content: list[dict[str, Any]]) -> list[tuple[str, str]]:
     blocks: list[tuple[str, str]] = []
     for item in post_content or []:
@@ -121,31 +133,31 @@ def extract_blocks(post_content: list[dict[str, Any]]) -> list[tuple[str, str]]:
                     blocks.append(("text", stripped))
         elif kind == 2:
             url = (item.get("url") or "").strip()
-            if url.lower().endswith(_IMAGE_EXTS):
+            if _is_image_url(url):
                 blocks.append(("image", url))
         elif kind == 5:
             video = item.get("contentVideo") or {}
             cover = (video.get("coverUrl") or "").strip()
-            if cover.lower().endswith(_IMAGE_EXTS):
+            if _is_image_url(cover):
                 blocks.append(("image", cover))
     return blocks
 
 
 def pick_preview(post: dict[str, Any]) -> str:
     cover = (post.get("postCover") or "").strip()
-    if cover.lower().endswith(_IMAGE_EXTS):
+    if _is_image_url(cover):
         return cover
     video = post.get("videoContent") or {}
     if isinstance(video, dict):
         video_cover = (video.get("coverUrl") or "").strip()
-        if video_cover.lower().endswith(_IMAGE_EXTS):
+        if _is_image_url(video_cover):
             return video_cover
     images = post.get("imgContent") or []
     if isinstance(images, list):
         for entry in images:
             if isinstance(entry, dict):
                 url = (entry.get("url") or "").strip()
-                if url.lower().endswith(_IMAGE_EXTS):
+                if _is_image_url(url):
                     return url
     return ""
 
@@ -158,7 +170,7 @@ def pick_subject(post: dict[str, Any]) -> str:
     if isinstance(content, str):
         text = normalize_text(content)
         if text:
-            return text.splitlines()[0][:40]
+            return text.splitlines()[0]
     return f"#{post.get('postId', '')}"
 
 
@@ -168,3 +180,45 @@ def pick_time(post: dict[str, Any]) -> str:
         return show
     raw = post.get("postTime") or post.get("createTime")
     return format_post_time(raw) if raw else ""
+
+
+def announcement_fingerprint(value: AnnSnapshot | AnnDetail) -> str:
+    """按完整公告内容生成稳定摘要，用于内容变化时提前切换缓存键。"""
+
+    if isinstance(value, AnnSnapshot):
+        payload: dict[str, object] = {
+            "kind": "list",
+            "posts": [
+                {
+                    "post_id": post.post_id,
+                    "title": post.title,
+                    "time": post.time,
+                    "preview": post.preview,
+                }
+                for post in value.posts
+            ],
+        }
+    elif isinstance(value, AnnDetail):
+        payload = {
+            "kind": "detail",
+            "post_id": value.post_id,
+            "title": value.title,
+            "time": value.time,
+            "blocks": [
+                {
+                    "kind": block.kind,
+                    "text": block.text,
+                    "image_url": block.image_url,
+                }
+                for block in value.blocks
+            ],
+        }
+    else:
+        raise TypeError("公告 fingerprint 只接受列表或详情快照")
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()

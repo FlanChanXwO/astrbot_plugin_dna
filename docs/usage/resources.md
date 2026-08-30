@@ -94,7 +94,8 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 - `dnaby.sqlite3` — SQLAlchemy 2 async 数据库（账号绑定、凭据、隐私、签到记录）。
 - `subscriptions.json` — 订阅存储；`ann_state.json` — 公告轮询已知 id。
 - `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json` — 角色自定义别名覆盖层。
-- `cache/` — 玩家数据 JSON 与完整 PNG 卡片缓存；缓存 key 和身份 tag 只保存 SHA-256 摘要。
+- `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，
+  缓存 key 和身份 tag 只保存 SHA-256 摘要。
 - `rendered/` — 玩家/资料/通知 renderer 生成的临时 PNG。
 - `panel_custom/` — admin 上传的自定义面板图（WebP，按内容 sha1 去重）；它是本地数据
   目录，与资源仓库的 `panel/`（只读原始面板）分离。
@@ -126,13 +127,28 @@ O11 新增三条玩家缓存操作：普通用户可用 `刷新<角色名>面板
 周期；若该配置为合法的 `0`（所有缓存立即视为 stale），则复用硬保留期作为扫描周期，避免零秒
 忙循环，不增加无产品语义的固定间隔配置。
 
+## 公告列表、详情与缓存
+
+公告列表由 `NoticesTransport` 按服务端分页读取，不设前 20 条的展示上限；详情响应在 transport
+边界解包 `postDetail`，缺少有效 `postContent` 时显式失败。公告正文保留所有文本和图片块，
+图片 URL 不因 query/hash 或无扩展名而被过滤；详情渲染产生多页时由 `MultiImageResponse` 在同一
+条回复中发送。
+
+运行期 `cache/announcement/` 使用统一 `CacheManager`：列表卡、详情页、详情 manifest 和已
+通过解码校验的源图均按 `announcement` 类型保存，绝对保留期默认 24 小时。列表或详情内容的
+SHA-256 fingerprint 纳入缓存 key，上游内容变化会自然 miss；详情任一正文图片或渲染步骤失败时，
+完整卡片和 manifest 不会写入，手动查询返回固定失败文案且不生成占位图。自动订阅的失败目标
+投递与状态迁移仍由 O12-A 处理。
+
 ## 图片下载与资源分层
 
 公共基础资源与运行期补充资源是两个边界：`resources/` Git 增量缓存和
 `resource_generations/<commit-sha>/` 只接收公共仓库 `main` 的已校验内容；legacy 兼容图片目录
 `resource/{avatar,weapon,paint,skill,attr,mod,weapon_attr,weekly_item}/` 以及
 `other/ann_card/`、`other/sign/`、`other/calendar/` 是插件数据目录内的运行期缓存或补充资源，
-不属于公共资源仓库，也不会被上传或提交。`panel_custom/` 继续由面板服务独立维护。
+不属于公共资源仓库，也不会被上传或提交。typed 公告 renderer 使用统一的
+`cache/announcement/` 保存已校验源图、列表卡和详情页；上述 legacy 目录只为旧的直接调用路径
+保留。`panel_custom/` 继续由面板服务独立维护。
 
 `ImageFetcher` 是共享图片下载边界。调用方必须把目标限制在上述运行期目录；它会对已有文件做
 PIL 完整解码校验，下载先写同目录临时文件，校验通过后才原子替换。连接/超时、429 和 5xx

@@ -87,7 +87,6 @@ class DNARequestError(RuntimeError):
 
 class DNAApi:
     ssl_verify = True
-    ann_list_data: ClassVar[list[Any]] = []
     _sessions: ClassVar[dict[str, aiohttp.ClientSession]] = {}
     _session_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
 
@@ -848,21 +847,29 @@ class DNAApi:
         )
         return await self._dna_request(REPLY_POST_URL, "POST", headers, data=payload)
 
-    async def get_ann_list(self, is_cache: bool = False):
-        if is_cache and self.ann_list_data:
-            return self.ann_list_data
+    async def get_ann_list_page(self, *, page_index: int = 1, page_size: int = 20):
+        """读取公告列表的一页；调用方负责根据服务端结果继续翻页。"""
 
+        if page_index < 1 or page_size < 1:
+            raise ValueError("公告分页参数必须为正数")
         headers = await get_base_header(dev_code=get_dev_code())
         data = {
             "otherUserId": "709542994134436647",
             "searchType": 1,
             "type": 2,
+            "pageIndex": page_index,
+            "pageSize": page_size,
         }
-        res = await self._dna_request(ANN_LIST_URL, "POST", headers, data=data)
+        return await self._dna_request(ANN_LIST_URL, "POST", headers, data=data)
+
+    async def get_ann_list(self, is_cache: bool = False):
+        """兼容 legacy 调用形状，但不再读取或写入进程级公告缓存。"""
+
+        del is_cache
+        res = await self.get_ann_list_page()
         if res.is_success and isinstance(res.data, dict):
-            # 公告缓存由所有 DNAApi 调用方共享，显式按类属性写回以保持 ClassVar 语义。
-            DNAApi.ann_list_data = res.data.get("postList", [])
-        return self.ann_list_data
+            return res.data.get("postList", [])
+        return []
 
     async def get_calendar_info(self):
         headers = await get_base_header(is_h5=True, is_need_origin=True, is_need_refer=True)

@@ -59,9 +59,12 @@ ruff check .
   [offline-write-contracts](../porting/offline-write-contracts.md)）。
 - `test_notices.py` — 密函/公告读取 fixture、1300 宽 PNG、公告序号详情、空数据与
   transport 失败脱敏。
+- `test_goal1_o12_announcements.py` — 公告 `postDetail` 解包、空正文拒绝、完整分页、序号索引、
+  query/hash/无扩展名图片 URL、多页 `MultiImageResponse`、列表/详情失败文案、完整缓存与
+  fingerprint 失效、源图校验缓存和列表模板无无依据截断。
 - `test_notices_commands.py` — 密函/公告命令归属、正则命名参数与生成 handler 边界。
 - `test_notices_transport.py` — legacy 密函 `instanceInfo`、公告列表/详情映射与错误脱敏；
-  覆盖网络失败/状态码错误/页面结构变化三类可观测错误，并断言 Cookie/token 原文不进异常。
+  覆盖网络失败/状态码错误/页面结构变化/空正文四类可观测错误，并断言 Cookie/token 原文不进异常。
 - `test_notices_subscriptions.py` — 密函订阅增删/去重/推送时间、图片/文本会话开关、公告
   群订阅、计划任务文本/图片推送与公告轮询去重。
 - `test_notices_scheduler.py` — 通知计划任务幂等 start/stop 与配置解析。
