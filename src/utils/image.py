@@ -93,6 +93,21 @@ def _normalize_paint_img(image: Image.Image) -> Image.Image:
     )
 
 
+def _load_cached_image(path: Path) -> Image.Image | None:
+    """只读取受控目录中的完整图片，拒绝损坏文件和符号链接。"""
+
+    if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
+        return None
+    try:
+        with Image.open(path) as image:
+            image.verify()
+        with Image.open(path) as image:
+            image.load()
+            return image.convert("RGBA")
+    except (OSError, SyntaxError, ValueError):
+        return None
+
+
 def get_dna_bg(w: int, h: int, bg: str = "bg") -> Image.Image:
     img = Image.open(TEXT_PATH / f"{bg}.jpg").convert("RGBA")
     return crop_center_img(img, w, h)
@@ -138,10 +153,11 @@ async def get_skill_img(char_id: str | int, skill_name: str, pic_url: str | None
     skill_path = char_skill_dir / name
     if pic_url and not await _download_optional_image(char_skill_dir, name, pic_url):
         return Image.new("RGBA", (128, 128))
-    if not skill_path.exists():
+    image = _load_cached_image(skill_path)
+    if image is None:
         return Image.new("RGBA", (128, 128))
 
-    return Image.open(skill_path).convert("RGBA")
+    return image
 
 
 async def get_avatar_img(char_id: str | int, pic_url: str | None = None) -> Image.Image:
@@ -152,10 +168,11 @@ async def get_avatar_img(char_id: str | int, pic_url: str | None = None) -> Imag
     avatar_path = char_avatar_dir / name
     if pic_url and not await _download_optional_image(char_avatar_dir, name, pic_url):
         return Image.new("RGBA", (256, 256))
-    if not avatar_path.exists():
+    image = _load_cached_image(avatar_path)
+    if image is None:
         return Image.new("RGBA", (256, 256))
 
-    return Image.open(avatar_path).convert("RGBA")
+    return image
 
 
 async def get_weapon_img(weapon_id: str | int, pic_url: str | None = None) -> Image.Image:
@@ -166,10 +183,11 @@ async def get_weapon_img(weapon_id: str | int, pic_url: str | None = None) -> Im
     weapon_path = weapon_dir / name
     if pic_url and not await _download_optional_image(weapon_dir, name, pic_url):
         return Image.new("RGBA", (256, 256))
-    if not weapon_path.exists():
+    image = _load_cached_image(weapon_path)
+    if image is None:
         return Image.new("RGBA", (256, 256))
 
-    return Image.open(weapon_path).resize((256, 256)).convert("RGBA")
+    return image.resize((256, 256))
 
 
 async def get_attr_img(attr_id: str | int | None = None, pic_url: str | None = None) -> Image.Image:
@@ -186,10 +204,11 @@ async def get_attr_img(attr_id: str | int | None = None, pic_url: str | None = N
     attr_path = attr_dir / name
     if pic_url and not await _download_optional_image(attr_dir, name, pic_url):
         return Image.new("RGBA", (128, 128))
-    if not attr_path.exists():
+    image = _load_cached_image(attr_path)
+    if image is None:
         return Image.new("RGBA", (128, 128))
 
-    return Image.open(attr_path).convert("RGBA")
+    return image
 
 
 async def get_weapon_attr_img(attr_id: str | int | None = None, pic_url: str | None = None) -> Image.Image:
@@ -206,10 +225,11 @@ async def get_weapon_attr_img(attr_id: str | int | None = None, pic_url: str | N
     attr_path = attr_dir / name
     if pic_url and not await _download_optional_image(attr_dir, name, pic_url):
         return Image.new("RGBA", (128, 128))
-    if not attr_path.exists():
+    image = _load_cached_image(attr_path)
+    if image is None:
         return Image.new("RGBA", (128, 128))
 
-    return Image.open(attr_path).convert("RGBA")
+    return image
 
 
 async def get_paint_img(char_id: str | int, pic_url: str | None = None) -> Image.Image:
@@ -220,11 +240,11 @@ async def get_paint_img(char_id: str | int, pic_url: str | None = None) -> Image
     paint_path = paint_dir / name
     if pic_url and not await _download_optional_image(paint_dir, name, pic_url):
         return Image.new("RGBA", (1320, 1320))
-    if not paint_path.exists():
+    image = _load_cached_image(paint_path)
+    if image is None:
         return Image.new("RGBA", (1320, 1320))
 
-    with Image.open(paint_path) as image:
-        return _normalize_paint_img(image.convert("RGBA"))
+    return _normalize_paint_img(image)
 
 
 def get_role_panel_img(char_id: str | int) -> tuple[Path, Image.Image] | None:
@@ -252,10 +272,11 @@ async def get_mod_img(mod_id: str | int, pic_url: str | None = None) -> Image.Im
     mod_path = mod_dir / name
     if pic_url and not await _download_optional_image(mod_dir, name, pic_url):
         return Image.new("RGBA", (256, 256))
-    if not mod_path.exists():
+    image = _load_cached_image(mod_path)
+    if image is None:
         return Image.new("RGBA", (256, 256))
 
-    return Image.open(mod_path).convert("RGBA")
+    return image
 
 
 def get_grade_img(grade_level: int) -> Image.Image:

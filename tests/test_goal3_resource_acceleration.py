@@ -10,7 +10,6 @@ from typing import cast
 
 import pytest
 from pydantic import ValidationError
-
 from src.bootstrap import build_runtime
 from src.infrastructure.config import (
     DnabySettings,
@@ -145,6 +144,7 @@ def test_custom_acceleration_url_rejects_unsafe_values_without_echoing_input(
 def test_resource_schema_projects_acceleration_group() -> None:
     schema = generate_astrbot_schema()
     assert set(schema) == {
+        "cache",
         "login",
         "network",
         "sign_in",

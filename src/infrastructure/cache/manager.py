@@ -135,7 +135,8 @@ class CacheManager:
         root: str | Path,
         settings: CacheSettings | None = None,
     ) -> None:
-        self.root = Path(root).expanduser().resolve()
+        # 保留根目录自身的符号链接状态，避免 resolve() 把写入边界解析到缓存根目录之外。
+        self.root = Path(root).expanduser().absolute()
         self.settings = settings or CacheSettings()
         self._lock = asyncio.Lock()
 
@@ -166,6 +167,41 @@ class CacheManager:
         digest = self.key_digest(key)
         directory = self.root / cache_type
         return directory / f"{digest}.data", directory / f"{digest}.meta.json"
+
+    def _entry_path_is_unsafe(
+        self,
+        data_path: Path,
+        metadata_path: Path,
+    ) -> bool:
+        """拒绝沿缓存根、类型目录或条目文件的符号链接读写。"""
+
+        return any(
+            path.is_symlink()
+            for path in (
+                self.root,
+                data_path.parent,
+                data_path,
+                metadata_path,
+            )
+        )
+
+    def _ensure_cache_directory(self, directory: Path) -> None:
+        """创建缓存目录，并在写入前确认目录没有越过运行期根目录。"""
+
+        if self.root.is_symlink() or (
+            self.root.exists() and not self.root.is_dir()
+        ):
+            raise CacheMetadataError("缓存目录路径不安全")
+        self.root.mkdir(parents=True, exist_ok=True)
+        if self.root.is_symlink() or not self.root.is_dir():
+            raise CacheMetadataError("缓存目录路径不安全")
+        if directory.is_symlink() or (
+            directory.exists() and not directory.is_dir()
+        ):
+            raise CacheMetadataError("缓存目录路径不安全")
+        directory.mkdir(parents=True, exist_ok=True)
+        if directory.is_symlink() or not directory.is_dir():
+            raise CacheMetadataError("缓存目录路径不安全")
 
     @staticmethod
     def _normalize_now(now: datetime | None) -> datetime:
@@ -243,6 +279,9 @@ class CacheManager:
         normalized_tags = self._normalize_tags(tags)
         data_path, metadata_path = self._paths(cache_type, key)
         async with self._lock:
+            self._ensure_cache_directory(data_path.parent)
+            if data_path.is_symlink() or metadata_path.is_symlink():
+                raise CacheMetadataError("已有缓存路径不安全")
             lease_count = 0
             if metadata_path.exists():
                 try:
@@ -290,6 +329,8 @@ class CacheManager:
         normalized_now = self._normalize_now(now)
         data_path, metadata_path = self._paths(cache_type, key)
         async with self._lock:
+            if self._entry_path_is_unsafe(data_path, metadata_path):
+                return CacheLookup("miss", reason="unsafe_path")
             if not data_path.is_file() or not metadata_path.is_file():
                 return CacheLookup("miss", reason="not_found")
             try:
@@ -342,6 +383,8 @@ class CacheManager:
         normalized_now = self._normalize_now(now)
         data_path, metadata_path = self._paths(cache_type, key)
         async with self._lock:
+            if self._entry_path_is_unsafe(data_path, metadata_path):
+                raise CacheMissError("缓存条目路径不安全")
             if not data_path.is_file() or not metadata_path.is_file():
                 raise CacheMissError("缓存条目不存在")
             try:
@@ -390,7 +433,7 @@ class CacheManager:
             yield entry
         finally:
             async with self._lock:
-                if metadata_path.is_file():
+                if not self._entry_path_is_unsafe(data_path, metadata_path) and metadata_path.is_file():
                     current = self._read_metadata(metadata_path)
                     if current.lease_count > 0:
                         self._atomic_write(
@@ -409,7 +452,7 @@ class CacheManager:
 
         normalized_now = self._normalize_now(now)
         async with self._lock:
-            if not self.root.is_dir():
+            if self.root.is_symlink() or not self.root.is_dir():
                 return 0
             removed = 0
             metadata_paths = sorted(self.root.rglob("*.meta.json"))
@@ -417,6 +460,12 @@ class CacheManager:
                 data_path = metadata_path.with_name(
                     f"{metadata_path.name.removesuffix('.meta.json')}.data"
                 )
+                if (
+                    metadata_path.is_symlink()
+                    or data_path.is_symlink()
+                    or metadata_path.parent.is_symlink()
+                ):
+                    continue
                 try:
                     metadata = self._read_metadata(metadata_path)
                 except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError):
@@ -440,6 +489,8 @@ class CacheManager:
                 metadata_path = data_path.with_name(
                     f"{data_path.name.removesuffix('.data')}.meta.json"
                 )
+                if data_path.is_symlink() or data_path.parent.is_symlink():
+                    continue
                 if not metadata_path.exists() and (
                     data_path.exists() or data_path.is_symlink()
                 ):

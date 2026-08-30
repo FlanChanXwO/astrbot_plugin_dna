@@ -209,7 +209,11 @@ class ImageFetcher:
 
     @staticmethod
     def _write_atomically(target: Path, content: bytes) -> None:
+        if target.parent.is_symlink():
+            raise ImageFetchError("图片缓存目录不能是符号链接")
         target.parent.mkdir(parents=True, exist_ok=True)
+        if target.parent.is_symlink():
+            raise ImageFetchError("图片缓存目录不能是符号链接")
         temporary_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -287,12 +291,23 @@ _DEFAULT_IMAGE_FETCHER = ImageFetcher()
 def _resolve_download_target(path: Path, name: str) -> Path:
     """解析兼容入口的目标，拒绝通过文件名越出调用方缓存目录。"""
 
+    if path.is_symlink():
+        raise ImageFetchError("图片缓存目录不能是符号链接")
     base = path.resolve()
     target = path / name
     try:
         target.resolve().relative_to(base)
     except ValueError as exc:
         raise ImageFetchError("图片缓存目标必须位于指定目录内") from exc
+    try:
+        relative_parts = target.relative_to(path).parts
+    except ValueError as exc:
+        raise ImageFetchError("图片缓存目标必须位于指定目录内") from exc
+    cursor = path
+    for component in relative_parts[:-1]:
+        cursor /= component
+        if cursor.is_symlink():
+            raise ImageFetchError("图片缓存目录不能是符号链接")
     return target
 
 

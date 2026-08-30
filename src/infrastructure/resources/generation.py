@@ -401,8 +401,9 @@ class ResourceSnapshotCoordinator:
         runner: GitRunner = run_git,
         validator: ResourceGenerationValidator | None = None,
     ) -> None:
-        self.repository = Path(repository).expanduser().resolve()
-        self.generations_root = Path(generations_root).expanduser().resolve()
+        # 保留运行期目录的符号链接状态，防止 resolve() 把资源写到边界之外。
+        self.repository = Path(repository).expanduser().absolute()
+        self.generations_root = Path(generations_root).expanduser().absolute()
         self.state_path = self.generations_root / "current.json"
         self.remote = remote
         self.acceleration_prefix = acceleration_prefix
@@ -413,6 +414,18 @@ class ResourceSnapshotCoordinator:
         self._leases: dict[str, int] = {}
         self._retired: set[str] = set()
         self._listeners: list[SnapshotListener] = []
+
+    def _ensure_storage_roots(self, *, require_repository: bool = False) -> None:
+        """确认资源 checkout 与 generation 根目录没有通过符号链接越界。"""
+
+        if self.generations_root.is_symlink():
+            raise ResourceGenerationError("资源 generation 根目录不允许符号链接")
+        if self.generations_root.exists() and not self.generations_root.is_dir():
+            raise ResourceGenerationError("资源 generation 根目录不是目录")
+        if self.repository.is_symlink():
+            raise ResourceGenerationError("资源仓库目录不允许符号链接")
+        if require_repository and self.repository.exists() and not self.repository.is_dir():
+            raise ResourceGenerationError("资源仓库目录不是目录")
 
     @property
     def current_snapshot(self) -> ResourceSnapshot | None:
@@ -433,6 +446,8 @@ class ResourceSnapshotCoordinator:
         return unsubscribe
 
     def _read_generation_pointer(self) -> tuple[str | None, str | None]:
+        if self.state_path.is_symlink():
+            raise ResourceGenerationError("当前资源 generation 指针不允许符号链接")
         if not self.state_path.exists():
             return None, None
         try:
@@ -485,7 +500,9 @@ class ResourceSnapshotCoordinator:
         """读取当前指针并清理重启后没有 lease 的孤立 generation。"""
 
         with self._lock:
+            self._ensure_storage_roots()
             self.generations_root.mkdir(parents=True, exist_ok=True)
+            self._ensure_storage_roots()
             generation, expected_content_sha256 = self._read_generation_pointer()
             if generation is None:
                 self._current = None
@@ -573,6 +590,9 @@ class ResourceSnapshotCoordinator:
             self._retired.remove(commit_sha)
 
     def _write_state(self, snapshot: ResourceSnapshot) -> None:
+        self._ensure_storage_roots()
+        if self.state_path.is_symlink():
+            raise ResourceGenerationError("当前资源 generation 指针不允许符号链接")
         temporary = self.generations_root / f".current-{uuid4().hex}.tmp"
         try:
             temporary.write_text(
@@ -602,7 +622,9 @@ class ResourceSnapshotCoordinator:
         self._collect_retired()
 
     def _materialize(self, synchronizer: ResourceSynchronizer, commit_sha: str) -> ResourceSnapshot:
+        self._ensure_storage_roots()
         self.generations_root.mkdir(parents=True, exist_ok=True)
+        self._ensure_storage_roots()
         candidate = self.generations_root / f".candidate-{uuid4().hex}"
         archive = self.generations_root / f".archive-{uuid4().hex}.tar"
         try:
@@ -632,6 +654,7 @@ class ResourceSnapshotCoordinator:
         """同步 cache、验证 FETCH_HEAD 候选并原子发布新快照。"""
 
         with self._lock:
+            self._ensure_storage_roots(require_repository=True)
             synchronizer = ResourceSynchronizer(
                 self.repository,
                 remote=self.remote,

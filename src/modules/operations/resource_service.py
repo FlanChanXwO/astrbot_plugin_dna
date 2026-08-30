@@ -83,6 +83,8 @@ class ResourceUpdateService:
             task = self._inflight
             if task is None or task.done():
                 task = asyncio.create_task(asyncio.to_thread(self.synchronize))
+                # 等待者全部取消后仍需消费线程任务的异常，避免 asyncio 只报未观察异常。
+                task.add_done_callback(self._observe_sync_task)
                 self._inflight = task
         try:
             return await asyncio.shield(task)
@@ -91,6 +93,19 @@ class ResourceUpdateService:
                 async with self._flight_lock:
                     if self._inflight is task:
                         self._inflight = None
+
+    @staticmethod
+    def _observe_sync_task(task: asyncio.Task[ResourceSyncResult]) -> None:
+        """观察取消等待者后仍在运行的同步任务，并保留真实失败日志。"""
+
+        if task.cancelled():
+            return
+        try:
+            error = task.exception()
+        except asyncio.CancelledError:
+            return
+        if error is not None:
+            logger.warning(f"[dnaby][resources] 共享资源同步任务失败: {error}")
 
     async def start_preheat(self) -> None:
         """启动非阻塞资源预热；已有预热或同步任务时不重复发起。"""

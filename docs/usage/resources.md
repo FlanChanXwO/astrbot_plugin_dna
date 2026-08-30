@@ -6,6 +6,9 @@
 `resource_generations/<commit-sha>/`，当前 generation 由 `resource_generations/current.json`
 原子指针标识。
 
+资源 checkout、generation 根目录和当前指针都必须是运行期数据目录中的普通路径；检测到根目录、
+generation、指针或图片缓存目录/文件是符号链接时会显式失败，不跟随链接读写目录外内容。
+
 资源内容由公共 Git 仓库 `FlanChanXwO/astrbot_plugin_dna_resources` 提供。仓库根目录必须有：
 
 ```json
@@ -111,7 +114,7 @@ AstrBot 当前事件的临时文件生命周期清理。generation 内的 `panel
 PIL 完整解码校验，下载先写同目录临时文件，校验通过后才原子替换。连接/超时、429 和 5xx
 按 1 秒、2 秒退避重试并遵循 `Retry-After`；404、鉴权失败、空响应和非图片响应直接失败。
 失败不会生成透明假图、空文件或伪成功路径，同一 URL/目标的并发请求共享一次下载。失败日志不
-记录完整 URL、响应正文或凭据。
+记录完整 URL、响应正文或凭据；缓存根、子目录和目标文件的符号链接也不会被复用或写入。
 
 账号相关的私有补充资源只能落在插件运行期数据目录，不能复制到公共资源 checkout、manifest
 或 generation；公共资源仓库不得保存 Cookie、token、签名 URL、SQLite、订阅和其他账号状态。
