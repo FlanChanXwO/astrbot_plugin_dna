@@ -187,6 +187,27 @@ async def test_sign_tool_uses_current_active_uid_and_dedupes_same_message(
 
 
 @pytest.mark.asyncio
+async def test_sign_tool_dedupes_same_event_across_wrapper_instances() -> None:
+    class CountingService:
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        async def manual_sign(self, request: object) -> PlainTextResponse:
+            self.calls.append(request)
+            return PlainTextResponse("签到完成")
+
+    service = CountingService()
+    tool = AgentSignTool(checkin_service=service)
+    event = FakeEvent(message_id="same-message")
+
+    first = await tool.call(_agent_wrapper(event))
+    second = await tool.call(_agent_wrapper(event))
+
+    assert second == first
+    assert len(service.calls) == 1
+
+
+@pytest.mark.asyncio
 async def test_sign_tool_rejects_model_confirmation_target_and_missing_message_id() -> None:
     class CountingService:
         def __init__(self) -> None:

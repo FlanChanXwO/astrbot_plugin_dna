@@ -105,9 +105,10 @@ def _response_data(response: object) -> object:
     if isinstance(response, PlainTextResponse):
         return {"type": "text", "text": response.text}
     if isinstance(response, ImageResponse):
+        image_available = Path(str(response.image)).is_file()
         return {
             "type": "image",
-            "available": True,
+            "available": image_available,
             "incomplete": response.incomplete,
         }
     if isinstance(response, MultiImageResponse):
@@ -136,6 +137,8 @@ def _response_components(response: object) -> tuple[list[Any], bool]:
     if isinstance(response, PlainTextResponse):
         return [AstrPlain(response.text)], False
     if isinstance(response, ImageResponse):
+        if not Path(str(response.image)).is_file():
+            raise ValueError("图片文件不可用")
         return [AstrImage.fromFileSystem(str(response.image))], True
     if isinstance(response, MultiImageResponse):
         components: list[Any] = []
@@ -261,7 +264,22 @@ class AgentQueryTool(FunctionTool):
                 )
             )
 
-        result = await self.catalog.execute(self.query_name, request)
+        try:
+            result = await self.catalog.execute(self.query_name, request)
+        except Exception as error:  # noqa: BLE001
+            # Agent 框架会把未处理异常和 traceback 回传给模型；这里只记录类型，
+            # 对外保持固定 envelope，避免暴露本地路径、内部 URL 或实现细节。
+            logger.warning(
+                "[dnaby][agent_tools] 查询执行失败: %s (%s)",
+                self.query_name,
+                type(error).__name__,
+            )
+            return _result_json(
+                AgentQueryResult.failure(
+                    kind=self.query_name,
+                    error="查询执行失败",
+                )
+            )
         if not raw_send_image or not result.ok:
             return _result_json(result)
 

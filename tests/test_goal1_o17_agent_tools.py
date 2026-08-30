@@ -13,13 +13,14 @@ from pydantic import BaseModel
 
 from src.entry.agent_tools.tools import (
     AGENT_TOOL_NAMES,
+    AgentQueryTool,
     _json_value,
     build_agent_tools,
     register_agent_tools,
 )
 from src.entry.event import EventActor
 from src.entry.response import ImageResponse, PlainTextResponse
-from src.modules.agent_tools.queries import build_query_catalog
+from src.modules.agent_tools.queries import AgentQueryCatalog, build_query_catalog
 
 
 class FakeEvent:
@@ -270,6 +271,64 @@ async def test_send_image_failure_is_explicit_and_never_success(tmp_path: Path) 
     assert payload["data"] == {"image_sent": False}
     assert payload["error"]
     assert str(image_path) not in json.dumps(payload, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_missing_image_file_is_not_reported_available_or_sent(tmp_path: Path) -> None:
+    image_path = tmp_path / "missing-rendered.png"
+    event = FakeEvent()
+    tool = next(
+        tool
+        for tool in build_agent_tools(services=_services(FakePlayerService(image_path)))
+        if tool.name == "dnaby_player_overview"
+    )
+
+    default_payload = json.loads(await tool.call(_agent_wrapper(event)))
+    assert default_payload["data"] == {
+        "type": "image",
+        "available": False,
+        "incomplete": False,
+    }
+    assert str(image_path) not in json.dumps(default_payload, ensure_ascii=False)
+
+    send_payload = json.loads(
+        await tool.call(_agent_wrapper(event), send_image=True),
+    )
+    assert send_payload == {
+        "ok": False,
+        "kind": "player_overview",
+        "data": {"image_sent": False},
+        "cache": None,
+        "error": "图片响应不可发送",
+    }
+    assert event.sent == []
+    assert str(image_path) not in json.dumps(send_payload, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_query_failure_returns_safe_json_instead_of_leaking_exception() -> None:
+    async def failing_query(_request: object) -> object:
+        raise RuntimeError("/private/rendered/token.png upstream=https://internal.invalid")
+
+    tool = AgentQueryTool(
+        name="dnaby_failing_query",
+        query_name="failing_query",
+        description="测试异常边界",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        catalog=AgentQueryCatalog({"failing_query": failing_query}),
+    )
+
+    payload = json.loads(await tool.call(_agent_wrapper()))
+
+    assert payload == {
+        "ok": False,
+        "kind": "failing_query",
+        "data": None,
+        "cache": None,
+        "error": "查询执行失败",
+    }
+    assert "/private/rendered/token.png" not in json.dumps(payload, ensure_ascii=False)
+    assert "internal.invalid" not in json.dumps(payload, ensure_ascii=False)
 
 
 @pytest.mark.asyncio
