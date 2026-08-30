@@ -256,20 +256,23 @@ class SignInSettings(_SettingsModel):
     @field_validator("sign_time", mode="before")
     @classmethod
     def _validate_sign_time(cls, value: Any) -> str:
+        # 显式配置错误必须在启动边界暴露，不能静默落到签到默认时间。
         if isinstance(value, str):
             parts = value.strip().split(":")
             if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
                 hour, minute = int(parts[0]), int(parts[1])
-                if 0 <= hour <= 23 and 0 <= minute <= 59:
-                    return f"{hour:02d}:{minute:02d}"
+            else:
+                raise ValueError("sign_time 必须为有效的 HH:mm 时间")
         elif isinstance(value, (tuple, list)) and len(value) == 2:
             try:
                 hour, minute = int(value[0]), int(value[1])
-                if 0 <= hour <= 23 and 0 <= minute <= 59:
-                    return f"{hour:02d}:{minute:02d}"
-            except (ValueError, TypeError):
-                pass
-        return "00:05"
+            except (ValueError, TypeError) as error:
+                raise ValueError("sign_time 必须为有效的 HH:mm 时间") from error
+        else:
+            raise ValueError("sign_time 必须为有效的 HH:mm 时间")
+        if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+            raise ValueError("sign_time 必须为有效的 HH:mm 时间")
+        return f"{hour:02d}:{minute:02d}"
 
     concurrency: int = Field(
         default=1,
@@ -368,11 +371,12 @@ class DisplaySettings(_SettingsModel):
     @field_validator("command_prefixes", mode="before")
     @classmethod
     def _validate_prefixes(cls, v: Any) -> list[str]:
+        # 前缀错误若回落为 kk 会改变命令触发面，必须让配置边界显式失败。
         if isinstance(v, str):
             return [v]
         if isinstance(v, (list, tuple, set)):
             return [str(x) for x in v]
-        return ["kk"]
+        raise ValueError("command_prefixes 必须是字符串或字符串列表")
 
     @property
     def command_prefix(self) -> str:
@@ -396,6 +400,23 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
         return result
 
     raw_dict = dict(raw)
+
+    known_sections = (
+        "DNAUID配置",
+        "DNAUID签到配置",
+        "login",
+        "network",
+        "sign_in",
+        "notifications",
+        "display",
+        "resources",
+        "cache",
+        "agent_tools",
+    )
+    for section_name in known_sections:
+        # 已存在但结构错误的配置不是“缺省配置”，必须阻止迁移吞掉该错误。
+        if section_name in raw_dict and not isinstance(raw_dict[section_name], Mapping):
+            raise TypeError(f"配置分组 {section_name} 必须是对象")
 
     _log_discarded_mh_config(raw_dict)
 
@@ -441,9 +462,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
                     continue
                 if group_name == "display" and k == "command_prefix":
                     if "command_prefixes" not in group_data:
-                        result[group_name]["command_prefixes"] = (
-                            [v] if isinstance(v, str) else list(v)
-                        )
+                        result[group_name]["command_prefixes"] = v
                     continue
                 if group_name == "notifications" and k in _REMOVED_MH_TYPED_FIELDS:
                     continue

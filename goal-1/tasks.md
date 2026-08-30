@@ -846,11 +846,52 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
 
 ## 跨阶段收尾
 
-### O22 — 跨阶段兼容与回滚链审计 `[pending]`
+### O22 — 跨阶段兼容与回滚链审计 `[completed]`
 
 - 验证三个插件 SHA 和资源 SHA 均可追溯。
 - 验证阶段一←二←三逐级回滚不会破坏配置、数据库、资源 pointer 或缓存 metadata。
 - 检查迁移/兼容代码没有静默吞错或伪造空成功。
+
+完成记录（2026-08-30）：
+
+- SHA 追溯：阶段一功能快照为 `a97317e1a8c41112fb0220bca941120010076edf`，阶段一生产
+  生命周期修复基线为 `6fda2f16b1ebdf3999b95d36609778bf11de38ce`，阶段二稳定版本为
+  `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`，阶段三初始候选为
+  `8c7ac4c8ee0910574d2602e41756400ccef0899a`，D07 修复并实际部署的当前候选为
+  `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`。`git show-ref`、提交父节点、远端 ref
+  和 `git merge-base` 均核对通过；阶段二直接继承 `6fda`，阶段三不是 `d47` 的直接
+  祖先，因此已在发布清单中明确采用“精确 SHA + 树差异审计”，不把非线性提交图伪装成
+  线性祖先链。
+- 资源追溯：资源仓库 `main` commit 为
+  `5d76860141d9ab5052417df25ccc9f5a929ff06b`，Git root tree 为
+  `6cf9d38b417825a27d63f8ecdc5f924fc3eb04ed`，generation 内容 `content_sha256` 为
+  `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`。已确认 commit
+  存在且生产资源 checkout clean；生产 `current.json` 的 generation/content 摘要与之
+  一致，并按 generation 校验算法复算通过（109 个文件）。三种摘要语义已同步写入发布
+  清单与资源运维文档，避免把 Git tree 当作 pointer 内容摘要。
+- 回滚链：`a973..d47` 与 `6fda..d47` 在 Alembic/持久化目录均无差异；`d47..cb` 在
+  Alembic、persistence、CacheManager 和 resource generation 目录均无差异，阶段三回退
+  到 `d47` 不会触碰数据库、资源 pointer 或缓存 metadata。阶段二归档代码读取含
+  `agent_tools` 的配置后正常忽略未知阶段三分组；阶段二 CacheManager metadata 独立
+  写入/读取往返通过。生产数据库只读核验为 `0003_global_identity`，表集合完整，未执行
+  真实回退、reload 或任何生产写操作。
+- 数据库边界：`0003_global_identity` 的删除/重建四张身份隐私表是已声明的破坏性迁移，
+  `downgrade` 只恢复旧空表结构，不伪造恢复被丢弃数据；维护文档明确要求回退代码时同时
+  恢复匹配的迁移前 `dnaby.sqlite3` 备份。现有迁移升级、重复升级、降级和约束回归
+  `tests/test_goal2_task02_migration.py` 为 `5 passed`，没有把该不可逆边界包装成“安全
+  自动回滚”。
+- 错误边界修正：发现配置 `sign_time`、`command_prefixes`、已知配置分组和调度时间的
+  显式非法值会静默回落默认值，已改为抛出可观察的校验错误；合法 HH:mm 归一化和旧
+  list/tuple 输入仍兼容。新增负向测试均按 TDD 实际先 Red（原实现分别出现 2、1、1、1
+  条失败），修正后通过；资源 generation 对坏 pointer/content hash 显式失败，CacheManager
+  对损坏 metadata/完整性/内容校验显式返回带原因的 miss，损坏 sidecar 写入继续抛出异常。
+- 文档与验证：更新 `agent-tools-release-checklist.md`、`docs/usage/resources.md`、
+  `docs/usage/configuration.md`，重新生成 `_conf_schema.json` 无 diff。配置/调度、缓存、
+  资源、迁移和回滚相关专项共 `89 passed, 1 warning`；另有 scheduler API `9 passed`、
+  migration `5 passed`，目标 Ruff、compileall、LSP diagnostics 和 `git diff --check`
+  均通过。`test_migration_boundaries.py` 的既有命令数量断言仍为 `61` 对 `58` 的漂移，
+  本轮未改 registry，记录为非 O22 阻塞项。
+- 下一步：O23，全量质量与视觉审计。
 
 ### O23 — 全量质量与视觉审计 `[pending]`
 

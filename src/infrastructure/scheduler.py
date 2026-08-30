@@ -41,16 +41,22 @@ class SchedulableCheckin(Protocol):
     async def clear_sign_records_before(self, record_date: date) -> int: ...
 
 
-def _parse_hhmm(value: Any, default: tuple[int, int] = (0, 5)) -> tuple[int, int]:
+def _parse_hhmm(value: Any) -> tuple[int, int]:
+    # 调度器构造阶段拒绝非法时间，避免后台任务悄悄以默认时刻启动。
     try:
         if isinstance(value, (tuple, list)):
+            if len(value) != 2:
+                raise ValueError("时分值必须包含小时和分钟")
             hour, minute = int(value[0]), int(value[1])
         else:
-            hour, minute = (int(x) for x in str(value).split(":"))
-    except (ValueError, TypeError):
-        hour, minute = default
+            parts = str(value).split(":")
+            if len(parts) != 2:
+                raise ValueError("时间必须包含小时和分钟")
+            hour, minute = (int(x) for x in parts)
+    except (ValueError, TypeError) as error:
+        raise ValueError("非法时间格式，必须为 HH:mm") from error
     if hour < 0 or hour > 23 or minute < 0 or minute > 59:
-        hour, minute = default
+        raise ValueError("非法时间范围，必须为 00:00-23:59")
     return hour, minute
 
 
@@ -248,7 +254,7 @@ class SignScheduler:
             raise SchedulerTaskNotFound(task_id)
         normalized, values = parse_scheduler_schedule(task_id, schedule)
         if not isinstance(values, tuple):
-            raise ValueError("签到任务 schedule 类型错误")
+            raise TypeError("签到任务 schedule 类型错误")
 
         await self.registry.update_definition(task_id, schedule=normalized)
         name, coro, _old_values = self._task_specs[task_id]

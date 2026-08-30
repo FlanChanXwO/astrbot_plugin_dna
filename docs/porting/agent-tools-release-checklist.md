@@ -1,19 +1,34 @@
 # 第三阶段 Agent Tools 发布与回滚清单
 
-本清单是 O20 的发布前交付物。O20 只完成本地审查、adapter 模拟和版本固定；生产
-定向 reload 属于 O21，不能用本清单代替生产验收。
+本清单起于 O20 的发布前交付物。O20 完成本地审查、adapter 模拟和版本固定，O21
+已完成生产定向 reload，D07 又在生产候选上修复了查询异常和图片路径失败边界；本清单
+保留这些阶段的精确恢复点，不能用本地 adapter 结果代替生产验收。
 
 ## 固定版本
 
+- 第一阶段功能快照插件 SHA：`a97317e1a8c41112fb0220bca941120010076edf`
+- 第一阶段生产生命周期修复基线：`6fda2f16b1ebdf3999b95d36609778bf11de38ce`
 - 第二阶段稳定插件 SHA：`d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`
-- 第三阶段插件候选 SHA：`8c7ac4c8ee0910574d2602e41756400ccef0899a`
-- 第三阶段候选相对第二阶段稳定树只增加 Agent Tools、配置/投影、共享查询适配、测试和
-  文档变更；当前工作区中的 `goal-1/plan.md`、`pyrightconfig.json`、`goal-2/`、`goal-3/`
-  和 `docs/superpowers/` 不属于候选版本。
+- 第三阶段初始插件候选 SHA：`8c7ac4c8ee0910574d2602e41756400ccef0899a`（已被 D07
+  修复候选取代）
+- 第三阶段已部署/当前恢复候选 SHA：`cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`
+  （D07 查询异常与图片文件可用性修复）。
+- 第二阶段稳定树到第三阶段候选不是直接祖先链：第二阶段 `d47d37e` 的直接父提交是
+  第一阶段生命周期修复基线 `6fda2f1`；第三阶段候选按阶段树构造并经
+  `git diff --name-only d47d37e..cb9996d` 审计，未修改 persistence/Alembic、CacheManager
+  或资源 generation 实现。当前工作区中的 `goal-1/plan.md`、`pyrightconfig.json`、`goal-2/`、
+  `goal-3/` 和 `docs/superpowers/` 不属于上述候选版本。
 - 第二阶段资源版本保持不变：资源仓库 commit
   `5d76860141d9ab5052417df25ccc9f5a929ff06b`，资源内容 SHA
   `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`。
 - 本地兼容基线为 AstrBot 4.27.1，生产目标为 4.27.4；生产步骤不得记录凭据值。
+
+资源版本有三个不同的摘要语义，不能互换：资源 Git commit 是
+`5d76860141d9ab5052417df25ccc9f5a929ff06b`，该 commit 的 Git root tree 是
+`6cf9d38b417825a27d63f8ecdc5f924fc3eb04ed`，当前 generation `content_sha256` 是
+`92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`。pointer 中的
+`generation` 指向 commit，`content_sha256` 校验生成快照内容；`6cf9...` 不是 pointer 的
+`content_sha256`。
 
 ## Adapter 模拟矩阵
 
@@ -56,7 +71,7 @@
 2. 通过已认证的只读接口确认插件 ID 为 `astrbot_plugin_dnaby`、状态正常且凭据具备
    `plugin` scope；插件 ID、权限或工作树不能确认时停止。
 3. 在生产插件仓库非破坏性 fetch 后验证候选 SHA 存在，工作树必须 clean；精确切换到
-   `8c7ac4c8ee0910574d2602e41756400ccef0899a`，运行 compile/import 和目标 smoke。
+   `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`，运行 compile/import 和目标 smoke。
 4. 只调用已确认的定向
    `POST /api/v1/plugins/astrbot_plugin_dnaby/reload`，同时核对 HTTP 状态、业务状态和
    插件状态；不默认重启容器。

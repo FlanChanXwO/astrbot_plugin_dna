@@ -209,12 +209,12 @@ async def test_sign_scheduler_parses_string_sign_time(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_sign_scheduler_falls_back_on_invalid_sign_time(tmp_path: Path) -> None:
-    """SignScheduler 在遇到非法时间格式时回退到 00:05。"""
-    scheduler = SignScheduler(
-        _FakeCheckin(),
-        SubscriptionStore(tmp_path / "subscriptions.json"),
-        sign_time="invalid:time",
-        sleep=_noop_sleep,
-    )
-    assert scheduler.sign_time == (0, 5)
+async def test_sign_scheduler_rejects_invalid_sign_time(tmp_path: Path) -> None:
+    """SignScheduler 遇到非法时间格式时必须显式失败。"""
+    with pytest.raises(ValueError, match="非法时间"):
+        SignScheduler(
+            _FakeCheckin(),
+            SubscriptionStore(tmp_path / "subscriptions.json"),
+            sign_time="invalid:time",
+            sleep=_noop_sleep,
+        )

@@ -105,22 +105,34 @@ def test_display_settings_supports_configurable_command_prefix():
     assert default_settings.display.command_prefixes == ["kk"]
 
 
-def test_sign_time_string_format_and_fallback():
+def test_display_settings_rejects_invalid_prefix_values():
+    from pydantic import ValidationError
+
+    from src.infrastructure.config.settings import DisplaySettings
+
+    for value in (None, 123, {"prefix": "kk"}):
+        with pytest.raises(ValidationError):
+            DisplaySettings(command_prefixes=value)
+
+    with pytest.raises(ValidationError):
+        DnabySettings.from_config({"display": {"command_prefix": {"prefix": "kk"}}})
+
+
+def test_sign_time_string_format_and_rejects_invalid_values():
+    from pydantic import ValidationError
+
     # 正常 HH:mm 格式
     assert SignInSettings(sign_time="08:30").sign_time == "08:30"
     assert SignInSettings(sign_time="00:05").sign_time == "00:05"
     assert SignInSettings(sign_time="23:59").sign_time == "23:59"
     # 单数字小时归一化
     assert SignInSettings(sign_time="8:30").sign_time == "08:30"
-    # 格式错误时回退到 00:05
-    assert SignInSettings(sign_time="24:00").sign_time == "00:05"
-    assert SignInSettings(sign_time="12:60").sign_time == "00:05"
-    assert SignInSettings(sign_time="invalid").sign_time == "00:05"
-    assert SignInSettings(sign_time="").sign_time == "00:05"
-    assert SignInSettings(sign_time=None).sign_time == "00:05"
     # 兼容 list/tuple 输入并归一化为 HH:mm 字符串
     assert SignInSettings(sign_time=[1, 30]).sign_time == "01:30"
-    assert SignInSettings(sign_time=[25, 0]).sign_time == "00:05"
+
+    for value in ("24:00", "12:60", "invalid", "", None, [25, 0]):
+        with pytest.raises(ValidationError):
+            SignInSettings(sign_time=value)
 
 
 def test_all_config_items_resolve_from_typed_config():
@@ -407,3 +419,13 @@ def test_legacy_nested_and_flat_config_migration():
     assert settings.notifications.secret_simple_image is True
     assert settings.sign_in.sign_time == "08:00"
     assert settings.sign_in.enable_all_users is True
+
+
+def test_config_migration_rejects_malformed_known_sections():
+    from src.infrastructure.config.settings import migrate_config_dict
+
+    with pytest.raises(TypeError, match="sign_in"):
+        migrate_config_dict({"sign_in": "not-an-object"})
+
+    with pytest.raises(TypeError, match="DNAUID签到配置"):
+        migrate_config_dict({"DNAUID签到配置": []})
