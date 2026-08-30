@@ -536,13 +536,57 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
   隔离 1 条、外部 CDN/T2I 不可用 2 条；未发现 O14 聚焦回归失败。未执行生产 reload、真实账户、真实
   上游图片下载或发送；下一步 O15 仅在资源权利门禁明确后形成第二阶段插件精确 SHA 并做受控热重载。
 
-### O15 — 第二阶段插件 SHA、atri 热重载与视觉验收 `[pending]`
+### O15 — 第二阶段插件 SHA、atri 热重载与视觉验收 `[completed]`
 
 - 形成第二阶段独立插件 SHA，记录上一稳定 SHA。
 - 按 `plan.md §4.2` 部署、定向 reload、核对资源 active pointer 与后台任务单例。
 - 发布前人工清理 `plugin_data/astrbot_plugin_dnaby` 下共享下载器产生的公告/资源图片缓存，再运行缓存/刷新/公告 adapter E2E，复制并实际查看所有代表性图片。
 - 核对公告轮询的列表条数、详情块数、图片成功/失败数和按目标投递成功/失败数；确认失败目标下一轮仍待处理、成功目标不重复。
 - 在整点前、整点后半小时分别验证密函：前者不写当前小时缓存且不自动推送，后者只在上游快照校验通过后向仍符合订阅级时间窗口的目标发送。
+
+完成记录（2026-08-30）：
+
+- 版本与部署：以上一稳定生产 SHA `6fda2f16b1ebdf3999b95d36609778bf11de38ce` 为基线，形成独立第二阶段插件候选
+  `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`（远端 ref
+  `codex/goal-1-o15-phase2`）。部署前确认插件 detached 工作树 clean、候选对象精确存在；容器内
+  `compileall`、入口导入、`metadata.yaml`、`commands.json`/registry（均 61 条）、schema 和资源 manifest
+  预检通过。生产插件精确检出该 SHA 后调用已确认的
+  `POST http://127.0.0.1:6185/api/v1/plugins/astrbot_plugin_dnaby/reload`，HTTP 200 且业务返回
+  `status=ok/message=重载成功`；认证 GET 复核插件为 `v0.2.0`、`activated=true`。
+- 资源与 active pointer：公共资源仓库生产工作树从旧 SHA `23955674e8ce0f7da317c30a752249cd91c1afaf`
+  fast-forward 到独立 SHA `5d76860141d9ab5052417df25ccc9f5a929ff06b`，工作树 clean。重载后
+  `resource_generations/current.json` 指向同一 SHA，`content_sha256=92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`；
+  容器内 `ResourceGenerationValidator` 通过，指针 hash 一致、`resource_version=redeem-code-v1-migration-2026-08-28`、
+  12 个必需目录齐全，generation 目录数为 1。
+- 缓存清理与运行态：按维护文档仅处理 `resource/` 与 `other/ann_card/`，未触碰 `resources/`、
+  `resource_generations/`、`rendered/`、数据库、订阅或状态文件。原 `resource` 281 个文件、约 29M，
+  原公告图片缓存 24 个文件、约 23M，均可恢复移动到
+  `/srv/AstrBot/backup/astrbot_plugin_dnaby-o15-20260830T063050Z/`；收口探针确认活动目录均为 0 文件、
+  备份完整。容器仍运行、`restart_count=0`，单 Python/AstrBot 进程；最近 200 行日志中无 `[dnaby]`、Traceback
+  或“定时任务异常”标记。`PluginLifecycle`、`SignScheduler` 和 `NoticesScheduler` 的幂等/按任务 ID 防重复
+  逻辑由生产容器定向回归覆盖；没有从缺少任务计数 API 的日志探针推导额外计数结论。
+- TDD/回归：本轮是部署验收，未修改业务代码；O12 公告、O12-A 投递、O12-B 密函边界定向套件在本地和
+  生产容器各为 `30 passed, 1 warning`。公告证据为跨页 `20+1=21` 条、详情 `text/image/image` 三块、
+  多页响应保留 2 页；渲染夹具中列表预览 `1 成功/0 失败`、详情图片 `1 成功/0 失败`。生产真实 CDN 的
+  `test_ann_renders_list_image` 仍因 `cdn.test` `ConnectError` 返回固定失败文案，未用占位图伪造成功。
+  按目标故障注入为首轮 `1 成功/1 失败`、下一轮只重试失败目标并 `1 成功/0 重复发送`，最终
+  `observed_targets == delivered_targets`；详情失败下一轮重试也通过。
+- 密函门禁：生产容器通过整点前（`12:10`）只允许实时查询、不写当前小时缓存且自动推送为 0，整点后半小时
+  （`12:35`）仅缓存已校验当前小时快照并按订阅窗口投递；坏/空快照不缓存且后续轮次重试，换小时不回填旧缓存，
+  名称/文本/图片订阅窗口均通过。固定 scheduler 仍为 `hourly@30:00`。
+- 视觉验收：用当前 `v0.2.0` registry、真实模板和本地可解码图片夹具生成并实际打开
+  `output/goal1-visual/phase2-help.jpg`、`phase2-role-overview.png`、`phase2-stamina.png`、
+  `phase2-weekly.png`、`phase2-announcement-list.png`、`phase2-announcement-detail-1.png`、
+  `phase2-mh.png`、`phase2-mh-simple.png`；确认中文字体、帮助分组、角色/周报进度、公告正文图片块、
+  标准/简密函版式均无裁切。该夹具结果只证明模板/布局，不替代生产 T2I 成功证据。
+- 生产更宽回归 `110 passed, 3 failed, 1 warning`；3 条均为生产环境的外部依赖：标准密函与简密函 T2I
+  返回不可识别图片各 1 条、公告列表 CDN 图片失败 1 条；排除 `tests/test_notices.py` 的生产回归为
+  `103 passed, 1 warning`。本地第二阶段聚焦套件为 `169 passed, 1 warning`，资源跨仓契约为
+  `7 passed, 1 warning`，`compileall` 与 `git diff --check` 通过。全插件 Ruff 仍仅报告既有 Goal2/Goal3
+  测试导入排序问题 2 条，未越界修改。
+- 风险与边界：O14 已确认公共资源仓库没有统一 `LICENSE`/`NOTICE`/来源清单，字体元数据涉及 Monotype/
+  Arphic；因此本次是受控内部生产热重载，不把资源 SHA 宣称为可公开再分发版本。生产 CDN/T2I 失败已
+  保留真实错误语义，后续由维护者处理上游可用性；下一步进入 D05 调试审查与受控失败回滚演练。
 
 ### D05 — 调试审查 O13–O15 `[pending]`
 
