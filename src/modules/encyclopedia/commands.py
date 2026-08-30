@@ -6,6 +6,8 @@ from typing import Any, cast
 
 from ...entry.commands import CommandRegistry, CommandRequest, CommandSpec
 from ...entry.response import PlainTextResponse
+from ..agent_tools import queries
+from ..agent_tools.contracts import AgentQueryRequest
 from ..player.commands import PATTERN
 from . import messages
 from .contracts import EncyclopediaRequest
@@ -47,7 +49,16 @@ async def stamina_use_case(request: CommandRequest, _registry: CommandRegistry, 
     service = _service(request)
     if isinstance(service, PlainTextResponse):
         return service
-    return await service.stamina(_request(request, parameters))
+    assert request.actor is not None
+    return await queries.stamina_query(
+        service,
+        AgentQueryRequest(
+            actor=request.actor,
+            target_user_id=request.target_user_id,
+            parameters=parameters,
+            text=request.text,
+        ),
+    )
 
 
 async def weekly_report_current_use_case(

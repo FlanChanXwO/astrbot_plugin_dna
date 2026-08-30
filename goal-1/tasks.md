@@ -631,11 +631,36 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
 
 ## 第三阶段：Agent Tools
 
-### O16 — 可复用领域查询层与 AstrBot 工具适配边界 `[pending]`
+### O16 — 可复用领域查询层与 AstrBot 工具适配边界 `[completed]`
 
 - 先写工具与聊天命令共享领域 use case 的 Red 测试，避免复制 handler 逻辑。
 - 建立 typed request/result 与 `AstrAgentContext.event` 身份提取。
 - 验证本地 4.27.1/生产 4.27.4 API 差异并做最小兼容。
+
+完成记录（2026-08-30）：
+
+- TDD/共享领域层：先新增 `tests/test_goal1_o16_agent_tools.py` 并实际运行，初始 Red
+  因 `src.entry.agent_tools` 尚不存在而在 collection 阶段失败；随后建立
+  `src/modules/agent_tools/` 的 `AgentQueryRequest`、`AgentQueryResult`、`AgentQueryCatalog`
+  和 `stamina_query`，并将聊天 `stamina_use_case` 改为调用同一 `stamina_query`。最终 O16
+  契约测试为 `6 passed, 1 warning`，断言聊天与 Agent 路径收到同一 service/actor，未知查询
+  返回显式 `unsupported`，未复制 handler 内的服务调用逻辑。
+- 身份与返回契约：`src/entry/agent_tools/context.py` 只从官方
+  `AstrAgentContext.event` 经 `actor_from_event` 提取 `EventActor`；Agent 参数拒绝
+  `user_id`、`target_user_id`、`bot_id`、`credential_user_id`、`uid` 等身份覆盖字段。
+  `AgentQueryResult` 固定输出 `ok/kind/data/cache/error`，成功不得携带错误，失败必须保留
+  明确错误；领域响应对象暂留给后续 entry adapter 做 JSON/图片转换。
+- API 兼容性：只读核验本地 AstrBot `4.27.1` 与生产 `4.27.4` 的官方 API，
+  `astrbot.core.agent.tool.FunctionTool`、`AstrAgentContext`、`Context.add_llm_tools` 和
+  `Context.unregister_llm_tool` 的模块位置与签名一致；后续按 `FunctionTool.call` 的
+  `ContextWrapper[AstrAgentContext]` 路径取得事件身份，不采用旧的 `StarTools.register_llm_tool`
+  作为 Agent 注册入口。O16 不注册工具、不新增配置开关，这些留给 O17–O19。
+- 验证：目标源码/测试 Ruff 通过，目标 `pyright` 为 `0 errors, 0 warnings, 0 informations`，
+  目标 `compileall` 与 `git diff --check` 通过；百科、渲染和命令 registry 相关回归为
+  `34 passed, 1 warning`。警告均为 AstrBot 依赖导入 `audioop` 的弃用警告，未执行生产 reload
+  或真实签到/外部写操作。
+- 剩余边界：当前 catalog 只接入 `stamina` 作为共享查询代表；完整只读工具清单、稳定 JSON
+  化、可选图片发送、总开关和签到安全仍由 O17–O19 实现与 D06 审查。下一步进入 O17。
 
 ### O17 — 纯查询工具、JSON envelope 与可选图片 `[pending]`
 
