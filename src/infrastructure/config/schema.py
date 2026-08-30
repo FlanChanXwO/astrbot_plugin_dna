@@ -10,6 +10,7 @@ from typing import Any, Literal, Union, get_args, get_origin
 from pydantic import BaseModel, SecretStr
 
 from .settings import (
+    AgentToolsSettings,
     CacheSettings,
     DisplaySettings,
     DnabySettings,
@@ -28,6 +29,7 @@ _GROUPS: tuple[tuple[str, type[BaseModel]], ...] = (
     ("display", DisplaySettings),
     ("resources", ResourceSettings),
     ("cache", CacheSettings),
+    ("agent_tools", AgentToolsSettings),
 )
 
 

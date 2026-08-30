@@ -211,6 +211,16 @@ class CacheSettings(_SettingsModel):
     )
 
 
+class AgentToolsSettings(_SettingsModel):
+    """AstrBot Agent Tools 的总开关。"""
+
+    enabled: bool = Field(
+        default=False,
+        description="Agent Tools 总开关",
+        json_schema_extra={"hint": "是否注册二重螺旋 Agent Tools"},
+    )
+
+
 class SignInSettings(_SettingsModel):
     """游戏签到、社区任务和签到报告配置。"""
 
@@ -380,6 +390,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
         "display": {},
         "resources": {},
         "cache": {},
+        "agent_tools": {},
     }
     if raw is None:
         return result
@@ -418,6 +429,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
         "display",
         "resources",
         "cache",
+        "agent_tools",
     ):
         group_data = raw_dict.get(group_name)
         if isinstance(group_data, Mapping):
@@ -462,6 +474,10 @@ class DnabySettings(_SettingsModel):
     )
     cache: CacheSettings = Field(
         default_factory=CacheSettings, description="缓存设置"
+    )
+    agent_tools: AgentToolsSettings = Field(
+        default_factory=AgentToolsSettings,
+        description="Agent Tools 设置",
     )
 
     @classmethod
@@ -526,6 +542,7 @@ def _discard_removed_mh_config(raw: dict[str, Any]) -> None:
 
 __all__ = [
     "DNA_PREFIX",
+    "AgentToolsSettings",
     "CacheSettings",
     "DNAConfig",
     "DNASignConfig",

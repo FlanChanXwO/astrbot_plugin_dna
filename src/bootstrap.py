@@ -19,6 +19,7 @@ from astrbot.core.message.components import Image as AstrImage
 from astrbot.core.message.message_event_result import MessageChain
 
 from .entry.admin_web import build_admin_web_routes
+from .entry.agent_tools import AgentToolsLifecycle
 from .entry.commands import CommandRegistry, load_command_registry
 from .entry.event import EmptyEventEntryPoint, EventEntryPoint
 from .entry.lifecycle import PluginLifecycle
@@ -139,6 +140,7 @@ def build_runtime(
     checkin_transport: CheckinTransport | None = None,
     notices_transport: NoticesTransport | None = None,
     services: Mapping[str, object] | None = None,
+    plugin_context: object | None = None,
 ) -> PluginRuntime:
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
 
@@ -492,6 +494,15 @@ def build_runtime(
     if services is not None:
         resolved_services.update(services)
 
+    agent_tools_lifecycle = AgentToolsLifecycle(
+        context=context,
+        enabled=settings.agent_tools.enabled,
+        services=resolved_services,
+        command_prefixes=tuple(settings.display.command_prefixes),
+        plugin_context=plugin_context,
+    )
+    resolved_services["agent_tools_lifecycle"] = agent_tools_lifecycle
+
     async def _sync_ann_config_on_startup() -> None:
         from .modules.notices import messages
 
@@ -540,6 +551,7 @@ def build_runtime(
             resource_update_service.start_preheat,
             sign_scheduler.start,
             notices_scheduler.start,
+            agent_tools_lifecycle.start,
         ),
         # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler、资源线程，再释放数据库。
         stop_hooks=(
@@ -548,6 +560,7 @@ def build_runtime(
             resource_update_service.stop,
             sign_scheduler.stop,
             notices_scheduler.stop,
+            agent_tools_lifecycle.stop,
         ),
     )
     return PluginRuntime(

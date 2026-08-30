@@ -46,6 +46,7 @@ class DnabyPlugin(Star):
             context,
             config,
             command_registry=COMMAND_REGISTRY,
+            plugin_context=self,
         )
 
     async def initialize(self) -> None:

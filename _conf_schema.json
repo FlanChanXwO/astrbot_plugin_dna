@@ -331,5 +331,17 @@
         "default": true
       }
     }
+  },
+  "agent_tools": {
+    "description": "Agent Tools 设置",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "description": "Agent Tools 总开关",
+        "hint": "是否注册二重螺旋 Agent Tools",
+        "default": false
+      }
+    }
   }
 }

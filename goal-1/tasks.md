@@ -678,11 +678,36 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
 - 验证：O17/O16 契约测试 `16 passed, 1 warning`；领域适配器、命令 registry 与写入契约相关回归共 `109 passed, 1 warning`。目标 Ruff 通过，Pyright 为 `0 errors, 0 warnings, 0 informations`，目标 `compileall` 和 `git diff --check` 通过。警告均为 AstrBot 依赖导入 `audioop` 的弃用警告，未执行生产 reload、真实签到或外部写操作。
 - 剩余边界：`agent_tools.enabled` 总开关、initialize/terminate 注册解除和热重载去重，以及签到写工具确认/幂等留给 O18；文档与完整阶段门禁留给 O19。下一步进入 O18。
 
-### O18 — 签到工具、明确确认、幂等与生命周期 `[pending]`
+### O18 — 签到工具、明确确认、幂等与生命周期 `[completed]`
 
 - TDD 实现原始消息肯定意图/否定排除、消息 ID 幂等、当前用户当前 UID 限制。
 - 使用 fake transport 验证签到，不执行真实签到。
 - `agent_tools.enabled` 控制全部注册；initialize/terminate 与热重载无重复工具。
+
+完成记录（2026-08-30）：
+
+- 实际完成：新增 `AgentSignTool` 与 `sign_intent_from_text`，签到工具只读取
+  `AstrAgentContext.event` 的原始消息和消息 ID；肯定短语通过、否定/疑问和模型传入的
+  `confirmed`、用户 ID、UID 等参数均拒绝。工具固定构造当前事件 actor、
+  `target_user_id=None`、空参数的 `CheckinCommandRequest`，并使用事件 extra 保存同消息
+  的锁与 JSON 结果，重复调用只执行一次。签到验证使用隔离数据库绑定和 fake transport，
+  未触碰真实接口。
+- 生命周期与配置：新增 `AgentToolsLifecycle`，开启时通过官方
+  `Context.add_llm_tools` 注册 16 个只读工具和 `dnaby_sign`，终止时逐项调用官方
+  `unregister_llm_tool`；生命周期锁保证重复 start/stop 和 runtime 热重载不重复。新增
+  `agent_tools.enabled` typed 配置（默认关闭），接入 `build_runtime` 与薄入口，并重新生成
+  `_conf_schema.json`。
+- Red/Green/Refactor 证据：先运行意图测试，因缺少 `signin` 模块在 collection 阶段实际
+  Red；补充签到工具契约后再次因缺少 lifecycle 模块 Red；实现后 O18 专项测试为
+  `17 passed, 1 warning`。同一消息并发调用只产生一次 fake transport 签到调用，runtime
+  重复 initialize/terminate 只注册/注销一次完整 17 工具集。
+- 验证命令与结果：O18、配置、Agent Tools、入口及资源配置相关回归为
+  `88 passed, 1 warning`；签到、命令、registry、入口、写入契约回归为
+  `112 passed, 1 warning`。目标文件 Ruff、目标 Pyright（`0 errors, 0 warnings, 0 informations`）、
+  `compileall`、`git diff --check` 均通过；重新运行配置 schema 生成器后磁盘投影与生成结果一致。
+- 剩余风险：未执行生产 reload 或真实签到；第三阶段文档同步、D06 负向审查和完整阶段门禁
+  由后续任务负责。当前测试仅使用本地 fake transport，AstrBot 依赖仍有 `audioop` 弃用警告。
+- 下一步：D06，审查模型伪造确认、跨用户访问、工具重试和写操作范围。
 
 ### D06 — 调试审查 O16–O18 `[pending]`
 

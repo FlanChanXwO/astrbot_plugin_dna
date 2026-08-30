@@ -10,6 +10,7 @@ from typing import cast
 
 import pytest
 from pydantic import ValidationError
+
 from src.bootstrap import build_runtime
 from src.infrastructure.config import (
     DnabySettings,
@@ -151,6 +152,7 @@ def test_resource_schema_projects_acceleration_group() -> None:
         "notifications",
         "display",
         "resources",
+        "agent_tools",
     }
     resources = schema["resources"]
     assert resources["type"] == "object"
