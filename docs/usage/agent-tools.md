@@ -77,4 +77,5 @@ Agent 只收到 `data: {"image_sent": true}`。转换失败、发送失败或结
   上游拒绝和已签到等失败会保留显式结果。
 
 配置字段说明见[配置文档](configuration.md)，工具的生命周期维护说明见
-[维护文档](../dev/maintenance.md)，离线契约测试见[测试文档](../dev/testing.md)。
+[维护文档](../dev/maintenance.md)，离线契约测试见[测试文档](../dev/testing.md)。发布前
+adapter 模拟、精确 SHA 和阶段三回滚步骤见[发布与回滚清单](../porting/agent-tools-release-checklist.md)。

@@ -16,7 +16,8 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
 
 `dnaby_sign` 是唯一写工具，仅允许当前事件原始消息明确确认签到；生产排查和测试不得使用真实
 签到副作用。其余工具为查询或当前用户订阅查看，不能作为账号、凭据、隐私、订阅或管理配置的
-写入口。完整 schema 与返回边界见 [Agent Tools 使用说明](../usage/agent-tools.md)。
+写入口。完整 schema 与返回边界见 [Agent Tools 使用说明](../usage/agent-tools.md)；阶段三
+发布前模拟和精确回滚见 [Agent Tools 发布与回滚清单](../porting/agent-tools-release-checklist.md)。
 
 ## 运行期数据与备份
 

@@ -738,11 +738,34 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
 - 完整门禁：全量 pytest 实际为 `708 passed, 1 skipped, 9 failed, 5 warnings`；9 条失败分别是本地缺少 sibling 资源 checkout 的 5 条 Goal3 resource contract、Goal3 命令数期望漂移 1 条、namespace 命令数期望漂移 1 条，以及外部 CDN/T2I 不可用导致公告订阅渲染的 2 条，未命中本轮文档或 Agent Tools 文件。全仓 `ruff check .` 实际报告 14 条既有 infrastructure/scheduler/admin、历史 D03 和并行 Goal2/Goal3 文件问题；本轮目标文件未命中。全仓 `compileall -q .` 与 `git diff --check` 通过。
 - 剩余风险：全量 pytest/ruff 的上述环境与并行目标基线问题仍待其归属任务或可用外部依赖处理，不能在 O19 通过静默 fallback 掩盖；Agent Tools 未执行真实签到、生产 reload 或真实图片发送。下一步进入 O20，进行第三阶段独立 SHA 审查与回滚清单准备。
 
-### O20 — 第三阶段审查与独立 SHA `[pending]`
+### O20 — 第三阶段审查与独立 SHA `[completed]`
 
 - 自审并使用 `code-review-expert`，修复阻塞问题。
 - 形成第三阶段独立插件 SHA，记录第二阶段稳定 SHA。
 - 准备工具 adapter 模拟与回滚清单。
+
+完成记录（2026-08-30）：
+
+- 审查范围：以第二阶段稳定提交 `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04` 为固定基线，复核
+  O16–O19 的提交链和完整 Agent Tools diff，覆盖 SOLID/职责边界、AstrBot API 适配、事件身份
+  与参数伪造、签到写操作、JSON/图片数据泄露、异常传播、并发幂等、生命周期残留和移除/调用方。
+  未发现本次变更相关的 P0/P1；没有证据支持新增生产逻辑修补，保留已验证的显式错误和失败重试语义。
+- 独立版本：第三阶段候选插件 SHA 固定为
+  `8c7ac4c8ee0910574d2602e41756400ccef0899a`，第二阶段稳定 SHA 为
+  `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`。`git diff --name-only d47d37e..8c7ac4c` 只包含
+  Agent Tools、共享查询适配、配置/schema 投影、相关测试/文档与阶段记录；工作区中其它目标的
+  未提交文件没有进入候选。O20 的审查清单为候选之后的文档提交，不改变该运行期候选 SHA。
+- Adapter/回滚交付物：新增
+  [`docs/porting/agent-tools-release-checklist.md`](../docs/porting/agent-tools-release-checklist.md)，
+  固化 17 工具注册/注销、关闭开关、事件身份、查询 envelope、图片成功/失败、签到否定与并发
+  幂等的 fake adapter 矩阵，以及 O21 精确 reload 前置条件、阶段三失败回退第二阶段 SHA 的步骤。
+  清单明确不执行真实签到、不记录凭据、不默认重启容器，并保留数据库、订阅、公告状态、资源
+  generation 和自定义面板。
+- 验证：Agent Tools/O16–O18/D06、配置与入口相关专项共 `63 passed, 1 warning`；目标 Ruff 通过，
+  目标 Pyright 为 `0 errors, 0 warnings, 0 informations`，目标 compileall 与 `git diff --check`
+  通过。唯一警告仍为 AstrBot 依赖 `audioop` 弃用警告；O19 已记录的全量 pytest/ruff 基线失败
+  不属于本轮。未执行生产 reload、真实图片投递或真实签到。
+- 下一步：进入 O21，按清单在授权的 `atri` 环境对该候选 SHA 做定向热重载和 fake adapter 验收。
 
 ### O21 — 第三阶段 atri 热重载与工具验收 `[pending]`
 
