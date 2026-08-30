@@ -26,7 +26,14 @@ def test_player_commands_are_explicit_and_legacy_patterns_are_preserved() -> Non
     registry = load_command_registry()
     specs = {spec.id: spec for spec in registry}
 
-    assert {"role_info_card", "role_detail_card", "role_original_image"} <= specs.keys()
+    assert {
+        "role_info_card",
+        "refresh_admin_role_card",
+        "refresh_role_card",
+        "clear_player_cache",
+        "role_detail_card",
+        "role_original_image",
+    } <= specs.keys()
     assert specs["role_info_card"].pattern == r"^kk(?:查询|卡片|角色|信息)$"
     assert specs["role_original_image"].pattern == r"^kk原图$"
     assert specs["role_detail_card"].pattern == r"^kk" + ROLE_DETAIL_PATTERN[1:]

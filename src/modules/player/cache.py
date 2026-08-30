@@ -207,7 +207,7 @@ class PlayerCache:
     def decode_json(content: bytes) -> dict[str, Any]:
         value = json.loads(content.decode("utf-8"))
         if not isinstance(value, dict):
-            raise ValueError("玩家缓存 JSON 必须是对象")
+            raise TypeError("玩家缓存 JSON 必须是对象")
         return value
 
     @staticmethod
@@ -283,6 +283,42 @@ class PlayerCache:
             validator=_png_validator,
             now=now,
         )
+
+    async def invalidate_role(
+        self,
+        target_user_id: str,
+        uid: str,
+        char_id: int,
+    ) -> int:
+        """只失效一个身份的概览和指定角色面板缓存。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        role = f"role:{char_id}"
+        removed = 0
+        removed += await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, "overview"),
+        )
+        removed += await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity, "overview"),
+        )
+        removed += await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, role),
+        )
+        removed += await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity, role),
+        )
+        return removed
+
+    async def invalidate_all(self) -> int:
+        """只清理玩家数据和卡片，不触碰公告等其它缓存类型。"""
+
+        return await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+        ) + await self.manager.invalidate(PLAYER_CARD_CACHE_TYPE)
 
     async def card_response(self, key: str, *, now=None) -> ImageResponse:
         """在租约内复制缓存 PNG，避免清理器删除正在发送的内容。"""

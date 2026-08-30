@@ -121,6 +121,42 @@
     "use_case": "src.modules.player.commands.player_role_overview_use_case"
   },
   {
+    "id": "refresh_admin_role_card",
+    "pattern": "^kk刷新(?P<uid>\\d+)的(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板$",
+    "group": "角色信息",
+    "name": "刷新指定角色面板",
+    "description": "管理员按游戏 UID 刷新角色面板",
+    "examples": [
+      "kk刷新123456的角色名面板"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.player.commands.player_refresh_admin_role_use_case"
+  },
+  {
+    "id": "refresh_role_card",
+    "pattern": "^kk刷新(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板$",
+    "group": "角色信息",
+    "name": "刷新角色面板",
+    "description": "刷新自己的指定角色面板",
+    "examples": [
+      "kk刷新角色名面板"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_refresh_role_use_case"
+  },
+  {
+    "id": "clear_player_cache",
+    "pattern": "^kk清理全部角色缓存$",
+    "group": "角色信息",
+    "name": "清理角色缓存",
+    "description": "管理员清理全部角色数据和卡片缓存",
+    "examples": [
+      "kk清理全部角色缓存"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.player.commands.player_clear_all_cache_use_case"
+  },
+  {
     "id": "role_detail_card",
     "pattern": "^kk(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:面板|信息|详情|面包|🍞)(?:\\s*[+＋]\\s*(?P<weapon_name_1>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?(?:\\s*[+＋]\\s*(?P<weapon_name_2>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?$",
     "group": "角色信息",

@@ -84,6 +84,7 @@ class PlayerService:
         show_unowned_roles: bool = True,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache: PlayerCache | None = None,
+        refresh_send_card: bool = True,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.database = database
@@ -93,6 +94,7 @@ class PlayerService:
         self.show_unowned_roles = show_unowned_roles
         self.resource_snapshots = resource_snapshots
         self.cache = cache
+        self.refresh_send_card = refresh_send_card
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def _renderer_context(self):
@@ -454,15 +456,15 @@ class PlayerService:
             or not isinstance(sections_raw, list)
             or not isinstance(damage_raw, dict)
         ):
-            raise ValueError("角色详情缓存结构无效")
+            raise TypeError("角色详情缓存结构无效")
         sections: list[tuple[str, WeaponDetail]] = []
         for section in sections_raw:
             if not isinstance(section, dict):
-                raise ValueError("角色详情缓存武器结构无效")
+                raise TypeError("角色详情缓存武器结构无效")
             label = section.get("label")
             detail_raw = section.get("detail")
             if not isinstance(label, str) or not isinstance(detail_raw, dict):
-                raise ValueError("角色详情缓存武器结构无效")
+                raise TypeError("角色详情缓存武器结构无效")
             sections.append((label, WeaponDetail.model_validate(detail_raw)))
         damage_data = damage_raw.get("data")
         if damage_data is None:
@@ -675,22 +677,18 @@ class PlayerService:
             )
         return self._response_from_rendered(rendered)
 
-    async def role_detail(self, request: PlayerCommandRequest):
-        """读取角色详情、选定武器和伤害结果后生成一张完整详情图。"""
+    async def _role_detail_from_overview(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        overview_state: _OverviewState,
+        *,
+        now: datetime,
+        send_card: bool = True,
+    ):
+        """在已取得概览后读取、缓存并渲染一个角色详情。"""
 
-        resolved = await self._resolve_uid(request)
-        if isinstance(resolved, PlainTextResponse):
-            return resolved
-        target_user_id, uid = resolved
-        now = self._now()
-        overview_state = await self._load_overview(
-            request,
-            target_user_id,
-            uid,
-            now=now,
-        )
-        if isinstance(overview_state, PlainTextResponse):
-            return overview_state
         overview = overview_state.overview
 
         char_name = str(request.parameters.get("char_name", "")).strip()
@@ -740,7 +738,7 @@ class PlayerService:
                 resource_version,
                 uid_hidden,
             )
-            if not stale and detail_state.bundle.cacheable:
+            if send_card and not stale and detail_state.bundle.cacheable:
                 cached = await self._cached_card(card_key, now=now, fresh_only=True)
                 if cached is not None:
                     return cached[1]
@@ -779,7 +777,104 @@ class PlayerService:
             )
         if stale:
             return self._stale_response(response)
+        if not send_card:
+            return PlainTextResponse(messages.PLAYER_CACHE_REFRESHED)
         return response
+
+    async def role_detail(self, request: PlayerCommandRequest):
+        """读取角色详情、选定武器和伤害结果后生成一张完整详情图。"""
+
+        resolved = await self._resolve_uid(request)
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        now = self._now()
+        overview_state = await self._load_overview(
+            request,
+            target_user_id,
+            uid,
+            now=now,
+        )
+        if isinstance(overview_state, PlainTextResponse):
+            return overview_state
+        return await self._role_detail_from_overview(
+            request,
+            target_user_id,
+            uid,
+            overview_state,
+            now=now,
+        )
+
+    async def refresh_role(
+        self,
+        request: PlayerCommandRequest,
+        *,
+        uid: str | None = None,
+    ):
+        """强制刷新指定角色，并按配置决定是否返回新卡片。"""
+
+        if uid is not None:
+            target_user_id = request.actor.user_id
+            refresh_uid = str(uid).strip()
+            if not refresh_uid:
+                return PlainTextResponse(messages.PLAYER_UID_INVALID)
+        else:
+            if request.target_user_id not in (None, request.actor.user_id):
+                return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+            resolved = await self._resolve_uid(request)
+            if isinstance(resolved, PlainTextResponse):
+                return resolved
+            target_user_id, refresh_uid = resolved
+
+        now = self._now()
+        try:
+            overview = await self._fetch_overview(
+                request,
+                target_user_id,
+                refresh_uid,
+            )
+        except PlayerTransportError as error:
+            return self._transport_response(error)
+
+        char_name = str(request.parameters.get("char_name", "")).strip()
+        role = self._find_role(overview, char_name)
+        if role is None:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        if not role.unlocked or role.char_eid is None:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
+
+        if self.cache is not None:
+            await self.cache.invalidate_role(target_user_id, refresh_uid, role.char_id)
+            overview_metadata = await self.cache.put_data(
+                self.cache.overview_data_key(target_user_id, refresh_uid),
+                overview,
+                tags=(
+                    "player_data",
+                    "overview",
+                    self.cache.identity_tag(target_user_id, refresh_uid),
+                ),
+                now=now,
+            )
+            overview_digest = overview_metadata.content_sha256
+        else:
+            overview_digest = self._value_digest(overview)
+
+        return await self._role_detail_from_overview(
+            request,
+            target_user_id,
+            refresh_uid,
+            _OverviewState(overview, overview_digest),
+            now=now,
+            send_card=self.refresh_send_card,
+        )
+
+    async def clear_all_cache(self) -> PlainTextResponse:
+        """清理全部玩家数据和卡片缓存，保留其它业务缓存。"""
+
+        if self.cache is None:
+            return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+        await self.cache.invalidate_all()
+        return PlainTextResponse(messages.PLAYER_CACHE_CLEARED)
 
     async def original_image(self, _request: PlayerCommandRequest):
         """明确报告当前公开 AstrBot 结果边界不支持原图引用。"""

@@ -43,6 +43,8 @@ ruff check .
   结果、并发详情各自的原面板引用和伤害失败内容脱敏。
 - `test_goal1_o10_player_cache.py` — 玩家 JSON/PNG 缓存的 fresh/stale/24 小时保留语义、旧卡
   回退、不完整占位隔离、资源版本换代和多条件精准失效。
+- `test_goal1_o11_refresh_and_cleanup.py` — 普通/管理员角色刷新、全量玩家缓存清理、
+  `refresh_send_card`、rendered 孤儿清理、活动发送文件租约和维护任务生命周期。
 - `test_player_commands.py` — 玩家命令正则、显式 registry、AstrBot `Reply` 消息 ID提取和
   service 缺失边界。
 - `test_checkin.py` — 签到成功/已签到/transport 失败/日历精简/帖子遍历/批量聚合，

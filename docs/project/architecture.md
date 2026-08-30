@@ -44,7 +44,9 @@
   已发送消息 ID 交付点，`原图` 命令显式报告未支持（Task 16.2）；默认 API 适配器只在
   transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。`PlayerCache` 将 typed 玩家数据
   和完整卡片接入统一 `CacheManager`；卡片按 generation 版本、数据摘要、身份和显示参数
-  隔离，placeholder 渲染只允许本次发送，不覆盖完整缓存。
+  隔离，placeholder 渲染只允许本次发送，不覆盖完整缓存。玩家模块还提供普通用户角色刷新、
+  管理员 UID+角色刷新和仅限管理员的全量玩家缓存清理；刷新按 identity/role tags 精准失效，
+  `cache.refresh_send_card` 决定是否立即返回新卡片。
 - 资料读取：`src/modules/encyclopedia/` 协调便签、周报、日历、图鉴、攻略、兑换码和只读
   别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
@@ -56,6 +58,8 @@
 - 订阅与计划任务：`src/infrastructure/subscriptions/` 提供框架无关的 JSON 订阅存储
   （按 type+会话去重）；`src/infrastructure/scheduler.py` 的 `SignScheduler` 在
   `initialize()` 创建每日自动签到与记录清理任务、`terminate()` 取消，重复初始化幂等。
+  `CacheMaintenance` 同样在 `initialize()` 启动、`terminate()` 取消，统一清理持久缓存和受控
+  `rendered/` 孤儿文件；ResponseFactory 登记发送文件的租约，清理时跳过活动租约。
   自动签到摘要经注入的推送闭包（绑定 `Context.send_message`）发给订阅者；`sleep/now`
   可注入，离线测试不依赖真实时钟。
 - 通知读取：`src/modules/notices/` 通过 `NoticesTransport` 读取密函（角色/武器/魔之楔分节，
@@ -84,7 +88,8 @@
   注入玩家的 `ResourceMap` 与 `EncyclopediaResourceStore`，并订阅发布事件刷新 renderer、
   别名和资源状态视图。每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
   回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材
-  的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理。
+  的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理，并由 `RenderedFileStore` 保护
+  活动发送文件、清理过期孤儿。
 - 图片下载：`src/utils/image_utils.py` 的 `ImageFetcher` 是 legacy 图片调用方共用的 HTTP/缓存
   边界；连接/超时、429、5xx 的重试、`Retry-After`、PIL 校验、同目录临时文件和原子替换均在
   此处完成。`download()` 只保留参数兼容入口；失败不写透明假图，已有文件复用前必须解码校验。
@@ -96,8 +101,8 @@
   `main` 后，插件才会从 canonical GitHub origin 的 `main` fetch、校验并发布 generation；
   插件不拉取编辑器源码，也不把镜像或投稿分支当作发布源。资源仓库的第三方素材不因仓库
   公开或插件 GPL-3.0 而获得统一许可。
-- 当前阶段：当前 main 已注册 `commands.json` 中的 58 条命令，权限为
-  `user=32/admin=26`；未迁移命令不会在新入口中隐式注册，别名仅保留读取命令。
+- 当前阶段：当前 main 已注册 `commands.json` 中的 61 条命令，权限为
+  `user=33/admin=28`；未迁移命令不会在新入口中隐式注册，别名仅保留读取命令。
 
 ## HTML/T2I 图片渲染
 

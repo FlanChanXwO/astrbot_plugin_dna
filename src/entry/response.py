@@ -10,6 +10,8 @@ from typing import Any
 from astrbot.api.message_components import Image as AstrImage
 from astrbot.api.message_components import Plain as AstrPlain
 
+from ..infrastructure.rendering.temporary import RenderedFileStore
+
 
 @dataclass(frozen=True, slots=True)
 class PlainTextResponse:
@@ -51,8 +53,12 @@ def write_temporary_image(
 ) -> ImageResponse:
     """把合成图片写入受控渲染根，交由事件生命周期清理。"""
 
-    root = Path(rendered_root).expanduser().resolve()
+    root = Path(rendered_root).expanduser().absolute()
+    if root.is_symlink() or (root.exists() and not root.is_dir()):
+        raise ValueError("渲染目录路径不安全")
     root.mkdir(parents=True, exist_ok=True)
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("渲染目录路径不安全")
     with tempfile.NamedTemporaryFile(
         prefix=prefix,
         suffix=suffix,
@@ -70,13 +76,19 @@ class ResponseFactory:
     只把框架无关 DTO 交给此类转换。
     """
 
-    def __init__(self, *, temporary_roots: tuple[str | Path, ...] = ()) -> None:
+    def __init__(
+        self,
+        *,
+        temporary_roots: tuple[str | Path, ...] = (),
+        rendered_store: RenderedFileStore | None = None,
+    ) -> None:
         """限定可交给事件清理的合成文件根目录。"""
 
         self._temporary_roots = tuple(
             Path(root).expanduser().resolve()
             for root in temporary_roots
         )
+        self._rendered_store = rendered_store
 
     @staticmethod
     def plain(event: Any, text: str, *, need_at: bool = False) -> Any:
@@ -145,12 +157,18 @@ class ResponseFactory:
             return
         if isinstance(response, ImageResponse):
             if response.temporary:
-                tracker(str(self._temporary_path(response.image)))
+                path = self._temporary_path(response.image)
+                tracker(str(path))
+                if self._rendered_store is not None:
+                    self._rendered_store.register(path)
             return
         if isinstance(response, ChainResponse) and isinstance(response.components, (list, tuple)):
             for component in response.components:
                 if isinstance(component, ImageResponse) and component.temporary:
-                    tracker(str(self._temporary_path(component.image)))
+                    path = self._temporary_path(component.image)
+                    tracker(str(path))
+                    if self._rendered_store is not None:
+                        self._rendered_store.register(path)
 
     def build(self, event: Any, response: CommandResponse) -> Any:
         """将框架无关 DTO 转换为 AstrBot 原生结果。"""

@@ -16,6 +16,8 @@ ROLE_DETAIL_PATTERN = (
     rf"(?:\s*[+＋]\s*(?P<weapon_name_1>{PATTERN}))?"
     rf"(?:\s*[+＋]\s*(?P<weapon_name_2>{PATTERN}))?$"
 )
+REFRESH_ROLE_PATTERN = rf"^刷新(?P<char_name>{PATTERN})面板$"
+REFRESH_ADMIN_ROLE_PATTERN = rf"^刷新(?P<uid>\d+)的(?P<char_name>{PATTERN})面板$"
 
 
 def _service(request: CommandRequest) -> PlayerService | PlainTextResponse:
@@ -38,6 +40,17 @@ def _player_request(request: CommandRequest, parameters: dict[str, Any] | None =
         parameters=dict(request.parameters if parameters is None else parameters),
         reply_id=request.reply_id,
     )
+
+
+def _refresh_service(request: CommandRequest) -> PlayerService | PlainTextResponse:
+    """检查缓存刷新入口；权限仍由命令声明和本函数双重约束。"""
+
+    if request.actor is None:
+        return PlainTextResponse(messages.PLAYER_CONTEXT_UNAVAILABLE)
+    service = request.services.get("player_service")
+    if service is None or not callable(getattr(service, "refresh_role", None)):
+        return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+    return cast(PlayerService, service)
 
 
 async def player_role_overview_use_case(
@@ -73,6 +86,49 @@ async def player_original_image_use_case(
     return await service.original_image(_player_request(request, parameters))
 
 
+async def player_refresh_role_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **parameters: Any,
+):
+    service = _refresh_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.refresh_role(_player_request(request, parameters))
+
+
+async def player_refresh_admin_role_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **parameters: Any,
+):
+    if request.permission != "admin":
+        return PlainTextResponse(messages.PLAYER_ADMIN_ONLY)
+    service = _refresh_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.refresh_role(
+        _player_request(request, parameters),
+        uid=str(parameters.get("uid", "")),
+    )
+
+
+async def player_clear_all_cache_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **_parameters: Any,
+):
+    if request.permission != "admin":
+        return PlainTextResponse(messages.PLAYER_ADMIN_ONLY)
+    service = _refresh_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    operation = getattr(service, "clear_all_cache", None)
+    if not callable(operation):
+        return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+    return await operation()
+
+
 COMMAND_SPECS = (
     CommandSpec(
         id="role_info_card",
@@ -83,6 +139,36 @@ COMMAND_SPECS = (
         examples=("卡片",),
         permission="user",
         use_case=cast(Any, player_role_overview_use_case),
+    ),
+    CommandSpec(
+        id="refresh_admin_role_card",
+        pattern=REFRESH_ADMIN_ROLE_PATTERN,
+        group="角色信息",
+        name="刷新指定角色面板",
+        description="管理员按游戏 UID 刷新角色面板",
+        examples=("刷新123456的角色名面板",),
+        permission="admin",
+        use_case=cast(Any, player_refresh_admin_role_use_case),
+    ),
+    CommandSpec(
+        id="refresh_role_card",
+        pattern=REFRESH_ROLE_PATTERN,
+        group="角色信息",
+        name="刷新角色面板",
+        description="刷新自己的指定角色面板",
+        examples=("刷新角色名面板",),
+        permission="user",
+        use_case=cast(Any, player_refresh_role_use_case),
+    ),
+    CommandSpec(
+        id="clear_player_cache",
+        pattern=r"^清理全部角色缓存$",
+        group="角色信息",
+        name="清理角色缓存",
+        description="管理员清理全部角色数据和卡片缓存",
+        examples=("清理全部角色缓存",),
+        permission="admin",
+        use_case=cast(Any, player_clear_all_cache_use_case),
     ),
     CommandSpec(
         id="role_detail_card",
@@ -110,8 +196,13 @@ COMMAND_SPECS = (
 __all__ = [
     "COMMAND_SPECS",
     "PATTERN",
+    "REFRESH_ADMIN_ROLE_PATTERN",
+    "REFRESH_ROLE_PATTERN",
     "ROLE_DETAIL_PATTERN",
+    "player_clear_all_cache_use_case",
     "player_original_image_use_case",
+    "player_refresh_admin_role_use_case",
+    "player_refresh_role_use_case",
     "player_role_detail_use_case",
     "player_role_overview_use_case",
 ]

@@ -100,8 +100,10 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
   目录，与资源仓库的 `panel/`（只读原始面板）分离。
 
 玩家和资料 renderer 生成的 `rendered/*.png` 会在响应边界确认其位于受控渲染目录后，交给
-AstrBot 当前事件的临时文件生命周期清理。generation 内的 `panel/`、`wiki/`、`guide/` 等源
-资源不会直接登记为临时文件；需要直出时复制出的响应图片属于 `rendered/` 临时物。
+AstrBot 当前事件的临时文件生命周期清理，同时登记到进程内 rendered 租约表。后台维护任务按
+`cache.retention_ttl_hours` 扫描已知生成文件前缀，删除过期孤儿；仍有活动租约的发送文件会跳过，
+不在受控前缀内的 `panel_custom/` 等文件不会被扫描。generation 内的 `panel/`、`wiki/`、`guide/`
+等源资源不会直接登记为临时文件；需要直出时复制出的响应图片属于 `rendered/` 临时物。
 
 ## 玩家数据与卡片缓存
 
@@ -115,6 +117,14 @@ AstrBot 当前事件的临时文件生命周期清理。generation 内的 `panel
 当前 generation 的 commit/content/resource version；资源切换后会自然 miss 并重新渲染，旧
 条目等待硬保留期清理。缓存失效接口支持 cache type、完整 tag 集合、资源版本或精确 key
 组合筛选，只删除无活动租约的普通条目，不会越过运行期目录边界。
+
+O11 新增三条玩家缓存操作：普通用户可用 `刷新<角色名>面板` 强制刷新自己的角色，管理员可用
+`刷新<游戏UID>的<角色名>面板` 指定 UID，管理员还可用 `清理全部角色缓存` 仅清除玩家数据和完整
+卡片。角色刷新先精准失效该身份的概览与指定角色 tags，再重新读取并按
+`cache.refresh_send_card` 决定返回新卡片或仅返回成功文案；指定 UID 的 transport 凭据仍由当前
+操作者作用域提供。维护任务启动时先执行一次清理，随后复用 `cache.fresh_ttl_minutes` 作为扫描
+周期；若该配置为合法的 `0`（所有缓存立即视为 stale），则复用硬保留期作为扫描周期，避免零秒
+忙循环，不增加无产品语义的固定间隔配置。
 
 ## 图片下载与资源分层
 

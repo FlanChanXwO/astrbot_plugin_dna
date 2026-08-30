@@ -24,8 +24,14 @@ from .player import PlayerRenderer, RenderedPlayerImage, ResourceMap
 from .qr import render_qr_code
 from .renderer import HtmlRenderer
 from .spec import ClipRect, RenderSpec
+from .temporary import (
+    DEFAULT_RENDERED_PREFIXES,
+    RenderedCleanupReport,
+    RenderedFileStore,
+)
 
 __all__ = [
+    "DEFAULT_RENDERED_PREFIXES",
     "AssetRenderError",
     "CheckinRenderer",
     "ClipRect",
@@ -38,7 +44,9 @@ __all__ = [
     "RenderResultError",
     "RenderSpec",
     "RenderedCheckinImage",
+    "RenderedCleanupReport",
     "RenderedEncyclopediaImage",
+    "RenderedFileStore",
     "RenderedNoticesImage",
     "RenderedPlayerImage",
     "ResourceMap",

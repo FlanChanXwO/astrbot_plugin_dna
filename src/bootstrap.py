@@ -24,7 +24,7 @@ from .entry.event import EmptyEventEntryPoint, EventEntryPoint
 from .entry.lifecycle import PluginLifecycle
 from .entry.response import ResponseFactory
 from .entry.web import WebRegistrar
-from .infrastructure.cache import CacheManager
+from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.config import DnabySettings
 from .infrastructure.http import (
     DnaApiAccountTransport,
@@ -40,6 +40,7 @@ from .infrastructure.rendering import (
     EncyclopediaRenderer,
     NoticesRenderer,
     PlayerRenderer,
+    RenderedFileStore,
     ResourceMap,
 )
 from .infrastructure.resources import (
@@ -77,12 +78,23 @@ from .modules.notices.contracts import NoticesTransport
 from .modules.notices.service import NoticesService
 from .modules.operations.resource_service import ResourceUpdateService
 from .modules.operations.service import PanelService
-from .modules.player.contracts import PlayerTransport
 from .modules.player.cache import PlayerCache
+from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
+
+
+def _cache_maintenance_interval(settings: DnabySettings) -> float:
+    """返回缓存维护周期，避免 fresh=0 时创建零秒忙循环。"""
+
+    fresh_seconds = settings.cache.fresh_ttl_minutes * 60
+    if fresh_seconds > 0:
+        return float(fresh_seconds)
+    # fresh=0 是合法的“立即 stale”配置；复用硬保留期作为扫描周期，
+    # 保持清理任务可运行且不额外引入没有产品语义的固定间隔。
+    return float(settings.cache.retention_ttl_hours * 60 * 60)
 
 
 @dataclass(slots=True)
@@ -173,10 +185,22 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else EncyclopediaResourceStore.from_root(resource_root)
     )
+    rendered_root = runtime_database.path.parent / "rendered"
     cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
     player_cache = PlayerCache(
         cache_manager,
-        runtime_database.path.parent / "rendered",
+        rendered_root,
+    )
+    rendered_store = RenderedFileStore(
+        rendered_root,
+        retention_seconds=settings.cache.retention_ttl_hours * 60 * 60,
+    )
+    cache_maintenance = CacheMaintenance(
+        cache_manager,
+        rendered_store,
+        # 复用已配置的角色数据 fresh 周期作为清理扫描频率，避免新增一个
+        # 没有产品语义依据的固定定时配置。
+        interval_seconds=_cache_maintenance_interval(settings),
     )
     if services is not None:
         if "cache_manager" in services:
@@ -188,16 +212,34 @@ def build_runtime(
         elif "cache_manager" in services:
             player_cache = PlayerCache(
                 cache_manager,
-                runtime_database.path.parent / "rendered",
+                rendered_root,
+            )
+        if "rendered_store" in services:
+            rendered_store = cast(RenderedFileStore, services["rendered_store"])
+        if "cache_maintenance" in services:
+            cache_maintenance = cast(
+                CacheMaintenance,
+                services["cache_maintenance"],
+            )
+        elif (
+            "cache_manager" in services
+            or "player_cache" in services
+            or "rendered_store" in services
+        ):
+            cache_maintenance = CacheMaintenance(
+                cache_manager,
+                rendered_store,
+                interval_seconds=_cache_maintenance_interval(settings),
             )
     player_service = PlayerService(
         runtime_database,
         player_transport or DnaApiPlayerTransport(runtime_database),
         privacy_service,
-        PlayerRenderer(runtime_database.path.parent / "rendered", player_resources),
+        PlayerRenderer(rendered_root, player_resources),
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,
+        refresh_send_card=settings.cache.refresh_send_card,
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,
@@ -208,7 +250,7 @@ def build_runtime(
         ),
         privacy_service,
         EncyclopediaRenderer(
-            runtime_database.path.parent / "rendered", encyclopedia_resources
+            rendered_root, encyclopedia_resources
         ),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
@@ -229,7 +271,7 @@ def build_runtime(
         runtime_database.path.parent / "scheduler_state.json"
     )
     checkin_renderer = CheckinRenderer(
-        runtime_database.path.parent / "rendered",
+        rendered_root,
         encyclopedia_resources,
     )
     checkin_service = CheckinService(
@@ -265,7 +307,7 @@ def build_runtime(
         registry=scheduler_registry,
     )
     notices_renderer = NoticesRenderer(
-        runtime_database.path.parent / "rendered",
+        rendered_root,
         encyclopedia_resources,
         simple_image=settings.notifications.secret_simple_image,
     )
@@ -394,7 +436,9 @@ def build_runtime(
         "player_cache": player_cache,
         "player_service": player_service,
         "resource_root": resource_root,
-        "rendered_root": runtime_database.path.parent / "rendered",
+        "rendered_root": rendered_root,
+        "rendered_store": rendered_store,
+        "cache_maintenance": cache_maintenance,
         "player_resources": player_resources,
         "encyclopedia_service": encyclopedia_service,
         "encyclopedia_resources": encyclopedia_resources,
@@ -480,6 +524,7 @@ def build_runtime(
         start_hooks=(
             web.initialize,
             _sync_ann_config_on_startup,
+            cache_maintenance.start,
             resource_update_service.start_preheat,
             sign_scheduler.start,
             notices_scheduler.start,
@@ -487,6 +532,7 @@ def build_runtime(
         # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler、资源线程，再释放数据库。
         stop_hooks=(
             runtime_database.dispose,
+            cache_maintenance.stop,
             resource_update_service.stop,
             sign_scheduler.stop,
             notices_scheduler.stop,
@@ -498,7 +544,8 @@ def build_runtime(
         lifecycle=lifecycle,
         events=EmptyEventEntryPoint(),
         responses=ResponseFactory(
-            temporary_roots=(runtime_database.path.parent / "rendered",),
+            temporary_roots=(rendered_root,),
+            rendered_store=rendered_store,
         ),
         commands=(
             load_command_registry(prefixes=settings.display.command_prefixes)

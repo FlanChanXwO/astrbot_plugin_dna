@@ -51,6 +51,9 @@ WRITE_COMMANDS: dict[str, str] = {
     "account_switch": "user",
     "account_delete_all": "user",
     "account_delete": "user",
+    "refresh_role_card": "user",
+    "refresh_admin_role_card": "admin",
+    "clear_player_cache": "admin",
     "privacy_enable_peek_personal": "user",
     "privacy_disable_peek_personal": "user",
     "privacy_enable_uid_hidden": "user",
@@ -217,6 +220,18 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     "download_resource": (
         "test_resource_service.py",
         ("test_download_all_reports_clone_and_update", "test_download_all_failures_are_visible"),
+    ),
+    "refresh_role_card": (
+        "test_goal1_o11_refresh_and_cleanup.py",
+        ("test_user_refresh_forces_target_role_and_keeps_other_role_cache",),
+    ),
+    "refresh_admin_role_card": (
+        "test_goal1_o11_refresh_and_cleanup.py",
+        ("test_admin_refresh_requires_admin_and_passes_explicit_uid",),
+    ),
+    "clear_player_cache": (
+        "test_goal1_o11_refresh_and_cleanup.py",
+        ("test_clear_all_cache_command_only_clears_player_entries",),
     ),
 }
 

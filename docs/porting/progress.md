@@ -1,12 +1,12 @@
 # 移植进度（progress.md）
 
-> 更新于 2026-08-28。superpowers 迁移记录；当前 rewrite 阶段审查见
+> 更新于 2026-08-30。superpowers 迁移记录；当前 rewrite 阶段审查见
 > [review-v0.2-debug.md](review-v0.2-debug.md)、[review-v0.3-player.md](review-v0.3-player.md) 和
 > [review-v0.3-encyclopedia.md](review-v0.3-encyclopedia.md)、[review-v0.3-debug.md](review-v0.3-debug.md)，legacy 完整审查见 [review.md](review.md)，
 > legacy 交付结论见 [final_report.md](final_report.md)。
 
 > 重构区说明：本文主体记录的是 `legacy-reference` 的历史移植状态。当前 `rewrite/v0.1`
-> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 58 条命令；
+> 已切换为 `main.py` + `src/` 薄入口，代码 registry 已包含帮助、账号、隐私、玩家查询、资料读取、签到、通知和运维共 61 条命令；
 > 其余历史命令、Web 路由和业务生命周期仍按 `goal-1/tasks.md` 分阶段迁移。
 
 ### rewrite Task 13 — 玩家查询 ✅
@@ -37,6 +37,17 @@
   结果边界无消息 ID 交付点，显式报告未支持；伤害失败文案收敛为受控文本，不回显上游
   正文或凭据样式内容。真实平台原图引用能力的验收边界仍记入 Task 30。
 - 完整证据和修复边界见 [review-v0.3-debug.md](review-v0.3-debug.md)。
+
+### rewrite O10/O11 — 玩家缓存与刷新治理 ✅
+
+- `PlayerCache` 接入玩家概览和完整角色卡片缓存；普通用户可刷新自己的指定角色，管理员可按
+  游戏 UID+角色刷新，并可清理全部玩家 JSON/PNG 缓存而保留其它业务缓存。
+- `cache.refresh_send_card` 控制刷新后返回新卡片或成功文案；刷新按身份和角色 tags 精准失效，
+  不误删其它角色或其它缓存类型。缓存和 rendered 维护任务均纳入 runtime 生命周期。
+- `RenderedFileStore` 清理已知前缀下的过期孤儿并保护活动发送租约；`ResponseFactory` 在受控
+  rendered 文件交给 AstrBot 事件清理时登记租约，回归测试覆盖此前约 741 MB 无界增长问题。
+- 离线证据见 `tests/test_goal1_o10_player_cache.py` 与
+  `tests/test_goal1_o11_refresh_and_cleanup.py`；未执行真实账户刷新或生产文件清理。
 
 ### rewrite Task 17 — 签到 ✅（签到日历已接回 legacy 绘制核心）
 
@@ -168,9 +179,9 @@
   staging runtime 根执行，是既有嵌套 worktree 测试限制。
 
 > 本节描述的是 `legacy-reference` 的历史移植状态；`rewrite/v0.1` 的当前状态见上方各 Task
-> 记录与 `commands.json`（58 条命令）。
+> 记录与 `commands.json`（61 条命令）。
 
-以下为历史移植阶段记录；当前 main 以 `commands.json` 为准，已注册 58 条命令、16 个功能组和 5 张 SQLAlchemy 表，权限仅为 `user/admin`（32/26）。历史数字与验证结果不代表当前 main 的最终状态。
+以下为历史移植阶段记录；当前 main 以 `commands.json` 为准，已注册 61 条命令、16 个功能组和 5 张 SQLAlchemy 表，权限仅为 `user/admin`（33/28）。历史数字与验证结果不代表当前 main 的最终状态。
 
 硬约束已核对：源码不 import `gsuid_core` / `gsucore`；运行期数据库、订阅和资源写入 AstrBot `plugin_data` 数据目录；`commands.json` 与分发表同步；入口不承载业务编排。
 
@@ -223,7 +234,7 @@
 | `python -m compileall -q .` | 通过 |
 | `import main` | 通过 |
 | `import data.plugins.astrbot_plugin_dnaby.main` | 通过 |
-| 历史命令清单/分发 | 当时 56 条、18 模块；当前 main 以 58 条、16 组为准 |
+| 历史命令清单/分发 | 当时 56 条、18 模块；当前 main 以 61 条、16 组为准 |
 | Dashboard 重载 | `ASTRBOT_SKIP_PLUGIN_REQUIREMENTS_SYNC=1 ... reload-plugins.sh 6196 astrbot_plugin_dnaby` 返回 `重载成功` |
 | 历史本机真实 E2E | 当时 56 条命令有入站 `204`；当前 goal 的生产事件级 E2E 另按矩阵记录 |
 
