@@ -19,6 +19,8 @@
 - `resources`：公共资源仓库的 GitHub 加速模式和自定义 HTTP(S) 加速前缀。默认
   `github_acceleration=off` 直连；`edgeone`、`hk`、`gh_proxy`、`dpik` 使用内置前缀，
   `custom` 只使用经过规范化的自定义基础 URL。镜像失败会直接报告，不会静默回退直连。
+- `agent_tools`：AstrBot Agent Tools 总开关。默认关闭；工具列表、参数、返回和安全边界见
+  [Agent Tools 使用说明](agent-tools.md)。
 
 资源配置的唯一字段是：
 
@@ -51,6 +53,16 @@
 | `cache.retention_ttl_hours` | `24` | 玩家缓存的硬保留时间；超过后维护任务可清理。 |
 | `cache.announcement_ttl_hours` | `24` | 公告列表、详情、manifest 和已校验源图的绝对保留时间。 |
 | `cache.refresh_send_card` | `true` | 手动刷新成功后是否立即发送新的完整卡片。 |
+
+## Agent Tools 配置
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `agent_tools.enabled` | `false` | 是否注册 DNABY Agent Tools；关闭时注册数量为 0，开启时注册 17 个（16 个只读查询和 1 个签到写工具）。 |
+
+这是 Agent Tools 的唯一配置开关。它不改变聊天命令的注册，也不开放账号、凭据、隐私、订阅、
+资源或管理配置写操作。修改后需重新加载插件，生命周期会在 `initialize()`/`terminate()`
+中完成注册和解除注册。
 
 fresh 过期但仍在硬保留期内时会尝试刷新；刷新失败且存在完整旧卡时会带过期提示。公告缓存的
 绝对保留使用 `cache.announcement_ttl_hours`，不受已移除的全局密函缓存开关控制。

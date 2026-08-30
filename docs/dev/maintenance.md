@@ -7,6 +7,17 @@
 同步更新最具体的 `docs/usage/`、`docs/project/` 文档。`docs/porting/` 与 `docs/legacy/`
 是历史移植/排查存档；判断当前行为时以 `docs/project/` 和 `docs/usage/` 为准。
 
+## Agent Tools 热重载
+
+Agent Tools 只由 `agent_tools.enabled` 控制。启用后由插件生命周期在初始化时注册、终止时
+解除注册，不要在 Dashboard 或聊天命令中手工重复注册；关闭开关后应确认 Context 中没有
+DNABY 工具。若注销某个工具失败，生命周期会保留失败项，下一次终止或启动先重试残留并继续
+暴露错误，维护时应查看 AstrBot 日志中的工具名和错误类型，不要用重启容器掩盖问题。
+
+`dnaby_sign` 是唯一写工具，仅允许当前事件原始消息明确确认签到；生产排查和测试不得使用真实
+签到副作用。其余工具为查询或当前用户订阅查看，不能作为账号、凭据、隐私、订阅或管理配置的
+写入口。完整 schema 与返回边界见 [Agent Tools 使用说明](../usage/agent-tools.md)。
+
 ## 运行期数据与备份
 
 插件运行期数据必须位于

@@ -730,6 +730,14 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
 - 更新配置 schema，验证关闭总开关时零工具注册。
 - 运行完整 pytest、ruff、compileall。
 
+完成记录（2026-08-30）：
+
+- 文档：新增 [`docs/usage/agent-tools.md`](../docs/usage/agent-tools.md) 作为 Agent Tools 唯一详细使用说明，列出 16 个只读工具和唯一写工具 `dnaby_sign` 的参数、`send_image` 行为、固定 JSON envelope、身份来源、签到确认/幂等和失败语义；同步更新 docs 索引、命令说明、配置说明、架构、维护和测试入口。明确 Agent Tools 不属于 `commands.json`，不提供账号、凭据、隐私、订阅、资源或管理配置写操作。
+- 配置与投影：`agent_tools.enabled` 已在 typed settings 与生成 schema 中作为唯一总开关，默认 `false`；重新运行 `scripts/generate_config_schema.py`、`scripts/generate_commands_manifest.py` 后，`_conf_schema.json` 与 `commands.json` 均无 diff。关闭开关零注册、schema 默认值和生成投影契约为 `3 passed, 1 warning`。
+- Red/Green/Refactor：本轮只新增/更新文档和门禁记录，没有新增生产行为，因此无新的实现 Red；沿用 O18/D06 已实际验证的关闭开关、17 工具生命周期和安全契约。Agent Tools 相关源码/测试 Ruff 通过，目标 compileall 和 `git diff --check` 通过。
+- 完整门禁：全量 pytest 实际为 `708 passed, 1 skipped, 9 failed, 5 warnings`；9 条失败分别是本地缺少 sibling 资源 checkout 的 5 条 Goal3 resource contract、Goal3 命令数期望漂移 1 条、namespace 命令数期望漂移 1 条，以及外部 CDN/T2I 不可用导致公告订阅渲染的 2 条，未命中本轮文档或 Agent Tools 文件。全仓 `ruff check .` 实际报告 14 条既有 infrastructure/scheduler/admin、历史 D03 和并行 Goal2/Goal3 文件问题；本轮目标文件未命中。全仓 `compileall -q .` 与 `git diff --check` 通过。
+- 剩余风险：全量 pytest/ruff 的上述环境与并行目标基线问题仍待其归属任务或可用外部依赖处理，不能在 O19 通过静默 fallback 掩盖；Agent Tools 未执行真实签到、生产 reload 或真实图片发送。下一步进入 O20，进行第三阶段独立 SHA 审查与回滚清单准备。
+
 ### O20 — 第三阶段审查与独立 SHA `[pending]`
 
 - 自审并使用 `code-review-expert`，修复阻塞问题。

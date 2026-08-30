@@ -22,6 +22,12 @@
   `EventActor`，从公开消息链的 `At` 和 `Reply` 组件分别提取可选目标用户与引用消息
   ID；消息命令由每个动态 handler 的 AstrBot 正则过滤器接管，业务 use case 不持有原始
   event。
+- Agent Tools：`src/entry/agent_tools/` 通过 AstrBot 官方 `FunctionTool`、
+  `Context.add_llm_tools` 和 `unregister_llm_tool` 提供 16 个只读查询与唯一的 `dnaby_sign`
+  写入口；`AgentToolsLifecycle` 在 runtime 的 initialize/terminate 中按总开关注册和解除，
+  `AgentQueryCatalog` 复用领域查询适配器。查询身份只来自 `AstrAgentContext.event`，签到还要求
+  原始消息的明确肯定意图，并以事件消息 ID 幂等；具体工具 schema、返回和安全边界见
+  [Agent Tools 使用说明](../usage/agent-tools.md)。
 - 配置：`src/infrastructure/config/settings.py` 定义按领域分组的 Pydantic settings；
   `schema.py` 从同一份字段定义生成 `_conf_schema.json`，bootstrap 将 AstrBot 配置转换为
   `DnabySettings`。

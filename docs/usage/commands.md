@@ -9,6 +9,12 @@
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；以当前配置前缀发送 `帮助` 查看同一
 registry 的帮助文本。
 
+## Agent Tools
+
+Agent Tools 不属于聊天命令和 `commands.json`，不使用命令前缀，也不会出现在聊天帮助中。它们
+由独立的 `agent_tools.enabled` 开关控制，默认关闭；工具名称、参数、结构化返回、身份边界和
+签到安全说明见 [Agent Tools 使用说明](agent-tools.md)。
+
 ## 当前账号命令
 
 - `登录`、`登陆`、`登入`、`登龙`、`login`：调用注入的登录页 transport。

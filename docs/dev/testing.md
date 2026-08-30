@@ -26,6 +26,14 @@ ruff check .
   校验、原子缓存、损坏缓存修复、single-flight、legacy 调用方复用和失败日志脱敏。
 - `test_goal1_d03_review.py` — O07–O09 的符号链接路径边界、取消后后台同步失败可观测性，以及
   资源/图片缓存的故障注入审查。
+- `test_goal1_o16_agent_tools.py` — Agent 查询 request/result、当前事件身份提取、共享领域查询
+  适配和身份参数拒绝。
+- `test_goal1_o17_agent_tools.py` — 16 个只读工具的官方注册、JSON envelope、图片发送、路径/二进制
+  脱敏、身份覆盖拒绝和图片失败语义。
+- `test_goal1_o18_agent_tools.py` — 签到原始消息确认、模型参数拒绝、当前 UID、消息 ID 幂等、总开关
+  和 runtime 生命周期。
+- `test_goal1_d06_agent_tools.py` — 信息/示例 prompt 负向确认、工具范围、并发注册、注销残留重试和
+  热重载清理。
 - `test_goal3_task19.py` — 使用临时 bare Git 和编辑器 `test:task19` 联合验证公共资源
   manifest/schema、Worker PR Check、插件 `main` 下载/generation/兑换码消费，以及旧数据目录
   与 `panel_custom`/数据库/订阅文件的无损升级。
