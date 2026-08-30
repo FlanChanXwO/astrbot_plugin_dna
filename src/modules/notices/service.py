@@ -518,8 +518,9 @@ class NoticesService:
         origin, error = await self._origin(request.actor)
         if error:
             return PlainTextResponse(error)
-        await self._invoke_push(origin, "密函测试推送")
-        return PlainTextResponse(messages.MH_TEST_SENT)
+        if await self._invoke_push(origin, "密函测试推送"):
+            return PlainTextResponse(messages.MH_TEST_SENT)
+        return PlainTextResponse(messages.MH_TEST_FAILED)
 
     def _sync_ann_group(self, group_id: str | None, subscribed: bool) -> None:
         if not group_id:
@@ -705,14 +706,26 @@ class NoticesService:
             if self._mh_subscription_in_window(sub, current_hour)
         ]
         if pic_subs:
-            with self._renderer_context() as renderer:
-                rendered = await renderer.render_mh(
-                    snapshot,
-                    simple_image=self.secret_simple_image,
+            try:
+                with self._renderer_context() as renderer:
+                    rendered = await renderer.render_mh(
+                        snapshot,
+                        simple_image=self.secret_simple_image,
+                    )
+            except (HtmlRenderError, OSError, httpx.HTTPError, ValueError) as error:
+                from astrbot.api import logger
+
+                logger.warning(
+                    f"[dnaby][push_mh] 密函图片渲染失败: {type(error).__name__}",
                 )
-            for sub in pic_subs:
-                if await self._invoke_push(sub.unified_msg_origin, rendered.path, at_user_id=None):
-                    pushed += 1
+            else:
+                for sub in pic_subs:
+                    if await self._invoke_push(
+                        sub.unified_msg_origin,
+                        rendered.path,
+                        at_user_id=None,
+                    ):
+                        pushed += 1
 
         return pushed
 

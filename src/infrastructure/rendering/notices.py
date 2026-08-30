@@ -625,6 +625,7 @@ class NoticesRenderer:
             not isinstance(page_indexes, list)
             or not page_indexes
             or any(type(index) is not int or index < 0 for index in page_indexes)
+            or page_indexes != list(range(len(page_indexes)))
         ):
             return None
         pages: list[bytes] = []

@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+import logging
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -16,6 +17,8 @@ from typing import Literal
 from uuid import uuid4
 
 from ..config.settings import CacheSettings
+
+logger = logging.getLogger(__name__)
 
 CacheState = Literal["fresh", "stale", "miss"]
 ContentValidator = Callable[[bytes], bool | None | Awaitable[bool | None]]
@@ -434,17 +437,31 @@ class CacheManager:
         finally:
             async with self._lock:
                 if not self._entry_path_is_unsafe(data_path, metadata_path) and metadata_path.is_file():
-                    current = self._read_metadata(metadata_path)
-                    if current.lease_count > 0:
-                        self._atomic_write(
-                            metadata_path,
-                            json.dumps(
-                                replace(
-                                    current, lease_count=current.lease_count - 1
-                                ).to_dict(),
-                                ensure_ascii=False,
-                                sort_keys=True,
-                            ).encode("utf-8"),
+                    try:
+                        current = self._read_metadata(metadata_path)
+                        if current.lease_count > 0:
+                            self._atomic_write(
+                                metadata_path,
+                                json.dumps(
+                                    replace(
+                                        current, lease_count=current.lease_count - 1
+                                    ).to_dict(),
+                                    ensure_ascii=False,
+                                    sort_keys=True,
+                                ).encode("utf-8"),
+                            )
+                    except (
+                        OSError,
+                        UnicodeError,
+                        json.JSONDecodeError,
+                        KeyError,
+                        TypeError,
+                        ValueError,
+                    ) as error:
+                        # 释放阶段不能覆盖调用方异常；损坏 sidecar 保留现场交给维护任务处理。
+                        logger.warning(
+                            "缓存租约释放失败，保留条目等待维护: %s",
+                            type(error).__name__,
                         )
 
     async def cleanup(self, *, now: datetime | None = None) -> int:
