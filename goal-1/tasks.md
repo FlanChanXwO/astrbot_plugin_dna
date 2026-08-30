@@ -724,7 +724,7 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
 - 验证：O16/O17/O18、D06、配置及入口相关回归共 `76 passed, 1 warning`；目标 Agent Tools Ruff 通过，定向 Pyright 为 `0 errors, 0 warnings, 0 informations`，目标 `compileall` 与 `git diff --check` 通过。警告仍为 AstrBot 依赖导入 `audioop` 的弃用警告；未执行真实签到或生产写操作。
 - 剩余风险：完整第三阶段文档同步与全量质量门禁留给 O19；生产真实签到、外部服务与资源权利风险不因本审查消除。下一步进入 O19。
 
-### O19 — 第三阶段文档、配置与完整门禁 `[pending]`
+### O19 — 第三阶段文档、配置与完整门禁 `[completed]`
 
 - 更新 Agent Tools 列表、参数、返回契约、身份与签到安全说明。
 - 更新配置 schema，验证关闭总开关时零工具注册。
@@ -802,11 +802,47 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
   JSON、图片和签到安全由同一候选版本的 fake adapter 直接验证。后续由 D07 做 O19–O21 的
   负向审查和生产日志/生命周期再审计。
 
-### D07 — 调试审查 O19–O21 `[pending]`
+### D07 — 调试审查 O19–O21 `[completed]`
 
 - 检查生产日志、工具枚举、handler/scheduler 与缓存任务是否重复或残留。
 - 运行跨用户、否定意图、重复消息、图片失败与关闭开关回归。
 - 阶段三不稳定时回滚第二阶段 SHA。
+
+完成记录（2026-08-30）：
+
+- 审查结论：复核 O19–O21 的 Agent Tools 注册边界、唯一 17 工具清单、`bootstrap` 生命周期接线、
+  查询异常传播、图片路径可用性、签到身份/确认/幂等和生产日志。发现两个本次变更相关的 P1
+  边界并立即修复：查询 use case 异常此前会逃逸到 AstrBot FunctionTool 的 traceback envelope；
+  缺失图片文件此前会被报告为 `available=true`，并可能交给 `Image.fromFileSystem` 形成假发送。
+  现均返回固定安全 JSON 或显式图片发送失败，只记录查询名/异常类型，不回显路径、URL 或异常正文。
+  复核确认生产代码只有 `AgentToolsLifecycle` 注册 Agent Tools，`register_agent_tools()` 仅为离线
+  adapter 工具；scheduler、handler、缓存维护和资源预热没有重复接线。
+- 幂等边界：最初用两个不同事件对象复现同消息 ID 时，事件级缓存无法去重；随后核对 AstrBot 4.27.4
+  官方 `AstrAgentContext`/`Context.call_llm`，一次 Agent 运行绑定一个原始 event。没有引入无界进程
+  缓存或未经迁移的持久化表；回归改为不同 `ContextWrapper` 复用同一原始 event，覆盖实际工具重试路径，
+  并同步在 Agent Tools 文档披露边界。跨请求重建事件对象的持久化幂等仍是后续独立设计项。
+- Red/Green/Refactor 证据：查询异常泄漏测试在旧实现下实际 `1 failed`，修复后通过；缺失图片
+  `available=true`/误发送测试在旧实现下实际 `1 failed`，加入文件检查后通过。最终本地 Agent Tools
+  负向矩阵 `tests/test_goal1_o17_agent_tools.py tests/test_goal1_o18_agent_tools.py
+  tests/test_goal1_d06_agent_tools.py` 为 `37 passed, 1 warning`；包含 O16、配置/资源和入口回归的
+  扩展矩阵为 `66 passed, 1 warning`。警告均为 AstrBot 依赖 `audioop` 弃用；源码 Ruff、源码
+  Pyright、compileall、LSP diagnostics 和 `git diff --check` 均通过。Pyright 对历史测试夹具另有
+  5 个既有类型错误，未涉及本次改动。
+- 候选与生产：修复提交/候选为 `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`，已发布到
+  `codex/goal-1-phase3-d07`，并在 atri 非破坏性 fetch 后精确切换。容器内 compileall、schema、
+  61 条命令清单、16 个只读工具、`dnaby_sign`、关闭总开关和同一 `66` 测试矩阵均通过；插件目录
+  clean。记录日志起点为 `2026-08-30T11:05:11Z`，仅调用一次已认证
+  `POST /api/v1/plugins/astrbot_plugin_dnaby/reload`，HTTP `200`、业务 `ok`、成功语义成立。
+  reload 后 HEAD 精确为候选 SHA，Dashboard 认证 GET 为 HTTP 200/`ok`，插件唯一、已激活、版本
+  `v0.2.0`；容器 `running=true`、`restart_count=0`，资源 pointer generation/content SHA 未变。
+  日志窗口中 `dnaby=0`、`Traceback=0`、`Exception=0`、`ERROR=0`，没有工具/handler/scheduler/cache
+  残留记录；配置仍为 `agent_tools.enabled=false`，所以没有真实 LLM 工具注册、签到或图片投递。
+- 回滚：本轮候选预检与 reload 均通过，未触发回滚；阶段三回滚点仍为第二阶段稳定 SHA
+  `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`。预检期间出现的两次 shell 包装错误分别是本地
+  quoting 和宿主机误调用 pytest，均发生在 reload 前且没有改变生产状态；随后全部改为容器内命令并
+  完成通过验证。未重启容器、未修改配置/数据库/订阅/资源运行期数据，也未执行真实签到。
+- 剩余风险：生产总开关关闭，真实 Agent/图片链路仍由 adapter 模拟；不同事件对象的跨请求消息幂等
+  需要未来明确的共享存储/生命周期设计，当前不宣称已覆盖。下一步进入 O22，审计三阶段兼容与回滚链。
 
 ## 跨阶段收尾
 
