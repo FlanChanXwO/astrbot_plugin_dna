@@ -66,6 +66,54 @@ class AgentToolsLifecycle:
         if inspect.isawaitable(value):
             await value
 
+    def _retain_registered_tools(self, names: Sequence[str]) -> None:
+        """只保留仍可能存在于 Context 中的工具，供后续注销重试。"""
+
+        retained_names = tuple(names)
+        tools_by_name = {
+            getattr(tool, "name", ""): tool
+            for tool in self._tools
+        }
+        self._registered_names = retained_names
+        self._tools = tuple(
+            tools_by_name[name]
+            for name in retained_names
+            if name in tools_by_name
+        )
+
+    async def _unregister_names(
+        self,
+        remove: Any,
+        names: Sequence[str],
+    ) -> tuple[tuple[str, ...], list[BaseException]]:
+        """注销工具并返回失败残留，确保单个失败不阻断其余清理。"""
+
+        remaining: list[str] = []
+        errors: list[BaseException] = []
+        for name in names:
+            try:
+                await self._maybe_await(remove(name))
+            except BaseException as error:  # noqa: BLE001
+                logger.warning(
+                    "[dnaby][agent_tools] 工具注销失败: %s (%s)",
+                    name,
+                    type(error).__name__,
+                )
+                remaining.append(name)
+                errors.append(error)
+        return tuple(remaining), errors
+
+    @staticmethod
+    def _raise_unregister_errors(
+        message: str,
+        errors: Sequence[BaseException],
+    ) -> None:
+        if not errors:
+            return
+        if len(errors) == 1:
+            raise errors[0]
+        raise BaseExceptionGroup(message, list(errors))
+
     def _build_tools(self) -> tuple[list[object], tuple[str, ...]]:
         checkin_service = self.services.get("checkin_service")
         if checkin_service is None:
@@ -102,19 +150,35 @@ class AgentToolsLifecycle:
         """按一次性批量注册 Agent Tools；禁用时保持完全空操作。"""
 
         async with self._lock:
-            if self._started or not self.enabled:
+            if self._started:
+                return
+            if not self.enabled and not self._registered_names:
                 return
             add, remove = self._registration_methods()
+
+            if self._registered_names:
+                remaining, cleanup_errors = await self._unregister_names(
+                    remove,
+                    self._registered_names,
+                )
+                self._retain_registered_tools(remaining)
+                self._raise_unregister_errors(
+                    "多个 Agent Tools 残留注销失败",
+                    cleanup_errors,
+                )
+
             tools, names = self._build_tools()
+            self._tools = tuple(tools)
+            self._registered_names = names
             try:
                 await self._maybe_await(add(*tools))
             except BaseException as registration_error:
-                cleanup_errors: list[BaseException] = []
-                for name in names:
-                    try:
-                        await self._maybe_await(remove(name))
-                    except BaseException as error:  # noqa: BLE001
-                        cleanup_errors.append(error)
+                remaining, cleanup_errors = await self._unregister_names(
+                    remove,
+                    names,
+                )
+                self._retain_registered_tools(remaining)
+                self._started = False
                 if cleanup_errors:
                     raise BaseExceptionGroup(
                         "Agent Tools 注册失败且残留清理失败",
@@ -129,7 +193,7 @@ class AgentToolsLifecycle:
         """注销本实例拥有的全部工具，并在多项失败时继续清理。"""
 
         async with self._lock:
-            if not self._started:
+            if not self._started and not self._registered_names:
                 return
             remove = getattr(self.context, "unregister_llm_tool", None)
             if not callable(remove):
@@ -137,26 +201,13 @@ class AgentToolsLifecycle:
                     "Agent Tools 注销需要 AstrBot Context.unregister_llm_tool",
                 )
 
-            errors: list[BaseException] = []
-            for name in self._registered_names:
-                try:
-                    await self._maybe_await(remove(name))
-                except BaseException as error:  # noqa: BLE001
-                    logger.warning(
-                        "[dnaby][agent_tools] 工具注销失败: %s (%s)",
-                        name,
-                        type(error).__name__,
-                    )
-                    errors.append(error)
-            self._tools = ()
-            self._registered_names = ()
+            remaining, errors = await self._unregister_names(
+                remove,
+                self._registered_names,
+            )
+            self._retain_registered_tools(remaining)
             self._started = False
-
-            if not errors:
-                return
-            if len(errors) == 1:
-                raise errors[0]
-            raise BaseExceptionGroup("多个 Agent Tools 注销失败", errors)
+            self._raise_unregister_errors("多个 Agent Tools 注销失败", errors)
 
 
 __all__ = ["AGENT_SIGN_TOOL_NAME", "AgentToolsLifecycle"]

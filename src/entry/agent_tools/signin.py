@@ -48,8 +48,9 @@ _QUESTION_MARKERS = (
     "吗",
     "呢",
 )
-_AFFIRMATIVE_MARKERS = (
+_AFFIRMATIVE_PREFIXES = (
     "请",
+    "请帮我",
     "帮我",
     "给我",
     "我要",
@@ -65,16 +66,19 @@ _AFFIRMATIVE_MARKERS = (
     "立即",
     "马上",
     "去",
-    "please",
-    "confirm",
-    "execute",
-    "start",
-    "yes",
-    "ok",
+    "我去",
 )
-_ENGLISH_SIGN_PATTERN = re.compile(r"(?<![a-z])sign(?![a-z])")
 _ENGLISH_NEGATIVE_PATTERN = re.compile(
     r"\b(?:no|not|never|don't|do\s+not|cancel|stop)\b",
+)
+_ENGLISH_SIGN_PHRASES = (
+    "sign",
+    "pleasesign",
+    "confirmsign",
+    "executesign",
+    "startsign",
+    "yessign",
+    "oksign",
 )
 
 
@@ -115,21 +119,18 @@ def sign_intent_from_text(
     if "?" in normalized or "？" in normalized:
         return False
 
-    has_chinese_term = any(term in compact for term in _SIGN_TERMS)
-    has_english_term = _ENGLISH_SIGN_PATTERN.search(normalized) is not None
-    if not (has_chinese_term or has_english_term):
-        return False
-
     direct_terms: set[str] = set(_SIGN_TERMS)
-    direct_terms.add("sign")
+    direct_terms.update(_ENGLISH_SIGN_PHRASES)
+    direct_terms.update(
+        prefix + term
+        for prefix in _AFFIRMATIVE_PREFIXES
+        for term in _SIGN_TERMS
+    )
     for prefix in prefixes:
         if isinstance(prefix, str) and prefix.strip():
             direct_terms.add(_compact_message(prefix) + "签到")
             direct_terms.add(_compact_message(prefix) + "sign")
-    if compact in direct_terms or normalized == "sign":
-        return True
-
-    return any(marker in compact or marker in normalized for marker in _AFFIRMATIVE_MARKERS)
+    return compact in direct_terms
 
 
 def _failure(error: str) -> str:
