@@ -36,6 +36,17 @@
 - 本地完整 pytest 为 `721 passed, 1 skipped, 2 failed`；失败是 `cdn.test` 外部图片连接错误。完整 Ruff
   的 13 条问题仍属于既有 admin/Goal 2/D03 基线，未归入 O24 变更。
 
+## goal-1 D08 — 最终调试审查（2026-08-30）
+
+### Verification
+
+- 已完成 O22–O24 的逐条验收审查；当前 `plan.md` 与 `tasks.md` 均标记为已完成，所有剩余风险
+  均明确归类为外部服务、资源许可或后续设计边界。
+- 最终相关回归为 `292 passed, 2 failed, 5 warnings`，两项失败均为 `cdn.test` 图片 TLS
+  `ConnectError`；compileall、投影生成、Markdown 链接、禁止 import、敏感跟踪路径检查均通过。
+- 重做 atri 只读核验确认生产状态与 O24 一致；本轮未调用插件 reload、未切换 SHA、未执行真实
+  签到/图片投递，也未修改生产配置或运行期数据。
+
 ## goal-1 O04 — 第一阶段命令与文档收口（2026-08-28）
 
 ### Changed

@@ -268,3 +268,15 @@
 - 本地最终门禁：全量 pytest `721 passed, 1 skipped, 2 failed`（外部 `cdn.test` 图片连接）；全仓 Ruff
   仍有 13 条既有 admin/Goal 2/D03 基线问题；compileall、生成投影一致性和 diff check 通过。O23 的
   adapter/视觉证据仍按 `goal-1/tasks.md` 保留，真实 CDN/T2I 成功不因本只读核验被宣称。
+
+## goal-1 D08 — 最终调试审查 O22–O24 ✅
+
+- 已逐条复核 `goal-1/input.md`、`plan.md` 与 `tasks.md`：三阶段交付、独立插件/资源 SHA、
+  adapter/视觉/迁移/缓存/公告/密函/Agent Tools 矩阵、生产定向 reload 与回滚证据均有记录，
+  未发现 O22–O24 引入的 P0/P1 阻塞项。
+- 最终相关回归为 `292 passed, 2 failed, 5 warnings`；失败仍仅是 `cdn.test` 图片 TLS
+  连接错误。compileall、命令/配置生成器、D08 扩展后的 46 文件/99 本地链接检查、禁止 import
+  与 Git 跟踪敏感产物扫描均通过；全量基线结果按 O23 原样保留。
+- atri 只读复核的插件/资源 SHA、registry `61`、容器运行/restart `0`、Agent Tools 关闭、
+  数据库 revision `0003_global_identity` 与日志窗口均符合 O24 记录。D08 未执行 reload、
+  生产写操作、真实签到或真实图片投递；后续发布仍必须遵守精确 SHA 与认证定向 reload 清单。

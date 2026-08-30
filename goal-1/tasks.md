@@ -1,6 +1,6 @@
 # 执行任务清单
 
-> **执行中：按 goal-mode 自动推进。** 用户已明确要求启动 `goal-1`，从 O01 顺序推进。每个普通任务只占一个目标轮次；每完成 3 个普通任务，必须执行紧随其后的调试审查任务，不能跳过。
+> **已完成：按 goal-mode 自动推进。** 用户已明确要求启动 `goal-1`，从 O01 顺序推进。每个普通任务只占一个目标轮次；每完成 3 个普通任务，必须执行紧随其后的调试审查任务，不能跳过。
 
 统一完成记录模板（执行时填写到对应任务下）：
 
@@ -958,8 +958,33 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
   精确 SHA、认证 GET、定向 reload、失败停止、同 endpoint 回滚和数据保留步骤写入维护/发布
   文档。下一步为 D08，进行 O22–O24 的最终逐条审查；在 D08 完成前不标记整个 goal-1 完成。
 
-### D08 — 最终调试审查 O22–O24 `[pending]`
+### D08 — 最终调试审查 O22–O24 `[completed]`
 
-- 逐条对照 `input.md`、`plan.md` 与所有显式验收条件，不能用“未发现问题”代替完成证据。
-- 确认没有待修阻塞项、秘密泄露、运行期源码目录写入或未验证的生产假设。
-- 只有全部证据成立时才允许将未来的实现目标标记完成。
+- 逐条审查：对照 `input.md`、`plan.md` 第 1–7 节与 O01–O24、D01–D07 的完成记录，确认
+  三阶段行为/配置/投影/测试、公告与密函失败语义、缓存键隔离、Agent Tools 身份与签到安全、
+  三个独立插件 SHA、资源 SHA、atri 定向 reload 和回滚证据均已有对应出处；本计划新增的
+  公告、密函和缓存专项条款也已由 O12-A/O12-B/O15/D04/D05 的测试与部署记录覆盖。
+- 最终本地相关回归实际为 `292 passed, 2 failed, 5 warnings`；失败仅为
+  `test_poll_ann_now_pushes_only_new_announcements` 与
+  `test_poll_ann_now_continues_when_one_subscriber_push_fails` 的 `cdn.test` 图片 TLS
+  `ConnectError`，未出现新的代码/契约失败。compileall、两个生成器、Markdown 本地链接检查
+  （O24 为 44 文件/99 链接；D08 扩展扫描为 46 文件/99 本地链接，绝对 skill 路径跳过）和
+  `git diff --check` 均通过；O23 全量 `721 passed, 1 skipped, 2 failed`
+  与全仓 Ruff 13 条既有 admin/Goal 2/D03 基线结果保持一致。
+- 安全/边界审查：源码精确扫描无 `gsuid_core`/`gsucore` import；Git 跟踪路径无凭据、SQLite、
+  日志等运行期敏感产物；运行期 SQLite 位于被 `.gitignore` 保护的 `data/plugin_data/`，不在
+  插件源码目录的提交范围内。代码 review 未发现 O22–O24 引入的 P0/P1；跨事件对象的签到
+  幂等边界已在 D07 和 Agent Tools 文档中明确为当前 AstrBot 原始事件生命周期之外的后续设计，
+  未伪装为已覆盖。
+- atri 复核（2026-08-30）：只读确认插件 `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`、
+  `v0.2.0`、detached/clean、registry `61`；资源 generation
+  `5d76860141d9ab5052417df25ccc9f5a929ff06b` 与 content SHA
+  `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4` 一致；容器
+  `running=true`、restart count `0`；`agent_tools.enabled=false`；数据库 revision
+  `0003_global_identity`。最近 30 分钟/2 小时 DNABY error-like/traceback 均为 `0`；24 小时
+  总 traceback `219` 属于其他组件，未归因给 DNABY。未读取凭据、未调用 reload、未切换 SHA、
+  未修改生产配置/数据库/订阅/资源。
+- 审查结论：O22–O24 无待修的本目标阻塞项，资源第三方许可、真实 CDN/T2I 可用性、生产
+  Agent Tools 默认关闭和跨重建事件幂等均已作为明确剩余边界记录；阶段二稳定回滚点为
+  `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`。D08 完成，`plan.md` 与 `tasks.md` 的目标
+  状态已标记为已完成。
