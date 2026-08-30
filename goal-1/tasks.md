@@ -662,11 +662,21 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
 - 剩余边界：当前 catalog 只接入 `stamina` 作为共享查询代表；完整只读工具清单、稳定 JSON
   化、可选图片发送、总开关和签到安全仍由 O17–O19 实现与 D06 审查。下一步进入 O17。
 
-### O17 — 纯查询工具、JSON envelope 与可选图片 `[pending]`
+### O17 — 纯查询工具、JSON envelope 与可选图片 `[completed]`
 
 - TDD 注册已批准的玩家、角色、体力、周报、日历、wiki、攻略、兑换码、目录、梦魇、公告和订阅查看工具。
 - 默认返回 `ok/kind/data/cache/error` JSON。
 - `send_image=true` 时直接发给当前用户，工具结果只返回 `image_sent`，不泄露本地路径。
+
+完成记录（2026-08-30）：
+
+- TDD/工具清单：先新增 `tests/test_goal1_o17_agent_tools.py` 并实际运行 Red，初始因工具适配模块不存在而在 collection 阶段失败；补充官方注册契约后再次以缺少 `register_agent_tools` 实际失败。随后建立
+  `src/entry/agent_tools/tools.py`，通过 `FunctionTool.call(ContextWrapper[AstrAgentContext])` 从当前事件取身份，并提供
+  `register_agent_tools()` 调用官方 `Context.add_llm_tools`。完整注入四类 service 时注册 16 个批准的只读工具：玩家概览/角色详情、体力、本周/上周周报、日历、wiki、攻略、兑换码、角色/武器目录、梦魇、梦魇列表、我的订阅、公告列表/详情和签到日历查询；签到日历只读，不执行签到。
+- 查询复用：`src/modules/agent_tools/queries.py` 为玩家、百科、梦魇公告和签到日历建立 typed request 适配，聊天侧已有体力查询继续复用 `stamina_query`；工具 schema 不暴露 `user_id`、`target_user_id`、`bot_id`、`credential_user_id`、`uid` 等身份字段。
+- 返回/图片：所有工具默认序列化为固定 `ok/kind/data/cache/error` JSON；图片 data 仅包含类型、可用性和完整性，不包含本地路径或二进制。图片工具收到 `send_image=true` 时经当前 `AstrMessageEvent.send()` 发送 `Image`，结果仅返回 `image_sent`；发送失败显式返回 `ok=false` 和错误，不伪装成功。非图片工具不接受 `send_image`。
+- 验证：O17/O16 契约测试 `16 passed, 1 warning`；领域适配器、命令 registry 与写入契约相关回归共 `109 passed, 1 warning`。目标 Ruff 通过，Pyright 为 `0 errors, 0 warnings, 0 informations`，目标 `compileall` 和 `git diff --check` 通过。警告均为 AstrBot 依赖导入 `audioop` 的弃用警告，未执行生产 reload、真实签到或外部写操作。
+- 剩余边界：`agent_tools.enabled` 总开关、initialize/terminate 注册解除和热重载去重，以及签到写工具确认/幂等留给 O18；文档与完整阶段门禁留给 O19。下一步进入 O18。
 
 ### O18 — 签到工具、明确确认、幂等与生命周期 `[pending]`
 
