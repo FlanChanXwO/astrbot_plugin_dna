@@ -926,11 +926,37 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
   可用性或既有基线分类记录。下一步为 O24，更新最终文档并执行获授权的生产只读
   冒烟与交付记录。
 
-### O24 — 最终文档、生产冒烟与交付记录 `[pending]`
+### O24 — 最终文档、生产冒烟与交付记录 `[completed]`
 
-- 更新最终用户、管理员、部署、回滚、缓存与 Agent Tools 文档。
-- 在 atri 对最终稳定 SHA 做只读状态核验与获授权的最小冒烟。
-- 汇总实际完成、测试证据、生产 SHA、已知风险与回滚点。
+- 实际完成：同步 `README.md`、`CHANGELOG.md`、`docs/usage/commands.md`、
+  `configuration.md`、`agent-tools.md`、`admin-pages.md`、`resources.md`，以及
+  `docs/dev/setup.md`、`maintenance.md`、`docs/porting/agent-tools-release-checklist.md`
+  和 `progress.md`。文档现明确 61 条命令、Agent Tools 17 项/唯一签到写入口、公告/MH/缓存
+  失败语义、运行期数据边界、备份、精确 SHA 定向 reload 和同 endpoint 回滚；README 不再把
+  v0.2 安装写成“重启容器”即可。新增本地 Markdown 链接检查扫描 44 个文档文件并通过。
+- atri 只读核验（2026-08-30）：生产插件 HEAD 为
+  `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`，`v0.2.0`，detached/clean；`commands.json`
+  为 61 条。资源 `current.json` 指向 generation
+  `5d76860141d9ab5052417df25ccc9f5a929ff06b`，content SHA 为
+  `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`，指针/内容摘要一致且
+  generation 无符号链接；容器 `running=true`、restart count 为 `0`；生产配置
+  `agent_tools.enabled=false`；只读 SQLite revision 为 `0003_global_identity`。最近日志窗口
+  未发现 DNABY error-like 或 traceback。未读取凭据、未调用 reload、未切换 SHA、未修改生产
+  配置、数据库、订阅、资源或其他运行期数据。
+- 最小 smoke：主机 Python 缺少 AstrBot SDK，改在生产容器内以 `python -B` 完成入口 import、
+  registry 数量断言、schema JSON 和 metadata 版本检查，均通过；Dashboard 未认证 GET 返回
+  `401`，仅作为路由可达/认证保护证据，不作为插件状态。O24 未执行真实签到、真实图片投递
+  或任何生产写操作。
+- Red/Green/Refactor 证据：本轮只有文档和记录变更，无新增生产代码；沿用 O23 已实际完成的
+  视觉 CSS Red→Green、资源/命令契约修正和最终本地门禁证据。O23 本地提交 `b12f86e` 尚未
+  部署到 atri；本地全量 pytest 为 `721 passed, 1 skipped, 2 failed`（外部 `cdn.test` 图片
+  连接），全仓 Ruff 的 13 条问题仍为既有 admin/Goal 2/D03 基线；compileall、生成投影和
+  `git diff --check` 通过。
+- 剩余风险与回滚点：真实 CDN/T2I 成功仍受外部服务可用性影响，公共资源第三方素材许可仍需
+  发布者确认；生产当前可回退到已记录的阶段二稳定 SHA
+  `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`，资源 SHA 与运行期数据保持不变。O24 已把
+  精确 SHA、认证 GET、定向 reload、失败停止、同 endpoint 回滚和数据保留步骤写入维护/发布
+  文档。下一步为 D08，进行 O22–O24 的最终逐条审查；在 D08 完成前不标记整个 goal-1 完成。
 
 ### D08 — 最终调试审查 O22–O24 `[pending]`
 

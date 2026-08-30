@@ -92,7 +92,8 @@ DNABY_DATABASE_URL="sqlite+aiosqlite:////绝对路径/dnaby.sqlite3" \
 
 迁移失败应停止部署并保留原错误；不要把旧 `dnaby.db` 改名或交给新 schema 直接打开。
 当前本地验证环境未安装 Alembic，隔离 migration round-trip 按测试约定显式 skip；这不等同于
-生产 schema 已完成迁移。
+生产 schema 已完成迁移。此前 `atri` 只读核验观察到生产数据库 revision 为 `0003_global_identity`；
+该观察不代表本次文档/冒烟执行了 migration，也不替代升级前备份。
 
 Task 10 的 `AccountService` 使用 `login.max_bind_count` 约束新增 UID；login URL、
 transport、监听和二维码字段仍保留为 typed 配置，但当前 rewrite 尚未注册本地登录

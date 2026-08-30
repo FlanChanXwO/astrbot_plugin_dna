@@ -84,6 +84,28 @@ force push 或删除分支；应保留失败版本、备份和回滚记录，便
 恢复默认只删除 `alias_custom.json` 的自定义追加；需要保留自定义内容时，应在写操作前备份对应
 JSON/目录。
 
+## 生产插件发布、只读核验与回滚
+
+生产目标为 `atri`，插件目录为 `/srv/AstrBot/data/plugins/astrbot_plugin_dnaby`，运行容器为
+`astrbot`。发布或回滚必须固定到可追溯的插件 SHA，并遵循以下边界：
+
+1. 先只读记录当前插件 `HEAD`、`git status --porcelain`、`metadata.yaml` 版本、资源
+   `resource_generations/current.json` 摘要、容器 running/restart count 和日志起点；不读取或输出凭据。
+2. 通过已认证 Dashboard GET 确认插件 ID 唯一、`activated=true` 且凭据有 `plugin` scope。未认证
+   GET 的 `401/403` 只能说明认证保护存在，不能作为插件状态。
+3. 在 clean 的生产仓库中非破坏性 fetch 并验证目标 SHA；容器内用 `python -B` 做入口/registry/schema
+   只读 smoke。任何失败都停止，不覆盖生产现场改动。
+4. 只有在得到该版本的部署授权后，才调用
+   `POST http://127.0.0.1:6185/api/v1/plugins/astrbot_plugin_dnaby/reload`；必须同时核对 HTTP、
+   业务响应、插件状态、日志和容器 restart count。不得用容器重启替代定向 reload。
+5. 若失败，停止继续验收，保留失败版本与日志；在 clean 前提下检出已记录的上一稳定 SHA，调用同一
+   reload endpoint，再重复状态和最小 smoke。代码回滚不等于数据库回滚，破坏性 schema 必须按上文备份恢复。
+
+O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`、
+`v0.2.0`、detached/clean；命令 registry 61 条；资源 generation/content SHA 与
+[资源说明](../usage/resources.md)一致；`agent_tools.enabled=false`；容器运行、restart count 为 0，
+容器内 import/schema smoke 通过。O24 未调用 reload、未切换 SHA、未修改生产配置或运行期数据。
+
 ## 任务 tombstone 恢复边界
 
 `dnaby_sign_daily`、`dnaby_mh_push`、`dnaby_ann_poll` 可永久删除；

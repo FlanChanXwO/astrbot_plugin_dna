@@ -40,6 +40,10 @@ O14 资源审查记录（2026-08-30）：公共仓库 `main` 的候选提交为
 其中 `arial-unicode-ms-bold.ttf` 与 `dna_fonts.ttf` 的上游权利仍须由发布维护者在分发前确认；
 未完成确认前不得把该 SHA 宣称为已清权的公开发行版本。
 
+O24（2026-08-30）对 `atri` 做了只读资源核验：production pointer 仍指向上述 generation，完整内容
+摘要一致，资源 generation 下未发现符号链接；本轮没有同步、删除或修改生产资源。资源权利未确认前，
+该 SHA 仍只作为受控内部部署版本记录。
+
 目录约定如下：
 
 - `fonts/dna_fonts.ttf`：玩家和资料 renderer 共用的字体；缺失时图片 metadata 标为

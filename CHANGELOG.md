@@ -21,12 +21,28 @@
 - `0003_global_identity` 会清空旧账号、凭据、个人隐私和群隐私四张表，保留签到记录；升级前必须备份 `dnaby.sqlite3`。
 - 任务 tombstone、别名自定义层和面板图删除均不提供页面内恢复；回退时必须同时使用匹配的旧代码与数据库/运行期文件备份。
 
+## goal-1 O24 — 最终文档与生产只读审计（2026-08-30）
+
+### Verification
+
+- O23 最终本地交付提交为 `b12f86e`；包含视觉审计发现的 legacy UID 单行修复、测试契约收口与
+  最终任务记录。该提交未在本轮部署到生产。
+- `atri` 只读核验观察到当前插件 `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`、`v0.2.0`、
+  detached/clean；registry 为 61 条，资源 generation 为
+  `5d76860141d9ab5052417df25ccc9f5a929ff06b`，content SHA 为
+  `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`，容器运行且 restart count 为 0。
+- 生产配置 `agent_tools.enabled=false`；容器内 `main`/registry/schema import smoke 通过，Dashboard
+  未认证 GET 返回 `401`（证明路由可达，不代表已认证状态），日志窗口没有新的 DNABY error-like 或 traceback。
+- 本地完整 pytest 为 `721 passed, 1 skipped, 2 failed`；失败是 `cdn.test` 外部图片连接错误。完整 Ruff
+  的 13 条问题仍属于既有 admin/Goal 2/D03 基线，未归入 O24 变更。
+
 ## goal-1 O04 — 第一阶段命令与文档收口（2026-08-28）
 
 ### Changed
 
 - 聊天内的 `update_log`/“更新记录”命令及其渲染链已移除；更新历史统一以本文件作为长期载体。
-- 当前 `commands.json` 由代码 registry 生成，共 58 条命令，仅保留 `user` 与 `admin` 权限。
+- O04 当时的 `commands.json` 由代码 registry 生成，共 58 条命令，仅保留 `user` 与 `admin` 权限；
+  当前 main 的清单已由后续阶段更新为 61 条。
 - 使用文档改为说明可配置的 `display.command_prefixes`，并同步管理员权限与命令清单事实。
 
 ## Goal 3 — 公共资源编辑器、兑换码与下载运维（2026-08-29）

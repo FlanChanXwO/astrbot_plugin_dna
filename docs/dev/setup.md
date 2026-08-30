@@ -16,6 +16,11 @@ scripts/astrbot/start.sh 6196
 scripts/astrbot/reload-plugins.sh 6196 astrbot_plugin_dnaby
 ```
 
+本地开发可使用上述脚本；生产更新不能直接跟随分支头。先记录恢复 SHA、确认插件仓库 clean，
+再按[维护说明](maintenance.md)和[发布清单](../porting/agent-tools-release-checklist.md)预检精确 SHA，
+通过已认证的 Dashboard 定向 reload，并同时核对 HTTP 状态、业务状态、插件激活状态和日志。生产
+不以重启容器替代插件 reload，也不在命令行参数或日志中放置 JWT/Cookie/token。
+
 ## 数据目录
 运行期数据落在 `data/plugin_data/astrbot_plugin_dnaby/`（`StarTools.get_data_dir`），不入 Git。
 

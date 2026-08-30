@@ -9,6 +9,10 @@
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；以当前配置前缀发送 `帮助` 查看同一
 registry 的帮助文本。
 
+更新或回滚插件时，生产环境按发布清单使用精确插件 SHA、已认证的 Dashboard 定向 reload 和同一
+接口回滚；不要把容器重启或未经认证的 HTTP `2xx` 当作发布成功。具体的部署、备份和回滚边界见
+[维护说明](../dev/maintenance.md)与[发布清单](../porting/agent-tools-release-checklist.md)。
+
 ## Agent Tools
 
 Agent Tools 不属于聊天命令和 `commands.json`，不使用命令前缀，也不会出现在聊天帮助中。它们
@@ -131,8 +135,8 @@ fixture 边界见
 [v0.3 资料查询行为矩阵](../porting/review-v0.3-encyclopedia.md)。
 
 资源同步后的完整目录已接入玩家与百科 renderer；metadata 会把实际读取到的素材标为
-`provided`，缺失素材标为 `placeholder` 或 `fallback`。这仍不等于真实公共资源或视觉输出
-已验收；真实公共资源内容与生产视觉输出仍需按 E2E 矩阵区分记录。
+`provided`，缺失素材标为 `placeholder` 或 `fallback`。本地视觉 fixture 已由 O23 实际打开检查，
+`atri` 的 O24 核验只证明部署状态与代码/资源可读性；真实 CDN/T2I 图片成功仍需按外部服务可用性单独记录。
 
 ## 隐私控制命令
 

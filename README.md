@@ -2,9 +2,9 @@
 
 二重螺旋（DNA）Bot 插件 —— AstrBot 原生移植版。由 GsCore 插件 [DNAUID](https://github.com/tyql688/DNAUID)（私有镜像 `FlanChanXwO/DNAUID`）全面移植而来。
 
-> 重构说明：`rewrite/v0.1` 已提供新的薄入口、显式 `CommandSpec` registry、帮助、账号、隐私、
-> 玩家查询和资料读取 use case；下方未列入当前命令清单的能力仍是 legacy-reference/目标能力。完整迁移按
-> `goal-1/tasks.md` 分阶段完成。
+> 当前 `v0.2.0` 已完成 `goal-1` 三阶段的命令、缓存、公告/密函、管理页和 Agent Tools 代码交付；
+> 具体行为以 `commands.json`、`_conf_schema.json` 和下方当前文档为准。生产状态、精确 SHA 与回滚证据见
+> [发布与回滚清单](docs/porting/agent-tools-release-checklist.md)。
 
 ## 功能
 
@@ -19,7 +19,10 @@
 
 ## 安装
 
-当前 v0.1 仅面向私有源码 checkout：将本插件目录放入 AstrBot 的 `data/plugins/` 后，在 Dashboard 启用并重启。暂不发布 Marketplace 或公开 Release。
+当前 v0.2.0 仅面向私有源码 checkout：将本插件目录放入 AstrBot 的 `data/plugins/` 后，先按
+[维护说明](docs/dev/maintenance.md)完成数据库/资源前置检查，再在 Dashboard 启用。生产更新必须固定到
+已验收的插件 SHA，并通过已认证的 AstrBot 定向插件 reload；不要用重启容器替代 reload。暂不发布
+Marketplace 或公开 Release。
 
 ## 使用
 
@@ -31,7 +34,8 @@
 `announcement_check_minutes` 轮询公告），以及管理员面板图管理（上传/列表/删除/压缩）、
 资源状态与资源下载。
 玩家和资料素材已从公共运行期
-资源根加载；三仓契约与本地跨仓回归已覆盖，但真实公共资源内容和生产视觉输出仍需单独验收。`原图` 因 AstrBot 4.27.x 公开
+资源根加载；三仓契约与本地跨仓回归已覆盖。O24 已对 `atri` 做插件/资源/容器/日志的只读核验；真实 CDN/T2I
+仍可能因外部服务不可用而失败，不能把本地 fixture 或状态核验当作真实图片成功。`原图` 因 AstrBot 4.27.x 公开
 结果边界没有已发送消息 ID 交付点，显式标记为暂不支持，不作可用平台功能宣称。签到写操作
 与推送只在离线 fixture 验证，未对真实账户执行。命令清单见 `commands.json` 与
 [docs/usage/commands.md](docs/usage/commands.md)。

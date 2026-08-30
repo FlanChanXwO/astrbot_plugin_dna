@@ -2,7 +2,8 @@
 
 本清单起于 O20 的发布前交付物。O20 完成本地审查、adapter 模拟和版本固定，O21
 已完成生产定向 reload，D07 又在生产候选上修复了查询异常和图片路径失败边界；本清单
-保留这些阶段的精确恢复点，不能用本地 adapter 结果代替生产验收。
+保留这些阶段的精确恢复点。O24 又完成了最终本地提交后的生产只读核验；不能用本地 adapter
+结果或未认证 HTTP 响应代替生产验收。
 
 ## 固定版本
 
@@ -22,6 +23,19 @@
   `5d76860141d9ab5052417df25ccc9f5a929ff06b`，资源内容 SHA
   `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`。
 - 本地兼容基线为 AstrBot 4.27.1，生产目标为 4.27.4；生产步骤不得记录凭据值。
+
+## O24 最终只读记录
+
+- 本地最终文档/质量提交：`b12f86e`。本轮没有把该提交部署到 `atri`，因此它不是当前生产 HEAD 的声明。
+- `atri` 当前生产插件：`cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`，版本 `v0.2.0`，detached/clean，
+  registry `61`；容器 running，restart count `0`。
+- 当前资源 generation：`5d76860141d9ab5052417df25ccc9f5a929ff06b`，content SHA
+  `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`；pointer 与完整内容摘要一致，
+  generation 内无符号链接。
+- 生产配置 `agent_tools.enabled=false`；容器内入口/registry/schema `python -B` smoke 通过；Dashboard
+  未认证 GET 返回 `401`，只证明路由受保护且可达。日志核验未发现新的 DNABY error-like 或 traceback。
+- 本轮只读核验未调用 reload、未切换 SHA、未修改生产配置/数据库/订阅/资源；真实 CDN/T2I 图片成功仍
+  受外部服务可用性影响。
 
 资源版本有三个不同的摘要语义，不能互换：资源 Git commit 是
 `5d76860141d9ab5052417df25ccc9f5a929ff06b`，该 commit 的 Git root tree 是

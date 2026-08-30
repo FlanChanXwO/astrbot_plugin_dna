@@ -255,3 +255,16 @@
   临时未绑定 `@` 路径和其余群隐私命令均已验证，未将该环境问题伪装成插件成功。
 - 订阅锁是 `SubscriptionStore` 实例级锁；当前运行时使用全局 `gs_subscribe` 单例，未来若多进程或多实例共享同一 JSON 文件，仍需引入文件级锁或单写者方案。
 - 插件目录及 runtime 根目录均未发现 Git 仓库，本次未初始化 Git，也未创建提交。
+
+## goal-1 O24 — 最终文档与生产只读审计 ✅
+
+- O23 本地交付提交为 `b12f86e`；本轮基于该提交完成文档同步与生产只读审计，O24 文档记录随本次提交
+  落盘。O23 提交未在本轮部署到生产。
+- `atri` 只读状态：插件 `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`、`v0.2.0`、detached/clean，
+  registry `61`；资源 generation `5d76860141d9ab5052417df25ccc9f5a929ff06b`、content SHA
+  `92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4` 一致；容器 running、restart count `0`。
+  `agent_tools.enabled=false`，容器内入口/registry/schema import smoke 通过，Dashboard 未认证 GET 为
+  `401`，日志窗口无新增 DNABY error-like/traceback。
+- 本地最终门禁：全量 pytest `721 passed, 1 skipped, 2 failed`（外部 `cdn.test` 图片连接）；全仓 Ruff
+  仍有 13 条既有 admin/Goal 2/D03 基线问题；compileall、生成投影一致性和 diff check 通过。O23 的
+  adapter/视觉证据仍按 `goal-1/tasks.md` 保留，真实 CDN/T2I 成功不因本只读核验被宣称。
