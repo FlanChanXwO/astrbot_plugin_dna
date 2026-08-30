@@ -65,8 +65,9 @@
 - 通知读取：`src/modules/notices/` 通过 `NoticesTransport` 读取密函（角色/武器/魔之楔分节，
   复用 legacy `get_default_role_for_tool` 的 `instanceInfo`）、公告列表与详情（公共 BBS，
   HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）。公告 transport 解包 `postDetail`、完整翻页
-  并保留带 query/hash 或无扩展名的图片 URL；`NoticesRenderer` 生成 1300 宽 PNG，列表和详情
-  均按 typed snapshot 保留完整内容，详情多页通过 `MultiImageResponse` 在同一回复发送。
+  并保留带 query/hash 或无扩展名的图片 URL；`NoticesRenderer` 为公告列表和详情生成 1080 宽 PNG，
+  密函按模式生成默认 1700×900 或简洁分栏图；公告均按 typed snapshot 保留完整内容，详情多页
+  通过 `MultiImageResponse` 在同一回复发送。
   手动详情图片失败返回固定失败文案，不合成透明/深色占位图；运行期的公告源图、列表卡和详情
   页面使用 `CacheManager` 的 `announcement` 类型，以内容 fingerprint 和 24 小时绝对保留期隔离。
   订阅复用 `SubscriptionStore`（密函按 user+会话、公告按群聊作用域，`extra_message`/`extra_data`

@@ -57,7 +57,7 @@ ruff check .
 - `test_write_contracts.py` — 写入型命令权限审计、每条写入命令离线分发契约和
   “只调用注入 transport”边界（离线验证 ≠ 真实行为已验证，见
   [offline-write-contracts](../porting/offline-write-contracts.md)）。
-- `test_notices.py` — 密函/公告读取 fixture、1300 宽 PNG、公告序号详情、空数据与
+- `test_notices.py` — 密函/公告读取 fixture、密函 1700×900/简洁分栏 PNG、公告 1080 宽 PNG、公告序号详情、空数据与
   transport 失败脱敏。
 - `test_goal1_o12_announcements.py` — 公告 `postDetail` 解包、空正文拒绝、完整分页、序号索引、
   query/hash/无扩展名图片 URL、多页 `MultiImageResponse`、列表/详情失败文案、完整缓存与
