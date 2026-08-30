@@ -562,9 +562,10 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
   `resource_generations/`、`rendered/`、数据库、订阅或状态文件。原 `resource` 281 个文件、约 29M，
   原公告图片缓存 24 个文件、约 23M，均可恢复移动到
   `/srv/AstrBot/backup/astrbot_plugin_dnaby-o15-20260830T063050Z/`；收口探针确认活动目录均为 0 文件、
-  备份完整。容器仍运行、`restart_count=0`，单 Python/AstrBot 进程；最近 200 行日志中无 `[dnaby]`、Traceback
-  或“定时任务异常”标记。`PluginLifecycle`、`SignScheduler` 和 `NoticesScheduler` 的幂等/按任务 ID 防重复
-  逻辑由生产容器定向回归覆盖；没有从缺少任务计数 API 的日志探针推导额外计数结论。
+  备份完整。容器仍运行、`restart_count=0`；精确匹配 `python main.py` 的 AstrBot 主进程为 1 个，
+  不把容器内其它基础服务 Python 进程计入插件实例；最近 200 行日志中无 `[dnaby]`、Traceback 或“定时任务异常”
+  标记。`PluginLifecycle`、`SignScheduler` 和 `NoticesScheduler` 的幂等/按任务 ID 防重复逻辑由生产容器定向
+  回归覆盖；没有从缺少任务计数 API 的日志探针推导额外计数结论。
 - TDD/回归：本轮是部署验收，未修改业务代码；O12 公告、O12-A 投递、O12-B 密函边界定向套件在本地和
   生产容器各为 `30 passed, 1 warning`。公告证据为跨页 `20+1=21` 条、详情 `text/image/image` 三块、
   多页响应保留 2 页；渲染夹具中列表预览 `1 成功/0 失败`、详情图片 `1 成功/0 失败`。生产真实 CDN 的
@@ -588,11 +589,45 @@ D02 最终复核记录（2026-08-30，REQUEST_CHANGES）：
   Arphic；因此本次是受控内部生产热重载，不把资源 SHA 宣称为可公开再分发版本。生产 CDN/T2I 失败已
   保留真实错误语义，后续由维护者处理上游可用性；下一步进入 D05 调试审查与受控失败回滚演练。
 
-### D05 — 调试审查 O13–O15 `[pending]`
+### D05 — 调试审查 O13–O15 `[completed]`
 
 - 核对资源 SHA、插件 SHA、生产 active pointer、缓存 metadata 与清理结果一致。
 - 检查热重载后 downloader、cleanup loop、公告 scheduler 是否重复。
 - 做一次受控失败回滚演练并记录恢复证据。
+
+完成记录（2026-08-30）：
+
+- 一致性审查：生产插件仓库最终为候选 `d47d37e7c49e618e42aea5e875d7cc2dbf5c4b04`、clean；公共资源仓库为
+  `5d76860141d9ab5052417df25ccc9f5a929ff06b`、clean。`resource_generations/current.json` 指向同一资源 SHA，
+  `content_sha256=92796fd40415375a989154fd762dfa61551d5b03b4c9f491638c576318818bc4`；此前已通过 generation
+  validator、12 个必需目录和完整内容摘要校验。清理后的 active `cache/` 根及 `player_data/`、`player_card/`、
+  `resource/`、`other/ann_card/` 均不存在或为空，active cache metadata 为 0；这表示当前没有活动缓存，不是静默
+  伪造命中。可恢复备份仍存在，`resource` 为 281 个文件、`other/ann_card` 为 24 个文件；`rendered/` 保留 6 个
+  既有视觉产物，未被清理。
+- 重复任务审查：静态检查确认 `ResourceUpdateService` 以 shared future/single-flight 合并 downloader 预热与显式
+  同步，`CacheMaintenance` 以生命周期锁和单 task 防止 cleanup loop 重复，`NoticesScheduler` 以 task ID registry
+  防止公告 scheduler 重复；bootstrap 只挂载一套 start/stop hooks，`PluginLifecycle` 以转换锁串行化热重载边界。
+  本地与生产容器的资源 service、公告 scheduler、cleanup lifecycle 和 entry skeleton 定向回归均为 `26 passed,
+  1 warning`。生产 `python main.py` 精确匹配为 1 个；其它 Python 进程属于容器基础服务或本次探针，不能作为插件
+  任务计数。最近 200 行 Docker 日志统计 `dnaby=0`、`Traceback=0`、`task_error=0`。
+- 受控回滚证据：将生产插件从候选精确切换到记录的稳定恢复 SHA `6fda2f16b1ebdf3999b95d36609778bf11de38ce`，
+  容器内 `compileall` 通过，稳定 smoke 为 `61 passed, 1 warning`；调用同一认证接口
+  `POST /api/v1/plugins/astrbot_plugin_dnaby/reload` 得到 HTTP `200`、业务 `status=ok`，认证 GET 确认插件
+  `activated=true`、版本 `v0.2.0`，生产 HEAD、资源 SHA、active pointer 均保持预期，容器未重启（restart count `0`）。
+  随后恢复候选精确 SHA 并再次调用同一 reload endpoint，得到同样的 HTTP/业务成功；候选认证 GET 为激活状态，生产
+  focused 回归 `26 passed, 1 warning`，最终插件/资源工作树均 clean。该演练以稳定恢复点模拟故障后的恢复路径，未故意
+  注入会破坏生产实例的代码或配置；因此证明“检出已记录恢复 SHA → 同 endpoint reload → smoke/status → 恢复候选”
+  的可执行性，不把成功回滚路径夸大为故障注入测试。
+- TDD/审查结论：D05 是 O13–O15 的部署/调试审查，没有新增业务代码，沿用 O15 与 O08–O14 已记录的 Red/Green/Refactor
+  证据；本轮 code review 未发现新的 P0/P1。修正 O15 中“单 Python/AstrBot 进程”的表述为“单个 `python main.py`
+  AstrBot 主进程”，并明确没有可用于推导精确 scheduler task 数量的生产 API。资源权利未明、生产 CDN/T2I 外部依赖
+  失败仍按 O14/O15 原记录保留，不在本审查中添加静默 fallback。
+- 验证命令与结果：生产稳定/候选两次 `compileall` 均通过；稳定恢复 smoke `61 passed, 1 warning`；候选最终 focused
+  suite `26 passed, 1 warning`；两次精确 reload 均 HTTP 200/业务成功；最终 Dashboard 激活状态、插件/资源 SHA、
+  pointer、备份计数、主进程数和日志错误计数均符合预期。未重启容器、未修改配置、未删除备份或运行期数据库/订阅状态。
+- 剩余风险：公共资源仓库仍缺统一 `LICENSE`/`NOTICE`/来源清单；生产真实 CDN/T2I 的 3 条外部失败仍未消除；生产没有
+  公开 scheduler task 计数 API，因此重复性只能由源码幂等约束、focused 测试、主进程唯一性和无新增错误日志共同证明。
+- 下一步：进入 O16，先为领域查询层与 Agent Tools 适配边界建立 Red 契约。
 
 ## 第三阶段：Agent Tools
 
