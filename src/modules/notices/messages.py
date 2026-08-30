@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from .contracts import NoticesFailureKind
-
 NOTICES_CONTEXT_UNAVAILABLE = "通知查询上下文不可用"
 NOTICES_SERVICE_UNAVAILABLE = "通知查询服务不可用"
 NOTICES_UID_INVALID = "UID无效，请重新绑定"
@@ -53,19 +51,6 @@ ANN_UNSUBSCRIBED = "成功取消订阅二重螺旋公告！"
 ANN_NOT_SUBSCRIBED = "未曾订阅二重螺旋公告！"
 ANN_POLL_INITIALIZED = "公告推送已初始化"
 
-
-def transport_error(kind: NoticesFailureKind) -> str:
-    """把稳定失败类别映射为受控文案，不暴露服务端原文。"""
-
-    return {
-        NoticesFailureKind.NETWORK: "通知请求网络异常，请稍后重试",
-        NoticesFailureKind.STATUS: "通知服务响应异常",
-        NoticesFailureKind.SERVER: "通知服务异常，请稍后重试",
-        NoticesFailureKind.CREDENTIAL: "账号凭据无效，请重新登录",
-        NoticesFailureKind.NOT_FOUND: "通知数据未找到",
-    }[kind]
-
-
 __all__ = [
     "ANN_ALREADY_SUBSCRIBED",
     "ANN_DETAIL_FAILED",
@@ -107,5 +92,4 @@ __all__ = [
     "NOTICES_UID_INVALID",
     "mh_all_forbidden",
     "mh_push_time_format",
-    "transport_error",
 ]

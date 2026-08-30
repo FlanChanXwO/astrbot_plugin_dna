@@ -255,7 +255,7 @@ async def test_mh_transport_failure_is_visible_and_redacted(tmp_path: Path) -> N
     response = await service.mh(_request())
 
     assert isinstance(response, PlainTextResponse)
-    assert messages.transport_error(NoticesFailureKind.NETWORK) in response.text
+    assert response.text == messages.MH_NOT_FOUND
     assert "secret-mh" not in response.text
     await database.dispose()
 

@@ -1,10 +1,12 @@
 import asyncio
+import hashlib
 import inspect
 import json
 import random
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, ClassVar, Literal, TypeVar
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -79,6 +81,61 @@ from .sign_h5 import generate_headers_h5
 
 _DamageDataT = TypeVar("_DamageDataT")
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
+
+_RSA_PUBLIC_KEY_FALLBACK = (
+    "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDGpdbezK+eknQZQzPOjp8mr/dP+"
+    "QHwk8CRkQh6C6qFnfLH3tiyl0pnt3dePuFDnM1PUXGhCkQ157ePJCQgkDU2+mimDmXh0oLFn9zuWSp+"
+    "U8uLSLX3t3PpJ8TmNCROfUDWvzdbnShqg7JfDmnrOJz49qd234W84nrfTHbzdqeigQIDAQAB"
+)
+
+
+def _cache_origin(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+    return url.strip().lower()
+
+
+def _secret_digest(value: str | None) -> str:
+    """仅把凭据的不可逆摘要放入进程缓存键，避免缓存键携带明文。"""
+
+    return hashlib.sha256((value or "").encode("utf-8")).hexdigest()
+
+
+def _rsa_cache_key(_self: "DNAApi") -> str:
+    return _cache_origin(GET_RSA_PUBLIC_KEY_URL)
+
+
+def _cache_rsa_result(value: object, *_args, **_kwargs) -> bool:
+    return isinstance(value, str) and value != _RSA_PUBLIC_KEY_FALLBACK
+
+
+def _login_log_cache_key(
+    _self: "DNAApi",
+    token: str,
+    dev_code: str | None = None,
+) -> str:
+    return ":".join(
+        (
+            _cache_origin(LOGIN_LOG_URL),
+            _secret_digest(token),
+            _secret_digest(dev_code),
+        ),
+    )
+
+
+def _post_list_cache_key(_self: "DNAApi", dna_user: DNAUser) -> str:
+    credentials = get_capability_credentials(dna_user, DNACapability.ACCOUNT_QUERY)
+    return ":".join(
+        (
+            _cache_origin(GET_POST_LIST_URL),
+            _secret_digest(str(getattr(dna_user, "user_id", ""))),
+            _secret_digest(str(getattr(dna_user, "bot_id", ""))),
+            _secret_digest(str(getattr(dna_user, "uid", ""))),
+            _secret_digest(credentials.token if credentials else None),
+            _secret_digest(credentials.dev_code if credentials else None),
+        ),
+    )
 
 
 class DNARequestError(RuntimeError):
@@ -195,17 +252,18 @@ class DNAApi:
 
         return dna_user
 
-    @timed_async_cache(86400, lambda x: x and len(x) > 0)
+    @timed_async_cache(
+        86400,
+        lambda x: x and len(x) > 0,
+        key_builder=_rsa_cache_key,
+        cache_if=_cache_rsa_result,
+    )
     async def get_rsa_public_key(self) -> str:
         dev_code = get_dev_code()
         headers = await get_base_header(dev_code=dev_code)
         res = await self._dna_request(url=GET_RSA_PUBLIC_KEY_URL, method="POST", header=headers)
 
-        rsa_pub = (
-            "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDGpdbezK+eknQZQzPOjp8mr/dP+"
-            "QHwk8CRkQh6C6qFnfLH3tiyl0pnt3dePuFDnM1PUXGhCkQ157ePJCQgkDU2+mimDmXh0oLFn9zuWSp+"
-            "U8uLSLX3t3PpJ8TmNCROfUDWvzdbnShqg7JfDmnrOJz49qd234W84nrfTHbzdqeigQIDAQAB"
-        )
+        rsa_pub = _RSA_PUBLIC_KEY_FALLBACK
 
         if res.is_success and isinstance(res.data, dict):
             key = res.data.get("key")
@@ -301,7 +359,11 @@ class DNAApi:
         )
         return await self._dna_request(REFRESH_TOKEN_URL, "POST", headers, data=payload)
 
-    @timed_async_cache(3600, lambda x: x and x.success)
+    @timed_async_cache(
+        3600,
+        lambda x: x and x.success,
+        key_builder=_login_log_cache_key,
+    )
     async def login_log(self, token: str, dev_code: str | None = None):
         headers = await get_base_header(dev_code=dev_code, token=token)
         res = await self._dna_request(LOGIN_LOG_URL, "POST", headers)
@@ -694,6 +756,7 @@ class DNAApi:
     @timed_async_cache(
         3600,
         lambda x: x and isinstance(x, DNAApiResp) and x.is_success,
+        key_builder=_post_list_cache_key,
     )
     async def get_post_list(
         self,

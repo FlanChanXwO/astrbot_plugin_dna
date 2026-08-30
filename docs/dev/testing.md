@@ -62,6 +62,8 @@ ruff check .
 - `test_goal1_o12_announcements.py` — 公告 `postDetail` 解包、空正文拒绝、完整分页、序号索引、
   query/hash/无扩展名图片 URL、多页 `MultiImageResponse`、列表/详情失败文案、完整缓存与
   fingerprint 失效、源图校验缓存和列表模板无无依据截断。
+- `test_goal1_o12a_delivery.py` — 公告旧状态迁移、首次目标集合、部分目标失败重试、详情失败跳过、
+  参数化缓存键、IP/RSA fallback、账号/帖子缓存隔离和登录日志脱敏。
 - `test_notices_commands.py` — 密函/公告命令归属、正则命名参数与生成 handler 边界。
 - `test_notices_transport.py` — legacy 密函 `instanceInfo`、公告列表/详情映射与错误脱敏；
   覆盖网络失败/状态码错误/页面结构变化/空正文四类可观测错误，并断言 Cookie/token 原文不进异常。

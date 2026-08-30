@@ -92,7 +92,8 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 除 `resources/` 外，插件运行期数据目录还包含（均不可提交到 Git）：
 
 - `dnaby.sqlite3` — SQLAlchemy 2 async 数据库（账号绑定、凭据、隐私、签到记录）。
-- `subscriptions.json` — 订阅存储；`ann_state.json` — 公告轮询已知 id。
+- `subscriptions.json` — 订阅存储；`ann_state.json` — 兼容旧版的公告已知 id 列表；
+  `ann_delivery_state.json` — 版本化的公告按目标投递状态。
 - `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json` — 角色自定义别名覆盖层。
 - `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，
   缓存 key 和身份 tag 只保存 SHA-256 摘要。
@@ -137,8 +138,9 @@ O11 新增三条玩家缓存操作：普通用户可用 `刷新<角色名>面板
 运行期 `cache/announcement/` 使用统一 `CacheManager`：列表卡、详情页、详情 manifest 和已
 通过解码校验的源图均按 `announcement` 类型保存，绝对保留期默认 24 小时。列表或详情内容的
 SHA-256 fingerprint 纳入缓存 key，上游内容变化会自然 miss；详情任一正文图片或渲染步骤失败时，
-完整卡片和 manifest 不会写入，手动查询返回固定失败文案且不生成占位图。自动订阅的失败目标
-投递与状态迁移仍由 O12-A 处理。
+完整卡片和 manifest 不会写入，手动查询返回固定失败文案且不生成占位图。自动订阅在详情、渲染或
+图片发送失败时跳过本轮，不发送标题文本；`ann_delivery_state.json` 固定首次观察目标集合，成功
+目标不重发，失败目标在后续轮询重试。旧 `ann_state.json` ID 只迁移为已处理，不补发历史公告。
 
 ## 图片下载与资源分层
 
@@ -190,7 +192,8 @@ PIL 完整解码校验，下载先写同目录临时文件，校验通过后才�
 ## 资源升级、备份与回滚
 
 升级插件前备份整个 `StarTools.get_data_dir("astrbot_plugin_dnaby")`，至少包含
-`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json` 和 `panel_custom/`。已有
+`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和
+`panel_custom/`。已有
 `resources/` 仍作为 Git 增量缓存；`resource_generations/current.json` 缺失时启动只保留
 旧缓存并等待下一次下载，下载成功后从 `FETCH_HEAD` 生成新的已验证快照。启动清理只针对孤立
 generation/candidate/archive，不删除面板图、数据库、订阅或公告状态。

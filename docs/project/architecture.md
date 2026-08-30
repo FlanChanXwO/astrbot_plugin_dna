@@ -71,8 +71,9 @@
   页面使用 `CacheManager` 的 `announcement` 类型，以内容 fingerprint 和 24 小时绝对保留期隔离。
   订阅复用 `SubscriptionStore`（密函按 user+会话、公告按群聊作用域，`extra_message`/`extra_data`
   存密函名称与推送时间）；`NoticesScheduler` 每小时推送密函、按分钟轮询公告
-  （`AnnStateStore` 记录已知公告 id），推送经注入闭包绑定 `Context.send_message`，文本/图片载荷
-  分别映射为 Plain/Image 组件。
+  （`AnnStateStore` 保留旧 ID 列表，`AnnDeliveryStateStore` 记录首次观察目标与成功目标），详情、
+  渲染或目标发送失败时保留待重试目标，不发送标题 fallback。推送经注入闭包绑定
+  `Context.send_message`，只有发送成功才落成功状态；文本/图片载荷分别映射为 Plain/Image 组件。
 - 面板与资源状态：`src/modules/operations/` 管理运行期数据目录 `panel_custom/` 的自定义
   面板图（上传 WebP/sha1 去重、列表、按 ID/全部删除、压缩），原图删除因公开结果边界无
   引用缓存显式报告不支持；`resource_status` 展示公共资源仓库 manifest/必需目录与面板数量。

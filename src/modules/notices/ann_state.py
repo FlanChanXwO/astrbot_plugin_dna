@@ -24,16 +24,20 @@ class AnnStateStore:
     async def load(self) -> None:
         if self._loaded:
             return
-        self._loaded = True
         if not self.path.exists():
+            self._loaded = True
             return
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
-            self._ids = [int(item) for item in raw] if isinstance(raw, list) else []
+            if not isinstance(raw, list):
+                raise TypeError("announcement state file must be a list")
+            ids = [int(item) for item in raw]
         except (OSError, json.JSONDecodeError, TypeError, ValueError) as error:
             raise RuntimeError(
                 f"公告状态文件损坏: {self.path.name} ({type(error).__name__})"
             ) from error
+        self._ids = ids
+        self._loaded = True
 
     async def known_ids(self) -> list[int]:
         await self.load()

@@ -134,18 +134,15 @@ class _Base:
             "sig": _sign(["start", auth, user_id, str(ts)]),
         }
         url = f"{self.base_url}/dna/start"
-        logger.debug(f"[DNA登录] POST {url} body={body}")
+        logger.debug(f"[DNA登录] POST {url}")
         try:
             async with httpx.AsyncClient(timeout=START_TIMEOUT_S, trust_env=False) as client:
                 resp = await client.post(url, json=body)
         except httpx.HTTPError as err:
-            raise TransportError(f"外置登录服务网络错误 url={url}: {err!r}") from err
+            raise TransportError("外置登录服务网络错误") from err
 
         if resp.status_code != 200:
-            response_text = resp.text
-            if response_text == "":
-                response_text = "<empty>"
-            raise TransportError(f"外置登录服务 start 返回 HTTP {resp.status_code} url={url}: {response_text}")
+            raise TransportError(f"外置登录服务 start 返回 HTTP {resp.status_code}")
 
         return f"{self.base_url}/dna/i/{auth}"
 
@@ -161,13 +158,15 @@ class HttpPollTransport(_Base):
                 try:
                     resp = await client.get(f"{self.base_url}/dna/status/{auth}", params=params)
                 except httpx.HTTPError as err:
-                    logger.debug(f"[DNA登录] poll 网络错误，将重试: {err!r}")
+                    logger.debug(
+                        f"[DNA登录] poll 网络错误，将重试: {type(err).__name__}",
+                    )
                     last_network_error = err
                     await asyncio.sleep(POLL_INTERVAL_S)
                     waited_s += POLL_INTERVAL_S
                     continue
                 if resp.status_code != 200:
-                    raise TransportError(f"poll 返回 HTTP {resp.status_code}: {resp.text}")
+                    raise TransportError(f"poll 返回 HTTP {resp.status_code}")
 
                 payload = _StatusModel.model_validate_json(resp.text)
                 last_network_error = None
@@ -177,7 +176,7 @@ class HttpPollTransport(_Base):
                 await asyncio.sleep(POLL_INTERVAL_S)
                 waited_s += POLL_INTERVAL_S
         if last_network_error is not None:
-            raise TransportError(f"poll 网络错误，登录状态无法确认: {last_network_error!r}") from last_network_error
+            raise TransportError("poll 网络错误，登录状态无法确认") from last_network_error
         return None
 
 
@@ -192,15 +191,12 @@ class SseTransport(_Base):
                 async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
                     async with client.stream("GET", url, params=params) as response:
                         if response.status_code != 200:
-                            body = await response.aread()
-                            raise TransportError(
-                                f"SSE 握手失败 HTTP {response.status_code}: {body.decode(errors='ignore')}"
-                            )
+                            raise TransportError(f"SSE 握手失败 HTTP {response.status_code}")
                         return await self._consume_sse(response)
         except TimeoutError:
             return None
         except httpx.HTTPError as err:
-            raise TransportError(f"SSE 网络错误: {err!r}") from err
+            raise TransportError("SSE 网络错误") from err
 
     @staticmethod
     async def _consume_sse(response: httpx.Response) -> TransportResult | None:
@@ -245,7 +241,7 @@ class WsTransport(_Base):
         except TimeoutError:
             return None
         except OSError as err:
-            raise TransportError(f"ws 连接失败: {err!r}") from err
+            raise TransportError("ws 连接失败") from err
         return None
 
 

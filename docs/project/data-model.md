@@ -56,14 +56,17 @@ Dashboard 管理页的账号列表默认只返回 App/Web 凭据状态；只有�
 - `scheduler_state.json` — 内置任务永久删除 tombstone；删除的业务任务没有管理 API 恢复操作。
 - `alias_custom.json` — 角色自定义别名覆盖层；默认资源别名只读且不被覆盖层改写。
 - `panel_custom/` — 管理页上传的自定义面板图；删除沿用不可恢复语义，需在操作前自行备份。
-- `subscriptions.json`、`ann_state.json` 和 `rendered/` — 订阅/公告状态及受控的运行期渲染文件。
+- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `rendered/` — 订阅、公告
+  兼容 ID 列表、按目标投递状态及受控的运行期渲染文件。
 - `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告 `announcement/` 类型缓存；玩家条目受 30
   分钟 fresh、24 小时硬保留和租约保护，公告条目默认 24 小时绝对保留，身份相关 key/tag 不保存
   原始 user_id 或 UID。
 
 公告缓存的列表卡、详情页、详情 manifest 和源图都必须在内容完整且图片通过解码校验后写入；
 公告 fingerprint 纳入 key，上游内容变化会失效旧条目。详情图片失败时不写入新的完整卡或
-占位图，手动命令由服务层返回固定失败文案。
+占位图，手动命令由服务层返回固定失败文案。旧 `ann_state.json` ID 在首次读取独立状态时迁移为
+已处理，不补发历史公告；新公告只记录首次观察到的目标集合，单个目标成功后才写入 delivered
+状态，失败目标留待后续轮询。
 
 SQLite、JSON 和文件目录之间不存在同一物理事务。账号删除协调器按串行、逐项、可重试的步骤
 报告 `failed`/`partial`，不能把跨存储操作表述为原子提交；运维备份与恢复步骤见

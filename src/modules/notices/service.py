@@ -19,6 +19,7 @@ from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
 from ..privacy import PrivacyService
 from . import messages
+from .ann_delivery_state import AnnDeliveryStateStore
 from .ann_state import AnnStateStore
 from .contracts import (
     NoticeRequest,
@@ -26,7 +27,8 @@ from .contracts import (
     NoticesTransportError,
 )
 
-PushCallable = Callable[[str, str | Path], Awaitable[Any]]
+NoticePayload = str | Path | tuple[Path, ...]
+PushCallable = Callable[[str, NoticePayload], Awaitable[Any]]
 _MH_TYPE_KEYS = ("角色", "武器", "魔之楔")
 
 
@@ -48,6 +50,7 @@ class NoticesService:
         subscriptions: SubscriptionStore | None = None,
         ann_state: AnnStateStore | None = None,
         push: PushCallable | None = None,
+        ann_delivery_state: AnnDeliveryStateStore | None = None,
         *,
         secret_simple_image: bool = False,
         config_store: dict[str, Any] | None = None,
@@ -60,6 +63,11 @@ class NoticesService:
         self.renderer = renderer
         self.subscriptions = subscriptions
         self.ann_state = ann_state
+        self.ann_delivery_state = ann_delivery_state or (
+            AnnDeliveryStateStore(ann_state.path.parent / "ann_delivery_state.json")
+            if ann_state is not None
+            else None
+        )
         self.push = push
         self.secret_simple_image = secret_simple_image
         self.config_store = config_store
@@ -89,10 +97,6 @@ class NoticesService:
         return target_user_id, binding.uid
 
     @staticmethod
-    def _transport_response(error: NoticesTransportError) -> PlainTextResponse:
-        return PlainTextResponse(messages.transport_error(error.kind), need_at=True)
-
-    @staticmethod
     def _image_response(
         rendered: RenderedNoticesImage
         | list[RenderedNoticesImage]
@@ -120,8 +124,8 @@ class NoticesService:
                 uid,
                 credential_user_id=target_user_id,
             )
-        except NoticesTransportError as error:
-            return self._transport_response(error)
+        except NoticesTransportError:
+            return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         if not snapshot.sections:
             return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         with self._renderer_context() as renderer:
@@ -144,8 +148,8 @@ class NoticesService:
         index = str(request.parameters.get("index") or "").strip()
         try:
             snapshot = await self.transport.get_ann_list()
-        except NoticesTransportError as error:
-            return self._transport_response(error)
+        except NoticesTransportError:
+            return PlainTextResponse(messages.ANN_LIST_FAILED, need_at=True)
         if not snapshot.posts:
             return PlainTextResponse(messages.ANN_LIST_FAILED, need_at=True)
 
@@ -165,8 +169,8 @@ class NoticesService:
             return PlainTextResponse(messages.ANN_INDEX_INVALID, need_at=True)
         try:
             detail = await self.transport.get_ann_detail(post_id)
-        except NoticesTransportError as error:
-            return self._transport_response(error)
+        except NoticesTransportError:
+            return PlainTextResponse(messages.ANN_DETAIL_FAILED, need_at=True)
         try:
             with self._renderer_context() as renderer:
                 rendered = await renderer.render_ann_detail(detail)
@@ -400,7 +404,7 @@ class NoticesService:
     async def _invoke_push(
         self,
         origin: str,
-        payload: str | Path,
+        payload: NoticePayload,
         at_user_id: str | None = None,
     ) -> bool:
         if self.push is not None:
@@ -421,8 +425,8 @@ class NoticesService:
                     res = self.push(origin, payload)
 
                 if inspect.isawaitable(res):
-                    await res
-                return True
+                    res = await res
+                return res is not False
             except Exception:  # noqa: BLE001
                 from astrbot.api import logger
 
@@ -639,39 +643,70 @@ class NoticesService:
     async def poll_ann_now(self) -> int:
         """轮询公告并向群订阅者推送新公告图片；返回推送条数（计划任务）。"""
 
-        if self.subscriptions is None or self.push is None or self.ann_state is None:
+        if (
+            self.subscriptions is None
+            or self.push is None
+            or self.ann_state is None
+            or self.ann_delivery_state is None
+        ):
             return 0
         try:
             snapshot = await self.transport.get_ann_list()
         except NoticesTransportError:
             return 0
 
-        fresh_ids = [int(post.post_id) for post in snapshot.posts if post.post_id.isdigit()]
-        pending = await self.ann_state.merge(fresh_ids)
-        if not pending:
-            return 0
-
         subs = await self.subscriptions.get(messages.ANN_SUBSCRIBE)
-        if not subs:
-            return 0
+        observed_targets = tuple(dict.fromkeys(sub.unified_msg_origin for sub in subs))
+        await self.ann_delivery_state.migrate_legacy_ids(
+            await self.ann_state.known_ids(),
+        )
 
         pushed = 0
-        title_by_id = {post.post_id: post.title for post in snapshot.posts}
+        current_targets = set(observed_targets)
+        for post in snapshot.posts:
+            if not post.post_id.isdigit():
+                continue
+            pending_all = await self.ann_delivery_state.pending_targets(
+                post.post_id,
+                observed_targets,
+            )
+            pending = tuple(target for target in pending_all if target in current_targets)
+            if not pending:
+                # 旧版本只有公告 ID 去重；无当前待投递目标时同步兼容状态，
+                # 让回滚不会把已完成或无人订阅的公告重新当成新公告。
+                await self.ann_state.merge([int(post.post_id)])
+                continue
 
-        for post_id in pending:
-            payload: Path | str
             try:
-                detail = await self.transport.get_ann_detail(str(post_id))
+                detail = await self.transport.get_ann_detail(post.post_id)
                 with self._renderer_context() as renderer:
                     rendered = await renderer.render_ann_detail(detail)
-                payload = rendered.path
-            except Exception:  # noqa: BLE001
-                title = title_by_id.get(str(post_id), str(post_id))
-                payload = f"【最新二重螺旋公告】\n{title}"
+                if isinstance(rendered, (list, tuple)):
+                    if not rendered:
+                        raise ValueError("公告详情渲染没有生成图片")
+                    payload: NoticePayload = tuple(page.path for page in rendered)
+                else:
+                    payload = rendered.path
+            except Exception as error:  # noqa: BLE001
+                from astrbot.api import logger
 
-            for sub in subs:
-                if await self._invoke_push(sub.unified_msg_origin, payload):
+                logger.warning(
+                    f"[dnaby][announcement] 公告 {post.post_id} 详情或渲染失败: "
+                    f"{type(error).__name__}",
+                )
+                continue
+
+            all_delivered = True
+            for target in pending:
+                if await self._invoke_push(target, payload):
+                    await self.ann_delivery_state.mark_delivered(post.post_id, target)
                     pushed += 1
+                else:
+                    all_delivered = False
+            if all_delivered:
+                # 只有当前观察到的目标全部成功后才更新旧 ID 列表；部分成功仍需
+                # 保留旧文件的未完成语义，避免回滚版本过早跳过失败公告。
+                await self.ann_state.merge([int(post.post_id)])
 
         return pushed
 

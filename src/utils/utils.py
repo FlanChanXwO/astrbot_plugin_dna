@@ -51,16 +51,31 @@ class TimedCache:
             del self.cache[key]
 
 
-def timed_async_cache(expiration, condition=lambda x: True):
+def timed_async_cache(
+    expiration,
+    condition=lambda x: True,
+    *,
+    key_builder=None,
+    cache_if=None,
+):
+    """为异步函数提供可选参数化的进程内 TTL 缓存。
+
+    默认行为保持旧版按函数缓存的兼容语义；需要按账号、host 等业务身份隔离
+    时，调用方必须显式提供 ``key_builder``。``cache_if`` 可在保留原有结果校验
+    的同时排除“兜底值”等不应持久化为成功结果的数据。
+    """
+
     def decorator(func):
         cache = {}
         locks = {}
 
         @functools.wraps(func)
-        async def wrapper(*args):
-            current_time = time.time()
+        async def wrapper(*args, **kwargs):
             # 如果是类方法，args[0]是实例，我们获取类名
-            if args and hasattr(args[0], "__class__"):
+            if key_builder is not None:
+                parameter_key = key_builder(*args, **kwargs)
+                cache_key = f"{func.__module__}.{func.__qualname__}:{parameter_key}"
+            elif args and hasattr(args[0], "__class__"):
                 cache_key = f"{args[0].__class__.__name__}.{func.__name__}"
             else:
                 cache_key = func.__name__
@@ -72,7 +87,7 @@ def timed_async_cache(expiration, condition=lambda x: True):
             # 检查缓存，如果有效则直接返回
             if cache_key in cache:
                 value, timestamp = cache[cache_key]
-                if current_time - timestamp < expiration:
+                if time.time() - timestamp < expiration:
                     return value
 
             # 获取锁以确保并发安全
@@ -80,13 +95,16 @@ def timed_async_cache(expiration, condition=lambda x: True):
                 # 双重检查，避免等待锁期间其他协程已经更新了缓存
                 if cache_key in cache:
                     value, timestamp = cache[cache_key]
-                    if current_time - timestamp < expiration:
+                    if time.time() - timestamp < expiration:
                         return value
 
                 # 执行原始函数
-                value = await func(*args)
-                if condition(value):
-                    cache[cache_key] = (value, current_time)
+                value = await func(*args, **kwargs)
+                should_cache = bool(condition(value))
+                if should_cache and cache_if is not None:
+                    should_cache = bool(cache_if(value, *args, **kwargs))
+                if should_cache:
+                    cache[cache_key] = (value, time.time())
                 return value
 
         return wrapper
@@ -94,7 +112,25 @@ def timed_async_cache(expiration, condition=lambda x: True):
     return decorator
 
 
-@timed_async_cache(86400)
+def _public_ip_cache_key(*args, **kwargs):
+    host = args[0] if args else kwargs.get("host", "127.127.127.127")
+    return str(host).strip().lower()
+
+
+def _cache_public_ip(value, *args, **kwargs):
+    host = args[0] if args else kwargs.get("host", "127.127.127.127")
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and value.strip() != str(host).strip()
+    )
+
+
+@timed_async_cache(
+    86400,
+    key_builder=_public_ip_cache_key,
+    cache_if=_cache_public_ip,
+)
 async def get_public_ip(host="127.127.127.127"):
     # 尝试从 kurobbs 获取 IP 地址
     try:
@@ -103,7 +139,7 @@ async def get_public_ip(host="127.127.127.127"):
             ip = r.text
             return ip
     except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
-        logger.warning(f"[DNA] 从 kurobbs 获取公网地址失败: {error}")
+        logger.warning(f"[DNA] 从 kurobbs 获取公网地址失败: {type(error).__name__}")
 
     # 尝试从 ipify 获取 IP 地址
     try:
@@ -112,7 +148,7 @@ async def get_public_ip(host="127.127.127.127"):
             ip = r.json()["ip"]
             return ip
     except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
-        logger.warning(f"[DNA] 从 ipify 获取公网地址失败: {error}")
+        logger.warning(f"[DNA] 从 ipify 获取公网地址失败: {type(error).__name__}")
 
     # 尝试从 httpbin.org 获取 IP 地址
     try:
@@ -121,7 +157,7 @@ async def get_public_ip(host="127.127.127.127"):
             ip = r.json()["origin"]
             return ip
     except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
-        logger.warning(f"[DNA] 从 httpbin 获取公网地址失败: {error}")
+        logger.warning(f"[DNA] 从 httpbin 获取公网地址失败: {type(error).__name__}")
 
     return host
 

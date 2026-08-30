@@ -73,6 +73,7 @@ from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
+from .modules.notices.ann_delivery_state import AnnDeliveryStateStore
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.contracts import NoticesTransport
 from .modules.notices.service import NoticesService
@@ -315,9 +316,9 @@ def build_runtime(
 
     async def _push_notice(
         origin: str,
-        payload: str | Path,
+        payload: str | Path | tuple[Path, ...],
         at_user_id: str | list[str] | None = None,
-    ) -> None:
+    ) -> bool:
         chain: list[Any] = []
         user_ids: list[str] = []
         if at_user_id:
@@ -326,7 +327,10 @@ def build_runtime(
             )
             user_ids = [str(uid) for uid in raw_ids if uid]
 
-        if isinstance(payload, Path) or (
+        if isinstance(payload, tuple):
+            for image_path in payload:
+                chain.append(AstrImage.fromFileSystem(str(image_path)))
+        elif isinstance(payload, Path) or (
             isinstance(payload, str)
             and (
                 payload.endswith((".png", ".jpg", ".jpeg", ".webp"))
@@ -350,11 +354,15 @@ def build_runtime(
         try:
             res = context.send_message(origin, msg)
             if inspect.isawaitable(res):
-                await res
+                res = await res
+            return res is not False
         except Exception as error:  # noqa: BLE001
             from astrbot.api import logger
 
-            logger.warning(f"[dnaby][push_notice] 推送至 {origin} 失败: {error}")
+            logger.warning(
+                f"[dnaby][push_notice] 推送至 {origin} 失败: {type(error).__name__}",
+            )
+            return False
 
     notices_service = NoticesService(
         runtime_database,
@@ -363,6 +371,9 @@ def build_runtime(
         notices_renderer,
         subscriptions=subscriptions,
         ann_state=AnnStateStore(runtime_database.path.parent / "ann_state.json"),
+        ann_delivery_state=AnnDeliveryStateStore(
+            runtime_database.path.parent / "ann_delivery_state.json",
+        ),
         secret_simple_image=settings.notifications.secret_simple_image,
         push=_push_notice,
         config_store=config if isinstance(config, dict) else None,

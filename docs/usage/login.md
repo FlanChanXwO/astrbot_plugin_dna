@@ -20,3 +20,6 @@ fake transport；`DnaApiAccountTransport` 只适配旧的纯 API 请求和角色
 
 实际手机号、验证码、token 和外部登录服务不在本地测试中执行；只能用隔离 SQLite、
 fake transport 和事件 fixture 验证成功、取消、网络/状态码/服务端失败及脱敏。
+
+登录 transport 的调试日志只记录受控的端点与状态，不记录 auth、token、设备码或请求/响应正文；
+网络和非 200 失败保留稳定错误类别，避免把上游正文带入日志或用户文案。
