@@ -12,6 +12,7 @@
   启用，不提供功能开启配置；`scheduled_enabled` 仅控制每日定时任务是否运行。
 - `notifications`：公告轮询、密函订阅与订阅级时间窗口、图片模式。密函自动推送固定为每小时
   `HH:30`，不再提供全局推送时间或密函缓存开关；当前小时缓存由服务按有效性自动管理。
+- `cache`：玩家数据、玩家卡片和公告缓存的 fresh/硬保留时间，以及手动刷新后的发送策略。
 - `display`：攻略来源、未拥有角色展示和 AT 查询开关；
   `allow_mention_query` 控制是否允许查询被 @ 的他人。（角色原图引用因公开结果边界
   无消息 ID 交付点暂不支持，不再提供开关。）
@@ -25,6 +26,34 @@
 | --- | --- | --- |
 | `resources.github_acceleration` | `off` | `off/edgeone/hk/gh_proxy/dpik/custom`；只影响公共资源 Git/Raw 请求。 |
 | `resources.custom_github_acceleration_url` | 空字符串 | 仅 `custom` 使用；必须是无凭据、无 query/fragment 的 HTTP(S) 基础 URL。 |
+
+## 通知与缓存字段
+
+`notifications` 中的公告字段通常由订阅命令和通知状态维护；密函推送时间窗口属于每条订阅记录，
+通过 `订阅密函时间17:23` 或 `订阅密函周期17:23` 设置，不是全局配置。
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `notifications.announcement_enabled` | `true` | 是否启用公告推送。 |
+| `notifications.announcement_groups` | `{}` | 公告推送群组配置；群内执行 `kk订阅公告` 时会同步更新。 |
+| `notifications.announcement_ids` | `[]` | 已处理公告 ID 的兼容状态列表。 |
+| `notifications.announcement_check_minutes` | `10` | 公告轮询间隔，范围 `0..60` 分钟。 |
+| `notifications.secret_subscriptions` | `["group"]` | 密函订阅作用域，可选 `private`、`group`。 |
+| `notifications.secret_simple_image` | `false` | 是否使用简易密函图片。 |
+
+密函自动推送由 scheduler 固定安排在每小时 `HH:30`，只按订阅记录的时间窗口筛选目标；全局
+`notifications.secret_push_time` 与 `notifications.secret_cache` 已移除，旧版 `MHPushSubscribe`
+和 `MHCache` 也不会进入 typed 配置或生成 schema。当前小时缓存由服务按有效性自动管理。
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `cache.fresh_ttl_minutes` | `30` | 缓存保持 fresh 的时间；设为 `0` 表示立即视为 stale。 |
+| `cache.retention_ttl_hours` | `24` | 玩家缓存的硬保留时间；超过后维护任务可清理。 |
+| `cache.announcement_ttl_hours` | `24` | 公告列表、详情、manifest 和已校验源图的绝对保留时间。 |
+| `cache.refresh_send_card` | `true` | 手动刷新成功后是否立即发送新的完整卡片。 |
+
+fresh 过期但仍在硬保留期内时会尝试刷新；刷新失败且存在完整旧卡时会带过期提示。公告缓存的
+绝对保留使用 `cache.announcement_ttl_hours`，不受已移除的全局密函缓存开关控制。
 
 公共资源仓库、manifest、兑换码 v1、旧 GitCode `end_at` 迁移和镜像切换步骤见
 [资源运维说明](resources.md)。插件没有传统 HTTP/SOCKS 代理配置；不要把

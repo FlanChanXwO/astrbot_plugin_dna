@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from astrbot.api import logger
+from astrbot.api.star import StarTools
 from astrbot.api.web import request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse
@@ -126,7 +128,14 @@ async def get_dna_login_url() -> str:
 async def send_login(sender: Sender, ctx: EventContext, url: str) -> None:
     at_sender = bool(ctx.group_id)
     if DNAConfig.get_config("DNAQRLogin").data:
-        path = Path(__file__).parent / f"{ctx.user_id}.gif"
+        # 二维码 helper 保留旧 path 参数；文件名使用摘要，避免外部 user_id 逃出运行期目录。
+        qr_name = hashlib.sha256(ctx.user_id.encode("utf-8")).hexdigest()
+        path = (
+            Path(StarTools.get_data_dir("astrbot_plugin_dnaby"))
+            / "login_qr"
+            / f"{qr_name}.gif"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
         qr_items = [
             MessageSegment.text(f"[二重螺旋] 您的id为【{ctx.user_id}】\n"),
             MessageSegment.text("请扫描下方二维码获取登录地址，并复制地址到浏览器打开\n"),

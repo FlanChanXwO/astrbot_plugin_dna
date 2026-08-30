@@ -97,6 +97,8 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 - `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json` — 角色自定义别名覆盖层。
 - `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，
   缓存 key 和身份 tag 只保存 SHA-256 摘要。
+- `login_qr/` — 二维码登录兼容 helper 的临时路径；文件名使用 user_id 的 SHA-256 摘要，发送后
+  若 helper 产生文件则由登录流程删除。
 - `rendered/` — 玩家/资料/通知 renderer 生成的临时 PNG。
 - `panel_custom/` — admin 上传的自定义面板图（WebP，按内容 sha1 去重）；它是本地数据
   目录，与资源仓库的 `panel/`（只读原始面板）分离。
@@ -136,7 +138,8 @@ O11 新增三条玩家缓存操作：普通用户可用 `刷新<角色名>面板
 条回复中发送。
 
 运行期 `cache/announcement/` 使用统一 `CacheManager`：列表卡、详情页、详情 manifest 和已
-通过解码校验的源图均按 `announcement` 类型保存，绝对保留期默认 24 小时。列表或详情内容的
+通过解码校验的源图均按 `announcement` 类型保存，绝对保留期由 `cache.announcement_ttl_hours`
+控制，默认 24 小时。列表或详情内容的
 SHA-256 fingerprint 纳入缓存 key，上游内容变化会自然 miss；详情任一正文图片或渲染步骤失败时，
 完整卡片和 manifest 不会写入，手动查询返回固定失败文案且不生成占位图。自动订阅在详情、渲染或
 图片发送失败时跳过本轮，不发送标题文本；`ann_delivery_state.json` 固定首次观察目标集合，成功
