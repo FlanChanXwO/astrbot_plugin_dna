@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
 from contextlib import nullcontext
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,7 @@ from .mh_cache import (
 NoticePayload = str | Path | tuple[Path, ...]
 PushCallable = Callable[[str, NoticePayload], Awaitable[Any]]
 ClockCallable = Callable[[], datetime]
+SleepCallable = Callable[[float], Awaitable[None]]
 _MH_TYPE_KEYS = ("角色", "武器", "魔之楔")
 
 
@@ -70,6 +72,8 @@ class NoticesService:
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache_manager: CacheManager | None = None,
         clock: ClockCallable | None = None,
+        secret_retry_interval_seconds: float = 1.0,
+        sleep: SleepCallable = asyncio.sleep,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -89,6 +93,11 @@ class NoticesService:
         self.resource_snapshots = resource_snapshots
         self.mh_cache = MhSnapshotCache(cache_manager) if cache_manager is not None else None
         self._clock = clock
+        self.secret_retry_interval_seconds = float(secret_retry_interval_seconds)
+        if self.secret_retry_interval_seconds <= 0:
+            raise ValueError("密函重试间隔必须大于 0")
+        self._sleep = sleep
+        self._mh_pushed_window: datetime | None = None
 
     def _now(self) -> datetime:
         if self._clock is not None:
@@ -100,11 +109,6 @@ class NoticesService:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("密函时钟必须带时区")
         return value.astimezone(SHANGHAI)
-
-    @staticmethod
-    def _mh_gate_open(now: datetime) -> bool:
-        window_start = MhSnapshotCache.window_start(now)
-        return now >= window_start + timedelta(minutes=30)
 
     async def _verified_mh_snapshot(
         self,
@@ -183,10 +187,7 @@ class NoticesService:
                     credential_user_id=target_user_id,
                 )
 
-            if self._mh_gate_open(now):
-                snapshot = await self._verified_mh_snapshot(now, fetch)
-            else:
-                snapshot = validate_mh_snapshot(await fetch())
+            snapshot = await self._verified_mh_snapshot(now, fetch)
         except NoticesTransportError as error:
             logger.warning(
                 "通知请求失败 operation=%s kind=%s resource=%s",
@@ -440,7 +441,7 @@ class NoticesService:
         return await self.mh_subscriptions(request)
 
     async def toggle_mh_pic(self, request: NoticeRequest):
-        """订阅/取消订阅密函图片推送（admin，会话作用域）。"""
+        """订阅/取消订阅密函图片推送（user，会话作用域）。"""
 
         if self.subscriptions is None:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
@@ -462,7 +463,7 @@ class NoticesService:
         return PlainTextResponse(messages.MH_PIC_SUBSCRIBED, need_at=True)
 
     async def toggle_mh_text(self, request: NoticeRequest):
-        """订阅/取消订阅密函文本推送（admin，会话作用域）。"""
+        """订阅/取消订阅密函文本推送（user，会话作用域）。"""
 
         if self.subscriptions is None:
             return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
@@ -622,14 +623,26 @@ class NoticesService:
         if self.subscriptions is None or self.push is None:
             return 0
         now = self._now()
-        if not self._mh_gate_open(now):
-            logger.info("密函推送：当前小时尚未到 HH:30，跳过密函推送")
+        window_start = MhSnapshotCache.window_start(now)
+        if self._mh_pushed_window == window_start:
+            logger.debug("密函推送：当前小时已完成，跳过重复推送")
             return 0
         try:
-            snapshot = await self._verified_mh_snapshot(
-                now,
-                self.transport.get_mh_any,
-            )
+            while True:
+                try:
+                    snapshot = await self._verified_mh_snapshot(
+                        now,
+                        self.transport.get_mh_any,
+                    )
+                except ValueError:
+                    logger.warning("通知数据解析失败 operation=%s", "push_mh")
+                    await self._sleep(self.secret_retry_interval_seconds)
+                    now = self._now()
+                    window_start = MhSnapshotCache.window_start(now)
+                    if self._mh_pushed_window == window_start:
+                        return 0
+                    continue
+                break
         except NoticesTransportError as error:
             logger.warning(
                 "通知请求失败 operation=%s kind=%s resource=%s",
@@ -637,9 +650,6 @@ class NoticesService:
                 error.kind.value,
                 error.resource,
             )
-            return 0
-        except ValueError:
-            logger.warning("通知数据解析失败 operation=%s", "push_mh")
             return 0
         current_hour = now.hour
 
@@ -750,6 +760,7 @@ class NoticesService:
                     ):
                         pushed += 1
 
+        self._mh_pushed_window = window_start
         return pushed
 
     async def poll_ann_now(self) -> int:

@@ -1,4 +1,4 @@
-"""角色概览、详情/伤害和原图 use case。"""
+"""角色概览、基础详情和玩家缓存 use case。"""
 
 from __future__ import annotations
 
@@ -922,6 +922,130 @@ class PlayerService:
             send_card=self.refresh_send_card,
         )
 
+    async def refresh_all_roles(self, request: PlayerCommandRequest):
+        """刷新当前 UID 的概览和全部已解锁角色详情，只返回汇总。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        resolved = await self._resolve_uid(request)
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, refresh_uid = resolved
+        now = self._now()
+        async with self._overview_lock(target_user_id, refresh_uid):
+            try:
+                overview = await self._fetch_overview(
+                    request,
+                    target_user_id,
+                    refresh_uid,
+                )
+            except PlayerTransportError as error:
+                return self._transport_response(error)
+
+            if self.cache is not None:
+                await self.cache.invalidate_identity(target_user_id, refresh_uid)
+                overview_metadata = await self.cache.put_data(
+                    self.cache.overview_data_key(target_user_id, refresh_uid),
+                    overview,
+                    tags=(
+                        "player_data",
+                        "overview",
+                        self.cache.identity_tag(target_user_id, refresh_uid),
+                    ),
+                    now=now,
+                )
+                overview_digest = overview_metadata.content_sha256
+            else:
+                overview_digest = self._value_digest(overview)
+
+            succeeded = 0
+            failed_names: list[str] = []
+            for role in overview.role_chars:
+                if not role.unlocked or role.char_eid is None:
+                    continue
+                try:
+                    bundle = await self._fetch_detail_bundle(
+                        request,
+                        target_user_id,
+                        refresh_uid,
+                        role,
+                        (),
+                    )
+                    if self.cache is not None and bundle.cacheable:
+                        await self.cache.put_data(
+                            self.cache.detail_data_key(
+                                target_user_id,
+                                refresh_uid,
+                                role.char_id,
+                                (),
+                                overview_digest,
+                            ),
+                            self._detail_payload(bundle),
+                            tags=self.cache.detail_data_tags(
+                                target_user_id,
+                                refresh_uid,
+                                role.char_id,
+                                overview_digest,
+                            ),
+                            now=now,
+                        )
+                    succeeded += 1
+                except PlayerTransportError as error:
+                    failed_names.append(role.name)
+                    logger.warning(
+                        "角色批量刷新失败 kind=%s resource=%s role=%s",
+                        error.kind.value,
+                        error.resource,
+                        role.name,
+                    )
+                except Exception as error:  # noqa: BLE001 - 每个角色必须隔离未预期异常
+                    failed_names.append(role.name)
+                    logger.exception(
+                        "角色批量刷新出现未预期异常 kind=%s role=%s",
+                        type(error).__name__,
+                        role.name,
+                    )
+
+        response = PlainTextResponse(
+            messages.PLAYER_ALL_REFRESHED.format(
+                success=succeeded,
+                failed=len(failed_names),
+            ),
+        )
+        if failed_names:
+            response = PlainTextResponse(
+                response.text + "\n失败角色：" + "、".join(failed_names),
+            )
+        return response
+
+    async def clear_role_cache(self, request: PlayerCommandRequest):
+        """清理当前 UID 指定角色的详情数据和卡片，保留概览缓存。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        if self.cache is None:
+            return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+        char_name = str(request.parameters.get("char_name", "")).strip()
+        if not char_name:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        resolved = await self._resolve_uid(request)
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        overview_state = await self._load_overview(
+            request,
+            target_user_id,
+            uid,
+            now=self._now(),
+        )
+        if isinstance(overview_state, PlainTextResponse):
+            return overview_state
+        role = self._find_role(overview_state.overview, char_name)
+        if role is None:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        await self.cache.invalidate_role_only(target_user_id, uid, role.char_id)
+        return PlainTextResponse(messages.PLAYER_ROLE_CACHE_CLEARED.format(name=char_name))
+
     async def clear_all_cache(self) -> PlainTextResponse:
         """清理全部玩家数据和卡片缓存，保留其它业务缓存。"""
 
@@ -929,6 +1053,20 @@ class PlayerService:
             return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
         await self.cache.invalidate_all()
         return PlainTextResponse(messages.PLAYER_CACHE_CLEARED)
+
+    async def clear_all_role_cache(self, request: PlayerCommandRequest) -> PlainTextResponse:
+        """清理当前用户当前 UID 的全部角色数据和卡片缓存。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        if self.cache is None:
+            return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+        resolved = await self._resolve_uid(request)
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        await self.cache.invalidate_identity(target_user_id, uid)
+        return PlainTextResponse(messages.PLAYER_ALL_ROLE_CACHE_CLEARED)
 
     async def original_image(self, _request: PlayerCommandRequest):
         """明确报告当前公开 AstrBot 结果边界不支持原图引用。"""

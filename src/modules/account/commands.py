@@ -82,14 +82,25 @@ async def account_logout_use_case(
     return await _call(request, "logout")
 
 
-async def account_bind_use_case(
+async def account_token_login_use_case(
     request: CommandRequest,
     _registry: CommandRegistry,
     **parameters: Any,
 ) -> PlainTextResponse:
-    """绑定 UID。"""
+    """执行显式 token 登录；凭据仍只进入 App 登录事务。"""
 
-    return await _call(request, "bind_uid", str(parameters.get("uid", "")))
+    target = _service_and_actor(request)
+    if isinstance(target, PlainTextResponse):
+        return target
+    service, actor = target
+    argument = str(parameters.get("arg", "")).strip()
+    try:
+        attempt = parse_login_attempt(argument)
+    except ValueError:
+        return PlainTextResponse(messages.INVALID_LOGIN_INPUT)
+    if attempt.mode != "token":
+        return PlainTextResponse(messages.INVALID_LOGIN_INPUT)
+    return await service.login(actor, attempt)
 
 
 async def account_switch_use_case(
@@ -144,6 +155,16 @@ async def account_credentials_use_case(
 
 COMMAND_SPECS = (
     CommandSpec(
+        id="account_token_login",
+        pattern=r"^(?:token登录|登录token)\s*(?P<arg>.*)$",
+        group="皎皎角登录",
+        name="token登录",
+        description="使用 App token 登录，不输出原始凭据",
+        examples=("token登录" + "t" * 40,),
+        permission="user",
+        use_case=account_token_login_use_case,
+    ),
+    CommandSpec(
         id="account_login",
         pattern=r"^(?:登录|登陆|登入|登龙|login)\s*(?P<arg>.*)$",
         group="皎皎角登录",
@@ -162,16 +183,6 @@ COMMAND_SPECS = (
         examples=("退出登录",),
         permission="user",
         use_case=account_logout_use_case,
-    ),
-    CommandSpec(
-        id="account_bind",
-        pattern=r"^绑定\s*(?P<uid>\S*)$",
-        group="绑定账号",
-        name="绑定UID",
-        description="绑定一个 UID",
-        examples=("绑定1234567890123",),
-        permission="user",
-        use_case=account_bind_use_case,
     ),
     CommandSpec(
         id="account_switch",
@@ -228,7 +239,6 @@ COMMAND_SPECS = (
 
 __all__ = [
     "COMMAND_SPECS",
-    "account_bind_use_case",
     "account_credentials_use_case",
     "account_delete_all_use_case",
     "account_delete_use_case",
@@ -236,4 +246,5 @@ __all__ = [
     "account_login_use_case",
     "account_logout_use_case",
     "account_switch_use_case",
+    "account_token_login_use_case",
 ]

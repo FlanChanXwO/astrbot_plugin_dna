@@ -28,7 +28,8 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
 - `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`：订阅、公告兼容 ID 列表与按
   目标投递状态。
 - `scheduler_state.json`：任务永久删除 tombstone。
-- `alias_custom.json`、`panel_custom/`：角色自定义别名与自定义面板图。
+- `alias_custom.json`、`weapon_alias_custom.json`：角色与武器自定义别名；`panel_custom/` 仅是
+  已移除面板管理后的历史文件目录，插件不再读取。
 
 在首次执行 `0003_global_identity` 或 `0004_app_credentials_only`、升级插件版本、执行全局账号删除，或需要执行永久任务/面板
 删除前，应先停止 AstrBot 或至少停止 DNABY 的写入，再把 SQLite 和需要保留的 JSON/目录复制到
@@ -41,7 +42,7 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
 test -f "$DATA_DIR/dnaby.sqlite3"
 mkdir -p -- "$BACKUP_DIR"
 cp -p -- "$DATA_DIR/dnaby.sqlite3" "$BACKUP_DIR/dnaby.sqlite3"
-for item in subscriptions.json ann_state.json ann_delivery_state.json scheduler_state.json alias_custom.json; do
+for item in subscriptions.json ann_state.json ann_delivery_state.json scheduler_state.json alias_custom.json weapon_alias_custom.json; do
   test ! -e "$DATA_DIR/$item" || cp -p -- "$DATA_DIR/$item" "$BACKUP_DIR/$item"
 done
 test ! -d "$DATA_DIR/panel_custom" || cp -a -- "$DATA_DIR/panel_custom" "$BACKUP_DIR/panel_custom"
@@ -83,9 +84,9 @@ force push 或删除分支；应保留失败版本、备份和回滚记录，便
 和关联 UID 的签到历史，但不级联群级隐私、群订阅、群结果或通知资源；跨 SQLite/JSON 的部分
 失败应按响应中的逐项状态重试。
 
-角色面板图的全删、账号全局删除和任务永久删除均不可通过页面撤销。角色默认别名来自只读资源，
-恢复默认只删除 `alias_custom.json` 的自定义追加；需要保留自定义内容时，应在写操作前备份对应
-JSON/目录。
+账号全局删除和任务永久删除均不可通过页面撤销。角色与武器默认别名来自只读资源，普通恢复
+保留两份 custom 追加，强制恢复才清空 `alias_custom.json` 与 `weapon_alias_custom.json`；需要
+保留自定义内容时，应在写操作前备份对应 JSON。
 
 ## 生产插件发布、只读核验与回滚
 
@@ -105,7 +106,7 @@ JSON/目录。
    reload endpoint，再重复状态和最小 smoke。代码回滚不等于数据库回滚，破坏性 schema 必须按上文备份恢复。
 
 O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`、
-`v0.2.0`、detached/clean；命令 registry 61 条；资源 generation/content SHA 与
+`v0.2.0`、detached/clean；命令 registry 60 条；资源 generation/content SHA 与
 [资源说明](../usage/resources.md)一致；`agent_tools.enabled=false`；容器运行、restart count 为 0，
 容器内 import/schema smoke 通过。O24 未调用 reload、未切换 SHA、未修改生产配置或运行期数据。
 

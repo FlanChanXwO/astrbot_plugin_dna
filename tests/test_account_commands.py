@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, cast
 
 import pytest
 
@@ -26,11 +25,6 @@ class FakeAccountService:
     async def begin_login(self, actor: AccountActor) -> PlainTextResponse:
         self.calls.append(("begin_login", actor, None))
         return PlainTextResponse("登录页已启动")
-
-    async def bind_uid(self, actor: AccountActor, uid: str) -> PlainTextResponse:
-        self.calls.append(("bind_uid", actor, uid))
-        return PlainTextResponse("绑定成功")
-
 
 class Event:
     """实现 AstrBot 公开 actor 方法和纯文本响应方法。"""
@@ -56,8 +50,8 @@ class Event:
 
 
 @pytest.mark.asyncio
-async def test_account_handler_extracts_actor_and_named_uid() -> None:
-    """命令 handler 只从公开 event 方法提取 actor，并隔离自己的正则参数。"""
+async def test_account_login_handler_extracts_actor() -> None:
+    """命令 handler 只从公开 event 方法提取 actor。"""
 
     class GeneratedAccountPlugin:
         __module__ = "tests.generated_account_plugin"
@@ -76,50 +70,21 @@ async def test_account_handler_extracts_actor_and_named_uid() -> None:
         ),
     )
 
-    handler_name = "handle_account_bind"
+    handler_name = "handle_account_login"
     handler = getattr(plugin, handler_name)
-    result = [item async for item in handler(Event("kk绑定1234567890123"))]
+    result = [item async for item in handler(Event("kk登录"))]
 
-    assert result == ["绑定成功"]
+    assert result == ["登录页已启动"]
     assert service.calls == [
         (
-            "bind_uid",
+            "begin_login",
             AccountActor("user-1", "bot-1", "group-1"),
-            "1234567890123",
+            None,
         )
     ]
 
 
 @pytest.mark.asyncio
-async def test_account_bind_handler_keeps_legacy_empty_argument_route() -> None:
-    """缺少 UID 时仍进入 typed service，由业务层返回明确格式错误。"""
-
-    class GeneratedEmptyBindPlugin:
-        __module__ = "tests.generated_empty_bind_plugin"
-
-    registry = CommandRegistry(
-        (spec for spec in load_command_registry() if spec.id == "account_bind"),
-    )
-    install_command_handlers(GeneratedEmptyBindPlugin, registry)
-    service = FakeAccountService()
-    plugin = GeneratedEmptyBindPlugin()
-    object.__setattr__(
-        plugin,
-        "_runtime",
-        SimpleNamespace(
-            commands=registry,
-            responses=ResponseFactory(),
-            services={"account_service": service},
-        ),
-    )
-
-    handler = cast(Any, plugin).handle_account_bind
-    result = [item async for item in handler(Event("kk绑定"))]
-
-    assert result == ["绑定成功"]
-    assert service.calls[0][2] == ""
-
-
 @pytest.mark.asyncio
 async def test_account_handler_requires_event_actor() -> None:
     """没有可定位作用域时显式返回错误，不把账号操作落到默认用户。"""
@@ -129,7 +94,7 @@ async def test_account_handler_requires_event_actor() -> None:
 
     registry = CommandRegistry(
         (registry_spec for registry_spec in load_command_registry()
-         if registry_spec.id == "account_bind"),
+         if registry_spec.id == "account_login"),
     )
     install_command_handlers(GeneratedMissingActorPlugin, registry)
     plugin = GeneratedMissingActorPlugin()
@@ -143,10 +108,10 @@ async def test_account_handler_requires_event_actor() -> None:
         ),
     )
 
-    handler_name = "handle_account_bind"
+    handler_name = "handle_account_login"
     handler = getattr(plugin, handler_name)
     result = [
-        item async for item in handler(Event("kk绑定1234567890123", with_actor=False))
+        item async for item in handler(Event("kk登录", with_actor=False))
     ]
 
     assert result == ["无法识别当前用户，暂不能执行账号操作！"]

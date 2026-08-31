@@ -1,12 +1,11 @@
 import re
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).parents[1]
 PAGE_ROOT = PROJECT_ROOT / "pages" / "dashboard"
 
 
-def test_panel_page_has_search_lazy_images_and_confirmed_file_actions() -> None:
+def test_panel_management_is_removed_from_dashboard() -> None:
     html = (PAGE_ROOT / "index.html").read_text(encoding="utf-8")
     store = (PAGE_ROOT / "js" / "store.js").read_text(encoding="utf-8")
     bridge = (PAGE_ROOT / "js" / "bridge.js").read_text(encoding="utf-8")
@@ -14,31 +13,20 @@ def test_panel_page_has_search_lazy_images_and_confirmed_file_actions() -> None:
         "export async function getAliasCatalog", 1
     )[0]
 
-    assert 'data-page="panels"' in html
-    assert "角色面板图" in html
-    assert "panelSearch" in html
-    assert "filteredPanels" in html
-    assert "panel-thumbnail" in html
-    assert "panelImageUrl" in html
-    assert "prepareUploadPanel" in html
-    assert "confirmDeletePanel" in html
-    assert "confirmDeleteAllPanels" in html
-    assert "confirmCompressPanels" in html
-    assert "openDialog" in store
-    assert "confirmDeleteAllPanels" in store
-    assert "getPanelImages" in bridge
-    assert "getPanelImage" in bridge
-    assert "uploadPanel" in bridge
-    assert "deleteAllPanels" in bridge
-    assert "compressPanels" in bridge
+    assert 'data-page="panels"' not in html
+    assert "角色面板图" not in html
+    assert "panelSearch" not in html
+    assert "filteredPanels" not in store
+    assert "panel-thumbnail" not in html
+    assert "prepareUploadPanel" not in html
+    assert "confirmDeletePanel" not in html
+    assert "getPanelImages" not in bridge
+    assert "getPanelImage" not in bridge
+    assert "uploadPanel" not in bridge
+    assert "deleteAllPanels" not in bridge
+    assert "compressPanels" not in bridge
     for method in (
         "getAliasCatalog",
-        "getPanelImages",
-        "getPanelImage",
-        "uploadPanel",
-        "deletePanel",
-        "deleteAllPanels",
-        "compressPanels",
         "getTasks",
         "getTargets",
         "updateTask",
@@ -107,10 +95,10 @@ def test_task14_writes_enter_confirmation_before_mutating_state() -> None:
     html = (PAGE_ROOT / "index.html").read_text(encoding="utf-8")
     store = (PAGE_ROOT / "js" / "store.js").read_text(encoding="utf-8")
 
-    assert "prepareUploadPanel" in html
+    assert "prepareUploadPanel" not in html
     assert "confirmTaskSchedule" in html
     assert "confirmTaskSchedule" in store
-    assert "pendingPanelFile" in store
+    assert "pendingPanelFile" not in store
     assert "scanMembers(true)" in store
 
 
@@ -121,13 +109,11 @@ def test_task14_actions_reload_server_state_after_success_and_are_mobile_ready()
     store = (PAGE_ROOT / "js" / "store.js").read_text(encoding="utf-8")
     css = (PAGE_ROOT / "css" / "dashboard.css").read_text(encoding="utf-8")
 
-    assert "reloadPanelState" in store
     assert "reloadTaskState" in store
     assert "reloadMembershipState" in store
-    assert "await this.reloadPanelState()" in store
     assert "await this.reloadTaskState()" in store
     assert "await this.reloadMembershipState()" in store
-    assert "panel-grid" in html
+    assert "panel-grid" not in html
     assert "task-list" in html
     assert "membership-results" in html
     assert "@media (max-width: 767px)" in css

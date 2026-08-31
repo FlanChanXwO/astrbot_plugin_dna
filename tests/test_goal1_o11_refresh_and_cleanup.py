@@ -38,7 +38,7 @@ def test_o11_commands_are_registered_with_the_declared_permission_boundary() -> 
 
     assert specs["refresh_role_card"].permission == "user"
     assert specs["refresh_admin_role_card"].permission == "admin"
-    assert specs["clear_player_cache"].permission == "admin"
+    assert specs["clear_player_cache"].permission == "user"
     assert specs["refresh_role_card"].pattern == rf"^kk{REFRESH_ROLE_PATTERN[1:]}"
     assert specs["refresh_admin_role_card"].pattern == rf"^kk{REFRESH_ADMIN_ROLE_PATTERN[1:]}"
     assert registry.match("kk刷新角色甲面板").command.id == "refresh_role_card"
@@ -95,7 +95,7 @@ async def test_user_refresh_forces_target_role_and_keeps_other_role_cache(
     try:
         first = await service.role_detail(_request(detail=True))
         assert isinstance(first, ImageResponse)
-        identity = cache.identity_tag("user-1", "uid-1")
+        identity = cache.identity_tag("user-1", "1234567890123")
         await cache.manager.put(
             "player_data",
             "other-role-data",
@@ -218,19 +218,34 @@ async def test_admin_refresh_requires_admin_and_passes_explicit_uid() -> None:
 
 
 @pytest.mark.asyncio
-async def test_clear_all_cache_command_only_clears_player_entries(tmp_path: Path) -> None:
+async def test_clear_all_role_cache_command_only_clears_current_uid_player_entries(
+    tmp_path: Path,
+) -> None:
     clock = MutableClock()
     database, _transport, _renderer, cache, service = await _service(tmp_path, clock)
     try:
-        await cache.manager.put("player_data", "player", b"{}", now=clock.value)
-        await cache.manager.put("player_card", "card", b"card", now=clock.value)
+        identity = cache.identity_tag("user-1", "1234567890123")
+        await cache.manager.put(
+            "player_data",
+            "player",
+            b"{}",
+            tags=("player_data", identity),
+            now=clock.value,
+        )
+        await cache.manager.put(
+            "player_card",
+            "card",
+            b"card",
+            tags=("player_card", identity),
+            now=clock.value,
+        )
         await cache.manager.put("announcement", "keep", b"announcement", now=clock.value)
         request = CommandRequest(
             command_id="clear_player_cache",
             text="kk清理全部角色缓存",
             parameters={},
-            actor=EventActor("admin-1", "bot-1"),
-            permission="admin",
+            actor=EventActor("user-1", "bot-1"),
+            permission="user",
             services={"player_service": service},
         )
 
@@ -240,7 +255,7 @@ async def test_clear_all_cache_command_only_clears_player_entries(tmp_path: Path
         )
 
         assert isinstance(response, PlainTextResponse)
-        assert response.text == messages.PLAYER_CACHE_CLEARED
+        assert response.text == messages.PLAYER_ALL_ROLE_CACHE_CLEARED
         assert (await cache.manager.get("player_data", "player", now=clock.value)).status == "miss"
         assert (await cache.manager.get("player_card", "card", now=clock.value)).status == "miss"
         assert (await cache.manager.get("announcement", "keep", now=clock.value)).status == "fresh"

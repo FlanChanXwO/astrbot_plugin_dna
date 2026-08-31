@@ -41,9 +41,9 @@ def test_dispatch_reparses_command_and_populates_context():
     from src.entry.commands import load_command_registry
 
     registry = load_command_registry()
-    matched = registry.match("kk绑定123456")
+    matched = registry.match("kk切换123456")
     assert matched is not None
-    assert matched.command.id == "account_bind"
+    assert matched.command.id == "account_switch"
     assert matched.parameters["uid"] == "123456"
 
 

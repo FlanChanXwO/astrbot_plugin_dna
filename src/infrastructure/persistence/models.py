@@ -66,6 +66,12 @@ class AccountBinding(Base):
         default=True,
         server_default=text("1"),
     )
+    auto_sign_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("1"),
+    )
 
 
 class CredentialRecord(Base):

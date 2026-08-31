@@ -27,7 +27,8 @@ TZ = ZoneInfo("Asia/Shanghai")
 
 
 class _Checkin:
-    async def auto_sign_all(self) -> str:
+    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
+        del enable_all_users
         return "ok"
 
     async def clear_sign_records_before(self, record_date) -> int:
@@ -154,6 +155,8 @@ async def test_task_api_validates_schedule_updates_and_preserves_tombstone_bound
     assert mh_updated.ok is False
     assert mh_updated.error is not None
     assert mh_updated.error.code is AdminErrorCode.CONFLICT
+    assert "HH:30" not in mh_updated.error.message
+    assert "secret_push_minute" in mh_updated.error.message
     assert "secret_push_time" not in config["notifications"]  # type: ignore[operator]
 
     ann_updated = await api.update_task("dnaby_ann_poll", schedule="interval@20m")

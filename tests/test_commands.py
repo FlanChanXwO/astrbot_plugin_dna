@@ -52,11 +52,11 @@ def test_commands_manifest_is_covered_by_code_registry():
     assert manifest == manifest_records(load_command_registry())
 
 
-def test_removed_alias_write_commands_do_not_match():
-    """别名写命令移除后，写入文本不得再命中任何有效命令。"""
+def test_alias_write_commands_match_only_the_admin_specs():
+    """别名写命令保留，但只能由管理员命令边界接收。"""
     registry = load_command_registry()
     message = "kk删除角色卡米拉别名e2e别名"
     matched = [cmd.id for cmd in registry if re.match(cmd.pattern, message)]
 
-    assert "alias_add_delete" not in matched
-    assert "alias_recover" not in matched
+    assert matched == ["alias_add_delete"]
+    assert registry.get("alias_add_delete").permission == "admin"

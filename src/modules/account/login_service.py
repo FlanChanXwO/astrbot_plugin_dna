@@ -14,7 +14,6 @@ from ...utils.api.model import DNALoginRes, DNARoleListRes
 from ...utils.constants.constants import DNA_GAME_ID
 from ...utils.database.models import DNABind, DNAUser
 from ...utils.session import EventContext, Sender
-from ...utils.utils import mask_uid_in_text
 
 complete_error_msg = "您尚未注册二重螺旋账号，请先在【皎皎角】进行角色绑定"
 role_error_msg = "未找到二重螺旋角色，请在皎皎角注册账号后重新登录"
@@ -197,44 +196,5 @@ class DNALoginService:
                 self.ctx.bot_id,
                 role.uid,
             )
-
-    async def get_cookie(self) -> str:
-        from ...utils.utils import is_uid_hidden
-
-        hidden = await is_uid_hidden(
-            self.ctx.user_id,
-            self.ctx.bot_id,
-            self.ctx.group_id,
-        )
-        dna_users = await DNAUser.select_dna_users(
-            self.ctx.user_id,
-            self.ctx.bot_id,
-        )
-        if not dna_users:
-            return "当前并未登录"
-
-        message: list[str] = []
-        seen_tokens: set[str] = set()
-        for raw_user in dna_users:
-            if raw_user.cookie == "" or raw_user.cookie in seen_tokens:
-                continue
-            dna_user = await dna_api.check_cookie(raw_user)
-            if dna_user is None or dna_user.cookie in seen_tokens:
-                continue
-            seen_tokens.add(dna_user.cookie)
-            message.extend(
-                (
-                    f"二重螺旋UID: {dna_user.uid}",
-                    "App token:",
-                    dna_user.cookie,
-                    "--------------------------------",
-                )
-            )
-
-        if not message:
-            return "未找到可用的二重螺旋 token"
-        result = "\n".join(message)
-        return mask_uid_in_text(result) if hidden else result
-
 
 __all__ = ["DNALoginService"]

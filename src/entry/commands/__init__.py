@@ -42,6 +42,35 @@ CommandUseCase = Callable[
 _PERMISSIONS = {"user", "admin"}
 COMMAND_PREFIX = "kk"
 COMMAND_EXECUTION_FAILED = "命令执行失败，请稍后重试；管理员可查看日志了解详情。"
+COMMAND_GROUP_ORDER: tuple[str, ...] = (
+    "绑定账号",
+    "皎皎角登录",
+    "密函",
+    "信息查询",
+    "角色信息",
+    "隐私控制",
+    "签到服务",
+    "管理员功能",
+    "bot主人功能",
+    "图鉴",
+    "攻略",
+    "兑换码",
+    "公告",
+    "资源管理",
+)
+
+
+def _ordered_groups(groups: Iterable[str]) -> list[str]:
+    """按帮助卡约定排序，未知分组保持其首次出现顺序。"""
+
+    preferred = {name: index for index, name in enumerate(COMMAND_GROUP_ORDER)}
+    first_seen: dict[str, int] = {}
+    for index, name in enumerate(groups):
+        first_seen.setdefault(name, index)
+    return sorted(
+        first_seen,
+        key=lambda name: (preferred.get(name, len(preferred)), first_seen[name]),
+    )
 
 
 def _log_command_exception(
@@ -249,7 +278,8 @@ class CommandRegistry:
             grouped.setdefault(spec.group, []).append(spec)
 
         lines = ["可用命令："]
-        for group, group_specs in grouped.items():
+        for group in _ordered_groups(grouped):
+            group_specs = grouped[group]
             lines.append("")
             lines.append(f"【{group}】")
             for spec in group_specs:
@@ -577,6 +607,7 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
 
 __all__ = [
     "COMMAND_EXECUTION_FAILED",
+    "COMMAND_GROUP_ORDER",
     "COMMAND_PREFIX",
     "CommandRegistry",
     "CommandRequest",

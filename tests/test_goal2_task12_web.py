@@ -77,9 +77,9 @@ def test_admin_routes_are_unique_and_dashboard_scoped() -> None:
         "tasks",
         "targets",
         "members",
-        "panels",
         "aliases",
     }
+    assert all(route.path.split("/")[3] != "panels" for route in routes)
     assert all(route.path.startswith(f"{ADMIN_WEB_PREFIX}/") for route in routes)
 
 

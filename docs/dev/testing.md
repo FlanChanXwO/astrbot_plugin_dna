@@ -51,7 +51,7 @@ ruff check .
   结果、并发详情各自的原面板引用和伤害失败内容脱敏。
 - `test_goal1_o10_player_cache.py` — 玩家 JSON/PNG 缓存的 fresh/stale/24 小时保留语义、旧卡
   回退、不完整占位隔离、资源版本换代和多条件精准失效。
-- `test_goal1_o11_refresh_and_cleanup.py` — 普通/管理员角色刷新、全量玩家缓存清理、
+- `test_goal1_o11_refresh_and_cleanup.py` — 普通单角色/全部角色刷新、单角色/全部角色缓存清理、
   `refresh_send_card`、rendered 孤儿清理、活动发送文件租约和维护任务生命周期。
 - `test_player_commands.py` — 玩家命令正则、显式 registry、AstrBot `Reply` 消息 ID提取和
   service 缺失边界。
@@ -78,10 +78,9 @@ ruff check .
 - `test_notices_subscriptions.py` — 密函订阅增删/去重/推送时间、图片/文本会话开关、公告
   群订阅、计划任务文本/图片推送与公告轮询去重。
 - `test_notices_scheduler.py` — 通知计划任务幂等 start/stop 与配置解析。
-- `test_operations.py` — 面板图上传（WebP/sha1 去重/失败计数）、列表、删除、压缩和资源
-  状态（隔离目录 fixture）。
-- `test_operations_commands.py` — 面板/资源命令归属、正则、`images_from_event` 提取与生成
-  handler。
+- `test_operations.py` — 公共资源同步/状态及失败可见性（隔离目录 fixture）；已删除的
+  `panel_custom` 管理不再作为测试契约。
+- `test_operations_commands.py` — 资源命令归属、正则与生成 handler。
 - `test_resource_service.py` — 资源下载成功（克隆/更新）、Git 缺失/远端不匹配/本地修改/
   同步失败可见错误。
 - `test_player_transport.py` — legacy role API payload 到 typed overview 的映射和 transport

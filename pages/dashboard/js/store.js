@@ -1,5 +1,4 @@
 const NAV_ITEMS = Object.freeze([
-  { id: "panels", label: "面板图" },
   { id: "tasks", label: "任务与探测" },
   { id: "accounts", label: "账号与预览" },
   { id: "aliases", label: "角色别名" },
@@ -123,21 +122,6 @@ function asList(value, key) {
   return [];
 }
 
-function roleNames(value) {
-  return asList(value, "roles")
-    .map((entry) => {
-      if (typeof entry === "string") {
-        return entry.trim();
-      }
-      return typeof entry?.canonical_name === "string"
-        ? entry.canonical_name.trim()
-        : typeof entry?.name === "string"
-          ? entry.name.trim()
-          : "";
-    })
-    .filter(Boolean);
-}
-
 function capabilityValue(value) {
   const data = responseData(value);
   return {
@@ -147,34 +131,17 @@ function capabilityValue(value) {
   };
 }
 
-function clearPanelPreview(panel) {
-  if (panel && typeof panel === "object") {
-    panel.previewUrl = "";
-    panel.loading = false;
-  }
-}
-
 export function createDashboardStore({ api }) {
   return {
     api,
     navItems: NAV_ITEMS,
-    activePage: "panels",
+    activePage: "tasks",
     mobileNavOpen: false,
     pluginVersion: "",
     capabilities: null,
     bootstrapError: "",
     loading: true,
     errorMessage: "",
-
-    panelSearch: "",
-    panelRoles: [],
-    selectedPanelRole: "",
-    panelRolesLoading: false,
-    panelImages: [],
-    panelsLoading: false,
-    panelError: "",
-    panelActionBusy: false,
-    pendingPanelFile: null,
 
     tasks: [],
     targets: [],
@@ -236,15 +203,7 @@ export function createDashboardStore({ api }) {
     drawer: blankDrawer(),
 
     get activePageLabel() {
-      return this.navItems.find((item) => item.id === this.activePage)?.label || "面板图";
-    },
-
-    get filteredPanels() {
-      const query = this.panelSearch.trim().toLocaleLowerCase();
-      if (!query) {
-        return this.panelRoles;
-      }
-      return this.panelRoles.filter((role) => role.toLocaleLowerCase().includes(query));
+      return this.navItems.find((item) => item.id === this.activePage)?.label || "任务与探测";
     },
 
     get filteredAccountGroups() {
@@ -323,10 +282,8 @@ export function createDashboardStore({ api }) {
         this.showToast("管理服务初始化未完成，部分功能可能不可用", "error");
       }
 
-      await this.loadRoleCatalog();
       await this.loadMembershipCapability();
       await this.reloadTaskState();
-      await this.reloadPanelState();
       await this.reloadAccountState();
       await this.reloadAliasState();
       this.loading = false;
@@ -368,7 +325,6 @@ export function createDashboardStore({ api }) {
 
     closeDialog() {
       this.dialog = blankDialog();
-      this.pendingPanelFile = null;
     },
 
     async confirmDialog() {
@@ -904,202 +860,6 @@ export function createDashboardStore({ api }) {
       } finally {
         this.aliasActionBusy = "";
       }
-    },
-
-    async loadRoleCatalog() {
-      this.panelRolesLoading = true;
-      try {
-        this.panelRoles = roleNames(await this.api.getAliasCatalog());
-        if (!this.selectedPanelRole && this.panelRoles.length > 0) {
-          this.selectedPanelRole = this.panelRoles[0];
-        }
-      } catch (_error) {
-        this.panelRoles = [];
-        this.panelError = "角色目录读取失败，请稍后重试";
-      } finally {
-        this.panelRolesLoading = false;
-      }
-    },
-
-    async selectPanelRole(roleName) {
-      const normalized = String(roleName || "").trim();
-      if (!normalized) {
-        this.showToast("请先选择或输入角色名称", "error");
-        return;
-      }
-      this.selectedPanelRole = normalized;
-      await this.reloadPanelState();
-    },
-
-    async reloadPanelState() {
-      this.panelsLoading = true;
-      this.panelError = "";
-      this.panelImages.forEach(clearPanelPreview);
-      if (!this.selectedPanelRole) {
-        this.panelImages = [];
-        this.panelsLoading = false;
-        return;
-      }
-      try {
-        const data = asList(await this.api.getPanelImages(this.selectedPanelRole), "images");
-        this.panelImages = data.map((panel) => ({
-          ...panel,
-          previewUrl: "",
-          loading: false,
-        }));
-      } catch (error) {
-        this.panelImages = [];
-        this.panelError = safeErrorMessage(error);
-      } finally {
-        this.panelsLoading = false;
-      }
-    },
-
-    panelImageUrl(panel) {
-      return panel?.previewUrl || "";
-    },
-
-    async loadPanelImage(panel) {
-      if (!panel || panel.loading || panel.previewUrl || !this.selectedPanelRole) {
-        return;
-      }
-      panel.loading = true;
-      try {
-        const payload = responseData(
-          await this.api.getPanelImage(this.selectedPanelRole, panel.id),
-        );
-        if (typeof payload?.data !== "string") {
-          throw new Error("面板图载荷无效");
-        }
-        const mediaType = typeof payload.media_type === "string" ? payload.media_type : "image/png";
-        panel.previewUrl = `data:${mediaType};base64,${payload.data}`;
-      } catch (error) {
-        this.showToast(safeErrorMessage(error), "error");
-      } finally {
-        panel.loading = false;
-      }
-    },
-
-    prepareUploadPanel(event) {
-      const file = event?.target?.files?.[0];
-      if (!file || !this.selectedPanelRole) {
-        return;
-      }
-      this.pendingPanelFile = file;
-      if (event.target) {
-        event.target.value = "";
-      }
-      this.openDialog({
-        title: "确认上传面板图",
-        description: `将把「${file.name}」上传到角色「${this.selectedPanelRole}」。`,
-        confirmLabel: "上传面板图",
-        onConfirm: () => this.uploadPanel(),
-      });
-    },
-
-    async uploadPanel(event) {
-      const file = event?.target?.files?.[0] || this.pendingPanelFile;
-      if (!file || !this.selectedPanelRole) {
-        return;
-      }
-      this.panelActionBusy = true;
-      try {
-        await this.api.uploadPanel(this.selectedPanelRole, file);
-        await this.reloadPanelState();
-        this.showToast("面板图已上传");
-      } catch (error) {
-        this.showToast(safeErrorMessage(error), "error");
-      } finally {
-        this.pendingPanelFile = null;
-        this.panelActionBusy = false;
-      }
-    },
-
-    confirmDeletePanel(panel) {
-      if (!panel) {
-        return;
-      }
-      this.openDialog({
-        title: "确认删除面板图",
-        description: `将删除「${panel.filename || panel.id}」，此操作不可恢复。`,
-        confirmLabel: "删除面板图",
-        onConfirm: () => this.deletePanel(panel),
-      });
-    },
-
-    async deletePanel(panel) {
-      this.panelActionBusy = true;
-      try {
-        await this.api.deletePanel(this.selectedPanelRole, panel.id);
-        await this.reloadPanelState();
-        this.showToast("面板图已删除");
-      } catch (error) {
-        this.showToast(safeErrorMessage(error), "error");
-      } finally {
-        this.panelActionBusy = false;
-      }
-    },
-
-    confirmDeleteAllPanels() {
-      if (!this.selectedPanelRole) {
-        return;
-      }
-      this.openDialog({
-        title: "确认删除当前角色全部面板图",
-        description: `将永久删除「${this.selectedPanelRole}」的全部面板图，此操作不可恢复。`,
-        confirmLabel: "删除全部",
-        onConfirm: () => this.deleteAllPanels(),
-      });
-    },
-
-    async deleteAllPanels() {
-      this.panelActionBusy = true;
-      try {
-        await this.api.deleteAllPanels(this.selectedPanelRole);
-        await this.reloadPanelState();
-        this.showToast("当前角色的面板图已全部删除");
-      } catch (error) {
-        this.showToast(safeErrorMessage(error), "error");
-      } finally {
-        this.panelActionBusy = false;
-      }
-    },
-
-    confirmCompressPanels() {
-      this.openDialog({
-        title: "确认压缩全部面板图",
-        description: "将处理所有角色的自定义面板图，已有文件会按服务端规则压缩。",
-        confirmLabel: "开始压缩",
-        onConfirm: () => this.compressPanels(),
-      });
-    },
-
-    async compressPanels() {
-      this.panelActionBusy = true;
-      try {
-        const result = responseData(await this.api.compressPanels());
-        await this.reloadPanelState();
-        const count = Number(result?.compressed);
-        this.showToast(Number.isFinite(count) ? `已压缩 ${count} 张面板图` : "面板图压缩完成");
-      } catch (error) {
-        this.showToast(safeErrorMessage(error), "error");
-      } finally {
-        this.panelActionBusy = false;
-      }
-    },
-
-    formatBytes(value) {
-      const bytes = Number(value);
-      if (!Number.isFinite(bytes) || bytes < 0) {
-        return "大小未知";
-      }
-      if (bytes < 1024) {
-        return `${bytes} B`;
-      }
-      if (bytes < 1024 * 1024) {
-        return `${(bytes / 1024).toFixed(1)} KB`;
-      }
-      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     },
 
     async reloadTaskState() {

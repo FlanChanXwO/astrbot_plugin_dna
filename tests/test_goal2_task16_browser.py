@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 
 import pytest
 from astrbot.api.web import PluginRequest, bind_request_context
@@ -45,7 +46,7 @@ async def test_encoded_alias_role_is_decoded_before_admin_service_call() -> None
         method = "POST"
         url = SimpleNamespace(path="/astrbot_plugin_dnaby/admin/aliases/role")
         headers = Headers({"content-type": "application/json"})
-        cookies: dict[str, str] = {}
+        cookies: ClassVar[dict[str, str]] = {}
         client = SimpleNamespace(host="127.0.0.1")
         query_params = QueryParams()
 

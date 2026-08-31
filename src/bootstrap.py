@@ -67,7 +67,6 @@ from .modules.admin import (
     AdminAccountService,
     AdminAliasService,
     AdminApiService,
-    AdminPanelService,
     AdminPreviewService,
     AiocqhttpMembershipProbe,
     MembershipService,
@@ -81,7 +80,6 @@ from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.contracts import NoticesTransport
 from .modules.notices.service import NoticesService
 from .modules.operations.resource_service import ResourceUpdateService
-from .modules.operations.service import PanelService
 from .modules.player.cache import PlayerCache
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
@@ -214,11 +212,17 @@ def build_runtime(
         runtime_database,
         allow_mention_query=settings.display.allow_mention_query,
     )
+    custom_alias_path = runtime_database.path.parent / "alias_custom.json"
+    custom_weapon_alias_path = (
+        runtime_database.path.parent / "weapon_alias_custom.json"
+    )
     resource_cache_root = resource_repository_dir(runtime_database.path.parent)
     resource_snapshots = ResourceSnapshotCoordinator(
         resource_cache_root,
         generations_root=resource_generations_dir(runtime_database.path.parent),
         acceleration_prefix=settings.resources.acceleration_prefix,
+        custom_alias_path=custom_alias_path,
+        custom_weapon_alias_path=custom_weapon_alias_path,
     )
     initial_resource_snapshot = resource_snapshots.initialize()
     resource_root = (
@@ -239,7 +243,11 @@ def build_runtime(
     encyclopedia_resources = (
         initial_resource_snapshot.encyclopedia_resources
         if initial_resource_snapshot is not None
-        else EncyclopediaResourceStore.from_root(resource_root)
+        else EncyclopediaResourceStore.from_root(
+            resource_root,
+            custom_alias_path=custom_alias_path,
+            custom_weapon_alias_path=custom_weapon_alias_path,
+        )
     )
     rendered_root = runtime_database.path.parent / "rendered"
     cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
@@ -434,11 +442,13 @@ def build_runtime(
         push=_push_notice,
         config_store=config if isinstance(config, dict) else None,
         resource_snapshots=resource_snapshots,
+        secret_retry_interval_seconds=settings.notifications.secret_retry_interval_seconds,
     )
     notices_scheduler = NoticesScheduler(
         notices_service,
         announcement_enabled=settings.notifications.announcement_enabled,
         poll_minutes=settings.notifications.announcement_check_minutes,
+        push_minute=settings.notifications.secret_push_minute,
         registry=scheduler_registry,
     )
     admin_api_service = AdminApiService(
@@ -454,29 +464,13 @@ def build_runtime(
         config_store=config if isinstance(config, dict) else None,
     )
 
-    def _resolve_char_id(char_name: str) -> str | None:
-        from .utils.name_convert import char_name_to_char_id
-
-        return char_name_to_char_id(char_name)
-
-    def _panel_dir_for(char_id: str) -> str:
-        from .utils.master_char_const import get_master_char_panel_dir
-
-        return get_master_char_panel_dir(char_id)
-
-    panel_service = PanelService(
-        runtime_database.path.parent / "panel_custom",
-        resource_root=resource_root,
-        resolve_char_id=_resolve_char_id,
-        panel_dir_for=_panel_dir_for,
-        resource_snapshots=resource_snapshots,
-    )
-
     def _synchronize_resources():
         return resource_snapshots.synchronize()
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
+        resource_root=resource_root,
+        resource_snapshots=resource_snapshots,
     )
     if services is not None and "resource_update_service" in services:
         # 复用现有 services 注入边界，使生命周期测试和宿主可提供同契约实现。
@@ -484,10 +478,27 @@ def build_runtime(
             ResourceUpdateService,
             services["resource_update_service"],
         )
-    admin_panel_service = AdminPanelService(panel_service)
+
+    def _refresh_alias_views() -> None:
+        """别名写入后立即替换当前百科视图，不要求重载插件。"""
+
+        current_root = Path(resolved_services.get("resource_root", resource_root))
+        updated = EncyclopediaResourceStore.from_root(
+            current_root,
+            custom_alias_path=custom_alias_path,
+            custom_weapon_alias_path=custom_weapon_alias_path,
+        )
+        encyclopedia_service.renderer.resources = updated
+        encyclopedia_service.resources = updated
+        checkin_renderer.resources = updated
+        notices_renderer.resources = updated
+        resolved_services["encyclopedia_resources"] = updated
+
     admin_alias_service = AdminAliasService(
         resource_root=resource_root,
-        custom_path=runtime_database.path.parent / "alias_custom.json",
+        custom_path=custom_alias_path,
+        weapon_custom_path=custom_weapon_alias_path,
+        refresh=_refresh_alias_views,
     )
     admin_account_service = AdminAccountService(runtime_database)
     admin_preview_service = AdminPreviewService(
@@ -522,9 +533,7 @@ def build_runtime(
         "admin_api_service": admin_api_service,
         "admin_account_service": admin_account_service,
         "admin_preview_service": admin_preview_service,
-        "admin_panel_service": admin_panel_service,
         "admin_alias_service": admin_alias_service,
-        "panel_service": panel_service,
         "resource_update_service": resource_update_service,
         "resource_snapshots": resource_snapshots,
     }
@@ -539,7 +548,6 @@ def build_runtime(
         encyclopedia_service.resources = new_encyclopedia_resources
         checkin_renderer.resources = new_encyclopedia_resources
         notices_renderer.resources = new_encyclopedia_resources
-        panel_service.resource_root = snapshot.root
         resolved_services["resource_root"] = snapshot.root
         resolved_services["player_resources"] = new_player_resources
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources

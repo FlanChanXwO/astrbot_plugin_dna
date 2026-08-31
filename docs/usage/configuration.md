@@ -14,8 +14,8 @@
   启用，不提供功能开启配置；`scheduled_enabled` 仅控制每日定时任务是否运行。`sign_time`
   必须是有效的 `HH:mm` 时间；显式非法值会在配置校验/插件启动时报告错误，不会静默改用
   `00:05`。
-- `notifications`：公告轮询、密函订阅与订阅级时间窗口、图片模式。密函自动推送固定为每小时
-  `HH:30`，不再提供全局推送时间或密函缓存开关；当前小时缓存由服务按有效性自动管理。
+- `notifications`：公告轮询、密函订阅与订阅级时间窗口、图片模式。密函自动推送默认在每小时
+  整点，可用 `secret_push_minute` 配置分钟；当前小时缓存由服务按有效性自动管理。
 - `cache`：玩家数据、玩家卡片和公告缓存的 fresh/硬保留时间，以及手动刷新后的发送策略。
 - `display`：命令前缀、攻略来源、未拥有角色展示和 AT 查询开关；
   `allow_mention_query` 控制是否允许查询被 @ 的他人。命令前缀可填写字符串或字符串列表；
@@ -47,8 +47,10 @@
 | `notifications.announcement_check_minutes` | `10` | 公告轮询间隔，范围 `0..60` 分钟。 |
 | `notifications.secret_subscriptions` | `["group"]` | 密函订阅作用域，可选 `private`、`group`。 |
 | `notifications.secret_simple_image` | `false` | 是否使用简易密函图片。 |
+| `notifications.secret_push_minute` | `0` | 每小时密函推送的分钟，范围 `0..59`；默认整点。 |
+| `notifications.secret_retry_interval_seconds` | `1` | 密函数据尚未准备好或校验失败时的重试间隔；取消或停止会立即结束等待。 |
 
-密函自动推送由 scheduler 固定安排在每小时 `HH:30`，只按订阅记录的时间窗口筛选目标；全局
+密函自动推送由 scheduler 安排在每小时 `HH:<secret_push_minute>`，只按订阅记录的时间窗口筛选目标；全局
 `notifications.secret_push_time` 与 `notifications.secret_cache` 已移除，旧版 `MHPushSubscribe`
 和 `MHCache` 也不会进入 typed 配置或生成 schema。当前小时缓存由服务按有效性自动管理。
 
@@ -97,7 +99,8 @@ DNABY_DATABASE_URL="sqlite+aiosqlite:////绝对路径/dnaby.sqlite3" \
 生产 schema 已完成迁移。此前 `atri` 只读核验观察到生产数据库 revision 为 `0003_global_identity`；
 该观察不代表本次文档/冒烟执行了 migration，也不替代升级前备份。
 
-`AccountService` 使用 `login.max_bind_count` 约束新增 UID。登录页会话由 runtime 注入的
+`AccountService` 使用 `login.max_bind_count` 约束新增 UID；登录成功会自动建立绑定，聊天侧只保留
+切换、删除和查看 UID，不提供脱离登录流程的公开绑定命令。登录页会话由 runtime 注入的
 `LoginFlowCoordinator` 管理：local 服务在初始化时启动、在终止时先清理登录等待再释放端口；
 外置 transport 只使用 typed `login.url`、`login.transport` 和 `login.shared_secret`。未配置
 外置地址时不会伪造登录链接，而是返回稳定的登录服务失败提示。
@@ -105,6 +108,10 @@ DNABY_DATABASE_URL="sqlite+aiosqlite:////绝对路径/dnaby.sqlite3" \
 登录凭据当前为 App-only；Web 登录页、Web token fallback 和五个 Web 凭据数据库列已移除。
 执行 `alembic upgrade head` 前必须按维护文档备份并检查 `dnaby.sqlite3`；降级只创建空 Web
 列，不能恢复已经删除的凭据。
+
+`account_bindings.auto_sign_enabled` 在 `0005_auto_sign_enabled` 中新增，已有绑定默认值为
+`true`。开启或关闭自动签到只修改当前用户当前 UID，切换 UID 后各绑定独立；手动“全部签到”
+忽略该开关，定时任务默认尊重该开关，`sign_in.enable_all_users` 可强制全部执行。
 
 隐私 use case 按 `display.allow_mention_query` 解析他人查询；关闭时查询目标会回到调用者，
 查询自己仍然允许。个人/群强制隐私的具体命令见 [commands.md](commands.md)。

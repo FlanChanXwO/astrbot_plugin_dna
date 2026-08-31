@@ -432,11 +432,22 @@ class CheckinService:
             )
         return ImageResponse(str(rendered.path), temporary=True)
 
-    async def _run_all_signs(self) -> CheckinSummary:
-        """为全部已绑定账号执行签到并按并发/间隔聚合结果。"""
+    async def _run_all_signs(
+        self,
+        *,
+        respect_auto_sign: bool = False,
+        enable_all_users: bool = False,
+    ) -> CheckinSummary:
+        """为目标绑定执行签到并按并发/间隔聚合结果。
+
+        手动“全部签到”显式忽略开关；计划任务默认尊重每个用户 UID 的设置，
+        ``enable_all_users`` 是配置要求的管理员强制模式。
+        """
 
         async with self.database.session() as session:
             bindings = await AccountBindingRepository.list_all(session)
+        if respect_auto_sign and not enable_all_users:
+            bindings = [binding for binding in bindings if binding.auto_sign_enabled]
         if not bindings:
             return CheckinSummary()
 
@@ -499,16 +510,48 @@ class CheckinService:
         ]
         return PlainTextResponse("\n".join(lines))
 
-    async def auto_sign_all(self) -> str:
+    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
         """供计划任务调用的全账号自动签到，返回可推送摘要。"""
 
-        summary = await self._run_all_signs()
+        summary = await self._run_all_signs(
+            respect_auto_sign=True,
+            enable_all_users=enable_all_users,
+        )
         if summary.success == 0 and summary.failed == 0:
             return f"[二重螺旋]自动任务\n{messages.CHECKIN_NO_USERS}"
         return (
             f"[二重螺旋]自动任务\n"
             f"今日成功游戏签到 {summary.game_success} 个账号\n"
             f"今日社区签到 {summary.bbs_success} 个账号"
+        )
+
+    async def set_auto_sign(
+        self,
+        request: CheckinCommandRequest,
+        *,
+        enabled: bool,
+    ) -> PlainTextResponse:
+        """按当前用户当前 UID 保存自动签到开关。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.CHECKIN_UID_INVALID)
+        async with self.database.transaction() as session:
+            binding = await AccountBindingRepository.current(
+                session,
+                user_id=request.actor.user_id,
+            )
+            if binding is None:
+                return PlainTextResponse(messages.CHECKIN_UID_INVALID)
+            changed = await AccountBindingRepository.set_auto_sign_enabled(
+                session,
+                user_id=request.actor.user_id,
+                uid=binding.uid,
+                enabled=enabled,
+            )
+        if not changed:
+            return PlainTextResponse(messages.CHECKIN_UID_INVALID)
+        return PlainTextResponse(
+            messages.CHECKIN_AUTO_ENABLED if enabled else messages.CHECKIN_AUTO_DISABLED,
         )
 
     async def subscribe_sign_result(self, request: CheckinCommandRequest):

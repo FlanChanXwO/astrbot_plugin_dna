@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -80,6 +81,7 @@ def _service(
     cache: CacheManager,
     subscriptions: SubscriptionStore | None = None,
     pushed: list[tuple[str, object]] | None = None,
+    sleep=None,
 ) -> NoticesService:
     async def push(origin: str, payload: object) -> None:
         if pushed is not None:
@@ -94,6 +96,7 @@ def _service(
         push=push,
         cache_manager=cache,
         clock=lambda: now[0],
+        **({"sleep": sleep} if sleep is not None else {}),
     )
 
 
@@ -101,7 +104,7 @@ def _service(
 async def test_mh_before_half_hour_is_realtime_only_and_push_does_not_fetch(
     tmp_path: Path,
 ) -> None:
-    """整点后半小时前允许实时查询，但不写缓存且不触发自动拉取。"""
+    """密函查询从整点起即可写入并复用当前小时的有效快照。"""
 
     database = await _database_with_binding(tmp_path)
     now = [datetime(2026, 8, 30, 12, 10, tzinfo=SHANGHAI)]
@@ -113,8 +116,12 @@ async def test_mh_before_half_hour_is_realtime_only_and_push_does_not_fetch(
 
     assert isinstance(response, ImageResponse)
     window_start = MhSnapshotCache.window_start(now[0])
-    lookup = await cache.get(MH_CACHE_TYPE, MhSnapshotCache.cache_key(window_start))
-    assert lookup.entry is None
+    lookup = await cache.get(
+        MH_CACHE_TYPE,
+        MhSnapshotCache.cache_key(window_start),
+        now=now[0],
+    )
+    assert lookup.entry is not None
     assert await service.push_mh_now() == 0
     assert transport.calls == ["get_mh"]
     await database.dispose()
@@ -124,7 +131,7 @@ async def test_mh_before_half_hour_is_realtime_only_and_push_does_not_fetch(
 async def test_mh_after_half_hour_caches_verified_snapshot_and_never_backfills_previous_hour(
     tmp_path: Path,
 ) -> None:
-    """半小时后只缓存通过结构校验的当前小时快照，换小时不读旧键。"""
+    """只缓存通过结构校验的当前小时快照，换小时不读旧键。"""
 
     database = await _database_with_binding(tmp_path)
     now = [datetime(2026, 8, 30, 12, 35, tzinfo=SHANGHAI)]
@@ -173,10 +180,10 @@ async def test_mh_after_half_hour_caches_verified_snapshot_and_never_backfills_p
 
 
 @pytest.mark.asyncio
-async def test_mh_failed_or_empty_snapshot_is_not_cached_and_next_round_retries(
+async def test_mh_failed_or_empty_snapshot_retries_until_valid_and_then_caches(
     tmp_path: Path,
 ) -> None:
-    """上游失败或空分区不污染当前小时缓存，后续轮次仍重新尝试。"""
+    """空分区不污染当前小时缓存，并按配置间隔重试直到有效。"""
 
     database = await _database_with_binding(tmp_path)
     now = [datetime(2026, 8, 30, 18, 35, tzinfo=SHANGHAI)]
@@ -190,6 +197,12 @@ async def test_mh_failed_or_empty_snapshot_is_not_cached_and_next_round_retries(
             ),
         ),
     )
+    retry_delays: list[float] = []
+
+    async def retry_sleep(seconds: float) -> None:
+        retry_delays.append(seconds)
+        transport.mh = _mh_snapshot()
+
     service = _service(
         database,
         transport,
@@ -198,6 +211,7 @@ async def test_mh_failed_or_empty_snapshot_is_not_cached_and_next_round_retries(
         cache=cache,
         subscriptions=subscriptions,
         pushed=pushed,
+        sleep=retry_sleep,
     )
     await subscriptions.add(
         messages.MH_SUBSCRIBE,
@@ -209,14 +223,11 @@ async def test_mh_failed_or_empty_snapshot_is_not_cached_and_next_round_retries(
         extra_message="角色:扼守",
     )
 
-    assert await service.push_mh_now() == 0
-    window_start = MhSnapshotCache.window_start(now[0])
-    assert await MhSnapshotCache(cache).get(window_start, now=now[0]) is None
-
-    transport.mh = _mh_snapshot()
     assert await service.push_mh_now() == 1
+    window_start = MhSnapshotCache.window_start(now[0])
     assert await MhSnapshotCache(cache).get(window_start, now=now[0]) is not None
     assert len(pushed) == 1
+    assert retry_delays == [1.0]
     await database.dispose()
 
 
@@ -285,25 +296,36 @@ async def test_mh_malformed_typed_section_is_not_cached_or_pushed(tmp_path: Path
     transport = FakeNoticesTransport(
         mh=MhSnapshot(sections=(object(),)),  # type: ignore[arg-type]
     )
-    service = _service(database, transport, tmp_path, now=now, cache=cache)
+    async def cancel_retry(_seconds: float) -> None:
+        raise asyncio.CancelledError
 
-    assert await service.push_mh_now() == 0
+    service = _service(
+        database,
+        transport,
+        tmp_path,
+        now=now,
+        cache=cache,
+        sleep=cancel_retry,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await service.push_mh_now()
     window_start = MhSnapshotCache.window_start(now[0])
     assert await MhSnapshotCache(cache).get(window_start, now=now[0]) is None
     await database.dispose()
 
 
-def test_mh_cache_rejects_snapshot_fetched_before_half_hour() -> None:
-    """缓存 envelope 不能代表整点后半小时前的上游结果。"""
+def test_mh_cache_rejects_snapshot_fetched_after_the_hour_window() -> None:
+    """缓存 envelope 不能代表下一个小时的上游结果。"""
 
     window_start = datetime(2026, 8, 30, 12, 0, tzinfo=SHANGHAI)
     snapshot = _mh_snapshot()
 
-    with pytest.raises(ValueError, match="半小时"):
+    with pytest.raises(ValueError, match="不属于"):
         MhSnapshotEnvelope(
             snapshot=snapshot,
             window_start=window_start,
-            fetched_at=window_start + timedelta(minutes=10),
+            fetched_at=window_start + timedelta(hours=1),
             fingerprint=snapshot_fingerprint(snapshot),
         )
 
@@ -344,15 +366,11 @@ def test_removed_global_mh_config_is_discarded_and_logged(caplog: pytest.LogCapt
 
 
 @pytest.mark.asyncio
-async def test_mh_scheduler_is_fixed_at_half_hour_and_admin_schedule_is_not_mutable() -> None:
-    """密函任务固定 HH:30，管理调度解析不再接受任意时间。"""
+async def test_mh_scheduler_uses_configured_minute_and_normalizes_schedule() -> None:
+    """密函任务使用配置分钟，管理调度支持规范化的 hourly@MM:00。"""
 
     from src.infrastructure.notices_scheduler import NoticesScheduler
-    from src.infrastructure.scheduler_state import (
-        MH_PUSH_AT,
-        MH_PUSH_SCHEDULE,
-        parse_scheduler_schedule,
-    )
+    from src.infrastructure.scheduler_state import parse_scheduler_schedule
 
     class Notices:
         async def push_mh_now(self) -> int:
@@ -365,11 +383,11 @@ async def test_mh_scheduler_is_fixed_at_half_hour_and_admin_schedule_is_not_muta
     snapshots = await scheduler.registry.list_snapshots()
     mh_task = next(item for item in snapshots if item.id == "dnaby_mh_push")
 
-    assert scheduler.push_time == MH_PUSH_AT == (30, 0)
-    assert mh_task.schedule == MH_PUSH_SCHEDULE == "hourly@30:00"
-    assert parse_scheduler_schedule("dnaby_mh_push", MH_PUSH_SCHEDULE) == (
-        MH_PUSH_SCHEDULE,
-        MH_PUSH_AT,
+    assert scheduler.push_time == (0, 0)
+    assert mh_task.schedule == "hourly@00:00"
+    assert parse_scheduler_schedule("dnaby_mh_push", "hourly@7:00") == (
+        "hourly@07:00",
+        (7, 0),
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="hourly@MM:00"):
         parse_scheduler_schedule("dnaby_mh_push", "hourly@07:08")

@@ -9,6 +9,7 @@ from threading import Event
 
 import pytest
 from PIL import Image
+
 from src.infrastructure.cache import CacheManager, CacheMetadataError, CacheMissError
 from src.infrastructure.resources import (
     ResourceGenerationError,

@@ -98,11 +98,6 @@ async def token_login(sender: Sender, ctx: EventContext, token: str) -> None:
     await send_dna_notify(sender, ctx, login_result)
 
 
-async def get_cookie(sender: Sender, ctx: EventContext) -> str:
-    login_service = DNALoginService(sender, ctx)
-    return await login_service.get_cookie()
-
-
 async def get_dna_login_url() -> str:
     url = DNAConfig.get_config("DNALoginUrl").data.strip()
     if url != "":
@@ -438,7 +433,6 @@ __all__ = [
     "dna_app_get_sms_code",
     "dna_login",
     "dna_login_index",
-    "get_cookie",
     "get_dna_login_url",
     "get_routes",
     "page_login",

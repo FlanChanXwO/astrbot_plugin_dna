@@ -198,7 +198,6 @@ async def test_admin_preview_uses_real_player_renderer_contract(
     monkeypatch.setattr(player_rendering, "get_avatar_img", fake_image)
     monkeypatch.setattr(player_rendering, "get_attr_img", fake_image)
     monkeypatch.setattr(player_rendering, "get_paint_img", fake_image)
-    monkeypatch.setattr(player_rendering, "get_role_panel_img", lambda *_: None)
 
     async def fail_privacy(*args: Any, **kwargs: Any) -> None:
         del args, kwargs

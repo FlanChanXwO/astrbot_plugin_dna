@@ -41,6 +41,7 @@ class CountingTransport(FixturePlayerTransport):
         self.role_detail_calls = 0
         self.weapon_detail_calls = 0
         self.damage_calls = 0
+        self.last_detail_damage = object()
         self.fail_overview = False
         self.fail_role_detail = False
 
@@ -103,6 +104,7 @@ class CountingRenderer:
 
     async def render_detail(self, role_detail, *_args, **kwargs):
         self.detail_calls += 1
+        self.last_detail_damage = _args[1] if len(_args) > 1 else kwargs.get("damage_calc")
         return self._write("detail", role_detail.char_name)
 
 

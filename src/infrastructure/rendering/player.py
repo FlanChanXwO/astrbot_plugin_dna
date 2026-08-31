@@ -44,7 +44,6 @@ from ...utils.image import (
     get_grade_img,
     get_mod_img,
     get_paint_img,
-    get_role_panel_img,
     get_skill_img,
     get_weapon_attr_img,
     get_weapon_img,
@@ -361,11 +360,9 @@ async def _hero_payload(
     role_detail: Any,
     custom_panel: Path | None = None,
 ) -> tuple[Path | None, dict[str, str]]:
+    role_panel = None
     if custom_panel is not None and custom_panel.is_file():
-        image = Image.open(custom_panel)
-        role_panel = (custom_panel, image)
-    else:
-        role_panel = get_role_panel_img(char_id)
+        role_panel = (custom_panel, Image.open(custom_panel))
 
     if role_panel is not None:
         original_path, image = role_panel

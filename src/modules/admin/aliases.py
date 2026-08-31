@@ -70,9 +70,10 @@ class AdminAliasEntry:
 
 @dataclass(frozen=True, slots=True)
 class AdminAliasCatalog:
-    """全部角色的默认 + custom 别名目录。"""
+    """全部角色和武器的默认 + custom 别名目录。"""
 
     entries: tuple[AdminAliasEntry, ...]
+    weapon_entries: tuple[AdminAliasEntry, ...] = ()
 
     @property
     def roles(self) -> tuple[AdminAliasEntry, ...]:
@@ -81,6 +82,10 @@ class AdminAliasCatalog:
     @property
     def characters(self) -> tuple[AdminAliasEntry, ...]:
         return self.entries
+
+    @property
+    def weapons(self) -> tuple[AdminAliasEntry, ...]:
+        return self.weapon_entries
 
     def role(self, canonical_name: str) -> AdminAliasEntry | None:
         normalized = _normalized_text(canonical_name)
@@ -91,8 +96,20 @@ class AdminAliasCatalog:
                 return entry
         return None
 
+    def weapon(self, canonical_name: str) -> AdminAliasEntry | None:
+        normalized = _normalized_text(canonical_name)
+        if normalized is None:
+            return None
+        for entry in self.weapon_entries:
+            if entry.canonical_name == normalized:
+                return entry
+        return None
+
     def to_dict(self) -> dict[str, object]:
-        return {"roles": [entry.to_dict() for entry in self.entries]}
+        return {
+            "roles": [entry.to_dict() for entry in self.entries],
+            "weapons": [entry.to_dict() for entry in self.weapon_entries],
+        }
 
 
 def _read_alias_mapping(path: Path) -> dict[str, list[str]]:
@@ -160,6 +177,8 @@ class AdminAliasService:
         resource_root: str | Path | None = None,
         custom_path: str | Path | None = None,
         alias_custom_path: str | Path | None = None,
+        weapon_alias_path: str | Path | None = None,
+        weapon_custom_path: str | Path | None = None,
         refresh: Callable[[], None] | None = None,
     ) -> None:
         if default_alias_path is None:
@@ -167,9 +186,12 @@ class AdminAliasService:
                 raise TypeError("default_alias_path 或 resource_root 不能为空")
             default_alias_path = Path(resource_root) / "alias" / "char_alias.json"
         self.default_alias_path = Path(default_alias_path)
-        if custom_path is not None and alias_custom_path is not None:
-            if Path(custom_path) != Path(alias_custom_path):
-                raise ValueError("custom_path 与 alias_custom_path 不得冲突")
+        if (
+            custom_path is not None
+            and alias_custom_path is not None
+            and Path(custom_path) != Path(alias_custom_path)
+        ):
+            raise ValueError("custom_path 与 alias_custom_path 不得冲突")
         selected_custom_path = custom_path or alias_custom_path
         self.custom_path = (
             Path(selected_custom_path)
@@ -178,6 +200,14 @@ class AdminAliasService:
         )
         if self.custom_path.resolve() == self.default_alias_path.resolve():
             raise ValueError("custom 别名文件不能覆盖默认别名文件")
+        self.weapon_alias_path = Path(weapon_alias_path) if weapon_alias_path is not None else (
+            self.default_alias_path.parent / "weapon_alias.json"
+        )
+        self.weapon_custom_path = Path(weapon_custom_path) if weapon_custom_path is not None else (
+            self.custom_path.with_name("weapon_alias_custom.json")
+        )
+        if self.weapon_custom_path.resolve() == self.weapon_alias_path.resolve():
+            raise ValueError("武器 custom 别名文件不能覆盖默认别名文件")
         self.refresh = refresh or (lambda: None)
 
     @property
@@ -190,6 +220,22 @@ class AdminAliasService:
         return (
             _read_alias_mapping(self.default_alias_path),
             _read_alias_mapping(self.custom_path),
+        )
+
+    def _load_all(
+        self,
+    ) -> tuple[
+        dict[str, list[str]],
+        dict[str, list[str]],
+        dict[str, list[str]],
+        dict[str, list[str]],
+    ]:
+        char_defaults, char_custom = self._load()
+        return (
+            char_defaults,
+            char_custom,
+            _read_alias_mapping(self.weapon_alias_path),
+            _read_alias_mapping(self.weapon_custom_path),
         )
 
     @staticmethod
@@ -212,11 +258,18 @@ class AdminAliasService:
         cls,
         defaults: Mapping[str, list[str]],
         custom: Mapping[str, list[str]],
+        weapon_defaults: Mapping[str, list[str]] | None = None,
+        weapon_custom: Mapping[str, list[str]] | None = None,
     ) -> AdminAliasCatalog:
         names = list(defaults)
         names.extend(name for name in custom if name not in defaults)
+        weapon_defaults = weapon_defaults or {}
+        weapon_custom = weapon_custom or {}
+        weapon_names = list(weapon_defaults)
+        weapon_names.extend(name for name in weapon_custom if name not in weapon_defaults)
         return AdminAliasCatalog(
-            tuple(cls._entry(name, defaults, custom) for name in names)
+            tuple(cls._entry(name, defaults, custom) for name in names),
+            tuple(cls._entry(name, weapon_defaults, weapon_custom) for name in weapon_names),
         )
 
     @staticmethod
@@ -243,6 +296,9 @@ class AdminAliasService:
     def _write_custom(self, custom: Mapping[str, list[str]]) -> None:
         _atomic_write_json(self.custom_path, custom)
 
+    def _write_weapon_custom(self, custom: Mapping[str, list[str]]) -> None:
+        _atomic_write_json(self.weapon_custom_path, custom)
+
     def _refresh(self) -> None:
         self.refresh()
 
@@ -252,8 +308,10 @@ class AdminAliasService:
         """返回默认 + custom 的角色目录。"""
 
         try:
-            defaults, custom = self._load()
-            return AdminApiResponse.success(self._catalog(defaults, custom))
+            defaults, custom, weapon_defaults, weapon_custom = self._load_all()
+            return AdminApiResponse.success(
+                self._catalog(defaults, custom, weapon_defaults, weapon_custom),
+            )
         except AliasStorageError:
             return _failure(AdminErrorCode.INTERNAL, "读取角色别名失败")
 
@@ -362,17 +420,122 @@ class AdminAliasService:
         return AdminApiResponse.success(self._entry(role, defaults, updated))
 
     async def restore_all(self) -> AdminApiResponse[AdminAliasCatalog]:
-        """删除全部 custom 追加，不修改默认资源文件。"""
+        """删除角色和武器全部 custom 追加，不修改默认资源文件。"""
 
         try:
-            defaults, _custom = self._load()
+            defaults, _custom, weapon_defaults, _weapon_custom = self._load_all()
             self._write_custom({})
+            self._write_weapon_custom({})
             self._refresh()
-            return AdminApiResponse.success(self._catalog(defaults, {}))
+            return AdminApiResponse.success(
+                self._catalog(defaults, {}, weapon_defaults, {}),
+            )
         except AliasStorageError:
             return _failure(AdminErrorCode.INTERNAL, "读取角色别名失败")
         except OSError:
             return _failure(AdminErrorCode.INTERNAL, "恢复默认角色别名失败")
+
+    async def add_weapon_alias(
+        self,
+        weapon_name: str,
+        alias: str,
+    ) -> AdminApiResponse[AdminAliasEntry]:
+        """为武器追加一个独立持久化的 custom 别名。"""
+
+        weapon = _normalized_text(weapon_name)
+        candidate = _normalized_text(alias)
+        if weapon is None or candidate is None:
+            return _failure(AdminErrorCode.VALIDATION, "武器名称和别名不能为空")
+        try:
+            defaults = _read_alias_mapping(self.weapon_alias_path)
+            custom = _read_alias_mapping(self.weapon_custom_path)
+        except AliasStorageError:
+            return _failure(AdminErrorCode.INTERNAL, "读取武器别名失败")
+        if weapon not in defaults:
+            return _failure(AdminErrorCode.NOT_FOUND, "武器不存在")
+        owners = self._owners(defaults, custom)
+        owner = owners.get(_alias_key(candidate))
+        if owner is not None:
+            return _failure(AdminErrorCode.CONFLICT, "别名已存在或属于默认别名")
+        updated = {name: list(values) for name, values in custom.items()}
+        updated.setdefault(weapon, []).append(candidate)
+        try:
+            self._write_weapon_custom(updated)
+            self._refresh()
+        except OSError:
+            return _failure(AdminErrorCode.INTERNAL, "保存自定义武器别名失败")
+        return AdminApiResponse.success(self._entry(weapon, defaults, updated))
+
+    async def delete_weapon_alias(
+        self,
+        weapon_name: str,
+        alias: str,
+    ) -> AdminApiResponse[AdminAliasEntry]:
+        """仅删除武器 custom 别名，默认资源永远不可删除。"""
+
+        weapon = _normalized_text(weapon_name)
+        candidate = _normalized_text(alias)
+        if weapon is None or candidate is None:
+            return _failure(AdminErrorCode.VALIDATION, "武器名称和别名不能为空")
+        try:
+            defaults = _read_alias_mapping(self.weapon_alias_path)
+            custom = _read_alias_mapping(self.weapon_custom_path)
+        except AliasStorageError:
+            return _failure(AdminErrorCode.INTERNAL, "读取武器别名失败")
+        if weapon not in defaults:
+            return _failure(AdminErrorCode.NOT_FOUND, "武器不存在")
+        candidate_key = _alias_key(candidate)
+        if any(_alias_key(value) == candidate_key for value in defaults.get(weapon, ())):
+            return _failure(AdminErrorCode.CONFLICT, "默认别名不可删除")
+        values = custom.get(weapon, [])
+        index = next(
+            (idx for idx, value in enumerate(values) if _alias_key(value) == candidate_key),
+            None,
+        )
+        if index is None:
+            return _failure(AdminErrorCode.NOT_FOUND, "自定义武器别名不存在")
+        updated = {name: list(items) for name, items in custom.items()}
+        updated[weapon].pop(index)
+        if not updated[weapon]:
+            updated.pop(weapon)
+        try:
+            self._write_weapon_custom(updated)
+            self._refresh()
+        except OSError:
+            return _failure(AdminErrorCode.INTERNAL, "保存自定义武器别名失败")
+        return AdminApiResponse.success(self._entry(weapon, defaults, updated))
+
+    async def reload_defaults(self) -> AdminApiResponse[AdminAliasCatalog]:
+        """重新读取默认资源，保留角色和武器 custom 文件。"""
+
+        self._refresh()
+        return await self.list_aliases()
+
+    async def recover_aliases(self, *, force: bool) -> AdminApiResponse[AdminAliasCatalog]:
+        """普通恢复保留 custom；强制恢复清空两类 custom 层。"""
+
+        if not force:
+            return await self.reload_defaults()
+        return await self.restore_all()
+
+    async def add_or_delete_alias(
+        self,
+        action: str,
+        alias_type: str,
+        name: str,
+        alias: str,
+    ) -> AdminApiResponse[AdminAliasEntry]:
+        """把聊天命令映射到角色或武器的别名写操作。"""
+
+        if action == "添加":
+            if alias_type == "武器":
+                return await self.add_weapon_alias(name, alias)
+            return await self.add_alias(name, alias)
+        if action == "删除":
+            if alias_type == "武器":
+                return await self.delete_weapon_alias(name, alias)
+            return await self.delete_alias(name, alias)
+        return _failure(AdminErrorCode.VALIDATION, "别名操作无效")
 
     # 给不同 Web adapter 保留清晰的动作名，所有入口共用同一实现。
     list = list_aliases

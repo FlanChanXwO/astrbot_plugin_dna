@@ -479,11 +479,11 @@ def test_restart_loads_active_generation_and_removes_orphans_without_touching_pa
     assert (restarted.generations_root / result.commit_sha).is_dir()
 
 
-def test_bootstrap_removes_alias_write_service_and_keeps_panel_custom(
+def test_bootstrap_removes_alias_write_service_and_panel_service(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """移除别名写服务时仍保留 panel_custom 运行期数据边界。"""
+    """资源运行时不再注入别名写服务或自定义面板服务。"""
 
     generation_root = tmp_path / "resource_generations" / ("a" * 40)
     generation_root.mkdir(parents=True)
@@ -501,4 +501,6 @@ def test_bootstrap_removes_alias_write_service_and_keeps_panel_custom(
     )
 
     assert "alias_service" not in runtime.services
-    assert runtime.services["panel_service"].panel_root == tmp_path / "panel_custom"
+    assert "panel_service" not in runtime.services
+    assert "admin_panel_service" not in runtime.services
+    assert "resource_update_service" in runtime.services

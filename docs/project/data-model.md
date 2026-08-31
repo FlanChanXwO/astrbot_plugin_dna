@@ -9,12 +9,12 @@
 `alembic/versions/0001_initial.py` 从空库创建 rewrite 的五张 normalized 表；
 `0002_privacy_global_identity` 是旧 schema 的补充约束，`0003_global_identity` 已将账号、
 凭据和隐私改为跨 AstrBot 平台、跨 Bot 的全局语义；当前 head 为
-`0004_app_credentials_only`：
+`0005_auto_sign_enabled`：
 相同的 `user_id` 字符串在不同平台或 Bot 上视为同一身份，平台/Bot 不再是持久化身份键。
 
 | 表 | 用途 | 关键字段 |
 |---|---|---|
-| `account_bindings` | 用户↔UID 全局绑定 | user_id, group_id, uid, is_active |
+| `account_bindings` | 用户↔UID 全局绑定 | user_id, group_id, uid, is_active, auto_sign_enabled |
 | `credential_records` | 私有 App 登录凭据 | user_id, uid, app_cookie, app_device_code, app_d_num, app_refresh_token, app_status |
 | `sign_records` | 按 UID 和日期保存签到状态 | uid, date, game_sign, bbs_sign, bbs_detail, bbs_like, bbs_share, bbs_reply |
 | `privacy_settings` | 个人/群组作用域隐私 | user_id, group_id, allow_peek, uid_hidden |
@@ -30,6 +30,10 @@
 `web_token`、`web_device_code`、`web_d_num`、`web_refresh_token`、`web_status` 五列，
 保留 App 凭据、身份绑定、签到和订阅等非凭据数据。升级前必须完成 SQLite 备份和完整性检查；
 降级只会创建空的旧 Web 列，不可能恢复已经删除的值，也不能替代迁移前备份。
+
+`0005_auto_sign_enabled` 为每条绑定增加 `auto_sign_enabled`，已有记录默认为 `true`。
+该字段按 `(user_id, uid)` 绑定保存；切换 UID 不共享开关，定时签到默认尊重该字段，
+`sign_in.enable_all_users` 可强制执行，手动“全部签到”忽略该字段。
 
 `src/infrastructure/persistence/repositories.py` 的方法必须接收调用方提供的
 `AsyncSession`；提交和回滚由 `AsyncDatabase.transaction()` 统一负责。生产 schema
@@ -60,13 +64,16 @@ Dashboard 管理页的账号列表默认只返回 App 凭据状态；只有已�
 除 SQLite 外，以下文件/目录也位于同一 `StarTools.get_data_dir()` 运行期根目录，均不得提交：
 
 - `scheduler_state.json` — 内置任务永久删除 tombstone；删除的业务任务没有管理 API 恢复操作。
-- `alias_custom.json` — 角色自定义别名覆盖层；默认资源别名只读且不被覆盖层改写。
-- `panel_custom/` — 管理页上传的自定义面板图；删除沿用不可恢复语义，需在操作前自行备份。
-- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `rendered/` — 订阅、公告
-  兼容 ID 列表、按目标投递状态及受控的运行期渲染文件。
+- `alias_custom.json`、`weapon_alias_custom.json` — 角色和武器自定义别名覆盖层；默认资源别名只读且不被覆盖层改写。
+- `panel_custom/` — 已移除面板管理后的历史文件；插件不再读取或删除，升级前仍可按需备份。
+- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `scheduler_state.json` —
+  订阅、公告兼容 ID 列表、按目标投递状态及任务 tombstone 等持久状态，不是普通缓存。
+- `rendered/` — 受控的运行期临时渲染文件，不是持久业务缓存。
 - `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告 `announcement/` 类型缓存；玩家条目受 30
   分钟 fresh、24 小时硬保留和租约保护，公告条目默认 24 小时绝对保留，身份相关 key/tag 不保存
   原始 user_id 或 UID。
+- `_HELP_CACHE` — 进程内帮助卡片缓存，插件终止时清空；`resource_generations/` 与
+  `current.json` 由资源快照协调器按 generation lease 管理；密函缓存按当前小时保存已校验快照。
 
 公告缓存的列表卡、详情页、详情 manifest 和源图都必须在内容完整且图片通过解码校验后写入；
 公告 fingerprint 纳入 key，上游内容变化会失效旧条目。详情图片失败时不写入新的完整卡或

@@ -166,7 +166,8 @@ async def test_scheduler_records_daily_next_run_and_error_state(tmp_path: Path) 
     calls: list[float] = []
 
     class _FailingCheckin:
-        async def auto_sign_all(self) -> str:
+        async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
+            del enable_all_users
             checkin_failed.set()
             raise RuntimeError("upstream detail must not enter snapshot")
 

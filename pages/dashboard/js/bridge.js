@@ -83,18 +83,6 @@ export async function apiDelete(endpoint, payload) {
   return invoke("apiPost", deleteEndpoint, payload);
 }
 
-export async function uploadFile(endpoint, file) {
-  const bridge = await bridgeReady();
-  if (typeof bridge.upload !== "function") {
-    throw new Error("AstrBotPluginPage.upload unavailable");
-  }
-  const result = await bridge.upload(validateEndpoint(endpoint), file);
-  if (result && typeof result === "object" && result.ok === false) {
-    throw new Error(errorMessage(result.error));
-  }
-  return result;
-}
-
 function pathSegment(value, label) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new TypeError(`${label} 不能为空`);
@@ -125,12 +113,6 @@ export function createDashboardApi() {
     deleteAlias,
     restoreAliasRole,
     restoreAllAliases,
-    getPanelImages,
-    getPanelImage,
-    uploadPanel,
-    deletePanel,
-    deleteAllPanels,
-    compressPanels,
     getTasks,
     getTargets,
     updateTask,
@@ -239,37 +221,6 @@ export async function previewDetail(userId, uid, charName, weaponNames = []) {
       weapon_names: weaponNames,
     }),
   );
-}
-
-export async function getPanelImages(roleName) {
-  const role = pathSegment(roleName, "角色名称");
-  return dataValue(await apiGet(`admin/panels/${role}`));
-}
-
-export async function getPanelImage(roleName, imageId) {
-  const role = pathSegment(roleName, "角色名称");
-  const image = pathSegment(imageId, "面板图 ID");
-  return dataValue(await apiGet(`admin/panels/${role}/${image}`));
-}
-
-export async function uploadPanel(roleName, file) {
-  const role = pathSegment(roleName, "角色名称");
-  return dataValue(await uploadFile(`admin/panels/${role}/upload`, file));
-}
-
-export async function deletePanel(roleName, imageId) {
-  const role = pathSegment(roleName, "角色名称");
-  const image = pathSegment(imageId, "面板图 ID");
-  return dataValue(await apiPost(`admin/panels/${role}/${image}/delete`, {}));
-}
-
-export async function deleteAllPanels(roleName) {
-  const role = pathSegment(roleName, "角色名称");
-  return dataValue(await apiPost(`admin/panels/${role}/delete-all`, { confirmed: true }));
-}
-
-export async function compressPanels() {
-  return dataValue(await apiPost("admin/panels/compress", {}));
 }
 
 export async function getTasks() {

@@ -340,6 +340,19 @@ class NotificationSettings(_SettingsModel):
         description="简易密函图片",
         json_schema_extra={"hint": "是否使用简单密函图片"},
     )
+    secret_push_minute: int = Field(
+        default=0,
+        ge=0,
+        le=59,
+        description="密函推送分钟",
+        json_schema_extra={"hint": "每小时在该分钟推送密函，默认整点"},
+    )
+    secret_retry_interval_seconds: float = Field(
+        default=1,
+        gt=0,
+        description="密函数据重试间隔",
+        json_schema_extra={"hint": "当前小时密函未准备好或校验失败时的重试间隔（秒）"},
+    )
 
 
 class DisplaySettings(_SettingsModel):

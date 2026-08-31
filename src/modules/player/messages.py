@@ -11,6 +11,9 @@ PLAYER_DAMAGE_FAILED = "伤害计算暂不可用，请稍后再试"
 PLAYER_CACHE_STALE = "玩家数据缓存刷新失败，以下卡片可能已过期"
 PLAYER_CACHE_REFRESHED = "角色面板缓存已刷新"
 PLAYER_CACHE_CLEARED = "角色缓存已清理"
+PLAYER_ALL_ROLE_CACHE_CLEARED = "当前 UID 的全部角色缓存已清理"
+PLAYER_ROLE_CACHE_CLEARED = "角色【{name}】缓存已清理"
+PLAYER_ALL_REFRESHED = "角色面板刷新完成：成功 {success} 个，失败 {failed} 个"
 PLAYER_ADMIN_ONLY = "该命令仅限管理员使用"
 PLAYER_REFRESH_SELF_ONLY = "普通用户只能刷新自己的角色面板"
 PLAYER_OVERVIEW_NOT_FOUND = "角色列表信息未找到，请检查账号是否有效"
@@ -37,6 +40,8 @@ def transport_error(kind: str) -> str:
 
 __all__ = [
     "PLAYER_ADMIN_ONLY",
+    "PLAYER_ALL_REFRESHED",
+    "PLAYER_ALL_ROLE_CACHE_CLEARED",
     "PLAYER_CACHE_CLEARED",
     "PLAYER_CACHE_REFRESHED",
     "PLAYER_CACHE_STALE",
@@ -47,6 +52,7 @@ __all__ = [
     "PLAYER_OVERVIEW_NOT_FOUND",
     "PLAYER_PEEK_BLOCKED",
     "PLAYER_REFRESH_SELF_ONLY",
+    "PLAYER_ROLE_CACHE_CLEARED",
     "PLAYER_ROLE_NOT_FOUND",
     "PLAYER_ROLE_NOT_UNLOCKED",
     "PLAYER_SERVICE_UNAVAILABLE",

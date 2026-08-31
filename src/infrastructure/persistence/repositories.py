@@ -33,12 +33,14 @@ class AccountBindingRepository:
         uid: str,
         group_id: str | None = None,
         is_active: bool = True,
+        auto_sign_enabled: bool = True,
     ) -> AccountBinding:
         record = AccountBinding(
             user_id=user_id,
             uid=uid,
             group_id=group_id,
             is_active=is_active,
+            auto_sign_enabled=auto_sign_enabled,
         )
         session.add(record)
         await session.flush()
@@ -139,6 +141,26 @@ class AccountBindingRepository:
         target.is_active = True
         await session.flush()
         return True
+
+    @staticmethod
+    async def set_auto_sign_enabled(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        uid: str,
+        enabled: bool,
+    ) -> bool:
+        """按用户和 UID 独立切换自动签到状态。"""
+
+        result = await session.execute(
+            update(AccountBinding)
+            .where(
+                AccountBinding.user_id == user_id,
+                AccountBinding.uid == uid,
+            )
+            .values(auto_sign_enabled=enabled)
+        )
+        return bool(getattr(result, "rowcount", 0) or 0)
 
     @staticmethod
     async def delete(
