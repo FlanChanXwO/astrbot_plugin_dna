@@ -15,6 +15,7 @@ from ...infrastructure.persistence import (
     AsyncDatabase,
     CredentialRepository,
 )
+from ...infrastructure.utils.logger import logger
 from . import messages
 from .contracts import (
     AccountActor,
@@ -114,6 +115,12 @@ class AccountService:
         try:
             url = await self.transport.begin_login(actor)
         except AccountTransportError as exc:
+            logger.warning(
+                "账号请求失败 operation=%s kind=%s status_code=%s",
+                "begin_login",
+                exc.kind.value,
+                exc.status_code,
+            )
             return PlainTextResponse(messages.transport_error(exc.kind))
         normalized_url = url.strip()
         if not normalized_url:
@@ -130,6 +137,12 @@ class AccountService:
         try:
             result = await self.transport.authenticate(attempt)
         except AccountTransportError as exc:
+            logger.warning(
+                "账号请求失败 operation=%s kind=%s status_code=%s",
+                "login",
+                exc.kind.value,
+                exc.status_code,
+            )
             return PlainTextResponse(messages.transport_error(exc.kind))
 
         if result.status == "cancelled":

@@ -19,6 +19,7 @@ from ...infrastructure.rendering import NoticesRenderer, RenderedNoticesImage
 from ...infrastructure.rendering.errors import HtmlRenderError
 from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
+from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .ann_delivery_state import AnnDeliveryStateStore
@@ -186,7 +187,16 @@ class NoticesService:
                 snapshot = await self._verified_mh_snapshot(now, fetch)
             else:
                 snapshot = validate_mh_snapshot(await fetch())
-        except (NoticesTransportError, ValueError):
+        except NoticesTransportError as error:
+            logger.warning(
+                "通知请求失败 operation=%s kind=%s resource=%s",
+                "mh",
+                error.kind.value,
+                error.resource,
+            )
+            return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
+        except ValueError:
+            logger.warning("通知数据解析失败 operation=%s", "mh")
             return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         with self._renderer_context() as renderer:
             rendered = await renderer.render_mh(
@@ -208,7 +218,13 @@ class NoticesService:
         index = str(request.parameters.get("index") or "").strip()
         try:
             snapshot = await self.transport.get_ann_list()
-        except NoticesTransportError:
+        except NoticesTransportError as error:
+            logger.warning(
+                "通知请求失败 operation=%s kind=%s resource=%s",
+                "ann_list",
+                error.kind.value,
+                error.resource,
+            )
             return PlainTextResponse(messages.ANN_LIST_FAILED, need_at=True)
         if not snapshot.posts:
             return PlainTextResponse(messages.ANN_LIST_FAILED, need_at=True)
@@ -229,7 +245,13 @@ class NoticesService:
             return PlainTextResponse(messages.ANN_INDEX_INVALID, need_at=True)
         try:
             detail = await self.transport.get_ann_detail(post_id)
-        except NoticesTransportError:
+        except NoticesTransportError as error:
+            logger.warning(
+                "通知请求失败 operation=%s kind=%s resource=%s",
+                "ann_detail",
+                error.kind.value,
+                error.resource,
+            )
             return PlainTextResponse(messages.ANN_DETAIL_FAILED, need_at=True)
         try:
             with self._renderer_context() as renderer:
@@ -488,9 +510,7 @@ class NoticesService:
                     res = await res
                 return res is not False
             except Exception:  # noqa: BLE001
-                from astrbot.api import logger
-
-                logger.warning("[dnaby][push] 推送失败")
+                logger.warning("通知推送失败")
                 return False
         return False
 
@@ -603,19 +623,23 @@ class NoticesService:
             return 0
         now = self._now()
         if not self._mh_gate_open(now):
-            from astrbot.api import logger
-
-            logger.info("[dnaby][push_mh] 当前小时尚未到 HH:30，跳过密函推送")
+            logger.info("密函推送：当前小时尚未到 HH:30，跳过密函推送")
             return 0
         try:
             snapshot = await self._verified_mh_snapshot(
                 now,
                 self.transport.get_mh_any,
             )
-        except (NoticesTransportError, ValueError):
-            from astrbot.api import logger
-
-            logger.warning("[dnaby][push_mh] 获取密函数据失败，跳过本次定时推送")
+        except NoticesTransportError as error:
+            logger.warning(
+                "通知请求失败 operation=%s kind=%s resource=%s",
+                "push_mh",
+                error.kind.value,
+                error.resource,
+            )
+            return 0
+        except ValueError:
+            logger.warning("通知数据解析失败 operation=%s", "push_mh")
             return 0
         current_hour = now.hour
 
@@ -713,10 +737,9 @@ class NoticesService:
                         simple_image=self.secret_simple_image,
                     )
             except (HtmlRenderError, OSError, httpx.HTTPError, ValueError) as error:
-                from astrbot.api import logger
-
                 logger.warning(
-                    f"[dnaby][push_mh] 密函图片渲染失败: {type(error).__name__}",
+                    "密函图片渲染失败 error_type=%s",
+                    type(error).__name__,
                 )
             else:
                 for sub in pic_subs:
@@ -741,7 +764,13 @@ class NoticesService:
             return 0
         try:
             snapshot = await self.transport.get_ann_list()
-        except NoticesTransportError:
+        except NoticesTransportError as error:
+            logger.warning(
+                "通知请求失败 operation=%s kind=%s resource=%s",
+                "poll_ann_list",
+                error.kind.value,
+                error.resource,
+            )
             return 0
 
         subs = await self.subscriptions.get(messages.ANN_SUBSCRIBE)
@@ -777,11 +806,10 @@ class NoticesService:
                 else:
                     payload = rendered.path
             except Exception as error:  # noqa: BLE001
-                from astrbot.api import logger
-
                 logger.warning(
-                    f"[dnaby][announcement] 公告 {post.post_id} 详情或渲染失败: "
-                    f"{type(error).__name__}",
+                    "公告详情或渲染失败 post_id=%s error_type=%s",
+                    post.post_id,
+                    type(error).__name__,
                 )
                 continue
 

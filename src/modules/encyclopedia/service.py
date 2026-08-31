@@ -19,6 +19,7 @@ from ...infrastructure.resources import (
     EncyclopediaResourceStore,
     ResourceSnapshotCoordinator,
 )
+from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (
@@ -97,6 +98,12 @@ class EncyclopediaService:
     @staticmethod
     def _transport_response(error: EncyclopediaTransportError) -> PlainTextResponse:
         """映射安全错误类别；不向用户返回 detail。"""
+
+        logger.warning(
+            "资料请求失败 kind=%s resource=%s",
+            error.kind.value,
+            error.resource,
+        )
 
         if error.kind is EncyclopediaFailureKind.NOT_FOUND:
             return PlainTextResponse(messages.not_found(error.resource))

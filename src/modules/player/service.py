@@ -12,6 +12,7 @@ from ...entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import PlayerRenderer
 from ...infrastructure.resources import ResourceSnapshotCoordinator
+from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .cache import PlayerCache
@@ -129,6 +130,12 @@ class PlayerService:
     def _transport_response(error: PlayerTransportError) -> PlainTextResponse:
         """映射安全错误类别；不向用户返回 detail。"""
 
+        logger.warning(
+            "玩家请求失败 kind=%s resource=%s",
+            error.kind.value,
+            error.resource,
+        )
+
         if error.kind is PlayerFailureKind.NOT_FOUND:
             return PlainTextResponse(f"{error.resource}未找到，请检查是否正确")
         if error.kind is PlayerFailureKind.NOT_UNLOCKED:
@@ -224,7 +231,13 @@ class PlayerService:
             assert cached_entry is not None
             try:
                 overview = await self._fetch_overview(request, target_user_id, uid)
-            except PlayerTransportError:
+            except PlayerTransportError as error:
+                logger.warning(
+                    "玩家请求失败 kind=%s resource=%s cache=%s",
+                    error.kind.value,
+                    error.resource,
+                    "stale",
+                )
                 return _OverviewState(
                     cached_overview,
                     cached_entry.metadata.content_sha256,
@@ -555,6 +568,11 @@ class PlayerService:
                 credential_user_id=target_user_id,
             )
         except PlayerTransportError as error:
+            logger.warning(
+                "玩家请求失败 kind=%s resource=%s",
+                error.kind.value,
+                error.resource,
+            )
             damage = DamageCalculation.failure(messages.transport_error(error.kind.value))
         if damage.data is None:
             # 任何 transport 的失败正文都不是用户可见契约，避免进入 PNG 文本元数据。
@@ -623,7 +641,13 @@ class PlayerService:
                     role,
                     selected,
                 )
-            except PlayerTransportError:
+            except PlayerTransportError as error:
+                logger.warning(
+                    "玩家请求失败 kind=%s resource=%s cache=%s",
+                    error.kind.value,
+                    error.resource,
+                    "stale",
+                )
                 return _DetailState(
                     cached_bundle,
                     cached_entry.metadata.content_sha256,

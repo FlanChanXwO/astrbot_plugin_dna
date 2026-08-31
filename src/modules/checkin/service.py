@@ -24,6 +24,7 @@ from ...infrastructure.persistence import (
 from ...infrastructure.rendering import CheckinRenderer
 from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
+from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (
@@ -74,6 +75,17 @@ class CheckinService:
         if self.resource_snapshots is None:
             return nullcontext(self.renderer)
         return self.resource_snapshots.bind_renderer(self.renderer, "encyclopedia_resources")
+
+    @staticmethod
+    def _transport_response(error: CheckinTransportError) -> PlainTextResponse:
+        """记录安全错误类别并映射为稳定的用户文案。"""
+
+        logger.warning(
+            "签到请求失败 kind=%s resource=%s",
+            error.kind.value,
+            error.resource,
+        )
+        return PlainTextResponse(messages.transport_error(error.kind))
 
     async def _resolve_uid(
         self,
@@ -367,7 +379,7 @@ class CheckinService:
         try:
             outcome = await self._sign_one(request.actor, uid, target_user_id)
         except CheckinTransportError as error:
-            return PlainTextResponse(messages.transport_error(error.kind))
+            return self._transport_response(error)
         return PlainTextResponse("\n".join(outcome.detail_lines))
 
     async def sign_calendar(self, request: CheckinCommandRequest):
@@ -399,7 +411,7 @@ class CheckinService:
                 credential_user_id=target_user_id,
             )
         except CheckinTransportError as error:
-            return PlainTextResponse(messages.transport_error(error.kind))
+            return self._transport_response(error)
         data = CheckinCalendarData(
             calendar=calendar,
             tasks=tasks,
