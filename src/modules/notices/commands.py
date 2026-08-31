@@ -27,7 +27,6 @@ def _service(request: CommandRequest) -> NoticesService | PlainTextResponse:
             "set_mh_push_time",
             "toggle_mh_pic",
             "toggle_mh_text",
-            "test_mh_push",
             "subscribe_ann",
             "unsubscribe_ann",
         )
@@ -138,17 +137,6 @@ async def notices_mh_text_use_case(
     return await service.toggle_mh_text(_notice_request(request))
 
 
-async def notices_mh_test_use_case(
-    request: CommandRequest,
-    _registry: CommandRegistry,
-    **_parameters: Any,
-):
-    service = _service(request)
-    if isinstance(service, PlainTextResponse):
-        return service
-    return await service.test_mh_push(_notice_request(request))
-
-
 async def notices_ann_sub_use_case(
     request: CommandRequest,
     _registry: CommandRegistry,
@@ -257,16 +245,6 @@ COMMAND_SPECS = (
         use_case=cast(Any, notices_mh_text_use_case),
     ),
     CommandSpec(
-        id="mh_test",
-        pattern=r"^密函测试$",
-        group="密函",
-        name="密函测试",
-        description="向当前会话发送密函测试推送",
-        examples=("密函测试",),
-        permission="admin",
-        use_case=cast(Any, notices_mh_test_use_case),
-    ),
-    CommandSpec(
         id="ann_sub",
         pattern=r"^订阅公告$",
         group="管理员功能",
@@ -299,7 +277,6 @@ __all__ = [
     "notices_mh_push_time_use_case",
     "notices_mh_subscribe_use_case",
     "notices_mh_subscriptions_use_case",
-    "notices_mh_test_use_case",
     "notices_mh_text_use_case",
     "notices_mh_use_case",
 ]

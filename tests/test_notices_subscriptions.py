@@ -413,26 +413,6 @@ async def test_poll_ann_now_pushes_only_new_announcements(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
-async def test_test_mh_push_sends_to_current_session(tmp_path: Path) -> None:
-    """admin 密函测试向当前会话发送。"""
-
-    database = await _database_with_binding(tmp_path)
-    pushed: list[tuple[str, str]] = []
-
-    async def push(origin: str, payload: object) -> None:
-        pushed.append((origin, str(payload)))
-
-    service = _service(database, FakeNoticesTransport(), tmp_path, push=push)
-
-    response = await service.test_mh_push(_request("密函测试"))
-
-    assert isinstance(response, PlainTextResponse)
-    assert response.text == messages.MH_TEST_SENT
-    assert pushed == [("platform:group:g1", "密函测试推送")]
-    await database.dispose()
-
-
-@pytest.mark.asyncio
 async def test_mh_subscription_is_scoped_per_conversation(tmp_path: Path) -> None:
     """同一用户在不同会话的密函订阅互不串扰。"""
 

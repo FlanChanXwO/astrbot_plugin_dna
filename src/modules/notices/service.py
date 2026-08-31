@@ -531,18 +531,6 @@ class NoticesService:
             return start_hour <= current_hour <= end_hour
         return current_hour >= start_hour or current_hour <= end_hour
 
-    async def test_mh_push(self, request: NoticeRequest):
-        """向当前会话发送一次密函测试推送（admin）。"""
-
-        if self.push is None:
-            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
-        origin, error = await self._origin(request.actor)
-        if error:
-            return PlainTextResponse(error)
-        if await self._invoke_push(origin, "密函测试推送"):
-            return PlainTextResponse(messages.MH_TEST_SENT)
-        return PlainTextResponse(messages.MH_TEST_FAILED)
-
     def _sync_ann_group(self, group_id: str | None, subscribed: bool) -> None:
         if not group_id:
             return

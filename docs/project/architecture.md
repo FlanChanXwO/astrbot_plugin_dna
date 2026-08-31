@@ -112,7 +112,7 @@
   `main` 后，插件才会从 canonical GitHub origin 的 `main` fetch、校验并发布 generation；
   插件不拉取编辑器源码，也不把镜像或投稿分支当作发布源。资源仓库的第三方素材不因仓库
   公开或插件 GPL-3.0 而获得统一许可。
-- 当前阶段：当前 main 已注册 `commands.json` 中的 60 条命令；公共帮助和角色/武器列表属于
+- 当前阶段：当前 main 已注册 `commands.json` 中的 59 条命令；公共帮助和角色/武器列表属于
   普通用户，管理员功能统一映射 AstrBot `ADMIN`，未迁移及已删除命令不会在新入口中隐式注册。
 
 ## HTML/T2I 图片渲染

@@ -73,7 +73,6 @@ WRITE_COMMANDS: dict[str, str] = {
     "mh_subscribe_cycle": "user",
     "mh_pic_subscribe": "user",
     "mh_text_subscribe": "user",
-    "mh_test": "admin",
     "ann_sub": "admin",
     "ann_unsub": "admin",
     "resource_status": "admin",
@@ -164,10 +163,6 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     "mh_text_subscribe": (
         "test_notices_subscriptions.py",
         ("test_toggle_mh_pic_and_text_are_session_scoped",),
-    ),
-    "mh_test": (
-        "test_notices_subscriptions.py",
-        ("test_test_mh_push_sends_to_current_session",),
     ),
     "ann_sub": (
         "test_notices_subscriptions.py",

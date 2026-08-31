@@ -16,7 +16,18 @@ from src.entry.commands import (
 from src.entry.response import ImageResponse, PlainTextResponse, ResponseFactory
 from src.modules.notices import messages
 
-NOTICES_SPEC_IDS = {"mh", "mh_list", "ann", "mh_subscribe", "mh_subscribe_by_name", "mh_subscribe_cycle", "mh_pic_subscribe", "mh_text_subscribe", "mh_test", "ann_sub", "ann_unsub"}
+NOTICES_SPEC_IDS = {
+    "mh",
+    "mh_list",
+    "ann",
+    "mh_subscribe",
+    "mh_subscribe_by_name",
+    "mh_subscribe_cycle",
+    "mh_pic_subscribe",
+    "mh_text_subscribe",
+    "ann_sub",
+    "ann_unsub",
+}
 
 
 def test_notices_commands_are_registered_with_legacy_semantics() -> None:
@@ -34,9 +45,16 @@ def test_notices_commands_are_registered_with_legacy_semantics() -> None:
     assert specs["mh_subscribe_cycle"].permission == "user"
     assert specs["mh_pic_subscribe"].permission == "user"
     assert specs["mh_text_subscribe"].permission == "user"
-    assert specs["mh_test"].permission == "admin"
     assert specs["ann_sub"].permission == "admin"
     assert specs["ann_unsub"].permission == "admin"
+
+
+def test_test_push_command_is_removed_from_public_registry() -> None:
+    """测试推送入口不应继续暴露为可调用命令。"""
+
+    specs = {spec.id: spec for spec in load_command_registry()}
+
+    assert "mh_test" not in specs
 
 
 def test_ann_pattern_extracts_named_index() -> None:
@@ -101,9 +119,6 @@ async def test_generated_ann_handler_yields_image_response() -> None:
             return PlainTextResponse("unused")
 
         async def toggle_mh_text(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("unused")
-
-        async def test_mh_push(self, _request: object) -> PlainTextResponse:
             return PlainTextResponse("unused")
 
         async def subscribe_ann(self, _request: object) -> PlainTextResponse:
@@ -173,7 +188,6 @@ async def test_generated_mh_subscribe_handler_ats_user_in_group_chat() -> None:
         async def set_mh_push_time(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
         async def toggle_mh_pic(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
         async def toggle_mh_text(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def test_mh_push(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
         async def subscribe_ann(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
         async def unsubscribe_ann(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
 

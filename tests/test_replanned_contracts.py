@@ -73,6 +73,7 @@ def test_replanned_command_surface_uses_public_and_admin_boundaries() -> None:
         "compress_panel_imgs",
         "update_log",
         "get_bound_token",
+        "mh_test",
     }
     assert removed_ids.isdisjoint(specs)
 

@@ -664,18 +664,6 @@
     "use_case": "src.modules.notices.commands.notices_mh_text_use_case"
   },
   {
-    "id": "mh_test",
-    "pattern": "^kk密函测试$",
-    "group": "密函",
-    "name": "密函测试",
-    "description": "向当前会话发送密函测试推送",
-    "examples": [
-      "kk密函测试"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.notices.commands.notices_mh_test_use_case"
-  },
-  {
     "id": "ann_sub",
     "pattern": "^kk订阅公告$",
     "group": "管理员功能",

@@ -4,7 +4,7 @@
 配置项 `display.command_prefixes` 为准。为保持文档紧凑，下文命令列表省略前缀；发送时请
 在命令主体前加上当前配置的前缀。
 
-当前 main 注册 `commands.json` 中的 60 条命令，覆盖账号/UID、玩家查询、资料读取、隐私、签到、通知、别名和资源管理。命令声明位于
+当前 main 注册 `commands.json` 中的 59 条命令，覆盖账号/UID、玩家查询、资料读取、隐私、签到、通知、别名和资源管理。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；以当前配置前缀发送 `帮助` 查看同一
 registry 的帮助文本。
@@ -106,7 +106,6 @@ Agent Tools 不属于聊天命令和 `commands.json`，不使用命令前缀，�
 - `订阅密函时间17:23`、`订阅密函周期17:23`：设置密函推送时间窗口（`user`）。
 - `订阅密函图片`/`取消订阅密函图片`、`订阅密函文本`/`取消订阅密函文本`：会话作用域
   图片/文本推送开关（`user`）。
-- `密函测试`：向当前会话发送一次测试推送（`admin`）。
 - `订阅公告`、`取消订阅公告`：群聊作用域公告推送开关（`admin`）。
 - 密函自动推送默认在每小时整点（由 `notifications.secret_push_minute` 配置分钟），不提供全局
   密函缓存开关；当前小时数据未准备好或结构校验失败时按 `secret_retry_interval_seconds` 重试，
