@@ -28,9 +28,10 @@
 
 ## 账号编辑与玩家预览
 
-- 账号列表只读取 UID、active、来源群和 App/Web 凭据状态，不默认返回 secret。
-- 打开已有账号详情后，可查看和编辑全部 App/Web Cookie、token、device code、d_num、refresh
-  token 和状态字段；`user_id` 与 `uid` 是只读身份键。页面不允许借编辑接口新建账号。
+- 账号列表只读取 UID、active、来源群和 App 凭据状态，不默认返回 secret。
+- 打开已有账号详情后，可查看和编辑 App Cookie、device code、d_num、refresh token 和状态字段；
+  `user_id` 与 `uid` 是只读身份键。页面不允许借编辑接口新建账号，Web 凭据字段和 Web 登录
+  入口已移除。
 - 明文凭据只在已认证管理请求和编辑抽屉的内存生命周期内可见。后端响应设置 `Cache-Control:
   no-store`，但管理员仍须防止截图、录屏、剪贴板、浏览器扩展、代理和宿主日志泄露；关闭抽屉
   后应确认页面不再保留凭据。
@@ -80,12 +81,14 @@ API 和页面均不提供恢复。只有删除前备份存在时，部署者才�
 ## 迁移、备份与回滚
 
 `0003_global_identity` 是破坏性迁移：它删除并重建账号、凭据和两张隐私表，旧账号、凭据及隐私
-行不保留，`sign_records` 保留。执行前必须停止写入并备份 `dnaby.sqlite3`，同时按需要备份
+行不保留，`sign_records` 保留。`0004_app_credentials_only` 进一步物理删除凭据表的五个
+Web 列，只保留 App 字段。执行前必须停止写入并备份 `dnaby.sqlite3`，同时按需要备份
 `subscriptions.json`、`ann_state.json`、`scheduler_state.json`、`alias_custom.json` 和
 `panel_custom/`；这些备份可能含明文凭据，必须限制访问且不得提交或外传。
 
 迁移失败应停止部署并保留原错误。需要回退时，停止新版本，使用普通 revert/旧版本部署，并
-同时恢复与旧代码匹配的迁移前数据库备份；`downgrade` 只能恢复旧空表结构，不能恢复已丢弃的行。
+同时恢复与旧代码匹配的迁移前数据库备份；`downgrade` 只能重新创建空 Web 列，不能恢复已丢弃
+的凭据行。
 绝不能只回退代码，或让旧版本直接读取新 schema。任务 tombstone、别名和面板删除也只能依靠
 相应的操作前备份恢复，页面不提供撤销。
 

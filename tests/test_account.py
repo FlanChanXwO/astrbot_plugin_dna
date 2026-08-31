@@ -390,3 +390,28 @@ async def test_legacy_transport_maps_response_shape_errors_without_raw_detail():
     assert error.kind is TransportErrorKind.SERVER
     assert "transport-shape-secret" not in str(error)
     assert "transport-shape-secret" not in repr(error)
+
+
+@pytest.mark.asyncio
+async def test_legacy_transport_maps_unexpected_api_errors_without_raw_detail():
+    """第三方 API 未预期异常也必须变成安全的服务端错误。"""
+
+    class BrokenApi:
+        async def login_app(self, _mobile, _code, _dev_code):
+            raise RuntimeError("token=unexpected-api-secret")
+
+    from src.utils.api.model import DNALoginRes
+
+    transport = DnaApiAccountTransport()
+    with pytest.raises(AccountTransportError) as raised:
+        await transport._authenticate_sms(
+            BrokenApi(),
+            DNALoginRes,
+            lambda _channel: "device-unexpected-fixture",
+            LoginAttempt.from_sms("13800138000", "1234"),
+        )
+
+    error = raised.value
+    assert error.kind is TransportErrorKind.SERVER
+    assert "unexpected-api-secret" not in str(error)
+    assert "unexpected-api-secret" not in repr(error)

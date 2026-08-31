@@ -13,7 +13,8 @@
   `src/entry/response.py` 再转换为 AstrBot 原生 text/chain/image result。
 - 清单/帮助：`commands.json` 由 `scripts/generate_commands_manifest.py` 从代码 registry
   生成，帮助 use case 读取同一 registry。未迁移命令不会注册，也不会出现在帮助中。
-- 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；异常向上暴露，不伪造成功。
+- 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；登录页 listener 在
+  scheduler 之前启动，终止时先取消登录等待并释放 listener，再释放数据库；异常向上暴露，不伪造成功。
 - Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；`src/entry/admin_web.py` 提供统一认证、请求解析、错误/HTTP 状态映射和 no-store JSON，管理路由仅通过 Dashboard extension dispatcher 注册在 `/astrbot_plugin_dnaby/admin/*`，不建立独立未认证入口。
 - 管理页：`pages/dashboard/` 是由 AstrBot Dashboard 承载的 PetiteVue 静态页，只通过上述已认证
   dispatcher 访问四个功能区（面板图、任务/探测、账号/预览、角色别名）；写操作在服务端确认并
@@ -34,21 +35,23 @@
 - 持久化：`src/infrastructure/persistence/` 使用 SQLAlchemy 2 async 和
   `sqlite+aiosqlite`；`AsyncDatabase.transaction()` 是唯一的提交/回滚边界，repository
   显式接收 `AsyncSession`。Alembic 初始 revision 只创建新五表 schema，运行期文件为
-  `dnaby.sqlite3`，不触碰 legacy `dnaby.db`；凭据模型提供脱敏 repr/快照。
-- 账号：`src/modules/account/` 提供 token/短信 typed 登录、登录页 transport 边界、
-  退出、UID 绑定/切换/删除/列表和凭据状态摘要；`AccountService` 在显式事务内协调
+  `dnaby.sqlite3`，不触碰 legacy `dnaby.db`；凭据模型仅保留 App 字段并提供脱敏
+  repr/快照，`0004_app_credentials_only` 物理删除五个 Web 列。
+- 账号：`src/modules/account/` 提供 token/短信 typed 登录、`LoginFlowCoordinator` 登录页
+  与外置 transport 边界、退出、UID 绑定/切换/删除/列表和 App 凭据状态摘要；`AccountService` 在显式事务内协调
   normalized repository，`DnaApiAccountTransport` 只复用 legacy 纯 API，不复用旧事件、
-  数据库或消息段类型。
+  数据库或消息段类型。Web 凭据、Web fallback 和 Web 登录路由不属于当前契约。
 - 隐私：`src/modules/privacy/` 提供个人偷窥/UID 开关、群强制设置、指定目标设置和
   查询解析；个人设置按裸 `user_id` 全局记录保存，群强制设置按裸 `group_id` 独立保存，
   群强制值按字段优先。相同 `user_id` 在不同平台或 Bot 上视为同一身份，跨平台字符串碰撞
   是已接受的部署风险；指定命令要求 AstrBot admin 权限、群聊、有效 `At` 和目标绑定。
   `EventActor.bot_id` 只保留为运行期投递/legacy transport 上下文，不参与账号或隐私查询。
-- 玩家查询：`src/modules/player/` 通过 typed transport 读取角色/武器展柜、角色详情
-  和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，详情响应携带
+- 玩家查询：`src/modules/player/` 通过 App-only typed transport 读取角色/武器展柜和角色详情；
+  正常详情路径不调用伤害计算 API，也不渲染伤害区块；`src/infrastructure/rendering/` 生成运行期 PNG，详情响应携带
   per-response 的 `original_image_path` 原面板引用。AstrBot 4.27.x 公开结果边界没有
   已发送消息 ID 交付点，`原图` 命令显式报告未支持（Task 16.2）；默认 API 适配器只在
-  transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。`PlayerCache` 将 typed 玩家数据
+  transport 边界复用 legacy 纯请求、model 逻辑；伤害数据结构、renderer、模板和 CSS 保留给
+  后续显式计算调用。`PlayerCache` 将 typed 玩家数据
   和完整卡片接入统一 `CacheManager`；卡片按 generation 版本、数据摘要、身份和显示参数
   隔离，placeholder 渲染只允许本次发送，不覆盖完整缓存。玩家模块还提供普通用户角色刷新、
   管理员 UID+角色刷新和仅限管理员的全量玩家缓存清理；刷新按 identity/role tags 精准失效，

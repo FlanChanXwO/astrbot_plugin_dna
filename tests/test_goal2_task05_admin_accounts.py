@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
+
 from src.infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -30,7 +31,7 @@ async def database(tmp_path: Path) -> AsyncIterator[AsyncDatabase]:
 
 
 def _payload(prefix: str = "one") -> CredentialPayload:
-    """构造包含全部 App/Web 字段的管理凭据 DTO。"""
+    """构造 App-only 管理凭据 DTO。"""
 
     return CredentialPayload(
         app_cookie=f"{prefix}-app-cookie-secret",
@@ -38,11 +39,6 @@ def _payload(prefix: str = "one") -> CredentialPayload:
         app_d_num=f"{prefix}-app-d-num-secret",
         app_refresh_token=f"{prefix}-app-refresh-secret",
         app_status=f"{prefix}-app-status",
-        web_token=f"{prefix}-web-token-secret",
-        web_device_code=f"{prefix}-web-device-secret",
-        web_d_num=f"{prefix}-web-d-num-secret",
-        web_refresh_token=f"{prefix}-web-refresh-secret",
-        web_status=f"{prefix}-web-status",
     )
 
 
@@ -82,18 +78,11 @@ def test_credential_payload_is_complete_but_redacted_by_default() -> None:
         "app_d_num",
         "app_refresh_token",
         "app_status",
-        "web_token",
-        "web_device_code",
-        "web_d_num",
-        "web_refresh_token",
-        "web_status",
     }
     assert payload.to_plaintext_dict()["app_cookie"] == "one-app-cookie-secret"
     assert "one-app-cookie-secret" not in rendered
-    assert "one-web-token-secret" not in rendered
     assert "one-app-status" in rendered
     assert payload.has_app_credentials is True
-    assert payload.has_web_credentials is True
 
 
 @pytest.mark.asyncio
@@ -126,7 +115,7 @@ async def test_list_accounts_returns_global_status_and_no_store_response(
 
 
 @pytest.mark.asyncio
-async def test_account_detail_and_update_expose_all_credentials_only_explicitly(
+async def test_account_detail_and_update_expose_app_credentials_only_when_requested(
     database: AsyncDatabase,
 ) -> None:
     await _seed_account(database, payload=_payload())
@@ -170,7 +159,6 @@ async def test_account_detail_and_update_expose_all_credentials_only_explicitly(
     assert binding.is_active is False
     assert credential is not None
     assert credential.app_cookie == "two-app-cookie-secret"
-    assert credential.web_refresh_token == "two-web-refresh-secret"
 
 
 @pytest.mark.asyncio

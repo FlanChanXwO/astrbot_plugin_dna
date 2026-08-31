@@ -251,11 +251,6 @@ class DnaApiEncyclopediaTransport:
                 d_num=record.app_d_num,
                 refresh_token=record.app_refresh_token,
                 status=record.app_status,
-                web_token=record.web_token,
-                web_dev_code=record.web_device_code,
-                web_d_num=record.web_d_num,
-                web_refresh_token=record.web_refresh_token,
-                web_status=record.web_status,
             )
         except (AttributeError, TypeError, ValueError):
             raise EncyclopediaTransportError(

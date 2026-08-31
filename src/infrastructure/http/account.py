@@ -48,37 +48,26 @@ def _raise_if_failed(response: Any) -> Any:
     return response
 
 
-def _role_infos(channel: LoginChannel, data: Any) -> tuple[RoleInfo, ...]:
-    """解析 App 多角色或 Web 默认角色为统一 role DTO。"""
+def _role_infos(data: Any) -> tuple[RoleInfo, ...]:
+    """解析 App 多角色为统一 role DTO。"""
 
-    from ...utils.api.model import DNARoleForToolRes, DNARoleListRes
+    from ...utils.api.model import DNARoleListRes
     from ...utils.constants.constants import DNA_GAME_ID
 
-    if channel is LoginChannel.APP:
-        payload = DNARoleListRes.model_validate(data)
-        roles: list[RoleInfo] = []
-        for game in payload.roles:
-            if game.gameId != DNA_GAME_ID:
-                continue
-            for role in game.showVoList:
-                roles.append(
-                    RoleInfo(
-                        uid=role.roleId,
-                        name=role.roleName,
-                        is_default=role.isDefault == 1,
-                    )
+    payload = DNARoleListRes.model_validate(data)
+    roles: list[RoleInfo] = []
+    for game in payload.roles:
+        if game.gameId != DNA_GAME_ID:
+            continue
+        for role in game.showVoList:
+            roles.append(
+                RoleInfo(
+                    uid=role.roleId,
+                    name=role.roleName,
+                    is_default=role.isDefault == 1,
                 )
-        return tuple(roles)
-
-    payload = DNARoleForToolRes.model_validate(data)
-    role_show = payload.roleInfo.roleShow
-    return (
-        RoleInfo(
-            uid=role_show.roleId,
-            name=role_show.roleName,
-            is_default=True,
-        ),
-    )
+            )
+    return tuple(roles)
 
 
 class DnaApiAccountTransport:
@@ -137,6 +126,71 @@ class DnaApiAccountTransport:
             attempt,
         )
 
+    async def authenticate_credentials(
+        self,
+        credentials: LoginCredentials,
+    ) -> LoginResult:
+        """读取外部登录回执对应的角色，不重新生成或改写凭据。"""
+
+        if credentials.channel is not LoginChannel.APP:
+            raise AccountTransportError(
+                TransportErrorKind.SERVER,
+                detail="only App credentials are supported",
+            )
+        try:
+            from ...utils import dna_api
+
+            roles = await self._get_roles(dna_api, credentials)
+            return LoginResult.success(credentials, roles=roles)
+        except AccountTransportError:
+            raise
+        except (OSError, asyncio.TimeoutError) as exc:
+            raise AccountTransportError(
+                TransportErrorKind.NETWORK,
+                detail=f"credential validation failed: {type(exc).__name__}",
+            ) from None
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise AccountTransportError(
+                TransportErrorKind.SERVER,
+                detail=f"credential validation failed: {type(exc).__name__}",
+            ) from None
+        except Exception as exc:  # noqa: BLE001
+            raise AccountTransportError(
+                TransportErrorKind.SERVER,
+                detail=f"credential validation failed: {type(exc).__name__}",
+            ) from None
+
+    async def request_sms_code(
+        self,
+        mobile: str,
+        validation: str,
+        dev_code: str,
+    ) -> None:
+        """请求内置 App 登录页所需的短信验证码。"""
+
+        try:
+            from ...utils import dna_api
+
+            response = await dna_api.get_app_sms_code(mobile, validation, dev_code)
+            _raise_if_failed(response)
+        except AccountTransportError:
+            raise
+        except (OSError, asyncio.TimeoutError) as exc:
+            raise AccountTransportError(
+                TransportErrorKind.NETWORK,
+                detail=f"sms request failed: {type(exc).__name__}",
+            ) from None
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise AccountTransportError(
+                TransportErrorKind.SERVER,
+                detail=f"sms response parsing failed: {type(exc).__name__}",
+            ) from None
+        except Exception as exc:  # noqa: BLE001
+            raise AccountTransportError(
+                TransportErrorKind.SERVER,
+                detail=f"sms request failed: {type(exc).__name__}",
+            ) from None
+
     async def _authenticate_sms(
         self,
         api: Any,
@@ -149,21 +203,15 @@ class DnaApiAccountTransport:
         try:
             from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 
-            legacy_channel = LegacyLoginChannel(attempt.channel.value)
-            dev_code = create_device_code(legacy_channel)
-            method = (
-                api.login_app
-                if attempt.channel is LoginChannel.APP
-                else api.login_web
-            )
+            dev_code = attempt.dev_code or create_device_code(LegacyLoginChannel.APP)
             response = _raise_if_failed(
-                await method(attempt.mobile, attempt.code, dev_code),
+                await api.login_app(attempt.mobile, attempt.code, dev_code),
             )
             login_data = login_model.model_validate(response.data)
             if login_data.isComplete == 0:
                 return LoginResult.failed()
             credentials = LoginCredentials(
-                channel=attempt.channel,
+                channel=LoginChannel.APP,
                 token=login_data.token,
                 dev_code=dev_code,
                 d_num=login_data.dNum or "",
@@ -186,6 +234,11 @@ class DnaApiAccountTransport:
                 TransportErrorKind.SERVER,
                 detail=f"login response parsing failed: {type(exc).__name__}",
             ) from None
+        except Exception as exc:  # noqa: BLE001
+            raise AccountTransportError(
+                TransportErrorKind.SERVER,
+                detail=f"login request failed: {type(exc).__name__}",
+            ) from None
 
     async def _authenticate_token(
         self,
@@ -193,46 +246,36 @@ class DnaApiAccountTransport:
         create_device_code: Callable[[Any], str],
         attempt: LoginAttempt,
     ) -> LoginResult:
-        """按 legacy 顺序尝试 App，再尝试 Web token 角色接口。"""
+        """使用 App token 读取角色列表。"""
 
         from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 
-        errors: list[AccountTransportError] = []
-        for channel in (LoginChannel.APP, LoginChannel.WEB):
-            try:
-                legacy_channel = LegacyLoginChannel(channel.value)
-                credentials = LoginCredentials(
-                    channel=channel,
-                    token=attempt.token,
-                    dev_code=create_device_code(legacy_channel),
-                )
-                roles = await self._get_roles(
-                    api,
-                    credentials,
-                )
-                return LoginResult.success(credentials, roles=roles)
-            except AccountTransportError as exc:
-                errors.append(exc)
-            except (OSError, asyncio.TimeoutError) as exc:
-                errors.append(
-                    AccountTransportError(
-                        TransportErrorKind.NETWORK,
-                        detail=f"token request failed: {type(exc).__name__}",
-                    ),
-                )
-            except (AttributeError, KeyError, TypeError, ValueError) as exc:
-                errors.append(
-                    AccountTransportError(
-                        TransportErrorKind.SERVER,
-                        detail=f"token response parsing failed: {type(exc).__name__}",
-                    ),
-                )
-        if errors:
-            raise errors[-1]
-        raise AccountTransportError(
-            TransportErrorKind.SERVER,
-            detail="token role negotiation returned no result",
-        )
+        try:
+            credentials = LoginCredentials(
+                channel=LoginChannel.APP,
+                token=attempt.token,
+                dev_code=attempt.dev_code
+                or create_device_code(LegacyLoginChannel.APP),
+            )
+            roles = await self._get_roles(api, credentials)
+            return LoginResult.success(credentials, roles=roles)
+        except AccountTransportError:
+            raise
+        except (OSError, asyncio.TimeoutError) as exc:
+            raise AccountTransportError(
+                TransportErrorKind.NETWORK,
+                detail=f"token request failed: {type(exc).__name__}",
+            ) from None
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise AccountTransportError(
+                TransportErrorKind.SERVER,
+                detail=f"token response parsing failed: {type(exc).__name__}",
+            ) from None
+        except Exception as exc:  # noqa: BLE001
+            raise AccountTransportError(
+                TransportErrorKind.SERVER,
+                detail=f"token request failed: {type(exc).__name__}",
+            ) from None
 
     async def _get_roles(
         self,
@@ -241,29 +284,13 @@ class DnaApiAccountTransport:
     ) -> tuple[RoleInfo, ...]:
         """读取角色列表；空或结构变化均作为服务端失败显露给上层。"""
 
-        if credentials.channel is LoginChannel.APP:
-            response = _raise_if_failed(
-                await api.get_app_role_list(
-                    credentials.token,
-                    credentials.dev_code,
-                ),
-            )
-            return _role_infos(credentials.channel, response.data)
-
-        from ...utils.api.auth import get_token_user_id
-
-        if get_token_user_id(credentials.token) is None:
-            raise AccountTransportError(
-                TransportErrorKind.SERVER,
-                detail="web token payload is invalid",
-            )
         response = _raise_if_failed(
-            await api.get_web_default_role(
+            await api.get_app_role_list(
                 credentials.token,
                 credentials.dev_code,
             ),
         )
-        return _role_infos(credentials.channel, response.data)
+        return _role_infos(response.data)
 
 
 __all__ = [

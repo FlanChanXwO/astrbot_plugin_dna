@@ -526,10 +526,6 @@
                           <dd>{{ account.has_app_credentials ? account.app_status || '已配置' : '未配置' }}</dd>
                         </div>
                         <div>
-                          <dt>Web 凭据</dt>
-                          <dd>{{ account.has_web_credentials ? account.web_status || '已配置' : '未配置' }}</dd>
-                        </div>
-                        <div>
                           <dt>身份范围</dt>
                           <dd>全局 user_id + uid</dd>
                         </div>
@@ -726,29 +722,6 @@
                 <label class="field">
                   <span>App status</span>
                   <input v-model="accountForm.credentials.app_status" type="text" autocomplete="off" />
-                </label>
-              </fieldset>
-              <fieldset class="credential-fieldset">
-                <legend>Web 全部明文凭据</legend>
-                <label class="field">
-                  <span>Web token</span>
-                  <input v-model="accountForm.credentials.web_token" type="text" autocomplete="off" spellcheck="false" />
-                </label>
-                <label class="field">
-                  <span>Web device code</span>
-                  <input v-model="accountForm.credentials.web_device_code" type="text" autocomplete="off" spellcheck="false" />
-                </label>
-                <label class="field">
-                  <span>Web d_num</span>
-                  <input v-model="accountForm.credentials.web_d_num" type="text" autocomplete="off" spellcheck="false" />
-                </label>
-                <label class="field">
-                  <span>Web refresh token</span>
-                  <input v-model="accountForm.credentials.web_refresh_token" type="text" autocomplete="off" spellcheck="false" />
-                </label>
-                <label class="field">
-                  <span>Web status</span>
-                  <input v-model="accountForm.credentials.web_status" type="text" autocomplete="off" />
                 </label>
               </fieldset>
               <div class="drawer-footer">

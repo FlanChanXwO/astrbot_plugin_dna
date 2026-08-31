@@ -18,11 +18,6 @@ CREDENTIAL_FIELDS = (
     "app_d_num",
     "app_refresh_token",
     "app_status",
-    "web_token",
-    "web_device_code",
-    "web_d_num",
-    "web_refresh_token",
-    "web_status",
 )
 
 ADMIN_NO_STORE_HEADERS = MappingProxyType({"Cache-Control": "no-store"})
@@ -96,10 +91,10 @@ class AdminApiResponse(Generic[ResponseData]):
 
 @dataclass(frozen=True, slots=True)
 class CredentialPayload:
-    """管理详情可编辑的完整 App/Web 凭据。
+    """管理详情可编辑的完整 App 凭据。
 
     这些字段故意使用普通字符串，以便管理页在认证边界内展示原值；默认表示仍
-    只输出渠道状态与字段存在性，避免日志调用 ``repr(payload)`` 时泄露 secret。
+    只输出 App 状态与字段存在性，避免日志调用 ``repr(payload)`` 时泄露 secret。
     """
 
     app_cookie: str = field(default="", repr=False)
@@ -107,11 +102,6 @@ class CredentialPayload:
     app_d_num: str = field(default="", repr=False)
     app_refresh_token: str = field(default="", repr=False)
     app_status: str = ""
-    web_token: str = field(default="", repr=False)
-    web_device_code: str = field(default="", repr=False)
-    web_d_num: str = field(default="", repr=False)
-    web_refresh_token: str = field(default="", repr=False)
-    web_status: str = ""
 
     def __post_init__(self) -> None:
         for field_name in CREDENTIAL_FIELDS:
@@ -131,19 +121,6 @@ class CredentialPayload:
             )
         )
 
-    @property
-    def has_web_credentials(self) -> bool:
-        """返回 Web 是否至少保存了一个非空凭据字段。"""
-
-        return any(
-            (
-                self.web_token,
-                self.web_device_code,
-                self.web_d_num,
-                self.web_refresh_token,
-            )
-        )
-
     def to_plaintext_dict(self) -> dict[str, str]:
         """显式导出完整明文，供已认证管理写入/响应边界使用。"""
 
@@ -159,9 +136,8 @@ class CredentialPayload:
 
         return (
             "CredentialPayload("
-            f"app_status={self.app_status!r}, web_status={self.web_status!r}, "
-            f"has_app_credentials={self.has_app_credentials!r}, "
-            f"has_web_credentials={self.has_web_credentials!r})"
+            f"app_status={self.app_status!r}, "
+            f"has_app_credentials={self.has_app_credentials!r})"
         )
 
 
@@ -174,9 +150,7 @@ class AdminAccount:
     group_id: str | None
     is_active: bool
     has_app_credentials: bool
-    has_web_credentials: bool
     app_status: str = ""
-    web_status: str = ""
     credentials: CredentialPayload | None = field(default=None, repr=False)
 
     def to_dict(self, *, include_credentials: bool = False) -> dict[str, object]:
@@ -191,9 +165,7 @@ class AdminAccount:
             "group_id": self.group_id,
             "is_active": self.is_active,
             "has_app_credentials": self.has_app_credentials,
-            "has_web_credentials": self.has_web_credentials,
             "app_status": self.app_status,
-            "web_status": self.web_status,
             "credentials": payload,
         }
 
@@ -205,8 +177,7 @@ class AdminAccount:
             f"user_id={self.user_id!r}, uid={self.uid!r}, "
             f"group_id={self.group_id!r}, is_active={self.is_active!r}, "
             f"has_app_credentials={self.has_app_credentials!r}, "
-            f"has_web_credentials={self.has_web_credentials!r}, "
-            f"app_status={self.app_status!r}, web_status={self.web_status!r})"
+            f"app_status={self.app_status!r})"
         )
 
 

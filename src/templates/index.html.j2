@@ -534,29 +534,11 @@
           </div>
           <div class="banner-text">
             <div class="logo-text">DNAUID</div>
-            {% if login_mode == 'web' %}
-            <div class="welcome-text">Web 登录皎皎角</div>
-            <div class="dnabbs-text">在本页面完成验证并获取验证码</div>
-            {% else %}
             <div class="welcome-text">登录皎皎角账号</div>
             <div class="dnabbs-text">在本页面完成验证并获取验证码</div>
-            {% endif %}
           </div>
         </div>
         <div class="verification-guide">
-          {% if login_mode == 'web' %}
-          <div class="guide-kicker">网页登录</div>
-          <div class="guide-title">直接在当前页面完成登录</div>
-          <ol class="guide-steps">
-            <li>填写皎皎角绑定的手机号</li>
-            <li>完成安全验证并获取验证码</li>
-            <li>输入短信中的四位验证码</li>
-          </ol>
-          <div class="download-links">
-            <span>需要签到、体力或周报？</span>
-            <a href="{{ app_login_url }}">改用 App 登录</a>
-          </div>
-          {% else %}
           <div class="guide-kicker">登录流程</div>
           <div class="guide-title">直接在当前页面完成登录</div>
           <ol class="guide-steps">
@@ -564,7 +546,6 @@
             <li>完成安全验证并获取验证码</li>
             <li>输入短信中的四位验证码</li>
           </ol>
-          {% endif %}
         </div>
       </section>
 
@@ -572,25 +553,14 @@
         <nav class="login-mode-switch" aria-label="登录方式">
           <a
             href="{{ app_login_url }}"
-            {% if login_mode == 'app' %}aria-current="page"{% endif %}
+            aria-current="page"
             >App 登录</a
-          >
-          <a
-            href="{{ web_login_url }}"
-            {% if login_mode == 'web' %}aria-current="page"{% endif %}
-            >Web 登录</a
           >
         </nav>
         <div class="form-heading">
-          {% if login_mode == 'web' %}
-          <div class="form-eyebrow">网页验证码登录</div>
-          <h1>绑定 Web 凭据</h1>
-          <p>Web 凭据用于网页功能，不会覆盖已有的 App 登录。</p>
-          {% else %}
           <div class="form-eyebrow">手机验证码登录</div>
           <h1>绑定 DNAUID</h1>
           <p>填写皎皎角绑定的手机号，完成安全验证后即可登录。</p>
-          {% endif %}
         </div>
         <form id="loginForm">
           <div class="input-group">
@@ -692,11 +662,11 @@
         }, 1000)
       }
 
-      async function requestWebSmsCode(validation) {
+      async function requestSmsCode(validation) {
         validation.captcha_id = captchaId
         try {
           const response = await fetch(
-            '{% if login_mode == "web" %}{{ server_url }}/dna/web/getSmsCode{% else %}{{ server_url }}/dna/getSmsCode{% endif %}',
+            '{{ server_url }}/dna/getSmsCode',
             {
             method: 'POST',
             headers: {
@@ -755,7 +725,7 @@
                 showToast('请完成验证', 'warning')
                 return
               }
-              requestWebSmsCode(validation)
+              requestSmsCode(validation)
             })
             .onFail(function () {
               showToast('验证未通过，请重试', 'warning')
@@ -799,7 +769,7 @@
 
         try {
           const response = await fetch(
-            '{% if login_mode == "web" %}{{ server_url }}/dna/web/login{% else %}{{ server_url }}/dna/login{% endif %}',
+            '{{ server_url }}/dna/login',
             {
             method: 'POST',
             headers: {

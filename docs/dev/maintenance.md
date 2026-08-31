@@ -30,7 +30,7 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
 - `scheduler_state.json`：任务永久删除 tombstone。
 - `alias_custom.json`、`panel_custom/`：角色自定义别名与自定义面板图。
 
-在首次执行 `0003_global_identity`、升级插件版本、执行全局账号删除，或需要执行永久任务/面板
+在首次执行 `0003_global_identity` 或 `0004_app_credentials_only`、升级插件版本、执行全局账号删除，或需要执行永久任务/面板
 删除前，应先停止 AstrBot 或至少停止 DNABY 的写入，再把 SQLite 和需要保留的 JSON/目录复制到
 受控备份目录。备份目录必须限制权限，因为其中可能包含 Cookie、token、refresh token、设备码
 和 d_num；备份文件名、日志和工单不得复制这些值。
@@ -55,22 +55,25 @@ test ! -d "$DATA_DIR/panel_custom" || cp -a -- "$DATA_DIR/panel_custom" "$BACKUP
 
 `0003_global_identity` 会删除并重建 `account_bindings`、`credential_records`、
 `privacy_settings`、`group_privacy_settings` 四张旧表；旧账号、凭据、个人隐私和群隐私行
-不会迁入，新迁移只保留 `sign_records`。因此：
+不会迁入，新迁移只保留 `sign_records`。`0004_app_credentials_only` 再从当前凭据表物理
+删除五个 Web 列，保留 App 字段和其它业务表。因此：
 
 1. 先停写并完成 `dnaby.sqlite3` 备份，再审查旧 `0002` schema 的重复全局隐私行。
 2. 使用与插件版本匹配的 Alembic 配置执行 `upgrade head`；迁移失败时保留原错误并停止部署，
    不把旧 `dnaby.db` 改名后交给新 schema，也不把 `create_schema_for_tests()` 当作生产迁移。
-3. 升级后检查新 schema、插件启动和最小管理/命令路径；不要期待四张被清空的表自动恢复。
+3. 升级后检查新 schema（确认五个 Web 列不存在）、App 记录数、插件启动和最小管理/命令路径；
+   不要期待四张被清空的表或已删除的 Web 凭据自动恢复。
 4. 若必须回退，停止新版本，使用普通 revert 或部署旧版本代码，并同时恢复与旧代码匹配的迁移前
    `dnaby.sqlite3` 备份；不能只回退代码、只执行 `downgrade`，或让旧代码直接读取新 schema。
 5. 恢复后重新检查任务、订阅、别名和面板目录。回退数据库会丢失迁移后写入，需在变更记录中明确。
 
-`downgrade` 只恢复旧的空表结构，不恢复被 `0003` 丢弃的数据。代码回滚禁止 `reset --hard`、
+`downgrade` 只恢复旧的空表结构，并为 `credential_records` 创建空 Web 列，不恢复被 `0003` 或
+`0004` 丢弃的数据。代码回滚禁止 `reset --hard`、
 force push 或删除分支；应保留失败版本、备份和回滚记录，便于复盘。
 
 ## Dashboard 管理操作
 
-管理页只通过已认证的 AstrBot Dashboard 入口使用。账号详情会显示全部 App/Web 明文凭据，
+管理页只通过已认证的 AstrBot Dashboard 入口使用。账号详情会显示全部 App 明文凭据，
 属于高风险操作：使用受控管理员浏览器，避免截图、录屏、剪贴板复制和浏览器扩展采集；操作完成
 后关闭编辑器并确认页面不再保留 secret。`no-store` 只约束管理 HTTP 响应缓存，不能防止屏幕或
 宿主环境记录。

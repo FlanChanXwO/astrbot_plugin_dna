@@ -338,11 +338,6 @@ def _credential_payload(value: object) -> CredentialPayload:
         "app_d_num",
         "app_refresh_token",
         "app_status",
-        "web_token",
-        "web_device_code",
-        "web_d_num",
-        "web_refresh_token",
-        "web_status",
     ):
         field_value = value.get(key, "")
         if not isinstance(field_value, str):

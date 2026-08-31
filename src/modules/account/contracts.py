@@ -13,10 +13,9 @@ AccountActor = EventActor
 
 
 class LoginChannel(StrEnum):
-    """登录凭据所属渠道。"""
+    """登录凭据所属渠道；rewrite 只接受官方 App 凭据。"""
 
     APP = "app"
-    WEB = "web"
 
 
 class TransportErrorKind(StrEnum):
@@ -61,6 +60,7 @@ class LoginAttempt:
     mobile: str = field(default="", repr=False)
     code: str = field(default="", repr=False)
     channel: LoginChannel = LoginChannel.APP
+    dev_code: str = field(default="", repr=False)
 
     def __post_init__(self) -> None:
         """在进入 transport 前固定输入形态并拒绝歧义值。"""
@@ -72,6 +72,7 @@ class LoginAttempt:
             if not token:
                 raise ValueError("token 不能为空")
             object.__setattr__(self, "token", token)
+            object.__setattr__(self, "dev_code", self.dev_code.strip())
             return
         if self.mode == "sms":
             mobile = self.mobile.strip()
@@ -82,6 +83,7 @@ class LoginAttempt:
                 raise ValueError("验证码格式错误")
             object.__setattr__(self, "mobile", mobile)
             object.__setattr__(self, "code", code)
+            object.__setattr__(self, "dev_code", self.dev_code.strip())
             return
         raise ValueError(f"不支持的登录模式: {self.mode!r}")
 
@@ -91,10 +93,16 @@ class LoginAttempt:
         token: str,
         *,
         channel: LoginChannel = LoginChannel.APP,
+        dev_code: str = "",
     ) -> LoginAttempt:
         """建立 token 登录请求。"""
 
-        return cls(mode="token", token=token, channel=channel)
+        return cls(
+            mode="token",
+            token=token,
+            channel=channel,
+            dev_code=dev_code,
+        )
 
     @classmethod
     def from_sms(
@@ -103,10 +111,17 @@ class LoginAttempt:
         code: str,
         *,
         channel: LoginChannel = LoginChannel.APP,
+        dev_code: str = "",
     ) -> LoginAttempt:
         """建立手机号验证码登录请求。"""
 
-        return cls(mode="sms", mobile=mobile, code=code, channel=channel)
+        return cls(
+            mode="sms",
+            mobile=mobile,
+            code=code,
+            channel=channel,
+            dev_code=dev_code,
+        )
 
     def __repr__(self) -> str:
         """只显示输入类型和字段存在性。"""
@@ -123,7 +138,7 @@ class LoginAttempt:
 class LoginCredentials:
     """登录成功后由 transport 返回的凭据。
 
-    Cookie、token、refresh token、设备码和 d_num 都不出现在 repr 中。
+    App token、refresh token、设备码和 d_num 都不出现在 repr 中。
     """
 
     channel: LoginChannel
@@ -230,7 +245,7 @@ class LoginResult:
 
 
 class AccountTransport(Protocol):
-    """账号服务需要的最小、可替换 transport 协议。"""
+    """账号服务需要的最小、可替换 App transport 协议。"""
 
     async def begin_login(self, actor: AccountActor) -> str:
         """创建登录页会话并返回可展示地址。"""
@@ -238,6 +253,22 @@ class AccountTransport(Protocol):
 
     async def authenticate(self, attempt: LoginAttempt) -> LoginResult:
         """使用已经校验的 token 或短信输入完成认证。"""
+        ...
+
+    async def authenticate_credentials(
+        self,
+        credentials: LoginCredentials,
+    ) -> LoginResult:
+        """校验外部登录服务返回的 App 凭据并补齐角色列表。"""
+        ...
+
+    async def request_sms_code(
+        self,
+        mobile: str,
+        validation: str,
+        dev_code: str,
+    ) -> None:
+        """为内置登录页请求 App 短信验证码。"""
         ...
 
 

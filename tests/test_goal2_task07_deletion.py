@@ -72,7 +72,7 @@ async def _seed_database(database: AsyncDatabase) -> None:
             session,
             user_id="user-1",
             uid="1002",
-            web_token="user-1-web-secret",
+            app_cookie="user-1-second-secret",
         )
         await CredentialRepository.add(
             session,

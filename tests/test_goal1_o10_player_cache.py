@@ -255,7 +255,7 @@ async def test_detail_fresh_cache_reuses_full_bundle_and_card(tmp_path: Path) ->
         assert transport.overview_calls == 1
         assert transport.role_detail_calls == 1
         assert transport.weapon_detail_calls == 2
-        assert transport.damage_calls == 1
+        assert transport.damage_calls == 0
         assert renderer.detail_calls == 1
     finally:
         await database.dispose()

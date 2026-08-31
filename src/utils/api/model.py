@@ -27,10 +27,6 @@ class DNALoginRes(BaseModel):
     refreshToken: str = Field(exclude=True, description="refreshToken")
 
 
-class DNATokenPayload(BaseModel):
-    userId: str | int = Field(description="社区用户ID")
-
-
 class DNARoleShowVo(BaseModel):
     roleId: str = Field(description="roleId")
     headUrl: str | None = Field(description="headUrl")

@@ -12,17 +12,18 @@ import inspect
 import json
 import keyword
 import re
+import traceback
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Literal, cast
 
-from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.core.star.filter.regex import RegexFilter
 
 from ...infrastructure.rendering.errors import HtmlRenderError
+from ...infrastructure.utils.logger import logger
 from ...utils.msgs.notify import HTML_RENDER_FAILED
 from ..event import (
     EventActor,
@@ -40,6 +41,32 @@ CommandUseCase = Callable[
 
 _PERMISSIONS = {"user", "admin"}
 COMMAND_PREFIX = "kk"
+COMMAND_EXECUTION_FAILED = "命令执行失败，请稍后重试；管理员可查看日志了解详情。"
+
+
+def _log_command_exception(
+    message: str,
+    *args: object,
+    error: BaseException,
+) -> None:
+    """记录完整调用栈，但用固定异常正文替换可能含敏感数据的原文。"""
+
+    redacted = traceback.TracebackException(
+        type(error),
+        RuntimeError("exception details redacted"),
+        error.__traceback__,
+        capture_locals=False,
+    )
+    # Traceback 默认会把源码行一起输出；源码行可能包含测试用例或日志正文，
+    # 因此保留文件、行号和调用栈，但主动移除源码上下文及原始异常正文。
+    for frame in redacted.stack:
+        frame._line = ""
+    logger.exception(
+        f"{message}\n%s",
+        *args,
+        "".join(redacted.format()),
+        exc_info=False,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -429,60 +456,61 @@ def _make_handler(
         event: AstrMessageEvent,
         **provided_parameters: Any,
     ) -> AsyncGenerator[Any, None]:
-        message = event.get_message_str().strip()
         runtime = getattr(self, "_runtime", None)
-        active_registry = getattr(runtime, "commands", None)
-        active_spec = (
-            active_registry.get(spec.id)
-            if active_registry is not None
-            else spec
-        )
-        match = re.match(active_spec.pattern, message)
-        if match is None:
-            return
-        parameters = dict(match.groupdict())
-        parameters.update(provided_parameters)
-        actor = actor_from_event(event)
-        configured_prefixes: list[str] = ["kk"]
-        if runtime is not None and hasattr(runtime, "settings"):
-            display_settings = getattr(runtime.settings, "display", None)
-            if display_settings is not None:
-                configured_prefixes = getattr(
-                    display_settings,
-                    "command_prefixes",
-                    [getattr(display_settings, "command_prefix", "kk")],
-                )
-
-        matched_prefix = configured_prefixes[0] if configured_prefixes else "kk"
-        sorted_prefixes = sorted(
-            [p for p in configured_prefixes if p],
-            key=len,
-            reverse=True,
-        )
-        for p in sorted_prefixes:
-            if message.startswith(p):
-                matched_prefix = p
-                break
-        else:
-            if "" in configured_prefixes:
-                matched_prefix = ""
-
-        request = CommandRequest(
-            command_id=active_spec.id,
-            text=message,
-            parameters=parameters,
-            actor=actor,
-            permission=_permission_from_event(event),
-            target_user_id=target_user_from_event(
-                event,
-                bot_id=actor.bot_id if actor is not None else None,
-            ),
-            reply_id=reply_id_from_event(event),
-            services=getattr(runtime, "services", {}),
-            images=images_from_event(event),
-            matched_prefix=matched_prefix,
-        )
+        active_spec = spec
         try:
+            message = event.get_message_str().strip()
+            active_registry = getattr(runtime, "commands", None)
+            active_spec = (
+                active_registry.get(spec.id)
+                if active_registry is not None
+                else spec
+            )
+            match = re.match(active_spec.pattern, message)
+            if match is None:
+                return
+            parameters = dict(match.groupdict())
+            parameters.update(provided_parameters)
+            actor = actor_from_event(event)
+            configured_prefixes: list[str] = ["kk"]
+            if runtime is not None and hasattr(runtime, "settings"):
+                display_settings = getattr(runtime.settings, "display", None)
+                if display_settings is not None:
+                    configured_prefixes = getattr(
+                        display_settings,
+                        "command_prefixes",
+                        [getattr(display_settings, "command_prefix", "kk")],
+                    )
+
+            matched_prefix = configured_prefixes[0] if configured_prefixes else "kk"
+            sorted_prefixes = sorted(
+                [p for p in configured_prefixes if p],
+                key=len,
+                reverse=True,
+            )
+            for p in sorted_prefixes:
+                if message.startswith(p):
+                    matched_prefix = p
+                    break
+            else:
+                if "" in configured_prefixes:
+                    matched_prefix = ""
+
+            request = CommandRequest(
+                command_id=active_spec.id,
+                text=message,
+                parameters=parameters,
+                actor=actor,
+                permission=_permission_from_event(event),
+                target_user_id=target_user_from_event(
+                    event,
+                    bot_id=actor.bot_id if actor is not None else None,
+                ),
+                reply_id=reply_id_from_event(event),
+                services=getattr(runtime, "services", {}),
+                images=images_from_event(event),
+                matched_prefix=matched_prefix,
+            )
             async for result in execute_use_case(
                 active_spec,
                 request,
@@ -490,13 +518,24 @@ def _make_handler(
             ):
                 yield runtime.responses.build(event, result)
         except HtmlRenderError as error:
-            logger.exception(
-                "[dnaby] 命令 %s 图片渲染失败 kind=%s: %s",
+            _log_command_exception(
+                "命令 %s 图片渲染失败 kind=%s",
                 active_spec.id,
                 error.kind,
-                error,
+                error=error,
             )
             yield runtime.responses.build(event, PlainTextResponse(HTML_RENDER_FAILED))
+        except Exception as error:  # noqa: BLE001
+            _log_command_exception(
+                "命令执行失败 command=%s category=%s",
+                active_spec.id,
+                type(error).__name__,
+                error=error,
+            )
+            yield runtime.responses.build(
+                event,
+                PlainTextResponse(COMMAND_EXECUTION_FAILED),
+            )
 
     handler.__name__ = handler_name
     handler.__qualname__ = handler_name
@@ -537,6 +576,7 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
 
 
 __all__ = [
+    "COMMAND_EXECUTION_FAILED",
     "COMMAND_PREFIX",
     "CommandRegistry",
     "CommandRequest",

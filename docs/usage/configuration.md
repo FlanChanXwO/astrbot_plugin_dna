@@ -7,6 +7,8 @@
 ## 分组
 
 - `login`：登录 URL、监听地址/端口、接入方式、共享密钥、二维码/转发登录和未登录绑定数量。
+  接入方式支持 `local`、`http_poll`、`sse`、`ws`；local 模式留空 URL 时使用内置服务的实际
+  监听地址，配置 URL 时优先用它作为公开登录地址。
 - `network`：API/本地代理、需要或不需要代理的函数、WebSocket 保活和连接等待时间。
 - `sign_in`：社区任务列表、定时签到时间、并发间隔和签到报告。游戏签到与社区任务固定
   启用，不提供功能开启配置；`scheduled_enabled` 仅控制每日定时任务是否运行。`sign_time`
@@ -95,9 +97,14 @@ DNABY_DATABASE_URL="sqlite+aiosqlite:////绝对路径/dnaby.sqlite3" \
 生产 schema 已完成迁移。此前 `atri` 只读核验观察到生产数据库 revision 为 `0003_global_identity`；
 该观察不代表本次文档/冒烟执行了 migration，也不替代升级前备份。
 
-Task 10 的 `AccountService` 使用 `login.max_bind_count` 约束新增 UID；login URL、
-transport、监听和二维码字段仍保留为 typed 配置，但当前 rewrite 尚未注册本地登录
-Web 路由。未注入实际 page provider 时，无参数登录会显式报告服务未配置。
+`AccountService` 使用 `login.max_bind_count` 约束新增 UID。登录页会话由 runtime 注入的
+`LoginFlowCoordinator` 管理：local 服务在初始化时启动、在终止时先清理登录等待再释放端口；
+外置 transport 只使用 typed `login.url`、`login.transport` 和 `login.shared_secret`。未配置
+外置地址时不会伪造登录链接，而是返回稳定的登录服务失败提示。
+
+登录凭据当前为 App-only；Web 登录页、Web token fallback 和五个 Web 凭据数据库列已移除。
+执行 `alembic upgrade head` 前必须按维护文档备份并检查 `dnaby.sqlite3`；降级只创建空 Web
+列，不能恢复已经删除的凭据。
 
 隐私 use case 按 `display.allow_mention_query` 解析他人查询；关闭时查询目标会回到调用者，
 查询自己仍然允许。个人/群强制隐私的具体命令见 [commands.md](commands.md)。

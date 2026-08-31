@@ -406,18 +406,18 @@ async def _draw_role_detail_card(
     uid_hidden: bool = False,
     custom_panel: Path | None = None,
 ) -> tuple[bytes, Path | None]:
-    damage_build = RoleDamageBuild(
-        role_detail=role_detail,
-        con_weapon_detail=con_weapon,
-        close_weapon_detail=close_weapon,
-        lang_range_weapon_detail=ranged_weapon,
-    )
-    if damage_calc_response is None:
-        damage_calc_response = DNAApiResp.err("未执行伤害计算")
-    damage = draw_role_damage_section(
-        damage_build,
-        damage_calc_response,
-    )
+    damage = None
+    if damage_calc_response is not None:
+        damage_build = RoleDamageBuild(
+            role_detail=role_detail,
+            con_weapon_detail=con_weapon,
+            close_weapon_detail=close_weapon,
+            lang_range_weapon_detail=ranged_weapon,
+        )
+        damage = draw_role_damage_section(
+            damage_build,
+            damage_calc_response,
+        )
     weapon_sections = []
     for title, weapon in (
         ("同律武器", con_weapon),
@@ -524,7 +524,9 @@ async def render_role_card_image(
     damage_calc = (
         DNAApiResp.ok(damage_data)
         if damage_data is not None
-        else DNAApiResp.err(damage_message or "未执行伤害计算")
+        else DNAApiResp.err(damage_message)
+        if damage_message is not None
+        else None
     )
     card_bytes, _ = await _draw_role_detail_card(
         ctx,
@@ -884,15 +886,13 @@ class PlayerRenderer:
         )
         ctx = ev_stub or EventContext(user_id=target_user_id or (actor.user_id if actor is not None else uid))
 
-        damage_response = (
-            DNAApiResp.ok(damage_data)
-            if damage_data is not None
-            else DNAApiResp.err(
-                damage_message
-                or (damage_calc.message if damage_calc is not None else None)
-                or "未执行伤害计算"
-            )
-        )
+        damage_response = None
+        if damage_data is not None:
+            damage_response = DNAApiResp.ok(damage_data)
+        elif damage_message is not None:
+            damage_response = DNAApiResp.err(damage_message)
+        elif damage_calc is not None and damage_calc.message:
+            damage_response = DNAApiResp.err(damage_calc.message)
 
         custom_panel = None
         if isinstance(self.resources, ResourceMap):

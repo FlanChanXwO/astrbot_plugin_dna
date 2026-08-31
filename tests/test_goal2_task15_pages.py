@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).parents[1]
 PAGE_ROOT = PROJECT_ROOT / "pages" / "dashboard"
 
@@ -39,11 +38,6 @@ def test_account_page_has_global_collapsed_list_and_plaintext_editor_contract() 
         "app_d_num",
         "app_refresh_token",
         "app_status",
-        "web_token",
-        "web_device_code",
-        "web_d_num",
-        "web_refresh_token",
-        "web_status",
     ):
         assert field in html
     assert "readonly" in html

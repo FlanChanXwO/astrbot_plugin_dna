@@ -60,6 +60,8 @@ from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
+from .modules.account.login_flow import LoginFlowCoordinator
+from .modules.account.transport import LoginTransport, build_transport
 from .modules.admin import (
     AccountDeletionCoordinator,
     AdminAccountService,
@@ -152,11 +154,62 @@ def build_runtime(
         runtime_database = AsyncDatabase.from_data_dir(
             StarTools.get_data_dir(PLUGIN_NAME),
         )
+    resolved_account_transport = account_transport or DnaApiAccountTransport()
     account_service = AccountService(
         runtime_database,
-        account_transport or DnaApiAccountTransport(),
+        resolved_account_transport,
         max_bind_count=settings.login.max_bind_count,
     )
+    if services is not None and "account_service" in services:
+        account_service = cast(AccountService, services["account_service"])
+
+    async def _notify_login(actor: Any, response: object) -> None:
+        """把后台登录终态投递回发起登录的 AstrBot 会话。"""
+
+        origin = getattr(actor, "unified_msg_origin", None)
+        text = getattr(response, "text", None)
+        if not isinstance(origin, str) or not origin or not isinstance(text, str):
+            return
+        try:
+            message = MessageChain(chain=[Plain(text)])
+            result = context.send_message(origin, message)
+            if inspect.isawaitable(result):
+                await result
+        except Exception as error:  # noqa: BLE001
+            from astrbot.api import logger
+
+            logger.error(
+                "登录完成消息发送失败 kind=%s",
+                type(error).__name__,
+            )
+
+    login_flow: object
+    if services is not None and "login_flow" in services:
+        login_flow = services["login_flow"]
+    else:
+        external_login_transport: LoginTransport | None = None
+        if settings.login.transport != "local" and settings.login.url.strip():
+            external_login_transport = build_transport(
+                settings.login.url,
+                settings.login.transport,
+                settings.login.shared_secret.get_secret_value(),
+            )
+        injected_login_server = (
+            cast(Any, services["login_server"])
+            if services is not None and "login_server" in services
+            else None
+        )
+        login_flow = LoginFlowCoordinator(
+            account_service,
+            settings.login,
+            account_transport=resolved_account_transport,
+            external_transport=external_login_transport,
+            local_server=injected_login_server,
+            notify=_notify_login,
+        )
+    set_login_flow = getattr(account_service, "set_login_flow", None)
+    if callable(set_login_flow):
+        set_login_flow(login_flow)
     privacy_service = PrivacyService(
         runtime_database,
         allow_mention_query=settings.display.allow_mention_query,
@@ -445,6 +498,7 @@ def build_runtime(
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
+        "login_flow": login_flow,
         "privacy_service": privacy_service,
         "cache_manager": cache_manager,
         "player_cache": player_cache,
@@ -545,6 +599,7 @@ def build_runtime(
     web = WebRegistrar(context, build_admin_web_routes(resolved_services))
     lifecycle = PluginLifecycle(
         start_hooks=(
+            login_flow.start,
             web.initialize,
             _sync_ann_config_on_startup,
             cache_maintenance.start,
@@ -561,6 +616,7 @@ def build_runtime(
             sign_scheduler.stop,
             notices_scheduler.stop,
             agent_tools_lifecycle.stop,
+            login_flow.stop,
         ),
     )
     return PluginRuntime(

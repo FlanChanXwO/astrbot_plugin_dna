@@ -14,8 +14,9 @@
 - 已登记 `role_info_card`、`role_detail_card` 和 `role_original_image`；新增 typed
   `PlayerService`、可注入 player transport、legacy 纯 API/model/伤害适配和 Reply 消息 ID
   边界。
-- 概览和详情渲染在运行期 plugin data 生成动态 PNG，完整保留合法角色、武器、技能、魔之楔、
-  溯源和伤害字段；详情响应携带 per-response 的 `original_image_path` 原面板引用，不依赖
+- 概览和详情渲染在运行期 plugin data 生成动态 PNG，完整保留合法角色、武器、技能、魔之楔和
+  溯源等基础字段；正常详情不调用伤害接口或渲染伤害区块，详情响应携带 per-response 的
+  `original_image_path` 原面板引用，不依赖
   实例级共享缓存（Task 16.2）。
 - 详细行为矩阵、已知差异和图像验证格式见 [review-v0.3-player.md](review-v0.3-player.md)。
 

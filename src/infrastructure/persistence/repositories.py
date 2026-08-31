@@ -188,11 +188,6 @@ class CredentialRepository:
         app_d_num: str = "",
         app_refresh_token: str = "",
         app_status: str = "",
-        web_token: str = "",
-        web_device_code: str = "",
-        web_d_num: str = "",
-        web_refresh_token: str = "",
-        web_status: str = "",
     ) -> CredentialRecord:
         record = CredentialRecord(
             user_id=user_id,
@@ -202,11 +197,6 @@ class CredentialRepository:
             app_d_num=app_d_num,
             app_refresh_token=app_refresh_token,
             app_status=app_status,
-            web_token=web_token,
-            web_device_code=web_device_code,
-            web_d_num=web_d_num,
-            web_refresh_token=web_refresh_token,
-            web_status=web_status,
         )
         session.add(record)
         await session.flush()
@@ -253,7 +243,7 @@ class CredentialRepository:
         refresh_token: str = "",
         status: str = "",
     ) -> CredentialRecord:
-        """保存 App 凭据并保留同一 UID 的 Web 凭据。"""
+        """保存同一 UID 的 App 凭据。"""
         record = await CredentialRepository.get(
             session,
             user_id=user_id,
@@ -276,44 +266,6 @@ class CredentialRepository:
         record.app_d_num = d_num
         record.app_refresh_token = refresh_token
         record.app_status = status
-        await session.flush()
-        return record
-
-    @staticmethod
-    async def save_web(
-        session: AsyncSession,
-        *,
-        user_id: str,
-        uid: str,
-        token: str,
-        device_code: str,
-        d_num: str = "",
-        refresh_token: str = "",
-        status: str = "",
-    ) -> CredentialRecord:
-        """保存 Web 凭据并保留同一 UID 的 App 凭据。"""
-        record = await CredentialRepository.get(
-            session,
-            user_id=user_id,
-            uid=uid,
-        )
-        if record is None:
-            record = await CredentialRepository.add(
-                session,
-                user_id=user_id,
-                uid=uid,
-                web_token=token,
-                web_device_code=device_code,
-                web_d_num=d_num,
-                web_refresh_token=refresh_token,
-                web_status=status,
-            )
-            return record
-        record.web_token = token
-        record.web_device_code = device_code
-        record.web_d_num = d_num
-        record.web_refresh_token = refresh_token
-        record.web_status = status
         await session.flush()
         return record
 
@@ -342,7 +294,7 @@ class CredentialRepository:
         *,
         user_id: str,
     ) -> int:
-        """删除一个用户的全部渠道凭据。"""
+        """删除一个用户的全部 App 凭据。"""
 
         result = await session.execute(
             delete(CredentialRecord).where(

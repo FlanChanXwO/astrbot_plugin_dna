@@ -23,11 +23,6 @@ const CREDENTIAL_FIELDS = Object.freeze([
   "app_d_num",
   "app_refresh_token",
   "app_status",
-  "web_token",
-  "web_device_code",
-  "web_d_num",
-  "web_refresh_token",
-  "web_status",
 ]);
 
 function blankCredentials() {
@@ -460,7 +455,7 @@ export function createDashboardStore({ api }) {
       this.openDrawer({
         kind: "account-edit",
         title: `编辑账号 ${account.uid || ""}`,
-        description: "身份键只读；来源群、启用状态和全部 App/Web 凭据可编辑。",
+        description: "身份键只读；来源群、启用状态和全部 App 凭据可编辑。",
       });
       try {
         const payload = responseData(await this.api.getAccount(account.user_id, account.uid));
