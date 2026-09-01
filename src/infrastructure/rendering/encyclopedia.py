@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import math
 import random
 import time
-import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -19,7 +17,6 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from PIL import Image
-from PIL.PngImagePlugin import PngInfo
 from pydantic import BaseModel
 
 from ...entry.event import EventActor
@@ -47,6 +44,8 @@ from ...utils.resource.RESOURCE_PATH import CALENDAR_PATH, WEEKLY_ITEM_PATH
 from ...utils.session import EventContext, Sender
 from ...utils.utils import get_using_id, is_peek_blocked, is_uid_hidden
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from .artifact import RenderedArtifact
+from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
@@ -538,11 +537,11 @@ async def _event_image(cont: CalendarContent) -> str | None:
     return image_data_uri(pic_path) if pic_path.exists() else None
 
 
-async def draw_calendar_card(
+async def _draw_calendar_card_bytes(
     content: list[CalendarContent],
     calendar_assets: Mapping[str, Image.Image | Path] | None = None,
     now: datetime | None = None,
-) -> Image.Image:
+) -> bytes:
     if now is None:
         now = datetime.now(SHANGHAI_TZ)
     events = []
@@ -580,6 +579,17 @@ async def draw_calendar_card(
         },
         RenderSpec(width=1200, height=height, full_page=False, image_format="jpeg"),
     )
+    return raw_bytes
+
+
+async def draw_calendar_card(
+    content: list[CalendarContent],
+    calendar_assets: Mapping[str, Image.Image | Path] | None = None,
+    now: datetime | None = None,
+) -> Image.Image:
+    """兼容旧调用者返回 Pillow 图像；运行期 renderer 使用 raw bytes 边界。"""
+
+    raw_bytes = await _draw_calendar_card_bytes(content, calendar_assets, now)
     return Image.open(BytesIO(raw_bytes)).convert("RGBA")
 
 
@@ -681,6 +691,9 @@ class RenderedEncyclopediaImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
+    sidecar: Path | None = None
+    manifest: Path | None = None
+    media_type: str = "image/jpeg"
 
 
 def _value(val: Any) -> str:
@@ -715,42 +728,54 @@ class EncyclopediaRenderer:
 
     def _write(
         self,
-        image: Image.Image,
+        image_bytes: bytes,
         *,
         lines: list[str],
         resources: list[dict[str, str]],
         sections: list[dict[str, Any]],
+        media_type: str = "image/jpeg",
     ) -> RenderedEncyclopediaImage:
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        path = self.output_dir / f"encyclopedia-{uuid.uuid4().hex}.png"
-        with BytesIO() as jpeg_buffer:
-            image.convert("RGB").save(jpeg_buffer, format="JPEG", quality=85)
-            jpeg_buffer.seek(0)
-            with Image.open(jpeg_buffer) as intermediate:
-                final_image = intermediate.convert("RGBA")
-                metadata = PngInfo()
-                metadata.add_text("dnaby.text", "\n".join(lines))
-                metadata.add_text(
-                    "dnaby.layout",
-                    json.dumps(
-                        {"width": final_image.width, "height": final_image.height, "sections": sections},
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
-                )
-                metadata.add_text(
-                    "dnaby.resources",
-                    json.dumps(resources, ensure_ascii=False, separators=(",", ":")),
-                )
-                final_image.save(path, format="PNG", pnginfo=metadata)
-                return RenderedEncyclopediaImage(
-                    path=path,
-                    width=final_image.width,
-                    height=final_image.height,
-                    text_lines=tuple(lines),
-                    resources=tuple(resources),
-                    sections=tuple(sections),
-                )
+        artifact = RenderedArtifact.from_bytes(
+            image_bytes,
+            media_type=media_type,  # type: ignore[arg-type]
+            metadata={
+                "dnaby.text": "\n".join(lines),
+                "dnaby.layout": {
+                    "width": None,
+                    "height": None,
+                    "sections": sections,
+                },
+                "dnaby.resources": resources,
+            },
+        )
+        # 尺寸先由容器检查器读取，再补入 sidecar；图片 bytes 保持原样。
+        metadata = dict(artifact.metadata)
+        metadata["dnaby.layout"] = {
+            "width": artifact.width,
+            "height": artifact.height,
+            "sections": sections,
+        }
+        artifact = RenderedArtifact.from_bytes(
+            image_bytes,
+            media_type=media_type,  # type: ignore[arg-type]
+            metadata=metadata,
+        )
+        response = write_rendered_artifact(
+            self.output_dir,
+            artifact,
+            prefix="encyclopedia-",
+        )
+        return RenderedEncyclopediaImage(
+            path=Path(response.image),
+            width=artifact.width,
+            height=artifact.height,
+            text_lines=tuple(lines),
+            resources=tuple(resources),
+            sections=tuple(sections),
+            sidecar=Path(response.sidecar) if response.sidecar else None,
+            manifest=Path(response.manifest) if response.manifest else None,
+            media_type=artifact.media_type,
+        )
 
     async def render_stamina(
         self,
@@ -823,8 +848,6 @@ class EncyclopediaRenderer:
             short_note,
             uid_hidden=uid_hidden,
         )
-        with Image.open(BytesIO(image_bytes)) as source:
-            image = source.convert("RGBA")
 
         rougelike_count = getattr(snapshot, "rouge_like_reward_count", getattr(snapshot, "rougelike_reward_count", 0))
         rougelike_total = getattr(snapshot, "rouge_like_reward_total", getattr(snapshot, "rougelike_reward_total", 0))
@@ -863,7 +886,7 @@ class EncyclopediaRenderer:
             {"name": "日常便签", "items": 4},
             {"name": "图纸生产", "items": len(getattr(snapshot, "drafts", ())) if drafts is not None else (0 if getattr(snapshot, "draft_info", None) is None else snapshot.draft_info.draft_doing_num)},
         ]
-        return self._write(image, lines=lines, resources=resources, sections=sections)
+        return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
 
     async def render_weekly_report(
         self,
@@ -932,8 +955,6 @@ class EncyclopediaRenderer:
             week_type=snapshot.week_type,
             uid_hidden=uid_hidden,
         )
-        with Image.open(BytesIO(image_bytes)) as source:
-            image = source.convert("RGBA")
 
         lines = [
             role.role_name,
@@ -960,7 +981,7 @@ class EncyclopediaRenderer:
                         "source": f"resources/weekly_item/item_{item.item_id}.png",
                     }
                 )
-        return self._write(image, lines=lines, resources=resources, sections=sections)
+        return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
 
     async def render_calendar(
         self,
@@ -978,7 +999,7 @@ class EncyclopediaRenderer:
             )
             for event in snapshot.events
         ]
-        image = await draw_calendar_card(contents, calendar_assets=self.resources.calendar_assets)
+        image_bytes = await _draw_calendar_card_bytes(contents, calendar_assets=self.resources.calendar_assets)
         lines = ["二重螺旋 · 活动日历"]
         for event in snapshot.events:
             lines.append(f"{event.title}: {_value(event.start_at) if event.start_at else ''} ~ {_value(event.end_at) if event.end_at else ''}")
@@ -996,7 +1017,7 @@ class EncyclopediaRenderer:
                 }
             )
         sections = [{"name": "活动日历", "items": len(snapshot.events)}]
-        return self._write(image, lines=lines, resources=resources, sections=sections)
+        return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
 
 
 __all__ = [

@@ -136,7 +136,7 @@ class EncyclopediaService:
                 uid=uid,
                 uid_hidden=uid_hidden,
             )
-        return ImageResponse(str(rendered.path), temporary=True)
+        return ImageResponse(str(rendered.path), temporary=True, sidecar=rendered.sidecar, manifest=rendered.manifest)
 
     async def weekly_report(self, request: EncyclopediaRequest):
         """读取并渲染本周/上周周报。"""
@@ -169,7 +169,7 @@ class EncyclopediaService:
                 uid=uid,
                 uid_hidden=uid_hidden,
             )
-        return ImageResponse(str(rendered.path), temporary=True)
+        return ImageResponse(str(rendered.path), temporary=True, sidecar=rendered.sidecar, manifest=rendered.manifest)
 
     async def calendar(self, request: EncyclopediaRequest):
         """读取并渲染活动日历。"""
@@ -183,7 +183,7 @@ class EncyclopediaService:
                 snapshot,
                 actor=request.actor,
             )
-        return ImageResponse(str(rendered.path), temporary=True)
+        return ImageResponse(str(rendered.path), temporary=True, sidecar=rendered.sidecar, manifest=rendered.manifest)
 
     async def wiki(self, request: EncyclopediaRequest):
         """按角色、武器、魔灵别名读取本地图鉴素材。"""

@@ -14,6 +14,7 @@ from PIL import Image
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
+from src.infrastructure.rendering.artifact_store import read_rendered_artifact
 from src.infrastructure.rendering.encyclopedia import EncyclopediaRenderer
 from src.infrastructure.resources.encyclopedia import (
     AliasCatalog,
@@ -367,9 +368,10 @@ async def test_stamina_renderer_uses_legacy_dnauid_canvas(tmp_path: Path) -> Non
         uid_hidden=False,
     )
 
+    assert rendered.path.suffix == ".jpg"
     with Image.open(rendered.path) as image:
         assert image.size == (2000, 1100)
-        assert image.getpixel((1900, 500)) != (25, 31, 48, 255)
+        assert image.getpixel((1900, 500)) != (25, 31, 48)
 
 
 @pytest.mark.asyncio
@@ -397,9 +399,9 @@ async def test_weekly_renderer_uses_all_legacy_material_rows(tmp_path: Path) -> 
         uid_hidden=False,
     )
 
-    with Image.open(rendered.path) as image:
-        assert image.size == (1200, 1370)
-        text = image.info["dnaby.text"]
+    artifact = read_rendered_artifact(rendered.path)
+    assert (artifact.width, artifact.height) == (1200, 1370)
+    text = artifact.metadata["dnaby.text"]
     assert "资源6-完整名称" in text
     assert "空分类" in text
 
@@ -434,11 +436,10 @@ async def test_calendar_renderer_uses_legacy_two_column_canvas(tmp_path: Path) -
         target_user_id="target-user",
     )
 
-    with Image.open(rendered.path) as image:
-        assert image.size == (1200, 1050)
-        assert image.getpixel((1100, 800)) != (25, 31, 48, 255)
-        assert "活动甲" in image.info["dnaby.text"]
-    assert "活动乙" in image.info["dnaby.text"]
+    artifact = read_rendered_artifact(rendered.path)
+    assert (artifact.width, artifact.height) == (1200, 1050)
+    assert "活动甲" in artifact.metadata["dnaby.text"]
+    assert "活动乙" in artifact.metadata["dnaby.text"]
 
 
 def test_legacy_role_adapter_preserves_role_id() -> None:
@@ -454,18 +455,15 @@ def test_renderer_value_uses_asia_shanghai_for_aware_datetime() -> None:
     assert _value(datetime(2026, 8, 11, 1, 0, tzinfo=ZoneInfo("UTC"))) == "2026-08-11 09:00"
 
 
-def test_renderer_write_round_trips_jpeg_quality_85_before_png(tmp_path: Path) -> None:
+def test_renderer_write_preserves_t2i_bytes_and_metadata_sidecar(tmp_path: Path) -> None:
     renderer = EncyclopediaRenderer(tmp_path / "rendered", EncyclopediaResourceStore.from_root(tmp_path / "resources"))
-    source = Image.new("RGBA", (3, 2))
-    source.putdata([(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 0, 255), (0, 255, 255, 255), (255, 0, 255, 255)])
-    rendered = renderer._write(source, lines=[], resources=[], sections=[])
-    with BytesIO() as expected_buffer:
-        source.convert("RGB").save(expected_buffer, format="JPEG", quality=85)
-        expected_buffer.seek(0)
-        with Image.open(expected_buffer) as expected:
-            expected_pixels = expected.convert("RGBA").tobytes()
-    with Image.open(rendered.path) as actual:
-        assert actual.convert("RGBA").tobytes() == expected_pixels
+    source = BytesIO()
+    Image.new("RGB", (3, 2), "red").save(source, format="JPEG", quality=85)
+    payload = source.getvalue()
+    rendered = renderer._write(payload, lines=["文本"], resources=[], sections=[])
+    assert rendered.path.read_bytes() == payload
+    artifact = read_rendered_artifact(rendered.path)
+    assert artifact.metadata["dnaby.text"] == "文本"
 
 
 @pytest.mark.asyncio
@@ -548,11 +546,11 @@ async def test_stamina_and_weekly_images_preserve_full_typed_output(tmp_path: Pa
         (stamina, 2000, ("资料玩家", "额外统计: 完整保留", "测试矿石", "完成材料")),
         (weekly, 1200, ("上周周报", "完整资源分类", "资源6-完整名称", "空分类")),
     ):
-        with Image.open(Path(response.image)) as image:
-            assert image.width == expected_width
-            text = image.info["dnaby.text"]
-            layout = json.loads(image.info["dnaby.layout"])
-            resources = json.loads(image.info["dnaby.resources"])
+        artifact = read_rendered_artifact(Path(response.image))
+        assert artifact.width == expected_width
+        text = artifact.metadata["dnaby.text"]
+        layout = artifact.metadata["dnaby.layout"]
+        resources = artifact.metadata["dnaby.resources"]
         for value in expected:
             assert value in text
         assert layout["height"] > 0
@@ -670,9 +668,9 @@ async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
 
     assert isinstance(calendar, ImageResponse)
     assert calendar.temporary is True
-    with Image.open(Path(calendar.image)) as image:
-        assert "活动甲" in image.info["dnaby.text"]
-        assert "活动乙" in image.info["dnaby.text"]
+    artifact = read_rendered_artifact(Path(calendar.image))
+    assert "活动甲" in artifact.metadata["dnaby.text"]
+    assert "活动乙" in artifact.metadata["dnaby.text"]
     assert isinstance(codes, ChainResponse)
     assert any(isinstance(item, PlainTextResponse) and "CODE-A" in item.text for item in codes.components)
     assert isinstance(wiki, ImageResponse)

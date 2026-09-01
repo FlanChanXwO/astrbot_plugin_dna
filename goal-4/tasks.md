@@ -77,16 +77,16 @@
 - 剩余风险：玩家模板内部的素材预处理仍按既有约束使用 Pillow；`HtmlRenderer` 的统一结果检查和其他百科/签到/公告 renderer 仍待后续 Task 05–09 迁移，不能据此宣称全链路 T2I 完成。旧的无 sidecar renderer fixture 保留兼容验证，生产新路径使用完整 artifact pair。
 - 下一步：Task 05：先写百科、便笺与周报 T2I 直出 Red 测试。
 
-## Task 05 — 百科、便笺与周报 T2I 直出 `[pending]`
+## Task 05 — 百科、便笺与周报 T2I 直出 `[completed]`
 
 **目标**：测试先行迁移百科域内所有 T2I-backed 卡片，包括体力、周报、日历等，保留纯资源图片直返行为。
 
 **验收**：T2I JPEG/PNG 不再二次编码；尺寸、文本、资源状态和现有缓存/响应契约通过。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：`EncyclopediaRenderer` 的便笺、周报、活动日历改为以原始 T2I bytes 构造 `RenderedArtifact`，使用 sidecar/manifest 保存文本、布局和资源状态；服务响应同步携带配对文件。日历保留旧 `draw_calendar_card` 的 Pillow 兼容返回，但生产 renderer 不再经过该兼容边界；wiki/guide 纯资源图片路径未改动。
+- 验证证据：Red 测试先验证 `_write` 接收原始 bytes 会失败；Green 后 `tests/test_goal4_task05_encyclopedia_t2i.py` 通过；相关 `tests/test_encyclopedia.py` 通过（T2I 外部服务偶发失败时重跑通过）；ruff、compileall、Pyright（渲染器与服务）通过。
+- 剩余风险：`HtmlRenderer._coerce_result` 仍用 Pillow 做容器校验；兼容旧 API 的 `draw_calendar_card` 仍会解码返回 Pillow 图像，生产百科 renderer 已绕开，统一结果校验将在后续集中检查处理。
+- 下一步：Task 06：签到、帮助及其余 T2I 卡片直出。
 
 ## Task 06 — 签到、帮助及其余 T2I 卡片直出 `[pending]`
 
