@@ -35,6 +35,8 @@ class ImageResponse:
     image: Any
     temporary: bool = False
     """仅限本次事件结束后可删除的合成文件。"""
+    sidecar: Any | None = None
+    """与图片 bytes 配对的 artifact sidecar 路径。"""
     original_image_path: Path | None = None
     """与本次详情响应关联的原图；没有公开发送 ID 时不得据此登记缓存。"""
     incomplete: bool = False
@@ -172,8 +174,13 @@ class ResponseFactory:
             if response.temporary:
                 path = self._temporary_path(response.image)
                 tracker(str(path))
+                if response.sidecar is not None:
+                    sidecar_path = self._temporary_path(response.sidecar)
+                    tracker(str(sidecar_path))
                 if self._rendered_store is not None:
                     self._rendered_store.register(path)
+                    if response.sidecar is not None:
+                        self._rendered_store.register(sidecar_path)
             return
         if isinstance(response, MultiImageResponse):
             for image in response.images:

@@ -114,32 +114,43 @@ class RenderedFileStore:
             removed = 0
             skipped_active = 0
             skipped_invalid = 0
-            for path in sorted(self.root.rglob("*")):
-                if not self._is_managed_name(path):
+            candidates = sorted(self.root.rglob("*"))
+            seen: set[Path] = set()
+            for path in candidates:
+                if path in seen or not self._is_managed_name(path):
                     continue
-                if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
+                # sidecar 与图片作为一个逻辑 pair 清理，避免报告重复计数。
+                if path.name.endswith(".json"):
+                    image_path = path.with_name(path.name.removesuffix(".json"))
+                    if image_path.exists():
+                        continue
+                    pair = (path,)
+                else:
+                    image_path = path
+                    sidecar = path.with_name(path.name + ".json")
+                    pair = (path, sidecar) if sidecar.exists() else (path,)
+                seen.update(pair)
+                if any(item.is_symlink() or item.parent.is_symlink() or not item.is_file() for item in pair):
                     skipped_invalid += 1
                     continue
                 try:
-                    safe_path = self._safe_path(path)
-                    modified_at = datetime.fromtimestamp(
-                        safe_path.stat().st_mtime,
-                        tz=timezone.utc,
+                    safe_pair = tuple(self._safe_path(item) for item in pair)
+                    modified_at = max(
+                        datetime.fromtimestamp(item.stat().st_mtime, tz=timezone.utc)
+                        for item in safe_pair
                     )
                 except (OSError, ValueError):
                     skipped_invalid += 1
                     continue
-                age_seconds = max(
-                    0.0,
-                    (normalized_now - modified_at).total_seconds(),
-                )
+                age_seconds = max(0.0, (normalized_now - modified_at).total_seconds())
                 if age_seconds < self.retention_seconds:
                     continue
-                if self._leases.get(safe_path, 0) > 0:
+                if any(self._leases.get(item, 0) > 0 for item in safe_pair):
                     skipped_active += 1
                     continue
                 try:
-                    safe_path.unlink()
+                    for item in safe_pair:
+                        item.unlink()
                 except OSError:
                     skipped_invalid += 1
                 else:

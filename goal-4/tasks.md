@@ -24,16 +24,16 @@
 - 剩余风险：`HtmlRenderer` 及各领域 renderer 尚未切换到 `RenderedArtifact`，本 task 只建立契约；T2I 热路径迁移由后续 Task 03–09 完成。当前工作树的初始化前改动和其他 goal 文件未纳入本次提交。
 - 下一步：Task 03：先写原始 bytes/sidecar 原子写入、缓存 validator、ImageResponse 与 Admin Preview 的 Red 测试。
 
-## Task 03 — 原始 bytes 写入、sidecar、缓存与响应格式契约 `[pending]`
+## Task 03 — 原始 bytes 写入、sidecar、缓存与响应格式契约 `[completed]`
 
 **目标**：测试先行实现原子 artifact/sidecar 写入，泛化缓存 validator、临时文件、ImageResponse 和 Admin Preview 的 MIME/后缀处理。
 
 **验收**：最终文件与 T2I bytes/SHA 完全一致；JPEG/PNG 均可缓存和发送；配对清理覆盖 sidecar；不破坏受控路径安全检查。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `artifact_store.py`，以受控目录内临时文件 + 原子替换写入原始图片和配对 JSON sidecar，记录真实 MIME、后缀、尺寸、SHA256 与 metadata；新增读取 validator 和可注入 `CacheManager` 的 `artifact_validator()`；`ImageResponse` 增加 sidecar 关联，`ResponseFactory` 同步登记图片/sidecar 租约；`RenderedFileStore.cleanup()` 按 pair 清理并避免 sidecar 重复计数。
+- 验证证据：Red 阶段 `.venv/bin/python -m pytest -q tests/test_goal4_task03_artifact_store.py` 因缺少 `artifact_store` 模块收集失败；Green 阶段 Task 03 测试 `5 passed`；结合 `test_generated_image_lifecycle.py`、`test_html_renderer.py` 为 `15 passed`；目标文件 `ruff check` 通过；`compileall` 通过；LSP 已对 `image_inspector.py` 无诊断，响应/存储待本轮继续诊断核验。
+- 剩余风险：双文件发布已具备临时写入和失败清理，但尚未接入所有 renderer 的 T2I 热路径；当前 pair 仍为两个文件替换，完整版本 manifest 发布由后续缓存迁移/渲染任务继续收口。当前工作树初始化前改动和其他 goal 文件未纳入提交。
+- 下一步：集中检查 D01：复查规格、artifact 格式安全、sidecar 生命周期、缓存/响应边界、类型检查和 staged diff。
 
 ## 集中检查 D01 — Task 01–03 `[pending]`
 

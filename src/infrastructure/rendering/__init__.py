@@ -1,6 +1,11 @@
 """玩家、签到、通知与资料图片渲染基础设施。"""
 
 from .artifact import RenderedArtifact
+from .artifact_store import (
+    artifact_validator,
+    read_rendered_artifact,
+    write_rendered_artifact,
+)
 from .assets import (
     font_data_uri,
     image_data_uri,
@@ -52,6 +57,9 @@ __all__ = [
     "RenderedPlayerImage",
     "ResourceMap",
     "RenderedArtifact",
+    "artifact_validator",
+    "read_rendered_artifact",
+    "write_rendered_artifact",
     "T2IRenderError",
     "TemplateRenderError",
     "build_profile_header",

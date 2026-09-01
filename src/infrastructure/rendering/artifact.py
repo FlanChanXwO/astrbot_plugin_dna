@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Literal
 
@@ -20,6 +21,12 @@ class RenderedArtifact:
     width: int
     height: int
     metadata: Mapping[str, JSONValue] = field(default_factory=dict)
+
+    @property
+    def sha256(self) -> str:
+        """返回原始图片 bytes 的 SHA256，用于 sidecar 配对校验。"""
+
+        return hashlib.sha256(self.data).hexdigest()
 
     @classmethod
     def from_bytes(
