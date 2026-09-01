@@ -38,6 +38,11 @@ from .mh_cache import (
     MhSnapshotEnvelope,
     snapshot_fingerprint,
 )
+from .target_service import (
+    AnnouncementTargetService,
+    TargetMutationStatus,
+    encode_target_id,
+)
 
 NoticePayload = str | Path | tuple[Path, ...]
 PushCallable = Callable[[str, NoticePayload], Awaitable[Any]]
@@ -72,6 +77,7 @@ class NoticesService:
         cache_manager: CacheManager | None = None,
         clock: ClockCallable | None = None,
         request_gate: RequestConcurrencyGate | None = None,
+        announcement_targets: AnnouncementTargetService | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -94,6 +100,7 @@ class NoticesService:
         )
         self._clock = clock
         self.request_gate = request_gate
+        self.announcement_targets = announcement_targets
 
     def _now(self) -> datetime:
         if self._clock is not None:
@@ -611,8 +618,25 @@ class NoticesService:
             messages.ANN_SUBSCRIBE,
             group_id=request.actor.group_id,
         )
-        if any(sub.group_id == request.actor.group_id for sub in subs):
+        existing = next(
+            (sub for sub in subs if sub.unified_msg_origin == origin),
+            None,
+        )
+        if existing is not None:
             return PlainTextResponse(messages.ANN_ALREADY_SUBSCRIBED, need_at=True)
+        if self.announcement_targets is not None:
+            result = await self.announcement_targets.subscribe(
+                origin=origin,
+                user_id=request.actor.user_id,
+                bot_id=request.actor.bot_id,
+                group_id=request.actor.group_id,
+            )
+            if result.status is TargetMutationStatus.APPLIED:
+                return PlainTextResponse(messages.ANN_SUBSCRIBED, need_at=True)
+            return PlainTextResponse(
+                result.message or messages.NOTICES_SERVICE_UNAVAILABLE,
+                need_at=True,
+            )
         await self.subscriptions.add(
             messages.ANN_SUBSCRIBE,
             origin=origin,
@@ -621,7 +645,6 @@ class NoticesService:
             group_id=request.actor.group_id,
             user_type="group",
         )
-        self._sync_ann_group(request.actor.group_id, True)
         return PlainTextResponse(messages.ANN_SUBSCRIBED, need_at=True)
 
     async def unsubscribe_ann(self, request: NoticeRequest):
@@ -634,8 +657,22 @@ class NoticesService:
         origin, error = await self._origin(request.actor)
         if error:
             return PlainTextResponse(error, need_at=True)
+        target = next(
+            (
+                item
+                for item in await self.subscriptions.get(messages.ANN_SUBSCRIBE)
+                if item.unified_msg_origin == origin
+            ),
+            None,
+        )
+        if target is None:
+            return PlainTextResponse(messages.ANN_NOT_SUBSCRIBED, need_at=True)
+        if self.announcement_targets is not None:
+            result = await self.announcement_targets.unsubscribe(encode_target_id(target))
+            if result.status is TargetMutationStatus.APPLIED:
+                return PlainTextResponse(messages.ANN_UNSUBSCRIBED, need_at=True)
+            return PlainTextResponse(result.message or messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
         if await self.subscriptions.delete(messages.ANN_SUBSCRIBE, origin):
-            self._sync_ann_group(request.actor.group_id, False)
             return PlainTextResponse(messages.ANN_UNSUBSCRIBED, need_at=True)
         return PlainTextResponse(messages.ANN_NOT_SUBSCRIBED, need_at=True)
 

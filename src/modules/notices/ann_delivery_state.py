@@ -115,6 +115,53 @@ class AnnDeliveryStateStore:
                     self._records = previous
                     raise
 
+    async def baseline_target(self, target: str, post_ids: Iterable[str]) -> None:
+        """把当前已知公告标记为该目标已处理，启用后只接收未来公告。"""
+
+        target = str(target)
+        keys = tuple(dict.fromkeys(str(post_id) for post_id in post_ids))
+        if not target:
+            raise ValueError("公告投递目标不能为空")
+        async with self._lock:
+            await self.load()
+            previous = self._records.copy()
+            try:
+                for post_id in keys:
+                    record = self._records.get(post_id, AnnDeliveryRecord())
+                    self._records[post_id] = AnnDeliveryRecord(
+                        observed_targets=record.observed_targets | {target},
+                        delivered_targets=record.delivered_targets | {target},
+                        legacy_processed=record.legacy_processed,
+                    )
+                if keys:
+                    self._save_unlocked()
+            except BaseException:
+                self._records = previous
+                raise
+
+    async def remove_target(self, target: str) -> None:
+        """从所有公告投递记录移除目标，避免停用期间状态在重新启用时补发。"""
+
+        target = str(target)
+        if not target:
+            raise ValueError("公告投递目标不能为空")
+        async with self._lock:
+            await self.load()
+            previous = self._records.copy()
+            changed = False
+            try:
+                for post_id, record in tuple(self._records.items()):
+                    observed = record.observed_targets - {target}
+                    delivered = record.delivered_targets - {target}
+                    if observed != record.observed_targets or delivered != record.delivered_targets:
+                        self._records[post_id] = AnnDeliveryRecord(observed, delivered, record.legacy_processed)
+                        changed = True
+                if changed:
+                    self._save_unlocked()
+            except BaseException:
+                self._records = previous
+                raise
+
     async def pending_targets(
         self,
         post_id: str,

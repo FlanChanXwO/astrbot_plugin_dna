@@ -79,6 +79,7 @@ from .modules.notices.ann_delivery_state import AnnDeliveryStateStore
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.contracts import NoticesTransport
 from .modules.notices.service import NoticesService
+from .modules.notices.target_service import AnnouncementTargetService
 from .modules.operations.resource_service import ResourceUpdateService
 from .modules.operations.service import PanelService
 from .modules.player.cache import PlayerCache
@@ -372,23 +373,42 @@ def build_runtime(
             )
             return False
 
+    resolved_notices_transport = notices_transport or DnaApiNoticesTransport(
+        runtime_database,
+        request_gate=request_gate,
+    )
+    ann_state = AnnStateStore(runtime_database.path.parent / "ann_state.json")
+    ann_delivery_state = AnnDeliveryStateStore(
+        runtime_database.path.parent / "ann_delivery_state.json",
+    )
+
+    class _AnnouncementListSource:
+        async def current_announcement_ids(self) -> tuple[str, ...]:
+            snapshot = await resolved_notices_transport.get_ann_list()
+            return tuple(
+                post.post_id for post in snapshot.posts if post.post_id.isdigit()
+            )
+
+    announcement_targets = AnnouncementTargetService(
+        subscriptions,
+        ann_delivery_state,
+        _AnnouncementListSource(),
+    )
     notices_service = NoticesService(
         runtime_database,
-        notices_transport
-        or DnaApiNoticesTransport(runtime_database, request_gate=request_gate),
+        resolved_notices_transport,
         privacy_service,
         notices_renderer,
         subscriptions=subscriptions,
-        ann_state=AnnStateStore(runtime_database.path.parent / "ann_state.json"),
-        ann_delivery_state=AnnDeliveryStateStore(
-            runtime_database.path.parent / "ann_delivery_state.json",
-        ),
+        ann_state=ann_state,
+        ann_delivery_state=ann_delivery_state,
         secret_simple_image=settings.notifications.secret_simple_image,
         cache_manager=cache_manager,
         push=_push_notice,
         config_store=config if isinstance(config, dict) else None,
         resource_snapshots=resource_snapshots,
         request_gate=request_gate,
+        announcement_targets=announcement_targets,
     )
     notices_scheduler = NoticesScheduler(
         notices_service,
@@ -473,6 +493,7 @@ def build_runtime(
         "scheduler_registry": scheduler_registry,
         "sign_scheduler": sign_scheduler,
         "notices_service": notices_service,
+        "announcement_target_service": announcement_targets,
         "notices_scheduler": notices_scheduler,
         "admin_api_service": admin_api_service,
         "admin_account_service": admin_account_service,

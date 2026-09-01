@@ -243,6 +243,7 @@ class SubscriptionStore:
         uid: str = "",
         extra_message: str | None = None,
         extra_data: str | None = None,
+        enabled: bool | None = None,
     ) -> bool:
         """更新一条订阅（type+origin+uid 精确匹配）的附加数据；返回是否命中。"""
 
@@ -275,7 +276,7 @@ class SubscriptionStore:
                     if extra_message is not None
                     else sub.extra_message,
                     extra_data=extra_data if extra_data is not None else sub.extra_data,
-                    enabled=sub.enabled,
+                    enabled=sub.enabled if enabled is None else enabled,
                 )
                 if (
                     sub.type == sub_type

@@ -256,16 +256,16 @@
 - 剩余风险：`NoticesService` 保留兼容性的 `_sync_ann_group` 空调用点与 `config_store` 构造参数，后续目标生命周期 service 可统一移除；旧配置仍由 AstrBot 原始配置文件保留，但不再导入、改写或恢复。
 - 下一步：进入 Task 17，实现公告目标启停/删除生命周期与“重新启用只接收未来公告”的状态基线。
 
-## Task 17 — AnnouncementTargetService 生命周期 `[pending]`
+## Task 17 — AnnouncementTargetService 生命周期 `[completed]`
 
 **目标**：测试先行统一 subscribe/unsubscribe/disable/enable/delete，并实现“重新启用只接收未来公告”的状态基线。
 
 **验收**：聊天命令共用 service；停用先安全生效；启用清理失败保持禁用；删除后不发送；部分完成结果显式且可恢复。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `AnnouncementTargetService`，统一公告目标订阅、退订、停用、启用和删除；聊天公告命令与 bootstrap 注入的 service 共用；停用先落盘 `enabled=false` 再清理投递记录；启用先读取当前公告并建立目标基线，失败保持停用；删除先移除事实源，清理失败返回 partial。为目标动作增加按身份 key 的进程内锁，避免启停/删除竞态。
+- 验证证据：新增 Task 17 生命周期测试 `4 passed`；Task 16 与 Task 17 合计 `6 passed`；配置回归 `18 passed`；ruff、compileall 通过。
+- 剩余风险：Admin API 尚未调用目标生命周期 service，现有 `update_target/delete_target` 仍直接操作 store；Task 18 将收口 API 契约并禁止手工公告目标变更。
+- 下一步：进入 Task 18，实现 Admin API 与 Web routes 的公告目标管理契约。
 
 ## Task 18 — Admin API 与 Web routes 目标管理契约 `[pending]`
 

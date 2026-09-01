@@ -141,6 +141,7 @@ class TaskTarget:
             uid=subscription.uid,
             extra_message=subscription.extra_message,
             extra_data=subscription.extra_data,
+            enabled=subscription.enabled,
         )
 
     @property
@@ -486,6 +487,7 @@ class AdminApiService:
             uid=target.uid,
             extra_message=_patch_value(update.extra_message, target.extra_message),
             extra_data=_patch_value(update.extra_data, target.extra_data),
+            enabled=target.enabled,
         )
         try:
             replaced = await self.subscriptions.replace_target(*key, replacement)
