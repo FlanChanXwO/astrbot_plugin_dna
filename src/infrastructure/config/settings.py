@@ -320,13 +320,6 @@ class NotificationSettings(_SettingsModel):
         description="公告推送开关",
         json_schema_extra={"hint": "是否启用公告推送"},
     )
-    announcement_groups: dict[str, Any] = Field(
-        default_factory=dict,
-        description="公告推送群组",
-        json_schema_extra={
-            "hint": "公告推送群组配置（群内输入 kk订阅公告 也会自动同步到此处）"
-        },
-    )
     announcement_ids: list[int] = Field(
         default_factory=list,
         description="已推送公告ID",
@@ -473,7 +466,9 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
                     if "command_prefixes" not in group_data:
                         result[group_name]["command_prefixes"] = v
                     continue
-                if group_name == "notifications" and k in _REMOVED_MH_TYPED_FIELDS:
+                if group_name == "notifications" and (
+                    k in _REMOVED_MH_TYPED_FIELDS or k == "announcement_groups"
+                ):
                     continue
                 result[group_name][k] = v
 

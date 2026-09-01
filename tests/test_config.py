@@ -30,8 +30,7 @@ def test_schema_generation():
     assert "MHPushSubscribe" not in default_items
     assert "MHCache" not in default_items
     assert default_items["MHSubscribe"]["type"] == "list"
-    assert default_items["DNAAnnGroups"]["type"] == "object"
-    assert default_items["DNAAnnGroups"]["items"] == {}
+    assert "DNAAnnGroups" not in default_items
     assert "DNASignin" not in schema["DNAUID签到配置"]["items"]
 
 
@@ -63,7 +62,7 @@ def test_schema_is_accepted_by_astrbot_config(tmp_path):
         config_path=str(tmp_path / "config.json"),
         schema=generate_astrbot_schema(),
     )
-    assert config["DNAUID配置"]["DNAAnnGroups"] == {}
+    assert "DNAAnnGroups" not in config["DNAUID配置"]
 
 
 def test_get_config_defaults():
@@ -214,7 +213,6 @@ def test_all_config_items_resolve_from_typed_config():
     assert settings.sign_in.group_report_image is True
 
     assert settings.notifications.announcement_enabled is False
-    assert settings.notifications.announcement_groups == {"123": True}
     assert settings.notifications.announcement_ids == [101, 102]
     assert settings.notifications.announcement_check_minutes == 15
     assert settings.notifications.secret_subscriptions == ["private", "group"]
@@ -405,7 +403,6 @@ def test_legacy_nested_and_flat_config_migration():
     assert migrated["login"]["max_bind_count"] == 4
     assert migrated["login"]["url"] == "http://login.local:8080"
     assert migrated["display"]["command_prefixes"] == ["dna"]
-    assert migrated["notifications"]["announcement_groups"] == {"group_100": True}
     assert migrated["notifications"]["secret_simple_image"] is True
     assert migrated["sign_in"]["sign_time"] == "08:00"
     assert migrated["sign_in"]["enable_all_users"] is True
@@ -415,7 +412,6 @@ def test_legacy_nested_and_flat_config_migration():
     assert settings.login.max_bind_count == 4
     assert settings.login.url == "http://login.local:8080"
     assert settings.display.command_prefix == "dna"
-    assert settings.notifications.announcement_groups == {"group_100": True}
     assert settings.notifications.secret_simple_image is True
     assert settings.sign_in.sign_time == "08:00"
     assert settings.sign_in.enable_all_users is True

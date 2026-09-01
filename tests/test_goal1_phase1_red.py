@@ -168,6 +168,7 @@ async def test_handler_passes_last_valid_target_to_use_case() -> None:
         description="目标测试",
         examples=("目标测试",),
         permission="user",
+        mention_policy="query",
         use_case=use_case,
     )
     registry = CommandRegistry((spec,))

@@ -672,8 +672,38 @@ async def test_push_mh_now_includes_at_user_id_for_group_subscriber(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_subscribe_and_unsubscribe_ann_syncs_to_config_and_saves(tmp_path: Path) -> None:
-    """订阅公告和退订公告时，群组 ID 同步到 config[notifications][announcement_groups] 并持久化保存。"""
+async def test_disabled_ann_subscription_is_not_polled_or_pushed(tmp_path: Path) -> None:
+    """停用公告目标不参与观察、投递或推送。"""
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    await subscriptions.add(
+        messages.ANN_SUBSCRIBE,
+        origin="platform:group:disabled",
+        group_id="disabled",
+        enabled=False,
+    )
+    pushed: list[str] = []
+
+    async def push(origin: str, _payload: object) -> None:
+        pushed.append(origin)
+
+    service = _service(
+        database,
+        FakeNoticesTransport(ann_list=_ann_snapshot()),
+        tmp_path,
+        subscriptions=subscriptions,
+        push=push,
+    )
+
+    assert await service.poll_ann_now() == 0
+    assert pushed == []
+    assert not (tmp_path / "ann_delivery_state.json").exists()
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_subscribe_and_unsubscribe_ann_does_not_sync_config(tmp_path: Path) -> None:
+    """订阅公告和退订公告只写 subscriptions.json，不修改旧配置。"""
     database = await _database_with_binding(tmp_path)
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     saved = []
@@ -701,16 +731,16 @@ async def test_subscribe_and_unsubscribe_ann_syncs_to_config_and_saves(tmp_path:
     sub_res = await service.subscribe_ann(req)
     assert isinstance(sub_res, PlainTextResponse)
     assert "订阅" in sub_res.text
-    assert config["notifications"]["announcement_groups"].get("group-999") is True
-    assert len(saved) >= 1
+    assert config["notifications"]["announcement_groups"] == {}
+    assert saved == []
 
     # 退订公告
     unsub_req = _request("退订公告", actor=actor)
     unsub_res = await service.unsubscribe_ann(unsub_req)
     assert isinstance(unsub_res, PlainTextResponse)
     assert "已取消" in unsub_res.text or "退订" in unsub_res.text or "成功" in unsub_res.text
-    assert "group-999" not in config["notifications"]["announcement_groups"]
-    assert len(saved) >= 2
+    assert config["notifications"]["announcement_groups"] == {}
+    assert saved == []
     await database.dispose()
 
 

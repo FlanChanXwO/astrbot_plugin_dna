@@ -589,36 +589,13 @@ class NoticesService:
         return PlainTextResponse(messages.MH_TEST_FAILED)
 
     def _sync_ann_group(self, group_id: str | None, subscribed: bool) -> None:
-        if not group_id:
-            return
-        gid_str = str(group_id)
-        if getattr(self, "_sync_ann_group_cb", None):
-            self._sync_ann_group_cb(gid_str, subscribed)
-            return
-        if getattr(self, "config_store", None) is not None:
-            notif = self.config_store.setdefault("notifications", {})
-            if isinstance(notif, dict):
-                groups = notif.setdefault("announcement_groups", {})
-                if isinstance(groups, dict):
-                    if subscribed:
-                        groups[gid_str] = True
-                    else:
-                        groups.pop(gid_str, None)
-                elif isinstance(groups, list):
-                    if subscribed and gid_str not in groups:
-                        groups.append(gid_str)
-                    elif not subscribed and gid_str in groups:
-                        groups.remove(gid_str)
-            legacy_dna = self.config_store.get("DNAUID配置")
-            if isinstance(legacy_dna, dict):
-                legacy_groups = legacy_dna.setdefault("DNAAnnGroups", {})
-                if isinstance(legacy_groups, dict):
-                    if subscribed:
-                        legacy_groups[gid_str] = True
-                    else:
-                        legacy_groups.pop(gid_str, None)
-            if hasattr(self.config_store, "save_config"):
-                self.config_store.save_config()
+        """保留旧调用点，但公告目标不再写入插件配置。
+
+        ``subscriptions.json`` 才能完整保存平台、Bot 与会话 origin；旧配置仅供
+        人工参考，不能由命令或启动流程改写、恢复。
+        """
+
+        return
 
     async def subscribe_ann(self, request: NoticeRequest):
         """订阅公告推送（admin，仅群聊）。"""
@@ -835,7 +812,9 @@ class NoticesService:
             return 0
 
         subs = await self.subscriptions.get(messages.ANN_SUBSCRIBE)
-        observed_targets = tuple(dict.fromkeys(sub.unified_msg_origin for sub in subs))
+        observed_targets = tuple(
+            dict.fromkeys(sub.unified_msg_origin for sub in subs if sub.enabled)
+        )
         await self.ann_delivery_state.migrate_legacy_ids(
             await self.ann_state.known_ids(),
         )

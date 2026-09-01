@@ -512,50 +512,25 @@ def build_runtime(
     )
     resolved_services["agent_tools_lifecycle"] = agent_tools_lifecycle
 
-    async def _sync_ann_config_on_startup() -> None:
-        from .modules.notices import messages
+    def _warn_deprecated_announcement_config() -> None:
+        """旧公告群组配置不再参与运行，只给出不泄露值的迁移提示。"""
 
-        if subscriptions is None:
+        if not isinstance(config, dict):
             return
-        existing_subs = await subscriptions.get(messages.ANN_SUBSCRIBE)
-        modified = False
-        if isinstance(config, dict):
-            notif = config.setdefault("notifications", {})
-            if isinstance(notif, dict):
-                groups = notif.setdefault("announcement_groups", {})
-                if isinstance(groups, dict):
-                    for sub in existing_subs:
-                        if sub.group_id and str(sub.group_id) not in groups:
-                            groups[str(sub.group_id)] = True
-                            modified = True
-            if modified:
-                save_config = getattr(config, "save_config", None)
-                if callable(save_config):
-                    save_config()
+        notifications = config.get("notifications")
+        if isinstance(notifications, dict) and "announcement_groups" in notifications:
+            from astrbot.api import logger
 
-        cfg_groups: object = settings.notifications.announcement_groups
-        if cfg_groups:
-            configured_ids: set[str] = set()
-            if isinstance(cfg_groups, dict):
-                configured_ids = {str(k) for k, v in cfg_groups.items() if v}
-            elif isinstance(cfg_groups, list):
-                configured_ids = {str(item) for item in cfg_groups}
-            subscribed_ids = {str(s.group_id) for s in existing_subs if s.group_id}
-            for gid in configured_ids - subscribed_ids:
-                await subscriptions.add(
-                    messages.ANN_SUBSCRIBE,
-                    origin=f"group:{gid}",
-                    user_id="",
-                    bot_id="",
-                    group_id=gid,
-                    user_type="group",
-                )
+            logger.warning(
+                "[dnaby] notifications.announcement_groups 已弃用；公告目标请在真实群聊中重新执行订阅命令。"
+            )
+
+    _warn_deprecated_announcement_config()
 
     web = WebRegistrar(context, build_admin_web_routes(resolved_services))
     lifecycle = PluginLifecycle(
         start_hooks=(
             web.initialize,
-            _sync_ann_config_on_startup,
             cache_maintenance.start,
             resource_update_service.start_preheat,
             sign_scheduler.start,

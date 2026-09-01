@@ -34,13 +34,14 @@
 
 ## 通知与缓存字段
 
-`notifications` 中的公告字段通常由订阅命令和通知状态维护；密函推送时间窗口属于每条订阅记录，
+公告目标由运行期 `subscriptions.json` 唯一维护；旧 `announcement_groups` 仅保留给人工参考，不再导入、同步或恢复。
+
+`notifications` 中的公告字段用于全局开关和兼容状态；密函推送时间窗口属于每条订阅记录，
 通过 `订阅密函时间17:23` 或 `订阅密函周期17:23` 设置，不是全局配置。
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
 | `notifications.announcement_enabled` | `true` | 是否启用公告推送。 |
-| `notifications.announcement_groups` | `{}` | 公告推送群组配置；群内执行 `kk订阅公告` 时会同步更新。 |
 | `notifications.announcement_ids` | `[]` | 已处理公告 ID 的兼容状态列表。 |
 | `notifications.announcement_check_minutes` | `10` | 公告轮询间隔，范围 `0..60` 分钟。 |
 | `notifications.secret_subscriptions` | `["group"]` | 密函订阅作用域，可选 `private`、`group`。 |

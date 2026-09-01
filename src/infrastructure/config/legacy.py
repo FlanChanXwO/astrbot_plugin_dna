@@ -94,12 +94,6 @@ CONFIG_DEFAULT = {
                 "type": "bool",
                 "default": True,
             },
-            "DNAAnnGroups": {
-                "description": "公告推送群组列表",
-                "type": "object",
-                "items": {},
-                "default": {},
-            },
             "DNAAnnIds": {
                 "description": "已推送的公告ID",
                 "type": "list",
@@ -225,7 +219,6 @@ _LEGACY_MAP: dict[str, tuple[str, str]] = {
     "AllowAtQuery": ("display", "allow_mention_query"),
     # notifications
     "DNAAnnState": ("notifications", "announcement_enabled"),
-    "DNAAnnGroups": ("notifications", "announcement_groups"),
     "DNAAnnIds": ("notifications", "announcement_ids"),
     "AnnMinuteCheck": ("notifications", "announcement_check_minutes"),
     "MHSubscribe": ("notifications", "secret_subscriptions"),

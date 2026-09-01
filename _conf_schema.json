@@ -204,13 +204,6 @@
         "hint": "是否启用公告推送",
         "default": true
       },
-      "announcement_groups": {
-        "type": "object",
-        "description": "公告推送群组",
-        "hint": "公告推送群组配置（群内输入 kk订阅公告 也会自动同步到此处）",
-        "default": {},
-        "items": {}
-      },
       "announcement_ids": {
         "type": "list",
         "description": "已推送公告ID",
