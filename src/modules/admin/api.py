@@ -126,6 +126,8 @@ class TaskTarget:
     extra_message: str
     extra_data: str
     enabled: bool = True
+    provenance: str = "legacy"
+    managed: bool = False
 
     @classmethod
     def from_subscription(cls, subscription: Subscription) -> TaskTarget:
@@ -147,6 +149,8 @@ class TaskTarget:
             extra_message=subscription.extra_message,
             extra_data=subscription.extra_data,
             enabled=subscription.enabled,
+            provenance=subscription.provenance,
+            managed=subscription.provenance == "chat_command",
         )
 
     @property
@@ -176,6 +180,8 @@ class TaskTarget:
             "extra_message": self.extra_message,
             "extra_data": self.extra_data,
             "enabled": self.enabled,
+            "provenance": self.provenance,
+            "managed": self.managed,
         }
 
 
@@ -482,6 +488,14 @@ class AdminApiService:
             return _failure(AdminErrorCode.VALIDATION, "target_id 无效")
         if key[0] != notices_messages.ANN_SUBSCRIBE:
             return _failure(AdminErrorCode.UNSUPPORTED, "该目标类型不支持公告生命周期操作")
+        try:
+            existing = await self._find_target(key)
+        except Exception:  # noqa: BLE001
+            return _failure(AdminErrorCode.INTERNAL, "投递目标读取失败")
+        if existing is None:
+            return _failure(AdminErrorCode.NOT_FOUND, "公告目标不存在")
+        if existing.provenance != "chat_command":
+            return _failure(AdminErrorCode.UNSUPPORTED, "该公告目标来源未核验，不能由管理页操作")
         method = getattr(service, action, None)
         if not callable(method):
             return _failure(AdminErrorCode.INTERNAL, "公告目标服务不可用")
@@ -533,6 +547,7 @@ class AdminApiService:
             extra_message=_patch_value(update.extra_message, target.extra_message),
             extra_data=_patch_value(update.extra_data, target.extra_data),
             enabled=target.enabled,
+            provenance=target.provenance,
         )
         try:
             replaced = await self.subscriptions.replace_target(*key, replacement)

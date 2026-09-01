@@ -119,6 +119,7 @@ class AnnouncementTargetService:
             bot_id=bot_id,
             user_type="group",
             enabled=True,
+            provenance="chat_command",
         )
         return TargetMutationResult(TargetMutationStatus.APPLIED, subscription=subscription)
 

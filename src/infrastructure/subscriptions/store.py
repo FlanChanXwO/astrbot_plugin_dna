@@ -29,6 +29,7 @@ class Subscription:
     extra_message: str = ""
     extra_data: str = ""
     enabled: bool = True
+    provenance: str = "legacy"
 
 
 class SubscriptionStore:
@@ -64,6 +65,7 @@ class SubscriptionStore:
                     extra_message=str(item.get("extra_message", "")),
                     extra_data=str(item.get("extra_data", "")),
                     enabled=item.get("enabled", True) if isinstance(item.get("enabled", True), bool) else True,
+                    provenance=str(item.get("provenance", "legacy")),
                 )
                 for item in raw
                 if isinstance(item, dict)
@@ -103,6 +105,7 @@ class SubscriptionStore:
         extra_message: str = "",
         extra_data: str = "",
         enabled: bool = True,
+        provenance: str = "legacy",
     ) -> Subscription:
         """新增订阅；同一 type+origin+uid 只保留最新一条。
 
@@ -123,6 +126,7 @@ class SubscriptionStore:
                 extra_message=extra_message,
                 extra_data=extra_data,
                 enabled=enabled,
+                provenance=provenance,
             )
             self._subs = [
                 sub
@@ -277,6 +281,7 @@ class SubscriptionStore:
                     else sub.extra_message,
                     extra_data=extra_data if extra_data is not None else sub.extra_data,
                     enabled=sub.enabled if enabled is None else enabled,
+                    provenance=sub.provenance,
                 )
                 if (
                     sub.type == sub_type
