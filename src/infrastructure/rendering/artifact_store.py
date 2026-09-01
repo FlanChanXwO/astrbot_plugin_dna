@@ -7,8 +7,8 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from uuid import uuid4
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 if TYPE_CHECKING:
     from ...entry.response import ImageResponse
@@ -91,7 +91,7 @@ def write_rendered_artifact(
     artifact: RenderedArtifact,
     *,
     prefix: str,
-) -> "ImageResponse":
+) -> ImageResponse:
     from ...entry.response import ImageResponse
 
     """在受控目录原子发布图片及配对 sidecar。"""
@@ -195,7 +195,7 @@ def read_rendered_artifact(image: str | Path) -> RenderedArtifact:
 def export_rendered_artifact(
     image: str | Path,
     destination_stem: str | Path,
-) -> "ImageResponse":
+) -> ImageResponse:
     """把已发布 artifact 复制为确定性文件名，并重建有效配对清单。"""
 
     from ...entry.response import ImageResponse

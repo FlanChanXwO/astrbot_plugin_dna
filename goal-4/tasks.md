@@ -371,13 +371,13 @@
 - 新增修复 task：Task 25 继续处理 13 个全量失败：公网 T2I/远程图片 fixture、旧 PNG 断言、artifact fixture 及测试导入环境。
 - 剩余风险：缺少真实 T2I、AstrBot Dashboard bridge 和 OneBot 运行时，无法完成生产视觉和消息发送验收。
 
-## Task 25 — 专家审查与候选发布全量门禁 `[pending]`
+## Task 25 — 专家审查与候选发布全量门禁 `[completed]`
 
 **目标**：使用 code-review-expert 自审本 goal 全部变更，修复阻塞问题，并运行最终候选的完整测试、ruff、compileall、Pyright、manifest/schema 一致性和 diff 检查。
 
 **验收**：无已知高风险问题；失败按本次变更/既有/环境分类；提交和工作树审计不包含用户初始化前改动；形成终审所需证据。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：进入 Goal 终审轮。
+- 实际完成：完成本轮专家式审查，复核 T2I 原始 bytes、全局并发门、公告 single-flight/生命周期来源校验、At 查询策略隔离、管理页认证边界与 Dashboard 目标操作；修复最后一个非确定性的密函图片测试 fixture，并整理 artifact_store 的类型导入/注解格式。
+- 验证证据：完整 `uv run pytest -q` 通过，`818 passed, 1 skipped, 5 warnings`（2026-09-01）；目标聚焦回归 `60 passed`；配置/命令/写契约 `68 passed`；`python3 -m compileall -q src pages/dashboard` 通过；Dashboard JS `bridge.js`、`store.js` 语法检查通过；`git diff --check 8400688..HEAD` 通过；变更相关 Ruff 检查通过。工作树审计仅保留用户既有 `pyrightconfig.json` 修改及既有未跟踪目录/文件，未被本 goal 提交。
+- 剩余风险：全量 `ruff check .` 仍有 31 个仓库既有或非本轮范围的风格/类型规则项；`uv run pyright --project pyrightconfig.json` 仍有 25 个跨历史模块的既有类型错误，本轮未扩大范围修复；真实 T2I 服务、AstrBot Dashboard bridge、OneBot 登录运行时不可用，因此生产字节对比、真实 At 消息和实际按钮写操作仍缺运行时证据。一次完整测试曾因外部 MH 渲染 fixture 波动失败，已隔离为离线 fixture 后复跑通过。
+- 下一步：进入 Goal 终审轮；若宿主运行时可用，补做真实 T2I/OneBot/Dashboard 冒烟，否则按上述环境风险交付。
