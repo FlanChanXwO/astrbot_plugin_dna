@@ -850,12 +850,19 @@ class NoticesService:
 
         subs = await self.subscriptions.get(messages.ANN_SUBSCRIBE)
         observed_targets = tuple(
-            dict.fromkeys(sub.unified_msg_origin for sub in subs if sub.enabled)
+            dict.fromkeys(
+                sub.unified_msg_origin
+                for sub in subs
+                if sub.enabled and sub.provenance == "chat_command"
+            )
         )
         if observed_targets:
             await self.ann_delivery_state.migrate_legacy_ids(
                 await self.ann_state.known_ids(),
             )
+
+        if not observed_targets:
+            return 0
 
         pushed = 0
         current_targets = set(observed_targets)

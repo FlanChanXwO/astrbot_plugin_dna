@@ -600,6 +600,7 @@ async def test_poll_ann_now_continues_when_one_subscriber_push_fails(tmp_path: P
     await subscriptions.add(
         messages.ANN_SUBSCRIBE,
         origin="platform:group:fail_group",
+        provenance="chat_command",
         user_id="user-1",
         bot_id="bot-1",
         group_id="fail_group",
@@ -608,6 +609,7 @@ async def test_poll_ann_now_continues_when_one_subscriber_push_fails(tmp_path: P
     await subscriptions.add(
         messages.ANN_SUBSCRIBE,
         origin="platform:group:ok_group",
+        provenance="chat_command",
         user_id="user-2",
         bot_id="bot-1",
         group_id="ok_group",
