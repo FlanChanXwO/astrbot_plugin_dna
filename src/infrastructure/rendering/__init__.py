@@ -1,5 +1,6 @@
 """玩家、签到、通知与资料图片渲染基础设施。"""
 
+from .artifact import RenderedArtifact
 from .assets import (
     font_data_uri,
     image_data_uri,
@@ -50,6 +51,7 @@ __all__ = [
     "RenderedNoticesImage",
     "RenderedPlayerImage",
     "ResourceMap",
+    "RenderedArtifact",
     "T2IRenderError",
     "TemplateRenderError",
     "build_profile_header",

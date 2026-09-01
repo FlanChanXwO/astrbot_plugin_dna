@@ -13,16 +13,16 @@
 - 剩余风险：尚未提交；当前工作树包含初始化前既有修改和其他 goal 未跟踪文件，提交时必须只暂存本规格。
 - 下一步：Task 02：先写并运行 RenderedArtifact/标准库 JPEG/PNG 检查器的 Red 测试。
 
-## Task 02 — RenderedArtifact 与无 Pillow 图片检查器 `[pending]`
+## Task 02 — RenderedArtifact 与无 Pillow 图片检查器 `[completed]`
 
 **目标**：测试先行新增 JPEG/PNG 结构校验、尺寸提取和 `RenderedArtifact`，拒绝 HTML、截断和格式不匹配结果。
 
 **验收**：常规 artifact 构造不调用 Pillow；JPEG/PNG 正常及损坏 fixture 均有 Red/Green 证据；无新依赖。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `image_inspector.py`，使用标准库解析 PNG signature/chunk/CRC/IHDR/IEND 与 JPEG marker/SOF/EOI，提取媒体类型、后缀和尺寸；新增不可变 `RenderedArtifact.from_bytes()`，保留输入 bytes 身份并拒绝空、截断、HTML、损坏和格式不匹配结果；从 infrastructure/facade 导出 artifact。新增 Task 02 单测，并以 Pillow writer/open monkeypatch 证明检查器不依赖 Pillow。
+- 验证证据：Red 阶段先运行 `.venv/bin/python -m pytest -q tests/test_goal4_task02_artifact.py`，因缺少待实现的 `artifact` 模块收集失败；Green 阶段 `25 passed`（Task 02 + `test_html_renderer.py` + `test_rendering_assets.py`）；`ruff check` 目标文件通过；`python3 -m compileall -q` 通过；LSP diagnostics 对 `image_inspector.py` 返回无错误。
+- 剩余风险：`HtmlRenderer` 及各领域 renderer 尚未切换到 `RenderedArtifact`，本 task 只建立契约；T2I 热路径迁移由后续 Task 03–09 完成。当前工作树的初始化前改动和其他 goal 文件未纳入本次提交。
+- 下一步：Task 03：先写原始 bytes/sidecar 原子写入、缓存 validator、ImageResponse 与 Admin Preview 的 Red 测试。
 
 ## Task 03 — 原始 bytes 写入、sidecar、缓存与响应格式契约 `[pending]`
 

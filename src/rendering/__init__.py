@@ -2,6 +2,7 @@
 
 from ..infrastructure.rendering import (
     AssetRenderError,
+    RenderedArtifact,
     CheckinRenderer,
     ClipRect,
     EncyclopediaRenderer,
@@ -74,6 +75,7 @@ __all__ = [
     "PlayerRenderer",
     "RenderResultError",
     "RenderSpec",
+    "RenderedArtifact",
     "RenderedCheckinImage",
     "RenderedEncyclopediaImage",
     "RenderedNoticesImage",
