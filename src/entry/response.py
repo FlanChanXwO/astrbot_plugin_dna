@@ -35,12 +35,12 @@ class ImageResponse:
     image: Any
     temporary: bool = False
     """仅限本次事件结束后可删除的合成文件。"""
-    sidecar: Any | None = None
-    """与图片 bytes 配对的 artifact sidecar 路径。"""
     original_image_path: Path | None = None
     """与本次详情响应关联的原图；没有公开发送 ID 时不得据此登记缓存。"""
     incomplete: bool = False
     """素材缺失时允许本次发送，但不应作为完整卡片缓存。"""
+    sidecar: Any | None = None
+    """与图片 bytes 配对的 artifact sidecar 路径。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +163,21 @@ class ResponseFactory:
             raise ValueError("临时图片不在受控渲染目录中")
         return path
 
+    def _track_one_temporary_image(self, event: Any, response: ImageResponse, tracker: Any) -> None:
+        """登记单个临时图片及其可选 sidecar，供复合响应复用。"""
+
+        if not response.temporary:
+            return
+        path = self._temporary_path(response.image)
+        tracker(str(path))
+        if self._rendered_store is not None:
+            self._rendered_store.register(path)
+        if response.sidecar is not None:
+            sidecar_path = self._temporary_path(response.sidecar)
+            tracker(str(sidecar_path))
+            if self._rendered_store is not None:
+                self._rendered_store.register(sidecar_path)
+
     def _track_temporary_images(self, event: Any, response: CommandResponse) -> None:
         """将明确标记的合成图片交给 AstrBot 事件生命周期清理。"""
 
@@ -171,32 +186,16 @@ class ResponseFactory:
             # 单元测试中的最小 event 只验证 result 构造；真实 AstrBot event 提供该公开方法。
             return
         if isinstance(response, ImageResponse):
-            if response.temporary:
-                path = self._temporary_path(response.image)
-                tracker(str(path))
-                if response.sidecar is not None:
-                    sidecar_path = self._temporary_path(response.sidecar)
-                    tracker(str(sidecar_path))
-                if self._rendered_store is not None:
-                    self._rendered_store.register(path)
-                    if response.sidecar is not None:
-                        self._rendered_store.register(sidecar_path)
+            self._track_one_temporary_image(event, response, tracker)
             return
         if isinstance(response, MultiImageResponse):
             for image in response.images:
-                if image.temporary:
-                    path = self._temporary_path(image.image)
-                    tracker(str(path))
-                    if self._rendered_store is not None:
-                        self._rendered_store.register(path)
+                self._track_one_temporary_image(event, image, tracker)
             return
         if isinstance(response, ChainResponse) and isinstance(response.components, (list, tuple)):
             for component in response.components:
-                if isinstance(component, ImageResponse) and component.temporary:
-                    path = self._temporary_path(component.image)
-                    tracker(str(path))
-                    if self._rendered_store is not None:
-                        self._rendered_store.register(path)
+                if isinstance(component, ImageResponse):
+                    self._track_one_temporary_image(event, component, tracker)
 
     def build(self, event: Any, response: CommandResponse) -> Any:
         """将框架无关 DTO 转换为 AstrBot 原生结果。"""

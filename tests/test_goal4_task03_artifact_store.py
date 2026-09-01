@@ -35,6 +35,9 @@ class CleanupEvent:
     def image_result(self, image: object) -> object:
         return image
 
+    def chain_result(self, components: object) -> object:
+        return components
+
 
 def test_write_and_read_artifact_preserve_bytes_and_sidecar(tmp_path: Path) -> None:
     payload = _jpeg_bytes()
@@ -124,3 +127,51 @@ async def test_cache_manager_can_validate_jpeg_and_png_without_reencoding(tmp_pa
     assert lookup.status == "fresh"
     assert lookup.entry is not None
     assert lookup.entry.content == payload
+
+@pytest.mark.parametrize("response_kind", ["multi", "chain"])
+def test_response_factory_tracks_sidecars_inside_composite_responses(
+    tmp_path: Path,
+    response_kind: str,
+) -> None:
+    artifacts = [
+        write_rendered_artifact(
+            tmp_path / "rendered",
+            RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg"),
+            prefix=f"player-{index}-",
+        )
+        for index in range(2)
+    ]
+    if response_kind == "multi":
+        from src.entry.response import MultiImageResponse
+
+        response = MultiImageResponse(tuple(artifacts))
+    else:
+        from src.entry.response import ChainResponse
+
+        response = ChainResponse(tuple(artifacts))
+    event = CleanupEvent()
+
+    ResponseFactory(temporary_roots=(tmp_path / "rendered",)).build(event, response)
+
+    assert event.tracked == [
+        item
+        for artifact in artifacts
+        for item in (str(artifact.image), str(artifact.sidecar))
+    ]
+
+@pytest.mark.parametrize("sidecar", ["missing.json", "/tmp/outside.json"])
+def test_response_factory_rejects_missing_or_uncontrolled_sidecar(
+    tmp_path: Path,
+    sidecar: str,
+) -> None:
+    artifact = RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg")
+    response = write_rendered_artifact(tmp_path / "rendered", artifact, prefix="player-")
+    event = CleanupEvent()
+    response = ImageResponse(
+        response.image,
+        temporary=True,
+        sidecar=tmp_path / sidecar if sidecar == "missing.json" else sidecar,
+    )
+
+    with pytest.raises(ValueError):
+        ResponseFactory(temporary_roots=(tmp_path / "rendered",)).build(event, response)

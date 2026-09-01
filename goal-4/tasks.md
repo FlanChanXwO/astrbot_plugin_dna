@@ -44,16 +44,16 @@
 - 新增修复 task：见下方 `Task 03-R1`（多图/链响应 sidecar 生命周期）和 `Task 03-R2`（可恢复 pair publication/validator），均置于 Task 04 之前。
 - 剩余风险：T2I `HtmlRenderer` 和领域 renderer 尚未切换到 artifact；Task 03-R1/R2 未完成前，常规 T2I 直出还不能宣称完成。
 
-## Task 03-R1 — 多图与链响应的 sidecar 生命周期收口 `[pending]`
+## Task 03-R1 — 多图与链响应的 sidecar 生命周期收口 `[completed]`
 
 **目标**：测试先行补齐 `ResponseFactory` 对 `MultiImageResponse`、`ChainResponse` 中临时图片及 sidecar 的配对校验、登记和租约清理。
 
 **验收**：每个临时图片及其 sidecar 均登记一次；缺失/越界 sidecar 显式失败；既有无 sidecar `ImageResponse` 测试保持通过；不重复注册。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：抽取 `ResponseFactory._track_one_temporary_image()`，统一处理单图、多图和链响应中的临时图片；sidecar 存在时执行同一受控根目录校验、事件追踪和 `RenderedFileStore` 租约登记；将 `ImageResponse.sidecar` 放到已有字段之后，避免破坏旧 positional 构造。
+- 验证证据：Red 阶段新增复合响应测试并确认仅登记图片、缺少 sidecar；Green 阶段 `tests/test_goal4_task03_artifact_store.py` 为 `9 passed`，结合 `test_entry_skeleton.py`、`test_generated_image_lifecycle.py`、`test_html_renderer.py`、`test_cache_manager.py` 为 `46 passed`；目标 ruff 与 compileall 通过；LSP diagnostics 对 `response.py`、`artifact_store.py`、`temporary.py` 均无错误。
+- 剩余风险：pair publication 仍由 Task 03-R2 收口；旧的 `write_temporary_image()` 调用尚未自动生成 sidecar，后续 renderer 迁移需显式选择 artifact store。
+- 下一步：Task 03-R2：先写可恢复 pair publication、混合 pair、崩溃恢复和缓存/清理一致性的 Red 测试。
 
 ## Task 03-R2 — 可恢复 pair publication 与缓存/清理一致性 `[pending]`
 
