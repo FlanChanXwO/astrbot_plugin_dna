@@ -19,6 +19,9 @@ def test_query_failures_ask_for_login_not_uid_rebinding() -> None:
         checkin_messages.CHECKIN_UID_INVALID,
         encyclopedia_messages.UID_INVALID,
         "登录已失效，请重新登录",
+        __import__(
+            "src.modules.notices.messages", fromlist=["NOTICES_UID_INVALID"]
+        ).NOTICES_UID_INVALID,
     ]
     assert all(
         "重新绑定" not in value and "请先绑定账号" not in value for value in values

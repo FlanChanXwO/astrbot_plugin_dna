@@ -4,7 +4,7 @@ from __future__ import annotations
 
 NOTICES_CONTEXT_UNAVAILABLE = "通知查询上下文不可用"
 NOTICES_SERVICE_UNAVAILABLE = "通知查询服务不可用"
-NOTICES_UID_INVALID = "UID无效，请重新绑定"
+NOTICES_UID_INVALID = "未登录或登录已失效，请重新登录"
 NOTICES_PEEK_BLOCKED = "该用户开启了防偷窥，无法查看其游戏信息"
 MH_NOT_FOUND = "未找到有效的密函数据"
 ANN_LIST_FAILED = "获取公告列表失败"
@@ -15,6 +15,7 @@ MH_SUBSCRIBE = "订阅二重螺旋密函"
 MH_PIC_SUBSCRIBE = "订阅二重螺旋图片密函"
 MH_TEXT_SUBSCRIBE = "订阅二重螺旋文本密函"
 ANN_SUBSCRIBE = "订阅DNA公告"
+
 
 def mh_all_forbidden(prefix: str = "kk") -> str:
     return f"禁止订阅全部密函, 请使用[{prefix}密函列表]命令查看可订阅密函"
