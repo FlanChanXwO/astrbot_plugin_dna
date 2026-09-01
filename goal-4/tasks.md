@@ -267,7 +267,7 @@
 - 剩余风险：Admin API 尚未调用目标生命周期 service，现有 `update_target/delete_target` 仍直接操作 store；Task 18 将收口 API 契约并禁止手工公告目标变更。
 - 下一步：进入 Task 18，实现 Admin API 与 Web routes 的公告目标管理契约。
 
-## Task 18 — Admin API 与 Web routes 目标管理契约 `[pending]`
+## Task 18 — Admin API 与 Web routes 目标管理契约 `[completed]`
 
 **目标**：测试先行接入目标生命周期 service，扩展 TaskTarget/TaskTargetUpdate/mutation 响应，限制只管理已发现公告目标且不可移动 identity。
 
