@@ -69,9 +69,11 @@ Dashboard 管理页的账号列表默认只返回 App 凭据状态；只有已�
 - `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `scheduler_state.json` —
   订阅、公告兼容 ID 列表、按目标投递状态及任务 tombstone 等持久状态，不是普通缓存。
 - `rendered/` — 受控的运行期临时渲染文件，不是持久业务缓存。
-- `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告 `announcement/` 类型缓存；玩家条目受 30
-  分钟 fresh、24 小时硬保留和租约保护，公告条目默认 24 小时绝对保留，身份相关 key/tag 不保存
-  原始 user_id 或 UID。
+- `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告 `announcement/` 类型缓存；玩家条目默认受
+  30 分钟 fresh、24 小时硬保留和租约保护，公告条目默认 24 小时绝对保留，身份相关 key/tag
+  不保存原始 user_id 或 UID。`cache.fresh_ttl_minutes=-1` 时，CacheManager 业务条目永久保持
+  fresh 且不因时间自动清理，仍可由刷新、清理、资源版本变化或显式失效主动删除；`rendered/`
+  临时文件不受该永久模式影响。
 - `_HELP_CACHE` — 进程内帮助卡片缓存，插件终止时清空；`resource_generations/` 与
   `current.json` 由资源快照协调器按 generation lease 管理；密函缓存按当前小时保存已校验快照。
 

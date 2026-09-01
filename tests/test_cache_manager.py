@@ -32,9 +32,39 @@ def test_cache_settings_expose_the_planned_defaults() -> None:
     schema = generate_astrbot_schema()
     cache_items = schema["cache"]["items"]
     assert cache_items["fresh_ttl_minutes"]["default"] == 30
+    assert "-1" in cache_items["fresh_ttl_minutes"]["hint"]
     assert cache_items["retention_ttl_hours"]["default"] == 24
     assert cache_items["announcement_ttl_hours"]["default"] == 24
     assert cache_items["refresh_send_card"]["default"] is True
+
+
+@pytest.mark.asyncio
+async def test_negative_fresh_ttl_keeps_cache_until_explicit_invalidation(tmp_path) -> None:
+    settings = DnabySettings.from_config(
+        {"cache": {"fresh_ttl_minutes": -1}},
+    )
+    manager = CacheManager(tmp_path, settings.cache)
+    created_at = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
+
+    await manager.put("role", "permanent", b"card", now=created_at)
+
+    lookup = await manager.get(
+        "role",
+        "permanent",
+        now=created_at + timedelta(days=365),
+    )
+    assert lookup.status == "fresh"
+    assert lookup.entry is not None
+    assert await manager.cleanup(now=created_at + timedelta(days=365)) == 0
+
+    assert await manager.invalidate("role", key="permanent") == 1
+    invalidated = await manager.get(
+        "role",
+        "permanent",
+        now=created_at + timedelta(days=365),
+    )
+    assert invalidated.status == "miss"
+    assert invalidated.reason == "not_found"
 
 
 @pytest.mark.asyncio

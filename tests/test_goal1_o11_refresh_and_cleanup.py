@@ -63,6 +63,23 @@ def test_zero_fresh_ttl_uses_retention_period_for_maintenance_cadence(
     assert maintenance.interval_seconds == 24 * 60 * 60
 
 
+def test_permanent_fresh_ttl_uses_retention_period_for_maintenance_cadence(
+    tmp_path: Path,
+) -> None:
+    """永久缓存配置不能把后台维护周期变成负数或忙循环。"""
+
+    from src.bootstrap import build_runtime
+
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *args: None),
+        {"cache": {"fresh_ttl_minutes": -1}},
+        database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
+    )
+    maintenance = cast(CacheMaintenance, runtime.services["cache_maintenance"])
+
+    assert maintenance.interval_seconds == 24 * 60 * 60
+
+
 def test_bootstrap_wires_refresh_setting_and_cache_maintenance(
     tmp_path: Path,
 ) -> None:

@@ -13,6 +13,7 @@ import asyncio
 from typing import Any
 
 import aiohttp
+from astrbot.api import logger
 
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
 from ...infrastructure.persistence import (
@@ -285,11 +286,15 @@ class DnaApiNoticesTransport:
                     )
                 page_signature = tuple(str(post.get("postId", "")) for post in page_posts)
                 if page_signature in seen_pages:
-                    raise NoticesTransportError(
-                        NoticesFailureKind.SERVER,
-                        resource="公告列表",
-                        detail="server returned a repeated page",
+                    # 公告接口在没有更多数据时可能继续返回最后一个满页，
+                    # 即使响应里的 hasNext 仍为 1。重复页不再视为服务端失败，
+                    # 只保留已经收集的唯一公告并结束翻页。
+                    logger.warning(
+                        "公告分页返回重复页，结束翻页 page=%s collected=%s",
+                        page_index,
+                        len(posts),
                     )
+                    break
                 seen_pages.add(page_signature)
                 for post in page_posts:
                     post_id = str(post.get("postId", ""))

@@ -124,6 +124,37 @@ async def test_ann_list_transport_fetches_all_pages_without_process_cache(
 
 
 @pytest.mark.asyncio
+async def test_ann_list_transport_treats_repeated_full_page_as_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """上游重复返回满页时，列表仍应返回已收集的唯一公告。"""
+
+    calls: list[tuple[int, int]] = []
+    page_posts = [
+        {"postId": str(index), "postTitle": f"公告 {index}"}
+        for index in range(1, 21)
+    ]
+
+    async def get_page(*, page_index: int, page_size: int) -> SimpleNamespace:
+        calls.append((page_index, page_size))
+        return SimpleNamespace(
+            is_success=True,
+            code=200,
+            data={"postList": page_posts, "hasNext": 1},
+        )
+
+    from src.utils import dna_api
+
+    monkeypatch.setattr(dna_api, "get_ann_list_page", get_page)
+    snapshot = await DnaApiNoticesTransport.__new__(DnaApiNoticesTransport).get_ann_list()
+
+    assert len(snapshot.posts) == 20
+    assert snapshot.posts[0].post_id == "1"
+    assert snapshot.posts[-1].post_id == "20"
+    assert calls == [(1, 20), (2, 20)]
+
+
+@pytest.mark.asyncio
 async def test_ann_service_resolves_detail_beyond_the_twentieth_item(
     tmp_path: Path,
 ) -> None:

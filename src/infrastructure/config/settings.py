@@ -188,9 +188,11 @@ class CacheSettings(_SettingsModel):
 
     fresh_ttl_minutes: int = Field(
         default=30,
-        ge=0,
+        ge=-1,
         description="缓存 fresh 保持时间（分钟）",
-        json_schema_extra={"hint": "缓存内容在此时间内视为 fresh"},
+        json_schema_extra={
+            "hint": "缓存内容在此时间内视为 fresh；-1 表示永久缓存，仅主动失效或刷新时更新"
+        },
     )
     retention_ttl_hours: int = Field(
         default=24,

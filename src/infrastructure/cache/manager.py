@@ -256,9 +256,18 @@ class CacheManager:
         return CacheMetadata.from_dict(raw)
 
     def _retention_seconds(self, cache_type: str) -> float:
+        if self.settings.fresh_ttl_minutes == -1:
+            # -1 是 CacheManager 的永久模式：业务缓存不因时间自动失效或清理。
+            # rendered/ 临时文件由独立的 RenderedFileStore 继续按原保留期清理。
+            return float("inf")
         if cache_type == "announcement":
             return self.settings.announcement_ttl_hours * 60 * 60
         return self.settings.retention_ttl_hours * 60 * 60
+
+    def _fresh_seconds(self) -> float:
+        if self.settings.fresh_ttl_minutes == -1:
+            return float("inf")
+        return self.settings.fresh_ttl_minutes * 60
 
     async def put(
         self,
@@ -360,7 +369,7 @@ class CacheManager:
                 return CacheLookup("miss", reason="retention_expired")
             status: CacheState = (
                 "fresh"
-                if age_seconds < self.settings.fresh_ttl_minutes * 60
+                if age_seconds < self._fresh_seconds()
                 else "stale"
             )
             accessed = replace(metadata, last_accessed_at=normalized_now)

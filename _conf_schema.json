@@ -321,7 +321,7 @@
       "fresh_ttl_minutes": {
         "type": "int",
         "description": "缓存 fresh 保持时间（分钟）",
-        "hint": "缓存内容在此时间内视为 fresh",
+        "hint": "缓存内容在此时间内视为 fresh；-1 表示永久缓存，仅主动失效或刷新时更新",
         "default": 30
       },
       "retention_ttl_hours": {

@@ -56,10 +56,14 @@
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
-| `cache.fresh_ttl_minutes` | `30` | 缓存保持 fresh 的时间；设为 `0` 表示立即视为 stale。 |
+| `cache.fresh_ttl_minutes` | `30` | 缓存保持 fresh 的时间；设为 `0` 表示立即视为 stale，设为 `-1` 表示 `CacheManager` 业务缓存永久保持 fresh 且不因时间自动清理，直到主动刷新或失效。 |
 | `cache.retention_ttl_hours` | `24` | 玩家缓存的硬保留时间；超过后维护任务可清理。 |
 | `cache.announcement_ttl_hours` | `24` | 公告列表、详情、manifest 和已校验源图的绝对保留时间。 |
 | `cache.refresh_send_card` | `true` | 手动刷新成功后是否立即发送新的完整卡片。 |
+
+`-1` 只对 `cache.fresh_ttl_minutes` 有特殊含义；`retention_ttl_hours` 和
+`announcement_ttl_hours` 仍必须填写正数。永久模式下业务缓存不会因为时间自动失效或清理，
+但 `rendered/` 临时文件仍按 `retention_ttl_hours` 回收。
 
 ## Agent Tools 配置
 
