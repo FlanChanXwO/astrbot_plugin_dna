@@ -381,8 +381,13 @@
                   <ul v-else class="target-list">
                     <li v-for="target in targets" :key="target.id">
                       <strong>{{ target.group_id || target.unified_msg_origin || '会话目标' }}</strong>
-                      <span>{{ target.user_type || '未知类型' }} · {{ target.uid || '无 UID' }}</span>
-                      <small>{{ target.subscription_type || target.type }}</small>
+                      <span>{{ target.user_type || '未知类型' }} · {{ target.uid || '无 UID' }} · {{ target.enabled ? '已启用' : '已停用' }}</span>
+                      <small>{{ target.subscription_type || target.type }} · {{ target.managed ? '可管理' : '来源未核验' }}</small>
+                      <div v-if="target.managed && target.subscription_type === 'ann_subscribe'" class="target-actions">
+                        <button v-if="!target.enabled" class="button button--secondary button--small" type="button" :disabled="taskActionBusy === target.id" @click="confirmTargetAction(target, 'enableTarget')">启用</button>
+                        <button v-else class="button button--secondary button--small" type="button" :disabled="taskActionBusy === target.id" @click="confirmTargetAction(target, 'disableTarget')">停用</button>
+                        <button class="button button--danger button--small" type="button" :disabled="taskActionBusy === target.id" @click="confirmTargetAction(target, 'deleteTarget')">删除</button>
+                      </div>
                     </li>
                   </ul>
                 </section>

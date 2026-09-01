@@ -133,6 +133,9 @@ export function createDashboardApi() {
     compressPanels,
     getTasks,
     getTargets,
+    enableTarget,
+    disableTarget,
+    deleteTarget,
     updateTask,
     pauseTask,
     resumeTask,
@@ -279,6 +282,21 @@ export async function getTasks() {
 export async function getTargets(taskId) {
   const params = taskId ? { task_id: taskId } : undefined;
   return dataValue(await apiGet("admin/targets", params));
+}
+
+export async function enableTarget(targetId) {
+  const target = pathSegment(targetId, "目标 ID");
+  return dataValue(await apiPost(`admin/targets/${target}/enable`, {}));
+}
+
+export async function disableTarget(targetId) {
+  const target = pathSegment(targetId, "目标 ID");
+  return dataValue(await apiPost(`admin/targets/${target}/disable`, {}));
+}
+
+export async function deleteTarget(targetId) {
+  const target = pathSegment(targetId, "目标 ID");
+  return dataValue(await apiPost(`admin/targets/${target}/delete`, {}));
 }
 
 export async function updateTask(taskId, schedule) {

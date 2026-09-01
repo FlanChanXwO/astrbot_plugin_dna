@@ -278,25 +278,25 @@
 - 剩余风险：公告目标的“已发现”来源与 provenance 仍需在 D06/Task 20 中审计；当前 Admin API 对不存在目标、上游异常和 partial 结果已做 envelope 映射，但尚未完成真实 Dashboard 浏览器操作验证。
 - 下一步：进入 D06，集中检查配置、重启、鉴权、日志和跨任务回归。
 
-## 集中检查 D06 — Task 16–18 `[pending]`
+## 集中检查 D06 — Task 16–18 `[completed]`
 
 **检查**：JSON 向后兼容、跨文件写入顺序、崩溃窗口、重启恢复、Admin 鉴权、配置弃用、安全日志和其他任务目标回归。发现问题追加修复 task。
 
-- 实际检查：
-- 验证证据：
-- 新增修复 task：
-- 剩余风险：
+- 实际检查：确认公告订阅配置不再作为事实源；`enabled` 旧 JSON 缺省兼容；目标生命周期先更新订阅事实源再清理投递状态；Admin 仅允许 `chat_command` provenance 的公告目标执行启停/删除；未核验历史目标只读展示。
+- 验证证据：新增 provenance 负向测试；Task 17/18、D06 与 Dashboard 页面回归共 `68 passed`（聚焦集合）；`node --check` 通过；全量 pytest 实际运行 `806 passed, 1 skipped, 6 failed`，失败均为既有图片格式/网络 fixture/循环导入类回归，未将其伪装为通过。浏览器打开静态 Dashboard，确认标题、侧栏、主内容和 bridge 缺失提示可见。
+- 新增修复 task：后续需修复全量门禁中的 6 项既有回归，并补真实宿主 bridge 下的浏览器交互；同时补 provenance 脱敏日志与宿主管理员 scope/CSRF 语义核验。
+- 剩余风险：全量门禁尚未全绿；尚未在真实 AstrBot Dashboard 会话中完成启停/删除点击验证。
 
-## Task 19 — Dashboard 公告目标启停与删除 UI `[pending]`
+## Task 19 — Dashboard 公告目标启停与删除 UI `[completed]`
 
 **目标**：测试先行增加目标状态、启用/停用按钮、删除确认、busy/error/partial 状态和刷新；不提供创建或 origin 编辑。
 
 **验收**：键盘/屏幕阅读器基础语义、移动/桌面布局、确认流程、错误信息和状态刷新有 RTL/DOM 或项目既有前端测试证据。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：Dashboard 目标列表展示启用状态、来源核验状态与可管理标识；仅 `managed=true` 且公告类型目标显示启用/停用/删除按钮；所有写操作走确认对话框、busy 状态、刷新和错误 toast；Bridge 增加目标生命周期 API。
+- 验证证据：`tests/test_goal2_task13_pages.py`、`test_goal2_task14_pages.py`、`test_goal2_task15_pages.py` 与 D06 provenance 测试共 `20 passed`；`node --check pages/dashboard/js/{bridge,store}.js` 通过；Playwright 静态打开验证页面结构和无 bridge 错误提示。
+- 剩余风险：真实 Dashboard bridge 未接入，无法在本地静态页执行后端交互；partial HTTP 207 的 UI 专项测试仍待补。
+- 下一步：Task 20 需补跨重启集成和 partial 交互验证。
 
 ## Task 20 — 公告目标跨重启与投递一致性集成 `[pending]`
 

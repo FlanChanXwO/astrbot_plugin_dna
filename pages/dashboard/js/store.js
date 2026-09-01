@@ -1278,6 +1278,62 @@ export function createDashboardStore({ api }) {
       return target.unified_msg_origin || "会话目标";
     },
 
+    targetLabel(target) {
+      return target.group_id || target.unified_msg_origin || "会话目标";
+    },
+
+    confirmTargetAction(target, action) {
+      const actions = {
+        enableTarget: { title: "确认启用公告目标", description: `将启用「${this.targetLabel(target)}」的公告推送。`, confirmLabel: "启用目标" },
+        disableTarget: { title: "确认停用公告目标", description: `将停用「${this.targetLabel(target)}」的公告推送，停用后不再发送。`, confirmLabel: "停用目标" },
+        deleteTarget: { title: "确认删除公告目标", description: `将永久删除「${this.targetLabel(target)}」的公告推送目标。`, confirmLabel: "删除目标" },
+      };
+      const options = actions[action];
+      if (!options || target?.managed !== true) {
+        return;
+      }
+      this.openDialog({ ...options, onConfirm: () => this[action](target) });
+    },
+
+    async enableTarget(target) {
+      this.taskActionBusy = target.id;
+      try {
+        await this.api.enableTarget(target.id);
+        await this.loadTargets(this.selectedTaskId);
+        this.showToast("公告目标已启用");
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.taskActionBusy = "";
+      }
+    },
+
+    async disableTarget(target) {
+      this.taskActionBusy = target.id;
+      try {
+        await this.api.disableTarget(target.id);
+        await this.loadTargets(this.selectedTaskId);
+        this.showToast("公告目标已停用");
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.taskActionBusy = "";
+      }
+    },
+
+    async deleteTarget(target) {
+      this.taskActionBusy = target.id;
+      try {
+        await this.api.deleteTarget(target.id);
+        await this.loadTargets(this.selectedTaskId);
+        this.showToast("公告目标已删除");
+      } catch (error) {
+        this.showToast(safeErrorMessage(error), "error");
+      } finally {
+        this.taskActionBusy = "";
+      }
+    },
+
     async loadMembershipCapability() {
       this.membershipLoading = true;
       this.membershipError = "";
