@@ -284,8 +284,8 @@
 
 - 实际检查：确认公告订阅配置不再作为事实源；`enabled` 旧 JSON 缺省兼容；目标生命周期先更新订阅事实源再清理投递状态；Admin 仅允许 `chat_command` provenance 的公告目标执行启停/删除；未核验历史目标只读展示。
 - 验证证据：新增 provenance 负向测试；Task 17/18、D06 与 Dashboard 页面回归共 `68 passed`（聚焦集合）；`node --check` 通过；全量 pytest 实际运行 `806 passed, 1 skipped, 6 failed`，失败均为既有图片格式/网络 fixture/循环导入类回归，未将其伪装为通过。浏览器打开静态 Dashboard，确认标题、侧栏、主内容和 bridge 缺失提示可见。
-- 新增修复 task：后续需修复全量门禁中的 6 项既有回归，并补真实宿主 bridge 下的浏览器交互；同时补 provenance 脱敏日志与宿主管理员 scope/CSRF 语义核验。
-- 剩余风险：全量门禁尚未全绿；尚未在真实 AstrBot Dashboard 会话中完成启停/删除点击验证。
+- 新增修复 task：Task 18 后补 provenance repair：为 `Subscription` 增加来源字段、Admin DTO 增加 `provenance/managed`，未核验历史公告只读；同时修复无目标时不应创建投递状态文件。
+- 剩余风险：全量门禁仍有 6 项失败（图片格式断言、全局资源 fixture、网络 fixture 与循环导入，详见本轮测试输出）；未在真实 AstrBot Dashboard 会话完成启停/删除点击。日志脱敏、宿主管理员 scope/CSRF 仍需宿主语义核验。
 
 ## Task 19 — Dashboard 公告目标启停与删除 UI `[completed]`
 
