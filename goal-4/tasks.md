@@ -351,16 +351,16 @@
 - 剩余风险：
 - 下一步：
 
-## Task 24 — 文档、CHANGELOG、维护与回滚说明 `[pending]`
+## Task 24 — 文档、CHANGELOG、维护与回滚说明 `[completed]`
 
 **目标**：同步 usage/configuration/architecture/data-model/testing/maintenance、README、CHANGELOG 和命令帮助，记录格式、并发、At、订阅事实源和手动迁移。
 
 **验收**：不再宣称公告群组由配置维护；明确旧配置不自动迁移、Dashboard 能力、JPEG 输出、Pillow 例外、并发配置与回滚步骤。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：同步 README 关联用语、CHANGELOG、命令说明、配置/资源/架构/数据模型文档，明确 T2I 常规 JPEG 输出、Pillow 仅作必要素材处理、At 查询、登录命令、公告运行期事实源、旧配置不自动恢复以及 Dashboard 目标管理边界。
+- 验证证据：文档变更已提交 `1c6f8b6`；受影响源码 compileall、node syntax、聚焦测试和 ruff 通过。
+- 剩余风险：部分历史文档仍保留旧版本 PNG 迁移记录，属于历史审计事实，不应批量改写；全量测试仍受外部 T2I/图片 fixture 环境影响。
+- 下一步：进入 D08/Task 25，完成专家审查、全量门禁分类与最终验收。
 
 ## 集中检查 D08 — Task 22–24 `[pending]`
 
