@@ -236,14 +236,14 @@
 - 剩余风险：legacy 文案函数仍保留显式 UID 管理操作中的“绑定 UID”术语，这是设计要求，不是查询失败提示；全仓 Pyright 的既有 optional runtime 诊断未扩大修复范围。
 - 下一步：进入 D05，集中检查 Task 13–15 的 At 安全边界、查询身份归属、写操作隔离和文案残留。
 
-## 集中检查 D05 — Task 13–15 `[pending]`
+## 集中检查 D05 — Task 13–15 `[completed]`
 
 **检查**：所有命令 regex、At 安全边界、隐私/凭据归属、写操作隔离、文案残留、help/manifest/docs 一致性及真实事件 fixture。发现问题追加修复 task。
 
-- 实际检查：
-- 验证证据：
-- 新增修复 task：
-- 剩余风险：
+- 实际检查：核对 DynamicRegexFilter 与 handler 均使用同一纯文本归一化；真实 At 前/后均可触发，AtAll、机器人自身 At、Reply/Image 和字面展示文本不进入命令正则；按 `ignore/query/admin_target` 审计生产命令，写操作默认忽略目标；核对目标查询仍交由 PrivacyService；检查查询失败提示、登录页、帮助、README/docs 与 commands manifest 的术语边界。
+- 验证证据：命令/At/文案专项及 privacy、player、encyclopedia、notices、account 回归 `49 passed`；完整账号/玩家/签到/公告回归 `76 passed`；ruff 与 manifest 投影测试通过。
+- 新增修复 task：无。
+- 剩余风险：全仓仍有历史 Pyright optional runtime 诊断；需要真实 OneBot/AstrBot 运行环境的 At 前后冒烟留待 Task 23。
 
 ## Task 16 — Subscription enabled 与公告配置解耦 `[pending]`
 
