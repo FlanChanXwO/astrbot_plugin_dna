@@ -80,6 +80,7 @@ async def test_poll_ann_now_same_wave_shares_one_poll(tmp_path: Path) -> None:
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     await subscriptions.add(
         messages.ANN_SUBSCRIBE,
+        provenance="chat_command",
         origin="platform:group:g1",
         user_id="u1",
         bot_id="b1",

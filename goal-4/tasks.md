@@ -309,16 +309,16 @@
 - 剩余风险：真实 AstrBot 消息投递和 Dashboard bridge 仍需 Task 23 冒烟；投递状态跨文件不具备物理事务，但事实源更新顺序保证停用/删除优先安全。
 - 下一步：进入 Task 21，收口公共接口、导入边界和生命周期回归。
 
-## Task 21 — 跨功能集成与公共接口收口 `[pending]`
+## Task 21 — 跨功能集成与公共接口收口 `[completed]`
 
 **目标**：统一 bootstrap 注入、生命周期、类型导出、缓存/response/admin/commands 的共享接口，删除本目标产生的旧适配死代码。
 
 **验收**：LSP blast radius 与 diagnostics 无新增问题；main import、动态 handler、scheduler start/stop、资源 snapshot 和临时文件生命周期通过。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：公告命令不再保留无生命周期 service 时的 store 直写兜底；bootstrap 统一注入公告目标 service；`Subscription`、Admin DTO 和 Dashboard bridge 使用统一来源/管理字段；HTTP transport 包改为延迟导出，解除 `entry.response` 与 account transport 的循环导入。
+- 验证证据：LSP `blast_radius` 完成；LSP diagnostics 无错误；新增接口回归测试；迁移边界、目标生命周期、并行轮询、公告订阅与 Admin/Web 聚焦集合 `42 passed`；`compileall` 与受影响文件 ruff 通过。
+- 剩余风险：Pyright 配置存在用户初始化前的未提交改动，未纳入本 goal；全量图片 fixture 仍需候选门禁阶段复核。
+- 下一步：进入 D07/D08，继续完成真实渲染证据、文档和宿主浏览器冒烟。
 
 ## 集中检查 D07 — Task 19–21 `[pending]`
 

@@ -16,8 +16,10 @@ from src.infrastructure.rendering import NoticesRenderer
 from src.infrastructure.resources import EncyclopediaResourceStore
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.notices import messages
+from src.modules.notices.ann_delivery_state import AnnDeliveryStateStore
 from src.modules.notices.ann_state import AnnStateStore
 from src.modules.notices.service import NoticesService
+from src.modules.notices.target_service import AnnouncementTargetService
 from src.modules.privacy import PrivacyService
 from tests.test_notices import FakeNoticesTransport, _ann_snapshot
 
@@ -38,6 +40,15 @@ async def _database_with_binding(tmp_path: Path) -> AsyncDatabase:
     return database
 
 
+class _AnnouncementSource:
+    def __init__(self, transport: FakeNoticesTransport) -> None:
+        self.transport = transport
+
+    async def current_announcement_ids(self) -> tuple[str, ...]:
+        snapshot = await self.transport.get_ann_list()
+        return tuple(post.post_id for post in snapshot.posts)
+
+
 def _service(
     database: AsyncDatabase,
     transport: FakeNoticesTransport,
@@ -47,6 +58,9 @@ def _service(
     subscriptions: SubscriptionStore | None = None,
     secret_simple_image: bool = True,
 ) -> NoticesService:
+    resolved_subscriptions = subscriptions or SubscriptionStore(
+        tmp_path / "subscriptions.json"
+    )
     return NoticesService(
         database,
         transport,
@@ -56,12 +70,16 @@ def _service(
             EncyclopediaResourceStore.from_root(database.path.parent / "resources"),
             simple_image=secret_simple_image,
         ),
-        subscriptions=subscriptions
-        or SubscriptionStore(tmp_path / "subscriptions.json"),
+        subscriptions=resolved_subscriptions,
         ann_state=AnnStateStore(tmp_path / "ann_state.json"),
         push=push,
         secret_simple_image=secret_simple_image,
         clock=lambda: datetime(2026, 8, 30, 12, 35, tzinfo=SHANGHAI),
+        announcement_targets=AnnouncementTargetService(
+            resolved_subscriptions,
+            AnnDeliveryStateStore(tmp_path / "ann_delivery_state.json"),
+            _AnnouncementSource(transport),
+        ),
     )
 
 

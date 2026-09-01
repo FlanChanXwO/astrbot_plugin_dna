@@ -71,8 +71,6 @@ class NoticesService:
         ann_delivery_state: AnnDeliveryStateStore | None = None,
         *,
         secret_simple_image: bool = False,
-        config_store: dict[str, Any] | None = None,
-        sync_ann_group_cb: Callable[[str, bool], None] | None = None,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache_manager: CacheManager | None = None,
         clock: ClockCallable | None = None,
@@ -92,8 +90,6 @@ class NoticesService:
         )
         self.push = push
         self.secret_simple_image = secret_simple_image
-        self.config_store = config_store
-        self._sync_ann_group_cb = sync_ann_group_cb
         self.resource_snapshots = resource_snapshots
         self.mh_cache = (
             MhSnapshotCache(cache_manager) if cache_manager is not None else None
@@ -595,15 +591,6 @@ class NoticesService:
             return PlainTextResponse(messages.MH_TEST_SENT)
         return PlainTextResponse(messages.MH_TEST_FAILED)
 
-    def _sync_ann_group(self, group_id: str | None, subscribed: bool) -> None:
-        """保留旧调用点，但公告目标不再写入插件配置。
-
-        ``subscriptions.json`` 才能完整保存平台、Bot 与会话 origin；旧配置仅供
-        人工参考，不能由命令或启动流程改写、恢复。
-        """
-
-        return
-
     async def subscribe_ann(self, request: NoticeRequest):
         """订阅公告推送（admin，仅群聊）。"""
 
@@ -624,28 +611,20 @@ class NoticesService:
         )
         if existing is not None:
             return PlainTextResponse(messages.ANN_ALREADY_SUBSCRIBED, need_at=True)
-        if self.announcement_targets is not None:
-            result = await self.announcement_targets.subscribe(
-                origin=origin,
-                user_id=request.actor.user_id,
-                bot_id=request.actor.bot_id,
-                group_id=request.actor.group_id,
-            )
-            if result.status is TargetMutationStatus.APPLIED:
-                return PlainTextResponse(messages.ANN_SUBSCRIBED, need_at=True)
-            return PlainTextResponse(
-                result.message or messages.NOTICES_SERVICE_UNAVAILABLE,
-                need_at=True,
-            )
-        await self.subscriptions.add(
-            messages.ANN_SUBSCRIBE,
+        if self.announcement_targets is None:
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
+        result = await self.announcement_targets.subscribe(
             origin=origin,
             user_id=request.actor.user_id,
             bot_id=request.actor.bot_id,
             group_id=request.actor.group_id,
-            user_type="group",
         )
-        return PlainTextResponse(messages.ANN_SUBSCRIBED, need_at=True)
+        if result.status is TargetMutationStatus.APPLIED:
+            return PlainTextResponse(messages.ANN_SUBSCRIBED, need_at=True)
+        return PlainTextResponse(
+            result.message or messages.NOTICES_SERVICE_UNAVAILABLE,
+            need_at=True,
+        )
 
     async def unsubscribe_ann(self, request: NoticeRequest):
         """取消订阅公告推送（admin，仅群聊）。"""
@@ -667,14 +646,15 @@ class NoticesService:
         )
         if target is None:
             return PlainTextResponse(messages.ANN_NOT_SUBSCRIBED, need_at=True)
-        if self.announcement_targets is not None:
-            result = await self.announcement_targets.unsubscribe(encode_target_id(target))
-            if result.status is TargetMutationStatus.APPLIED:
-                return PlainTextResponse(messages.ANN_UNSUBSCRIBED, need_at=True)
-            return PlainTextResponse(result.message or messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
-        if await self.subscriptions.delete(messages.ANN_SUBSCRIBE, origin):
+        if self.announcement_targets is None:
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE, need_at=True)
+        result = await self.announcement_targets.unsubscribe(encode_target_id(target))
+        if result.status is TargetMutationStatus.APPLIED:
             return PlainTextResponse(messages.ANN_UNSUBSCRIBED, need_at=True)
-        return PlainTextResponse(messages.ANN_NOT_SUBSCRIBED, need_at=True)
+        return PlainTextResponse(
+            result.message or messages.NOTICES_SERVICE_UNAVAILABLE,
+            need_at=True,
+        )
 
     async def push_mh_now(self) -> int:
         """拉取当前密函并按订阅推送文本/图片；返回推送次数（计划任务）。"""

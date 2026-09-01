@@ -405,7 +405,6 @@ def build_runtime(
         secret_simple_image=settings.notifications.secret_simple_image,
         cache_manager=cache_manager,
         push=_push_notice,
-        config_store=config if isinstance(config, dict) else None,
         resource_snapshots=resource_snapshots,
         request_gate=request_gate,
         announcement_targets=announcement_targets,
