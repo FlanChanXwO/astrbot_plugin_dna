@@ -292,6 +292,8 @@ class PlayerService:
             temporary=True,
             original_image_path=getattr(rendered, "original_image_path", None),
             incomplete=bool(getattr(rendered, "incomplete", False)),
+            sidecar=getattr(rendered, "sidecar", None),
+            manifest=getattr(rendered, "manifest", None),
         )
 
     async def _render_overview(

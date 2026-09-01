@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from pathlib import Path
 from shutil import copyfile
 
@@ -14,6 +13,7 @@ from src.entry.event import EventActor
 from src.entry.response import ImageResponse, PlainTextResponse
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap
+from src.infrastructure.rendering.artifact_store import read_rendered_artifact
 from src.modules.player import messages
 from src.modules.player.contracts import (
     AttributeBag,
@@ -368,12 +368,12 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(tmp_p
     assert response.temporary is True
     image_path = Path(response.image)
     assert image_path.parent == tmp_path / "rendered"
-    with Image.open(image_path) as image:
-        assert image.width == 1200
-        assert image.height > 1500  # legacy 布局：头部 800 + 3 分区 × (320+70)
-        text = image.info["dnaby.text"]
-        layout = json.loads(image.info["dnaby.layout"])
-        resources = json.loads(image.info["dnaby.resources"])
+    artifact = read_rendered_artifact(image_path)
+    assert artifact.width == 1200
+    assert artifact.height > 1500  # legacy 布局：头部 800 + 3 分区 × (320+70)
+    text = artifact.metadata["dnaby.text"]
+    layout = artifact.metadata["dnaby.layout"]
+    resources = artifact.metadata["dnaby.resources"]
     assert "测试玩家" in text
     assert "UID 1234567890123" in text
     assert "总活跃天数: 99" in text
@@ -450,12 +450,12 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
     assert isinstance(response, ImageResponse)
     assert response.temporary is True
     assert response.original_image_path == original
-    with Image.open(Path(response.image)) as image:
-        assert image.width == 1000
-        assert image.height > 1500
-        text = image.info["dnaby.text"]
-        layout = json.loads(image.info["dnaby.layout"])
-        resources = json.loads(image.info["dnaby.resources"])
+    artifact = read_rendered_artifact(Path(response.image))
+    assert artifact.width == 1000
+    assert artifact.height > 1500
+    text = artifact.metadata["dnaby.text"]
+    layout = artifact.metadata["dnaby.layout"]
+    resources = artifact.metadata["dnaby.resources"]
     for expected in ("角色甲", "技能1", "技能4", "魔之楔1", "魔之楔9", "近战甲", "技能伤害", "派生技能", "总伤害"):
         assert expected in text
     assert [section["name"] for section in layout["sections"]] == [
@@ -645,10 +645,10 @@ async def test_damage_failure_payload_never_reaches_detail_image(
     assert isinstance(response, ImageResponse)
     assert response.original_image_path is None
     assert upstream_message not in repr(response)
-    with Image.open(Path(response.image)) as image:
-        text = image.info["dnaby.text"]
-        layout = image.info["dnaby.layout"]
-        resources = image.info["dnaby.resources"]
+    artifact = read_rendered_artifact(Path(response.image))
+    text = artifact.metadata["dnaby.text"]
+    layout = artifact.metadata["dnaby.layout"]
+    resources = artifact.metadata["dnaby.resources"]
     assert messages.PLAYER_DAMAGE_FAILED in text
     assert upstream_message not in text
     assert upstream_message not in layout

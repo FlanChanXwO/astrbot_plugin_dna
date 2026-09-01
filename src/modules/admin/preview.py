@@ -273,8 +273,14 @@ class AdminPreviewService:
                 AdminError(AdminErrorCode.INTERNAL, "玩家预览图片读取失败"),
             )
         if rendered.temporary:
+            paths = tuple(
+                path
+                for path in (rendered.path, rendered.sidecar, rendered.manifest)
+                if path is not None
+            )
             try:
-                rendered.path.unlink()
+                for path in paths:
+                    path.unlink()
             except FileNotFoundError:
                 pass
             except OSError:
@@ -291,6 +297,7 @@ class AdminPreviewService:
                 uid=uid,
                 view=view,
                 data_base64=base64.b64encode(payload).decode("ascii"),
+                content_type=rendered.media_type,
                 width=rendered.width,
                 height=rendered.height,
             ),

@@ -66,16 +66,16 @@
 - 剩余风险：当前仍是受控平铺目录下的 manifest-gated 三文件发布，不是目录级 rename；旧的 `write_temporary_image()` 无 sidecar 调用仍保持兼容，尚未接入所有领域 renderer 的 T2I 热路径，后续迁移需显式使用 artifact store。
 - 下一步：Task 04：先写玩家卡片 T2I 直出 Red 测试。
 
-## Task 04 — 玩家卡片 T2I 直出 `[pending]`
+## Task 04 — 玩家卡片 T2I 直出 `[completed]`
 
 **目标**：测试先行迁移玩家概览和角色详情，移除 T2I JPEG→PIL RGBA→PNG，保留布局/resources/original_image_path/cache 语义。
 
 **验收**：玩家最终 `.jpg` 与 T2I bytes 一致；缓存 fresh/stale/refresh 和管理员预览通过；解码视觉与旧转换结果一致。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：玩家概览和角色详情不再将 T2I bytes 通过 `Image.open().convert("RGBA")` 和 PNG writer 重编码；使用 `RenderedArtifact` + manifest/sidecar 以原始 JPEG bytes 发布，保留文字、布局、资源、原图路径和 incomplete 语义；`PlayerCache` 改为 JPEG/PNG 结构校验，并以实际媒体类型重建缓存响应 pair；`PlayerService` 和 Admin Preview 传播媒体类型及 sidecar/manifest，管理预览清理完整 pair。
+- 验证证据：新增 `tests/test_goal4_task04_player_t2i.py`，以 Pillow `Image.open` 失败注入证明概览/详情常规路径仍直出，且落盘 bytes 与 T2I bytes 完全一致；覆盖缓存 JPEG 后缀/bytes 和 Admin Preview pair 清理。目标与相关测试 `55 passed`；代表性真实玩家概览/详情渲染 `2 passed`；`ruff check`、`compileall`、Pyright 源码检查和 LSP diagnostics 均通过。
+- 剩余风险：玩家模板内部的素材预处理仍按既有约束使用 Pillow；`HtmlRenderer` 的统一结果检查和其他百科/签到/公告 renderer 仍待后续 Task 05–09 迁移，不能据此宣称全链路 T2I 完成。旧的无 sidecar renderer fixture 保留兼容验证，生产新路径使用完整 artifact pair。
+- 下一步：Task 05：先写百科、便笺与周报 T2I 直出 Red 测试。
 
 ## Task 05 — 百科、便笺与周报 T2I 直出 `[pending]`
 

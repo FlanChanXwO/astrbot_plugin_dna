@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from PIL import Image
 from pydantic import BaseModel
 
-from ...entry.response import ImageResponse, write_temporary_image
+from ...entry.response import ImageResponse
+from ...infrastructure.rendering.artifact import RenderedArtifact
+from ...infrastructure.rendering.artifact_store import write_rendered_artifact
 from ...infrastructure.cache import CacheLookup, CacheManager
 
 PLAYER_DATA_CACHE_TYPE = "player_data"
@@ -31,13 +31,14 @@ def _json_object_validator(content: bytes) -> bool:
     return isinstance(value, dict)
 
 
-def _png_validator(content: bytes) -> bool:
-    try:
-        with Image.open(BytesIO(content)) as image:
-            image.verify()
-    except (OSError, SyntaxError, ValueError):
-        return False
-    return True
+def _image_validator(content: bytes) -> bool:
+    for media_type in ("image/jpeg", "image/png"):
+        try:
+            RenderedArtifact.from_bytes(content, media_type=media_type)
+            return True
+        except ValueError:
+            continue
+    return False
 
 
 class PlayerCache:
@@ -215,7 +216,7 @@ class PlayerCache:
         return hashlib.sha256(content).hexdigest()
 
     def read_rendered_card(self, image: object) -> bytes:
-        """只读取受控 rendered 根下的普通 PNG，避免把任意路径写入缓存。"""
+        """只读取受控 rendered 根下的完整图片，避免把任意路径写入缓存。"""
 
         root = self.rendered_root
         path = Path(str(image)).expanduser().absolute()
@@ -229,8 +230,8 @@ class PlayerCache:
         if not path.is_file():
             raise ValueError("渲染图片不是普通文件")
         content = path.read_bytes()
-        if not _png_validator(content):
-            raise ValueError("渲染图片不是有效 PNG")
+        if not _image_validator(content):
+            raise ValueError("渲染图片不是有效 JPEG/PNG")
         return content
 
     async def get_data(self, key: str, *, now=None) -> CacheLookup:
@@ -261,7 +262,7 @@ class PlayerCache:
         return await self.manager.get(
             PLAYER_CARD_CACHE_TYPE,
             key,
-            validator=_png_validator,
+            validator=_image_validator,
             now=now,
         )
 
@@ -280,7 +281,7 @@ class PlayerCache:
             content,
             resource_version=resource_version,
             tags=tags,
-            validator=_png_validator,
+            validator=_image_validator,
             now=now,
         )
 
@@ -326,14 +327,18 @@ class PlayerCache:
         async with self.manager.lease(
             PLAYER_CARD_CACHE_TYPE,
             key,
-            validator=_png_validator,
+            validator=_image_validator,
             now=now,
         ) as entry:
-            return write_temporary_image(
+            media_type = (
+                "image/png"
+                if entry.content.startswith(b"\x89PNG\r\n\x1a\n")
+                else "image/jpeg"
+            )
+            return write_rendered_artifact(
                 self.rendered_root,
-                entry.content,
+                RenderedArtifact.from_bytes(entry.content, media_type=media_type),
                 prefix="player-cache-",
-                suffix=".png",
             )
 
 

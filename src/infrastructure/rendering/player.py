@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import math
-import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -13,7 +11,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from PIL import Image, ImageFont, ImageOps
-from PIL.PngImagePlugin import PngInfo
 from pydantic import BaseModel
 
 from ...entry.event import EventActor
@@ -51,7 +48,10 @@ from ...utils.image import (
 )
 from ...utils.session import EventContext
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from .artifact import RenderedArtifact
+from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
+from .image_inspector import inspect_image
 from .damage_renderer import draw_role_damage_section
 from .fonts import load_runtime_font
 from .payloads import build_profile_header
@@ -651,10 +651,13 @@ class RenderedPlayerImage:
     temporary: bool = False
     # 缺少角色/面板等素材时可以发送本次占位图，但不能覆盖完整卡片缓存。
     incomplete: bool = False
+    sidecar: Path | None = None
+    manifest: Path | None = None
+    media_type: str = "image/png"
 
 
 class PlayerRenderer:
-    """生成角色总览与详情卡片的运行期 PNG。"""
+    """生成角色总览与详情卡片的运行期 T2I 图片。"""
 
     def __init__(self, output_dir: str | Path, resources: EncyclopediaResourceStore | ResourceMap) -> None:
         self.output_dir = Path(output_dir)
@@ -681,34 +684,34 @@ class PlayerRenderer:
 
     def _write(
         self,
-        image: Image.Image,
+        image_bytes: bytes,
         *,
         lines: list[str],
         resources: list[dict[str, str]],
         sections: list[dict[str, Any]],
         original_image_path: Path | None = None,
     ) -> RenderedPlayerImage:
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        path = self.output_dir / f"player-{uuid.uuid4().hex}.png"
-        metadata = PngInfo()
-        metadata.add_text("dnaby.text", "\n".join(lines))
-        metadata.add_text(
-            "dnaby.layout",
-            json.dumps(
-                {"width": image.width, "height": image.height, "sections": sections},
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ),
+        inspection = inspect_image(image_bytes, media_type="image/jpeg")
+        artifact = RenderedArtifact.from_bytes(
+            image_bytes,
+            media_type="image/jpeg",
+            metadata={
+                "dnaby.text": "\n".join(lines),
+                "dnaby.layout": {
+                    "width": inspection.width,
+                    "height": inspection.height,
+                    "sections": sections,
+                },
+                "dnaby.resources": resources,
+            },
         )
-        metadata.add_text(
-            "dnaby.resources",
-            json.dumps(resources, ensure_ascii=False, separators=(",", ":")),
+        response = write_rendered_artifact(
+            self.output_dir, artifact, prefix="player-"
         )
-        image.convert("RGBA").save(path, format="PNG", pnginfo=metadata)
         return RenderedPlayerImage(
-            path=path,
-            width=image.width,
-            height=image.height,
+            path=Path(response.image),
+            width=artifact.width,
+            height=artifact.height,
             text_lines=tuple(lines),
             resources=tuple(resources),
             sections=tuple(sections),
@@ -718,6 +721,9 @@ class PlayerRenderer:
                 resource.get("status") == "placeholder"
                 for resource in resources
             ),
+            sidecar=Path(response.sidecar) if response.sidecar is not None else None,
+            manifest=Path(response.manifest) if response.manifest is not None else None,
+            media_type=artifact.media_type,
         )
 
     async def render_overview(
@@ -760,7 +766,6 @@ class PlayerRenderer:
             ev_stub=ev_stub,
             avatar_user_id=target_user_id or (actor.user_id if actor is not None else uid),
         )
-        image = Image.open(BytesIO(image_bytes)).convert("RGBA")
         lines = [
             overview.role_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -796,7 +801,7 @@ class PlayerRenderer:
                         "source": f"images/weapon/{weapon.weapon_id}.png",
                     }
                 )
-        return self._write(image, lines=lines, resources=resources, sections=sections)
+        return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
 
     async def render_overview_legacy(
         self,
@@ -911,8 +916,6 @@ class PlayerRenderer:
             uid_hidden=uid_hidden,
             custom_panel=custom_panel,
         )
-        image = Image.open(BytesIO(card_bytes)).convert("RGBA")
-
         lines = [
             detail.char_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -971,7 +974,7 @@ class PlayerRenderer:
                 original_path = custom_panel
 
         return self._write(
-            image,
+            card_bytes,
             lines=lines,
             resources=resources,
             sections=sections,
