@@ -298,16 +298,16 @@
 - 剩余风险：真实 Dashboard bridge 未接入，无法在本地静态页执行后端交互；partial HTTP 207 的 UI 专项测试仍待补。
 - 下一步：Task 20 需补跨重启集成和 partial 交互验证。
 
-## Task 20 — 公告目标跨重启与投递一致性集成 `[pending]`
+## Task 20 — 公告目标跨重启与投递一致性集成 `[completed]`
 
 **目标**：覆盖命令创建→Dashboard 停用/启用/删除→轮询→重启的完整状态机。
 
 **验收**：停用不发、启用不补旧、未来公告正常、删除不复活、部分群失败只重试失败群；配置完全不参与恢复。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增命令来源目标创建→Dashboard 生命周期 service 停用/启用/删除→轮询→重建 store/service 的完整状态机测试；验证停用跨重启不发送、重新启用为当前公告建立基线、未来公告正常发送、删除后不复活，以及某群失败后重启只重试失败群。轮询仅接受 `provenance=chat_command` 且启用的目标。
+- 验证证据：`tests/test_goal4_task20_restart_delivery.py` 共 `2 passed`，使用真实 `SubscriptionStore`、`AnnDeliveryStateStore`、`AnnStateStore` 与 `NoticesService.poll_ann_now()`，仅替换外部 transport/renderer/push。
+- 剩余风险：真实 AstrBot 消息投递和 Dashboard bridge 仍需 Task 23 冒烟；投递状态跨文件不具备物理事务，但事实源更新顺序保证停用/删除优先安全。
+- 下一步：进入 Task 21，收口公共接口、导入边界和生命周期回归。
 
 ## Task 21 — 跨功能集成与公共接口收口 `[pending]`
 
