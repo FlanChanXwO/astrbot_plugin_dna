@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 import aiohttp
 
 from ...entry.event import EventActor
+from .concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
 from ...infrastructure.resources.acceleration import accelerate_github_url
 from ...modules.encyclopedia.contracts import (
@@ -213,10 +214,12 @@ class DnaApiEncyclopediaTransport:
         code_provider: CodeProvider | None = None,
         code_url: str = DEFAULT_CODE_URL,
         acceleration_prefix: str | None = None,
+        request_gate: RequestConcurrencyGate | None = None,
     ) -> None:
         self.database = database
         self._code_provider = code_provider
         self.acceleration_prefix = acceleration_prefix
+        self.request_gate = request_gate
         self.code_url = accelerate_github_url(code_url, acceleration_prefix)
 
     async def _legacy_user(

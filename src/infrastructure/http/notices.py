@@ -15,6 +15,7 @@ from typing import Any
 import aiohttp
 
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
+from .concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -65,8 +66,13 @@ def _response_data(response: Any, *, resource: str) -> Any:
 class DnaApiNoticesTransport:
     """密函与公告读取的 legacy 纯 API 适配器。"""
 
-    def __init__(self, database: AsyncDatabase) -> None:
+    def __init__(
+        self,
+        database: AsyncDatabase,
+        request_gate: RequestConcurrencyGate | None = None,
+    ) -> None:
         self.database = database
+        self.request_gate = request_gate
 
     async def _legacy_user(
         self,

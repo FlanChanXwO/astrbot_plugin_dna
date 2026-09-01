@@ -33,6 +33,7 @@ from .infrastructure.http import (
     DnaApiEncyclopediaTransport,
     DnaApiNoticesTransport,
     DnaApiPlayerTransport,
+    RequestConcurrencyGate,
 )
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
@@ -145,6 +146,7 @@ def build_runtime(
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
 
     settings = DnabySettings.from_config(config)
+    request_gate = RequestConcurrencyGate(settings.network.max_concurrent_requests)
     runtime_database = database
     if runtime_database is None:
         from astrbot.api.star import StarTools
@@ -206,6 +208,8 @@ def build_runtime(
         interval_seconds=_cache_maintenance_interval(settings),
     )
     if services is not None:
+        if "request_gate" in services:
+            request_gate = cast(RequestConcurrencyGate, services["request_gate"])
         if "cache_manager" in services:
             cache_manager = cast(CacheManager, services["cache_manager"])
         if "player_cache" in services:
@@ -236,7 +240,8 @@ def build_runtime(
             )
     player_service = PlayerService(
         runtime_database,
-        player_transport or DnaApiPlayerTransport(runtime_database),
+        player_transport
+        or DnaApiPlayerTransport(runtime_database, request_gate=request_gate),
         privacy_service,
         PlayerRenderer(rendered_root, player_resources),
         show_unowned_roles=settings.display.show_unowned_roles,
@@ -250,11 +255,10 @@ def build_runtime(
         or DnaApiEncyclopediaTransport(
             runtime_database,
             acceleration_prefix=settings.resources.acceleration_prefix,
+            request_gate=request_gate,
         ),
         privacy_service,
-        EncyclopediaRenderer(
-            rendered_root, encyclopedia_resources
-        ),
+        EncyclopediaRenderer(rendered_root, encyclopedia_resources),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
         resource_snapshots=resource_snapshots,
@@ -279,7 +283,8 @@ def build_runtime(
     )
     checkin_service = CheckinService(
         runtime_database,
-        checkin_transport or DnaApiCheckinTransport(runtime_database),
+        checkin_transport
+        or DnaApiCheckinTransport(runtime_database, request_gate=request_gate),
         privacy_service,
         checkin_renderer,
         community_tasks=tuple(settings.sign_in.community_tasks),
@@ -368,7 +373,8 @@ def build_runtime(
 
     notices_service = NoticesService(
         runtime_database,
-        notices_transport or DnaApiNoticesTransport(runtime_database),
+        notices_transport
+        or DnaApiNoticesTransport(runtime_database, request_gate=request_gate),
         privacy_service,
         notices_renderer,
         subscriptions=subscriptions,
@@ -452,6 +458,7 @@ def build_runtime(
         "resource_root": resource_root,
         "rendered_root": rendered_root,
         "rendered_store": rendered_store,
+        "request_gate": request_gate,
         "cache_maintenance": cache_maintenance,
         "player_resources": player_resources,
         "encyclopedia_service": encyclopedia_service,

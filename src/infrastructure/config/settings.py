@@ -97,6 +97,15 @@ class LoginSettings(_SettingsModel):
 class NetworkSettings(_SettingsModel):
     """API、代理和 WebSocket 连接配置。"""
 
+    max_concurrent_requests: int = Field(
+        default=4,
+        ge=1,
+        description="短请求最大并发数",
+        json_schema_extra={
+            "hint": "限制 API、图片等短生命周期网络请求；WebSocket/SSE 不长期占用",
+        },
+    )
+
     api_proxy_url: str = Field(
         default="",
         description="API 代理地址",

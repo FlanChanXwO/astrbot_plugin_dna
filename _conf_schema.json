@@ -69,6 +69,12 @@
     "description": "网络设置",
     "type": "object",
     "items": {
+      "max_concurrent_requests": {
+        "type": "int",
+        "description": "短请求最大并发数",
+        "hint": "限制 API、图片等短生命周期网络请求；WebSocket/SSE 不长期占用",
+        "default": 4
+      },
       "api_proxy_url": {
         "type": "string",
         "description": "API 代理地址",

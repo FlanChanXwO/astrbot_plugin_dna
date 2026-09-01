@@ -6,6 +6,7 @@ from .account import (
     TransportErrorKind,
 )
 from .checkin import DnaApiCheckinTransport
+from .concurrency import RequestConcurrencyGate
 from .encyclopedia import DEFAULT_CODE_URL, DnaApiEncyclopediaTransport
 from .notices import DnaApiNoticesTransport
 from .player import DnaApiPlayerTransport
@@ -15,6 +16,7 @@ __all__ = [
     "AccountTransportError",
     "DnaApiAccountTransport",
     "DnaApiCheckinTransport",
+    "RequestConcurrencyGate",
     "DnaApiEncyclopediaTransport",
     "DnaApiNoticesTransport",
     "DnaApiPlayerTransport",

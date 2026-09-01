@@ -150,16 +150,16 @@
 - 新增修复 task：无。
 - 剩余风险：真实生产 T2I 样本、AstrBot/OneBot 图片发送和视觉/体积 before-after 仍需 Task 22–23；全量 Pyright 既有问题需在后续跨模块收口时处理，不能宣称当前全仓类型检查通过。
 
-## Task 10 — 全局请求并发配置与 RequestConcurrencyGate `[pending]`
+## Task 10 — 全局请求并发配置与 RequestConcurrencyGate `[completed]`
 
 **目标**：测试先行新增 `network.max_concurrent_requests=4`、schema 和 cancellation-safe Semaphore，并注入短请求基础设施。
 
 **验收**：确定性测试证明活动请求不超过配置；异常/取消释放槽位；WebSocket/SSE 不长期占槽；配置错误显式失败。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `RequestConcurrencyGate`，提供 `run(operation, *, key=None)`；无 key 请求受共享 Semaphore 限制，有 key 请求共享 in-flight task；等待者通过 shield 隔离取消，底层任务异常/取消后 registry 清理，槽位在 finally 释放。新增 `NetworkSettings.max_concurrent_requests`，默认 4、最小 1，并刷新 `_conf_schema.json`；bootstrap 创建单例并注入 player/checkin/encyclopedia/notices HTTP transport 与 runtime services。gate 不包住长连接生命周期，后续短 I/O 调用由 transport/fetcher 使用。
+- 验证证据：新增 `tests/test_goal4_task10_concurrency_gate.py`，覆盖并发峰值、single-flight 共享与失败重试、取消后释放、非法配置和 bootstrap 单例注入；Task 10 专项、配置、资源 schema、相关 HTTP transport 回归 `51 passed`；ruff、compileall、Pyright（bootstrap/config/http）通过；LSP diagnostics 无错误。
+- 剩余风险：当前 transport 已持有共享 gate，但具体 API 调用包裹与公告内部并行留待 Task 11–12；跨进程并发上限不在本目标范围，单例边界为单插件进程。
+- 下一步：Task 11 实现 URL/post single-flight 与缓存 miss 合并。
 
 ## Task 11 — URL/post single-flight 与缓存 miss 合并 `[pending]`
 

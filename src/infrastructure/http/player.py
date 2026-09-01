@@ -13,6 +13,7 @@ from typing import Any
 import aiohttp
 
 from ...entry.event import EventActor
+from .concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
 from ...modules.player.contracts import (
     DamageCalculation,
@@ -56,8 +57,13 @@ def _response_data(response: Any, *, resource: str) -> Any:
 class DnaApiPlayerTransport:
     """用已保存凭据调用 legacy 纯 API 方法的读取 transport。"""
 
-    def __init__(self, database: AsyncDatabase) -> None:
+    def __init__(
+        self,
+        database: AsyncDatabase,
+        request_gate: RequestConcurrencyGate | None = None,
+    ) -> None:
         self.database = database
+        self.request_gate = request_gate
 
     async def _legacy_user(
         self,
