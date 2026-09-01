@@ -3,11 +3,27 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
-from typing import Any, Hashable, TypeVar, cast
+from collections.abc import Awaitable, Callable, Hashable
+from functools import wraps
+from typing import Any, TypeVar, cast
 
 T = TypeVar("T")
 Operation = Callable[[], Awaitable[T]]
+
+
+def gated_transport_method(
+    method: Callable[..., Awaitable[T]],
+) -> Callable[..., Awaitable[T]]:
+    """让 transport 公共短请求复用实例级并发门；无 gate 时保持兼容。"""
+
+    @wraps(method)
+    async def wrapped(self: Any, *args: Any, **kwargs: Any) -> T:
+        gate = getattr(self, "request_gate", None)
+        if gate is None:
+            return await method(self, *args, **kwargs)
+        return await gate.run(lambda: method(self, *args, **kwargs))
+
+    return wrapped
 
 
 class RequestConcurrencyGate:
@@ -79,4 +95,4 @@ class RequestConcurrencyGate:
                 self._in_flight.pop(key, None)
 
 
-__all__ = ["RequestConcurrencyGate"]
+__all__ = ["RequestConcurrencyGate", "gated_transport_method"]

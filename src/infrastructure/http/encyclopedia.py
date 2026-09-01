@@ -19,7 +19,6 @@ from zoneinfo import ZoneInfo
 import aiohttp
 
 from ...entry.event import EventActor
-from .concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
 from ...infrastructure.resources.acceleration import accelerate_github_url
 from ...modules.encyclopedia.contracts import (
@@ -36,6 +35,7 @@ from ...modules.encyclopedia.contracts import (
     WeeklyReportItem,
 )
 from ...modules.player.contracts import RoleOverview
+from .concurrency import RequestConcurrencyGate, gated_transport_method
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 DEFAULT_CODE_URL = (
@@ -130,7 +130,11 @@ def _parse_datetime(value: object, *, milliseconds: bool = False) -> datetime | 
     if value is None or value == "":
         return None
     if isinstance(value, (int, float)):
-        timestamp = float(value) / 1000 if milliseconds or abs(value) > 10_000_000_000 else float(value)
+        timestamp = (
+            float(value) / 1000
+            if milliseconds or abs(value) > 10_000_000_000
+            else float(value)
+        )
         return datetime.fromtimestamp(timestamp, tz=SHANGHAI_TZ)
     text = str(value).strip()
     if not text:
@@ -140,7 +144,9 @@ def _parse_datetime(value: object, *, milliseconds: bool = False) -> datetime | 
     except ValueError:
         numeric = None
     if numeric is not None:
-        timestamp = numeric / 1000 if milliseconds or abs(numeric) > 10_000_000_000 else numeric
+        timestamp = (
+            numeric / 1000 if milliseconds or abs(numeric) > 10_000_000_000 else numeric
+        )
         return datetime.fromtimestamp(timestamp, tz=SHANGHAI_TZ)
     normalized = text.replace("Z", "+00:00")
     try:
@@ -157,7 +163,6 @@ def _parse_datetime(value: object, *, milliseconds: bool = False) -> datetime | 
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=SHANGHAI_TZ)
     return parsed.astimezone(SHANGHAI_TZ)
-
 
 
 def _rotation_period(
@@ -193,7 +198,9 @@ def _role_overview(data: Any) -> RoleOverview:
             "level": role_show.level,
             "params": [item.model_dump(by_alias=True) for item in role_show.params],
             "achievementTotal": role_show.roleAchv.total,
-            "roleChars": [item.model_dump(by_alias=True) for item in role_show.roleChars],
+            "roleChars": [
+                item.model_dump(by_alias=True) for item in role_show.roleChars
+            ],
             "langRangeWeapons": [
                 item.model_dump(by_alias=True) for item in role_show.langRangeWeapons
             ],
@@ -344,7 +351,9 @@ class DnaApiEncyclopediaTransport:
         return CalendarEvent(
             title=str(item.get(title_key) or ""),
             pic=str(item.get(pic_key) or ""),
-            start_at=_parse_datetime(item.get("startTime", item.get("createTime")), milliseconds=milliseconds),
+            start_at=_parse_datetime(
+                item.get("startTime", item.get("createTime")), milliseconds=milliseconds
+            ),
             end_at=_parse_datetime(item.get("endTime"), milliseconds=milliseconds),
         )
 
@@ -424,9 +433,11 @@ class DnaApiEncyclopediaTransport:
         if not events:
             return CalendarSnapshot()
         return CalendarSnapshot(
-            events=cls._base_calendar_events(datetime.now(tz=SHANGHAI_TZ)) + tuple(events),
+            events=cls._base_calendar_events(datetime.now(tz=SHANGHAI_TZ))
+            + tuple(events),
         )
 
+    @gated_transport_method
     async def get_short_note(
         self,
         actor: EventActor,
@@ -461,6 +472,7 @@ class DnaApiEncyclopediaTransport:
                 resource="日常便签数据",
             ) from None
 
+    @gated_transport_method
     async def get_weekly_report(
         self,
         actor: EventActor,
@@ -495,6 +507,7 @@ class DnaApiEncyclopediaTransport:
                 resource="周报数据",
             ) from None
 
+    @gated_transport_method
     async def get_calendar(self, actor: EventActor) -> CalendarSnapshot:
         del actor
         activity_error: EncyclopediaTransportError | None = None
@@ -524,10 +537,14 @@ class DnaApiEncyclopediaTransport:
 
             snapshot = self._calendar_from_payloads(activity_data, wiki_data)
             if not snapshot.events:
-                raise (activity_error or wiki_error or EncyclopediaTransportError(
-                    EncyclopediaFailureKind.NOT_FOUND,
-                    resource="日历数据",
-                ))
+                raise (
+                    activity_error
+                    or wiki_error
+                    or EncyclopediaTransportError(
+                        EncyclopediaFailureKind.NOT_FOUND,
+                        resource="日历数据",
+                    )
+                )
             return snapshot
         except EncyclopediaTransportError:
             raise
@@ -545,7 +562,10 @@ class DnaApiEncyclopediaTransport:
     async def _default_code_provider(self, _actor: EventActor) -> Any:
         """读取资源仓库中的只读兑换码 JSON。"""
 
-        async with aiohttp.ClientSession() as session, session.get(self.code_url) as response:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(self.code_url) as response,
+        ):
             if response.status >= 400:
                 raise EncyclopediaTransportError(
                     EncyclopediaFailureKind.STATUS,
@@ -569,7 +589,10 @@ class DnaApiEncyclopediaTransport:
             raise _code_contract_error("payload must be an object")
         if set(data) - {"format_version", "data"}:
             raise _code_contract_error("payload contains unknown fields")
-        if type(data.get("format_version")) is not int or data.get("format_version") != 1:
+        if (
+            type(data.get("format_version")) is not int
+            or data.get("format_version") != 1
+        ):
             raise _code_contract_error("unsupported format_version")
         if not isinstance(data.get("data"), list):
             raise _code_contract_error("data must be a list")
@@ -611,7 +634,11 @@ class DnaApiEncyclopediaTransport:
                 if "expires_at" in item
                 else None
             )
-            if valid_from is not None and expires_at is not None and valid_from >= expires_at:
+            if (
+                valid_from is not None
+                and expires_at is not None
+                and valid_from >= expires_at
+            ):
                 raise _code_contract_error("valid_from must be before expires_at")
 
             platforms = (
@@ -652,6 +679,7 @@ class DnaApiEncyclopediaTransport:
             entries=tuple(entries),
         )
 
+    @gated_transport_method
     async def get_codes(self, actor: EventActor) -> CodeSnapshot:
         try:
             return self._codes(await self._provided_codes(actor))

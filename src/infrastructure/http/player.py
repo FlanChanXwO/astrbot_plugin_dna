@@ -13,7 +13,6 @@ from typing import Any
 import aiohttp
 
 from ...entry.event import EventActor
-from .concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
 from ...modules.player.contracts import (
     DamageCalculation,
@@ -24,6 +23,7 @@ from ...modules.player.contracts import (
     RoleOverview,
     WeaponDetail,
 )
+from .concurrency import RequestConcurrencyGate, gated_transport_method
 
 
 def _error_kind(response: Any) -> PlayerFailureKind:
@@ -121,11 +121,16 @@ class DnaApiPlayerTransport:
                 "level": role_show.level,
                 "params": [item.model_dump(by_alias=True) for item in role_show.params],
                 "achievementTotal": role_show.roleAchv.total,
-                "roleChars": [item.model_dump(by_alias=True) for item in role_show.roleChars],
-                "langRangeWeapons": [
-                    item.model_dump(by_alias=True) for item in role_show.langRangeWeapons
+                "roleChars": [
+                    item.model_dump(by_alias=True) for item in role_show.roleChars
                 ],
-                "closeWeapons": [item.model_dump(by_alias=True) for item in role_show.closeWeapons],
+                "langRangeWeapons": [
+                    item.model_dump(by_alias=True)
+                    for item in role_show.langRangeWeapons
+                ],
+                "closeWeapons": [
+                    item.model_dump(by_alias=True) for item in role_show.closeWeapons
+                ],
             },
         )
 
@@ -141,8 +146,11 @@ class DnaApiPlayerTransport:
         from ...utils.api.model import DNAWeaponDetailRes
 
         payload = DNAWeaponDetailRes.model_validate(data)
-        return WeaponDetail.model_validate(payload.weaponDetail.model_dump(by_alias=True))
+        return WeaponDetail.model_validate(
+            payload.weaponDetail.model_dump(by_alias=True)
+        )
 
+    @gated_transport_method
     async def get_overview(
         self,
         actor: EventActor,
@@ -160,10 +168,15 @@ class DnaApiPlayerTransport:
         except PlayerTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise PlayerTransportError(PlayerFailureKind.NETWORK, resource="角色列表信息") from None
+            raise PlayerTransportError(
+                PlayerFailureKind.NETWORK, resource="角色列表信息"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise PlayerTransportError(PlayerFailureKind.SERVER, resource="角色列表信息") from None
+            raise PlayerTransportError(
+                PlayerFailureKind.SERVER, resource="角色列表信息"
+            ) from None
 
+    @gated_transport_method
     async def get_role_detail(
         self,
         actor: EventActor,
@@ -185,10 +198,15 @@ class DnaApiPlayerTransport:
         except PlayerTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise PlayerTransportError(PlayerFailureKind.NETWORK, resource="角色详情") from None
+            raise PlayerTransportError(
+                PlayerFailureKind.NETWORK, resource="角色详情"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise PlayerTransportError(PlayerFailureKind.SERVER, resource="角色详情") from None
+            raise PlayerTransportError(
+                PlayerFailureKind.SERVER, resource="角色详情"
+            ) from None
 
+    @gated_transport_method
     async def get_weapon_detail(
         self,
         actor: EventActor,
@@ -210,10 +228,15 @@ class DnaApiPlayerTransport:
         except PlayerTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise PlayerTransportError(PlayerFailureKind.NETWORK, resource="武器详情") from None
+            raise PlayerTransportError(
+                PlayerFailureKind.NETWORK, resource="武器详情"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise PlayerTransportError(PlayerFailureKind.SERVER, resource="武器详情") from None
+            raise PlayerTransportError(
+                PlayerFailureKind.SERVER, resource="武器详情"
+            ) from None
 
+    @gated_transport_method
     async def calculate_damage(
         self,
         actor: EventActor,
@@ -233,21 +256,29 @@ class DnaApiPlayerTransport:
             from ...utils.api.model import RoleDetail as LegacyRoleDetail
             from ...utils.api.model import WeaponDetail as LegacyWeaponDetail
 
-            legacy_role = LegacyRoleDetail.model_validate(role_detail.model_dump(by_alias=True))
+            legacy_role = LegacyRoleDetail.model_validate(
+                role_detail.model_dump(by_alias=True)
+            )
             legacy_con = (
                 None
                 if con_weapon is None
-                else LegacyWeaponDetail.model_validate(con_weapon.model_dump(by_alias=True))
+                else LegacyWeaponDetail.model_validate(
+                    con_weapon.model_dump(by_alias=True)
+                )
             )
             legacy_close = (
                 None
                 if close_weapon is None
-                else LegacyWeaponDetail.model_validate(close_weapon.model_dump(by_alias=True))
+                else LegacyWeaponDetail.model_validate(
+                    close_weapon.model_dump(by_alias=True)
+                )
             )
             legacy_ranged = (
                 None
                 if ranged_weapon is None
-                else LegacyWeaponDetail.model_validate(ranged_weapon.model_dump(by_alias=True))
+                else LegacyWeaponDetail.model_validate(
+                    ranged_weapon.model_dump(by_alias=True)
+                )
             )
             response = await calculate_role_damage(
                 await self._legacy_user(actor, uid, credential_user_id),
@@ -268,9 +299,13 @@ class DnaApiPlayerTransport:
         except PlayerTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise PlayerTransportError(PlayerFailureKind.NETWORK, resource="伤害计算") from None
+            raise PlayerTransportError(
+                PlayerFailureKind.NETWORK, resource="伤害计算"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise PlayerTransportError(PlayerFailureKind.SERVER, resource="伤害计算") from None
+            raise PlayerTransportError(
+                PlayerFailureKind.SERVER, resource="伤害计算"
+            ) from None
 
 
 __all__ = ["DnaApiPlayerTransport"]

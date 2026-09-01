@@ -183,14 +183,25 @@
 - 剩余风险：未注入 gate 的 legacy 独立绘图 helper 会保持原有并发行为；跨进程轮询互斥不在本目标范围。`service.py` 中存在本轮之前的若干 Pyright 类型诊断，未扩大修复范围。
 - 下一步：进入 D05，集中检查 Task 10–12 的并发、顺序、取消与缓存契约。
 
-## 集中检查 D04 — Task 10–12 `[pending]`
+## 集中检查 D04 — Task 10–12 `[completed]`
 
 **检查**：Semaphore 覆盖面、长连接排除、死锁、任务泄漏、single-flight key、异常传播、缓存竞态、重复推送和公告顺序。运行并发相关全量测试。
 
-- 实际检查：
-- 验证证据：
-- 新增修复 task：
-- 剩余风险：
+- 实际检查：验证 gate 的 cancellation-safe 行为、single-flight registry 清理、同 key 合并、不同 key 并行、公告列表/详情输入顺序和轮询去重；确认 WebSocket/SSE 未被 gate 持有。审计发现 player/checkin/encyclopedia transport 当前只是注入 gate，若干具体 legacy API 读取仍未包裹 gate。
+- 验证证据：并发与公告专项回归 `44 passed`；Task 12 图片并行测试峰值为 3/2，同波次轮询列表调用为 1；ruff、compileall 通过。
+- 新增修复 task：新增 Task 12a，补齐所有短生命周期 transport I/O 的 gate 覆盖后再进入最终并发验收。
+- 剩余风险：Task 12a 完成前不能宣称“所有短生命周期外部请求共享全局 4 路门”；跨进程互斥不在本目标范围。
+
+## Task 12a — 其余短请求 transport 接入 gate `[completed]`
+
+**目标**：测试先行将 player、checkin、encyclopedia、notices 中尚未包裹的 legacy 短请求统一置于共享 RequestConcurrencyGate，保持写操作不 single-flight。
+
+**验收**：真实 API 调用活动数不超过全局配置；读取按稳定 key 合并或受限，写操作仅受并发门限制；异常/取消释放槽位。
+
+- 实际完成：新增 `gated_transport_method`，对 player、checkin、encyclopedia 与 notices transport 的短请求入口统一使用实例级 gate；无 gate 的旧测试/独立实例保持兼容；写操作仅限并发，不使用 single-flight。
+- 验证证据：新增 `tests/test_goal4_task12a_transport_gate.py`，证明共享门串行化并释放槽位；Task 10–12a 并发专项 `15 passed`；相关 transport Pyright 0 errors、ruff 与 compileall 通过。
+- 剩余风险：装饰器覆盖 transport 方法的本地解析阶段也会占用槽位，后续若性能证据显示本地处理成为瓶颈再拆分为“只包真实 I/O”；跨进程并发仍不在范围内。
+- 下一步：回到 Task 14，完善 mention policy 与只读查询矩阵。
 
 ## Task 13 — 统一命令文本与真实 At 归一化 `[completed]`
 

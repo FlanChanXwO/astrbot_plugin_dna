@@ -13,7 +13,6 @@ from typing import Any
 import aiohttp
 
 from ...entry.event import EventActor
-from .concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
 from ...modules.checkin.contracts import (
     CheckinFailureKind,
@@ -28,6 +27,7 @@ from ...modules.checkin.contracts import (
     TaskProcess,
 )
 from ...modules.player.contracts import RoleOverview
+from .concurrency import RequestConcurrencyGate, gated_transport_method
 
 
 def _error_kind(response: Any) -> CheckinFailureKind:
@@ -177,6 +177,7 @@ class DnaApiCheckinTransport:
             ),
         )
 
+    @gated_transport_method
     async def get_sign_calendar(
         self,
         actor: EventActor,
@@ -194,9 +195,13 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="签到日历") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="签到日历"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="签到日历") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="签到日历"
+            ) from None
 
     @staticmethod
     def _game_sign_status(response: Any) -> SignStatus:
@@ -208,10 +213,14 @@ class DnaApiCheckinTransport:
 
     @staticmethod
     def _bbs_sign_status(response: Any) -> SignStatus:
-        if getattr(response, "is_success", False) or getattr(response, "code", None) == 10000:
+        if (
+            getattr(response, "is_success", False)
+            or getattr(response, "code", None) == 10000
+        ):
             return SignStatus.DONE
         return SignStatus.FAILED
 
+    @gated_transport_method
     async def game_sign(
         self,
         actor: EventActor,
@@ -231,11 +240,16 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="游戏签到") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="游戏签到"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="游戏签到") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="游戏签到"
+            ) from None
         return self._game_sign_status(response)
 
+    @gated_transport_method
     async def get_task_process(
         self,
         actor: EventActor,
@@ -253,10 +267,15 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="社区任务") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="社区任务"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="社区任务") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="社区任务"
+            ) from None
 
+    @gated_transport_method
     async def bbs_sign(
         self,
         actor: EventActor,
@@ -273,11 +292,16 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="社区签到") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="社区签到"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="社区签到") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="社区签到"
+            ) from None
         return self._bbs_sign_status(response)
 
+    @gated_transport_method
     async def have_sign_in(
         self,
         actor: EventActor,
@@ -302,10 +326,15 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="社区签到天数") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="社区签到天数"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="社区签到天数") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="社区签到天数"
+            ) from None
 
+    @gated_transport_method
     async def get_role_overview(
         self,
         actor: EventActor,
@@ -326,10 +355,15 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="角色列表信息") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="角色列表信息"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="角色列表信息") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="角色列表信息"
+            ) from None
 
+    @gated_transport_method
     async def get_post_list(
         self,
         actor: EventActor,
@@ -356,10 +390,15 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="社区帖子") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="社区帖子"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="社区帖子") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="社区帖子"
+            ) from None
 
+    @gated_transport_method
     async def get_post_detail(
         self,
         actor: EventActor,
@@ -379,10 +418,15 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="社区帖子") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="社区帖子"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="社区帖子") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="社区帖子"
+            ) from None
 
+    @gated_transport_method
     async def do_like(
         self,
         actor: EventActor,
@@ -402,10 +446,15 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="社区点赞") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="社区点赞"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="社区点赞") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="社区点赞"
+            ) from None
 
+    @gated_transport_method
     async def do_share(
         self,
         actor: EventActor,
@@ -423,10 +472,15 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="社区分享") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="社区分享"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="社区分享") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="社区分享"
+            ) from None
 
+    @gated_transport_method
     async def do_reply(
         self,
         actor: EventActor,
@@ -448,9 +502,13 @@ class DnaApiCheckinTransport:
         except CheckinTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise CheckinTransportError(CheckinFailureKind.NETWORK, resource="社区回复") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.NETWORK, resource="社区回复"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise CheckinTransportError(CheckinFailureKind.SERVER, resource="社区回复") from None
+            raise CheckinTransportError(
+                CheckinFailureKind.SERVER, resource="社区回复"
+            ) from None
 
 
 __all__ = ["DnaApiCheckinTransport"]

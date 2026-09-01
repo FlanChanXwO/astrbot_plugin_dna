@@ -32,7 +32,7 @@ from ...modules.notices.contracts import (
     NoticesTransportError,
     validate_mh_snapshot,
 )
-from .concurrency import RequestConcurrencyGate
+from .concurrency import RequestConcurrencyGate, gated_transport_method
 
 
 def _error_kind(response: Any) -> NoticesFailureKind:
@@ -182,6 +182,7 @@ class DnaApiNoticesTransport:
             time=pick_time(data),
         )
 
+    @gated_transport_method
     async def get_mh(
         self,
         actor: EventActor,
@@ -207,6 +208,7 @@ class DnaApiNoticesTransport:
                 NoticesFailureKind.SERVER, resource="密函数据"
             ) from None
 
+    @gated_transport_method
     async def get_mh_any(self) -> MhSnapshot:
         """用任意可用账号凭据读取密函（计划任务推送用，当单个凭据失效时自动轮询下一个有效凭据）。"""
 
@@ -266,6 +268,7 @@ class DnaApiNoticesTransport:
             detail="failed to fetch secret letters from any available credential",
         )
 
+    @gated_transport_method
     async def get_ann_list(self) -> AnnSnapshot:
         try:
             from ...utils import dna_api
