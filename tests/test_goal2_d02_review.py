@@ -231,8 +231,10 @@ async def test_admin_preview_uses_real_player_renderer_contract(
     assert detail.data is not None
     assert overview.data.view == "overview"
     assert detail.data.view == "detail"
-    assert base64.b64decode(overview.data.data_base64).startswith(b"\x89PNG")
-    assert base64.b64decode(detail.data.data_base64).startswith(b"\x89PNG")
+    assert base64.b64decode(overview.data.data_base64).startswith(b"\xff\xd8")
+    assert overview.data.content_type == "image/jpeg"
+    assert base64.b64decode(detail.data.data_base64).startswith(b"\xff\xd8")
+    assert detail.data.content_type == "image/jpeg"
     assert len(t2i.templates) == 2
     assert all("UID 1001" in template for template in t2i.templates)
     assert not list((tmp_path / "rendered").glob("*"))

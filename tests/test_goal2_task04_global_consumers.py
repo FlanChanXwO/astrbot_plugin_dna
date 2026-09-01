@@ -75,7 +75,7 @@ class _PlayerRenderer:
         self.path = path
 
     def render_overview(self, *_args: Any, **_kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(path=self.path)
+        return SimpleNamespace(path=self.path, sidecar=None, manifest=None)
 
 
 @pytest.mark.asyncio
@@ -119,7 +119,7 @@ class _EncyclopediaRenderer:
         self.path = path
 
     async def render_stamina(self, *_args: Any, **_kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(path=self.path)
+        return SimpleNamespace(path=self.path, sidecar=None, manifest=None)
 
 
 @pytest.mark.asyncio

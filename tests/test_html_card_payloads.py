@@ -87,7 +87,7 @@ async def test_announcement_list_embeds_previews_and_keeps_indexes(monkeypatch: 
         assert prefer_cache is True
         return [{"postId": "1", "postTitle": "公告标题", "postTime": "2026-08-16", "cover": "https://x"}]
 
-    async def _load_preview(*_: object) -> None:
+    async def _load_preview(*_: object, **__: object) -> None:
         return None
 
     monkeypatch.setattr(module, "fetch_ann_list", _fetch_ann_list)
