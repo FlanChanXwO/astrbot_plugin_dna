@@ -78,7 +78,11 @@ def _build_rewrite_fixture():
             MhSection(
                 mh_type="role",
                 type_name="角色",
-                instances=(MhInstance(601, "扼守/无尽"), MhInstance(602, "拆解"), MhInstance(604, "追缉")),
+                instances=(
+                    MhInstance(601, "扼守/无尽"),
+                    MhInstance(602, "拆解"),
+                    MhInstance(604, "追缉"),
+                ),
             ),
             MhSection(
                 mh_type="weapon",
@@ -88,7 +92,11 @@ def _build_rewrite_fixture():
             MhSection(
                 mh_type="mzx",
                 type_name="魔之楔",
-                instances=(MhInstance(641, "扼守/无尽"), MhInstance(644, "追缉"), MhInstance(646, "调停")),
+                instances=(
+                    MhInstance(641, "扼守/无尽"),
+                    MhInstance(644, "追缉"),
+                    MhInstance(646, "调停"),
+                ),
             ),
         ),
     )
@@ -103,7 +111,11 @@ def _render_legacy(output_dir: Path) -> Image.Image:
     original = dna_utils.get_datetime
     dna_utils.get_datetime = _fixed_datetime
     try:
-        raw = __import__("asyncio").run(draw_mh_simple(_build_legacy_fixture(), remaining_seconds=1800, subscribe_list=None))
+        raw = __import__("asyncio").run(
+            draw_mh_simple(
+                _build_legacy_fixture(), remaining_seconds=1800, subscribe_list=None
+            )
+        )
     finally:
         dna_utils.get_datetime = original
     image = Image.open(BytesIO(raw)).convert("RGBA")
@@ -112,7 +124,7 @@ def _render_legacy(output_dir: Path) -> Image.Image:
 
 
 def _render_rewrite(output_dir: Path) -> tuple[Image.Image, Path]:
-    """渲染 rewrite 密函卡片并读取 PNG 元数据。"""
+    """渲染 rewrite 密函卡片；诊断元数据由 artifact sidecar 读取。"""
 
     from src.infrastructure.rendering import NoticesRenderer
     from src.infrastructure.resources import EncyclopediaResourceStore
@@ -121,7 +133,7 @@ def _render_rewrite(output_dir: Path) -> tuple[Image.Image, Path]:
         output_dir,
         EncyclopediaResourceStore.from_root(Path(output_dir) / "resources"),
     )
-    rendered = renderer.render_mh(_build_rewrite_fixture())
+    rendered = __import__("asyncio").run(renderer.render_mh(_build_rewrite_fixture()))
     image = Image.open(rendered.path).convert("RGBA")
     return image, rendered.path
 
@@ -135,7 +147,10 @@ def _histogram_distance(left: Image.Image, right: Image.Image) -> float:
         from collections.abc import Iterable
         from typing import cast
 
-        data = cast(Iterable[tuple[int, int, int]], image.convert("RGB").getdata())
+        rgb = image.convert("RGB")
+        flattened = getattr(rgb, "get_flattened_data", None)
+        raw_pixels = flattened() if callable(flattened) else rgb.getdata()
+        data = cast(Iterable[tuple[int, int, int]], raw_pixels)
         bins = [0.0] * (32 * 3)
         for red, green, blue in data:
             bins[red // 8] += 1.0
@@ -146,7 +161,9 @@ def _histogram_distance(left: Image.Image, right: Image.Image) -> float:
 
     left_vec, right_vec = hist(left), hist(right)
     dot = sum(a * b for a, b in zip(left_vec, right_vec))
-    norm = math.sqrt(sum(a * a for a in left_vec)) * math.sqrt(sum(b * b for b in right_vec))
+    norm = math.sqrt(sum(a * a for a in left_vec)) * math.sqrt(
+        sum(b * b for b in right_vec)
+    )
     return 1.0 - (dot / norm if norm else 0.0)
 
 
@@ -174,12 +191,20 @@ def _pixel_stats(left: Image.Image, right: Image.Image) -> dict[str, object]:
     }
 
 
-def _report(legacy: Image.Image, rewrite: Image.Image, rewrite_path: Path, out: Path) -> str:
+def _report(
+    legacy: Image.Image, rewrite: Image.Image, rewrite_path: Path, out: Path
+) -> str:
 
-    with Image.open(rewrite_path) as meta_image:
-        text = meta_image.info.get("dnaby.text", "")
-        layout = json.loads(meta_image.info.get("dnaby.layout", "{}"))
-        resources = json.loads(meta_image.info.get("dnaby.resources", "[]"))
+    from src.infrastructure.rendering.artifact_store import read_rendered_artifact
+
+    metadata = read_rendered_artifact(rewrite_path).metadata
+    text = str(metadata.get("dnaby.text", ""))
+    layout = metadata.get("dnaby.layout", {})
+    resources = metadata.get("dnaby.resources", [])
+    if not isinstance(layout, dict):
+        raise ValueError("rewrite artifact 的 dnaby.layout 无效")
+    if not isinstance(resources, list):
+        raise ValueError("rewrite artifact 的 dnaby.resources 无效")
 
     lines = [
         "# 本地离线渲染对比：密函（legacy draw_mh_simple vs rewrite render_mh）",
@@ -233,6 +258,7 @@ def _report(legacy: Image.Image, rewrite: Image.Image, rewrite_path: Path, out: 
         "",
     ]
     content = "\n".join(lines)
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(content, encoding="utf-8")
     return content
 

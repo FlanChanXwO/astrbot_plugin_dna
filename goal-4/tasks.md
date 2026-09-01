@@ -119,16 +119,16 @@
 - 剩余风险：公告缓存键与旧命名仍保留 `_png` 兼容语义，旧缓存的系统性迁移与离线 compare/regenerate 留待 Task 08；真实服务端 T2I 视觉/体积对比留待 Task 22。
 - 下一步：Task 08 适配缓存 manifest、离线对比/再生成与清理工具。
 
-## Task 08 — 渲染缓存、离线对比与清理工具适配 `[pending]`
+## Task 08 — 渲染缓存、离线对比与清理工具适配 `[completed]`
 
 **目标**：更新公告/玩家等缓存 manifest、离线 compare/regenerate 脚本和维护清理，使其读取 artifact sidecar 并支持 jpg/png。
 
 **验收**：旧缓存 miss 后安全重建；不把格式变化伪装成损坏；离线检查仍能验证文本/layout/resources；孤儿配对清理正确。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：公告缓存 validator/读写命名改为 image 语义并记录真实 `media:image/jpeg|image/png`；详情 manifest 升级为 schema v2，逐页记录 index/media_type，旧 manifest 自动 miss 并走正常重建；artifact store 新增确定性格式感知导出接口，regenerate 脚本输出真实 `.jpg`/`.png` 并重建 sidecar/manifest、清理旧格式残留；compare 脚本从 sidecar 读取 text/layout/resources，不再依赖 JPEG 内嵌 PNG metadata；现有 RenderedFileStore 配对清理补充 JPEG 与孤儿 manifest 覆盖。
+- 验证证据：新增 `tests/test_goal4_task08_render_tools.py`，覆盖 JPEG/PNG 导出、旧 manifest miss 重建、sidecar metadata、compare 报告和 JPEG pair/manifest-orphan 清理；Task 03–08 及相关玩家/百科/公告/密函/清理回归共 91 项通过；`scripts/compare_renders.py` 实际离线运行成功；ruff、compileall、Pyright（artifact store、notices、compare/regenerate）均通过；LSP diagnostics 无错误。
+- 剩余风险：regenerate 脚本仍在最终输出打印阶段使用 Pillow 读取尺寸，仅属于离线工具；真实生产输出的体积/视觉基准留待 Task 09/22。
+- 下一步：Task 09 统一图片格式集成与体积回归。
 
 ## Task 09 — 统一图片格式集成与体积回归 `[pending]`
 

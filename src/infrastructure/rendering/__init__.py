@@ -3,6 +3,7 @@
 from .artifact import RenderedArtifact
 from .artifact_store import (
     artifact_validator,
+    export_rendered_artifact,
     read_rendered_artifact,
     write_rendered_artifact,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "ResourceMap",
     "RenderedArtifact",
     "artifact_validator",
+    "export_rendered_artifact",
     "read_rendered_artifact",
     "write_rendered_artifact",
     "T2IRenderError",

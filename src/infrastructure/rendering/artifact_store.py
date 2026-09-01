@@ -192,6 +192,58 @@ def read_rendered_artifact(image: str | Path) -> RenderedArtifact:
     return artifact
 
 
+def export_rendered_artifact(
+    image: str | Path,
+    destination_stem: str | Path,
+) -> "ImageResponse":
+    """把已发布 artifact 复制为确定性文件名，并重建有效配对清单。"""
+
+    from ...entry.response import ImageResponse
+
+    artifact = read_rendered_artifact(image)
+    stem = Path(destination_stem).expanduser().absolute()
+    if stem.suffix:
+        raise ValueError("artifact 导出目标必须是不含扩展名的文件 stem")
+    directory = _safe_root(stem.parent)
+    if stem.parent != directory or stem.name in {"", ".", ".."}:
+        raise ValueError("artifact 导出目标不安全")
+    image_path = stem.with_suffix(artifact.suffix)
+    sidecar_path = _sidecar_path(image_path)
+    manifest_path = _manifest_path(image_path)
+    image_tmp: Path | None = None
+    sidecar_tmp: Path | None = None
+    manifest_tmp: Path | None = None
+    try:
+        image_tmp = _write_temp(
+            directory, f"{stem.name}-", artifact.suffix, artifact.data
+        )
+        sidecar_data = _sidecar_payload(artifact)
+        sidecar_tmp = _write_temp(directory, f"{stem.name}-", ".json", sidecar_data)
+        manifest_tmp = _write_temp(
+            directory,
+            f"{stem.name}-",
+            ".manifest.json",
+            _manifest_payload(image_path, sidecar_path, sidecar_data),
+        )
+        image_tmp.replace(image_path)
+        sidecar_tmp.replace(sidecar_path)
+        manifest_tmp.replace(manifest_path)
+    except Exception:
+        for path in (image_tmp, sidecar_tmp, manifest_tmp):
+            if path is not None:
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+        raise
+    return ImageResponse(
+        str(image_path),
+        temporary=False,
+        sidecar=str(sidecar_path),
+        manifest=str(manifest_path),
+    )
+
+
 def artifact_validator(media_type: str):
     """返回可直接交给 ``CacheManager`` 的图片完整性 validator。"""
 
@@ -202,4 +254,9 @@ def artifact_validator(media_type: str):
     return validate
 
 
-__all__ = ["artifact_validator", "read_rendered_artifact", "write_rendered_artifact"]
+__all__ = [
+    "artifact_validator",
+    "export_rendered_artifact",
+    "read_rendered_artifact",
+    "write_rendered_artifact",
+]

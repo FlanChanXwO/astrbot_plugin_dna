@@ -56,14 +56,50 @@ def _overview_fixture():
         ],
         achievement_total=3,
         role_chars=[
-            RoleItem(char_id=101, char_eid="e1", element_icon="element://fire", icon="role://101", level=80, name="角色甲", grade_level=6, unlocked=True),
-            RoleItem(char_id=102, char_eid="e2", element_icon="element://ice", icon="role://102", level=0, name="角色乙", grade_level=0, unlocked=False),
+            RoleItem(
+                char_id=101,
+                char_eid="e1",
+                element_icon="element://fire",
+                icon="role://101",
+                level=80,
+                name="角色甲",
+                grade_level=6,
+                unlocked=True,
+            ),
+            RoleItem(
+                char_id=102,
+                char_eid="e2",
+                element_icon="element://ice",
+                icon="role://102",
+                level=0,
+                name="角色乙",
+                grade_level=0,
+                unlocked=False,
+            ),
         ],
         close_weapons=[
-            WeaponItem(element_icon="weapon-element://close", icon="weapon://201", level=70, name="近战甲", unlocked=True, weapon_eid="w1", weapon_id=201, skill_level=3),
+            WeaponItem(
+                element_icon="weapon-element://close",
+                icon="weapon://201",
+                level=70,
+                name="近战甲",
+                unlocked=True,
+                weapon_eid="w1",
+                weapon_id=201,
+                skill_level=3,
+            ),
         ],
         ranged_weapons=[
-            WeaponItem(element_icon="weapon-element://ranged", icon="weapon://202", level=0, name="远程甲", unlocked=False, weapon_eid="w2", weapon_id=202, skill_level=0),
+            WeaponItem(
+                element_icon="weapon-element://ranged",
+                icon="weapon://202",
+                level=0,
+                name="远程甲",
+                unlocked=False,
+                weapon_eid="w2",
+                weapon_id=202,
+                skill_level=0,
+            ),
         ],
     )
 
@@ -112,6 +148,27 @@ def _weekly_fixture(week_type: int):
     )
 
 
+def _export_rendered(source: Path, destination_stem: Path) -> Path:
+    """按 artifact 真实格式导出确定性文件名，并移除旧格式残留。"""
+
+    from src.infrastructure.rendering.artifact_store import export_rendered_artifact
+
+    destination_stem.parent.mkdir(parents=True, exist_ok=True)
+    for suffix in (".jpg", ".png"):
+        old_image = destination_stem.with_suffix(suffix)
+        for path in (
+            old_image,
+            old_image.with_name(old_image.name + ".json"),
+            old_image.with_name(old_image.name + ".manifest.json"),
+        ):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+    response = export_rendered_artifact(source, destination_stem)
+    return Path(response.image)
+
+
 def main() -> int:
     import asyncio
 
@@ -122,13 +179,16 @@ def main() -> int:
     )
     from src.infrastructure.resources import EncyclopediaResourceStore
 
+    import tempfile
+
     OUT.mkdir(parents=True, exist_ok=True)
     _preseed_legacy_assets()
-    resources = EncyclopediaResourceStore.from_root(ROOT / "output" / "astrbot" / "resources")
+    resources = EncyclopediaResourceStore.from_root(OUT / "resources")
+    artifact_dir: Path
 
     async def render_all() -> None:
-        player = PlayerRenderer(OUT, ResourceMap())
-        encyclopedia = EncyclopediaRenderer(OUT, resources)
+        player = PlayerRenderer(artifact_dir, ResourceMap())
+        encyclopedia = EncyclopediaRenderer(artifact_dir, resources)
 
         overview = await player.render_overview_legacy(
             _overview_fixture(),
@@ -136,23 +196,24 @@ def main() -> int:
             uid_hidden=False,
             show_unowned=True,
         )
-        stamina = encyclopedia.render_stamina(_short_note_fixture())
-        current = encyclopedia.render_weekly_report(_weekly_fixture(1))
-        last = encyclopedia.render_weekly_report(_weekly_fixture(2))
+        stamina = await encyclopedia.render_stamina(_short_note_fixture())
+        current = await encyclopedia.render_weekly_report(_weekly_fixture(1))
+        last = await encyclopedia.render_weekly_report(_weekly_fixture(2))
 
         targets = (
-            (overview.path, "role_overview.png"),
-            (stamina.path, "stamina.png"),
-            (current.path, "weekly_report_current.png"),
-            (last.path, "weekly_report_last.png"),
+            (overview.path, "role_overview"),
+            (stamina.path, "stamina"),
+            (current.path, "weekly_report_current"),
+            (last.path, "weekly_report_last"),
         )
-        for source, name in targets:
-            target = OUT / name
-            target.write_bytes(source.read_bytes())
+        for source, stem in targets:
+            target = _export_rendered(Path(source), OUT / stem)
             with Image.open(target) as image:
-                print(f"{name}: {image.width} x {image.height}")
+                print(f"{target.name}: {image.width} x {image.height}")
 
-    asyncio.run(render_all())
+    with tempfile.TemporaryDirectory(prefix="dnaby-regenerate-") as temporary_dir:
+        artifact_dir = Path(temporary_dir)
+        asyncio.run(render_all())
     return 0
 
 

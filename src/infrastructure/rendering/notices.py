@@ -83,11 +83,19 @@ def _valid_artifact_bytes(content: bytes, media_type: MediaType) -> bool:
     return True
 
 
+def _image_media_type(content: bytes) -> MediaType:
+    for media_type in ("image/jpeg", "image/png"):
+        if _valid_artifact_bytes(content, media_type):
+            return media_type
+    raise ValueError("公告缓存图片不是受支持的 JPEG/PNG")
+
+
 def _image_validator(content: bytes) -> bool:
-    return any(
-        _valid_artifact_bytes(content, media_type)
-        for media_type in ("image/jpeg", "image/png")
-    )
+    try:
+        _image_media_type(content)
+    except ValueError:
+        return False
+    return True
 
 
 _png_validator = _image_validator
@@ -585,7 +593,7 @@ class RenderedNoticesImage:
 
 
 class NoticesRenderer:
-    """生成密函与公告卡片的运行期 PNG。"""
+    """生成密函与公告卡片，并按真实 JPEG/PNG 格式发布。"""
 
     def __init__(
         self,
@@ -619,7 +627,7 @@ class NoticesRenderer:
             f"{announcement_fingerprint(detail)}:{page_index}"
         )
 
-    async def _cached_png(self, key: str) -> bytes | None:
+    async def _cached_image(self, key: str) -> bytes | None:
         if self.cache_manager is None:
             return None
         lookup = await self.cache_manager.get(
@@ -631,16 +639,17 @@ class NoticesRenderer:
             return None
         return lookup.entry.content
 
-    async def _store_png(
+    async def _store_image(
         self, key: str, content: bytes, *, tags: tuple[str, ...]
     ) -> None:
         if self.cache_manager is None:
             return
+        media_type = _image_media_type(content)
         await self.cache_manager.put(
             "announcement",
             key,
             content,
-            tags=tags,
+            tags=(*tags, f"media:{media_type}"),
             validator=_png_validator,
         )
 
@@ -666,22 +675,28 @@ class NoticesRenderer:
             return None
         try:
             raw = json.loads(manifest.entry.content.decode("utf-8"))
-            page_indexes = raw["pages"]
+            page_entries = raw["pages"]
         except (KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
             return None
         if (
-            not isinstance(page_indexes, list)
-            or not page_indexes
-            or any(type(index) is not int or index < 0 for index in page_indexes)
-            or page_indexes != list(range(len(page_indexes)))
+            not isinstance(raw, dict)
+            or raw.get("schema_version") != 2
+            or not isinstance(page_entries, list)
+            or not page_entries
         ):
             return None
         pages: list[bytes] = []
-        for page_index in page_indexes:
-            page = await self._cached_png(
-                self.detail_cache_key(detail, page_index=page_index),
+        for expected_index, page_entry in enumerate(page_entries):
+            if (
+                not isinstance(page_entry, dict)
+                or page_entry.get("index") != expected_index
+                or page_entry.get("media_type") not in ("image/jpeg", "image/png")
+            ):
+                return None
+            page = await self._cached_image(
+                self.detail_cache_key(detail, page_index=expected_index),
             )
-            if page is None:
+            if page is None or _image_media_type(page) != page_entry["media_type"]:
                 return None
             pages.append(page)
         return pages
@@ -824,7 +839,7 @@ class NoticesRenderer:
             {"name": "公告", "items": len(snapshot.posts)}
         ]
         cache_key = self.list_cache_key(snapshot)
-        cached = await self._cached_png(cache_key)
+        cached = await self._cached_image(cache_key)
         if cached is not None:
             return self._write_cached(
                 cached,
@@ -858,7 +873,7 @@ class NoticesRenderer:
             resources=resources,
             sections=sections,
         )
-        await self._store_png(
+        await self._store_image(
             cache_key,
             rendered.path.read_bytes(),
             tags=(
@@ -940,13 +955,19 @@ class NoticesRenderer:
             ]
             if self.cache_manager is not None:
                 for page_index, rendered in enumerate(rendered_pages):
-                    await self._store_png(
+                    await self._store_image(
                         self.detail_cache_key(detail, page_index=page_index),
                         rendered.path.read_bytes(),
                         tags=("announcement", "detail", f"fingerprint:{fingerprint}"),
                     )
                 manifest = json.dumps(
-                    {"pages": list(range(len(rendered_pages)))},
+                    {
+                        "schema_version": 2,
+                        "pages": [
+                            {"index": index, "media_type": rendered.media_type}
+                            for index, rendered in enumerate(rendered_pages)
+                        ],
+                    },
                     ensure_ascii=False,
                     sort_keys=True,
                     separators=(",", ":"),
