@@ -35,14 +35,36 @@
 - 剩余风险：双文件发布已具备临时写入和失败清理，但尚未接入所有 renderer 的 T2I 热路径；当前 pair 仍为两个文件替换，完整版本 manifest 发布由后续缓存迁移/渲染任务继续收口。当前工作树初始化前改动和其他 goal 文件未纳入提交。
 - 下一步：集中检查 D01：复查规格、artifact 格式安全、sidecar 生命周期、缓存/响应边界、类型检查和 staged diff。
 
-## 集中检查 D01 — Task 01–03 `[pending]`
+## 集中检查 D01 — Task 01–03 `[completed]`
 
 **检查**：规格偏差、artifact 格式安全、路径/原子写、sidecar 生命周期、缓存租约、MIME 泄漏、类型检查、目标测试和 staged diff。发现问题追加修复 task。
 
-- 实际检查：
+- 实际检查：复核 Task 01–03 的规格、实现和提交边界。图片检查器能拒绝格式错误/截断结果；artifact 保留原始 bytes；缓存 validator 和 sidecar SHA 校验已覆盖；rendered 清理按图片+sidecar pair 计数。发现两项必须在进入领域 renderer 前收口的问题：`ResponseFactory` 的 `MultiImageResponse`/`ChainResponse` 尚未登记 sidecar；图片与 sidecar 仍是两个独立文件替换，尚未达到规格要求的可恢复 pair publication。另确认 `write_temporary_image()` 等旧调用仍是无 sidecar 原始路径，后续迁移必须明确兼容边界。
+- 验证证据：目标与相关测试 `48 passed`（含 Task 02/03、renderer、cache、生命周期回归）；目标文件 `ruff check` 与 `compileall` 通过；Pyright `0 errors, 0 warnings, 0 informations`；staged diff 审计显示 Task 03 提交只包含 `goal-4/tasks.md` 及本 task 明确拥有的 6 个实现/测试文件，初始化前修改仍未暂存。一次 ruff/compileall 失败是命令工作目录拼写错误，已用正确 cwd 重跑通过。
+- 新增修复 task：见下方 `Task 03-R1`（多图/链响应 sidecar 生命周期）和 `Task 03-R2`（可恢复 pair publication/validator），均置于 Task 04 之前。
+- 剩余风险：T2I `HtmlRenderer` 和领域 renderer 尚未切换到 artifact；Task 03-R1/R2 未完成前，常规 T2I 直出还不能宣称完成。
+
+## Task 03-R1 — 多图与链响应的 sidecar 生命周期收口 `[pending]`
+
+**目标**：测试先行补齐 `ResponseFactory` 对 `MultiImageResponse`、`ChainResponse` 中临时图片及 sidecar 的配对校验、登记和租约清理。
+
+**验收**：每个临时图片及其 sidecar 均登记一次；缺失/越界 sidecar 显式失败；既有无 sidecar `ImageResponse` 测试保持通过；不重复注册。
+
+- 实际完成：
 - 验证证据：
-- 新增修复 task：
 - 剩余风险：
+- 下一步：
+
+## Task 03-R2 — 可恢复 pair publication 与缓存/清理一致性 `[pending]`
+
+**目标**：测试先行将图片+sidecar 发布收口为 manifest/pointer 或等价可恢复 pair 协议，覆盖发布中断、混合 pair、孤儿 pair 和缓存 validator。
+
+**验收**：发送/缓存只解析完整 pair；任一文件失败不会暴露半发布 pair；崩溃恢复可清理临时 pair；旧缓存安全 miss；图片 bytes/SHA 保持一致。
+
+- 实际完成：
+- 验证证据：
+- 剩余风险：
+- 下一步：
 
 ## Task 04 — 玩家卡片 T2I 直出 `[pending]`
 
