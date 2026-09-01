@@ -146,7 +146,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="account_login",
         pattern=r"^(?:登录|登陆|登入|登龙|login)\s*(?P<arg>.*)$",
-        group="皎皎角登录",
+        group="账号管理",
         name="登录",
         description="皎皎角登录（登录页/短信验证码/token）",
         examples=("登录", "登录" + "t" * 40),
@@ -156,7 +156,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="account_logout",
         pattern=r"^(?:退出登录|登出|logout)$",
-        group="皎皎角登录",
+        group="账号管理",
         name="退出登录",
         description="退出当前登录",
         examples=("退出登录",),
@@ -166,7 +166,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="account_bind",
         pattern=r"^绑定\s*(?P<uid>\S*)$",
-        group="绑定账号",
+        group="账号管理",
         name="绑定UID",
         description="绑定一个 UID",
         examples=("绑定1234567890123",),
@@ -176,7 +176,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="account_switch",
         pattern=r"^切换\s*(?P<uid>\S*)$",
-        group="绑定账号",
+        group="账号管理",
         name="切换UID",
         description="切换当前 UID",
         examples=("切换1234567890123",),
@@ -186,7 +186,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="account_delete_all",
         pattern=r"^删除全部(?:UID|uid)?$",
-        group="绑定账号",
+        group="账号管理",
         name="删除全部UID",
         description="删除当前作用域的全部 UID",
         examples=("删除全部UID",),
@@ -196,7 +196,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="account_delete",
         pattern=r"^删除\s*(?P<uid>(?!全部(?:UID|uid)?$)\d*)$",
-        group="绑定账号",
+        group="账号管理",
         name="删除UID",
         description="删除一个 UID",
         examples=("删除1234567890123",),
@@ -206,7 +206,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="account_list",
         pattern=r"^查看(?:UID|uid)?$",
-        group="绑定账号",
+        group="账号管理",
         name="查看UID",
         description="查看当前绑定 UID",
         examples=("查看UID",),
@@ -216,9 +216,9 @@ COMMAND_SPECS = (
     CommandSpec(
         id="account_credentials",
         pattern=r"^(?:获取ck|获取CK|获取Token|获取token|获取TOKEN)$",
-        group="绑定账号",
+        group="账号管理",
         name="获取凭据状态",
-        description="查看当前绑定账号的凭据状态（严格脱敏）",
+        description="查看当前登录账号的凭据状态（严格脱敏）",
         examples=("获取ck",),
         permission="user",
         use_case=account_credentials_use_case,

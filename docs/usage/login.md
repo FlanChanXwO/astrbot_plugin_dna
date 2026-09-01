@@ -1,6 +1,6 @@
-# 皎皎角登录
+# 账号登录
 
-账号登录 use case 以原 DNAUID 的角色绑定行为为参考（详见 `docs/legacy/` 排查档案），
+账号登录 use case 以原 DNAUID 的角色关联行为为参考（详见 `docs/legacy/` 排查档案），
 新入口通过 typed transport 接收结果，不直接持有旧事件或旧数据库。
 
 ## 方式

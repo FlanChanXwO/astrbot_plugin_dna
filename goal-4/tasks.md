@@ -225,16 +225,16 @@
 - 剩余风险：当前只读命令的领域 service 已接收 `target_user_id`，但完整“每个 query 都以目标 active UID/凭据执行”的跨模块集成矩阵仍需下一轮补齐；全仓 Pyright 仍有既有命令 optional runtime 诊断。
 - 下一步：Task 15 修正登录文案、帮助与 commands manifest。
 
-## Task 15 — 登录/UID 文案、帮助与命令清单修正 `[pending]`
+## Task 15 — 登录/UID 文案、帮助与命令清单修正 `[completed]`
 
 **目标**：测试先行精确修改误导性的绑定文案，保留 UID 管理术语，并重生成 commands manifest。
 
 **验收**：查询错误只提示登录/重新登录；登录成功/页面/帮助语义一致；UID 管理结果不被误改；registry 与 commands.json 一致。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：玩家、签到、资料查询和 legacy 通知中的未登录/失效提示统一改为登录语义；登录页面标题改为“登录 Web 凭据/登录 DNAUID”；帮助分组统一为“账号管理/账号登录”，保留绑定/切换/删除/查看 UID；账号命令组和凭据描述同步修正，重新生成 `commands.json`；同步登录与命令使用文档。
+- 验证证据：新增 `tests/test_goal4_task15_login_wording.py`，覆盖查询失败、页面/帮助语义、UID 管理术语和 manifest 投影；相关账号/命令/玩家/签到/公告回归 `76 passed`；ruff、compileall 通过。
+- 剩余风险：legacy 文案函数仍保留显式 UID 管理操作中的“绑定 UID”术语，这是设计要求，不是查询失败提示；全仓 Pyright 的既有 optional runtime 诊断未扩大修复范围。
+- 下一步：进入 D05，集中检查 Task 13–15 的 At 安全边界、查询身份归属、写操作隔离和文案残留。
 
 ## 集中检查 D05 — Task 13–15 `[pending]`
 

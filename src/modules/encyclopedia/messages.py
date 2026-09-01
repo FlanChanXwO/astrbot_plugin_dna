@@ -10,7 +10,7 @@ from .contracts import CodeEntry
 
 CONTEXT_UNAVAILABLE = "资料查询需要有效的消息上下文"
 SERVICE_UNAVAILABLE = "资料服务暂不可用，请检查插件配置"
-UID_INVALID = "UID 无效，请先绑定账号"
+UID_INVALID = "尚未登录，请先登录"
 PEEK_BLOCKED = "该用户不允许被查询"
 CODE_TITLE = "[DNA兑换码]"
 CODE_EMPTY = f"{CODE_TITLE} 暂无可用兑换码"
@@ -56,9 +56,7 @@ def code_entry(entry: CodeEntry | str, expiry: str = "") -> str:
         and not entry.platforms
         and not entry.servers
     ):
-        return (
-            f"{entry.code}（有效期至：{_format_code_datetime(entry.expires_at)}）"
-        )
+        return f"{entry.code}（有效期至：{_format_code_datetime(entry.expires_at)}）"
 
     lines = [entry.code]
     if entry.reward:

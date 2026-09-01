@@ -4,7 +4,7 @@ from __future__ import annotations
 
 PLAYER_CONTEXT_UNAVAILABLE = "玩家查询上下文不可用"
 PLAYER_SERVICE_UNAVAILABLE = "玩家查询服务不可用"
-PLAYER_UID_INVALID = "UID无效，请重新绑定"
+PLAYER_UID_INVALID = "未登录或登录已失效，请重新登录"
 PLAYER_PEEK_BLOCKED = "该用户开启了防偷窥，无法查看其游戏信息"
 PLAYER_ORIGINAL_UNSUPPORTED = "当前平台暂不支持通过引用获取角色原图"
 PLAYER_DAMAGE_FAILED = "伤害计算暂不可用，请稍后再试"

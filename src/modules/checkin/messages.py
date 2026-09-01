@@ -6,7 +6,7 @@ from .contracts import CheckinFailureKind, SignStatus
 
 CHECKIN_CONTEXT_UNAVAILABLE = "签到查询上下文不可用"
 CHECKIN_SERVICE_UNAVAILABLE = "签到服务不可用"
-CHECKIN_UID_INVALID = "UID无效，请重新绑定"
+CHECKIN_UID_INVALID = "未登录或登录已失效，请重新登录"
 CHECKIN_PEEK_BLOCKED = "该用户开启了防偷窥，无法查看其游戏信息"
 CHECKIN_ALL_STARTED = "已开始执行全部签到"
 CHECKIN_ALL_DONE = "全部签到执行完成"

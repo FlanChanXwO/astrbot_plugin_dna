@@ -73,11 +73,11 @@ async def dna_uid_invalid(sender: Sender, ctx: EventContext, need_at: bool = Tru
     is_use_other_id = await get_using_id(ctx) != ctx.user_id
     msg = (
         [
-            "UID无效，请重新绑定",
-            f"请重新输入命令【{DNA_PREFIX}绑定 UID】进行绑定",
+            "登录已失效，请重新登录",
+            f"请重新输入命令【{DNA_PREFIX}登录】进行登录",
         ]
         if not is_use_other_id
-        else ["该用户的 UID 无效", f"请让该用户输入命令【{DNA_PREFIX}绑定 UID】进行绑定"]
+        else ["该用户尚未登录", f"请让该用户输入命令【{DNA_PREFIX}登录】进行登录"]
     )
     msg = "\n".join(msg)
     return await send_dna_notify(sender, ctx, msg, need_at)
@@ -90,8 +90,12 @@ async def dna_token_invalid(sender: Sender, ctx: EventContext, need_at: bool = T
     return await send_dna_notify(sender, ctx, msg, need_at)
 
 
-async def dna_not_found(sender: Sender, ctx: EventContext, resource_name: str, need_at: bool = True):
-    return await send_dna_notify(sender, ctx, f"{resource_name}未找到，请检查是否正确", need_at)
+async def dna_not_found(
+    sender: Sender, ctx: EventContext, resource_name: str, need_at: bool = True
+):
+    return await send_dna_notify(
+        sender, ctx, f"{resource_name}未找到，请检查是否正确", need_at
+    )
 
 
 async def dna_peek_blocked(sender: Sender, ctx: EventContext, need_at: bool = True):
@@ -105,8 +109,12 @@ async def dna_peek_blocked(sender: Sender, ctx: EventContext, need_at: bool = Tr
     return await send_dna_notify(sender, ctx, msg, need_at)
 
 
-async def dna_not_unlocked(sender: Sender, ctx: EventContext, resource_name: str, need_at: bool = True):
-    return await send_dna_notify(sender, ctx, f"{resource_name}暂未拥有，无法查看", need_at)
+async def dna_not_unlocked(
+    sender: Sender, ctx: EventContext, resource_name: str, need_at: bool = True
+):
+    return await send_dna_notify(
+        sender, ctx, f"{resource_name}暂未拥有，无法查看", need_at
+    )
 
 
 async def dna_login_fail(sender: Sender, ctx: EventContext, need_at: bool = True):
@@ -147,7 +155,13 @@ async def dna_login_success(sender: Sender, ctx: EventContext, need_at: bool = T
     return await send_dna_notify(sender, ctx, msg, need_at)
 
 
-async def dna_bind_uid_result(sender: Sender, ctx: EventContext, uid: str = "", code: int = 0, need_at: bool = True):
+async def dna_bind_uid_result(
+    sender: Sender,
+    ctx: EventContext,
+    uid: str = "",
+    code: int = 0,
+    need_at: bool = True,
+):
     from ...infrastructure.config.settings import DNA_PREFIX
 
     code_map = {
