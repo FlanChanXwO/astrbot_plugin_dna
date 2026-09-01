@@ -130,16 +130,16 @@
 - 剩余风险：regenerate 脚本仍在最终输出打印阶段使用 Pillow 读取尺寸，仅属于离线工具；真实生产输出的体积/视觉基准留待 Task 09/22。
 - 下一步：Task 09 统一图片格式集成与体积回归。
 
-## Task 09 — 统一图片格式集成与体积回归 `[pending]`
+## Task 09 — 统一图片格式集成与体积回归 `[completed]`
 
 **目标**：补齐跨 renderer 集成测试和代表性基准，证明常规最终 bytes/T2I bytes=1.0，视觉内容不变。
 
 **验收**：所有 T2I-backed renderer 有格式矩阵；测试禁止常规输出 Pillow；生成 before/after 字节、尺寸和视觉证据。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增跨 renderer 格式矩阵回归，覆盖 JPEG/PNG artifact 容器、玩家/百科/公告 writer 的原始 bytes 保留，以及 HtmlRenderer 返回结果不解码/不重编码；将 sidecar 读取作为统一元数据验证入口，并复用离线 compare 生成尺寸、像素弱信号和文本/layout/resources 证据。
+- 验证证据：新增 `tests/test_goal4_task09_format_matrix.py`，6 项通过；Task 03–09 相关渲染、缓存、清理与领域回归通过；`scripts/compare_renders.py` 实际生成 `/tmp/dnaby-task08-render-compare.md` 报告成功。格式矩阵验证 `published_bytes == t2i_bytes`、真实后缀/媒体类型与宽高一致；普通 T2I 检查不调用 Pillow，像素视觉比较仅保留在测试/离线工具。
+- 剩余风险：当前环境没有可复现的旧版全量真实 T2I payload 采样，尚未给出生产样本级 bytes before/after 统计；该项按计划留待 Task 22 的真实渲染验收。签到报告、二维码等直接 bytes 返回路径继续保持既有 PNG/平台默认格式，不属于 artifact writer 重编码路径。
+- 下一步：集中检查 D03，审计 Task 07–09 的分页、缓存 manifest、JPEG 平台兼容、离线工具、清理与全域渲染回归。
 
 ## 集中检查 D03 — Task 07–09 `[pending]`
 
