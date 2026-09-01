@@ -319,6 +319,7 @@ def build_runtime(
         encyclopedia_resources,
         simple_image=settings.notifications.secret_simple_image,
         cache_manager=cache_manager,
+        request_gate=request_gate,
     )
 
     async def _push_notice(

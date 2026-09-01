@@ -161,16 +161,16 @@
 - 剩余风险：当前 transport 已持有共享 gate，但具体 API 调用包裹与公告内部并行留待 Task 11–12；跨进程并发上限不在本目标范围，单例边界为单插件进程。
 - 下一步：Task 11 实现 URL/post single-flight 与缓存 miss 合并。
 
-## Task 11 — URL/post single-flight 与缓存 miss 合并 `[pending]`
+## Task 11 — URL/post single-flight 与缓存 miss 合并 `[completed]`
 
 **目标**：测试先行实现源图、二维码和公告详情 single-flight，修复临时 target 导致相同 URL 无法合并的问题。
 
 **验收**：相同 key 并发底层调用为 1；不同 key 可在全局门内并行；失败/cancel 后 registry 清理且后续可重试。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：`_fetch_image_bytes` 以规范化源 URL 作为 single-flight key，并将临时下载目录放入共享任务内部；二维码按 URL+size 合并；公告详情 transport 按 post_id 合并；预览/详情图片下载与缓存 miss 复用共享 gate；bootstrap 将 gate 注入公告 renderer。
+- 验证证据：新增 `tests/test_goal4_task11_singleflight.py`，覆盖同 URL 源图/二维码、同 post 公告详情、失败后重试、不同 URL 并行；Task 11 及 Task 07/08/10、O12 公告/推送/缓存/通知回归共 `59 passed`；ruff、Pyright 通过。
+- 剩余风险：single-flight registry 是进程内 gate；缓存 miss 的并发合并依赖 gate 注入，未注入 gate 的 legacy 独立 helper 仍保持原行为；公告轮询整轮共享与内部多图并行留待 Task 12。
+- 下一步：Task 12 实现公告图片并行与轮询 single-flight。
 
 ## Task 12 — 公告图片并行与轮询 single-flight `[pending]`
 

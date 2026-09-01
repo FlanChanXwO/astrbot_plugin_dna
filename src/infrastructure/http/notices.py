@@ -15,7 +15,6 @@ from typing import Any
 import aiohttp
 
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
-from .concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -33,6 +32,7 @@ from ...modules.notices.contracts import (
     NoticesTransportError,
     validate_mh_snapshot,
 )
+from .concurrency import RequestConcurrencyGate
 
 
 def _error_kind(response: Any) -> NoticesFailureKind:
@@ -199,9 +199,13 @@ class DnaApiNoticesTransport:
         except NoticesTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise NoticesTransportError(NoticesFailureKind.NETWORK, resource="密函数据") from None
+            raise NoticesTransportError(
+                NoticesFailureKind.NETWORK, resource="密函数据"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise NoticesTransportError(NoticesFailureKind.SERVER, resource="密函数据") from None
+            raise NoticesTransportError(
+                NoticesFailureKind.SERVER, resource="密函数据"
+            ) from None
 
     async def get_mh_any(self) -> MhSnapshot:
         """用任意可用账号凭据读取密函（计划任务推送用，当单个凭据失效时自动轮询下一个有效凭据）。"""
@@ -244,10 +248,14 @@ class DnaApiNoticesTransport:
                 last_error = error
                 continue
             except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-                last_error = NoticesTransportError(NoticesFailureKind.NETWORK, resource="密函数据")
+                last_error = NoticesTransportError(
+                    NoticesFailureKind.NETWORK, resource="密函数据"
+                )
                 continue
             except (AttributeError, KeyError, TypeError, ValueError):
-                last_error = NoticesTransportError(NoticesFailureKind.SERVER, resource="密函数据")
+                last_error = NoticesTransportError(
+                    NoticesFailureKind.SERVER, resource="密函数据"
+                )
                 continue
 
         if last_error is not None:
@@ -294,7 +302,9 @@ class DnaApiNoticesTransport:
                         resource="公告列表",
                         detail="postList contains an invalid item",
                     )
-                page_signature = tuple(str(post.get("postId", "")) for post in page_posts)
+                page_signature = tuple(
+                    str(post.get("postId", "")) for post in page_posts
+                )
                 if page_signature in seen_pages:
                     raise NoticesTransportError(
                         NoticesFailureKind.SERVER,
@@ -314,15 +324,28 @@ class DnaApiNoticesTransport:
         except NoticesTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise NoticesTransportError(NoticesFailureKind.NETWORK, resource="公告列表") from None
+            raise NoticesTransportError(
+                NoticesFailureKind.NETWORK, resource="公告列表"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise NoticesTransportError(NoticesFailureKind.SERVER, resource="公告列表") from None
+            raise NoticesTransportError(
+                NoticesFailureKind.SERVER, resource="公告列表"
+            ) from None
 
     async def get_ann_detail(self, post_id: str) -> AnnDetail:
         try:
             from ...utils import dna_api
 
-            response = await dna_api.get_post_detail(post_id)
+            async def fetch_detail() -> Any:
+                return await dna_api.get_post_detail(post_id)
+
+            request_gate = getattr(self, "request_gate", None)
+            if request_gate is None:
+                response = await fetch_detail()
+            else:
+                response = await request_gate.run(
+                    fetch_detail, key=("ann-detail", post_id)
+                )
             data = _response_data(response, resource="公告详情")
             if not isinstance(data, dict):
                 raise NoticesTransportError(
@@ -341,9 +364,13 @@ class DnaApiNoticesTransport:
         except NoticesTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
-            raise NoticesTransportError(NoticesFailureKind.NETWORK, resource="公告详情") from None
+            raise NoticesTransportError(
+                NoticesFailureKind.NETWORK, resource="公告详情"
+            ) from None
         except (AttributeError, KeyError, TypeError, ValueError):
-            raise NoticesTransportError(NoticesFailureKind.SERVER, resource="公告详情") from None
+            raise NoticesTransportError(
+                NoticesFailureKind.SERVER, resource="公告详情"
+            ) from None
 
 
 __all__ = ["DnaApiNoticesTransport"]

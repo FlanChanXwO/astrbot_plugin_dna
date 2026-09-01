@@ -35,10 +35,10 @@ from ...utils.api.mh_map import get_mh_type_name
 from ...utils.api.model import DNARoleForToolInstanceInfo
 from ...utils.image_utils import download
 from ...utils.resource.RESOURCE_PATH import ANN_CARD_PATH
+from ..http.concurrency import RequestConcurrencyGate
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .image_inspector import MediaType, inspect_image
 from .assets import (
     font_data_uri,
     image_data_uri,
@@ -46,6 +46,7 @@ from .assets import (
     pil_image_data_uri,
     unicode_font_data_uris,
 )
+from .image_inspector import MediaType, inspect_image
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
 
@@ -115,23 +116,46 @@ def _cache_name(*parts: object, ext: str = "png") -> str:
 
 
 async def _fetch_image(
-    path: Path, pic_url: str, *, name: str | None = None
+    path: Path,
+    pic_url: str,
+    *,
+    name: str | None = None,
+    request_gate: RequestConcurrencyGate | None = None,
+    request_key: object | None = None,
 ) -> Image.Image:
     path.mkdir(parents=True, exist_ok=True)
     file_name = name or pic_url.split("/")[-1]
     target = path / file_name
-    await download(pic_url, path, file_name, tag="[DNA]")
+
+    async def fetch() -> None:
+        await download(pic_url, path, file_name, tag="[DNA]")
+
+    if request_gate is None:
+        await fetch()
+    else:
+        await request_gate.run(
+            fetch, key=request_key if request_key is not None else ("image", pic_url)
+        )
     return Image.open(target).convert("RGBA")
 
 
-async def _fetch_image_bytes(pic_url: str) -> bytes:
+async def _fetch_image_bytes(
+    pic_url: str,
+    *,
+    request_gate: RequestConcurrencyGate | None = None,
+) -> bytes:
     """下载并校验一张临时源图，成功后由调用方决定是否进入统一缓存。"""
 
-    with tempfile.TemporaryDirectory(prefix="dnaby-ann-source-") as directory:
-        target_dir = Path(directory)
-        file_name = _cache_name("source", pic_url, ext="image")
-        target = await download(pic_url, target_dir, file_name, tag="[DNA]")
-        return target.read_bytes()
+    async def fetch() -> bytes:
+        with tempfile.TemporaryDirectory(prefix="dnaby-ann-source-") as directory:
+            target_dir = Path(directory)
+            file_name = _cache_name("source", pic_url, ext="image")
+            target = await download(pic_url, target_dir, file_name, tag="[DNA]")
+            return target.read_bytes()
+
+    if request_gate is None:
+        return await fetch()
+    return await request_gate.run(fetch, key=("source-image", pic_url))
 
 
 def _image_from_bytes(content: bytes) -> Image.Image:
@@ -145,9 +169,12 @@ async def _source_image_content(
     *,
     cache_manager: CacheManager | None,
     kind: str,
+    request_gate: RequestConcurrencyGate | None = None,
 ) -> bytes:
     if cache_manager is None:
-        return await _fetch_image_bytes(url)
+        if request_gate is None:
+            return await _fetch_image_bytes(url)
+        return await _fetch_image_bytes(url, request_gate=request_gate)
     key = f"ann-source:{kind}:{url}"
     lookup = await cache_manager.get(
         "announcement",
@@ -156,7 +183,10 @@ async def _source_image_content(
     )
     if lookup.entry is not None:
         return lookup.entry.content
-    content = await _fetch_image_bytes(url)
+    if request_gate is None:
+        content = await _fetch_image_bytes(url)
+    else:
+        content = await _fetch_image_bytes(url, request_gate=request_gate)
     await cache_manager.put(
         "announcement",
         key,
@@ -167,12 +197,22 @@ async def _source_image_content(
     return content
 
 
-async def _load_qr_code(url: str, size: int = 220) -> Image.Image | None:
+async def _load_qr_code(
+    url: str, size: int = 220, *, request_gate: RequestConcurrencyGate | None = None
+) -> Image.Image | None:
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size={size}x{size}&data={quote_plus(url)}"
     try:
-        image = await _fetch_image(
-            QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size)
-        )
+        if request_gate is None:
+            image = await _fetch_image(
+                QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size)
+            )
+        else:
+            image = await request_gate.run(
+                lambda: _fetch_image(
+                    QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size)
+                ),
+                key=("qr", url, size),
+            )
     except (OSError, httpx.HTTPError):
         return None
     return image.convert("RGB").resize((size, size), Image.Resampling.LANCZOS)
@@ -212,6 +252,7 @@ async def _load_preview(
     *,
     strict: bool = False,
     cache_manager: CacheManager | None = None,
+    request_gate: RequestConcurrencyGate | None = None,
 ) -> Image.Image | None:
     if not url:
         return None
@@ -221,6 +262,8 @@ async def _load_preview(
                 PREVIEW_CACHE_PATH,
                 url,
                 name=_cache_name("preview", url),
+                request_gate=request_gate,
+                request_key=("preview", url),
             )
         else:
             image = _image_from_bytes(
@@ -228,6 +271,7 @@ async def _load_preview(
                     url,
                     cache_manager=cache_manager,
                     kind="preview",
+                    request_gate=request_gate,
                 ),
             )
     except (OSError, httpx.HTTPError):
@@ -244,6 +288,7 @@ async def _load_detail_image(
     max_width: int,
     *,
     cache_manager: CacheManager | None = None,
+    request_gate: RequestConcurrencyGate | None = None,
 ) -> Image.Image:
     if cache_manager is None:
         image = await _fetch_image(
@@ -257,6 +302,7 @@ async def _load_detail_image(
                 url,
                 cache_manager=cache_manager,
                 kind="detail",
+                request_gate=request_gate,
             ),
         )
     return _shrink_to_width(image.convert("RGB"), max_width)
@@ -457,6 +503,7 @@ async def _detail_blocks_payload(
     blocks: list[tuple[str, str]],
     *,
     cache_manager: CacheManager | None = None,
+    request_gate: RequestConcurrencyGate | None = None,
 ) -> list[dict[str, str]]:
     content_width = ANN_WIDTH - ANN_PADDING * 2
     payload: list[dict[str, str]] = []
@@ -465,13 +512,24 @@ async def _detail_blocks_payload(
             payload.append({"kind": kind, "value": value})
         else:
             if cache_manager is None:
-                image = await _load_detail_image(value, content_width)
+                if request_gate is None:
+                    image = await _load_detail_image(value, content_width)
+                else:
+                    image = await _load_detail_image(
+                        value, content_width, request_gate=request_gate
+                    )
             else:
-                image = await _load_detail_image(
-                    value,
-                    content_width,
-                    cache_manager=cache_manager,
-                )
+                if request_gate is None:
+                    image = await _load_detail_image(
+                        value, content_width, cache_manager=cache_manager
+                    )
+                else:
+                    image = await _load_detail_image(
+                        value,
+                        content_width,
+                        cache_manager=cache_manager,
+                        request_gate=request_gate,
+                    )
             payload.append({"kind": kind, "value": pil_image_data_uri(image)})
     return payload
 
@@ -507,14 +565,21 @@ async def draw_ann_detail_card(
     *,
     time_text: str = "",
     cache_manager: CacheManager | None = None,
+    request_gate: RequestConcurrencyGate | None = None,
 ) -> bytes | list[bytes]:
     """使用 HTML/T2I 渲染已解析的公告正文卡片。"""
 
     post_id = str(post_id)
-    qr_image = await globals()["load_qr_code"](get_post_url(post_id))
+    qr_loader = globals()["load_qr_code"]
+    qr_image = (
+        await qr_loader(get_post_url(post_id), request_gate=request_gate)
+        if request_gate is not None
+        else await qr_loader(get_post_url(post_id))
+    )
     block_payload = await _detail_blocks_payload(
         blocks,
         cache_manager=cache_manager,
+        request_gate=request_gate,
     )
     font, font_fallback = unicode_font_data_uris(
         UNICODE_ORIGIN_PATH,
@@ -602,11 +667,13 @@ class NoticesRenderer:
         *,
         simple_image: bool = False,
         cache_manager: CacheManager | None = None,
+        request_gate: RequestConcurrencyGate | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
         self.simple_image = simple_image
         self.cache_manager = cache_manager
+        self.request_gate = request_gate
 
     @staticmethod
     def list_cache_key(snapshot: AnnSnapshot) -> str:
@@ -940,6 +1007,7 @@ class NoticesRenderer:
                     blocks,
                     time_text=getattr(detail, "time", ""),
                     cache_manager=self.cache_manager,
+                    request_gate=self.request_gate,
                 )
             raw_pages = raw_result if isinstance(raw_result, list) else [raw_result]
             if not raw_pages:
