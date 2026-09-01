@@ -392,3 +392,14 @@
 - 验证证据：T2I 常规 JPEG 真实响应与插件 `RenderedArtifact` 落盘文件逐字节一致，`t2i_bytes=13681`、`final_bytes=13681`、`sha256_equal=true`、`inflation=1.0`，JPEG `ffd8…ffd9`、尺寸 `640x360`；Dashboard 真实页面列出公告目标 `990000027`，页面显示“可管理”，实际点击“停用→确认”“启用→确认”“删除→确认”均刷新状态，删除后目标列表为空；网络记录显示目标列表 GET 为 200、停用 POST 为 200、启用 POST 正确返回 207 partial，修复 bridge 后 UI 显示“操作部分完成，请核对结果后重试”且保留停用状态；浏览器控制台错误数为 0。隔离 AstrBot/OneBot 冒烟证明：无 At 查询返回“未登录或登录已失效，请重新登录”；At 前、At 后查询均返回目标凭据错误“账号凭据无效，请重新登录”；带 At 的删除写操作返回“该UID尚未绑定”，目标绑定仍保留，证明写命令未代目标执行；管理员身份的公告订阅命令生成 `provenance=chat_command` 目标。NapCat WebUI 通过真实 `get_group_member_list` 读 API 成功获取本地开发群成员，未执行外发消息。
 - 剩余风险：本轮公告启用在真实环境中因上游公告列表请求异常返回 207，目标按安全语义保持停用；这验证了 partial 错误展示，但未把上游不可用伪装成成功。At 冒烟使用隔离 OneBot client 和无凭据 UID，未调用真实游戏 API，也未验证真实登录账号的完整卡片视觉；NapCat 原连接保持在线，测试连接使用独立虚拟 self_id/group_id。全仓既有 Ruff/Pyright 问题仍按 Task 25 记录。
 - 下一步：运行 Task 26 相关质量门禁，提交本轮修复与运行时证据；之后进入 Goal 终审。
+
+## Task 27 — 全量测试的本地 T2I 环境隔离与终审收口 `[pending]`
+
+**目标**：修正全量 pytest 对 AstrBot 全局远程 T2I renderer 的隐式依赖，使测试在用户指定的本地 T2I 容器或确定性 fixture 下可重复运行，不改变生产链路；重新执行完整门禁并核对失败是否仍归属于本 goal。
+
+**验收**：`uv run pytest -q` 在当前本地环境稳定通过（允许既有明确跳过）；不得向外部真实群组发送消息；本地 T2I 端点/fixture 的选择有测试级边界，不污染用户运行配置；ruff、compileall、Dashboard JS 检查和 git diff 审计保持通过。
+
+- 实际完成：待本轮执行。
+- 验证证据：待本轮执行。
+- 剩余风险：当前全量回归仍有部分测试调用 AstrBot 默认远程 T2I，受 Cloudflare HTML/上游不可用影响而波动失败。
+- 下一步：完成测试环境隔离后进入最终 Goal 终审并标记完成。
