@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import random
@@ -422,6 +423,7 @@ async def draw_ann_list_img(
     *,
     strict_previews: bool = False,
     cache_manager: CacheManager | None = None,
+    request_gate: RequestConcurrencyGate | None = None,
 ) -> bytes | str:
     """以 HTML/T2I 渲染包含全部公告的索引卡。"""
 
@@ -438,36 +440,35 @@ async def draw_ann_list_img(
         ANN_WIDTH - ANN_PADDING * 2 - ANN_GRID_GAP * (ANN_GRID_COLS - 1)
     ) // ANN_GRID_COLS
     image_height = 156
-    cards: list[dict[str, str | int | None]] = []
-    for idx, post in enumerate(posts, start=1):
+
+    async def load_card(idx: int, post: dict) -> dict[str, str | int | None]:
         try:
             preview_url = pick_preview(post)
-            if strict_previews or cache_manager is not None:
-                preview = await _load_preview(
-                    preview_url,
-                    card_width,
-                    image_height,
-                    strict=strict_previews,
-                    cache_manager=cache_manager,
-                )
-            else:
-                preview = await _load_preview(
-                    preview_url,
-                    card_width,
-                    image_height,
-                )
+            kwargs: dict[str, Any] = {
+                "strict": strict_previews,
+                "cache_manager": cache_manager,
+            }
+            if request_gate is not None:
+                kwargs["request_gate"] = request_gate
+            preview = await _load_preview(
+                preview_url, card_width, image_height, **kwargs
+            )
         except (OSError, httpx.HTTPError):
             if strict_previews:
                 raise
             preview = None
-        cards.append(
-            {
-                "index": idx,
-                "preview": pil_image_data_uri(preview) if preview is not None else None,
-                "subject": pick_subject(post),
-                "time": pick_time(post),
-            }
+        return {
+            "index": idx,
+            "preview": pil_image_data_uri(preview) if preview is not None else None,
+            "subject": pick_subject(post),
+            "time": pick_time(post),
+        }
+
+    cards = list(
+        await asyncio.gather(
+            *(load_card(idx, post) for idx, post in enumerate(posts, start=1))
         )
+    )
 
     font, font_fallback = unicode_font_data_uris(
         UNICODE_ORIGIN_PATH,
@@ -506,31 +507,23 @@ async def _detail_blocks_payload(
     request_gate: RequestConcurrencyGate | None = None,
 ) -> list[dict[str, str]]:
     content_width = ANN_WIDTH - ANN_PADDING * 2
+
+    async def load_image(value: str) -> Image.Image:
+        kwargs: dict[str, Any] = {}
+        if cache_manager is not None:
+            kwargs["cache_manager"] = cache_manager
+        if request_gate is not None:
+            kwargs["request_gate"] = request_gate
+        return await _load_detail_image(value, content_width, **kwargs)
+
+    image_values = [value for kind, value in blocks if kind != "text"]
+    images = iter(await asyncio.gather(*(load_image(value) for value in image_values)))
     payload: list[dict[str, str]] = []
     for kind, value in blocks:
         if kind == "text":
             payload.append({"kind": kind, "value": value})
         else:
-            if cache_manager is None:
-                if request_gate is None:
-                    image = await _load_detail_image(value, content_width)
-                else:
-                    image = await _load_detail_image(
-                        value, content_width, request_gate=request_gate
-                    )
-            else:
-                if request_gate is None:
-                    image = await _load_detail_image(
-                        value, content_width, cache_manager=cache_manager
-                    )
-                else:
-                    image = await _load_detail_image(
-                        value,
-                        content_width,
-                        cache_manager=cache_manager,
-                        request_gate=request_gate,
-                    )
-            payload.append({"kind": kind, "value": pil_image_data_uri(image)})
+            payload.append({"kind": kind, "value": pil_image_data_uri(next(images))})
     return payload
 
 
@@ -924,14 +917,12 @@ class NoticesRenderer:
             }
             for post in snapshot.posts
         ]
-        if self.cache_manager is None:
-            image_bytes = await draw_ann_list_img(payload, strict_previews=True)
-        else:
-            image_bytes = await draw_ann_list_img(
-                payload,
-                strict_previews=True,
-                cache_manager=self.cache_manager,
-            )
+        image_bytes = await draw_ann_list_img(
+            payload,
+            strict_previews=True,
+            cache_manager=self.cache_manager,
+            request_gate=self.request_gate,
+        )
         if not isinstance(image_bytes, bytes):
             raise TypeError("公告列表 legacy 绘制失败")
         rendered = self._write_cached(

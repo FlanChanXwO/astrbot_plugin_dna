@@ -14,6 +14,7 @@ import httpx
 from ...entry.event import EventActor
 from ...entry.response import ImageResponse, MultiImageResponse, PlainTextResponse
 from ...infrastructure.cache import CacheManager
+from ...infrastructure.http.concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import NoticesRenderer, RenderedNoticesImage
 from ...infrastructure.rendering.errors import HtmlRenderError
@@ -70,6 +71,7 @@ class NoticesService:
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache_manager: CacheManager | None = None,
         clock: ClockCallable | None = None,
+        request_gate: RequestConcurrencyGate | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -91,6 +93,7 @@ class NoticesService:
             MhSnapshotCache(cache_manager) if cache_manager is not None else None
         )
         self._clock = clock
+        self.request_gate = request_gate
 
     def _now(self) -> datetime:
         if self._clock is not None:
@@ -801,7 +804,17 @@ class NoticesService:
         return pushed
 
     async def poll_ann_now(self) -> int:
-        """轮询公告并向群订阅者推送新公告图片；返回推送条数（计划任务）。"""
+        """轮询公告并向群订阅者推送新公告图片；同一波次只执行一次。"""
+
+        async def poll() -> int:
+            return await self._poll_ann_now_once()
+
+        if self.request_gate is None:
+            return await poll()
+        return await self.request_gate.run(poll, key=("ann-poll",))
+
+    async def _poll_ann_now_once(self) -> int:
+        """执行一轮公告轮询；由 ``poll_ann_now`` 负责 single-flight。"""
 
         if (
             self.subscriptions is None

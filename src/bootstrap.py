@@ -388,6 +388,7 @@ def build_runtime(
         push=_push_notice,
         config_store=config if isinstance(config, dict) else None,
         resource_snapshots=resource_snapshots,
+        request_gate=request_gate,
     )
     notices_scheduler = NoticesScheduler(
         notices_service,

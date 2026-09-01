@@ -172,16 +172,16 @@
 - 剩余风险：single-flight registry 是进程内 gate；缓存 miss 的并发合并依赖 gate 注入，未注入 gate 的 legacy 独立 helper 仍保持原行为；公告轮询整轮共享与内部多图并行留待 Task 12。
 - 下一步：Task 12 实现公告图片并行与轮询 single-flight。
 
-## Task 12 — 公告图片并行与轮询 single-flight `[pending]`
+## Task 12 — 公告图片并行与轮询 single-flight `[completed]`
 
 **目标**：测试先行并行列表 previews、详情 QR/blocks，并让并发 `poll_ann_now()` 共享一轮；公告和目标推送顺序不变。
 
 **验收**：并发波次、稳定顺序和最大 4 路有证据；同轮询列表/详情/渲染/推送只执行一次；部分目标重试契约保持。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：公告列表预览和公告详情正文图片改为 `asyncio.gather`，结果按原输入顺序重组；图片实际网络 I/O 继续由全局 gate 控制。`NoticesService.poll_ann_now()` 通过 `("ann-poll",)` single-flight 共享并发轮询，bootstrap 注入全局 gate；列表/不同公告/不同群目标推送的串行顺序不变。
+- 验证证据：新增 `tests/test_goal4_task12_parallel_poll.py`，覆盖列表预览并行、详情 blocks 并行和同波次轮询底层列表调用一次；Task 11/12、Task 07/08/10 与 O12 公告/推送/缓存/通知回归共 `62 passed`；ruff 通过，bootstrap/rendering/http 变更范围 Pyright 通过。
+- 剩余风险：未注入 gate 的 legacy 独立绘图 helper 会保持原有并发行为；跨进程轮询互斥不在本目标范围。`service.py` 中存在本轮之前的若干 Pyright 类型诊断，未扩大修复范围。
+- 下一步：进入 D05，集中检查 Task 10–12 的并发、顺序、取消与缓存契约。
 
 ## 集中检查 D04 — Task 10–12 `[pending]`
 
