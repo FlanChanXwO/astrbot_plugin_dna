@@ -16,9 +16,9 @@ from src.modules.encyclopedia.service import EncyclopediaService
 TEMPLATE_DIR = Path(__file__).parents[1] / "src" / "templates"
 
 
-def _png(width: int, height: int) -> bytes:
+def _jpeg(width: int, height: int) -> bytes:
     buffer = BytesIO()
-    Image.new("RGB", (width, height), "navy").save(buffer, format="PNG")
+    Image.new("RGB", (width, height), "navy").save(buffer, format="JPEG", quality=85)
     return buffer.getvalue()
 
 
@@ -31,7 +31,7 @@ async def test_announcement_detail_keeps_html_payload_and_multi_page_result(
     class Renderer:
         async def render(self, template: str, data: dict[str, Any], spec: Any) -> bytes:
             calls.append((template, data, spec))
-            return _png(1080, ann_card.PAGE_LIMIT + 25)
+            return _jpeg(1080, ann_card.PAGE_LIMIT + 25)
 
     async def fetch_posts(*, prefer_cache: bool) -> list[dict[str, object]]:
         assert prefer_cache is True
@@ -61,18 +61,27 @@ async def test_announcement_detail_keeps_html_payload_and_multi_page_result(
     monkeypatch.setattr(
         ann_card,
         "extract_blocks",
-        lambda _: [("text", "完整正文<script>"), ("image", "https://asset.invalid/image")],
+        lambda _: [
+            ("text", "完整正文<script>"),
+            ("image", "https://asset.invalid/image"),
+        ],
     )
     monkeypatch.setattr(ann_card, "_load_detail_image", detail_image)
     monkeypatch.setattr(ann_card, "load_qr_code", qr_code)
-    monkeypatch.setattr(ann_card, "_load_avatar", lambda _: Image.new("RGB", (10, 10), "blue"))
+    monkeypatch.setattr(
+        ann_card, "_load_avatar", lambda _: Image.new("RGB", (10, 10), "blue")
+    )
     monkeypatch.setattr(
         ann_card,
         "unicode_font_data_uris",
         lambda _source, _text: ("data:font/woff2;base64,AA==", None),
     )
-    monkeypatch.setattr(ann_card, "image_data_uri", lambda _: "data:image/jpeg;base64,AA==")
-    monkeypatch.setattr(ann_card, "pil_image_data_uri", lambda _: "data:image/png;base64,AA==")
+    monkeypatch.setattr(
+        ann_card, "image_data_uri", lambda _: "data:image/jpeg;base64,AA=="
+    )
+    monkeypatch.setattr(
+        ann_card, "pil_image_data_uri", lambda _: "data:image/png;base64,AA=="
+    )
 
     result = await ann_card.draw_ann_detail_img("7")
 
@@ -90,9 +99,31 @@ async def test_announcement_detail_keeps_html_payload_and_multi_page_result(
 
 
 @pytest.mark.asyncio
-async def test_announcement_page_split_preserves_single_page_bytes() -> None:
-    rendered = _png(1080, 5999)
+@pytest.mark.parametrize("height", [5999, ann_card.PAGE_LIMIT])
+async def test_announcement_page_split_preserves_single_page_bytes(
+    height: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rendered = _jpeg(1080, height)
+
+    def fail_image_open(*_: object, **__: object) -> None:
+        raise AssertionError("普通公告不应经过 Pillow")
+
+    monkeypatch.setattr(ann_card.Image, "open", fail_image_open)
     assert await ann_card._split_rendered_pages(rendered) is rendered
+
+
+@pytest.mark.asyncio
+async def test_announcement_page_split_uses_jpeg_only_for_over_limit_pages() -> None:
+    rendered = _jpeg(1080, ann_card.PAGE_LIMIT + 25)
+    pages = await ann_card._split_rendered_pages(rendered)
+
+    assert isinstance(pages, list) and len(pages) == 2
+    assert [Image.open(BytesIO(page)).size for page in pages] == [
+        (1080, ann_card.PAGE_LIMIT),
+        (1080, 25),
+    ]
+    assert all(page.startswith(b"\xff\xd8\xff") for page in pages)
 
 
 def test_announcement_detail_template_escapes_and_keeps_complete_content() -> None:

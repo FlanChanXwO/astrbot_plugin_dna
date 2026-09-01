@@ -87,7 +87,9 @@ class NoticesService:
         self.config_store = config_store
         self._sync_ann_group_cb = sync_ann_group_cb
         self.resource_snapshots = resource_snapshots
-        self.mh_cache = MhSnapshotCache(cache_manager) if cache_manager is not None else None
+        self.mh_cache = (
+            MhSnapshotCache(cache_manager) if cache_manager is not None else None
+        )
         self._clock = clock
 
     def _now(self) -> datetime:
@@ -132,13 +134,17 @@ class NoticesService:
     def _renderer_context(self):
         if self.resource_snapshots is None:
             return nullcontext(self.renderer)
-        return self.resource_snapshots.bind_renderer(self.renderer, "encyclopedia_resources")
+        return self.resource_snapshots.bind_renderer(
+            self.renderer, "encyclopedia_resources"
+        )
 
     async def _resolve_uid(
         self,
         request: NoticeRequest,
     ) -> tuple[str, str] | PlainTextResponse:
-        resolution = await self.privacy.resolve_query(request.actor, request.target_user_id)
+        resolution = await self.privacy.resolve_query(
+            request.actor, request.target_user_id
+        )
         if resolution.blocked:
             return PlainTextResponse(messages.NOTICES_PEEK_BLOCKED, need_at=True)
         target_user_id = resolution.resolved_user_id
@@ -161,10 +167,21 @@ class NoticesService:
 
         if isinstance(rendered, (list, tuple)):
             images = tuple(
-                ImageResponse(str(page.path), temporary=True) for page in rendered
+                ImageResponse(
+                    str(page.path),
+                    temporary=True,
+                    sidecar=getattr(page, "sidecar", None),
+                    manifest=getattr(page, "manifest", None),
+                )
+                for page in rendered
             )
             return MultiImageResponse(images)
-        return ImageResponse(str(rendered.path), temporary=True)
+        return ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            sidecar=getattr(rendered, "sidecar", None),
+            manifest=getattr(rendered, "manifest", None),
+        )
 
     async def mh(self, request: NoticeRequest):
         """读取并渲染当前小时段的密函数据。"""
@@ -203,7 +220,12 @@ class NoticesService:
                 snapshot,
                 simple_image=self.secret_simple_image,
             )
-        return ImageResponse(str(rendered.path), temporary=True)
+        return ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            sidecar=getattr(rendered, "sidecar", None),
+            manifest=getattr(rendered, "manifest", None),
+        )
 
     async def mh_list(self, _request: NoticeRequest):
         """返回全部密函委托名称。"""
@@ -260,7 +282,6 @@ class NoticesService:
             return PlainTextResponse(messages.ANN_DETAIL_FAILED, need_at=True)
         return self._image_response(rendered)
 
-
     @staticmethod
     async def _origin(actor: EventActor) -> tuple[str, str]:
         origin = actor.unified_msg_origin if actor is not None else None
@@ -281,7 +302,9 @@ class NoticesService:
         if not mh_name:
             return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         if mh_name == "全部":
-            return PlainTextResponse(messages.mh_all_forbidden(request.matched_prefix), need_at=True)
+            return PlainTextResponse(
+                messages.mh_all_forbidden(request.matched_prefix), need_at=True
+            )
         keys = _mh_keys(mh_name, mh_type)
 
         try:
@@ -293,7 +316,8 @@ class NoticesService:
                         user_id=request.actor.user_id,
                         bot_id=request.actor.bot_id,
                     )
-                    if sub.unified_msg_origin == origin and sub.uid == request.actor.user_id
+                    if sub.unified_msg_origin == origin
+                    and sub.uid == request.actor.user_id
                 ),
                 None,
             )
@@ -308,10 +332,15 @@ class NoticesService:
                     uid=request.actor.user_id,
                     extra_message=",".join(keys),
                 )
-                return PlainTextResponse(messages.MH_SUBSCRIBED_TEMPLATE.format(names=",".join(keys)), need_at=True)
+                return PlainTextResponse(
+                    messages.MH_SUBSCRIBED_TEMPLATE.format(names=",".join(keys)),
+                    need_at=True,
+                )
             existing = [item for item in target.extra_message.split(",") if item]
             if set(keys) <= set(existing):
-                return PlainTextResponse(messages.MH_DUPLICATE.format(name=mh_name), need_at=True)
+                return PlainTextResponse(
+                    messages.MH_DUPLICATE.format(name=mh_name), need_at=True
+                )
             merged = sorted(set(existing) | set(keys))
             await self.subscriptions.update(
                 messages.MH_SUBSCRIBE,
@@ -320,7 +349,7 @@ class NoticesService:
                 extra_message=",".join(merged),
             )
             return PlainTextResponse(
-                f"{messages.MH_SUBSCRIBED_TEMPLATE.format(names=mh_name)}!当前订阅密函: {",".join(merged)}",
+                f"{messages.MH_SUBSCRIBED_TEMPLATE.format(names=mh_name)}!当前订阅密函: {','.join(merged)}",
                 need_at=True,
             )
         except RuntimeError:
@@ -345,7 +374,8 @@ class NoticesService:
                         user_id=request.actor.user_id,
                         bot_id=request.actor.bot_id,
                     )
-                    if sub.unified_msg_origin == origin and sub.uid == request.actor.user_id
+                    if sub.unified_msg_origin == origin
+                    and sub.uid == request.actor.user_id
                 ),
                 None,
             )
@@ -359,7 +389,11 @@ class NoticesService:
                 )
                 return PlainTextResponse(messages.MH_UNSUBSCRIBED_ALL, need_at=True)
             keys = _mh_keys(mh_name, mh_type)
-            remaining = [item for item in target.extra_message.split(",") if item and item not in keys]
+            remaining = [
+                item
+                for item in target.extra_message.split(",")
+                if item and item not in keys
+            ]
             if not remaining:
                 await self.subscriptions.delete(
                     messages.MH_SUBSCRIBE,
@@ -411,7 +445,9 @@ class NoticesService:
             lines.append(messages.MH_PUSH_TIME_SET.format(start=start, end=end))
         else:
             lines.append(messages.MH_PUSH_TIME_UNLIMITED)
-            lines.append(f"可以使用命令设置推送时间: {messages.COMMAND_PREFIX}订阅密函时间17:23")
+            lines.append(
+                f"可以使用命令设置推送时间: {messages.COMMAND_PREFIX}订阅密函时间17:23"
+            )
         return PlainTextResponse("\n".join(lines), need_at=True)
 
     async def set_mh_push_time(self, request: NoticeRequest):
@@ -423,9 +459,13 @@ class NoticesService:
             start = int(str(request.parameters.get("start", "")).strip())
             end = int(str(request.parameters.get("end", "")).strip())
         except ValueError:
-            return PlainTextResponse(messages.mh_push_time_format(request.matched_prefix), need_at=True)
+            return PlainTextResponse(
+                messages.mh_push_time_format(request.matched_prefix), need_at=True
+            )
         if start < 0 or start > 23 or end < 0 or end > 23:
-            return PlainTextResponse(messages.mh_push_time_format(request.matched_prefix), need_at=True)
+            return PlainTextResponse(
+                messages.mh_push_time_format(request.matched_prefix), need_at=True
+            )
         origin, error = await self._origin(request.actor)
         if error:
             return PlainTextResponse(error, need_at=True)
@@ -495,7 +535,10 @@ class NoticesService:
                 if (
                     len(sig.parameters) >= 3
                     or "at_user_id" in sig.parameters
-                    or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                    or any(
+                        p.kind == inspect.Parameter.VAR_KEYWORD
+                        for p in sig.parameters.values()
+                    )
                 ):
                     res = self.push(origin, payload, at_user_id=at_user_id)
                 elif at_user_id:
@@ -546,10 +589,10 @@ class NoticesService:
         if not group_id:
             return
         gid_str = str(group_id)
-        if getattr(self, '_sync_ann_group_cb', None):
+        if getattr(self, "_sync_ann_group_cb", None):
             self._sync_ann_group_cb(gid_str, subscribed)
             return
-        if getattr(self, 'config_store', None) is not None:
+        if getattr(self, "config_store", None) is not None:
             notif = self.config_store.setdefault("notifications", {})
             if isinstance(notif, dict):
                 groups = notif.setdefault("announcement_groups", {})
@@ -717,10 +760,15 @@ class NoticesService:
             for type_name in ("角色", "武器", "魔之楔"):
                 if by_type.get(type_name):
                     text_lines.append(f"\n-- {type_name} --")
-                    text_lines.extend(f"{i}. {name}" for i, name in enumerate(by_type[type_name], start=1))
+                    text_lines.extend(
+                        f"{i}. {name}"
+                        for i, name in enumerate(by_type[type_name], start=1)
+                    )
             full_text = "\n".join(text_lines)
             for sub in all_text_subs:
-                if await self._invoke_push(sub.unified_msg_origin, full_text, at_user_id=None):
+                if await self._invoke_push(
+                    sub.unified_msg_origin, full_text, at_user_id=None
+                ):
                     pushed += 1
 
         # 3. 图片密函订阅 (MH_PIC_SUBSCRIBE)
@@ -788,7 +836,9 @@ class NoticesService:
                 post.post_id,
                 observed_targets,
             )
-            pending = tuple(target for target in pending_all if target in current_targets)
+            pending = tuple(
+                target for target in pending_all if target in current_targets
+            )
             if not pending:
                 # 旧版本只有公告 ID 去重；无当前待投递目标时同步兼容状态，
                 # 让回滚不会把已完成或无人订阅的公告重新当成新公告。

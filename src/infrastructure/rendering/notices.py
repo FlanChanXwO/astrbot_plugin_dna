@@ -7,7 +7,6 @@ import json
 import random
 import tempfile
 import time
-import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 from io import BytesIO
@@ -18,7 +17,6 @@ from urllib.parse import quote_plus
 import httpx
 from astrbot.api import logger
 from PIL import Image, ImageDraw, ImageOps
-from PIL.PngImagePlugin import PngInfo
 
 from ...modules.notices.ann_utils import (
     announcement_fingerprint,
@@ -35,9 +33,12 @@ from ...modules.notices.contracts import AnnDetail, AnnSnapshot, MhSnapshot
 from ...utils import dna_api, get_datetime
 from ...utils.api.mh_map import get_mh_type_name
 from ...utils.api.model import DNARoleForToolInstanceInfo
-from ...utils.image_utils import convert_img, download
+from ...utils.image_utils import download
 from ...utils.resource.RESOURCE_PATH import ANN_CARD_PATH
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from .artifact import RenderedArtifact
+from .artifact_store import write_rendered_artifact
+from .image_inspector import MediaType, inspect_image
 from .assets import (
     font_data_uri,
     image_data_uri,
@@ -65,6 +66,7 @@ PREVIEW_CACHE_PATH = ANN_CARD_PATH / "preview"
 DETAIL_CACHE_PATH = ANN_CARD_PATH / "detail"
 
 ANN_WIDTH = 1080
+ANN_JPEG_QUALITY = 85
 ANN_PADDING = 40
 ANN_GRID_GAP = 24
 ANN_PAGE_LIMIT = 6000
@@ -73,13 +75,19 @@ ANN_GRID_COLS = 3
 MH_BG_LIST = ["bg1.jpg", "bg2.jpg", "bg3.jpg"]
 
 
-def _image_validator(content: bytes) -> bool:
+def _valid_artifact_bytes(content: bytes, media_type: MediaType) -> bool:
     try:
-        with Image.open(BytesIO(content)) as image:
-            image.verify()
-    except (OSError, SyntaxError, ValueError):
+        inspect_image(content, media_type=media_type)
+    except ValueError:
         return False
     return True
+
+
+def _image_validator(content: bytes) -> bool:
+    return any(
+        _valid_artifact_bytes(content, media_type)
+        for media_type in ("image/jpeg", "image/png")
+    )
 
 
 _png_validator = _image_validator
@@ -98,7 +106,9 @@ def _cache_name(*parts: object, ext: str = "png") -> str:
     return f"{hashlib.sha1(raw.encode('utf-8')).hexdigest()}.{ext}"
 
 
-async def _fetch_image(path: Path, pic_url: str, *, name: str | None = None) -> Image.Image:
+async def _fetch_image(
+    path: Path, pic_url: str, *, name: str | None = None
+) -> Image.Image:
     path.mkdir(parents=True, exist_ok=True)
     file_name = name or pic_url.split("/")[-1]
     target = path / file_name
@@ -152,7 +162,9 @@ async def _source_image_content(
 async def _load_qr_code(url: str, size: int = 220) -> Image.Image | None:
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size={size}x{size}&data={quote_plus(url)}"
     try:
-        image = await _fetch_image(QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size))
+        image = await _fetch_image(
+            QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size)
+        )
     except (OSError, httpx.HTTPError):
         return None
     return image.convert("RGB").resize((size, size), Image.Resampling.LANCZOS)
@@ -165,7 +177,9 @@ def _shrink_to_width(image: Image.Image, max_width: int) -> Image.Image:
     if image.width <= max_width:
         return image
     ratio = max_width / image.width
-    return image.resize((int(max_width), int(image.height * ratio)), Image.Resampling.LANCZOS)
+    return image.resize(
+        (int(max_width), int(image.height * ratio)), Image.Resampling.LANCZOS
+    )
 
 
 def _round_avatar(image: Image.Image, size: int) -> Image.Image:
@@ -212,7 +226,9 @@ async def _load_preview(
         if strict:
             raise
         return None
-    return ImageOps.fit(image.convert("RGB"), (width, height), method=Image.Resampling.LANCZOS)
+    return ImageOps.fit(
+        image.convert("RGB"), (width, height), method=Image.Resampling.LANCZOS
+    )
 
 
 async def _load_detail_image(
@@ -238,8 +254,16 @@ async def _load_detail_image(
     return _shrink_to_width(image.convert("RGB"), max_width)
 
 
-def _is_subscribed(instance_name: str, type_name: str, subscribe_list: list[str] | None) -> bool:
-    return bool(subscribe_list and (instance_name in subscribe_list or f"{type_name}:{instance_name}" in subscribe_list))
+def _is_subscribed(
+    instance_name: str, type_name: str, subscribe_list: list[str] | None
+) -> bool:
+    return bool(
+        subscribe_list
+        and (
+            instance_name in subscribe_list
+            or f"{type_name}:{instance_name}" in subscribe_list
+        )
+    )
 
 
 def _mh_payload(
@@ -261,7 +285,9 @@ def _mh_payload(
                 "instances": [
                     {
                         "name": instance.name,
-                        "subscribed": _is_subscribed(instance.name, type_name, subscribe_list),
+                        "subscribed": _is_subscribed(
+                            instance.name, type_name, subscribe_list
+                        ),
                     }
                     for instance in mh.instances
                 ],
@@ -352,15 +378,11 @@ async def draw_ann_list_img(
 
     rows = (len(posts) + ANN_GRID_COLS - 1) // ANN_GRID_COLS
     canvas_height = (
-        168
-        + 32
-        + rows * 308
-        + max(0, rows - 1) * ANN_GRID_GAP
-        + 36
-        + 96
-        + ANN_PADDING
+        168 + 32 + rows * 308 + max(0, rows - 1) * ANN_GRID_GAP + 36 + 96 + ANN_PADDING
     )
-    card_width = (ANN_WIDTH - ANN_PADDING * 2 - ANN_GRID_GAP * (ANN_GRID_COLS - 1)) // ANN_GRID_COLS
+    card_width = (
+        ANN_WIDTH - ANN_PADDING * 2 - ANN_GRID_GAP * (ANN_GRID_COLS - 1)
+    ) // ANN_GRID_COLS
     image_height = 156
     cards: list[dict[str, str | int | None]] = []
     for idx, post in enumerate(posts, start=1):
@@ -414,7 +436,12 @@ async def draw_ann_list_img(
             "width": ANN_WIDTH,
             "height": canvas_height,
         },
-        RenderSpec(width=ANN_WIDTH, full_page=True, output_format="jpeg"),
+        RenderSpec(
+            width=ANN_WIDTH,
+            full_page=True,
+            output_format="jpeg",
+            quality=ANN_JPEG_QUALITY,
+        ),
     )
 
 
@@ -441,17 +468,27 @@ async def _detail_blocks_payload(
     return payload
 
 
-async def _split_rendered_pages(rendered: bytes) -> bytes | list[bytes]:
-    """仅裁剪 T2I 结果以保留公告多页消息语义，不重绘或截断内容。"""
+def _encode_jpeg_page(image: Image.Image) -> bytes:
+    buffer = BytesIO()
+    image.convert("RGB").save(buffer, format="JPEG", quality=ANN_JPEG_QUALITY)
+    return buffer.getvalue()
 
+
+async def _split_rendered_pages(rendered: bytes) -> bytes | list[bytes]:
+    """仅在超过平台高度边界时用 Pillow 裁剪 T2I JPEG。"""
+
+    inspection = inspect_image(rendered, media_type="image/jpeg")
+    if inspection.height <= ANN_PAGE_LIMIT:
+        return rendered
+
+    pages: list[bytes] = []
     with Image.open(BytesIO(rendered)) as source:
         source.load()
-        if source.height <= ANN_PAGE_LIMIT:
-            return rendered
-        pages: list[bytes] = []
-        for top in range(0, source.height, ANN_PAGE_LIMIT):
-            bottom = min(top + ANN_PAGE_LIMIT, source.height)
-            pages.append(await convert_img(source.crop((0, top, source.width, bottom))))
+        for top in range(0, inspection.height, ANN_PAGE_LIMIT):
+            bottom = min(top + ANN_PAGE_LIMIT, inspection.height)
+            pages.append(
+                _encode_jpeg_page(source.crop((0, top, inspection.width, bottom)))
+            )
     return pages
 
 
@@ -489,7 +526,12 @@ async def draw_ann_detail_card(
             "time_text": time_text,
             "width": ANN_WIDTH,
         },
-        RenderSpec(width=ANN_WIDTH, full_page=True, output_format="jpeg"),
+        RenderSpec(
+            width=ANN_WIDTH,
+            full_page=True,
+            output_format="jpeg",
+            quality=ANN_JPEG_QUALITY,
+        ),
     )
     return await _split_rendered_pages(rendered)
 
@@ -512,7 +554,9 @@ async def draw_ann_detail_img(
     if is_check_time:
         post_time = post_time_to_timestamp(detail.get("postTime"))
         now = int(time.time())
-        logger.debug(f"[DNA公告] {post_id} post_time={post_time} now={now} delta={now - post_time}")
+        logger.debug(
+            f"[DNA公告] {post_id} post_time={post_time} now={now} delta={now - post_time}"
+        )
         if post_time and post_time < now - 86400:
             return "该公告已过期"
 
@@ -535,6 +579,9 @@ class RenderedNoticesImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
+    sidecar: Path | None = None
+    manifest: Path | None = None
+    media_type: str = "image/jpeg"
 
 
 class NoticesRenderer:
@@ -559,7 +606,9 @@ class NoticesRenderer:
 
     @staticmethod
     def detail_manifest_key(detail: AnnDetail) -> str:
-        return f"ann-detail-manifest:{detail.post_id}:{announcement_fingerprint(detail)}"
+        return (
+            f"ann-detail-manifest:{detail.post_id}:{announcement_fingerprint(detail)}"
+        )
 
     @staticmethod
     def detail_cache_key(detail: AnnDetail, *, page_index: int) -> str:
@@ -582,7 +631,9 @@ class NoticesRenderer:
             return None
         return lookup.entry.content
 
-    async def _store_png(self, key: str, content: bytes, *, tags: tuple[str, ...]) -> None:
+    async def _store_png(
+        self, key: str, content: bytes, *, tags: tuple[str, ...]
+    ) -> None:
         if self.cache_manager is None:
             return
         await self.cache_manager.put(
@@ -601,10 +652,7 @@ class NoticesRenderer:
         resources: list[dict[str, str]],
         sections: list[dict[str, Any]],
     ) -> RenderedNoticesImage:
-        with Image.open(BytesIO(content)) as source:
-            source.load()
-            image = source.convert("RGBA")
-        return self._write(image, lines=lines, resources=resources, sections=sections)
+        return self._write(content, lines=lines, resources=resources, sections=sections)
 
     async def _cached_detail_pages(self, detail: AnnDetail) -> list[bytes] | None:
         if self.cache_manager is None:
@@ -643,41 +691,58 @@ class NoticesRenderer:
             "kind": "font",
             "key": "dna_fonts",
             "status": self.resources.font_status,
-            "source": "fonts/dna_fonts.ttf" if self.resources.font_path is not None else "",
+            "source": "fonts/dna_fonts.ttf"
+            if self.resources.font_path is not None
+            else "",
         }
 
     def _write(
         self,
-        image: Image.Image,
+        image_bytes: bytes,
         *,
         lines: list[str],
         resources: list[dict[str, str]],
         sections: list[dict[str, Any]],
     ) -> RenderedNoticesImage:
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        path = self.output_dir / f"notices-{uuid.uuid4().hex}.png"
-        metadata = PngInfo()
-        metadata.add_text("dnaby.text", "\n".join(lines))
-        metadata.add_text(
-            "dnaby.layout",
-            json.dumps(
-                {"width": image.width, "height": image.height, "sections": sections},
-                ensure_ascii=False,
-                separators=(",", ":"),
+        media_type: MediaType | None = next(
+            (
+                candidate
+                for candidate in ("image/jpeg", "image/png")
+                if _valid_artifact_bytes(image_bytes, candidate)
             ),
+            None,
         )
-        metadata.add_text(
-            "dnaby.resources",
-            json.dumps(resources, ensure_ascii=False, separators=(",", ":")),
+        if media_type is None:
+            raise ValueError("公告图片不是受支持的 JPEG/PNG")
+        artifact = RenderedArtifact.from_bytes(
+            image_bytes,
+            media_type=media_type,
+            metadata={
+                "dnaby.text": "\n".join(lines),
+                "dnaby.layout": {"width": 0, "height": 0, "sections": sections},
+                "dnaby.resources": resources,
+            },
         )
-        image.convert("RGBA").save(path, format="PNG", pnginfo=metadata)
+        metadata = dict(artifact.metadata)
+        metadata["dnaby.layout"] = {
+            "width": artifact.width,
+            "height": artifact.height,
+            "sections": sections,
+        }
+        artifact = RenderedArtifact.from_bytes(
+            image_bytes, media_type=media_type, metadata=metadata
+        )
+        response = write_rendered_artifact(self.output_dir, artifact, prefix="notices-")
         return RenderedNoticesImage(
-            path=path,
-            width=image.width,
-            height=image.height,
+            path=Path(response.image),
+            width=artifact.width,
+            height=artifact.height,
             text_lines=tuple(lines),
             resources=tuple(resources),
             sections=tuple(sections),
+            sidecar=Path(response.sidecar) if response.sidecar else None,
+            manifest=Path(response.manifest) if response.manifest else None,
+            media_type=artifact.media_type,
         )
 
     async def render_mh(
@@ -703,7 +768,9 @@ class NoticesRenderer:
             for section in snapshot.sections
         ]
         now = get_datetime()
-        next_refresh = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        next_refresh = now.replace(minute=0, second=0, microsecond=0) + timedelta(
+            hours=1
+        )
         remaining_seconds = int((next_refresh - now).total_seconds())
         if is_simple:
             image_bytes = await draw_mh_simple(
@@ -717,13 +784,12 @@ class NoticesRenderer:
                 remaining_seconds,
                 subscribe_list=subscribe_list,
             )
-        with Image.open(BytesIO(image_bytes)) as source:
-            image = source.convert("RGBA")
-
         lines = ["二重螺旋 · 密函"]
         for section in snapshot.sections:
             lines.append(f"{section.type_name}:")
-            lines.extend(f"{item.name} (id={item.instance_id})" for item in section.instances)
+            lines.extend(
+                f"{item.name} (id={item.instance_id})" for item in section.instances
+            )
         resources: list[dict[str, str]] = [self._font_resource()]
         sections: list[dict[str, Any]] = []
         for section in snapshot.sections:
@@ -733,7 +799,9 @@ class NoticesRenderer:
                     "items": len(section.instances),
                 },
             )
-        return self._write(image, lines=lines, resources=resources, sections=sections)
+        return self._write(
+            image_bytes, lines=lines, resources=resources, sections=sections
+        )
 
     async def render_ann_list(self, snapshot: AnnSnapshot) -> RenderedNoticesImage:
         """渲染公告列表，按序号展示全部公告标题与时间。"""
@@ -752,7 +820,9 @@ class NoticesRenderer:
                     "status": "provided" if post.preview else "placeholder",
                 },
             )
-        sections: list[dict[str, Any]] = [{"name": "公告", "items": len(snapshot.posts)}]
+        sections: list[dict[str, Any]] = [
+            {"name": "公告", "items": len(snapshot.posts)}
+        ]
         cache_key = self.list_cache_key(snapshot)
         cached = await self._cached_png(cache_key)
         if cached is not None:
@@ -764,7 +834,12 @@ class NoticesRenderer:
             )
 
         payload = [
-            {"postId": post.post_id, "postTitle": post.title, "postTime": post.time, "postCover": post.preview}
+            {
+                "postId": post.post_id,
+                "postTitle": post.title,
+                "postTime": post.time,
+                "postCover": post.preview,
+            }
             for post in snapshot.posts
         ]
         if self.cache_manager is None:
@@ -786,11 +861,17 @@ class NoticesRenderer:
         await self._store_png(
             cache_key,
             rendered.path.read_bytes(),
-            tags=("announcement", "list", f"fingerprint:{announcement_fingerprint(snapshot)}"),
+            tags=(
+                "announcement",
+                "list",
+                f"fingerprint:{announcement_fingerprint(snapshot)}",
+            ),
         )
         return rendered
 
-    async def render_ann_detail(self, detail: AnnDetail) -> RenderedNoticesImage | tuple[RenderedNoticesImage, ...]:
+    async def render_ann_detail(
+        self, detail: AnnDetail
+    ) -> RenderedNoticesImage | tuple[RenderedNoticesImage, ...]:
         """复用 legacy 公告详情布局，保留中文字体、正文图片与分页。"""
 
         lines = ["二重螺旋 · 公告详情", detail.title]
@@ -814,7 +895,9 @@ class NoticesRenderer:
             blocks.append(("image", block.image_url))
 
         lines.extend(text_lines)
-        sections: list[dict[str, Any]] = [{"name": "详情正文", "items": len(detail.blocks)}]
+        sections: list[dict[str, Any]] = [
+            {"name": "详情正文", "items": len(detail.blocks)}
+        ]
         fingerprint = announcement_fingerprint(detail)
         cached_pages = await self._cached_detail_pages(detail)
         if cached_pages is not None:

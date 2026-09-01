@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -12,6 +11,7 @@ from src.entry.event import EventActor
 from src.entry.response import ImageResponse, PlainTextResponse
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from src.infrastructure.rendering import NoticesRenderer
+from src.infrastructure.rendering.artifact_store import read_rendered_artifact
 from src.infrastructure.resources import EncyclopediaResourceStore
 from src.modules.notices import messages
 from src.modules.notices.contracts import (
@@ -55,7 +55,12 @@ def _mh_snapshot() -> MhSnapshot:
 def _ann_snapshot() -> AnnSnapshot:
     return AnnSnapshot(
         posts=(
-            AnnPost(post_id="1001", title="版本更新公告", time="2026-08-01", preview="pic://1"),
+            AnnPost(
+                post_id="1001",
+                title="版本更新公告",
+                time="2026-08-01",
+                preview="pic://1",
+            ),
             AnnPost(post_id="1002", title="活动预告", time="2026-08-02"),
         ),
     )
@@ -74,7 +79,9 @@ class FakeNoticesTransport:
     ) -> None:
         self.mh = mh if mh is not None else _mh_snapshot()
         self.ann_list = ann_list if ann_list is not None else _ann_snapshot()
-        self.ann_detail = ann_detail if ann_detail is not None else _ann_detail_fixture()
+        self.ann_detail = (
+            ann_detail if ann_detail is not None else _ann_detail_fixture()
+        )
         self.fail = fail
         self.calls: list[str] = []
 
@@ -286,12 +293,15 @@ async def test_ann_renders_list_image(tmp_path: Path) -> None:
 
     assert isinstance(response, ImageResponse)
     assert response.temporary is True
-    with Image.open(Path(response.image)) as image:
-        text = image.info["dnaby.text"]
-        resources = json.loads(image.info["dnaby.resources"])
+    artifact = read_rendered_artifact(response.image)
+    text = artifact.metadata["dnaby.text"]
+    resources = artifact.metadata["dnaby.resources"]
     assert "1. 版本更新公告" in text
     assert "2. 活动预告" in text
-    assert any(item["kind"] == "ann_preview" and item["status"] == "provided" for item in resources)
+    assert any(
+        item["kind"] == "ann_preview" and item["status"] == "provided"
+        for item in resources
+    )
     await database.dispose()
 
 

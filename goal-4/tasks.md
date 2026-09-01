@@ -108,16 +108,16 @@
 - 新增修复 task：无。
 - 剩余风险：真实 T2I 视觉/体积证据仍需 Task 22；公告、并发、AT、订阅 Dashboard 尚未完成。
 
-## Task 07 — 公告与密函直出及超长分页隔离 `[pending]`
+## Task 07 — 公告与密函直出及超长分页隔离 `[completed]`
 
 **目标**：测试先行迁移密函、公告列表和公告详情；未超长直出，超过 6000px 才使用 Pillow JPEG 裁剪。
 
 **验收**：普通详情 bytes 不变；分页仅在边界触发，页宽/总高度/顺序/内容完整，失败保持可重试状态。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：公告列表、公告详情和密函统一以 T2I 原始 JPEG/PNG bytes 发布 `RenderedArtifact`，写入 sidecar/manifest 并通过 service 响应携带配对文件；普通公告详情先用无 Pillow 的 JPEG 容器尺寸检查，`height <= 6000` 原样返回；超长详情才用 Pillow 按 6000px 裁剪，并以与 T2I 相同的 quality=85 编码 JPEG 分页。保留旧 PNG 缓存读取兼容，按实际容器后缀发布。
+- 验证证据：新增 `tests/test_goal4_task07_notices_t2i.py`，覆盖普通 T2I bytes、artifact 配对和 service 响应；更新 `tests/test_html_announcement_detail.py` 覆盖 5999/6000 边界、普通路径不调用 `Image.open`、超长页宽/高度/顺序及 JPEG 格式。相关公告/密函、缓存、投递、图片生命周期回归共 50 项通过；ruff、compileall 通过；`pyright notices.py` 通过。
+- 剩余风险：公告缓存键与旧命名仍保留 `_png` 兼容语义，旧缓存的系统性迁移与离线 compare/regenerate 留待 Task 08；真实服务端 T2I 视觉/体积对比留待 Task 22。
+- 下一步：Task 08 适配缓存 manifest、离线对比/再生成与清理工具。
 
 ## Task 08 — 渲染缓存、离线对比与清理工具适配 `[pending]`
 
