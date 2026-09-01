@@ -55,16 +55,16 @@
 - 剩余风险：pair publication 仍由 Task 03-R2 收口；旧的 `write_temporary_image()` 调用尚未自动生成 sidecar，后续 renderer 迁移需显式选择 artifact store。
 - 下一步：Task 03-R2：先写可恢复 pair publication、混合 pair、崩溃恢复和缓存/清理一致性的 Red 测试。
 
-## Task 03-R2 — 可恢复 pair publication 与缓存/清理一致性 `[pending]`
+## Task 03-R2 — 可恢复 pair publication 与缓存/清理一致性 `[completed]`
 
 **目标**：测试先行将图片+sidecar 发布收口为 manifest/pointer 或等价可恢复 pair 协议，覆盖发布中断、混合 pair、孤儿 pair 和缓存 validator。
 
 **验收**：发送/缓存只解析完整 pair；任一文件失败不会暴露半发布 pair；崩溃恢复可清理临时 pair；旧缓存安全 miss；图片 bytes/SHA 保持一致。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：以受控目录临时文件写入图片、sidecar 和 manifest，并按 image → sidecar → manifest 顺序替换；读取时要求 manifest、sidecar、image 三者完整且名称/sidecar SHA/图片 bytes/SHA 一致，拒绝缺失、混合或半发布 pair；`ImageResponse`、复合响应和 `ResponseFactory` 追踪 manifest；`RenderedFileStore.cleanup()` 将三者作为一个逻辑 pair 清理，覆盖孤儿 manifest/sidecar。
+- 验证证据：Red 阶段先确认缺少 manifest 字段和发布清单校验会失败；Green 阶段新增发布中断、缺失 manifest、混合 pair、孤儿 pair 测试，目标测试 `13 passed`，结合相关入口/生命周期/renderer/cache 回归为 `50 passed`；`ruff check`、`compileall`、Pyright 均通过；LSP diagnostics 对变更文件无错误。
+- 剩余风险：当前仍是受控平铺目录下的 manifest-gated 三文件发布，不是目录级 rename；旧的 `write_temporary_image()` 无 sidecar 调用仍保持兼容，尚未接入所有领域 renderer 的 T2I 热路径，后续迁移需显式使用 artifact store。
+- 下一步：Task 04：先写玩家卡片 T2I 直出 Red 测试。
 
 ## Task 04 — 玩家卡片 T2I 直出 `[pending]`
 

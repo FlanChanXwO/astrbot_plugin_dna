@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
-from uuid import uuid4
 from pathlib import Path
+from uuid import uuid4
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -27,13 +28,21 @@ def _safe_root(root: str | Path) -> Path:
 
 
 def _safe_prefix(prefix: str) -> str:
-    if not prefix or Path(prefix).name != prefix or any(char in prefix for char in "/\\"):
+    if (
+        not prefix
+        or Path(prefix).name != prefix
+        or any(char in prefix for char in "/\\")
+    ):
         raise ValueError("渲染文件前缀不安全")
     return prefix
 
 
 def _sidecar_path(image_path: Path) -> Path:
     return image_path.with_name(image_path.name + ".json")
+
+
+def _manifest_path(image_path: Path) -> Path:
+    return image_path.with_name(image_path.name + ".manifest.json")
 
 
 def _sidecar_payload(artifact: RenderedArtifact) -> bytes:
@@ -46,6 +55,21 @@ def _sidecar_payload(artifact: RenderedArtifact) -> bytes:
             "height": artifact.height,
             "sha256": artifact.sha256,
             "metadata": dict(artifact.metadata),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def _manifest_payload(
+    image_path: Path, sidecar_path: Path, sidecar_data: bytes
+) -> bytes:
+    return json.dumps(
+        {
+            "schema_version": _SCHEMA_VERSION,
+            "image": image_path.name,
+            "sidecar": sidecar_path.name,
+            "sidecar_sha256": hashlib.sha256(sidecar_data).hexdigest(),
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -69,28 +93,51 @@ def write_rendered_artifact(
     prefix: str,
 ) -> "ImageResponse":
     from ...entry.response import ImageResponse
+
     """在受控目录原子发布图片及配对 sidecar。"""
 
     directory = _safe_root(root)
     normalized_prefix = _safe_prefix(prefix)
     image_path: Path | None = None
     sidecar_path: Path | None = None
+    manifest_path: Path | None = None
     image_tmp: Path | None = None
     sidecar_tmp: Path | None = None
+    manifest_tmp: Path | None = None
     try:
         image_path = directory / f"{normalized_prefix}{uuid4().hex}{artifact.suffix}"
         sidecar_path = _sidecar_path(image_path)
-        image_tmp = _write_temp(directory, normalized_prefix, artifact.suffix, artifact.data)
-        sidecar_tmp = _write_temp(directory, normalized_prefix, ".json", _sidecar_payload(artifact))
+        manifest_path = _manifest_path(image_path)
+        image_tmp = _write_temp(
+            directory, normalized_prefix, artifact.suffix, artifact.data
+        )
+        sidecar_data = _sidecar_payload(artifact)
+        sidecar_tmp = _write_temp(directory, normalized_prefix, ".json", sidecar_data)
+        manifest_tmp = _write_temp(
+            directory,
+            normalized_prefix,
+            ".manifest.json",
+            _manifest_payload(image_path, sidecar_path, sidecar_data),
+        )
         image_tmp.replace(image_path)
         sidecar_tmp.replace(sidecar_path)
+        # manifest 最后发布：读者只有看到 manifest 才会把这对文件视为可用。
+        manifest_tmp.replace(manifest_path)
         return ImageResponse(
             str(image_path),
             temporary=True,
             sidecar=str(sidecar_path),
+            manifest=str(manifest_path),
         )
     except Exception:
-        for path in (image_tmp, sidecar_tmp, image_path, sidecar_path):
+        for path in (
+            image_tmp,
+            sidecar_tmp,
+            manifest_tmp,
+            image_path,
+            sidecar_path,
+            manifest_path,
+        ):
             if path is not None:
                 try:
                     path.unlink()
@@ -104,11 +151,24 @@ def read_rendered_artifact(image: str | Path) -> RenderedArtifact:
 
     image_path = Path(image).expanduser().absolute()
     sidecar_path = _sidecar_path(image_path)
+    manifest_path = _manifest_path(image_path)
     try:
-        raw = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("图片发布清单不可读取") from error
+    try:
+        sidecar_data = sidecar_path.read_bytes()
+        raw = json.loads(sidecar_data.decode("utf-8"))
         data = image_path.read_bytes()
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError("图片 sidecar 不可读取") from error
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema_version") != _SCHEMA_VERSION
+        or manifest.get("image") != image_path.name
+        or manifest.get("sidecar") != sidecar_path.name
+    ):
+        raise ValueError("图片发布清单无效")
     if not isinstance(raw, dict) or raw.get("schema_version") != _SCHEMA_VERSION:
         raise ValueError("图片 sidecar schema 无效")
     media_type = raw.get("media_type")
@@ -119,10 +179,16 @@ def read_rendered_artifact(image: str | Path) -> RenderedArtifact:
         media_type=media_type,  # type: ignore[arg-type]
         metadata=raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {},
     )
-    if raw.get("suffix") != artifact.suffix or raw.get("width") != artifact.width or raw.get("height") != artifact.height:
+    if (
+        raw.get("suffix") != artifact.suffix
+        or raw.get("width") != artifact.width
+        or raw.get("height") != artifact.height
+    ):
         raise ValueError("图片 sidecar 尺寸或后缀不匹配")
     if raw.get("sha256") != artifact.sha256:
         raise ValueError("图片 sidecar SHA256 不匹配")
+    if manifest.get("sidecar_sha256") != hashlib.sha256(sidecar_data).hexdigest():
+        raise ValueError("图片 sidecar SHA256 与发布清单不匹配")
     return artifact
 
 

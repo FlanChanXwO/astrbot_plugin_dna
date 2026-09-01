@@ -47,7 +47,9 @@ def test_write_and_read_artifact_preserve_bytes_and_sidecar(tmp_path: Path) -> N
         metadata={"dnaby.text": "原始 bytes"},
     )
 
-    response = write_rendered_artifact(tmp_path / "rendered", artifact, prefix="player-")
+    response = write_rendered_artifact(
+        tmp_path / "rendered", artifact, prefix="player-"
+    )
 
     assert isinstance(response, ImageResponse)
     image_path = Path(response.image)
@@ -68,17 +70,67 @@ def test_write_and_read_artifact_preserve_bytes_and_sidecar(tmp_path: Path) -> N
 
 def test_response_factory_tracks_image_and_sidecar_as_a_pair(tmp_path: Path) -> None:
     artifact = RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg")
-    response = write_rendered_artifact(tmp_path / "rendered", artifact, prefix="notices-")
+    response = write_rendered_artifact(
+        tmp_path / "rendered", artifact, prefix="notices-"
+    )
     event = CleanupEvent()
 
     ResponseFactory(temporary_roots=(tmp_path / "rendered",)).build(event, response)
 
-    assert event.tracked == [str(response.image), str(response.sidecar)]
+    assert event.tracked == [
+        str(response.image),
+        str(response.sidecar),
+        str(response.manifest),
+    ]
+
+
+def test_rendered_cleanup_removes_orphan_manifest_pair_once(tmp_path: Path) -> None:
+    artifact = RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg")
+    response = write_rendered_artifact(
+        tmp_path / "rendered", artifact, prefix="player-"
+    )
+    image_path = Path(response.image)
+    sidecar_path = Path(response.sidecar)
+    manifest_path = Path(response.manifest)
+    image_path.unlink()
+    old = sidecar_path.stat().st_mtime - 1000
+    os.utime(sidecar_path, (old, old))
+    os.utime(manifest_path, (old, old))
+    store = RenderedFileStore(tmp_path / "rendered", retention_seconds=60)
+
+    report = store.cleanup()
+
+    assert report.removed == 1
+    assert not sidecar_path.exists()
+    assert not manifest_path.exists()
+
+
+def test_reader_rejects_mixed_pair_even_when_manifest_names_match(
+    tmp_path: Path,
+) -> None:
+    artifact_a = RenderedArtifact.from_bytes(
+        _jpeg_bytes(), media_type="image/jpeg", metadata={"id": "a"}
+    )
+    artifact_b = RenderedArtifact.from_bytes(
+        _jpeg_bytes(), media_type="image/jpeg", metadata={"id": "b"}
+    )
+    response_a = write_rendered_artifact(
+        tmp_path / "rendered", artifact_a, prefix="player-a-"
+    )
+    response_b = write_rendered_artifact(
+        tmp_path / "rendered", artifact_b, prefix="player-b-"
+    )
+    Path(response_a.sidecar).write_bytes(Path(response_b.sidecar).read_bytes())
+
+    with pytest.raises(ValueError, match="SHA256"):
+        read_rendered_artifact(Path(response_a.image))
 
 
 def test_read_artifact_rejects_sidecar_hash_mismatch(tmp_path: Path) -> None:
     artifact = RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg")
-    response = write_rendered_artifact(tmp_path / "rendered", artifact, prefix="player-")
+    response = write_rendered_artifact(
+        tmp_path / "rendered", artifact, prefix="player-"
+    )
     sidecar_path = Path(response.sidecar)
     raw = json.loads(sidecar_path.read_text(encoding="utf-8"))
     raw["sha256"] = "0" * 64
@@ -90,12 +142,16 @@ def test_read_artifact_rejects_sidecar_hash_mismatch(tmp_path: Path) -> None:
 
 def test_rendered_cleanup_removes_orphaned_sidecar_with_image(tmp_path: Path) -> None:
     artifact = RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg")
-    response = write_rendered_artifact(tmp_path / "rendered", artifact, prefix="player-")
+    response = write_rendered_artifact(
+        tmp_path / "rendered", artifact, prefix="player-"
+    )
     image_path = Path(response.image)
     sidecar_path = Path(response.sidecar)
+    manifest_path = Path(response.manifest)
     old = image_path.stat().st_mtime - 1000
     os.utime(image_path, (old, old))
     os.utime(sidecar_path, (old, old))
+    os.utime(manifest_path, (old, old))
     store = RenderedFileStore(tmp_path / "rendered", retention_seconds=60)
 
     report = store.cleanup()
@@ -104,8 +160,11 @@ def test_rendered_cleanup_removes_orphaned_sidecar_with_image(tmp_path: Path) ->
     assert not image_path.exists()
     assert not sidecar_path.exists()
 
+
 @pytest.mark.asyncio
-async def test_cache_manager_can_validate_jpeg_and_png_without_reencoding(tmp_path: Path) -> None:
+async def test_cache_manager_can_validate_jpeg_and_png_without_reencoding(
+    tmp_path: Path,
+) -> None:
     from src.infrastructure.cache import CacheManager
     from src.infrastructure.rendering.artifact_store import artifact_validator
 
@@ -127,6 +186,7 @@ async def test_cache_manager_can_validate_jpeg_and_png_without_reencoding(tmp_pa
     assert lookup.status == "fresh"
     assert lookup.entry is not None
     assert lookup.entry.content == payload
+
 
 @pytest.mark.parametrize("response_kind", ["multi", "chain"])
 def test_response_factory_tracks_sidecars_inside_composite_responses(
@@ -156,8 +216,9 @@ def test_response_factory_tracks_sidecars_inside_composite_responses(
     assert event.tracked == [
         item
         for artifact in artifacts
-        for item in (str(artifact.image), str(artifact.sidecar))
+        for item in (str(artifact.image), str(artifact.sidecar), str(artifact.manifest))
     ]
+
 
 @pytest.mark.parametrize("sidecar", ["missing.json", "/tmp/outside.json"])
 def test_response_factory_rejects_missing_or_uncontrolled_sidecar(
@@ -165,7 +226,9 @@ def test_response_factory_rejects_missing_or_uncontrolled_sidecar(
     sidecar: str,
 ) -> None:
     artifact = RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg")
-    response = write_rendered_artifact(tmp_path / "rendered", artifact, prefix="player-")
+    response = write_rendered_artifact(
+        tmp_path / "rendered", artifact, prefix="player-"
+    )
     event = CleanupEvent()
     response = ImageResponse(
         response.image,
@@ -175,3 +238,47 @@ def test_response_factory_rejects_missing_or_uncontrolled_sidecar(
 
     with pytest.raises(ValueError):
         ResponseFactory(temporary_roots=(tmp_path / "rendered",)).build(event, response)
+
+
+def test_published_pair_has_manifest_and_reader_requires_it(tmp_path: Path) -> None:
+    artifact = RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg")
+
+    response = write_rendered_artifact(
+        tmp_path / "rendered", artifact, prefix="player-"
+    )
+
+    manifest_path = Path(response.manifest)
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["image"] == Path(response.image).name
+    assert manifest["sidecar"] == Path(response.sidecar).name
+    assert read_rendered_artifact(Path(response.image)).data == artifact.data
+
+    manifest_path.unlink()
+    with pytest.raises(ValueError, match="发布清单"):
+        read_rendered_artifact(Path(response.image))
+
+
+def test_interrupted_pair_publication_leaves_no_publishable_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infrastructure.rendering import artifact_store
+
+    artifact = RenderedArtifact.from_bytes(_jpeg_bytes(), media_type="image/jpeg")
+    original_write_temp = artifact_store._write_temp
+    calls = 0
+
+    def fail_on_sidecar(*args: object, **kwargs: object) -> Path:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("模拟 sidecar 写入中断")
+        return original_write_temp(*args, **kwargs)
+
+    monkeypatch.setattr(artifact_store, "_write_temp", fail_on_sidecar)
+
+    with pytest.raises(OSError, match="中断"):
+        write_rendered_artifact(tmp_path / "rendered", artifact, prefix="player-")
+
+    assert list((tmp_path / "rendered").iterdir()) == []

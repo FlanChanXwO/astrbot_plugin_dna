@@ -119,18 +119,37 @@ class RenderedFileStore:
             for path in candidates:
                 if path in seen or not self._is_managed_name(path):
                     continue
-                # sidecar 与图片作为一个逻辑 pair 清理，避免报告重复计数。
-                if path.name.endswith(".json"):
-                    image_path = path.with_name(path.name.removesuffix(".json"))
+                # 图片、sidecar 和 manifest 作为一个逻辑 pair 清理，避免半发布残留和重复计数。
+                if path.name.endswith(".manifest.json"):
+                    image_path = path.with_name(
+                        path.name.removesuffix(".manifest.json")
+                    )
                     if image_path.exists():
+                        continue
+                    sidecar = image_path.with_name(image_path.name + ".json")
+                    pair = tuple(item for item in (path, sidecar) if item.exists())
+                elif path.name.endswith(".json"):
+                    image_path = path.with_name(path.name.removesuffix(".json"))
+                    if (
+                        image_path.exists()
+                        or image_path.with_name(
+                            image_path.name + ".manifest.json"
+                        ).exists()
+                    ):
                         continue
                     pair = (path,)
                 else:
                     image_path = path
                     sidecar = path.with_name(path.name + ".json")
-                    pair = (path, sidecar) if sidecar.exists() else (path,)
+                    manifest = path.with_name(path.name + ".manifest.json")
+                    pair = tuple(
+                        item for item in (path, sidecar, manifest) if item.exists()
+                    )
                 seen.update(pair)
-                if any(item.is_symlink() or item.parent.is_symlink() or not item.is_file() for item in pair):
+                if any(
+                    item.is_symlink() or item.parent.is_symlink() or not item.is_file()
+                    for item in pair
+                ):
                     skipped_invalid += 1
                     continue
                 try:
@@ -156,9 +175,7 @@ class RenderedFileStore:
                 else:
                     removed += 1
             self._leases = {
-                path: count
-                for path, count in self._leases.items()
-                if path.exists()
+                path: count for path, count in self._leases.items() if path.exists()
             }
             return RenderedCleanupReport(
                 removed=removed,
