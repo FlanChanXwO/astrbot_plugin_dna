@@ -192,16 +192,16 @@
 - 新增修复 task：
 - 剩余风险：
 
-## Task 13 — 统一命令文本与真实 At 归一化 `[pending]`
+## Task 13 — 统一命令文本与真实 At 归一化 `[completed]`
 
 **目标**：测试先行新增 `command_text_from_event()`，确保 DynamicRegexFilter 与 handler 对 At 前后位置使用相同纯命令文本。
 
 **验收**：真实 At 前/后均触发；字面 At、AtAll、机器人 At、Reply/Image 不误解析；无消息链时保持兼容 fallback。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `command_text_from_event()`，只拼接真实消息链中的 `Plain` 组件并忽略 `At/AtAll/Reply/Image`；动态 RegexFilter 和生成 handler 共用该归一化入口；无可用消息链时回退 `get_message_str()`。
+- 验证证据：新增 `tests/test_goal4_task13_command_text.py`，覆盖 At 前/后、非文本组件过滤、多个 Plain 片段和无消息链 fallback；Task 13 专项 `4 passed`，ruff 通过；运行期 handler 实测返回命中结果并保留目标 At。
+- 剩余风险：commands 模块存在本轮之前的 2 个 Pyright optional runtime 诊断，以及测试动态生成 handler 的静态属性诊断；不影响运行期行为，留待后续命令接口收口统一处理。
+- 下一步：Task 14 增加 `mention_policy` 并验证只读目标查询与写操作隔离。
 
 ## Task 14 — CommandSpec mention policy 与只读目标查询矩阵 `[pending]`
 

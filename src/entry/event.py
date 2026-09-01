@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from astrbot.api.message_components import At, AtAll, Reply
+from astrbot.api.message_components import At, AtAll, Plain, Reply
 
 SCHEDULED_ACTOR_BOT_ID = "dnaby-scheduler"
 
@@ -62,6 +62,30 @@ def actor_from_event(event: Any) -> EventActor | None:
         group_id=None if group_id is None else str(group_id),
         unified_msg_origin=getattr(event, "unified_msg_origin", None),
     )
+
+
+def command_text_from_event(event: Any) -> str:
+    """从真实 AstrBot 消息链提取纯文本命令，忽略 At、回复和图片。
+
+    消息链可将 At 放在命令前或后；只拼接 Plain 组件，避免把展示字符串中的
+    ``@用户``、``[回复]`` 等平台标记误交给正则解析。没有可用消息链时回退到
+    AstrBot 的 ``get_message_str()``，兼容旧 fixture 和非标准事件。
+    """
+
+    get_messages = getattr(event, "get_messages", None)
+    if callable(get_messages):
+        messages = get_messages()
+        if isinstance(messages, Iterable):
+            return "".join(
+                str(getattr(component, "text", "") or "")
+                for component in messages
+                if isinstance(component, Plain)
+            ).strip()
+
+    get_message_str = getattr(event, "get_message_str", None)
+    if callable(get_message_str):
+        return str(get_message_str() or "").strip()
+    return ""
 
 
 def target_user_from_event(

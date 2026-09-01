@@ -27,6 +27,7 @@ from ...utils.msgs.notify import HTML_RENDER_FAILED
 from ..event import (
     EventActor,
     actor_from_event,
+    command_text_from_event,
     images_from_event,
     reply_id_from_event,
     target_user_from_event,
@@ -35,7 +36,9 @@ from ..response import CommandResponse, PlainTextResponse
 
 PermissionName = Literal["user", "admin"]
 CommandUseCase = Callable[
-    ..., Awaitable[CommandResponse | str | None] | AsyncGenerator[CommandResponse | str, None]
+    ...,
+    Awaitable[CommandResponse | str | None]
+    | AsyncGenerator[CommandResponse | str, None],
 ]
 
 _PERMISSIONS = {"user", "admin"}
@@ -101,7 +104,9 @@ class CommandSpec:
         ):
             raise ValueError(f"命令 {self.id} 的 use_case 必须是 async callable")
 
-        examples = (self.examples,) if isinstance(self.examples, str) else tuple(self.examples)
+        examples = (
+            (self.examples,) if isinstance(self.examples, str) else tuple(self.examples)
+        )
         if any(not isinstance(example, str) for example in examples):
             raise ValueError(f"命令 {self.id} 的 examples 必须全部是字符串")
         for example in examples:
@@ -205,7 +210,9 @@ class CommandRegistry:
                 )
         return None
 
-    def visible_specs(self, permission: PermissionName = "user") -> tuple[CommandSpec, ...]:
+    def visible_specs(
+        self, permission: PermissionName = "user"
+    ) -> tuple[CommandSpec, ...]:
         """返回当前调用者可见的命令；admin 同时继承 user 命令。"""
 
         if permission not in _PERMISSIONS:
@@ -262,7 +269,9 @@ def _prefix_pattern(pattern: str, prefixes: Iterable[str] = (COMMAND_PREFIX,)) -
     return f"^{prefix_expr}{pattern}"
 
 
-def _prefix_spec(spec: CommandSpec, prefixes: Iterable[str] = (COMMAND_PREFIX,)) -> CommandSpec:
+def _prefix_spec(
+    spec: CommandSpec, prefixes: Iterable[str] = (COMMAND_PREFIX,)
+) -> CommandSpec:
     """生成带前缀的公开命令声明，同时保持原 use case 不变。"""
 
     primary_prefix = next((p for p in prefixes if p), "")
@@ -404,7 +413,7 @@ class _DynamicRegexFilter(RegexFilter):
     def filter(self, event: AstrMessageEvent, cfg: Any) -> bool:
         from astrbot.core.star.star_manager import star_map
 
-        message = event.get_message_str().strip()
+        message = command_text_from_event(event)
         for star_meta in star_map.values():
             if star_meta.name == "astrbot_plugin_dnaby" and star_meta.star_cls:
                 runtime = getattr(star_meta.star_cls, "_runtime", None)
@@ -429,13 +438,11 @@ def _make_handler(
         event: AstrMessageEvent,
         **provided_parameters: Any,
     ) -> AsyncGenerator[Any, None]:
-        message = event.get_message_str().strip()
+        message = command_text_from_event(event)
         runtime = getattr(self, "_runtime", None)
         active_registry = getattr(runtime, "commands", None)
         active_spec = (
-            active_registry.get(spec.id)
-            if active_registry is not None
-            else spec
+            active_registry.get(spec.id) if active_registry is not None else spec
         )
         match = re.match(active_spec.pattern, message)
         if match is None:
@@ -528,10 +535,13 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
         handler = filter.regex(spec.pattern, desc=spec.description)(handler)
         handler = filter.permission_type(_permission_filter(spec.permission))(handler)
         from astrbot.core.star.star_handler import EventType
+
         handler_md = get_handler_or_create(handler, EventType.AdapterMessageEvent)
         for idx, f in enumerate(handler_md.event_filters):
             if isinstance(f, RegexFilter):
-                handler_md.event_filters[idx] = _DynamicRegexFilter(spec.pattern, spec.id)
+                handler_md.event_filters[idx] = _DynamicRegexFilter(
+                    spec.pattern, spec.id
+                )
         setattr(plugin_cls, handler_name, handler)
     plugin_cls.__dnaby_command_ids__ = command_ids
 
