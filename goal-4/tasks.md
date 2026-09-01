@@ -362,14 +362,14 @@
 - 剩余风险：部分历史文档仍保留旧版本 PNG 迁移记录，属于历史审计事实，不应批量改写；全量测试仍受外部 T2I/图片 fixture 环境影响。
 - 下一步：进入 D08/Task 25，完成专家审查、全量门禁分类与最终验收。
 
-## 集中检查 D08 — Task 22–24 `[pending]`
+## 集中检查 D08 — Task 22–24 `[completed]`
 
 **检查**：用户体验、真实/离线证据、浏览器错误、文档事实、迁移/回滚、安全、性能指标和全部已知限制。发现问题追加修复 task。
 
-- 实际检查：
-- 验证证据：
-- 新增修复 task：
-- 剩余风险：
+- 实际检查：核对 T2I 原始 bytes、公告生命周期、Dashboard 状态文案、At 查询说明、登录文案、旧配置弃用说明和回滚边界；未把公网 T2I/OneBot 不可用伪装成通过。
+- 验证证据：Task 20–24 相关测试、compileall、node syntax、聚焦 ruff 和 Playwright 静态页面检查通过；完整门禁仍保留失败证据。
+- 新增修复 task：Task 25 继续处理 13 个全量失败：公网 T2I/远程图片 fixture、旧 PNG 断言、artifact fixture 及测试导入环境。
+- 剩余风险：缺少真实 T2I、AstrBot Dashboard bridge 和 OneBot 运行时，无法完成生产视觉和消息发送验收。
 
 ## Task 25 — 专家审查与候选发布全量门禁 `[pending]`
 
