@@ -320,14 +320,14 @@
 - 剩余风险：Pyright 配置存在用户初始化前的未提交改动，未纳入本 goal；全量图片 fixture 仍需候选门禁阶段复核。
 - 下一步：进入 D07/D08，继续完成真实渲染证据、文档和宿主浏览器冒烟。
 
-## 集中检查 D07 — Task 19–21 `[pending]`
+## 集中检查 D07 — Task 19–21 `[completed]`
 
 **检查**：Dashboard UX、前后端契约、bootstrap/lifecycle、权限、数据竞态、死代码、日志、图片路径和跨域回归。运行相关后端与前端门禁。
 
-- 实际检查：
-- 验证证据：
-- 新增修复 task：
-- 剩余风险：
+- 实际检查：复核公告目标 Dashboard、Admin bridge、bootstrap/lifecycle 和本地数据库边界；使用本地 AstrBot v4.27.1、真实 Dashboard 登录态和 NapCat OneBot 连接进行宿主检查。账号列表最初返回 500，确认原因是新建 `dnaby.sqlite3` 尚未按既有部署契约执行 Alembic，而非账号 DTO 或本轮 Goal 4 代码回归；对 0 字节空库执行 `upgrade head` 后恢复。
+- 验证证据：本地 Alembic 从空库升级到 `0003_global_identity`，五张业务表与 `alembic_version` 均存在；无需重启 AstrBot，真实 Dashboard `账号与预览` 页面显示“服务已连接”“0 个 UID”“暂无已登录账号”，浏览器控制台无 error；AstrBot 前台会话保持运行，NapCat 已连接 OneBot v11。
+- 新增修复 task：Task 26 补齐此前被环境假设阻塞的真实 T2I 原始字节、公告目标管理和 NapCat/At 冒烟证据。
+- 剩余风险：生产 schema 仍按项目既有约定由部署者显式执行 Alembic，插件 bootstrap 不自动建表；公告目标 UI 写操作、真实 At 查询和 T2I 常规 JPEG 字节相等仍需 Task 26 验证。
 
 ## Task 22 — 真实渲染体积与视觉验收 `[completed]`
 
@@ -381,3 +381,14 @@
 - 验证证据：完整 `uv run pytest -q` 通过，`818 passed, 1 skipped, 5 warnings`（2026-09-01）；目标聚焦回归 `60 passed`；配置/命令/写契约 `68 passed`；`python3 -m compileall -q src pages/dashboard` 通过；Dashboard JS `bridge.js`、`store.js` 语法检查通过；`git diff --check 8400688..HEAD` 通过；变更相关 Ruff 检查通过。工作树审计仅保留用户既有 `pyrightconfig.json` 修改及既有未跟踪目录/文件，未被本 goal 提交。
 - 剩余风险：全量 `ruff check .` 仍有 31 个仓库既有或非本轮范围的风格/类型规则项；`uv run pyright --project pyrightconfig.json` 仍有 25 个跨历史模块的既有类型错误，本轮未扩大范围修复；真实 T2I 服务、AstrBot Dashboard bridge、OneBot 登录运行时不可用，因此生产字节对比、真实 At 消息和实际按钮写操作仍缺运行时证据。一次完整测试曾因外部 MH 渲染 fixture 波动失败，已隔离为离线 fixture 后复跑通过。
 - 下一步：进入 Goal 终审轮；若宿主运行时可用，补做真实 T2I/OneBot/Dashboard 冒烟，否则按上述环境风险交付。
+
+## Task 26 — 本地 AstrBot/NapCat/T2I 真实运行时验收 `[pending]`
+
+**目标**：使用用户指定的本地 AstrBot、NapCat 与 T2I 容器，补齐此前因环境假设未执行的真实运行时证据。
+
+**验收**：T2I 常规输出文件与服务响应 bytes 完全一致、inflation=1.0；真实 Dashboard 公告目标列表和可管理操作无 API/控制台错误；在安全目标上验证 At 前/后只读查询与写操作身份隔离，不向任意群组发送测试消息；记录所有运行时版本、状态与剩余限制。
+
+- 实际完成：
+- 验证证据：
+- 剩余风险：
+- 下一步：
