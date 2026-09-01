@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -38,6 +39,24 @@ async def _database_with_binding(tmp_path: Path) -> AsyncDatabase:
             is_active=True,
         )
     return database
+
+
+class _OfflineNoticeRenderer:
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    async def render_ann_detail(self, detail: object) -> SimpleNamespace:
+        post_id = detail.post_id  # type: ignore[attr-defined]
+        self.root.mkdir(parents=True, exist_ok=True)
+        path = self.root / f"ann-{post_id}.jpg"
+        path.write_bytes(b"offline-rendered-announcement")
+        return SimpleNamespace(path=path)
+
+    async def render_mh(self, *_args: object, **_kwargs: object) -> SimpleNamespace:
+        self.root.mkdir(parents=True, exist_ok=True)
+        path = self.root / "mh.jpg"
+        path.write_bytes(b"offline-rendered-mh")
+        return SimpleNamespace(path=path)
 
 
 class _AnnouncementSource:
@@ -415,6 +434,7 @@ async def test_poll_ann_now_pushes_only_new_announcements(tmp_path: Path) -> Non
         push=push,
     )
     object.__setattr__(service, "ann_state", ann_state)
+    service.renderer = _OfflineNoticeRenderer(tmp_path / "rendered")
     await service.subscribe_ann(_request("订阅公告"))
 
     first = await service.poll_ann_now()
@@ -527,6 +547,7 @@ async def test_push_mh_now_filters_by_rotation_and_time_and_text_all(tmp_path: P
         subscriptions=subscriptions,
         push=push,
     )
+    service.renderer = _OfflineNoticeRenderer(tmp_path / "rendered")
 
     # 1. 订阅了轮换中存在的密函（拆解在 FakeNoticesTransport 角色轮换中）
     await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}, actor=_actor(origin="platform:group:g1")))
@@ -650,6 +671,7 @@ async def test_poll_ann_now_continues_when_one_subscriber_push_fails(tmp_path: P
         push=push,
     )
     object.__setattr__(service, "ann_state", ann_state)
+    service.renderer = _OfflineNoticeRenderer(tmp_path / "rendered")
 
     count = await service.poll_ann_now()
 
