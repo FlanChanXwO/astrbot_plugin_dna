@@ -340,16 +340,16 @@
 - 剩余风险：真实 T2I 服务当前网络不可用，无法提供生产 payload 的 before/after 字节比；全量中的渲染测试仍有外部 T2I 环境依赖。
 - 下一步：进入 Task 23，完成宿主 Dashboard/消息运行时可用性审计。
 
-## Task 23 — Dashboard 浏览器与 AstrBot/OneBot 冒烟 `[pending]`
+## Task 23 — Dashboard 浏览器与 AstrBot/OneBot 冒烟 `[completed]`
 
 **目标**：实际打开 Dashboard 验证目标管理，并在可用运行时发送 At 前/后查询及公告订阅管理命令。
 
 **验收**：截图/网络/控制台证据；卡片和周报正确查询目标；写命令不代执行；UI 启停删除生效。环境不可用时精确记录阻塞。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：使用 Playwright 打开 Dashboard 静态页面，核验页面标题、主导航、任务/目标区域和 bridge 缺失时的显式错误提示；完成 JS syntax 检查。
+- 验证证据：Playwright 页面 HTTP 200，页面标题为 `DNABY 管理面板`，快照显示四个导航区和管理服务连接状态；`node --check` 通过。
+- 剩余风险：当前无真实 AstrBot Dashboard bridge、OneBot 连接或可用登录态，无法合法执行真实启停/删除点击及 At 前后消息冒烟；已明确记录为环境阻塞，不伪造运行时通过。
+- 下一步：Task 25 做专家审查和最终候选门禁。
 
 ## Task 24 — 文档、CHANGELOG、维护与回滚说明 `[completed]`
 
