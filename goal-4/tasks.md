@@ -141,14 +141,14 @@
 - 剩余风险：当前环境没有可复现的旧版全量真实 T2I payload 采样，尚未给出生产样本级 bytes before/after 统计；该项按计划留待 Task 22 的真实渲染验收。签到报告、二维码等直接 bytes 返回路径继续保持既有 PNG/平台默认格式，不属于 artifact writer 重编码路径。
 - 下一步：集中检查 D03，审计 Task 07–09 的分页、缓存 manifest、JPEG 平台兼容、离线工具、清理与全域渲染回归。
 
-## 集中检查 D03 — Task 07–09 `[pending]`
+## 集中检查 D03 — Task 07–09 `[completed]`
 
 **检查**：公告分页、缓存完整性、JPEG 平台兼容、元数据迁移、离线工具、真实输出体积与全部渲染测试。发现问题追加修复 task。
 
-- 实际检查：
-- 验证证据：
-- 新增修复 task：
-- 剩余风险：
+- 实际检查：审计公告/密函普通直出与 6000px 分页边界，确认普通 JPEG 路径只做标准库容器检查，Pillow 仅出现在超长裁剪、输入素材和离线比较；审计公告缓存 image validator、media tag、schema v2 manifest 与旧 manifest miss/rebuild；核对 artifact store、ResponseFactory、RenderedFileStore 的图片/sidecar/manifest 配对和 JPEG/PNG 后缀；实际执行离线 compare；核对 regenerate 不再直接复制孤立图片，而是按真实格式重建配对文件。
+- 验证证据：Task 07–09 专项及相关领域回归 `84 passed`；D03 扩展渲染/缓存/清理回归 `91 passed`；全量 `ruff check .` 与 `compileall` 通过；受影响模块 Pyright 与 LSP diagnostics 无错误；`scripts/compare_renders.py --out /tmp/dnaby-task08-render-compare.md` 实际运行成功。全量 Pyright 仍报告 18 个既有类型问题，集中在 commands、operations、notices 旧依赖注解和跨任务代码，未作为本轮新增修复范围。
+- 新增修复 task：无。
+- 剩余风险：真实生产 T2I 样本、AstrBot/OneBot 图片发送和视觉/体积 before-after 仍需 Task 22–23；全量 Pyright 既有问题需在后续跨模块收口时处理，不能宣称当前全仓类型检查通过。
 
 ## Task 10 — 全局请求并发配置与 RequestConcurrencyGate `[pending]`
 
