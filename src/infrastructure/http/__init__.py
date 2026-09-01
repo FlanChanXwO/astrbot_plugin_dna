@@ -7,6 +7,19 @@
 from __future__ import annotations
 
 from importlib import import_module
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .account import (
+        AccountTransportError,
+        DnaApiAccountTransport,
+        TransportErrorKind,
+    )
+    from .checkin import DnaApiCheckinTransport
+    from .concurrency import RequestConcurrencyGate
+    from .encyclopedia import DEFAULT_CODE_URL, DnaApiEncyclopediaTransport
+    from .notices import DnaApiNoticesTransport
+    from .player import DnaApiPlayerTransport
 
 __all__ = [
     "DEFAULT_CODE_URL",
