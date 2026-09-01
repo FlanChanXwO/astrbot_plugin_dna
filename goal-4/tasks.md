@@ -273,10 +273,10 @@
 
 **验收**：列表、启停、删除、错误/部分完成、鉴权和输入校验完整；手工创建/unified origin 修改被拒绝。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：AdminApiService 注入 `AnnouncementTargetService`，公告目标的启用、停用、删除统一委托生命周期 service；公告目标更新被明确拒绝，避免移动 `(type, unified_msg_origin, uid)` 身份键；保留密函等旧目标的既有更新/删除兼容行为。Admin Web 增加 enable/disable 路由，并由统一管理鉴权包装器保护。
+- 验证证据：新增 `tests/test_goal4_task18_admin_targets.py`，先验证原实现的构造器/路由契约失败，再实现；Task 18 与 Task 17、Admin/Web 回归共 `32 passed`；ruff 对受影响文件通过。
+- 剩余风险：公告目标的“已发现”来源与 provenance 仍需在 D06/Task 20 中审计；当前 Admin API 对不存在目标、上游异常和 partial 结果已做 envelope 映射，但尚未完成真实 Dashboard 浏览器操作验证。
+- 下一步：进入 D06，集中检查配置、重启、鉴权、日志和跨任务回归。
 
 ## 集中检查 D06 — Task 16–18 `[pending]`
 

@@ -716,6 +716,18 @@ class AdminWebAdapter:
         )
 
     @_admin_handler
+    async def enable_target(self, target_id: str) -> Any:
+        return _response(
+            await self._call("admin_api_service", "enable_target", target_id)
+        )
+
+    @_admin_handler
+    async def disable_target(self, target_id: str) -> Any:
+        return _response(
+            await self._call("admin_api_service", "disable_target", target_id)
+        )
+
+    @_admin_handler
     async def membership_capability(self) -> Any:
         return _response(await self._call("admin_api_service", "membership_capability"))
 
@@ -999,6 +1011,18 @@ class AdminWebAdapter:
                 self.delete_target,
                 ("POST",),
                 "删除投递目标",
+            ),
+            WebRoute(
+                f"{prefix}/targets/<target_id>/enable",
+                self.enable_target,
+                ("POST",),
+                "启用公告投递目标",
+            ),
+            WebRoute(
+                f"{prefix}/targets/<target_id>/disable",
+                self.disable_target,
+                ("POST",),
+                "停用公告投递目标",
             ),
             WebRoute(
                 f"{prefix}/members/capability",

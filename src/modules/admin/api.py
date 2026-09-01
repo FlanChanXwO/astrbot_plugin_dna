@@ -29,6 +29,11 @@ from ...infrastructure.scheduler_state import (
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from ..checkin import messages as checkin_messages
 from ..notices import messages as notices_messages
+from ..notices.target_service import (
+    AnnouncementTargetService,
+    TargetMutationResult,
+    TargetMutationStatus,
+)
 from .contracts import UNSET, AdminApiResponse, AdminError, AdminErrorCode
 
 TaskSnapshot = SchedulerTaskSnapshot
@@ -220,6 +225,7 @@ class AdminApiService:
         task_schedulers: Mapping[str, object] | None = None,
         config_store: MutableMapping[str, Any] | None = None,
         save_config: Callable[[], object] | None = None,
+        announcement_target_service: AnnouncementTargetService | None = None,
     ) -> None:
         if schedulers is not None and task_schedulers is not None:
             raise ValueError("schedulers 与 task_schedulers 只能提供一个")
@@ -227,6 +233,7 @@ class AdminApiService:
         self.subscriptions = subscriptions
         self.schedulers = dict(task_schedulers or schedulers or {})
         self.membership_service = membership_service
+        self.announcement_target_service = announcement_target_service
         self.config_store = config_store
         self._save_config = save_config
 
@@ -461,6 +468,42 @@ class AdminApiService:
             None,
         )
 
+    async def _announcement_target_action(
+        self,
+        action: str,
+        target_id: str,
+    ) -> AdminApiResponse[TaskTarget]:
+        service = self.announcement_target_service
+        if service is None:
+            return _failure(AdminErrorCode.INTERNAL, "公告目标服务不可用")
+        try:
+            key = _decode_target_id(target_id)
+        except ValueError:
+            return _failure(AdminErrorCode.VALIDATION, "target_id 无效")
+        if key[0] != notices_messages.ANN_SUBSCRIBE:
+            return _failure(AdminErrorCode.UNSUPPORTED, "该目标类型不支持公告生命周期操作")
+        method = getattr(service, action, None)
+        if not callable(method):
+            return _failure(AdminErrorCode.INTERNAL, "公告目标服务不可用")
+        try:
+            result = method(target_id)
+            if inspect.isawaitable(result):
+                result = await result
+        except Exception:  # noqa: BLE001
+            return _failure(AdminErrorCode.UPSTREAM, "公告目标操作失败，可重试")
+        if not isinstance(result, TargetMutationResult):
+            return _failure(AdminErrorCode.INTERNAL, "公告目标服务返回结果无效")
+        if result.status is TargetMutationStatus.INVALID:
+            return _failure(AdminErrorCode.VALIDATION, result.message or "target_id 无效")
+        if result.status is TargetMutationStatus.NOT_FOUND:
+            return _failure(AdminErrorCode.NOT_FOUND, result.message or "公告目标不存在")
+        if result.subscription is None:
+            return _failure(AdminErrorCode.INTERNAL, "公告目标服务未返回目标")
+        target = TaskTarget.from_subscription(result.subscription)
+        if result.status is TargetMutationStatus.PARTIAL:
+            return _failure(AdminErrorCode.PARTIAL, result.message or "公告目标操作部分完成", data=target)
+        return AdminApiResponse.success(target)
+
     async def update_target(
         self,
         target_id: str,
@@ -477,6 +520,8 @@ class AdminApiService:
             return _failure(AdminErrorCode.INTERNAL, "投递目标读取失败")
         if target is None:
             return _failure(AdminErrorCode.NOT_FOUND, "投递目标不存在")
+        if target.type == notices_messages.ANN_SUBSCRIBE:
+            return _failure(AdminErrorCode.UNSUPPORTED, "公告目标只能通过生命周期操作管理，身份不可移动")
         replacement = Subscription(
             type=target.type,
             unified_msg_origin=target.unified_msg_origin,
@@ -507,6 +552,8 @@ class AdminApiService:
             return _failure(AdminErrorCode.INTERNAL, "投递目标读取失败")
         if target is None:
             return _failure(AdminErrorCode.NOT_FOUND, "投递目标不存在")
+        if target.type == notices_messages.ANN_SUBSCRIBE:
+            return await self._announcement_target_action("delete", target_id)
         try:
             deleted = await self.subscriptions.delete(*key)
         except Exception:  # noqa: BLE001
@@ -514,6 +561,12 @@ class AdminApiService:
         if not deleted:
             return _failure(AdminErrorCode.NOT_FOUND, "投递目标不存在")
         return AdminApiResponse.success(TaskTarget.from_subscription(target))
+
+    async def disable_target(self, target_id: str) -> AdminApiResponse[TaskTarget]:
+        return await self._announcement_target_action("disable", target_id)
+
+    async def enable_target(self, target_id: str) -> AdminApiResponse[TaskTarget]:
+        return await self._announcement_target_action("enable", target_id)
 
     async def _membership_action(
         self,

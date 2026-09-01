@@ -427,6 +427,7 @@ def build_runtime(
         },
         membership_service,
         config_store=config if isinstance(config, dict) else None,
+        announcement_target_service=announcement_targets,
     )
 
     def _resolve_char_id(char_name: str) -> str | None:
