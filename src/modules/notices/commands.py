@@ -181,6 +181,7 @@ COMMAND_SPECS = (
         examples=("密函",),
         permission="user",
         use_case=cast(Any, notices_mh_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="mh_list",
@@ -191,6 +192,7 @@ COMMAND_SPECS = (
         examples=("密函列表",),
         permission="user",
         use_case=cast(Any, notices_mh_list_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="ann",
@@ -201,6 +203,7 @@ COMMAND_SPECS = (
         examples=("公告", "公告 1"),
         permission="user",
         use_case=cast(Any, notices_ann_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="mh_subscribe",

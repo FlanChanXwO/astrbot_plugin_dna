@@ -76,11 +76,13 @@ def command_text_from_event(event: Any) -> str:
     if callable(get_messages):
         messages = get_messages()
         if isinstance(messages, Iterable):
-            return "".join(
+            text = "".join(
                 str(getattr(component, "text", "") or "")
                 for component in messages
                 if isinstance(component, Plain)
             ).strip()
+            if text:
+                return text
 
     get_message_str = getattr(event, "get_message_str", None)
     if callable(get_message_str):

@@ -35,7 +35,9 @@ def _service(request: CommandRequest) -> EncyclopediaService | PlainTextResponse
     return cast(EncyclopediaService, service)
 
 
-def _request(request: CommandRequest, parameters: dict[str, Any] | None = None) -> EncyclopediaRequest:
+def _request(
+    request: CommandRequest, parameters: dict[str, Any] | None = None
+) -> EncyclopediaRequest:
     assert request.actor is not None
     return EncyclopediaRequest(
         actor=request.actor,
@@ -45,7 +47,9 @@ def _request(request: CommandRequest, parameters: dict[str, Any] | None = None) 
     )
 
 
-async def stamina_use_case(request: CommandRequest, _registry: CommandRegistry, **parameters: Any):
+async def stamina_use_case(
+    request: CommandRequest, _registry: CommandRegistry, **parameters: Any
+):
     service = _service(request)
     if isinstance(service, PlainTextResponse):
         return service
@@ -85,35 +89,45 @@ async def weekly_report_last_use_case(
     return await service.weekly_report(_request(request, parameters))
 
 
-async def calendar_use_case(request: CommandRequest, _registry: CommandRegistry, **parameters: Any):
+async def calendar_use_case(
+    request: CommandRequest, _registry: CommandRegistry, **parameters: Any
+):
     service = _service(request)
     if isinstance(service, PlainTextResponse):
         return service
     return await service.calendar(_request(request, parameters))
 
 
-async def wiki_use_case(request: CommandRequest, _registry: CommandRegistry, **parameters: Any):
+async def wiki_use_case(
+    request: CommandRequest, _registry: CommandRegistry, **parameters: Any
+):
     service = _service(request)
     if isinstance(service, PlainTextResponse):
         return service
     return await service.wiki(_request(request, parameters))
 
 
-async def guide_use_case(request: CommandRequest, _registry: CommandRegistry, **parameters: Any):
+async def guide_use_case(
+    request: CommandRequest, _registry: CommandRegistry, **parameters: Any
+):
     service = _service(request)
     if isinstance(service, PlainTextResponse):
         return service
     return await service.guide(_request(request, parameters))
 
 
-async def code_use_case(request: CommandRequest, _registry: CommandRegistry, **parameters: Any):
+async def code_use_case(
+    request: CommandRequest, _registry: CommandRegistry, **parameters: Any
+):
     service = _service(request)
     if isinstance(service, PlainTextResponse):
         return service
     return await service.codes(_request(request, parameters))
 
 
-async def alias_list_use_case(request: CommandRequest, _registry: CommandRegistry, **parameters: Any):
+async def alias_list_use_case(
+    request: CommandRequest, _registry: CommandRegistry, **parameters: Any
+):
     service = _service(request)
     if isinstance(service, PlainTextResponse):
         return service
@@ -141,6 +155,7 @@ COMMAND_SPECS = (
         examples=("日常",),
         permission="user",
         use_case=cast(Any, stamina_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="weekly_report_current",
@@ -151,6 +166,7 @@ COMMAND_SPECS = (
         examples=("周报",),
         permission="user",
         use_case=cast(Any, weekly_report_current_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="weekly_report_last",
@@ -161,6 +177,7 @@ COMMAND_SPECS = (
         examples=("上周周报",),
         permission="user",
         use_case=cast(Any, weekly_report_last_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="calendar",
@@ -171,6 +188,7 @@ COMMAND_SPECS = (
         examples=("日历",),
         permission="user",
         use_case=cast(Any, calendar_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="dna_wiki",
@@ -181,6 +199,7 @@ COMMAND_SPECS = (
         examples=("角色名图鉴",),
         permission="user",
         use_case=cast(Any, wiki_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="dna_guide",
@@ -191,6 +210,7 @@ COMMAND_SPECS = (
         examples=("角色名攻略",),
         permission="user",
         use_case=cast(Any, guide_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="dna_code",
@@ -201,6 +221,7 @@ COMMAND_SPECS = (
         examples=("兑换码",),
         permission="user",
         use_case=cast(Any, code_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="alias_list",
@@ -211,6 +232,7 @@ COMMAND_SPECS = (
         examples=("角色名别名",),
         permission="admin",
         use_case=cast(Any, alias_list_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="alias_all_list",
@@ -221,6 +243,7 @@ COMMAND_SPECS = (
         examples=("角色列表",),
         permission="user",
         use_case=cast(Any, alias_all_list_use_case),
+        mention_policy="query",
     ),
 )
 

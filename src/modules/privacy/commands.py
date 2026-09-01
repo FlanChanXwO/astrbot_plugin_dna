@@ -237,6 +237,7 @@ COMMAND_SPECS = (
         examples=("指定开偷窥",),
         permission="admin",
         use_case=privacy_enable_peek_admin_use_case,
+        mention_policy="admin_target",
     ),
     CommandSpec(
         id="privacy_disable_peek_admin",
@@ -247,6 +248,7 @@ COMMAND_SPECS = (
         examples=("指定防偷窥",),
         permission="admin",
         use_case=privacy_disable_peek_admin_use_case,
+        mention_policy="admin_target",
     ),
     CommandSpec(
         id="privacy_enable_peek_all",
@@ -287,6 +289,7 @@ COMMAND_SPECS = (
         examples=("指定隐藏UID",),
         permission="admin",
         use_case=privacy_enable_uid_hidden_admin_use_case,
+        mention_policy="admin_target",
     ),
     CommandSpec(
         id="privacy_disable_uid_hidden_admin",
@@ -297,6 +300,7 @@ COMMAND_SPECS = (
         examples=("指定显示UID",),
         permission="admin",
         use_case=privacy_disable_uid_hidden_admin_use_case,
+        mention_policy="admin_target",
     ),
     CommandSpec(
         id="privacy_enable_uid_hidden_all",

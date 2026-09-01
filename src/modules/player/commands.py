@@ -10,7 +10,9 @@ from . import messages
 from .contracts import PlayerCommandRequest
 from .service import PlayerService
 
-PATTERN = r"[\u4e00-\u9fa5a-zA-Z0-9\U0001F300-\U0001FAFF\U00002600-\U000027BF-—·()（）?？]+"
+PATTERN = (
+    r"[\u4e00-\u9fa5a-zA-Z0-9\U0001F300-\U0001FAFF\U00002600-\U000027BF-—·()（）?？]+"
+)
 ROLE_DETAIL_PATTERN = (
     rf"^(?P<char_name>{PATTERN})(?:面板|信息|详情|面包|🍞)"
     rf"(?:\s*[+＋]\s*(?P<weapon_name_1>{PATTERN}))?"
@@ -32,7 +34,9 @@ def _service(request: CommandRequest) -> PlayerService | PlainTextResponse:
     return cast(PlayerService, service)
 
 
-def _player_request(request: CommandRequest, parameters: dict[str, Any] | None = None) -> PlayerCommandRequest:
+def _player_request(
+    request: CommandRequest, parameters: dict[str, Any] | None = None
+) -> PlayerCommandRequest:
     assert request.actor is not None
     return PlayerCommandRequest(
         actor=request.actor,
@@ -139,6 +143,7 @@ COMMAND_SPECS = (
         examples=("卡片",),
         permission="user",
         use_case=cast(Any, player_role_overview_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="refresh_admin_role_card",
@@ -179,6 +184,7 @@ COMMAND_SPECS = (
         examples=("角色名面板",),
         permission="user",
         use_case=cast(Any, player_role_detail_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="role_original_image",
@@ -189,6 +195,7 @@ COMMAND_SPECS = (
         examples=("原图",),
         permission="user",
         use_case=cast(Any, player_original_image_use_case),
+        mention_policy="query",
     ),
 )
 

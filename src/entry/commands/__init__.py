@@ -35,6 +35,7 @@ from ..event import (
 from ..response import CommandResponse, PlainTextResponse
 
 PermissionName = Literal["user", "admin"]
+MentionPolicy = Literal["ignore", "query", "admin_target"]
 CommandUseCase = Callable[
     ...,
     Awaitable[CommandResponse | str | None]
@@ -79,6 +80,7 @@ class CommandSpec:
     examples: tuple[str, ...]
     permission: PermissionName
     use_case: CommandUseCase
+    mention_policy: MentionPolicy = "ignore"
 
     def __post_init__(self) -> None:
         """在命令进入 registry 前验证它能安全生成 handler。"""
@@ -95,6 +97,10 @@ class CommandSpec:
             raise ValueError(
                 f"命令 {self.id} 的 permission 无效: {self.permission!r}; "
                 f"允许值为 {sorted(_PERMISSIONS)}",
+            )
+        if self.mention_policy not in {"ignore", "query", "admin_target"}:
+            raise ValueError(
+                f"命令 {self.id} 的 mention_policy 无效: {self.mention_policy!r}"
             )
         if not self.group or not self.name or not self.description:
             raise ValueError(f"命令 {self.id} 的 group/name/description 不能为空")
@@ -284,6 +290,7 @@ def _prefix_spec(
         examples=tuple(f"{primary_prefix}{example}" for example in spec.examples),
         permission=spec.permission,
         use_case=spec.use_case,
+        mention_policy=spec.mention_policy,
     )
 
 
@@ -480,9 +487,13 @@ def _make_handler(
             parameters=parameters,
             actor=actor,
             permission=_permission_from_event(event),
-            target_user_id=target_user_from_event(
-                event,
-                bot_id=actor.bot_id if actor is not None else None,
+            target_user_id=(
+                target_user_from_event(
+                    event,
+                    bot_id=actor.bot_id if actor is not None else None,
+                )
+                if active_spec.mention_policy in {"query", "admin_target"}
+                else None
             ),
             reply_id=reply_id_from_event(event),
             services=getattr(runtime, "services", {}),

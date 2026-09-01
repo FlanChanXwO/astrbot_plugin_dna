@@ -68,12 +68,15 @@ async def test_generated_handler_matches_command_with_mention_on_either_side(
         examples=("查角色",),
         permission="user",
         use_case=use_case,
+        mention_policy="query",
     )
     registry = CommandRegistry((spec,))
 
     class Plugin:
         __module__ = "tests.goal4_task13"
-        _runtime = SimpleNamespace(commands=registry, services={}, responses=ResponseFactory())
+        _runtime = SimpleNamespace(
+            commands=registry, services={}, responses=ResponseFactory()
+        )
 
     install_command_handlers(Plugin, registry)
     plugin = Plugin()

@@ -17,7 +17,12 @@ def _service(request: CommandRequest) -> CheckinService | PlainTextResponse:
     service = request.services.get("checkin_service")
     if service is None or not all(
         callable(getattr(service, method, None))
-        for method in ("manual_sign", "sign_calendar", "sign_all", "subscribe_sign_result")
+        for method in (
+            "manual_sign",
+            "sign_calendar",
+            "sign_all",
+            "subscribe_sign_result",
+        )
     ):
         return PlainTextResponse(messages.CHECKIN_SERVICE_UNAVAILABLE)
     return cast(CheckinService, service)
@@ -97,6 +102,7 @@ COMMAND_SPECS = (
         examples=("签到日历",),
         permission="user",
         use_case=cast(Any, checkin_sign_calendar_use_case),
+        mention_policy="query",
     ),
     CommandSpec(
         id="sign_all",

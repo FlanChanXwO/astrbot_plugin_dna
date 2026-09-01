@@ -214,16 +214,16 @@
 - 剩余风险：commands 模块存在本轮之前的 2 个 Pyright optional runtime 诊断，以及测试动态生成 handler 的静态属性诊断；不影响运行期行为，留待后续命令接口收口统一处理。
 - 下一步：Task 14 增加 `mention_policy` 并验证只读目标查询与写操作隔离。
 
-## Task 14 — CommandSpec mention policy 与只读目标查询矩阵 `[pending]`
+## Task 14 — CommandSpec mention policy 与只读目标查询矩阵 `[completed]`
 
 **目标**：测试先行增加 `ignore/query/admin_target`，标注并验证玩家、便笺、周报、签到日历、密函；写操作不接收目标。
 
 **验收**：所有 query 使用目标 active UID/凭据并经过 PrivacyService；禁用 At、禁止偷窥、未登录和自查路径明确；签到/刷新/订阅/账号管理不代执行。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：`CommandSpec` 增加并校验 `mention_policy`；生成 handler 仅对 `query/admin_target` 提取 At，默认/写操作为 `ignore`；为玩家、百科、公告、签到日历和管理员隐私目标命令标注策略，并在 `_prefix_spec` 中保留策略。
+- 验证证据：新增 `tests/test_goal4_task14_mention_policy.py`，覆盖三种策略、生产命令矩阵和目标命令；结合 Task 13、privacy/encyclopedia/notices command 回归共 `23 passed`；ruff 通过。
+- 剩余风险：当前只读命令的领域 service 已接收 `target_user_id`，但完整“每个 query 都以目标 active UID/凭据执行”的跨模块集成矩阵仍需下一轮补齐；全仓 Pyright 仍有既有命令 optional runtime 诊断。
+- 下一步：Task 15 修正登录文案、帮助与 commands manifest。
 
 ## Task 15 — 登录/UID 文案、帮助与命令清单修正 `[pending]`
 
