@@ -393,13 +393,13 @@
 - 剩余风险：本轮公告启用在真实环境中因上游公告列表请求异常返回 207，目标按安全语义保持停用；这验证了 partial 错误展示，但未把上游不可用伪装成成功。At 冒烟使用隔离 OneBot client 和无凭据 UID，未调用真实游戏 API，也未验证真实登录账号的完整卡片视觉；NapCat 原连接保持在线，测试连接使用独立虚拟 self_id/group_id。全仓既有 Ruff/Pyright 问题仍按 Task 25 记录。
 - 下一步：运行 Task 26 相关质量门禁，提交本轮修复与运行时证据；之后进入 Goal 终审。
 
-## Task 27 — 全量测试的本地 T2I 环境隔离与终审收口 `[pending]`
+## Task 27 — 全量测试的本地 T2I 环境隔离与终审收口 `[completed]`
 
 **目标**：修正全量 pytest 对 AstrBot 全局远程 T2I renderer 的隐式依赖，使测试在用户指定的本地 T2I 容器或确定性 fixture 下可重复运行，不改变生产链路；重新执行完整门禁并核对失败是否仍归属于本 goal。
 
 **验收**：`uv run pytest -q` 在当前本地环境稳定通过（允许既有明确跳过）；不得向外部真实群组发送消息；本地 T2I 端点/fixture 的选择有测试级边界，不污染用户运行配置；ruff、compileall、Dashboard JS 检查和 git diff 审计保持通过。
 
-- 实际完成：待本轮执行。
-- 验证证据：待本轮执行。
-- 剩余风险：当前全量回归仍有部分测试调用 AstrBot 默认远程 T2I，受 Cloudflare HTML/上游不可用影响而波动失败。
-- 下一步：完成测试环境隔离后进入最终 Goal 终审并标记完成。
+- 实际完成：在仓库根级 pytest 配置增加 session-scoped、autouse 的 `local_t2i_renderer` fixture，仅在测试进程内把 AstrBot 全局 T2I 网络策略指向 `http://127.0.0.1:8999/text2img`（可由 `DNABY_TEST_T2I_ENDPOINT` 覆盖）；测试结束后恢复原策略。补充契约测试，防止未来重新依赖远程默认端点。
+- 验证证据：先运行契约测试确认 fixture 缺失而收集失败（Red）；实现后 `tests/test_goal4_task27_t2i_test_isolation.py` 与测试环境生命周期测试 `4 passed`；checkin/encyclopedia/player/notices 回归 `58 passed`；完整 `uv run pytest -q` 为 `822 passed, 1 skipped, 5 warnings`（2026-09-01）；`ruff check .` 通过；`python3 -m compileall -q src pages/dashboard` 通过；Dashboard `bridge.js`、`store.js` 语法检查通过；`git diff --check HEAD` 通过。
+- 剩余风险：fixture 默认要求本地 T2I 容器已监听 8999；未运行该容器时，依赖真实 T2I 的测试会显式失败，不会静默切换到远程服务。用户既有 `pyrightconfig.json` 改动及其他 goal/Playwright 未跟踪文件仍未纳入本 goal 提交。
+- 下一步：进入最终 Goal 终审，确认所有需求、运行时证据、提交边界和文档状态后标记完成。

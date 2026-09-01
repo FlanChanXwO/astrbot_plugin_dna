@@ -9,7 +9,10 @@ import os
 import shutil
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).parent
 
@@ -51,3 +54,29 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 
     del session, exitstatus
     _cleanup_test_environment()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def local_t2i_renderer() -> Iterator[None]:
+    """把未显式注入 renderer 的旧测试定向到本地 T2I 容器。
+
+    生产代码仍读取 AstrBot 自身配置；这里只在 pytest 进程内覆盖全局策略，
+    避免测试因为远程端点、Cloudflare 错误页或官方端点轮换而产生非确定性失败。
+    """
+
+    import astrbot.core
+
+    strategy = astrbot.core.html_renderer.network_strategy
+    old_base_url = strategy.BASE_RENDER_URL
+    old_endpoints = list(strategy.endpoints)
+    endpoint = os.environ.get(
+        "DNABY_TEST_T2I_ENDPOINT",
+        "http://127.0.0.1:8999/text2img",
+    ).rstrip("/")
+    strategy.BASE_RENDER_URL = endpoint
+    strategy.endpoints = [endpoint]
+    try:
+        yield
+    finally:
+        strategy.BASE_RENDER_URL = old_base_url
+        strategy.endpoints = old_endpoints
