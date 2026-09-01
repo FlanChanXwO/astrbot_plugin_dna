@@ -329,16 +329,16 @@
 - 新增修复 task：
 - 剩余风险：
 
-## Task 22 — 真实渲染体积与视觉验收 `[pending]`
+## Task 22 — 真实渲染体积与视觉验收 `[completed]`
 
 **目标**：使用现有可复现 payload/T2I 环境生成代表性玩家、周报、公告和签到图片，记录 before/after 格式、尺寸、字节和视觉对比。
 
 **验收**：常规路径 inflation=1.0；无肉眼可见模板/文字变化；超长公告分页完整；若真实 T2I 不可用，记录环境阻塞并提供离线确定性证据，不伪造成功。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：补充并核对 T2I 原始 bytes、JPEG/PNG 格式矩阵、artifact metadata/sidecar 和长公告分页测试；没有真实 T2I 服务时不伪造线上体积数据。
+- 验证证据：Task 04/06/07/09 及相关渲染聚焦回归通过；离线 fake T2I 验证保留原始 bytes，`compileall` 通过。
+- 剩余风险：真实 T2I 服务当前网络不可用，无法提供生产 payload 的 before/after 字节比；全量中的渲染测试仍有外部 T2I 环境依赖。
+- 下一步：进入 Task 23，完成宿主 Dashboard/消息运行时可用性审计。
 
 ## Task 23 — Dashboard 浏览器与 AstrBot/OneBot 冒烟 `[pending]`
 
