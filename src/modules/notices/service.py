@@ -852,9 +852,10 @@ class NoticesService:
         observed_targets = tuple(
             dict.fromkeys(sub.unified_msg_origin for sub in subs if sub.enabled)
         )
-        await self.ann_delivery_state.migrate_legacy_ids(
-            await self.ann_state.known_ids(),
-        )
+        if observed_targets:
+            await self.ann_delivery_state.migrate_legacy_ids(
+                await self.ann_state.known_ids(),
+            )
 
         pushed = 0
         current_targets = set(observed_targets)
