@@ -245,16 +245,16 @@
 - 新增修复 task：无。
 - 剩余风险：全仓仍有历史 Pyright optional runtime 诊断；需要真实 OneBot/AstrBot 运行环境的 At 前后冒烟留待 Task 23。
 
-## Task 16 — Subscription enabled 与公告配置解耦 `[pending]`
+## Task 16 — Subscription enabled 与公告配置解耦 `[completed]`
 
 **目标**：测试先行给订阅增加 enabled 默认值，轮询过滤禁用目标，移除公告配置双写/启动双向同步和 schema 字段。
 
 **验收**：旧 JSON 正常加载为 enabled；旧 announcement_groups 不导入、不改写、不复活，日志不泄露群号；其他订阅行为不回归。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：`Subscription` 增加 `enabled=True` 并兼容旧 JSON；公告轮询过滤停用目标；移除 subscribe/unsubscribe 与 bootstrap 对旧公告群组配置的双向同步；保留不含群号的弃用警告；删除 typed/legacy schema 与迁移映射字段，更新配置文档和回归断言。
+- 验证证据：Task 16 新增测试 `2 passed`；配置回归 `18 passed`；ruff、compileall 通过；全量回归在既有目标 At 测试因 `mention_policy` 旧测试夹具未标注而中断，已修正该夹具并纳入提交。
+- 剩余风险：`NoticesService` 保留兼容性的 `_sync_ann_group` 空调用点与 `config_store` 构造参数，后续目标生命周期 service 可统一移除；旧配置仍由 AstrBot 原始配置文件保留，但不再导入、改写或恢复。
+- 下一步：进入 Task 17，实现公告目标启停/删除生命周期与“重新启用只接收未来公告”的状态基线。
 
 ## Task 17 — AnnouncementTargetService 生命周期 `[pending]`
 
