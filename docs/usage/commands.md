@@ -4,7 +4,7 @@
 配置项 `display.command_prefixes` 为准。为保持文档紧凑，下文命令列表省略前缀；发送时请
 在命令主体前加上当前配置的前缀。
 
-当前 main 注册 `commands.json` 中的 61 条命令，覆盖账号/UID、玩家查询、资料读取、隐私、签到、通知、面板和资源管理。命令声明位于
+当前 main 注册 `commands.json` 中的 61 条命令，覆盖账号/登录、玩家查询、资料读取、隐私、签到、通知、面板和资源管理。命令声明位于
 `src/modules/index.py` 引用的模块中，`commands.json` 是由
 `scripts/generate_commands_manifest.py` 生成的可审阅清单；以当前配置前缀发送 `帮助` 查看同一
 registry 的帮助文本。
@@ -21,7 +21,7 @@ Agent Tools 不属于聊天命令和 `commands.json`，不使用命令前缀，�
 
 ## 当前账号命令
 
-- `登录`、`登陆`、`登入`、`登龙`、`login`：调用注入的登录页 transport。
+- `登录`、`登陆`、`登入`、`登龙`、`login`（不存在 UID 绑定命令）：调用注入的登录页 transport。
 - `登录` 加 40 个字符以上 token：执行 token 登录；例如 `登录<token>`。
 - `登录手机号,验证码`：执行手机号验证码登录，例如 `登录13800138000,1234`。
 - `退出登录`、`登出`、`logout`：退出当前 active UID 的登录。
@@ -48,9 +48,9 @@ Agent Tools 不属于聊天命令和 `commands.json`，不使用命令前缀，�
   公共资源根可提供 `panel/<角色 ID>.png`，原面板引用随详情响应 `original_image_path`
   传递。详见 [v0.3 集中审查](../porting/review-v0.3-debug.md)。
 
-玩家图片由 `ImageResponse` 交给 AstrBot 公共 `image_result`，实际 PNG 写入
+玩家图片由 `ImageResponse` 交给 AstrBot 公共 `image_result`，实际 T2I 图片写入
 `StarTools.get_data_dir("astrbot_plugin_dnaby")/rendered/`。概览/详情渲染保留所有
-合法角色、武器、技能、魔之楔和伤害字段；图片 PNG 元数据只用于离线布局/资源语义回归。
+合法角色、武器、技能、魔之楔和伤害字段；图片 artifact 元数据只用于离线布局/资源语义回归。
 合成 `rendered/*.png` 会在本次事件中登记到 AstrBot 的临时文件生命周期，并由后台维护任务按
 保留期清理已脱离事件的孤儿文件；已登记的发送中图片通过租约保护。运行期资源中的原图、wiki
 和攻略图片不会被登记为临时文件。
@@ -85,7 +85,7 @@ Agent Tools 不属于聊天命令和 `commands.json`，不使用命令前缀，�
 ## 通知命令
 
 - `密函`、`委托密函`、`mh`：读取当前小时段的密函委托（角色/武器/魔之楔分节），默认渲染
-  1700×900 运行期 PNG；开启简洁图片模式时按分栏数量生成对应宽度；需要调用者 active UID 的凭据。
+  1700×900 运行期 T2I 图片（常规输出 JPEG）；开启简洁图片模式时按分栏数量生成对应宽度；需要调用者 active UID 的凭据。
 - `密函列表`、`mh_list`：返回 legacy 密函委托名称清单，无需账号。
 - `公告`：读取并渲染完整公告列表，transport 会按服务端分页继续读取；`公告 序号`（如
   `公告 1`）读取对应公告详情。详情正文的多页图片会在同一条回复中连续发送，图片源地址保留

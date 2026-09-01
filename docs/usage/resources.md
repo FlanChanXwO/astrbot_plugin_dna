@@ -109,7 +109,7 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 - `subscriptions.json` — 订阅存储；`ann_state.json` — 兼容旧版的公告已知 id 列表；
   `ann_delivery_state.json` — 版本化的公告按目标投递状态。
 - `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json` — 角色自定义别名覆盖层。
-- `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，
+- `cache/` — 玩家数据 JSON、完整 T2I 图片卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，
   缓存 key 和身份 tag 只保存 SHA-256 摘要。
 - `login_qr/` — 二维码登录兼容 helper 的临时路径；文件名使用 user_id 的 SHA-256 摘要，发送后
   若 helper 产生文件则由登录流程删除。
@@ -131,7 +131,7 @@ AstrBot 当前事件的临时文件生命周期清理，同时登记到进程内
 旧卡则用旧数据渲染本次响应，但不会把它重新写成完整卡片。
 
 渲染结果带有 `placeholder` 素材时标记为 `incomplete`，允许本次发送占位图，但不会写入或
-覆盖完整 PNG 卡片。卡片 key 同时关联查询身份、角色/武器参数、隐私显示选项、数据摘要和
+覆盖完整 T2I 图片卡片。卡片 key 同时关联查询身份、角色/武器参数、隐私显示选项、数据摘要和
 当前 generation 的 commit/content/resource version；资源切换后会自然 miss 并重新渲染，旧
 条目等待硬保留期清理。缓存失效接口支持 cache type、完整 tag 集合、资源版本或精确 key
 组合筛选，只删除无活动租约的普通条目，不会越过运行期目录边界。

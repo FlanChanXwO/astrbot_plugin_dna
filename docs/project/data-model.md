@@ -58,7 +58,7 @@ Dashboard 管理页的账号列表默认只返回 App/Web 凭据状态；只有�
 - `panel_custom/` — 管理页上传的自定义面板图；删除沿用不可恢复语义，需在操作前自行备份。
 - `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `rendered/` — 订阅、公告
   兼容 ID 列表、按目标投递状态及受控的运行期渲染文件。
-- `cache/` — 玩家数据 JSON、完整 PNG 卡片以及公告 `announcement/` 类型缓存；玩家条目受 30
+- `cache/` — 玩家数据 JSON、完整 T2I 图片卡片以及公告 `announcement/` 类型缓存；玩家条目受 30
   分钟 fresh、24 小时硬保留和租约保护，公告条目默认 24 小时绝对保留，身份相关 key/tag 不保存
   原始 user_id 或 UID。
 

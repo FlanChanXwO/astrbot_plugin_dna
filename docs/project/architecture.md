@@ -45,7 +45,7 @@
   是已接受的部署风险；指定命令要求 AstrBot admin 权限、群聊、有效 `At` 和目标绑定。
   `EventActor.bot_id` 只保留为运行期投递/legacy transport 上下文，不参与账号或隐私查询。
 - 玩家查询：`src/modules/player/` 通过 typed transport 读取角色/武器展柜、角色详情
-  和伤害结果；`src/infrastructure/rendering/` 生成运行期 PNG，详情响应携带
+  和伤害结果；`src/infrastructure/rendering/` 通过 T2I 生成运行期图片（常规输出 JPEG），详情响应携带
   per-response 的 `original_image_path` 原面板引用。AstrBot 4.27.x 公开结果边界没有
   已发送消息 ID 交付点，`原图` 命令显式报告未支持（Task 16.2）；默认 API 适配器只在
   transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。`PlayerCache` 将 typed 玩家数据
@@ -71,7 +71,7 @@
 - 通知读取：`src/modules/notices/` 通过 `NoticesTransport` 读取密函（角色/武器/魔之楔分节，
   复用 legacy `get_default_role_for_tool` 的 `instanceInfo`）、公告列表与详情（公共 BBS，
   HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）。公告 transport 解包 `postDetail`、完整翻页
-  并保留带 query/hash 或无扩展名的图片 URL；`NoticesRenderer` 为公告列表和详情生成 1080 宽 PNG，
+  并保留带 query/hash 或无扩展名的图片 URL；`NoticesRenderer` 为公告列表和详情生成 T2I 图片，
   密函按模式生成默认 1700×900 或简洁分栏图；公告均按 typed snapshot 保留完整内容，详情多页
   通过 `MultiImageResponse` 在同一回复发送。
   手动详情图片失败返回固定失败文案，不合成透明/深色占位图；运行期的公告源图、列表卡和详情
