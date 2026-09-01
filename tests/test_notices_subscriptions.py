@@ -393,6 +393,7 @@ async def test_push_mh_now_pushes_text_and_pic_to_subscribers(tmp_path: Path) ->
         push=push,
     )
     await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}))
+    service.renderer = _OfflineNoticeRenderer(tmp_path / "rendered")
     await subscriptions.add(
         messages.MH_PIC_SUBSCRIBE,
         origin="platform:group:g2",
