@@ -223,16 +223,26 @@ def _response(
     typed_result = cast(AdminApiResponse[Any], result)
     try:
         body: dict[str, object] = {"ok": typed_result.ok}
-        if typed_result.ok or typed_result.data is not None:
-            body["data"] = _serialize_value(
-                typed_result.data,
-                include_credentials=include_credentials,
-            )
+        error = None
         if not typed_result.ok:
             error = typed_result.error or AdminError(
                 AdminErrorCode.INTERNAL,
                 "管理服务内部错误，请稍后重试",
             )
+        if typed_result.ok or typed_result.data is not None:
+            serialized_data = _serialize_value(
+                typed_result.data,
+                include_credentials=include_credentials,
+            )
+            if error is not None and error.code is AdminErrorCode.PARTIAL:
+                if isinstance(serialized_data, Mapping):
+                    serialized_data = dict(serialized_data)
+                    serialized_data["operation_error"] = {
+                        "code": error.code.value,
+                        "message": _public_error_message(error),
+                    }
+            body["data"] = serialized_data
+        if error is not None:
             body["error"] = {
                 "code": error.code.value,
                 "message": _public_error_message(error),

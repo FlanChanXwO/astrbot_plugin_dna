@@ -382,13 +382,13 @@
 - 剩余风险：全量 `ruff check .` 仍有 31 个仓库既有或非本轮范围的风格/类型规则项；`uv run pyright --project pyrightconfig.json` 仍有 25 个跨历史模块的既有类型错误，本轮未扩大范围修复；真实 T2I 服务、AstrBot Dashboard bridge、OneBot 登录运行时不可用，因此生产字节对比、真实 At 消息和实际按钮写操作仍缺运行时证据。一次完整测试曾因外部 MH 渲染 fixture 波动失败，已隔离为离线 fixture 后复跑通过。
 - 下一步：进入 Goal 终审轮；若宿主运行时可用，补做真实 T2I/OneBot/Dashboard 冒烟，否则按上述环境风险交付。
 
-## Task 26 — 本地 AstrBot/NapCat/T2I 真实运行时验收 `[pending]`
+## Task 26 — 本地 AstrBot/NapCat/T2I 真实运行时验收 `[completed]`
 
 **目标**：使用用户指定的本地 AstrBot、NapCat 与 T2I 容器，补齐此前因环境假设未执行的真实运行时证据。
 
 **验收**：T2I 常规输出文件与服务响应 bytes 完全一致、inflation=1.0；真实 Dashboard 公告目标列表和可管理操作无 API/控制台错误；在安全目标上验证 At 前/后只读查询与写操作身份隔离，不向任意群组发送测试消息；记录所有运行时版本、状态与剩余限制。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：使用本地 AstrBot v4.27.1、NapCat 4.18.4 与本地 `astrbot-t2i-service` 完成真实运行时验收；通过隔离的 OneBot Universal WebSocket 客户端向 AstrBot 注入测试事件，避免向任何真实群组发送消息。真实 Dashboard 目标页发现并修复两项运行时契约问题：非公告 `chat_command` 目标不能被标记为可管理；AstrBot bridge 对 HTTP 207 部分完成响应应保留可展示的 `operation_error`，避免把“启用后仍停用”的真实状态误报为成功。
+- 验证证据：T2I 常规 JPEG 真实响应与插件 `RenderedArtifact` 落盘文件逐字节一致，`t2i_bytes=13681`、`final_bytes=13681`、`sha256_equal=true`、`inflation=1.0`，JPEG `ffd8…ffd9`、尺寸 `640x360`；Dashboard 真实页面列出公告目标 `990000027`，页面显示“可管理”，实际点击“停用→确认”“启用→确认”“删除→确认”均刷新状态，删除后目标列表为空；网络记录显示目标列表 GET 为 200、停用 POST 为 200、启用 POST 正确返回 207 partial，修复 bridge 后 UI 显示“操作部分完成，请核对结果后重试”且保留停用状态；浏览器控制台错误数为 0。隔离 AstrBot/OneBot 冒烟证明：无 At 查询返回“未登录或登录已失效，请重新登录”；At 前、At 后查询均返回目标凭据错误“账号凭据无效，请重新登录”；带 At 的删除写操作返回“该UID尚未绑定”，目标绑定仍保留，证明写命令未代目标执行；管理员身份的公告订阅命令生成 `provenance=chat_command` 目标。NapCat WebUI 通过真实 `get_group_member_list` 读 API 成功获取本地开发群成员，未执行外发消息。
+- 剩余风险：本轮公告启用在真实环境中因上游公告列表请求异常返回 207，目标按安全语义保持停用；这验证了 partial 错误展示，但未把上游不可用伪装成成功。At 冒烟使用隔离 OneBot client 和无凭据 UID，未调用真实游戏 API，也未验证真实登录账号的完整卡片视觉；NapCat 原连接保持在线，测试连接使用独立虚拟 self_id/group_id。全仓既有 Ruff/Pyright 问题仍按 Task 25 记录。
+- 下一步：运行 Task 26 相关质量门禁，提交本轮修复与运行时证据；之后进入 Goal 终审。

@@ -53,6 +53,15 @@ async function invoke(method, endpoint, payload) {
         : await call.call(bridge, path, payload)
       : await call.call(bridge, path, payload ?? {});
 
+  const operationError =
+    result && typeof result === "object" ? result.operation_error : null;
+  if (operationError && typeof operationError === "object") {
+    const error = new Error(errorMessage(operationError));
+    if (typeof operationError.code === "string") {
+      error.code = operationError.code;
+    }
+    throw error;
+  }
   if (result && typeof result === "object" && result.ok === false) {
     const error = new Error(errorMessage(result.error));
     if (typeof result.error?.code === "string") {

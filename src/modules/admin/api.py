@@ -150,7 +150,10 @@ class TaskTarget:
             extra_data=subscription.extra_data,
             enabled=subscription.enabled,
             provenance=subscription.provenance,
-            managed=subscription.provenance == "chat_command",
+            managed=(
+                subscription.provenance == "chat_command"
+                and subscription.type == notices_messages.ANN_SUBSCRIBE
+            ),
         )
 
     @property
