@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Protocol
 
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
-from PIL import Image, UnidentifiedImageError
 
 from .errors import RenderResultError, T2IRenderError, TemplateRenderError
+from .image_inspector import inspect_image
 from .spec import RenderSpec
 
 logger = logging.getLogger(__name__)
@@ -139,17 +138,24 @@ class HtmlRenderer:
             )
 
         # 网络渲染失败时服务可能返回可读的 HTML 错误页，必须在消息发送前显式拒绝。
+        # 这里只检查 JPEG/PNG 容器结构，不解码像素，也不经过 Pillow 重编码。
+        expected_media_type = "image/png" if spec.image_format == "png" else "image/jpeg"
+        expected_name = "PNG" if spec.image_format == "png" else "JPEG"
         try:
-            with Image.open(BytesIO(data)) as image:
-                image.verify()
-                expected = "PNG" if spec.image_format == "png" else "JPEG"
-                if image.format != expected:
-                    raise RenderResultError(
-                        f"T2I 返回格式不匹配，期望 {expected}，"
-                        f"实际为 {image.format or 'unknown'}"
-                    )
-        except RenderResultError:
-            raise
-        except (UnidentifiedImageError, OSError, ValueError) as exc:
+            inspect_image(data, media_type=expected_media_type)
+        except ValueError as exc:
+            actual_media_type = (
+                "image/jpeg"
+                if data.startswith(b"\xff\xd8")
+                else "image/png"
+                if data.startswith(b"\x89PNG\r\n\x1a\n")
+                else None
+            )
+            if actual_media_type is not None and actual_media_type != expected_media_type:
+                actual_name = "JPEG" if actual_media_type == "image/jpeg" else "PNG"
+                raise RenderResultError(
+                    f"T2I 返回格式不匹配，期望 {expected_name}，实际为 {actual_name}",
+                    cause=exc,
+                ) from exc
             raise RenderResultError("T2I 返回结果不是可解码的图片", cause=exc) from exc
         return data

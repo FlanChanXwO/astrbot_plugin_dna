@@ -99,14 +99,14 @@
 - 剩余风险：`HtmlRenderer._coerce_result` 仍以 Pillow 做 T2I 容器校验但不重编码；该统一校验边界留待 D02/后续任务收口。
 - 下一步：集中检查 D02：核对 Task 04–06 所有 T2I renderer、PNG 假设、sidecar 生命周期和遗漏路径。
 
-## 集中检查 D02 — Task 04–06 `[pending]`
+## 集中检查 D02 — Task 04–06 `[completed]`
 
 **检查**：所有 T2I renderer 清单、遗漏的 PNG 假设、视觉/尺寸、缓存键、sidecar、临时文件清理、Admin Preview 和相关全域测试。发现问题追加修复 task。
 
-- 实际检查：
-- 验证证据：
-- 新增修复 task：
-- 剩余风险：
+- 实际检查：审计玩家、百科、签到和帮助的生产输出路径；确认玩家/百科/签到 renderer 均通过 `RenderedArtifact` 发布原始 bytes，缓存和服务响应沿用 sidecar/manifest；纯资源图片与模板输入素材的 Pillow 处理保持隔离；兼容旧 API 的 `draw_*` Pillow 返回边界明确，不被生产 service 使用。发现并修复统一 `HtmlRenderer._coerce_result` 仍用 Pillow 校验 T2I 容器的问题，改为标准库 JPEG/PNG inspector，同时保留格式不匹配和坏响应的显式错误。
+- 验证证据：新增校验回归覆盖 `Image.open` 不被调用；`tests/test_html_renderer.py` 全部 10 项通过；Task 04–06 相关 artifact、玩家、百科、签到、帮助、二维码和生命周期测试通过；ruff、compileall、Pyright 通过；LSP diagnostics 无错误；静态 inventory 中剩余 Pillow 解码仅存在兼容旧 `draw_*` API、输入素材处理或明确的 WEBP/PIL 业务路径。
+- 新增修复 task：无。
+- 剩余风险：真实 T2I 视觉/体积证据仍需 Task 22；公告、并发、AT、订阅 Dashboard 尚未完成。
 
 ## Task 07 — 公告与密函直出及超长分页隔离 `[pending]`
 

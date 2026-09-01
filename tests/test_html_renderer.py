@@ -220,3 +220,22 @@ def test_render_spec_rejects_ambiguous_screenshot() -> None:
         RenderSpec(width=100, image_format="jpeg", quality=101)
     with pytest.raises(ValueError, match="格式"):
         RenderSpec(width=100, image_format="webp")  # type: ignore[arg-type]
+
+
+def test_coerce_result_validates_container_without_pillow_decode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """常规 T2I 结果校验只读容器结构，不能进入 Pillow 解码路径。"""
+
+    import src.infrastructure.rendering.renderer as renderer_module
+
+    payload = _jpeg_bytes()
+
+    def fail_open(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("常规 T2I 校验不应调用 Image.open")
+
+    monkeypatch.setattr(Image, "open", fail_open)
+    assert renderer_module.HtmlRenderer._coerce_result(
+        payload,
+        RenderSpec(width=1, image_format="jpeg"),
+    ) == payload
