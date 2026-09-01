@@ -430,7 +430,7 @@ class CheckinService:
                 target_user_id=target_user_id,
                 uid_hidden=uid_hidden,
             )
-        return ImageResponse(str(rendered.path), temporary=True)
+        return ImageResponse(str(rendered.path), temporary=True, sidecar=rendered.sidecar, manifest=rendered.manifest)
 
     async def _run_all_signs(self) -> CheckinSummary:
         """为全部已绑定账号执行签到并按并发/间隔聚合结果。"""

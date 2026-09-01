@@ -88,16 +88,16 @@
 - 剩余风险：`HtmlRenderer._coerce_result` 仍用 Pillow 做容器校验；兼容旧 API 的 `draw_calendar_card` 仍会解码返回 Pillow 图像，生产百科 renderer 已绕开，统一结果校验将在后续集中检查处理。
 - 下一步：Task 06：签到、帮助及其余 T2I 卡片直出。
 
-## Task 06 — 签到、帮助及其余 T2I 卡片直出 `[pending]`
+## Task 06 — 签到、帮助及其余 T2I 卡片直出 `[completed]`
 
 **目标**：测试先行迁移签到日历、签到报告、帮助/二维码等剩余 T2I 输出；纯 PIL 路径保持明确隔离。
 
 **验收**：所有常规 T2I 输出不调用 Pillow writer；现有图片生命周期与消息链测试通过。
 
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：签到日历改为使用原始 T2I JPEG bytes 构造并发布 `RenderedArtifact`，保存 sidecar/manifest；签到服务响应携带配对文件。帮助卡同样改为 artifact 发布，避免仅写孤立图片；签到报告和二维码本来就直接返回 T2I bytes，继续保留；奖励图/二维码矩阵等 PIL 或 qrcode 仅用于模板输入准备。
+- 验证证据：新增 `tests/test_goal4_task06_checkin_t2i.py`，Red 阶段验证旧 PNG 落盘行为，Green 阶段验证签到和帮助原始 bytes、JPEG 后缀、sidecar/manifest；相关签到、帮助生命周期、HTML 卡片和二维码测试共 39 项通过；ruff、compileall、Pyright（签到渲染器、签到服务、帮助 use case）通过；LSP diagnostics 无错误。
+- 剩余风险：`HtmlRenderer._coerce_result` 仍以 Pillow 做 T2I 容器校验但不重编码；该统一校验边界留待 D02/后续任务收口。
+- 下一步：集中检查 D02：核对 Task 04–06 所有 T2I renderer、PNG 假设、sidecar 生命周期和遗漏路径。
 
 ## 集中检查 D02 — Task 04–06 `[pending]`
 

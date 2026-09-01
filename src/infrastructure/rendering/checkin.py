@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import uuid
 from dataclasses import dataclass
-from io import BytesIO
 from pathlib import Path
 
-from PIL import Image
 
 from ...entry.event import EventActor
 from ...modules.checkin.contracts import CheckinCalendarData
@@ -22,6 +19,8 @@ from ...utils.image import download_pic_from_url
 from ...utils.resource.RESOURCE_PATH import SIGN_PATH
 from ...utils.session import EventContext
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from .artifact import RenderedArtifact
+from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
@@ -150,6 +149,9 @@ class RenderedCheckinImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, object], ...]
+    sidecar: Path | None = None
+    manifest: Path | None = None
+    media_type: str = "image/jpeg"
 
 
 class CheckinRenderer:
@@ -241,26 +243,51 @@ class CheckinRenderer:
             data.total_sign_in_days,
             uid_hidden,
         )
-        with Image.open(BytesIO(image_bytes)) as source:
-            image = source.convert("RGB")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        path = self.output_dir / f"checkin-{uuid.uuid4().hex}.png"
-        image.save(path, format="PNG")
         lines = (
             role.role_name,
             f"社区累计签到: {data.total_sign_in_days}",
             f"游戏累计签到: {data.calendar.signin_time or 0}",
         )
+        resources = ({"kind": "sign_calendar", "status": "legacy"},)
+        sections = (
+            {"name": "社区任务", "items": len(task_process.dailyTask)},
+            {"name": "游戏签到", "items": len(sign_data.dayAward)},
+        )
+        artifact = RenderedArtifact.from_bytes(
+            image_bytes,
+            media_type="image/jpeg",
+            metadata={
+                "dnaby.text": "\n".join(lines),
+                "dnaby.layout": {
+                    "width": 0,
+                    "height": 0,
+                    "sections": list(sections),
+                },
+                "dnaby.resources": list(resources),
+            },
+        )
+        metadata = dict(artifact.metadata)
+        metadata["dnaby.layout"] = {
+            "width": artifact.width,
+            "height": artifact.height,
+            "sections": list(sections),
+        }
+        artifact = RenderedArtifact.from_bytes(
+            image_bytes, media_type="image/jpeg", metadata=metadata
+        )
+        response = write_rendered_artifact(
+            self.output_dir, artifact, prefix="checkin-"
+        )
         return RenderedCheckinImage(
-            path=path,
-            width=image.width,
-            height=image.height,
+            path=Path(response.image),
+            width=artifact.width,
+            height=artifact.height,
             text_lines=lines,
-            resources=({"kind": "sign_calendar", "status": "legacy"},),
-            sections=(
-                {"name": "社区任务", "items": len(task_process.dailyTask)},
-                {"name": "游戏签到", "items": len(sign_data.dayAward)},
-            ),
+            resources=resources,
+            sections=sections,
+            sidecar=Path(response.sidecar) if response.sidecar else None,
+            manifest=Path(response.manifest) if response.manifest else None,
+            media_type=artifact.media_type,
         )
 
 

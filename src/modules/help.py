@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any, cast
 
 from ..entry.commands import CommandRegistry, CommandRequest, CommandSpec
-from ..entry.response import ImageResponse, write_temporary_image
+from ..entry.response import ImageResponse
+from ..infrastructure.rendering.artifact import RenderedArtifact
+from ..infrastructure.rendering.artifact_store import write_rendered_artifact
 from ..version import PLUGIN_VERSION
 
 HelpRenderer = Callable[[str], Awaitable[bytes]]
@@ -48,11 +50,19 @@ async def help_use_case(
     rendered_root = request.services.get("rendered_root")
     if not isinstance(rendered_root, (str, Path)):
         raise TypeError("帮助卡缺少受控渲染目录")
-    return write_temporary_image(
-        rendered_root,
+    artifact = RenderedArtifact.from_bytes(
         payload,
+        media_type="image/jpeg",
+        metadata={
+            "dnaby.text": "",
+            "dnaby.layout": {"width": 2020, "height": None, "sections": []},
+            "dnaby.resources": [],
+        },
+    )
+    return write_rendered_artifact(
+        rendered_root,
+        artifact,
         prefix="dnaby-help-帮助-",
-        suffix=".jpg",
     )
 
 
