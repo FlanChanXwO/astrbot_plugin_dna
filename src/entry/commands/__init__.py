@@ -51,18 +51,18 @@ COMMAND_EXECUTION_FAILED = "命令执行失败，请稍后重试；管理员可�
 _MENTION_COMMAND_HANDLER_PRIORITY = 100000
 COMMAND_GROUP_ORDER: tuple[str, ...] = (
     "账号管理",
-    "皎皎角登录",
     "密函",
     "信息查询",
     "角色信息",
     "隐私控制",
+    "隐私管理",
     "签到服务",
-    "管理员功能",
     "bot主人功能",
     "图鉴",
     "攻略",
     "兑换码",
     "公告",
+    "公告管理",
     "资源管理",
 )
 

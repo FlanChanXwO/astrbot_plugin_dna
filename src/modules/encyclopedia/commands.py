@@ -159,7 +159,7 @@ async def alias_add_delete_use_case(
 
     if request.permission != "admin":
         return PlainTextResponse("该命令仅限管理员使用")
-    service = request.services.get("alias_admin_service")
+    service = request.services.get("admin_alias_service")
     operation = getattr(service, "add_or_delete_alias", None)
     if not callable(operation):
         return PlainTextResponse("别名服务尚未初始化，请稍后再试")
@@ -183,7 +183,7 @@ async def alias_recover_use_case(
 
     if request.permission != "admin":
         return PlainTextResponse("该命令仅限管理员使用")
-    service = request.services.get("alias_admin_service")
+    service = request.services.get("admin_alias_service")
     operation = getattr(service, "recover_aliases", None)
     if not callable(operation):
         return PlainTextResponse("别名服务尚未初始化，请稍后再试")

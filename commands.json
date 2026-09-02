@@ -14,11 +14,11 @@
   {
     "id": "account_token_login",
     "pattern": "^kk(?:token登录|登录token)\\s*(?P<arg>.*)$",
-    "group": "皎皎角登录",
+    "group": "账号管理",
     "name": "token登录",
     "description": "使用 App token 登录，不输出原始凭据",
     "examples": [
-      "kktoken登录tttttttttttttttttttttttttttttttttttttttt"
+      "kktoken登录<token>"
     ],
     "permission": "user",
     "use_case": "src.modules.account.commands.account_token_login_use_case"
@@ -31,7 +31,7 @@
     "description": "皎皎角登录（登录页/短信验证码/token）",
     "examples": [
       "kk登录",
-      "kk登录tttttttttttttttttttttttttttttttttttttttt"
+      "kk登录<token>"
     ],
     "permission": "user",
     "use_case": "src.modules.account.commands.account_login_use_case"
@@ -47,18 +47,6 @@
     ],
     "permission": "user",
     "use_case": "src.modules.account.commands.account_logout_use_case"
-  },
-  {
-    "id": "account_bind",
-    "pattern": "^kk绑定\\s*(?P<uid>\\S*)$",
-    "group": "账号管理",
-    "name": "绑定UID",
-    "description": "绑定一个 UID",
-    "examples": [
-      "kk绑定1234567890123"
-    ],
-    "permission": "user",
-    "use_case": "src.modules.account.commands.account_bind_use_case"
   },
   {
     "id": "account_switch",
@@ -267,7 +255,7 @@
   {
     "id": "privacy_enable_peek_admin",
     "pattern": "^kk指定开偷窥$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "指定开偷窥",
     "description": "允许会话中被艾特的玩家被其它人查看该玩家的游戏信息",
     "examples": [
@@ -279,7 +267,7 @@
   {
     "id": "privacy_disable_peek_admin",
     "pattern": "^kk指定防偷窥$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "指定防偷窥",
     "description": "禁止会话中被艾特的玩家被其它人查看该玩家的游戏信息",
     "examples": [
@@ -291,7 +279,7 @@
   {
     "id": "privacy_enable_peek_all",
     "pattern": "^kk全体开偷窥$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "全体开偷窥",
     "description": "允许会话中所有玩家相互查看自己的游戏信息",
     "examples": [
@@ -303,7 +291,7 @@
   {
     "id": "privacy_disable_peek_all",
     "pattern": "^kk全体防偷窥$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "全体防偷窥",
     "description": "禁止会话中所有玩家相互查看自己的游戏信息",
     "examples": [
@@ -315,7 +303,7 @@
   {
     "id": "privacy_cancel_peek_all",
     "pattern": "^kk取消全体偷窥$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "取消全体偷窥",
     "description": "取消全体偷窥设置，恢复个人设置",
     "examples": [
@@ -327,7 +315,7 @@
   {
     "id": "privacy_enable_uid_hidden_admin",
     "pattern": "^kk指定隐藏UID$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "指定隐藏UID",
     "description": "为会话中被艾特的玩家开启UID隐藏",
     "examples": [
@@ -339,7 +327,7 @@
   {
     "id": "privacy_disable_uid_hidden_admin",
     "pattern": "^kk指定显示UID$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "指定显示UID",
     "description": "为会话中被艾特的玩家关闭UID隐藏",
     "examples": [
@@ -351,7 +339,7 @@
   {
     "id": "privacy_enable_uid_hidden_all",
     "pattern": "^kk全体隐藏UID$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "全体隐藏UID",
     "description": "强制会话中所有玩家隐藏UID",
     "examples": [
@@ -363,7 +351,7 @@
   {
     "id": "privacy_disable_uid_hidden_all",
     "pattern": "^kk全体显示UID$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "全体显示UID",
     "description": "强制会话中所有玩家显示UID",
     "examples": [
@@ -375,7 +363,7 @@
   {
     "id": "privacy_cancel_uid_hidden_all",
     "pattern": "^kk取消全体UID隐藏$",
-    "group": "管理员功能",
+    "group": "隐私管理",
     "name": "取消全体UID隐藏",
     "description": "取消全体UID隐藏设置，恢复个人设置",
     "examples": [
@@ -690,7 +678,7 @@
   {
     "id": "ann_sub",
     "pattern": "^kk订阅公告$",
-    "group": "管理员功能",
+    "group": "公告管理",
     "name": "订阅公告",
     "description": "订阅公告推送（群聊）",
     "examples": [
@@ -702,7 +690,7 @@
   {
     "id": "ann_unsub",
     "pattern": "^kk(?:取消订阅公告|取消公告|退订公告)$",
-    "group": "管理员功能",
+    "group": "公告管理",
     "name": "取消订阅公告",
     "description": "取消订阅公告推送（群聊）",
     "examples": [

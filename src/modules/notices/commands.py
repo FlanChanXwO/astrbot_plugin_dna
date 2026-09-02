@@ -250,7 +250,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="ann_sub",
         pattern=r"^订阅公告$",
-        group="管理员功能",
+        group="公告管理",
         name="订阅公告",
         description="订阅公告推送（群聊）",
         examples=("订阅公告",),
@@ -260,7 +260,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="ann_unsub",
         pattern=r"^(?:取消订阅公告|取消公告|退订公告)$",
-        group="管理员功能",
+        group="公告管理",
         name="取消订阅公告",
         description="取消订阅公告推送（群聊）",
         examples=("取消订阅公告",),

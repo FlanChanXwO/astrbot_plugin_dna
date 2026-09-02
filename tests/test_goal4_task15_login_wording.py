@@ -29,12 +29,14 @@ def test_query_failures_ask_for_login_not_uid_rebinding() -> None:
     assert all("登录" in value for value in values)
 
 
-def test_login_page_and_help_use_login_wording_but_keep_uid_management_terms() -> None:
+def test_login_page_and_help_use_login_wording_without_uid_binding_command() -> None:
     template = (ROOT / "src/templates/index.html.j2").read_text()
     help_data = json.loads((ROOT / "src/resources/help/help.json").read_text())
+    account_names = [item["name"] for item in help_data["账号管理"]["data"]]
     assert "<h1>登录 DNAUID</h1>" in template
-    assert "在执行查询之前请先登录" in help_data["账号登录"]["desc"]
-    assert "绑定UID" in help_data["账号管理"]["data"][0]["name"]
+    assert "在执行查询之前请先登录" in help_data["账号管理"]["desc"]
+    assert "token登录" in account_names
+    assert "绑定UID" not in account_names
 
 
 def test_commands_manifest_matches_registry_and_account_group_is_account_management() -> (
@@ -44,4 +46,5 @@ def test_commands_manifest_matches_registry_and_account_group_is_account_managem
     manifest = json.loads((ROOT / "commands.json").read_text())
     assert manifest == manifest_records(registry)
     assert registry.get("account_login").group == "账号管理"
-    assert registry.get("account_bind").group == "账号管理"
+    assert registry.get("account_token_login").group == "账号管理"
+    assert "account_bind" not in {spec.id for spec in registry}

@@ -6,6 +6,7 @@
 ## 方式
 - `登录`、`dna登录`、`DNA登录`：启动一次登录页会话并立即返回链接。
 - `登录<token>`、`dna登录<token>`：token 登录。
+- `token登录<token>`、`登录token<token>`：账号管理中的显式 token 登录入口。
 - `登录手机号,验证码`：短信验证码命令登录（App 通道）。
 - `获取ck`/`获取Token`：只返回 App 凭据保存状态，不返回 Cookie、token 或 refresh token。
 

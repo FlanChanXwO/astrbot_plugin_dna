@@ -102,10 +102,12 @@ def test_replanned_command_surface_uses_public_and_admin_boundaries() -> None:
         "privacy_enable_uid_hidden_all",
         "privacy_disable_uid_hidden_all",
         "privacy_cancel_uid_hidden_all",
-        "ann_sub",
-        "ann_unsub",
     ):
-        assert specs[command_id].group == "管理员功能"
+        assert specs[command_id].group == "隐私管理"
+        assert specs[command_id].permission == "admin"
+
+    for command_id in ("ann_sub", "ann_unsub"):
+        assert specs[command_id].group == "公告管理"
         assert specs[command_id].permission == "admin"
 
     for command_id in (
@@ -167,7 +169,6 @@ async def test_help_layout_orders_groups_and_computes_height_from_content(
     assert isinstance(sections, list)
     assert [section["name"] for section in sections[:5]] == [
         "账号管理",
-        "皎皎角登录",
         "密函",
         "信息查询",
         "角色信息",

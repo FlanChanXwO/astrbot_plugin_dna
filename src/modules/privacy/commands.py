@@ -231,7 +231,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_enable_peek_admin",
         pattern=r"^指定开偷窥$",
-        group="管理员功能",
+        group="隐私管理",
         name="指定开偷窥",
         description="允许会话中被艾特的玩家被其它人查看该玩家的游戏信息",
         examples=("指定开偷窥",),
@@ -242,7 +242,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_disable_peek_admin",
         pattern=r"^指定防偷窥$",
-        group="管理员功能",
+        group="隐私管理",
         name="指定防偷窥",
         description="禁止会话中被艾特的玩家被其它人查看该玩家的游戏信息",
         examples=("指定防偷窥",),
@@ -253,7 +253,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_enable_peek_all",
         pattern=r"^全体开偷窥$",
-        group="管理员功能",
+        group="隐私管理",
         name="全体开偷窥",
         description="允许会话中所有玩家相互查看自己的游戏信息",
         examples=("全体开偷窥",),
@@ -263,7 +263,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_disable_peek_all",
         pattern=r"^全体防偷窥$",
-        group="管理员功能",
+        group="隐私管理",
         name="全体防偷窥",
         description="禁止会话中所有玩家相互查看自己的游戏信息",
         examples=("全体防偷窥",),
@@ -273,7 +273,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_cancel_peek_all",
         pattern=r"^取消全体偷窥$",
-        group="管理员功能",
+        group="隐私管理",
         name="取消全体偷窥",
         description="取消全体偷窥设置，恢复个人设置",
         examples=("取消全体偷窥",),
@@ -283,7 +283,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_enable_uid_hidden_admin",
         pattern=r"^指定隐藏UID$",
-        group="管理员功能",
+        group="隐私管理",
         name="指定隐藏UID",
         description="为会话中被艾特的玩家开启UID隐藏",
         examples=("指定隐藏UID",),
@@ -294,7 +294,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_disable_uid_hidden_admin",
         pattern=r"^指定显示UID$",
-        group="管理员功能",
+        group="隐私管理",
         name="指定显示UID",
         description="为会话中被艾特的玩家关闭UID隐藏",
         examples=("指定显示UID",),
@@ -305,7 +305,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_enable_uid_hidden_all",
         pattern=r"^全体隐藏UID$",
-        group="管理员功能",
+        group="隐私管理",
         name="全体隐藏UID",
         description="强制会话中所有玩家隐藏UID",
         examples=("全体隐藏UID",),
@@ -315,7 +315,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_disable_uid_hidden_all",
         pattern=r"^全体显示UID$",
-        group="管理员功能",
+        group="隐私管理",
         name="全体显示UID",
         description="强制会话中所有玩家显示UID",
         examples=("全体显示UID",),
@@ -325,7 +325,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="privacy_cancel_uid_hidden_all",
         pattern=r"^取消全体UID隐藏$",
-        group="管理员功能",
+        group="隐私管理",
         name="取消全体UID隐藏",
         description="取消全体UID隐藏设置，恢复个人设置",
         examples=("取消全体UID隐藏",),
