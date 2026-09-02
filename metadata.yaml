@@ -4,4 +4,4 @@ desc: 二重螺旋 AstrBot 原生重构插件；v0.2 提供全局账号、管理
 version: v0.2.0
 author: FlanChanXwO
 repo: https://github.com/FlanChanXwO/astrbot_plugin_dnaby
-astrbot_version: ">=4.27.1"
+astrbot_version: ">=4.26.0"
