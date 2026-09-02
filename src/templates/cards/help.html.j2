@@ -4,7 +4,8 @@
   @font-face { font-family: "DNAUnicode"; src: url("{{ font }}") format("woff2"); }
   .help-card { position: relative; width: 2020px; font-family: "DNAUnicode", sans-serif; font-weight: 630; }
   .help-card__banner { position: absolute; top: 0; left: 0; width: 2020px; height: 784px; object-fit: fill; }
-  .help-card__icon { position: absolute; top: 507px; left: 116px; width: 167px; height: 167px; border: 4px solid rgba(255, 255, 255, .85); border-radius: 50%; object-fit: cover; }
+  .help-card__icon-frame { position: absolute; top: 507px; left: 116px; width: 175px; height: 175px; border: 4px solid rgba(255, 255, 255, .85); border-radius: 50%; overflow: hidden; box-sizing: border-box; }
+  .help-card__icon { display: block; width: 100%; height: 100%; object-fit: cover; }
   .help-card__heading { position: absolute; top: 515px; left: 343px; display: flex; gap: 24px; align-items: center; min-height: 72px; }
   .help-card__title { margin: 0; color: #fff; font-size: 65px; font-weight: 630; line-height: 72px; }
   .help-card__subtitle { position: absolute; top: 631px; left: 343px; margin: 0; color: #cecece; font-size: 39px; line-height: 39px; transform: translateY(-50%); }
@@ -24,7 +25,9 @@
   .help-card__footer { position: relative; display: block; width: 1060px; height: 40px; margin: 32px auto 40px; }
 </style>
 {% if banner %}<img class="help-card__banner" src="{{ banner }}" alt="" />{% endif %}
-{% if icon %}<img class="help-card__icon" src="{{ icon }}" alt="" />{% endif %}
+{% if icon %}<div class="help-card__icon-frame">
+  <img class="help-card__icon" src="{{ icon }}" alt="" />
+</div>{% endif %}
 <div class="help-card__heading">
   <h1 class="help-card__title">DNA帮助</h1>
   <span class="help-card__badge">{{ version }}</span>
