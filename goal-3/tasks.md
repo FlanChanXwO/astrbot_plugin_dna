@@ -49,12 +49,12 @@
 
 ## Task 04：为观察基线与变化检测编写 Red 测试
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：覆盖首次基线、版本未变化、跨多个补丁、版本回退/重复观察、状态损坏和原子写入行为。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `tests/test_goal3_task04_observation_state.py`，在 `ClientUpdateService.observe`、`ClientUpdateStateStore` 等预定公共 seam 上固化首次成功观察只建基线、未变化不重复产生变化、跨补丁按区间累计、回退保留旧基线、重复新版本不重复变化、typed 状态 schema、损坏状态显式失败和原子替换失败保留旧文件等 Red 契约。
+- 验证证据：先运行 `python3 -m pytest --confcutdir=tests -q tests/test_goal3_task04_observation_state.py`，在实现尚不存在时于收集阶段明确失败：`ModuleNotFoundError: No module named 'src.modules.client_updates.service'`（Red）；测试文件 `python3 -m compileall -q`、`ruff check`、`ruff format --check` 和 `git diff --check` 均通过。
+- 剩余风险：Task 05/06 需要按这些公共 seam 实现状态边界和观察服务后才能进入 Green；当前 Red 尚未验证实际 JSON schema 序列化、时区处理和版本回退日志接线。
+- 下一步：Task 05，实现 `client_update_state.json` 的 typed 状态读写与原子更新边界。
 
 ## Task 05：实现 `client_update_state.json` 状态边界
 
