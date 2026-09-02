@@ -148,12 +148,12 @@
 
 ## 集中检查 04：命令、配置、生命周期与数据目录复查
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 检查：命令清单一致性、配置默认值、启动/停止泄漏、运行期目录、scheduler tombstone/状态、现有公告回归。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：复查命令 registry 与 `commands.json` 投影、typed 配置与 `_conf_schema.json` 投影；确认 bootstrap 的数据库、订阅、公告、客户端更新、资源缓存和渲染产物均从 AstrBot 运行期数据目录派生；复查生命周期逆序停止与客户端 scheduler 启停幂等；新增客户端更新任务 tombstone 重启回归测试。发现并修复 `build_runtime` 把可注入客户端 transport 错标为具体 HTTP class 的类型边界，改为领域 protocol 注解并给默认实现使用明确别名。
+- 验证证据：命令与配置投影脚本分别报告 `commands.json exact projection: True`（63 条）和 `_conf_schema.json exact projection: True`（8 组），客户端命令与三项配置默认值均存在；命令/registry 回归 `22 passed`，配置/资源回归 `26 passed`，scheduler、tombstone 与 bootstrap 回归 `16 passed`，公告 scheduler/服务/订阅回归 `35 passed`；客户端更新相关模块、测试及调度状态测试 `pyright` 报告 `0 errors`；`python3 -m compileall -q .`、`ruff check .`、目标文件 `ruff format --check`、`git diff --check` 均通过，相关文件 LSP diagnostics 为空。
+- 剩余风险：全仓 `ruff format --check .` 仍会报告既有 151 个文件待格式化，本轮未进行范围外格式化扫荡；使用说明、配置说明和数据模型文档的最终同步留给 Task 15。当前未执行真实上游网络轮询，客户端 transport 的端到端推送链路仍按后续 Task 13/14 验证。
+- 下一步：Task 13，先为多平台推送与 OneBot 合并转发编写并运行 Red 测试。
 
 ## Task 13：为多平台推送与 OneBot 合并转发编写 Red 测试
 

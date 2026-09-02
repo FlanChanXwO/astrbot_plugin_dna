@@ -29,7 +29,7 @@ from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
 from .infrastructure.http import (
-    ClientUpdateTransport,
+    ClientUpdateTransport as DnaApiClientUpdateTransport,
     DnaApiAccountTransport,
     DnaApiCheckinTransport,
     DnaApiEncyclopediaTransport,
@@ -76,6 +76,7 @@ from .modules.admin import (
 )
 from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
+from .modules.client_updates.contracts import ClientUpdateTransport
 from .modules.client_updates.service import ClientUpdateService
 from .modules.client_updates.state import ClientUpdateStateStore
 from .modules.encyclopedia.contracts import EncyclopediaTransport
@@ -484,8 +485,11 @@ def build_runtime(
         registry=scheduler_registry,
     )
 
-    resolved_client_updates_transport = client_updates_transport or ClientUpdateTransport(
-        request_gate=request_gate,
+    resolved_client_updates_transport = (
+        client_updates_transport
+        or DnaApiClientUpdateTransport(
+            request_gate=request_gate,
+        )
     )
     if services is not None and "client_updates_transport" in services:
         resolved_client_updates_transport = cast(

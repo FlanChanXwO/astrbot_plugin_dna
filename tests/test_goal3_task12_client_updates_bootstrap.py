@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -62,7 +63,7 @@ class _SequenceTransport:
 
     async def get_observation(
         self,
-        platform: ClientPlatform,
+        platform: ClientPlatform | str,
         *,
         previous_patch_version: int | None = None,
     ) -> ClientUpdateObservation:
@@ -76,7 +77,7 @@ class _UnusedTransport:
 
     async def get_observation(
         self,
-        platform: ClientPlatform,
+        platform: ClientPlatform | str,
         *,
         previous_patch_version: int | None = None,
     ) -> ClientUpdateObservation:
@@ -126,6 +127,7 @@ async def test_bootstrap_wires_client_update_state_service_scheduler_and_lifecyc
     from src.bootstrap import build_runtime
     from src.infrastructure.client_updates_scheduler import ClientUpdatesScheduler
     from src.infrastructure.scheduler_state import SchedulerRegistry
+    from src.modules.admin.api import AdminApiService
 
     database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
     transport = _UnusedTransport()
@@ -141,10 +143,14 @@ async def test_bootstrap_wires_client_update_state_service_scheduler_and_lifecyc
         client_updates_transport=transport,
     )
 
-    registry = runtime.services["scheduler_registry"]
+    registry = cast(SchedulerRegistry, runtime.services["scheduler_registry"])
     state = runtime.services["client_update_state"]
     service = runtime.services["client_update_service"]
     scheduler = runtime.services["client_updates_scheduler"]
+    admin_api_service = cast(
+        AdminApiService,
+        runtime.services["admin_api_service"],
+    )
 
     assert isinstance(registry, SchedulerRegistry)
     assert isinstance(state, ClientUpdateStateStore)
@@ -154,7 +160,7 @@ async def test_bootstrap_wires_client_update_state_service_scheduler_and_lifecyc
     assert isinstance(scheduler, ClientUpdatesScheduler)
     assert scheduler.client_updates is service
     assert scheduler.registry is registry
-    assert runtime.services["admin_api_service"].schedulers[CLIENT_UPDATE_TASK_ID] is scheduler  # type: ignore[union-attr]
+    assert admin_api_service.schedulers[CLIENT_UPDATE_TASK_ID] is scheduler
 
     task_snapshot = await registry.get_snapshot(CLIENT_UPDATE_TASK_ID)
     assert task_snapshot is not None
@@ -179,6 +185,7 @@ async def test_bootstrap_client_update_task_uses_independent_configured_schedule
     """客户端更新周期应独立于公告周期写入 registry。"""
 
     from src.bootstrap import build_runtime
+    from src.infrastructure.scheduler_state import SchedulerRegistry
 
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *_args: None),
@@ -192,7 +199,7 @@ async def test_bootstrap_client_update_task_uses_independent_configured_schedule
         client_updates_transport=_UnusedTransport(),
     )
 
-    registry = runtime.services["scheduler_registry"]
+    registry = cast(SchedulerRegistry, runtime.services["scheduler_registry"])
     client_snapshot = await registry.get_snapshot(CLIENT_UPDATE_TASK_ID)
     announcement_snapshot = await registry.get_snapshot("dnaby_ann_poll")
     assert client_snapshot is not None

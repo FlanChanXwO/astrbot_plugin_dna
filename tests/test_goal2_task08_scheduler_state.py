@@ -266,6 +266,52 @@ async def test_permanent_delete_prevents_notice_task_creation_after_restart(
 
 
 @pytest.mark.asyncio
+async def test_permanent_delete_prevents_client_update_task_creation_after_restart(
+    tmp_path: Path,
+) -> None:
+    """客户端更新任务删除后，重启 scheduler 不得重新创建后台任务。"""
+
+    from src.infrastructure.client_updates_scheduler import ClientUpdatesScheduler
+
+    state_path = tmp_path / "scheduler_state.json"
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class _ClientUpdates:
+        async def poll_now(self) -> int:
+            return 0
+
+    async def sleep(_seconds: float) -> None:
+        entered.set()
+        await release.wait()
+
+    registry = SchedulerRegistry(state_path)
+    scheduler = ClientUpdatesScheduler(
+        _ClientUpdates(),
+        registry=registry,
+        sleep=sleep,
+    )
+    await scheduler.start()
+    await entered.wait()
+    await scheduler.delete_task("dnaby_client_update_poll")
+    assert scheduler._tasks == []
+    assert await registry.is_deleted("dnaby_client_update_poll") is True
+    await scheduler.stop()
+
+    restarted_registry = SchedulerRegistry(state_path)
+    restarted = ClientUpdatesScheduler(
+        _ClientUpdates(),
+        registry=restarted_registry,
+        sleep=sleep,
+    )
+    await restarted.start()
+    assert restarted.started is True
+    assert restarted._tasks == []
+    assert await restarted_registry.get_snapshot("dnaby_client_update_poll") is None
+    await restarted.stop()
+
+
+@pytest.mark.asyncio
 async def test_bootstrap_wires_one_shared_registry_and_state_path(
     tmp_path: Path,
 ) -> None:
