@@ -32,6 +32,8 @@ def _json_object_validator(content: bytes) -> bool:
 
 
 def _image_validator(content: bytes) -> bool:
+    """验证缓存或受控渲染目录中的完整 JPEG/PNG 图片。"""
+
     for media_type in ("image/jpeg", "image/png"):
         try:
             RenderedArtifact.from_bytes(content, media_type=media_type)
@@ -39,6 +41,19 @@ def _image_validator(content: bytes) -> bool:
         except ValueError:
             continue
     return False
+
+
+def _player_card_cache_validator(content: bytes) -> bool:
+    """读取玩家卡片缓存时只接受当前 T2I 产出的 JPEG。
+
+    旧版本生成的 PNG 不能继续命中同一个缓存 key，需判为无效以触发重新渲染。
+    """
+
+    try:
+        RenderedArtifact.from_bytes(content, media_type="image/jpeg")
+    except ValueError:
+        return False
+    return True
 
 
 class PlayerCache:
@@ -262,7 +277,7 @@ class PlayerCache:
         return await self.manager.get(
             PLAYER_CARD_CACHE_TYPE,
             key,
-            validator=_image_validator,
+            validator=_player_card_cache_validator,
             now=now,
         )
 
@@ -356,12 +371,12 @@ class PlayerCache:
         ) + await self.manager.invalidate(PLAYER_CARD_CACHE_TYPE)
 
     async def card_response(self, key: str, *, now=None) -> ImageResponse:
-        """在租约内复制缓存 PNG，避免清理器删除正在发送的内容。"""
+        """在租约内复制缓存 JPEG，避免清理器删除正在发送的内容。"""
 
         async with self.manager.lease(
             PLAYER_CARD_CACHE_TYPE,
             key,
-            validator=_image_validator,
+            validator=_player_card_cache_validator,
             now=now,
         ) as entry:
             media_type = (

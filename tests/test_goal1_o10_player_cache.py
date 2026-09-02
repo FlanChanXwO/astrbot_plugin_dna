@@ -9,7 +9,6 @@ from types import SimpleNamespace
 
 import pytest
 from PIL import Image
-from PIL.PngImagePlugin import PngInfo
 
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
@@ -67,7 +66,7 @@ class CountingTransport(FixturePlayerTransport):
 
 
 class CountingRenderer:
-    """用可比较的 PNG 代替真实大图，保留 renderer 的不完整标记。"""
+    """用可比较的 JPEG 代替真实大图，保留 renderer 的不完整标记。"""
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -77,14 +76,13 @@ class CountingRenderer:
 
     def _write(self, prefix: str, text: str):
         call_number = self.overview_calls + self.detail_calls
-        path = self.root / f"{prefix}-{call_number}.png"
+        path = self.root / f"{prefix}-{call_number}.jpg"
         path.parent.mkdir(parents=True, exist_ok=True)
-        info = PngInfo()
-        info.add_text("dnaby.text", text)
-        Image.new("RGBA", (8, 8), (call_number, 20, 30, 255)).save(
+        Image.new("RGB", (8, 8), (call_number, 20, 30)).save(
             path,
-            format="PNG",
-            pnginfo=info,
+            format="JPEG",
+            quality=85,
+            comment=text.encode("utf-8"),
         )
         return SimpleNamespace(
             path=path,
@@ -192,7 +190,8 @@ async def test_overview_stale_data_refreshes_and_replaces_card(tmp_path: Path) -
         assert isinstance(response, ImageResponse)
         assert transport.overview_calls == 2
         assert renderer.overview_calls == 2
-        assert "刷新后的玩家" in Image.open(response.image).info["dnaby.text"]
+        with Image.open(response.image) as image:
+            assert image.info["comment"].decode("utf-8") == "刷新后的玩家"
     finally:
         await database.dispose()
 

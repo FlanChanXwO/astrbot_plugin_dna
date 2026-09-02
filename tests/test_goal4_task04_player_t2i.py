@@ -105,6 +105,32 @@ async def test_player_cache_preserves_jpeg_bytes_and_suffix(tmp_path: Path) -> N
     assert response.manifest is not None
 
 
+@pytest.mark.asyncio
+async def test_player_cache_rejects_legacy_png_after_jpeg_format_switch(
+    tmp_path: Path,
+) -> None:
+    """格式切换后，旧 PNG 玩家卡片不能继续命中缓存。"""
+
+    from src.infrastructure.cache import CacheManager
+    from src.modules.player.cache import PlayerCache
+
+    png_buffer = BytesIO()
+    Image.new("RGBA", (1200, 7410), "#123456").save(png_buffer, format="PNG")
+    manager = CacheManager(tmp_path / "cache")
+    await manager.put(
+        "player_card",
+        "player-key",
+        png_buffer.getvalue(),
+        tags=("player_card", "overview"),
+    )
+
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    lookup = await cache.get_card("player-key")
+
+    assert lookup.status == "miss"
+    assert lookup.reason == "invalid_content"
+
+
 def test_admin_preview_cleans_player_artifact_pair_and_keeps_media_type(
     tmp_path: Path,
 ) -> None:
