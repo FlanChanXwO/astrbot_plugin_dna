@@ -157,12 +157,12 @@
 
 ## Task 13：为多平台推送与 OneBot 合并转发编写 Red 测试
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：覆盖每个平台独立推送、按订阅平台筛选、目标失败隔离、OneBot 开关默认开启、非 OneBot 无效果及普通消息降级。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `tests/test_goal3_task13_client_update_delivery.py`，以 `src.modules.client_updates.delivery` 的框架无关 seam 固化 `ClientUpdatePushTarget`、`ClientUpdatePushMessage`、`ClientUpdatePush`、`ClientUpdateDeliveryService` 与 `ClientUpdatePushAdapter` 预期契约；覆盖 PC/安卓按订阅筛选、每个目标独立尝试、单目标失败隔离、OneBot 默认合并转发、非 OneBot 忽略开关、OneBot 关闭开关时分别发送普通消息，以及合并转发失败时普通消息降级。
+- 验证证据：运行 `/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m pytest --confcutdir=tests -q tests/test_goal3_task13_client_update_delivery.py`，在实现不存在时于收集阶段明确 Red：`ModuleNotFoundError: No module named 'src.modules.client_updates.delivery'`；新测试文件 `ruff check`、`ruff format --check`、`python3 -m compileall -q` 与 `git diff --check` 通过。
+- 剩余风险：当前仅固化推送 seam，尚未实现 DTO、订阅投递编排、AstrBot/OneBot 节点构造、日志和 bootstrap 接线；目标推送状态/pending 重试的持久化由后续 Task 14/16 验证。
+- 下一步：Task 14，实现推送 DTO 与 OneBot 合并转发适配。
 
 ## Task 14：实现推送 DTO 与 OneBot 合并转发适配
 
