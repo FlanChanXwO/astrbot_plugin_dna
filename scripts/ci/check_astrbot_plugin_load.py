@@ -552,7 +552,8 @@ async def run_loader_check(
     plugin_dir: str | Path,
     astrbot_root: str | Path,
     plugin_name: str,
-    runtime_factory: Callable[..., LoaderRuntime | Awaitable[LoaderRuntime]] | None = None,
+    runtime_factory: Callable[..., LoaderRuntime | Awaitable[LoaderRuntime]]
+    | None = None,
 ) -> LoaderReport:
     """执行一次官方 loader 生命周期检查；``runtime_factory`` 仅供离线契约测试注入。"""
 
@@ -606,7 +607,9 @@ async def run_loader_check(
             runtime.plugin_manager.load(specified_dir_name=plugin_name),
         )
         if not isinstance(load_result, tuple) or not load_result:
-            raise TypeError("官方 PluginManager.load() 返回值不是 (success, error) 元组")
+            raise TypeError(
+                "官方 PluginManager.load() 返回值不是 (success, error) 元组"
+            )
         if not bool(load_result[0]):
             detail = load_result[1] if len(load_result) > 1 else None
             raise _official_load_failure(runtime, plugin_name, detail)
@@ -714,10 +717,16 @@ def _build_parser() -> argparse.ArgumentParser:
         description="使用官方 AstrBot PluginManager.load() 检查插件生命周期",
     )
     parser.add_argument("--astrbot-source", required=True, help="官方 AstrBot 源码目录")
-    parser.add_argument("--astrbot-version", required=True, help="被测 AstrBot 版本或 ref")
+    parser.add_argument(
+        "--astrbot-version", required=True, help="被测 AstrBot 版本或 ref"
+    )
     parser.add_argument("--plugin-dir", required=True, help="当前插件源码目录")
-    parser.add_argument("--astrbot-root", required=True, help="本次检查使用的临时 ASTRBOT_ROOT")
-    parser.add_argument("--plugin-name", required=True, help="插件目录名，例如 astrbot_plugin_dnaby")
+    parser.add_argument(
+        "--astrbot-root", required=True, help="本次检查使用的临时 ASTRBOT_ROOT"
+    )
+    parser.add_argument(
+        "--plugin-name", required=True, help="插件目录名，例如 astrbot_plugin_dnaby"
+    )
     return parser
 
 
