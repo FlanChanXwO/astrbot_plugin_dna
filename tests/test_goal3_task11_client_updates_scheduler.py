@@ -82,7 +82,9 @@ def _build_scheduler(
     return scheduler, registry
 
 
-def test_client_update_settings_have_independent_defaults_and_positive_interval() -> None:
+def test_client_update_settings_have_independent_defaults_and_positive_interval() -> (
+    None
+):
     """客户端更新配置默认开启、约每小时检查，且周期必须为正整数。"""
 
     defaults = NotificationSettings()
@@ -168,7 +170,9 @@ async def test_client_updates_scheduler_honors_disabled_switch(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
-async def test_client_updates_scheduler_start_stop_are_idempotent(tmp_path: Path) -> None:
+async def test_client_updates_scheduler_start_stop_are_idempotent(
+    tmp_path: Path,
+) -> None:
     """重复 start/stop 不得创建重复任务或在第二次 stop 抛错。"""
 
     sleep = _BlockingSleep()

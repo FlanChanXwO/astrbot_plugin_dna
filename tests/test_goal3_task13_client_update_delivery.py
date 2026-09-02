@@ -240,7 +240,9 @@ async def test_push_adapter_does_not_merge_non_onebot_or_disabled_targets(
 
 
 @pytest.mark.asyncio
-async def test_push_adapter_detects_aiocqhttp_from_origin_when_bot_id_is_self_id() -> None:
+async def test_push_adapter_detects_aiocqhttp_from_origin_when_bot_id_is_self_id() -> (
+    None
+):
     """真实 AstrBot OneBot 目标用 aiocqhttp 来源识别，而非猜测 self_id。"""
 
     sender = _RecordingMessageSender([], [])

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Mapping
 
 import pytest
 
@@ -23,7 +23,6 @@ from src.modules.client_updates.state import (
     ClientUpdateStateError,
     ClientUpdateStateStore,
 )
-
 
 UTC = timezone.utc
 FIRST_OBSERVED_AT = datetime(2026, 9, 2, 1, 0, tzinfo=UTC)

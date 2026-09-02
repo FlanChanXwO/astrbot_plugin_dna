@@ -202,12 +202,12 @@
 
 ## Task 17：执行最小相关验证与修复本范围失败
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：运行目标测试、类型/编译检查和 ruff；只修复本次客户端更新变更引入或归属的失败。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：完成客户端更新模块、HTTP transport、bootstrap 相关导入、公开导出及相关测试的最小 lint/格式收口；修复 import 排序、`__all__` 排序、`Self` 返回类型、OneBot 适配器嵌套条件和订阅元数据类型异常分类。未修改与客户端更新无关的渲染、脚本和玩家模块问题。
+- 验证证据：客户端更新相关回归（Task 02/04/07/09/11/12/13/16）`59 passed, 1 warning`；`pyright` 为 `0 errors, 0 warnings, 0 informations`；`python3 -m compileall -q .`、`git diff --check` 通过；客户端更新模块及相关测试 `ruff check` 与 `ruff format --check` 通过；完整 `ruff check .` 仍仅剩 18 个既有非客户端更新文件问题，未把无关失败带入本任务修复范围；LSP 诊断无错误。
+- 剩余风险：真实定时轮询到 AstrBot/OneBot 推送端口的接线、pending 事件生命周期和真实网络/平台发送仍未完成；PC 固定公开元数据端点继续使用 HTTP，存在完整性被篡改的残余风险。完整 Ruff 的非客户端更新基线问题仍需项目级别另行收口。
+- 下一步：Task 18，集中检查候选版本全链路并补齐发现的集成缺口。
 
 ## Task 18：集中检查 06：候选版本全链路复查
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 import httpx
 
@@ -26,7 +26,6 @@ from ...modules.client_updates.contracts import (
     sum_patch_file_sizes,
 )
 from .concurrency import RequestConcurrencyGate
-
 
 try:
     import aiohttp as _aiohttp
@@ -64,7 +63,7 @@ class _HttpxSession:
     def __init__(self) -> None:
         self._client = httpx.AsyncClient()
 
-    async def __aenter__(self) -> _HttpxSession:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, _exc_type, _exc_value, _traceback) -> None:
@@ -434,9 +433,9 @@ __all__ = [
     "ANDROID_FALLBACK_BASE_URL",
     "ANDROID_PRIMARY_BASE_URL",
     "ANDROID_USER_AGENT",
-    "ClientUpdateTransport",
     "PC_BRANCH",
     "PC_FALLBACK_BASE_URL",
     "PC_PRIMARY_BASE_URL",
     "PC_USER_AGENT",
+    "ClientUpdateTransport",
 ]

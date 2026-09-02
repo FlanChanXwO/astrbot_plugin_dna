@@ -163,9 +163,9 @@ class ClientUpdatePushAdapter:
             _is_onebot_target(push.target)
             and self.merge_forward
             and len(push.messages) > 1
+            and await self._try_send_forward(push)
         ):
-            if await self._try_send_forward(push):
-                return True
+            return True
         return await self._send_independent_text(push)
 
     async def _try_send_forward(self, push: ClientUpdatePush) -> bool:
@@ -239,10 +239,10 @@ def _subscription_platforms(
     try:
         payload = json.loads(subscription.extra_data)
         if not isinstance(payload, dict):
-            raise ValueError("订阅平台元数据必须是对象")
+            raise TypeError("订阅平台元数据必须是对象")
         raw_platforms = payload.get("platforms")
         if not isinstance(raw_platforms, list):
-            raise ValueError("订阅平台元数据缺少 platforms 列表")
+            raise TypeError("订阅平台元数据缺少 platforms 列表")
         selected = {ClientPlatform(value) for value in raw_platforms}
         if not selected:
             raise ValueError("订阅平台元数据为空")

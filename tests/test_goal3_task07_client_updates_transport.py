@@ -18,7 +18,6 @@ from src.modules.client_updates.contracts import (
     ClientUpdateTransportError,
 )
 
-
 PC_MAIN = "http://pan01-1-eo.shyxhy.com"
 PC_FALLBACK = "http://pan01-1-hs.shyxhy.com"
 ANDROID_MAIN = "https://pan01-1-hs.shyxhy.com"

@@ -30,6 +30,8 @@ from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
 from .infrastructure.http import (
     ClientUpdateTransport as DnaApiClientUpdateTransport,
+)
+from .infrastructure.http import (
     DnaApiAccountTransport,
     DnaApiCheckinTransport,
     DnaApiEncyclopediaTransport,

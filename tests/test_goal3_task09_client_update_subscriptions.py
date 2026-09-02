@@ -24,7 +24,6 @@ from src.modules.client_updates import (
 )
 from src.modules.client_updates import commands as client_update_commands
 
-
 CLIENT_UPDATE_SUBSCRIPTION_TYPE = "订阅DNA客户端更新"
 
 

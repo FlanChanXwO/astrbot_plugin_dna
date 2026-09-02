@@ -17,11 +17,6 @@ from .contracts import (
     parse_version_list_entries,
     sum_patch_file_sizes,
 )
-from .service import (
-    ClientUpdatePatchSizeError,
-    ClientUpdateRollbackError,
-    ClientUpdateService,
-)
 from .delivery import (
     ClientUpdateDeliveryService,
     ClientUpdatePush,
@@ -29,6 +24,11 @@ from .delivery import (
     ClientUpdatePushMessage,
     ClientUpdatePushPort,
     ClientUpdatePushTarget,
+)
+from .service import (
+    ClientUpdatePatchSizeError,
+    ClientUpdateRollbackError,
+    ClientUpdateService,
 )
 from .state import (
     STATE_VERSION,
@@ -44,14 +44,14 @@ __all__ = [
     "ClientUpdateBaseline",
     "ClientUpdateChange",
     "ClientUpdateDeliveryService",
+    "ClientUpdateFailureKind",
+    "ClientUpdateObservation",
+    "ClientUpdatePatchSizeError",
     "ClientUpdatePush",
     "ClientUpdatePushAdapter",
     "ClientUpdatePushMessage",
     "ClientUpdatePushPort",
     "ClientUpdatePushTarget",
-    "ClientUpdateFailureKind",
-    "ClientUpdateObservation",
-    "ClientUpdatePatchSizeError",
     "ClientUpdateRequest",
     "ClientUpdateRollbackError",
     "ClientUpdateService",
