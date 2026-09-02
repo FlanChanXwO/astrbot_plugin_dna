@@ -22,8 +22,6 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, TypeVar
 
-import yaml
-
 _STABLE_VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 _PLUGIN_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _EXCLUDED_NAMES = {
@@ -169,6 +167,8 @@ def _read_plugin_metadata(plugin_dir: Path, plugin_name: str) -> tuple[str, str]
         raise LoaderCheckError("metadata", "缺少 metadata.yaml 或 metadata.yml")
 
     try:
+        import yaml
+
         raw = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
     except BaseException as error:
         raise LoaderCheckError(
