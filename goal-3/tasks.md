@@ -211,12 +211,12 @@
 
 ## Task 18：集中检查 06：候选版本全链路复查
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 检查：从命令入口、transport、状态、订阅、scheduler、推送、配置、文档、数据一致性和回滚路径检查全链路。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：完成从 registry/handler、ClientUpdateService、固定 API transport、`client_update_state.json`、SubscriptionStore、独立 scheduler、delivery DTO/OneBot fallback、bootstrap/lifecycle、配置/schema、`commands.json` 与文档的对照复查。确认查询、订阅、基线与变化计算的主链路已实现；发现 delivery service/adapter 只有独立 seam，`poll_now` 只返回变化计数，scheduler/bootstrap 未把版本变化接入真实 AstrBot/OneBot 定时推送。设计要求的 pending 事件固定目标、逐目标 delivered/pending、重试、取消清理也尚未实现。
+- 验证证据：完成 API contract/design/文档及 git diff 对照；`rg`/LSP 引用分析确认生产代码没有 `ClientUpdateDeliveryService.deliver()` 调用；客户端更新相关回归 `59 passed, 1 warning`；`pyright` 为 `0 errors, 0 warnings, 0 informations`；`compileall` 和 `git diff --check` 通过；客户端范围 Ruff check/format 通过；全量 Ruff 仍为 18 个既有非客户端更新文件错误。
+- 剩余风险：当前实际部署只会定时维护基线，不会向订阅群发送客户端更新；发送失败也没有 pending 重试，后续变化会覆盖 `last_change`。PC/安卓部分元数据端点依赖契约规定的明文 HTTP，存在被篡改后产生错误版本/大小的完整性风险；该源无凭据、下载或安装动作。真实 AstrBot/OneBot 普通消息与合并转发尚未实机验证。
+- 下一步：Task 21，接通定时轮询到真实 AstrBot/OneBot 推送；随后 Task 22 实现独立待投递事件状态与重试/取消清理。
 
 ## Task 19：执行最终测试、构建和代码审查
 
@@ -231,6 +231,25 @@
 
 - [ ] 状态：pending
 - 目标：复核 input/plan/tasks 与实际实现一致，确认文档、配置、测试、回滚说明完整；通过后再登记 goal 完成。
+- 实际完成：
+- 验证证据：
+- 剩余风险：
+- 下一步：
+
+
+## Task 21：接通客户端更新定时推送闭环
+
+- [ ] 状态：pending
+- 目标：让 scheduler 从轮询结果取得 per-platform `ClientUpdateChange`，按订阅目标调用 `ClientUpdateDeliveryService`；bootstrap 注入普通 AstrBot 消息发送和能力可选的 OneBot 合并转发适配器；保持平台/目标失败隔离、配置、生命周期和安全文案语义。
+- 实际完成：
+- 验证证据：
+- 剩余风险：
+- 下一步：
+
+## Task 22：实现客户端更新待投递事件状态与重试
+
+- [ ] 状态：pending
+- 目标：新增独立版本化 delivery state，以 `event_key` 固定首次匹配目标，支持 delivered/pending、pending 优先重试、取消/停用清理和事件完成清理；补持久化重载、失败重试、取消重订阅测试及文档/回滚说明。
 - 实际完成：
 - 验证证据：
 - 剩余风险：
