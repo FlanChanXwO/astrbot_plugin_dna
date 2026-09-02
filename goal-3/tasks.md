@@ -121,12 +121,12 @@
 
 ## Task 10：实现订阅 use case、消息文案与命令 registry
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：新增 `客户端更新`、`订阅客户端更新`、取消订阅命令及 PC/安卓筛选，接入现有 command handler 与 SubscriptionStore。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `ClientUpdateRequest` 与平台归一化 contract、客户端更新查询/订阅/取消订阅 service、用户可见文案和命令 use case；命令显式加入 `src/modules/index.py`，订阅以固定顺序的 `extra_data` 写入 `SubscriptionStore`，群管理员/群聊边界与失败后保留订阅均已落实；同步生成 `commands.json` 与 registry 期望清单。
+- 验证证据：Task09 Red 先因缺失 `src.modules.client_updates.commands` 收集失败；实现后目标及相关回归测试 `68 passed`；`python3 -m compileall -q .`、目标文件 `ruff check`、`git diff --check` 通过；受影响文件 LSP diagnostics 无错误。
+- 剩余风险：定时轮询、bootstrap 组装、待投递事件与配置/使用文档仍按后续 Task11–15 处理；项目级 `ruff check .` 仍有本任务范围外的既有问题，未扩大范围修复。
+- 下一步：Task 11，为定时任务与配置编写 Red 测试。
 
 ## Task 11：为定时任务与配置编写 Red 测试
 

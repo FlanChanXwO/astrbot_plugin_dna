@@ -14,6 +14,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Protocol, cast
 
+from ...entry.event import EventActor
 
 _DECIMAL_KEY = re.compile(r"^[0-9]+$")
 
@@ -29,6 +30,47 @@ class ClientRegion(StrEnum):
     """首版固定支持的游戏区服。"""
 
     CN = "cn"
+
+
+_CLIENT_UPDATE_PLATFORM_ORDER = (ClientPlatform.PC, ClientPlatform.ANDROID)
+
+
+def normalize_client_update_platforms(
+    platforms: object,
+) -> tuple[ClientPlatform, ...]:
+    """把命令或配置传入的平台值归一为固定顺序且无重复的元组。"""
+
+    if isinstance(platforms, (ClientPlatform, str)):
+        candidates = (platforms,)
+    else:
+        try:
+            candidates = tuple(platforms)  # type: ignore[arg-type]
+        except TypeError as error:
+            raise ValueError("客户端更新平台必须是可迭代值") from error
+    if not candidates:
+        raise ValueError("客户端更新至少需要选择一个平台")
+
+    selected = {ClientPlatform(platform) for platform in candidates}
+    return tuple(
+        platform for platform in _CLIENT_UPDATE_PLATFORM_ORDER if platform in selected
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ClientUpdateRequest:
+    """客户端更新命令的框架无关输入。"""
+
+    actor: EventActor | None
+    platforms: tuple[ClientPlatform, ...] = _CLIENT_UPDATE_PLATFORM_ORDER
+
+    def __post_init__(self) -> None:
+        if self.actor is not None and not isinstance(self.actor, EventActor):
+            raise TypeError("actor 必须是 EventActor 或 None")
+        object.__setattr__(
+            self,
+            "platforms",
+            normalize_client_update_platforms(self.platforms),
+        )
 
 
 class ClientUpdateStructureError(ValueError):
@@ -114,12 +156,11 @@ class ClientVersionSnapshot:
             value = getattr(self, field_name)
             if type(value) is not int or value < 0:
                 raise ValueError(f"{field_name} 必须是非负整数")
-        if self.resource_version_dir is not None:
-            if (
-                not isinstance(self.resource_version_dir, str)
-                or not self.resource_version_dir.strip()
-            ):
-                raise ValueError("resource_version_dir 必须是非空字符串")
+        if self.resource_version_dir is not None and (
+            not isinstance(self.resource_version_dir, str)
+            or not self.resource_version_dir.strip()
+        ):
+            raise ValueError("resource_version_dir 必须是非空字符串")
 
     @property
     def version_text(self) -> str:
@@ -397,11 +438,13 @@ __all__ = [
     "ClientUpdateChange",
     "ClientUpdateFailureKind",
     "ClientUpdateObservation",
+    "ClientUpdateRequest",
     "ClientUpdateStructureError",
     "ClientUpdateTransport",
     "ClientUpdateTransportError",
     "ClientVersion",
     "ClientVersionSnapshot",
+    "normalize_client_update_platforms",
     "parse_version_list",
     "parse_version_list_entries",
     "sum_patch_file_sizes",

@@ -107,6 +107,9 @@ def test_explicit_registry_loads_only_implemented_commands():
         "mh_text_subscribe",
         "ann_sub",
         "ann_unsub",
+        "client_update",
+        "client_update_subscribe",
+        "client_update_unsubscribe",
         "resource_status",
         "download_resource",
     ]
@@ -383,6 +386,9 @@ def test_commands_manifest_is_generated_from_registry():
         "mh_text_subscribe",
         "ann_sub",
         "ann_unsub",
+        "client_update",
+        "client_update_subscribe",
+        "client_update_unsubscribe",
         "resource_status",
         "download_resource",
     }

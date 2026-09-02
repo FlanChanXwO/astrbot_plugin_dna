@@ -6,25 +6,27 @@ from .contracts import (
     ClientUpdateChange,
     ClientUpdateFailureKind,
     ClientUpdateObservation,
+    ClientUpdateRequest,
     ClientUpdateStructureError,
     ClientUpdateTransport,
     ClientUpdateTransportError,
     ClientVersion,
     ClientVersionSnapshot,
+    normalize_client_update_platforms,
     parse_version_list,
     parse_version_list_entries,
     sum_patch_file_sizes,
+)
+from .service import (
+    ClientUpdatePatchSizeError,
+    ClientUpdateRollbackError,
+    ClientUpdateService,
 )
 from .state import (
     STATE_VERSION,
     ClientUpdateBaseline,
     ClientUpdateStateError,
     ClientUpdateStateStore,
-)
-from .service import (
-    ClientUpdatePatchSizeError,
-    ClientUpdateRollbackError,
-    ClientUpdateService,
 )
 
 __all__ = [
@@ -35,16 +37,18 @@ __all__ = [
     "ClientUpdateChange",
     "ClientUpdateFailureKind",
     "ClientUpdateObservation",
-    "ClientUpdateStateError",
-    "ClientUpdateStateStore",
     "ClientUpdatePatchSizeError",
+    "ClientUpdateRequest",
     "ClientUpdateRollbackError",
     "ClientUpdateService",
+    "ClientUpdateStateError",
+    "ClientUpdateStateStore",
     "ClientUpdateStructureError",
     "ClientUpdateTransport",
     "ClientUpdateTransportError",
     "ClientVersion",
     "ClientVersionSnapshot",
+    "normalize_client_update_platforms",
     "parse_version_list",
     "parse_version_list_entries",
     "sum_patch_file_sizes",

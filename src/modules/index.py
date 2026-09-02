@@ -9,6 +9,7 @@ from types import ModuleType
 from . import help as help_module
 from .account import commands as account_module
 from .checkin import commands as checkin_module
+from .client_updates import commands as client_updates_module
 from .encyclopedia import commands as encyclopedia_module
 from .notices import commands as notices_module
 from .operations import commands as operations_module
@@ -23,6 +24,7 @@ COMMAND_MODULES: tuple[ModuleType, ...] = (
     encyclopedia_module,
     checkin_module,
     notices_module,
+    client_updates_module,
     operations_module,
 )
 
