@@ -23,6 +23,7 @@ _CLIENT_PLATFORM_ORDER = {
     ClientPlatform.PC: 0,
     ClientPlatform.ANDROID: 1,
 }
+_ONEBOT_PLATFORM_NAMES = frozenset(("aiocqhttp", "onebot"))
 
 SenderResult = bool | None
 TextSender = Callable[[str, str], Awaitable[SenderResult]]
@@ -159,7 +160,7 @@ class ClientUpdatePushAdapter:
             return True
 
         if (
-            push.target.bot_id == "onebot"
+            _is_onebot_target(push.target)
             and self.merge_forward
             and len(push.messages) > 1
         ):
@@ -209,6 +210,13 @@ class ClientUpdatePushAdapter:
                 logger.warning("[dnaby][client_update] 普通消息投递返回失败")
                 success = False
         return success
+
+
+def _is_onebot_target(target: ClientUpdatePushTarget) -> bool:
+    """使用 AstrBot 的 origin 平台段识别 OneBot，避免把 self_id 当平台名。"""
+
+    platform_name = target.origin.split(":", 1)[0]
+    return target.bot_id == "onebot" or platform_name in _ONEBOT_PLATFORM_NAMES
 
 
 def _order_changes(

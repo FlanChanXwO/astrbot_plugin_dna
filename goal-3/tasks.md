@@ -184,12 +184,12 @@
 
 ## 集中检查 05：推送体验、安全与文档复查
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 检查：消息字段、单位格式、OneBot 适配器兼容性、失败可见性、URL/日志安全、文档和命令投影一致性。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：完成客户端更新消息字段、二进制单位格式、失败隔离、状态/日志脱敏和命令/schema/文档投影复查；修复 OneBot 适配器把 AstrBot `get_self_id()` 误当平台名的问题，改为优先使用 `unified_msg_origin` 的 `aiocqhttp` 平台段识别，同时保留兼容的 `bot_id="onebot"` seam。合并转发失败仍降级普通消息，用户可见字段不包含 URL、MD5、响应原文或凭据。
+- 验证证据：OneBot self_id 场景先 Red（1 failed）再 Green；客户端更新目标回归 `57 passed, 1 warning`；compileall 通过；LSP 诊断无错误；命令/配置投影复查 `manifest_records=63`、`commands_json=63`、`equal=True`、`schema_equal=True`；`git diff --check` 通过。目标文件 `tests/test_goal3_task13_client_update_delivery.py` Ruff 无问题；全量 scoped Ruff 仍有既有 `delivery.py` 的 `SIM102`/`TRY004` 及其它基线问题，留待 Task 17 统一收口。
+- 剩余风险：当前定时轮询仍只维护基线，`poll_now()` 未调用 `ClientUpdateDeliveryService.deliver()`，bootstrap 也未注入真实 AstrBot/OneBot 普通消息与合并转发端口；因此真实定时推送、pending 事件的重试/取消清理和真实平台发送尚未完成。PC 固定公开元数据端点仍使用 HTTP，存在完整性被篡改的残余风险，但不承载凭据、下载或安装动作。
+- 下一步：Task 16，补充 fake API、多轮状态重载、多个订阅目标和取消后重新订阅的端到端回归。
 
 ## Task 16：补充端到端 fake API 与持久化回归测试
 

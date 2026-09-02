@@ -240,6 +240,33 @@ async def test_push_adapter_does_not_merge_non_onebot_or_disabled_targets(
 
 
 @pytest.mark.asyncio
+async def test_push_adapter_detects_aiocqhttp_from_origin_when_bot_id_is_self_id() -> None:
+    """真实 AstrBot OneBot 目标用 aiocqhttp 来源识别，而非猜测 self_id。"""
+
+    sender = _RecordingMessageSender([], [])
+    adapter = ClientUpdatePushAdapter(
+        send_text=sender.send_text,
+        send_forward=sender.send_forward,
+    )
+    push = ClientUpdatePush(
+        target=ClientUpdatePushTarget(
+            origin="aiocqhttp:group:123",
+            bot_id="123456",
+        ),
+        messages=_push().messages,
+    )
+
+    assert await adapter.send(push) is True
+    assert sender.forward_calls == [
+        (
+            "aiocqhttp:group:123",
+            ("pc update", "android update"),
+        )
+    ]
+    assert sender.text_calls == []
+
+
+@pytest.mark.asyncio
 async def test_push_adapter_falls_back_to_independent_text_when_forward_fails(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
