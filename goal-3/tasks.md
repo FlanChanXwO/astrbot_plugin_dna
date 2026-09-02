@@ -67,12 +67,12 @@
 
 ## Task 06：实现版本变化检测与新增大小计算服务
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：将当前快照与历史基线比较，生成旧版本、新版本和新增大小，并在成功确认后更新状态；手动查询路径保持只读。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `src/modules/client_updates/service.py`，实现首次成功观察只建立基线、相同版本更新观察时间且不重复生成变化、版本回退显式抛错并保留旧基线，以及按 `(previous.patch_version, current.patch_version]` 汇总补丁大小；只有大小完整且变化确认成功后才写入新基线。补充缺失/非法补丁大小与回退异常类型，并从模块包导出服务 seam。
+- 验证证据：Task 04 目标测试 Green，`9 passed`；Task 02 + Task 04 回归 `28 passed`；`ruff check .`、目标格式检查、`python3 -m compileall -q .`、`pyright src/modules/client_updates`（0 errors）和 service/init LSP 诊断均通过；`git diff --check` 无输出。
+- 剩余风险：手动查询只读的上层 use case、HTTP transport、订阅与 scheduler 尚未接入；当前服务要求 transport 为变化区间提供完整补丁大小映射，失败分类与日志将在 transport/scheduler 任务中接线。
+- 下一步：集中检查 02，复查状态一致性、手动查询只读和重复推送风险。
 
 ## 集中检查 02：状态一致性与重复推送风险复查
 

@@ -16,6 +16,11 @@ from .state import (
     ClientUpdateStateError,
     ClientUpdateStateStore,
 )
+from .service import (
+    ClientUpdatePatchSizeError,
+    ClientUpdateRollbackError,
+    ClientUpdateService,
+)
 
 __all__ = [
     "STATE_VERSION",
@@ -25,6 +30,9 @@ __all__ = [
     "ClientUpdateChange",
     "ClientUpdateStateError",
     "ClientUpdateStateStore",
+    "ClientUpdatePatchSizeError",
+    "ClientUpdateRollbackError",
+    "ClientUpdateService",
     "ClientUpdateStructureError",
     "ClientVersion",
     "ClientVersionSnapshot",
