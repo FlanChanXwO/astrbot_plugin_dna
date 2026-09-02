@@ -1,34 +1,55 @@
 # 账号登录
 
-账号登录 use case 以原 DNAUID 的角色关联行为为参考（详见 `docs/legacy/` 排查档案），
-新入口通过 typed transport 接收结果，不直接持有旧事件或旧数据库。
+首次使用前，请准备好游戏账号的登录方式，并优先在私聊中完成登录。插件只在账号所属的
+AstrBot 插件数据目录中保存登录状态；聊天回复和日志不会展示原始登录凭据。
 
-## 方式
-- `登录`、`dna登录`、`DNA登录`：启动一次登录页会话并立即返回链接。
-- `登录<token>`、`dna登录<token>`：token 登录。
-- `token登录<token>`、`登录token<token>`：账号管理中的显式 token 登录入口。
-- `登录手机号,验证码`：短信验证码命令登录（App 通道）。
-- `获取ck`/`获取Token`：只返回 App 凭据保存状态，不返回 Cookie、token 或 refresh token。
+## 登录方式
 
-## transport 边界
+- `登录`、`登陆`、`登入`、`登龙`：启动登录页并返回链接。
+- `登录<token>`：使用令牌登录。
+- `token登录<token>`、`登录token<token>`：使用显式令牌登录入口。
+- `登录手机号,验证码`：使用手机号和验证码完成 App 登录。
+- `退出登录`、`登出`：退出当前激活 UID。
+- `切换<13位UID>`、`删除<13位UID>`：管理已绑定 UID。
+- `删除全部UID`、`查看UID`：删除全部绑定或查看绑定列表。
+- `获取ck`、`获取Token`：只查看凭据保存状态，不返回原始内容。
 
-`AccountService` 通过 `AccountTransport` 接口接收登录页地址和认证终态。隔离测试使用
-fake transport；`DnaApiAccountTransport` 只适配旧的纯 API 请求和角色响应。
+## 登录服务配置
 
-登录页由 `LoginFlowCoordinator` 统一管理，支持 `local`、`http_poll`、`sse` 和 `ws`。
-`local` 模式在插件 `initialize()` 中启动 `LocalLoginServer`，生成实际监听端口的链接；
-插件终止时会先取消等待中的登录任务、清理会话，再释放监听端口。外置模式只使用 typed
-`login.url`、`login.transport` 和 `login.shared_secret`，不会再从 legacy 全局配置读取共享密钥。
+登录接入方式由 `login.transport` 控制：
 
-`login.url` 配置后优先作为公开地址；local 模式未配置时使用本地服务实际地址推导登录链接。
-链接创建、等待回执和账号事务是分开的：聊天命令只等待链接创建，不会因等待短信或外置回执而
-延迟发送链接。同一消息作用域重复发起登录会复用当前会话。
+| 模式 | 适用场景 | 相关配置 |
+| --- | --- | --- |
+| `local` | 使用插件内置登录页，适合单机或同一网络内访问。 | `login.bind_host`、`login.port` |
+| `http_poll` | 使用外置服务并轮询登录结果。 | `login.url`、`login.shared_secret` |
+| `sse` | 使用外置服务的 Server-Sent Events 回执。 | `login.url`、`login.shared_secret` |
+| `ws` | 使用外置服务的 WebSocket 回执。 | `login.url`、`login.shared_secret` |
 
-外置回执仅接受 App 凭据；成功、失败、取消、过期、空凭据和 Web 回执均转换为稳定用户文案，
-并在日志中记录错误类别。不会把 auth、token、设备码、验证码、敏感 URL 或服务端正文写入日志。
+`local` 模式默认监听 `login.bind_host` 的 `login.port`；将端口设为 `0` 可让系统分配临时端口。
+填写 `login.url` 后，登录回复优先使用该地址。外置模式必须同时确认地址、transport 和共享密钥配置。
 
-实际手机号、验证码、token 和外部登录服务不在本地测试中执行；只能用隔离 SQLite、
-fake transport 和事件 fixture 验证成功、取消、网络/状态码/服务端失败及脱敏。
+## 账号绑定
 
-登录 transport 的调试日志只记录受控的端点与状态；网络和非 200 失败保留稳定错误类别，
-避免把上游正文带入日志或用户文案。
+每个用户最多绑定 `login.max_bind_count` 个 UID，默认值为 `2`。登录成功后会自动建立绑定；
+使用 `查看UID` 查看列表，使用 `切换<13位UID>` 选择查询和签到使用的账号，使用删除命令清理不再使用的绑定。
+
+当前激活 UID 会用于玩家查询、签到和需要账号的密函查询。隐私规则不会因为切换 UID 而自动替换，
+如需限制他人查询，请同时使用 [命令说明](commands.md) 中的隐私控制命令。
+
+## 常见问题
+
+### 登录页链接无法访问
+
+确认 `login.bind_host` 监听在调用方可访问的地址，检查 `login.port` 是否被占用；跨设备访问时，
+`login.url` 应填写浏览器实际能够访问的地址。修改后重载插件再重试。
+
+### 外置登录没有返回结果
+
+确认 `login.url`、`login.transport` 和 `login.shared_secret` 属于同一套外置服务配置，并检查
+AstrBot 日志中的错误类别。网络错误、状态码错误、取消、过期或无效回执都会返回明确失败提示，
+不会发送无效链接。
+
+### 如何保护登录信息
+
+不要在群聊发送令牌、手机号或验证码；不要把插件数据目录、截图和日志上传到公开位置。反馈问题时，
+请先移除账号标识、登录内容、群成员信息和本地路径。

@@ -1,48 +1,50 @@
 # 开发环境与运行
 
-## 前置
-- AstrBot runtime：`/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev`（Python 3.12 venv）。
-- 插件目录：`data/plugins/astrbot_plugin_dnaby`。
+本页面向贡献者和维护者。命令使用占位路径，避免依赖某一台机器的目录结构。
 
-## 依赖
-`requirements.txt` 会被 runtime 的 `scripts/astrbot/sync-plugin-requirements.sh` 自动同步安装到 `.venv`。手动安装：
+## 目录约定
+
+- **当前项目根目录**：本文件所在插件仓库，记为 `PLUGIN_DIR`。
+- **AstrBot 根目录**：包含 `data/plugins/` 的运行时目录，记为 `ASTRBOT_ROOT`。
+- **插件目录**：`$ASTRBOT_ROOT/data/plugins/astrbot_plugin_dnaby`。
+- **运行期数据**：由 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 返回，不入 Git。
+
+如果从仓库根目录操作，可以先设置：
+
 ```bash
-.venv/bin/pip install -r data/plugins/astrbot_plugin_dnaby/requirements.txt
+export PLUGIN_DIR="$(pwd)"
+export ASTRBOT_ROOT="/path/to/astrbot"
 ```
 
-## 启动 / 重载
+## 依赖与基础检查
+
+在当前项目根目录执行：
+
 ```bash
-scripts/astrbot/start.sh 6196
-scripts/astrbot/reload-plugins.sh 6196 astrbot_plugin_dnaby
+python3 -m pip install -r requirements.txt
+python3 -m compileall .
+python3 -m pytest
+ruff check .
 ```
 
-本地开发可使用上述脚本；生产更新不能直接跟随分支头。先记录恢复 SHA、确认插件仓库 clean，
-再按[维护说明](maintenance.md)和[发布清单](../porting/agent-tools-release-checklist.md)预检精确 SHA，
-通过已认证的 Dashboard 定向 reload，并同时核对 HTTP 状态、业务状态、插件激活状态和日志。生产
-不以重启容器替代插件 reload，也不在命令行参数或日志中放置 JWT/Cookie/token。
+如果 AstrBot runtime 会自动同步插件依赖，可以跳过手动安装。修改命令、配置或渲染代码后，至少
+运行受影响测试和 `ruff check .`。
 
-## 数据目录
-运行期数据落在 `data/plugin_data/astrbot_plugin_dnaby/`（`StarTools.get_data_dir`），不入 Git。
+## 启动与重载
 
-## 三仓本地开发
+启动和重载方式取决于 AstrBot runtime 的安装方式。使用 runtime 提供的启动脚本或 Dashboard
+完成操作，不要在插件目录中复制运行期数据库、缓存或登录信息。
 
-公共资源、编辑器和插件必须保持独立 checkout：
+重载后先发送当前命令前缀加 `帮助`，再检查 Dashboard 中的插件状态和 AstrBot 日志。
 
-- 资源仓库：[`astrbot_plugin_dna_resources`](https://github.com/FlanChanXwO/astrbot_plugin_dna_resources)，只放
-  manifest、素材、schema 和兑换码 JSON。
-- 编辑器：[`dna-resource-editor`](https://github.com/FlanChanXwO/dna-resource-editor)，在其目录执行
-  `npm ci`、`npm test`、`npm run typecheck`、`npm run build` 和 `npm run deploy:dry-run`。
-- 插件：本目录；资源同步只认规范 GitHub origin 的 `main`，不把本地编辑器代码或任意投稿分支
-  放入运行期 generation。
+## HTML/T2I 图片
 
-跨仓契约回归由插件的 `tests/test_goal3_task19.py` 创建临时 bare Git 和内容 fixture，并以
-`DNA_TASK19_FIXTURE` 调用编辑器的 `npm run test:task19`；它不需要真实 GitHub 写入，也不能替代
-真实 App、Turnstile、Webhook 和 required Check 验收。生产发布顺序、权限和回滚见
-[维护说明](maintenance.md)及编辑器的 [operations runbook](https://github.com/FlanChanXwO/dna-resource-editor/blob/main/docs/operations.md)。
+运行时要求 AstrBot 4.27.1 或更高版本，并使用 AstrBot 的全局 HTML/T2I 能力。插件不会启动
+私有渲染服务，也不会覆盖 AstrBot 的全局设置；服务不可用时，图片命令会返回统一失败提示。
 
-## HTML/T2I 图片渲染
+## 相关文档
 
-运行时要求 AstrBot 4.27.1 或更高版本，并启用全局 HTML/T2I 服务。插件通过
-`src/infrastructure/rendering/` 将模板和素材交给 `astrbot.core.html_renderer`；不会启动私有渲染服务，
-也不会覆盖 AstrBot 已配置的 T2I 地址。T2I、模板、素材或返回值异常会记录完整内部原因，并向命令用户
-返回统一的图片渲染失败提示。
+- [测试说明](testing.md)
+- [维护说明](maintenance.md)
+- [配置说明](../usage/configuration.md)
+- [公共资源](../usage/resources.md)
