@@ -40,6 +40,8 @@ def _load_module(path: Path, module_name: str) -> ModuleType:
     spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None and spec.loader is not None, f"无法加载目标脚本：{path}"
     module = importlib.util.module_from_spec(spec)
+    # 注册模块后再执行，保证目标脚本声明 dataclass 等类型时具备标准 import 语义。
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
