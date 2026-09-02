@@ -103,12 +103,12 @@
 
 ## Task 09：为订阅 use case 与命令 registry 编写 Red 测试
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：覆盖查询参数、订阅平台筛选、群聊管理员权限、私聊/普通用户拒绝、重复订阅、取消订阅和失败时保留订阅。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `tests/test_goal3_task09_client_update_subscriptions.py`，以未来 `src.modules.client_updates.commands.COMMAND_SPECS`、命令 use case 和 `ClientUpdateService(..., transport=..., subscriptions=...)` 为公共 Red seam；覆盖查询默认/平台参数、查询与订阅权限、私聊/普通群成员拒绝、PC/安卓/全部筛选、同群目标幂等、取消订阅、首次 transport 失败保留订阅且不建立基线。
+- 验证证据：使用项目 `.venv` 的 Python 运行 `pytest --confcutdir=tests -q tests/test_goal3_task09_client_update_subscriptions.py`，在 `commands.py` 尚不存在时于收集阶段明确失败：`ImportError: cannot import name 'commands' from src.modules.client_updates`（Red）。`ruff format --check`、`ruff check`、`compileall`、LSP 诊断和 `git diff --check` 通过。
+- 剩余风险：实现尚未写入，当前 Red 只证明命令模块缺失；AstrBot test runtime requires project `.venv`，系统 Python 缺少 AstrBot；Task10 必须实现上述 seam 后再运行 Green。完整根级 conftest 未使用，因为该 worktree 缺少被忽略的 `tests/.data`。
+- 下一步：集中检查 03，随后 Task10 实现订阅 use case、消息文案与命令 registry。
 
 ## 集中检查 03：transport、订阅权限与命令范围复查
 
