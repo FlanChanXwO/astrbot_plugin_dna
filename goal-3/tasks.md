@@ -31,8 +31,17 @@
 
 ## 集中检查 01：领域模型与 API 解析复查
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 检查：需求偏离、类型诊断、Red/Green 证据、版本比较、大小口径、异常可见性、是否引入无依据限制。
+- 实际完成：对照 `input.md`、`plan.md`、更新 API 契约和 Task 02 测试复核了当前客户端更新领域：仅支持国服 PC/安卓；版本 key 使用数值比较；展示版本由四段字段组成；安卓保留原始资源目录 key；两类清单按原始 `fileName` 去重并拒绝大小冲突；未读取未定义的直接总大小字段；模块无 AstrBot/HTTP/文件 IO 依赖，也没有凭据、URL 或大文件处理残留。
+- 验证证据：目标测试 `python3 -m pytest --confcutdir=tests -q tests/test_goal3_task02_version_normalization.py` 为 19 passed；`pyright src/modules/client_updates tests/test_goal3_task02_version_normalization.py` 为 0 errors；`ruff check .`、目标范围 `ruff format --check`、`python3 -m compileall -q .` 和目标 LSP 诊断通过。全仓 `ruff format --check .` 与全仓 `pyright` 仍报告基线已有的大量格式/类型问题，未发现属于本次模块的新增问题；标准 pytest 受当前工作树缺少既有 `tests/.data` 且环境未安装 `astrbot` 阻塞，已用不加载根 conftest 的纯领域命令完成验证。Goal 基线范围 `git diff --check b49475a36f02e33752fc74aad2cf6f6bca637994..HEAD` 仅发现规格文档第 3、4 行的两处 trailing whitespace。
+- 剩余风险：本轮未覆盖后续 HTTP transport、基线状态、订阅和 scheduler；Android 服务端若提供未在契约命名的显式资源目录字段，仍需后续真实/fake fixture 验证。唯一已发现的本范围可修复项是规格文档行尾空白，见下一修复 task。
+- 下一步：先完成修复 Task 03.1，再进入 Task 04。
+
+## 修复 Task 03.1：清理客户端更新规格的行尾空白
+
+- [ ] 状态：pending
+- 目标：移除 `docs/superpowers/specs/2026-09-02-client-updates-design.md` 第 3、4 行的 trailing whitespace，不改变文档内容。
 - 实际完成：
 - 验证证据：
 - 剩余风险：
