@@ -69,6 +69,13 @@
   `rendered/` 孤儿文件；ResponseFactory 登记发送文件的租约，清理时跳过活动租约。
   自动签到摘要经注入的推送闭包（绑定 `Context.send_message`）发给订阅者；`sleep/now`
   可注入，离线测试不依赖真实时钟。
+- 客户端更新：`src/modules/client_updates/` 提供国服 PC/安卓查询、群聊管理员订阅、平台筛选、
+  成功观察基线和框架无关的推送 DTO；手动查询不写基线，首次订阅/首次成功检查只建立缺失基线。
+  `ClientUpdatesScheduler` 独立注册 `dnaby_client_update_poll`，周期为
+  `interval@{notifications.client_update_check_minutes}m`，不与公告任务共用周期。`ClientUpdateDeliveryService`
+  按 `Subscription.extra_data.platforms` 筛选目标，`ClientUpdatePushAdapter` 仅在 OneBot 且开关开启时
+  尝试合并同轮平台消息，能力不可用或失败则降级为逐平台普通消息并记录安全原因；待投递事件持久化和
+  具体 AstrBot/OneBot 消息节点 bootstrap 接线仍由后续集成覆盖。
 - 通知读取：`src/modules/notices/` 通过 `NoticesTransport` 读取密函（角色/武器/魔之楔分节，
   复用 legacy `get_default_role_for_tool` 的 `instanceInfo`）、公告列表与详情（公共 BBS，
   HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）。公告 transport 解包 `postDetail`、完整翻页
@@ -113,7 +120,7 @@
   `main` 后，插件才会从 canonical GitHub origin 的 `main` fetch、校验并发布 generation；
   插件不拉取编辑器源码，也不把镜像或投稿分支当作发布源。资源仓库的第三方素材不因仓库
   公开或插件 GPL-3.0 而获得统一许可。
-- 当前阶段：当前 main 已注册 `commands.json` 中的 59 条命令；公共帮助和角色/武器列表属于
+- 当前阶段：当前 main 已注册 `commands.json` 中的 63 条命令；公共帮助和角色/武器列表属于
   普通用户，管理员功能统一映射 AstrBot `ADMIN`，未迁移及已删除命令不会在新入口中隐式注册。
 
 ## HTML/T2I 图片渲染

@@ -7,6 +7,24 @@
 
 # Changelog
 
+## Unreleased — Goal 3 客户端更新查询与订阅推送
+
+### Added
+
+- 新增国服 PC/安卓客户端更新查询、群聊管理员订阅命令与独立 `dnaby_client_update_poll` 计划任务语义。
+- 新增平台筛选订阅 JSON、独立 `client_update_state.json` 基线状态和框架无关推送 DTO。
+- OneBot 合并转发配置默认开启；能力不可用或构造失败时降级为逐平台普通消息并记录安全原因。
+
+### Configuration
+
+- 新增 `notifications.client_update_enabled`、`client_update_check_minutes`、
+  `client_update_merge_forward`；检查周期必须为正整数且不与公告轮询周期共用。
+
+### Notes
+
+- 当前迁移阶段已完成查询、订阅、独立轮询、基线状态与框架无关投递边界；待投递事件的持久化及具体
+  AstrBot/OneBot 消息节点接线仍由后续集成任务覆盖。
+
 ## v0.2.0 — 管理面板与全局身份（2026-08-29）
 
 ### Added

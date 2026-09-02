@@ -14,8 +14,9 @@
   启用，不提供功能开启配置；`scheduled_enabled` 仅控制每日定时任务是否运行。`sign_time`
   必须是有效的 `HH:mm` 时间；显式非法值会在配置校验/插件启动时报告错误，不会静默改用
   `00:05`。
-- `notifications`：公告轮询、密函订阅与订阅级时间窗口、图片模式。密函自动推送默认在每小时
-  整点，可用 `secret_push_minute` 配置分钟；当前小时缓存由服务按有效性自动管理。
+- `notifications`：公告轮询、客户端更新轮询、密函订阅与订阅级时间窗口、图片模式。密函自动推送
+  默认在每小时整点，可用 `secret_push_minute` 配置分钟；客户端更新使用独立开关与周期；当前小时
+  缓存由服务按有效性自动管理。
 - `cache`：玩家数据、玩家卡片和公告缓存的 fresh/硬保留时间，以及手动刷新后的发送策略。
 - `display`：命令前缀、攻略来源、未拥有角色展示和 AT 查询开关；
   `allow_mention_query` 控制是否允许查询被 @ 的他人。命令前缀可填写字符串或字符串列表；
@@ -46,10 +47,21 @@
 | `notifications.announcement_enabled` | `true` | 是否启用公告推送。 |
 | `notifications.announcement_ids` | `[]` | 已处理公告 ID 的兼容状态列表。 |
 | `notifications.announcement_check_minutes` | `10` | 公告轮询间隔，范围 `0..60` 分钟。 |
+| `notifications.client_update_enabled` | `true` | 是否启用独立客户端更新定时检查与推送。 |
+| `notifications.client_update_check_minutes` | `60` | 客户端更新检查间隔（分钟），必须为正整数；不与公告间隔共用。 |
+| `notifications.client_update_merge_forward` | `true` | OneBot 同轮 PC/安卓结果是否尝试合并转发；非 OneBot 平台忽略此项，合并失败时降级普通消息。 |
 | `notifications.secret_subscriptions` | `["group"]` | 密函订阅作用域，可选 `private`、`group`。 |
 | `notifications.secret_simple_image` | `false` | 是否使用简易密函图片。 |
 | `notifications.secret_push_minute` | `0` | 每小时密函推送的分钟，范围 `0..59`；默认整点。 |
 | `notifications.secret_retry_interval_seconds` | `1` | 密函数据尚未准备好或校验失败时的重试间隔；取消或停止会立即结束等待。 |
+
+客户端更新任务使用 `dnaby_client_update_poll`，schedule 形如 `interval@{client_update_check_minutes}m`，
+不复用公告轮询周期。`client_update_check_minutes` 必须为正整数；typed 配置校验失败时会显式报告，
+不会静默改用其他周期。客户端更新状态独立写入 `client_update_state.json`，按国服和平台保存成功观察基线；
+手动查询只读，首次订阅或下一次成功检查只建立缺失基线，不推送无法确认时间范围的历史变化。
+
+当前迁移阶段已完成查询、订阅、独立轮询和框架无关投递边界；待投递事件的持久化及具体 AstrBot/OneBot
+消息节点接线仍由后续集成任务覆盖。
 
 密函自动推送由 scheduler 安排在每小时 `HH:<secret_push_minute>`，只按订阅记录的时间窗口筛选目标；全局
 `notifications.secret_push_time` 与 `notifications.secret_cache` 已移除，旧版 `MHPushSubscribe`

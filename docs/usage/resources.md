@@ -108,6 +108,7 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 - `dnaby.sqlite3` — SQLAlchemy 2 async 数据库（账号绑定、凭据、隐私、签到记录）。
 - `subscriptions.json` — 订阅存储；`ann_state.json` — 兼容旧版的公告已知 id 列表；
   `ann_delivery_state.json` — 版本化的公告按目标投递状态。
+- `client_update_state.json` — 版本化的客户端更新基线与最近一次变化摘要；不保存凭据或原始上游响应。
 - `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json`、`weapon_alias_custom.json`
   — 角色和武器自定义别名覆盖层。
 - `cache/` — 玩家数据 JSON、完整 JPEG/PNG T2I 图片卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，
@@ -127,7 +128,7 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 - 帮助卡片：进程内 `_HELP_CACHE`，插件停止时清空。
 - 资源快照：`resource_generations/` 和 `current.json` 由资源协调器管理，generation lease
   结束后才回收旧快照。
-- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`、
+- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`、`client_update_state.json`、
   `scheduler_state.json`：持久状态，不纳入普通缓存清理。
 - `panel_custom/`：功能移除后的遗留文件，仅保留、不读取、不删除。
 
@@ -230,11 +231,11 @@ PIL 完整解码校验，下载先写同目录临时文件，校验通过后才�
 ## 资源升级、备份与回滚
 
 升级插件前备份整个 `StarTools.get_data_dir("astrbot_plugin_dnaby")`，至少包含
-`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和
-`panel_custom/`。已有
+`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`、
+`client_update_state.json` 和 `panel_custom/`。已有
 `resources/` 仍作为 Git 增量缓存；`resource_generations/current.json` 缺失时启动只保留
 旧缓存并等待下一次下载，下载成功后从 `FETCH_HEAD` 生成新的已验证快照。启动清理只针对孤立
-generation/candidate/archive，不删除面板图、数据库、订阅或公告状态。
+generation/candidate/archive，不删除面板图、数据库、订阅、公告或客户端更新状态。
 
 三类回滚分别执行：
 

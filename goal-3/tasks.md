@@ -175,12 +175,12 @@
 
 ## Task 15：同步命令、配置与数据模型文档
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：更新 `commands.json`、`_conf_schema.json`、使用说明、配置说明、数据模型和必要的 CHANGELOG；不泄露真实运行期状态或链接凭据。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：重新运行命令 manifest 与 typed 配置 schema 生成器，确认 `commands.json` 和 `_conf_schema.json` 已是当前 registry/schema 的精确投影且无需改写；同步 `docs/usage/commands.md`、`docs/usage/configuration.md`、`docs/project/data-model.md`、`docs/project/architecture.md`、`docs/dev/maintenance.md`、`docs/usage/resources.md` 与 `CHANGELOG.md`，补充客户端更新三条命令、三项配置、群聊订阅与平台筛选、独立轮询/基线状态、OneBot 降级边界及运行期备份文件说明，未写入运行期状态或凭据。
+- 验证证据：使用项目 venv 生成并比较投影：`manifest_records=63`、`commands_json=63` 且完全相等，配置 schema 完全相等；三条客户端更新命令及 `client_update_enabled=true`、`client_update_check_minutes=60`、`client_update_merge_forward=true` 默认值交叉检查通过；`tests/test_command_registry.py` 为 `14 passed, 1 warning`；`git diff --check` 通过，生成文件无差异。
+- 剩余风险：待投递事件/pending 目标的持久化、具体 AstrBot/OneBot 消息节点 bootstrap 接线及真实平台发送仍由后续集成与集中检查覆盖；历史 `docs/porting` 文档保留当时的统计数字，不代表当前 63 条命令 manifest。
+- 下一步：集中检查 05，复查推送体验、安全与文档投影一致性。
 
 ## 集中检查 05：推送体验、安全与文档复查
 
