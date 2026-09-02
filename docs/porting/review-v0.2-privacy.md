@@ -12,8 +12,10 @@ NapCat、真实账户和隐私写入不在本轮执行。
   强制偷窥/UID 隐藏和查询解析；群强制值按字段优先，清除后恢复个人值。
 - 个人命令保存 `user_id + bot_id` 全局设置，指定命令要求群聊、有效 AstrBot `At` 目标
   和目标已有 UID 绑定；目标绑定检查只读存在性，不回显 UID。
-- `src/entry/event.py` 只使用 AstrBot 公开的 `get_messages()` 和 `At` 组件提取目标；
-  `CommandRequest.target_user_id` 将该值传给 use case。
+- `src/entry/event.py` 优先使用 AstrBot 公开的 `get_messages()` 和 `At` 组件提取目标，
+  同时兼容平台保留的 `<@id>`/`<@!id>` 标记和 OneBot `raw_message` At 段；目标无法解析时
+  由命令入口返回明确提示，不静默回退为查询调用者。`CommandRequest.target_user_id` 将
+  有效目标传给 use case。
 - 文案集中于 `src/modules/privacy/messages.py`，handler 不直接拼接用户可见消息。
 
 ## 测试与门禁证据

@@ -6,7 +6,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -64,12 +65,51 @@ def actor_from_event(event: Any) -> EventActor | None:
     )
 
 
+_INLINE_MENTION_RE = re.compile(r"<@!?([^>\s]+)>")
+
+
+@dataclass(frozen=True, slots=True)
+class MentionTargetResult:
+    """消息链中 @ 目标的解析结果。"""
+
+    target_user_id: str | None
+    has_unresolved_mention: bool
+
+
+def _inline_mention_targets(text: object) -> tuple[str, ...]:
+    """提取平台常见的 ``<@id>`` / ``<@!id>`` 传输标记。"""
+
+    if not isinstance(text, str):
+        return ()
+    return tuple(
+        target.strip() for target in _INLINE_MENTION_RE.findall(text) if target.strip()
+    )
+
+
+def _strip_inline_mentions(text: object) -> str:
+    """从纯文本命令中移除平台内联 @ 标记，但不吞掉普通 ``@123`` 文本。"""
+
+    return _INLINE_MENTION_RE.sub(" ", str(text or "")).strip()
+
+
+def _is_ignored_mention_target(
+    candidate: str,
+    normalized_bot_id: str | None,
+) -> bool:
+    """判断目标是否代表全体或机器人自身，而不是外部查询目标。"""
+
+    return candidate.lower() == "all" or (
+        normalized_bot_id is not None and candidate == normalized_bot_id
+    )
+
+
 def command_text_from_event(event: Any) -> str:
     """从真实 AstrBot 消息链提取纯文本命令，忽略 At、回复和图片。
 
     消息链可将 At 放在命令前或后；只拼接 Plain 组件，避免把展示字符串中的
-    ``@用户``、``[回复]`` 等平台标记误交给正则解析。没有可用消息链时回退到
-    AstrBot 的 ``get_message_str()``，兼容旧 fixture 和非标准事件。
+    ``@用户``、``[回复]`` 等平台标记误交给正则解析。部分平台会把 @ 目标保留为
+    ``<@id>`` 或 ``<@!id>`` 的纯文本传输标记，这里同样移除。没有可用消息链时
+    回退到 AstrBot 的 ``get_message_str()``，兼容旧 fixture 和非标准事件。
     """
 
     get_messages = getattr(event, "get_messages", None)
@@ -77,7 +117,7 @@ def command_text_from_event(event: Any) -> str:
         messages = get_messages()
         if isinstance(messages, Iterable):
             text = "".join(
-                str(getattr(component, "text", "") or "")
+                _strip_inline_mentions(getattr(component, "text", "") or "")
                 for component in messages
                 if isinstance(component, Plain)
             ).strip()
@@ -86,8 +126,95 @@ def command_text_from_event(event: Any) -> str:
 
     get_message_str = getattr(event, "get_message_str", None)
     if callable(get_message_str):
-        return str(get_message_str() or "").strip()
+        return _strip_inline_mentions(get_message_str())
     return ""
+
+
+def _raw_onebot_mention_targets(event: Any) -> tuple[object, ...]:
+    """从 AstrBot 消息对象公开的 OneBot 原始消息段恢复 At 目标。"""
+
+    message_obj = getattr(event, "message_obj", None)
+    raw_message = getattr(message_obj, "raw_message", None)
+    if not isinstance(raw_message, Mapping):
+        return ()
+    segments = raw_message.get("message")
+    if not isinstance(segments, Iterable):
+        return ()
+    targets: list[object] = []
+    for segment in segments:
+        if not isinstance(segment, Mapping) or segment.get("type") != "at":
+            continue
+        data = segment.get("data")
+        targets.append(data.get("qq") if isinstance(data, Mapping) else None)
+    return tuple(targets)
+
+
+def mention_target_from_event(
+    event: Any,
+    *,
+    bot_id: str | None = None,
+) -> MentionTargetResult:
+    """解析消息链中的 @ 目标，并区分“没有 @”与“@ 无法解析”。
+
+    真实 AstrBot 消息链优先使用 ``At`` 组件；若适配器把目标保留为
+    ``<@id>`` / ``<@!id>`` 纯文本，则按同一传输标记解析。OneBot 适配器在
+    成员信息请求失败时可能只保留公开的原始消息段，这里也从 ``raw_message``
+    恢复目标。机器人自身的 @ 是命令唤醒，不视为查询目标；全体、空目标等无效
+    @ 会标记为未解析，交由命令入口发出明确提示，避免静默回退为查询调用者。
+    """
+
+    normalized_bot_id = str(bot_id).strip() if bot_id is not None else None
+    target_user_id: str | None = None
+    has_non_bot_mention = False
+    has_inline_mention = False
+
+    def record_target(raw_target: object) -> None:
+        nonlocal has_non_bot_mention, target_user_id
+
+        candidate = str(raw_target).strip() if raw_target is not None else ""
+        if not candidate:
+            has_non_bot_mention = True
+            return
+        if _is_ignored_mention_target(candidate, normalized_bot_id):
+            if candidate.lower() == "all":
+                has_non_bot_mention = True
+            return
+        has_non_bot_mention = True
+        target_user_id = candidate
+
+    get_messages = getattr(event, "get_messages", None)
+    messages = get_messages() if callable(get_messages) else ()
+    if isinstance(messages, Iterable):
+        for component in messages:
+            if isinstance(component, AtAll):
+                record_target("all")
+                continue
+            if isinstance(component, At):
+                record_target(getattr(component, "qq", None))
+                continue
+            if not isinstance(component, Plain):
+                continue
+            inline_targets = _inline_mention_targets(
+                getattr(component, "text", "") or ""
+            )
+            if inline_targets:
+                has_inline_mention = True
+            for candidate in inline_targets:
+                record_target(candidate)
+
+    if not has_inline_mention:
+        get_message_str = getattr(event, "get_message_str", None)
+        if callable(get_message_str):
+            for candidate in _inline_mention_targets(get_message_str()):
+                record_target(candidate)
+
+    for raw_target in _raw_onebot_mention_targets(event):
+        record_target(raw_target)
+
+    return MentionTargetResult(
+        target_user_id=target_user_id,
+        has_unresolved_mention=has_non_bot_mention and target_user_id is None,
+    )
 
 
 def target_user_from_event(
@@ -97,29 +224,7 @@ def target_user_from_event(
 ) -> str | None:
     """从 AstrBot 公开消息链提取最后一个有效 @ 用户。"""
 
-    get_messages = getattr(event, "get_messages", None)
-    if not callable(get_messages):
-        return None
-    messages = get_messages()
-    if not isinstance(messages, Iterable):
-        return None
-    normalized_bot_id = str(bot_id).strip() if bot_id is not None else None
-    target_user_id: str | None = None
-    for component in messages:
-        if isinstance(component, AtAll) or not isinstance(component, At):
-            continue
-        raw_target = getattr(component, "qq", None)
-        if raw_target is None:
-            continue
-        candidate = str(raw_target).strip()
-        if (
-            not candidate
-            or candidate.lower() == "all"
-            or candidate == normalized_bot_id
-        ):
-            continue
-        target_user_id = candidate
-    return target_user_id
+    return mention_target_from_event(event, bot_id=bot_id).target_user_id
 
 
 def images_from_event(event: Any) -> tuple[str, ...]:

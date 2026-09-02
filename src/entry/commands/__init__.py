@@ -24,14 +24,14 @@ from astrbot.core.star.filter.regex import RegexFilter
 
 from ...infrastructure.rendering.errors import HtmlRenderError
 from ...infrastructure.utils.logger import logger
-from ...utils.msgs.notify import HTML_RENDER_FAILED
+from ...utils.msgs.notify import HTML_RENDER_FAILED, MENTION_TARGET_UNRESOLVED
 from ..event import (
     EventActor,
     actor_from_event,
     command_text_from_event,
     images_from_event,
+    mention_target_from_event,
     reply_id_from_event,
-    target_user_from_event,
 )
 from ..response import CommandResponse, PlainTextResponse
 
@@ -542,6 +542,23 @@ def _make_handler(
                 if "" in configured_prefixes:
                     matched_prefix = ""
 
+            mention_result = None
+            if active_spec.mention_policy in {"query", "admin_target"}:
+                mention_result = mention_target_from_event(
+                    event,
+                    bot_id=actor.bot_id if actor is not None else None,
+                )
+                if mention_result.has_unresolved_mention:
+                    logger.warning(
+                        "命令 %s 收到无法解析的 @ 目标，拒绝静默回退为调用者",
+                        active_spec.id,
+                    )
+                    yield runtime.responses.build(
+                        event,
+                        PlainTextResponse(MENTION_TARGET_UNRESOLVED),
+                    )
+                    return
+
             request = CommandRequest(
                 command_id=active_spec.id,
                 text=message,
@@ -549,11 +566,8 @@ def _make_handler(
                 actor=actor,
                 permission=_permission_from_event(event),
                 target_user_id=(
-                    target_user_from_event(
-                        event,
-                        bot_id=actor.bot_id if actor is not None else None,
-                    )
-                    if active_spec.mention_policy in {"query", "admin_target"}
+                    mention_result.target_user_id
+                    if mention_result is not None
                     else None
                 ),
                 reply_id=reply_id_from_event(event),

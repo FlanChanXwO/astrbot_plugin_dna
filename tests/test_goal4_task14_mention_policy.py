@@ -14,6 +14,7 @@ from src.entry.commands import (
     install_command_handlers,
 )
 from src.entry.response import ResponseFactory
+from src.utils.msgs.notify import MENTION_TARGET_UNRESOLVED
 
 
 def _spec(policy: str) -> CommandSpec:
@@ -103,3 +104,108 @@ def test_production_query_and_write_commands_have_explicit_mention_policy() -> N
     for spec in registry:
         if spec.id not in query_ids | admin_target_ids:
             assert spec.mention_policy == "ignore"
+
+
+@pytest.mark.asyncio
+async def test_query_command_supports_inline_mention_tokens() -> None:
+    """适配器把 @ 目标留在纯文本标记中时仍应解析目标。"""
+
+    spec = _spec("query")
+    registry = CommandRegistry((spec,))
+
+    class Plugin:
+        __module__ = "tests.goal4_task14"
+        _runtime = SimpleNamespace(
+            commands=registry,
+            services={},
+            responses=ResponseFactory(),
+        )
+
+    install_command_handlers(Plugin, registry)
+    event = SimpleNamespace(
+        get_messages=lambda: [Plain("查询<@!target>")],
+        get_message_str=lambda: "查询<@!target>",
+        get_sender_id=lambda: "actor",
+        get_self_id=lambda: "bot",
+        get_group_id=lambda: "group",
+        unified_msg_origin="platform:group:g1",
+        is_admin=lambda: False,
+        plain_result=lambda text: text,
+    )
+
+    result = [item async for item in Plugin().handle_policy_query(event)]
+
+    assert result == ["target"]
+
+
+@pytest.mark.asyncio
+async def test_query_command_recovers_raw_onebot_mention_segment() -> None:
+    """OneBot 适配器丢失 At 组件时，仍从公开原始消息段恢复目标。"""
+
+    spec = _spec("query")
+    registry = CommandRegistry((spec,))
+
+    class Plugin:
+        __module__ = "tests.goal4_task14"
+        _runtime = SimpleNamespace(
+            commands=registry,
+            services={},
+            responses=ResponseFactory(),
+        )
+
+    install_command_handlers(Plugin, registry)
+    event = SimpleNamespace(
+        get_messages=lambda: [Plain("查询")],
+        get_message_str=lambda: "查询",
+        message_obj=SimpleNamespace(
+            raw_message={
+                "self_id": "bot",
+                "message": [
+                    {"type": "at", "data": {"qq": "target"}},
+                    {"type": "text", "data": {"text": "查询"}},
+                ],
+            }
+        ),
+        get_sender_id=lambda: "actor",
+        get_self_id=lambda: "bot",
+        get_group_id=lambda: "group",
+        unified_msg_origin="platform:group:g1",
+        is_admin=lambda: False,
+        plain_result=lambda text: text,
+    )
+
+    result = [item async for item in Plugin().handle_policy_query(event)]
+
+    assert result == ["target"]
+
+
+@pytest.mark.asyncio
+async def test_query_command_reports_unresolved_mention() -> None:
+    """消息链有损时不能静默把带 @ 的查询改成查询调用者。"""
+
+    spec = _spec("query")
+    registry = CommandRegistry((spec,))
+
+    class Plugin:
+        __module__ = "tests.goal4_task14"
+        _runtime = SimpleNamespace(
+            commands=registry,
+            services={},
+            responses=ResponseFactory(),
+        )
+
+    install_command_handlers(Plugin, registry)
+    event = SimpleNamespace(
+        get_messages=lambda: [At(qq=""), Plain("查询")],
+        get_message_str=lambda: "@查询",
+        get_sender_id=lambda: "actor",
+        get_self_id=lambda: "bot",
+        get_group_id=lambda: "group",
+        unified_msg_origin="platform:group:g1",
+        is_admin=lambda: False,
+        plain_result=lambda text: text,
+    )
+
+    result = [item async for item in Plugin().handle_policy_query(event)]
+
+    assert result == [MENTION_TARGET_UNRESOLVED]

@@ -3,6 +3,7 @@ from ..session import EventContext, Sender
 
 title = "[二重螺旋]\n"
 HTML_RENDER_FAILED = "图片渲染失败，请稍后重试；管理员可查看日志了解详情。"
+MENTION_TARGET_UNRESOLVED = "未识别到有效的 @ 目标，请重新@要查询的用户后再试。"
 
 
 async def send_dna_notify(
