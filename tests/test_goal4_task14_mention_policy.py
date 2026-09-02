@@ -214,6 +214,71 @@ async def test_query_command_reports_unresolved_mention() -> None:
     assert result == [MENTION_TARGET_UNRESOLVED]
 
 
+def test_mention_command_priority_precedes_generic_wake_listener() -> None:
+    """带 @ 的正则命令必须先于 WakePro 的通用唤醒监听器执行。"""
+
+    spec = _spec("query")
+    registry = CommandRegistry((spec,))
+
+    class Plugin:
+        __module__ = "tests.goal4_task14_priority"
+        _runtime = SimpleNamespace(
+            commands=registry,
+            services={},
+            responses=ResponseFactory(),
+        )
+
+    install_command_handlers(Plugin, registry)
+    metadata = star_handlers_registry.get_handler_by_full_name(
+        "tests.goal4_task14_priority_handle_policy_query",
+    )
+
+    assert metadata is not None
+    # WakePro 的通用监听器使用 priority=99999；查询命令必须排在它之前，
+    # 否则它会把“@别人”的消息当成非唤醒消息并提前 stop_event。
+    assert metadata.extras_configs.get("priority", 0) > 99999
+
+
+@pytest.mark.asyncio
+async def test_mention_command_stops_later_handlers_after_response() -> None:
+    """查询命令产出响应后要阻止后续 handler 清掉该响应。"""
+
+    spec = _spec("query")
+    registry = CommandRegistry((spec,))
+
+    class Plugin:
+        __module__ = "tests.goal4_task14_stop"
+        _runtime = SimpleNamespace(
+            commands=registry,
+            services={},
+            responses=ResponseFactory(),
+        )
+
+    stopped = False
+
+    def stop_event() -> None:
+        nonlocal stopped
+        stopped = True
+
+    install_command_handlers(Plugin, registry)
+    event = SimpleNamespace(
+        get_messages=lambda: [Plain("查询"), At(qq="target")],
+        get_message_str=lambda: "查询 @target",
+        get_sender_id=lambda: "actor",
+        get_self_id=lambda: "bot",
+        get_group_id=lambda: "group",
+        unified_msg_origin="platform:group:g1",
+        is_admin=lambda: False,
+        plain_result=lambda text: text,
+        stop_event=stop_event,
+    )
+
+    result = [item async for item in Plugin().handle_policy_query(event)]
+
+    assert result == ["target"]
+    assert stopped is True
+
+
 @pytest.mark.asyncio
 async def test_query_command_handles_onebot_display_text_without_message_chain() -> None:
     """OneBot 只回传展示文本时，命令仍应解析目标并执行。"""

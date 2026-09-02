@@ -46,6 +46,9 @@ CommandUseCase = Callable[
 _PERMISSIONS = {"user", "admin"}
 COMMAND_PREFIX = "kk"
 COMMAND_EXECUTION_FAILED = "命令执行失败，请稍后重试；管理员可查看日志了解详情。"
+# WakePro 的通用监听器使用 priority=99999，并会拦截“@别人”的非唤醒消息；
+# 带目标的查询命令必须先执行，才能把明确的命令响应保留下来。
+_MENTION_COMMAND_HANDLER_PRIORITY = 100000
 COMMAND_GROUP_ORDER: tuple[str, ...] = (
     "账号管理",
     "皎皎角登录",
@@ -500,6 +503,14 @@ class _DynamicRegexFilter(RegexFilter):
         return bool(self.regex.search(message))
 
 
+def _stop_event_propagation(event: Any) -> None:
+    """让已处理的带目标命令阻止后续通用 handler 清掉响应。"""
+
+    stop_event = getattr(event, "stop_event", None)
+    if callable(stop_event):
+        stop_event()
+
+
 def _make_handler(
     spec: CommandSpec,
     plugin_module: str,
@@ -517,6 +528,7 @@ def _make_handler(
     ) -> AsyncGenerator[Any, None]:
         runtime = getattr(self, "_runtime", None)
         active_spec = spec
+        stop_after_response = False
         try:
             message = command_text_from_event(event)
             active_registry = getattr(runtime, "commands", None)
@@ -561,11 +573,16 @@ def _make_handler(
                     event,
                     bot_id=actor.bot_id if actor is not None else None,
                 )
+                stop_after_response = (
+                    mention_result.target_user_id is not None
+                    or mention_result.has_unresolved_mention
+                )
                 if mention_result.has_unresolved_mention:
                     logger.warning(
                         "命令 %s 收到无法解析的 @ 目标，拒绝静默回退为调用者",
                         active_spec.id,
                     )
+                    _stop_event_propagation(event)
                     yield runtime.responses.build(
                         event,
                         PlainTextResponse(MENTION_TARGET_UNRESOLVED),
@@ -594,6 +611,8 @@ def _make_handler(
                 active_registry if active_registry is not None else default_registry,
             ):
                 yield runtime.responses.build(event, result)
+            if stop_after_response:
+                _stop_event_propagation(event)
         except HtmlRenderError as error:
             _log_command_exception(
                 "命令 %s 图片渲染失败 kind=%s",
@@ -601,6 +620,8 @@ def _make_handler(
                 error.kind,
                 error=error,
             )
+            if stop_after_response:
+                _stop_event_propagation(event)
             yield runtime.responses.build(event, PlainTextResponse(HTML_RENDER_FAILED))
         except Exception as error:  # noqa: BLE001
             _log_command_exception(
@@ -609,6 +630,8 @@ def _make_handler(
                 type(error).__name__,
                 error=error,
             )
+            if stop_after_response:
+                _stop_event_propagation(event)
             yield runtime.responses.build(
                 event,
                 PlainTextResponse(COMMAND_EXECUTION_FAILED),
@@ -642,7 +665,16 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
         handler_name = f"handle_{spec.id}"
         handler = _make_handler(spec, plugin_cls.__module__, handler_name, registry)
         filter_pattern = _onebot_mention_tolerant_pattern(spec.pattern)
-        handler = filter.regex(filter_pattern, desc=spec.description)(handler)
+        handler_priority = (
+            _MENTION_COMMAND_HANDLER_PRIORITY
+            if spec.mention_policy in {"query", "admin_target"}
+            else 0
+        )
+        handler = filter.regex(
+            filter_pattern,
+            desc=spec.description,
+            priority=handler_priority,
+        )(handler)
         handler = filter.permission_type(_permission_filter(spec.permission))(handler)
         from astrbot.core.star.star_handler import EventType
 
