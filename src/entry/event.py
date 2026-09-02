@@ -66,6 +66,12 @@ def actor_from_event(event: Any) -> EventActor | None:
 
 
 _INLINE_MENTION_RE = re.compile(r"<@!?([^>\s]+)>")
+_ONEBOT_DISPLAY_MENTION_RE = re.compile(
+    r"\s*@(?P<name>[^\r\n]*?)\s*\((?P<qq>\d+)\)\s*"
+)
+_ONEBOT_BARE_MENTION_SUFFIX_RE = re.compile(
+    r"\s*@(?P<name>(?!\d+\s*$)[^\r\n]+?)\s*$"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,10 +92,34 @@ def _inline_mention_targets(text: object) -> tuple[str, ...]:
     )
 
 
-def _strip_inline_mentions(text: object) -> str:
-    """从纯文本命令中移除平台内联 @ 标记，但不吞掉普通 ``@123`` 文本。"""
+def _onebot_display_mention_targets(text: object) -> tuple[str, ...]:
+    """提取 OneBot 将 At 展示为 ``@昵称(qq)`` 时携带的 QQ 号。"""
 
-    return _INLINE_MENTION_RE.sub(" ", str(text or "")).strip()
+    if not isinstance(text, str):
+        return ()
+    return tuple(
+        match.group("qq")
+        for match in _ONEBOT_DISPLAY_MENTION_RE.finditer(text)
+        if match.group("qq").strip()
+    )
+
+
+def _has_unresolved_onebot_display_mention(text: object) -> bool:
+    """识别缺少 QQ 号的 OneBot @ 展示，避免静默退回调用者。"""
+
+    if not isinstance(text, str):
+        return False
+    normalized = _INLINE_MENTION_RE.sub(" ", text)
+    normalized = _ONEBOT_DISPLAY_MENTION_RE.sub(" ", normalized)
+    return _ONEBOT_BARE_MENTION_SUFFIX_RE.search(normalized) is not None
+
+
+def _strip_inline_mentions(text: object) -> str:
+    """移除平台 @ 标记，保留真正的命令文本和普通 ``@123`` 文本。"""
+
+    normalized = _INLINE_MENTION_RE.sub(" ", str(text or ""))
+    normalized = _ONEBOT_DISPLAY_MENTION_RE.sub(" ", normalized)
+    return _ONEBOT_BARE_MENTION_SUFFIX_RE.sub(" ", normalized).strip()
 
 
 def _is_ignored_mention_target(
@@ -194,19 +224,28 @@ def mention_target_from_event(
                 continue
             if not isinstance(component, Plain):
                 continue
-            inline_targets = _inline_mention_targets(
-                getattr(component, "text", "") or ""
-            )
-            if inline_targets:
+            text = getattr(component, "text", "") or ""
+            inline_targets = _inline_mention_targets(text)
+            display_targets = _onebot_display_mention_targets(text)
+            has_unresolved_display_mention = _has_unresolved_onebot_display_mention(text)
+            if inline_targets or display_targets or has_unresolved_display_mention:
                 has_inline_mention = True
-            for candidate in inline_targets:
+            for candidate in (*inline_targets, *display_targets):
                 record_target(candidate)
+            if has_unresolved_display_mention:
+                record_target(None)
 
     if not has_inline_mention:
         get_message_str = getattr(event, "get_message_str", None)
         if callable(get_message_str):
-            for candidate in _inline_mention_targets(get_message_str()):
+            text = get_message_str()
+            inline_targets = _inline_mention_targets(text)
+            display_targets = _onebot_display_mention_targets(text)
+            has_unresolved_display_mention = _has_unresolved_onebot_display_mention(text)
+            for candidate in (*inline_targets, *display_targets):
                 record_target(candidate)
+            if has_unresolved_display_mention:
+                record_target(None)
 
     for raw_target in _raw_onebot_mention_targets(event):
         record_target(raw_target)

@@ -467,6 +467,19 @@ def _adapt_response(result: Any) -> CommandResponse | None:
     raise TypeError(f"未知命令响应类型: {type(result).__name__}")
 
 
+_ONEBOT_DISPLAY_MENTION_SUFFIX_PATTERN = (
+    r"(?:\s*@(?:[^\r\n]*?\s*\(\d+\)|[^\r\n]+))?\s*$"
+)
+
+
+def _onebot_mention_tolerant_pattern(pattern: str) -> str:
+    """允许 OneBot 追加 ``@昵称(qq)`` 或缺少 QQ 号的 ``@昵称`` 展示串。"""
+
+    if pattern.endswith("$"):
+        return f"{pattern[:-1]}{_ONEBOT_DISPLAY_MENTION_SUFFIX_PATTERN}"
+    return f"(?:{pattern}){_ONEBOT_DISPLAY_MENTION_SUFFIX_PATTERN}"
+
+
 class _DynamicRegexFilter(RegexFilter):
     """根据当前插件实例配置的 command_prefix 动态匹配命令的 RegexFilter。"""
 
@@ -628,7 +641,8 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
     for spec in registry:
         handler_name = f"handle_{spec.id}"
         handler = _make_handler(spec, plugin_cls.__module__, handler_name, registry)
-        handler = filter.regex(spec.pattern, desc=spec.description)(handler)
+        filter_pattern = _onebot_mention_tolerant_pattern(spec.pattern)
+        handler = filter.regex(filter_pattern, desc=spec.description)(handler)
         handler = filter.permission_type(_permission_filter(spec.permission))(handler)
         from astrbot.core.star.star_handler import EventType
 
@@ -636,7 +650,7 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
         for idx, f in enumerate(handler_md.event_filters):
             if isinstance(f, RegexFilter):
                 handler_md.event_filters[idx] = _DynamicRegexFilter(
-                    spec.pattern, spec.id
+                    filter_pattern, spec.id
                 )
         setattr(plugin_cls, handler_name, handler)
     plugin_cls.__dnaby_command_ids__ = command_ids

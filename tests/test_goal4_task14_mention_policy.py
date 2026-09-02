@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 from astrbot.api.message_components import At, Plain
+from astrbot.core.star.filter.regex import RegexFilter
+from astrbot.core.star.star_handler import star_handlers_registry
 
 from src.entry.commands import (
     CommandRegistry,
@@ -13,6 +15,7 @@ from src.entry.commands import (
     CommandSpec,
     install_command_handlers,
 )
+from src.entry.event import mention_target_from_event
 from src.entry.response import ResponseFactory
 from src.utils.msgs.notify import MENTION_TARGET_UNRESOLVED
 
@@ -198,6 +201,137 @@ async def test_query_command_reports_unresolved_mention() -> None:
     event = SimpleNamespace(
         get_messages=lambda: [At(qq=""), Plain("查询")],
         get_message_str=lambda: "@查询",
+        get_sender_id=lambda: "actor",
+        get_self_id=lambda: "bot",
+        get_group_id=lambda: "group",
+        unified_msg_origin="platform:group:g1",
+        is_admin=lambda: False,
+        plain_result=lambda text: text,
+    )
+
+    result = [item async for item in Plugin().handle_policy_query(event)]
+
+    assert result == [MENTION_TARGET_UNRESOLVED]
+
+
+@pytest.mark.asyncio
+async def test_query_command_handles_onebot_display_text_without_message_chain() -> None:
+    """OneBot 只回传展示文本时，命令仍应解析目标并执行。"""
+
+    async def use_case(
+        request: CommandRequest, _registry: CommandRegistry, **_params: object
+    ):
+        return request.target_user_id or "none"
+
+    spec = CommandSpec(
+        id="onebot_display_query",
+        pattern=r"^kk卡片$",
+        group="测试",
+        name="策略",
+        description="策略",
+        examples=("kk卡片",),
+        permission="user",
+        use_case=use_case,
+        mention_policy="query",
+    )
+    registry = CommandRegistry((spec,))
+
+    class Plugin:
+        __module__ = "tests.goal4_task14_onebot_display"
+        _runtime = SimpleNamespace(
+            commands=registry,
+            services={},
+            responses=ResponseFactory(),
+        )
+
+    install_command_handlers(Plugin, registry)
+    event = SimpleNamespace(
+        get_messages=list,
+        get_message_str=lambda: "kk卡片 @雾理魔理莎(1957719129)",
+        message_obj=SimpleNamespace(
+            raw_message={
+                "message": [
+                    {"type": "text", "data": {"text": "kk卡片"}},
+                    {"type": "at", "data": {"qq": "1957719129"}},
+                ],
+            }
+        ),
+        get_sender_id=lambda: "actor",
+        get_self_id=lambda: "bot",
+        get_group_id=lambda: "group",
+        unified_msg_origin="platform:group:g1",
+        is_admin=lambda: False,
+        plain_result=lambda text: text,
+    )
+
+    result = [item async for item in Plugin().handle_onebot_display_query(event)]
+
+    assert result == ["1957719129"]
+
+
+def test_registered_filter_accepts_onebot_display_mention_suffix() -> None:
+    """注册到 AstrBot 的兜底正则也要接受 OneBot 的 @ 展示文本。"""
+
+    spec = _spec("admin_target")
+    registry = CommandRegistry((spec,))
+
+    class Plugin:
+        __module__ = "tests.goal4_task14_onebot_filter"
+        _runtime = SimpleNamespace(
+            commands=registry,
+            services={},
+            responses=ResponseFactory(),
+        )
+
+    install_command_handlers(Plugin, registry)
+    metadata = star_handlers_registry.get_handler_by_full_name(
+        "tests.goal4_task14_onebot_filter_handle_policy_admin_target",
+    )
+    assert metadata is not None
+    regex_filters = [
+        item for item in metadata.event_filters if isinstance(item, RegexFilter)
+    ]
+    assert len(regex_filters) == 1
+    for message in (
+        "查询 @雾理魔理莎(1957719129)",
+        "查询@雾理魔理莎",
+    ):
+        assert regex_filters[0].regex.search(message) is not None
+
+
+def test_mention_target_recovers_onebot_display_id_without_message_segment() -> None:
+    """只有 OneBot 展示文本时，也不能静默退回调用者。"""
+
+    event = SimpleNamespace(
+        get_messages=lambda: [Plain("kk卡片 @雾理魔理莎(1957719129)")],
+        get_message_str=lambda: "kk卡片 @雾理魔理莎(1957719129)",
+    )
+
+    result = mention_target_from_event(event)
+
+    assert result.target_user_id == "1957719129"
+    assert result.has_unresolved_mention is False
+
+
+@pytest.mark.asyncio
+async def test_query_command_reports_onebot_display_name_without_id() -> None:
+    """只有 OneBot 展示的昵称、没有可用 QQ 号时必须明确提示。"""
+
+    spec = _spec("query")
+    registry = CommandRegistry((spec,))
+
+    class Plugin:
+        __module__ = "tests.goal4_task14_onebot_unresolved"
+        _runtime = SimpleNamespace(
+            commands=registry,
+            services={},
+            responses=ResponseFactory(),
+        )
+
+    install_command_handlers(Plugin, registry)
+    event = SimpleNamespace(
+        get_messages=lambda: [Plain("查询@雾理魔理莎")],
+        get_message_str=lambda: "查询@雾理魔理莎",
         get_sender_id=lambda: "actor",
         get_self_id=lambda: "bot",
         get_group_id=lambda: "group",
