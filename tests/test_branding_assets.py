@@ -6,7 +6,6 @@ from pathlib import Path
 
 from PIL import Image
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANDING_SHA256 = "947a6d4d89bf1edee1ccbab0718bc5d81b62f7009ba789f78cb23da72fb867e9"
 
@@ -38,7 +37,7 @@ class BrandingAssetsTests(unittest.TestCase):
             template,
         )
         self.assertIn(
-            "border: 4px solid rgba(255, 255, 255, .85); border-radius: 50%; overflow: hidden;",
+            "border: 8px solid rgba(255, 255, 255, .85); border-radius: 50%; overflow: hidden;",
             template,
         )
         self.assertIn(
