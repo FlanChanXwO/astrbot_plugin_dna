@@ -76,12 +76,12 @@
 
 ## 集中检查 02：状态一致性与重复推送风险复查
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 检查：首次订阅/首次轮询、手动查询只读、版本回退、并发写、状态损坏、历史补发和事件去重语义。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：逐项复核当前阶段的状态与观察边界：`ClientUpdateService.observe` 首次成功观察只建基线、版本回退不覆盖旧基线、同一新版本重复观察不再生成变化；`ClientUpdateStateStore` 按区服/平台分槽，在单进程 asyncio 锁内原子替换并对损坏状态显式失败；`ClientUpdateChange.event_key` 为固定的区服/平台/旧补丁/新补丁键。当前尚未实现订阅、手动查询 use case、pending delivery 或 scheduler，因此没有把这些后续语义误判为已完成；当前观察服务也不会为首次观察或历史状态隐式生成可推送事件。
+- 验证证据：Task 02 + Task 04 目标回归 `28 passed`；一次性异步边界检查验证 PC/安卓并发写后 schema 与两个槽位完整、变化大小累计与重复观察去重、版本回退保留基线、损坏 JSON 原文保留；`ruff check`、目标 `ruff format --check`、`python3 -m compileall -q` 和 `git diff --check` 均通过。对照规格的 pending 事件要求确认后续轮询必须先处理既有 pending、以固定事件键去重，并由后续 Task 09/10/12/13/14 补齐订阅失败保留、手动查询只读和投递状态测试。
+- 剩余风险：首次订阅失败后保留订阅、下一次成功只建基线、手动查询只读、历史 pending 补发/失败重试/取消清理尚无实现或 Green 证据；当前状态锁只覆盖单进程 asyncio，不提供跨进程协调，scheduler 仍需保证单轮串行和 pending 优先处理。`last_change` 目前只是最近变化摘要，不能替代后续固定目标 pending 事件账本。
+- 下一步：Task 07，为 HTTP transport 编写 fake-transport/协议 Red 测试。
 
 ## Task 07：为 HTTP transport 编写 fake-transport/协议测试
 
