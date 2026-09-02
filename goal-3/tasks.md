@@ -13,12 +13,12 @@
 
 ## Task 02：为版本模型与大小归一化编写 Red 测试
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：覆盖 PC/安卓版本解析、版本键数值排序、展示版本格式、两类资源清单的 `fileSize` 汇总、去重和结构错误；不测试未在契约中定义的直接大小字段。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `tests/test_goal3_task02_version_normalization.py`，以 `src.modules.client_updates.contracts` 的公共 seam 固化 `ClientPlatform`、`parse_version_list`、`sum_patch_file_sizes` 和 `ClientUpdateStructureError` 预期契约；覆盖 PC/安卓最新版本解析、整数排序、展示版本、安卓资源目录号、两类清单合并去重、空清单、大小冲突、非负整数校验及 malformed 结构。
+- 验证证据：在临时补齐现有测试环境所需的 ignored `tests/.data/resource/id2name.json` 后，运行 `python3 -m pytest -q tests/test_goal3_task02_version_normalization.py`，因实现尚不存在而在收集阶段明确失败：`ModuleNotFoundError: No module named 'src.modules.client_updates'`（Red）；`ruff check tests/test_goal3_task02_version_normalization.py`、`ruff format --check tests/test_goal3_task02_version_normalization.py`、`python3 -m compileall -q tests/test_goal3_task02_version_normalization.py` 及 `git diff --check` 均通过，LSP 诊断无错误。测试用的临时 `.data` 已清理，未纳入提交。
+- 剩余风险：当前仅证明测试在缺少领域实现时会失败；Task 03 需要严格按这些公共 seam 实现，并用真实 API fixture 补充 Android 资源目录字段与清单结构的 Green 回归。工作树缺少被忽略的 `tests/.data` 时，pytest 仍需由运行环境临时提供该既有 fixture。
+- 下一步：Task 03，实现 typed contract、版本解析与大小归一化逻辑。
 
 ## Task 03：实现 typed contract、版本解析与大小归一化
 
