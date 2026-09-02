@@ -95,6 +95,50 @@ class ClientVersionSnapshot:
 ClientVersion = ClientVersionSnapshot
 
 
+@dataclass(frozen=True, slots=True)
+class ClientUpdateChange:
+    """一次已确认的客户端版本变化及其新增字节数。"""
+
+    previous: ClientVersionSnapshot
+    current: ClientVersionSnapshot
+    added_size_bytes: int
+    region: ClientRegion = ClientRegion.CN
+    platform: ClientPlatform = ClientPlatform.PC
+
+    def __post_init__(self) -> None:
+        """校验变化两端属于同一平台且确实向前推进。"""
+
+        object.__setattr__(self, "region", ClientRegion(self.region))
+        object.__setattr__(self, "platform", ClientPlatform(self.platform))
+        if not isinstance(self.previous, ClientVersionSnapshot):
+            raise TypeError("previous 必须是 ClientVersionSnapshot")
+        if not isinstance(self.current, ClientVersionSnapshot):
+            raise TypeError("current 必须是 ClientVersionSnapshot")
+        if (
+            self.previous.region is not self.region
+            or self.current.region is not self.region
+        ):
+            raise ValueError("变化快照的区服必须一致")
+        if (
+            self.previous.platform is not self.platform
+            or self.current.platform is not self.platform
+        ):
+            raise ValueError("变化快照的平台必须一致")
+        if self.current.patch_version <= self.previous.patch_version:
+            raise ValueError("变化快照必须向前推进")
+        if type(self.added_size_bytes) is not int or self.added_size_bytes < 0:
+            raise ValueError("added_size_bytes 必须是非负整数")
+
+    @property
+    def event_key(self) -> str:
+        """返回供投递去重使用的稳定变化键。"""
+
+        return (
+            f"{self.region.value}:{self.platform.value}:"
+            f"{self.previous.patch_version}:{self.current.patch_version}"
+        )
+
+
 def parse_version_list(
     payload: object,
     platform: ClientPlatform | str,
@@ -269,6 +313,7 @@ def _manifest_entries(
 __all__ = [
     "ClientPlatform",
     "ClientRegion",
+    "ClientUpdateChange",
     "ClientUpdateStructureError",
     "ClientVersion",
     "ClientVersionSnapshot",

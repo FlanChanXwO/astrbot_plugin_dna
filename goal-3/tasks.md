@@ -58,12 +58,12 @@
 
 ## Task 05：实现 `client_update_state.json` 状态边界
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：在运行期数据目录中独立持久化区服/平台基线与最近变化摘要，保持并发写安全和显式损坏错误。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `src/modules/client_updates/state.py`，提供不可变 `ClientUpdateBaseline`、显式 `STATE_VERSION`、`ClientUpdateStateError` 和异步 `ClientUpdateStateStore`；状态按 `region:platform` 分槽保存快照、带时区观察时间和最近变化摘要，加载时严格校验 schema、字段类型、版本展示和身份一致性；写入在进程内锁内通过同目录临时文件替换，并在替换失败时恢复内存基线。同步补充 `ClientUpdateChange` 领域 DTO 与客户端更新包导出。
+- 验证证据：状态专用选集复用 Task 04 测试并注入仅用于收集的未实现 service 测试 shim，4 passed、5 deselected；手动异步检查覆盖 PC/安卓 round-trip、变化摘要 round-trip、损坏 JSON、非法 schema、原子替换失败保留旧文件和并发写入；Task 02 回归 19 passed；`pyright src/modules/client_updates` 为 0 errors，`ruff check .`、目标格式检查、`python3 -m compileall -q .`、LSP 诊断和 `git diff --check` 均通过。
+- 剩余风险：Task 04 中依赖 `ClientUpdateService` 的 5 项行为仍待 Task 06 实现后 Green；当前尚未接入 service 的版本变化计算、回退日志或 scheduler 生命周期。状态文件跨进程并发仍依赖后续部署模型，当前保证单进程 asyncio 写安全。
+- 下一步：Task 06，实现版本变化检测与新增大小计算服务，并使 Task 04 的观察行为进入 Green。
 
 ## Task 06：实现版本变化检测与新增大小计算服务
 
