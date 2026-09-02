@@ -269,7 +269,7 @@ async def test_permanent_delete_prevents_notice_task_creation_after_restart(
 async def test_bootstrap_wires_one_shared_registry_and_state_path(
     tmp_path: Path,
 ) -> None:
-    """runtime 将四个任务汇总到同一个运行期 scheduler_state.json。"""
+    """runtime 将五个任务汇总到同一个运行期 scheduler_state.json。"""
 
     from src.bootstrap import build_runtime
     from src.infrastructure.persistence import AsyncDatabase
@@ -295,4 +295,5 @@ async def test_bootstrap_wires_one_shared_registry_and_state_path(
         "dnaby_sign_cleanup",
         "dnaby_mh_push",
         "dnaby_ann_poll",
+        "dnaby_client_update_poll",
     }

@@ -111,6 +111,44 @@ class ClientUpdateService:
         )
         return change
 
+    async def poll_now(self) -> int:
+        """轮询 PC/安卓并维护成功观察基线，返回本轮确认的变化数。"""
+
+        if self.transport is None:
+            raise RuntimeError("client update transport unavailable")
+
+        changes = 0
+        for platform in (ClientPlatform.PC, ClientPlatform.ANDROID):
+            baseline = await self.state.get_baseline(ClientRegion.CN, platform)
+            try:
+                observation = await self.transport.get_observation(
+                    platform,
+                    previous_patch_version=(
+                        baseline.snapshot.patch_version
+                        if baseline is not None
+                        else None
+                    ),
+                )
+                _validate_observation(observation, platform)
+                change = await self.observe(
+                    observation.snapshot,
+                    observed_at=datetime.now(timezone.utc),
+                    patch_sizes=observation.patch_sizes,
+                )
+            except ClientUpdateTransportError as error:
+                _log_transport_failure("poll", platform, error)
+                continue
+            except (
+                ClientUpdatePatchSizeError,
+                ClientUpdateRollbackError,
+                ClientUpdateStructureError,
+            ) as error:
+                _log_query_failure(platform, type(error).__name__)
+                continue
+            if change is not None:
+                changes += 1
+        return changes
+
     async def query(self, request: ClientUpdateRequest) -> PlainTextResponse:
         """查询所选平台的当前版本；不会推进或覆盖定时观察基线。"""
 

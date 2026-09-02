@@ -28,6 +28,7 @@ from ...infrastructure.scheduler_state import (
 )
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from ..checkin import messages as checkin_messages
+from ..client_updates import messages as client_updates_messages
 from ..notices import messages as notices_messages
 from ..notices.target_service import (
     AnnouncementTargetService,
@@ -50,10 +51,14 @@ _TASK_TARGET_TYPES: dict[str, frozenset[str]] = {
         )
     ),
     "dnaby_ann_poll": frozenset((notices_messages.ANN_SUBSCRIBE,)),
+    "dnaby_client_update_poll": frozenset(
+        (client_updates_messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,)
+    ),
 }
 _CONFIG_FIELDS: dict[str, tuple[str, str]] = {
     "dnaby_sign_daily": ("sign_in", "sign_time"),
     "dnaby_ann_poll": ("notifications", "announcement_check_minutes"),
+    "dnaby_client_update_poll": ("notifications", "client_update_check_minutes"),
 }
 _MISSING = object()
 
@@ -251,7 +256,7 @@ class AdminApiService:
         return isinstance(task_id, str) and task_id in _TASK_IDS
 
     async def list_tasks(self) -> AdminApiResponse[tuple[TaskSnapshot, ...]]:
-        """只返回四个内置任务，过滤 registry 中可能存在的扩展定义。"""
+        """只返回内置任务，过滤 registry 中可能存在的扩展定义。"""
 
         try:
             snapshots = await self.registry.list_snapshots()

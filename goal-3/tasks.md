@@ -139,12 +139,12 @@
 
 ## Task 12：实现独立 scheduler 与 bootstrap 接线
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：在生命周期中组装 transport/state/service/scheduler，独立于公告启动、停止、更新周期并写入运行期状态。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：在 `NotificationSettings` 增加客户端更新独立开关、正整数检查周期和 OneBot 合并转发配置，并生成 `_conf_schema.json`；扩展 scheduler registry 的内置任务与 schedule 解析；新增独立 `ClientUpdatesScheduler`，复用共享 `SchedulerRegistry`，实现 `interval@Nm`、启停幂等、暂停/恢复/删除、运行期重排和安全错误状态；为 `ClientUpdateService` 增加按固定 PC/安卓顺序轮询并保存成功基线的 `poll_now()`；在 `bootstrap.py` 组装 transport/state/service/scheduler，使用运行期目录下的 `client_update_state.json`，接入 Admin API 与生命周期 hook，保持公告 scheduler 独立。
+- 验证证据：Task 12 新增 Red 测试先因 `poll_now()` 和 bootstrap 注入参数缺失得到 `3 failed`；Green 阶段目标与相关回归共 `102 passed`（含 Task 11、Task 12、版本/状态/transport/订阅/registry、scheduler、配置、Admin API）；`python3 -m compileall -q .`、本轮变更文件 `ruff check`、`git diff --check` 均通过；变更 Python 文件 LSP diagnostics 均为空。全仓 `ruff check .` 仍报告 25 项既有、非本轮改动问题，未扩大范围修复。
+- 剩余风险：本轮 `poll_now()` 只负责 PC/安卓成功观察和基线维护；pending 事件投递、目标失败重试与 OneBot 合并转发仍按计划留给 Task 13/14。运行期状态文件会在首次成功轮询时创建，损坏时按现有 state store 显式失败。
+- 下一步：集中检查 04，复查命令/配置/生命周期、运行期目录、scheduler tombstone 与公告回归。
 
 ## 集中检查 04：命令、配置、生命周期与数据目录复查
 

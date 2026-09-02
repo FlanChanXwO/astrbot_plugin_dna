@@ -26,8 +26,10 @@ from .entry.lifecycle import PluginLifecycle
 from .entry.response import ResponseFactory
 from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
+from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
 from .infrastructure.http import (
+    ClientUpdateTransport,
     DnaApiAccountTransport,
     DnaApiCheckinTransport,
     DnaApiEncyclopediaTransport,
@@ -74,6 +76,8 @@ from .modules.admin import (
 )
 from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
+from .modules.client_updates.service import ClientUpdateService
+from .modules.client_updates.state import ClientUpdateStateStore
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.ann_delivery_state import AnnDeliveryStateStore
@@ -141,6 +145,7 @@ def build_runtime(
     encyclopedia_transport: EncyclopediaTransport | None = None,
     checkin_transport: CheckinTransport | None = None,
     notices_transport: NoticesTransport | None = None,
+    client_updates_transport: ClientUpdateTransport | None = None,
     services: Mapping[str, object] | None = None,
     plugin_context: object | None = None,
 ) -> PluginRuntime:
@@ -478,6 +483,45 @@ def build_runtime(
         push_minute=settings.notifications.secret_push_minute,
         registry=scheduler_registry,
     )
+
+    resolved_client_updates_transport = client_updates_transport or ClientUpdateTransport(
+        request_gate=request_gate,
+    )
+    if services is not None and "client_updates_transport" in services:
+        resolved_client_updates_transport = cast(
+            ClientUpdateTransport,
+            services["client_updates_transport"],
+        )
+    client_update_state = ClientUpdateStateStore(
+        runtime_database.path.parent / "client_update_state.json",
+    )
+    if services is not None and "client_update_state" in services:
+        client_update_state = cast(
+            ClientUpdateStateStore,
+            services["client_update_state"],
+        )
+    client_update_service = ClientUpdateService(
+        client_update_state,
+        transport=resolved_client_updates_transport,
+        subscriptions=subscriptions,
+    )
+    if services is not None and "client_update_service" in services:
+        client_update_service = cast(
+            ClientUpdateService,
+            services["client_update_service"],
+        )
+    client_updates_scheduler = ClientUpdatesScheduler(
+        client_update_service,
+        enabled=settings.notifications.client_update_enabled,
+        check_minutes=settings.notifications.client_update_check_minutes,
+        registry=scheduler_registry,
+    )
+    if services is not None and "client_updates_scheduler" in services:
+        client_updates_scheduler = cast(
+            ClientUpdatesScheduler,
+            services["client_updates_scheduler"],
+        )
+
     admin_api_service = AdminApiService(
         scheduler_registry,
         subscriptions,
@@ -486,6 +530,7 @@ def build_runtime(
             "dnaby_sign_cleanup": sign_scheduler,
             "dnaby_mh_push": notices_scheduler,
             "dnaby_ann_poll": notices_scheduler,
+            "dnaby_client_update_poll": client_updates_scheduler,
         },
         membership_service,
         config_store=config if isinstance(config, dict) else None,
@@ -560,6 +605,10 @@ def build_runtime(
         "notices_service": notices_service,
         "announcement_target_service": announcement_targets,
         "notices_scheduler": notices_scheduler,
+        "client_updates_transport": resolved_client_updates_transport,
+        "client_update_state": client_update_state,
+        "client_update_service": client_update_service,
+        "client_updates_scheduler": client_updates_scheduler,
         "admin_api_service": admin_api_service,
         "admin_account_service": admin_account_service,
         "admin_preview_service": admin_preview_service,
@@ -619,6 +668,7 @@ def build_runtime(
             resource_update_service.start_preheat,
             sign_scheduler.start,
             notices_scheduler.start,
+            client_updates_scheduler.start,
             agent_tools_lifecycle.start,
         ),
         # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler、资源线程，再释放数据库。
@@ -628,6 +678,7 @@ def build_runtime(
             resource_update_service.stop,
             sign_scheduler.stop,
             notices_scheduler.stop,
+            client_updates_scheduler.stop,
             agent_tools_lifecycle.stop,
             login_flow.stop,
         ),

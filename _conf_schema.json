@@ -216,6 +216,24 @@
         "hint": "公告推送检查间隔（分钟）",
         "default": 10
       },
+      "client_update_enabled": {
+        "type": "bool",
+        "description": "客户端更新推送开关",
+        "hint": "是否启用独立的客户端更新定时检查与推送",
+        "default": true
+      },
+      "client_update_check_minutes": {
+        "type": "int",
+        "description": "客户端更新检查间隔",
+        "hint": "客户端更新定时检查间隔（分钟），必须为正整数",
+        "default": 60
+      },
+      "client_update_merge_forward": {
+        "type": "bool",
+        "description": "客户端更新合并转发",
+        "hint": "OneBot 平台是否将同轮客户端更新合并为转发消息",
+        "default": true
+      },
       "secret_subscriptions": {
         "type": "list",
         "description": "密函订阅作用域",

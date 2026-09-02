@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         TransportErrorKind,
     )
     from .checkin import DnaApiCheckinTransport
+    from .client_updates import ClientUpdateTransport
     from .concurrency import RequestConcurrencyGate
     from .encyclopedia import DEFAULT_CODE_URL, DnaApiEncyclopediaTransport
     from .notices import DnaApiNoticesTransport
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
 __all__ = [
     "DEFAULT_CODE_URL",
     "AccountTransportError",
+    "ClientUpdateTransport",
     "DnaApiAccountTransport",
     "DnaApiCheckinTransport",
     "DnaApiEncyclopediaTransport",
@@ -38,6 +40,7 @@ _SYMBOL_MODULES = {
     "DnaApiAccountTransport": ".account",
     "TransportErrorKind": ".account",
     "DnaApiCheckinTransport": ".checkin",
+    "ClientUpdateTransport": ".client_updates",
     "RequestConcurrencyGate": ".concurrency",
     "DEFAULT_CODE_URL": ".encyclopedia",
     "DnaApiEncyclopediaTransport": ".encyclopedia",
