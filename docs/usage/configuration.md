@@ -60,8 +60,9 @@
 不会静默改用其他周期。客户端更新状态独立写入 `client_update_state.json`，按国服和平台保存成功观察基线；
 手动查询只读，首次订阅或下一次成功检查只建立缺失基线，不推送无法确认时间范围的历史变化。
 
-当前迁移阶段已完成查询、订阅、独立轮询、定时推送接线和框架无关投递边界；待投递事件的持久化及失败目标
-重试仍由后续集成任务覆盖。
+当前迁移阶段已完成查询、订阅、独立轮询、定时推送接线和框架无关投递边界。`client_update_state.json`
+同时保存基线与未完成的按目标投递事件；每轮先重试 pending，取消或停用目标会清理其待投递状态，事件完成
+后不保留历史队列。
 
 密函自动推送由 scheduler 安排在每小时 `HH:<secret_push_minute>`，只按订阅记录的时间窗口筛选目标；全局
 `notifications.secret_push_time` 与 `notifications.secret_cache` 已移除，旧版 `MHPushSubscribe`

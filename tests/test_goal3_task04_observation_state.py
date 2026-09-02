@@ -227,7 +227,7 @@ async def test_state_store_round_trips_typed_baseline_and_schema_version(
 
     raw = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(raw, dict)
-    assert raw["schema_version"] == 1
+    assert raw["schema_version"] == 2
 
     reloaded = ClientUpdateStateStore(path)
     restored = await reloaded.get_baseline(ClientRegion.CN, ClientPlatform.ANDROID)

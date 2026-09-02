@@ -226,6 +226,7 @@ async def test_bootstrap_injects_real_text_and_optional_onebot_forward_adapter(
     scheduler = runtime.services["client_updates_scheduler"]
 
     assert delivery.subscriptions is runtime.services["subscriptions"]
+    assert delivery.state is runtime.services["client_update_state"]
     assert scheduler.delivery is delivery
 
     normal_push = ClientUpdatePush(

@@ -108,7 +108,8 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 - `dnaby.sqlite3` — SQLAlchemy 2 async 数据库（账号绑定、凭据、隐私、签到记录）。
 - `subscriptions.json` — 订阅存储；`ann_state.json` — 兼容旧版的公告已知 id 列表；
   `ann_delivery_state.json` — 版本化的公告按目标投递状态。
-- `client_update_state.json` — 版本化的客户端更新基线与最近一次变化摘要；不保存凭据或原始上游响应。
+- `client_update_state.json` — 版本化的客户端更新基线、最近一次变化摘要和未完成的按目标投递事件；
+  完成或取消/停用清理后不保留事件历史，不保存凭据或原始上游响应。
 - `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json`、`weapon_alias_custom.json`
   — 角色和武器自定义别名覆盖层。
 - `cache/` — 玩家数据 JSON、完整 JPEG/PNG T2I 图片卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，

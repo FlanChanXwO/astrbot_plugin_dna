@@ -98,8 +98,8 @@ class ClientUpdatesScheduler:
                 return
             try:
                 changes = await self.client_updates.poll_now()
-                if changes:
-                    await self.delivery.deliver(changes)
+                # delivery 还要在无新变化时重试持久化 pending 事件。
+                await self.delivery.deliver(changes)
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001

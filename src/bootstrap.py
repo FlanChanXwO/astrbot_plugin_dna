@@ -574,6 +574,7 @@ def build_runtime(
     client_update_delivery = ClientUpdateDeliveryService(
         subscriptions,
         client_update_push_adapter,
+        state=client_update_state,
     )
     if services is not None and "client_update_delivery" in services:
         client_update_delivery = cast(

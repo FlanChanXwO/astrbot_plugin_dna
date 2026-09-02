@@ -33,6 +33,8 @@ from .service import (
 from .state import (
     STATE_VERSION,
     ClientUpdateBaseline,
+    ClientUpdatePendingEvent,
+    ClientUpdatePendingTarget,
     ClientUpdateStateError,
     ClientUpdateStateStore,
 )
@@ -47,6 +49,8 @@ __all__ = [
     "ClientUpdateFailureKind",
     "ClientUpdateObservation",
     "ClientUpdatePatchSizeError",
+    "ClientUpdatePendingEvent",
+    "ClientUpdatePendingTarget",
     "ClientUpdatePush",
     "ClientUpdatePushAdapter",
     "ClientUpdatePushMessage",

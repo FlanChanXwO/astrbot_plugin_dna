@@ -278,6 +278,8 @@ class ClientUpdateService:
             actor.unified_msg_origin,
             uid="",
         )
+        # 取消后即刻移除所有历史 pending，重新订阅不能补发旧事件。
+        await self.state.remove_target(actor.unified_msg_origin, uid="")
         if not deleted:
             return PlainTextResponse(
                 messages.CLIENT_UPDATE_NOT_SUBSCRIBED,

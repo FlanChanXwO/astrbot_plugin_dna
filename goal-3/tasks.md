@@ -248,9 +248,9 @@
 
 ## Task 22：实现客户端更新待投递事件状态与重试
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：新增独立版本化 delivery state，以 `event_key` 固定首次匹配目标，支持 delivered/pending、pending 优先重试、取消/停用清理和事件完成清理；补持久化重载、失败重试、取消重订阅测试及文档/回滚说明。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：将 `client_update_state.json` 扩展为 schema v2，新增 typed pending event/target、固定首次目标集合、逐目标 `pending`/`delivered` 状态、事件键幂等、原子写入回滚、v1 基线兼容升级和完成事件清理。bootstrap 注入有状态 delivery；每轮先重试历史 pending，再记录当前变化，重复 event_key 不重复投递，新订阅者不补发旧事件；投递失败只保留失败目标，取消或停用目标清理 pending。同步 scheduler 空变化重试、取消订阅清理、Task 22 回归测试、运行期数据文档、CHANGELOG 与旧 schema 回滚说明。
+- 验证证据：TDD Red 阶段实际得到缺少 pending 类型导出、重复 event_key、只剩 delivered 目标和 pending 写盘失败等失败；修复后 Task 22 测试 `8 passed, 1 warning`，客户端更新/调度相关回归 `44 passed, 1 warning`。`pyright src/modules/client_updates src/infrastructure/client_updates_scheduler.py` 为 `0 errors, 0 warnings, 0 informations`；`python3 -m compileall -q .`、客户端更新范围 Ruff check/format、LSP 诊断和 `git diff --check` 通过。全量 Ruff 仍有 18 个既有非客户端更新文件问题；bootstrap 全文件 format 的已知漂移未纳入本任务。
+- 剩余风险：尚未在真实 AstrBot/OneBot 运行实例执行发送冒烟；订阅文件与客户端状态文件没有跨文件物理事务，发送成功后的状态写盘失败仍按 at-least-once 语义等待后续重试；上游公开 HTTP 元数据完整性风险保持为既有设计边界。
+- 下一步：Task 19，执行最终测试、构建和 code-review-expert 级别审查。
