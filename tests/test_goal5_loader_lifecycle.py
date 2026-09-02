@@ -332,3 +332,32 @@ async def test_termination_failure_is_a_nonzero_cleanup_phase(
     assert caught.value.phase == "terminate"
     assert events == ["load:astrbot_plugin_dnaby", "initialize", "terminate"]
     assert not root.exists()
+
+
+def test_failure_format_redacts_secret_like_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_contract_module()
+    monkeypatch.setenv("GOAL5_TEST_API_TOKEN", "environment-secret")
+    plugin_dir = tmp_path / "plugin"
+    plugin_dir.mkdir()
+
+    try:
+        raise RuntimeError(
+            "request failed token=top-secret-token "
+            "password: hidden-password Authorization: Bearer bearer-secret "
+            "environment-secret"
+        )
+    except RuntimeError as error:
+        rendered = module._format_failure(
+            error,
+            astrbot_version="4.27.1",
+            plugin_name="astrbot_plugin_dnaby",
+            plugin_dir=plugin_dir,
+        )
+
+    assert "top-secret-token" not in rendered
+    assert "hidden-password" not in rendered
+    assert "bearer-secret" not in rendered
+    assert "environment-secret" not in rendered
+    assert "REDACTED" in rendered

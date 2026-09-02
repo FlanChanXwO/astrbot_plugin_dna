@@ -21,6 +21,7 @@ _RELEASE_HEADING_RE = re.compile(
 )
 _VERSION_HEADING_HINT_RE = re.compile(r"^##\s+.*v?\d+\.\d+\.\d+")
 _CONTROL_CHARACTER_RE = re.compile(r"[\x00-\x1f\x7f]")
+_TAG_PREFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,10 +129,12 @@ def release_tag(version: str, *, tag_prefix: str = "") -> str:
     normalised_version = _normalise_version(version)
     if _CONTROL_CHARACTER_RE.search(tag_prefix):
         raise ValueError("tag 前缀不能包含控制字符")
-    if tag_prefix != tag_prefix.strip():
-        raise ValueError("tag 前缀不能包含首尾空白")
-    if any(char.isspace() for char in tag_prefix):
-        raise ValueError("tag 前缀不能包含空白字符")
+    if tag_prefix and _TAG_PREFIX_RE.fullmatch(tag_prefix) is None:
+        raise ValueError(
+            "tag 前缀只能包含 ASCII 字母、数字、点、下划线和连字符，且必须以字母或数字开头"
+        )
+    if ".." in tag_prefix:
+        raise ValueError("tag 前缀不能包含连续点")
     return f"{tag_prefix}{normalised_version[1:]}" if tag_prefix else normalised_version
 
 

@@ -24,6 +24,23 @@ from typing import Any, TypeVar
 
 _STABLE_VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 _PLUGIN_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)(?P<prefix>\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|"
+    r"token|secret|password|passwd|cookie|authorization|private[_-]?key)\b"
+    r"\s*['\"]?\s*[:=]\s*['\"]?)(?P<value>[^,\s;\]}\"']+)"
+)
+_BEARER_RE = re.compile(r"(?i)(?<![A-Za-z0-9])Bearer\s+[^,\s;\]}]+")
+_COOKIE_HEADER_RE = re.compile(r"(?im)\b(?:Cookie|Set-Cookie):\s*[^\r\n]+")
+_URL_CREDENTIAL_RE = re.compile(r"(?i)(https?://[^/\s:@]+:)[^@\s]+@")
+_TOKEN_SHAPED_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:ghp_|github_pat_|sk-|xox[baprs]-|AKIA)[A-Za-z0-9_./-]+"
+)
+_SENSITIVE_ENV_NAME_RE = re.compile(
+    r"(?i)(?:token|secret|password|passwd|cookie|authorization|api[_-]?key|"
+    r"private[_-]?key|client[_-]?secret)"
+)
+# 只捕获普通异常和协作取消；不捕获 KeyboardInterrupt/SystemExit，避免把进程终止伪装成检查失败。
+_CATCHABLE_ERRORS = (Exception, asyncio.CancelledError)
 _EXCLUDED_NAMES = {
     ".git",
     ".mypy_cache",
@@ -170,7 +187,7 @@ def _read_plugin_metadata(plugin_dir: Path, plugin_name: str) -> tuple[str, str]
         import yaml
 
         raw = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
-    except BaseException as error:
+    except Exception as error:
         raise LoaderCheckError(
             "metadata",
             f"无法读取 {metadata_path.name}: {type(error).__name__}: {error}",
@@ -363,7 +380,7 @@ def _build_official_runtime(
             on_plugin_import=resource_guard.install_for_imported_plugin,
         )
         manager = manager_cls(context, config)
-    except BaseException:
+    except _CATCHABLE_ERRORS:
         resource_guard.restore()
         raise
     return LoaderRuntime(
@@ -425,7 +442,7 @@ def _validate_dispatch_manifest(
         raise LoaderCheckError("registration", "插件未导出 COMMAND_REGISTRY")
     try:
         specs = tuple(registry)
-    except BaseException as error:
+    except Exception as error:
         raise LoaderCheckError(
             "registration",
             f"COMMAND_REGISTRY 不可迭代: {type(error).__name__}: {error}",
@@ -447,7 +464,7 @@ def _validate_dispatch_manifest(
         raise LoaderCheckError("registration", "缺少 commands.json 分发表")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except BaseException as error:
+    except Exception as error:
         raise LoaderCheckError(
             "registration",
             f"无法读取 commands.json: {type(error).__name__}: {error}",
@@ -644,14 +661,14 @@ async def run_loader_check(
             command_count=command_count,
             handler_count=handler_count,
         )
-    except BaseException as error:
+    except _CATCHABLE_ERRORS as error:
         failure = _wrap_error(phase, error)
     finally:
         if runtime is not None:
             try:
                 if loaded_plugin is None:
                     loaded_plugin = _find_loaded_plugin(runtime, plugin_name)
-            except BaseException as error:
+            except _CATCHABLE_ERRORS as error:
                 cleanup_errors.append(("registration", error))
 
             if loaded_plugin is not None:
@@ -660,20 +677,20 @@ async def run_loader_check(
                     if not callable(terminate):
                         raise TypeError("插件实例没有 terminate()")
                     await _await_if_needed(terminate())
-                except BaseException as error:
+                except _CATCHABLE_ERRORS as error:
                     cleanup_errors.append(("terminate", error))
 
             for callback in reversed(runtime.cleanup_callbacks):
                 try:
                     await _await_if_needed(callback())
-                except BaseException as error:
+                except _CATCHABLE_ERRORS as error:
                     cleanup_errors.append(("runtime cleanup", error))
 
         # 只有本次调用创建的根目录才由 harness 删除，避免误删调用方目录。
         if not root_was_present and root.exists():
             try:
                 shutil.rmtree(root)
-            except BaseException as error:
+            except _CATCHABLE_ERRORS as error:
                 cleanup_errors.append(("temporary root cleanup", error))
 
         _remove_sys_path(inserted_paths)
@@ -730,6 +747,31 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _sensitive_environment_values() -> tuple[str, ...]:
+    values = {
+        value
+        for name, value in os.environ.items()
+        if _SENSITIVE_ENV_NAME_RE.search(name) and len(value) >= 4
+    }
+    return tuple(sorted(values, key=len, reverse=True))
+
+
+def _redact_sensitive_text(text: str) -> str:
+    """在 CI 错误上下文中遮蔽常见凭据形态和当前环境中的敏感值。"""
+
+    redacted = _COOKIE_HEADER_RE.sub("[REDACTED-COOKIE]", text)
+    redacted = _URL_CREDENTIAL_RE.sub(r"\1[REDACTED]@", redacted)
+    redacted = _BEARER_RE.sub("Bearer [REDACTED]", redacted)
+    redacted = _SECRET_ASSIGNMENT_RE.sub(
+        lambda match: f"{match.group('prefix')}[REDACTED]",
+        redacted,
+    )
+    redacted = _TOKEN_SHAPED_RE.sub("[REDACTED-TOKEN]", redacted)
+    for value in _sensitive_environment_values():
+        redacted = redacted.replace(value, "[REDACTED-ENV]")
+    return redacted
+
+
 def _format_failure(
     error: BaseException,
     *,
@@ -748,7 +790,7 @@ def _format_failure(
         "full traceback:",
         "".join(traceback.format_exception(type(error), error, error.__traceback__)),
     ]
-    return "\n".join(lines)
+    return _redact_sensitive_text("\n".join(lines))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -764,7 +806,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 plugin_name=args.plugin_name,
             ),
         )
-    except BaseException as error:
+    except _CATCHABLE_ERRORS as error:
         print(
             _format_failure(
                 error,

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import re
 import subprocess
@@ -243,6 +244,67 @@ def test_plugin_load_workflow_is_pr_only_read_only_and_uses_stable_master_matrix
     assert "scripts/ci/check_astrbot_plugin_load.py" in text
     assert "continue-on-error" not in text
     assert "secrets." not in text
+
+
+def test_plugin_load_checkout_does_not_persist_github_credentials() -> None:
+    workflow = yaml.safe_load(_read_required_file(PLUGIN_LOAD_WORKFLOW))
+    assert isinstance(workflow, dict)
+    jobs = workflow.get("jobs", {})
+    checkout_steps = [
+        step
+        for job in jobs.values()
+        for step in job.get("steps", [])
+        if step.get("uses", "").startswith("actions/checkout@")
+    ]
+    assert len(checkout_steps) == 1
+    assert checkout_steps[0].get("with", {}).get("persist-credentials") is False
+
+
+def test_release_tag_rejects_option_and_path_injection_prefixes() -> None:
+    module = _load_module(RELEASE_NOTES_SCRIPT, "goal5_release_tag_security_contracts")
+
+    assert module.release_tag("v0.2.0", tag_prefix="release-") == "release-0.2.0"
+    for prefix in (
+        "-draft-",
+        "../",
+        "refs/tags/",
+        "release?check=1",
+        "release#fragment",
+    ):
+        with pytest.raises(ValueError):
+            module.release_tag("v0.2.0", tag_prefix=prefix)
+
+
+def test_loader_does_not_use_bare_or_baseexception_handlers() -> None:
+    tree = ast.parse(_read_required_file(CI_SCRIPT), filename=str(CI_SCRIPT))
+    broad_handlers = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler)
+        and (
+            node.type is None
+            or (isinstance(node.type, ast.Name) and node.type.id == "BaseException")
+        )
+    ]
+    assert broad_handlers == []
+
+
+def test_workflow_actions_are_pinned_to_immutable_commits() -> None:
+    action_refs: list[tuple[Path, str]] = []
+    for workflow_path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        for reference in re.findall(
+            r"^\s*uses:\s*([^\s#]+)",
+            _read_required_file(workflow_path),
+            flags=re.MULTILINE,
+        ):
+            action_refs.append((workflow_path, reference))
+
+    assert action_refs
+    for workflow_path, reference in action_refs:
+        assert re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", reference), (
+            workflow_path,
+            reference,
+        )
 
 
 def test_readme_has_user_installation_configuration_and_support_sections() -> None:
