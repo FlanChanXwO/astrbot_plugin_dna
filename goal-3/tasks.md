@@ -193,12 +193,12 @@
 
 ## Task 16：补充端到端 fake API 与持久化回归测试
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：模拟首次订阅、多个轮次版本变化、PC/安卓分别失败、多个群订阅、取消后重新订阅和状态重载。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `tests/test_goal3_task16_client_updates_e2e.py`，以按平台排队的 fake API 驱动 `ClientUpdateService`，覆盖首次订阅建立 PC/安卓基线、两轮版本变化、PC 与安卓在不同轮次分别失败、成功平台状态保留、多个群独立订阅、取消后重新订阅，以及 `SubscriptionStore`/`ClientUpdateStateStore` 跨实例重载；确认取消订阅不会清除全局客户端基线，重订阅也不会重复请求 API。
+- 验证证据：新增目标测试 `2 passed, 1 warning`；客户端更新相关回归（Task 02/04/07/09/11/12/13/16）`59 passed, 1 warning`；新测试 `ruff check`、`ruff format --check`、`compileall` 与 `git diff --check` 通过。首次运行发现并修正了测试中把 JSON 列表直接放入集合键的断言错误，未改变生产代码。
+- 剩余风险：本任务验证的是 fake API 到 service、订阅和状态持久化边界，尚未验证真实网络服务或真实 AstrBot/OneBot 发送；定时轮询到推送端口的接线及 pending 事件生命周期仍是已知缺口，需在后续全链路复查中处理。
+- 下一步：Task 17，执行最小相关验证并只修复本范围失败。
 
 ## Task 17：执行最小相关验证与修复本范围失败
 
