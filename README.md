@@ -42,7 +42,7 @@ Marketplace 或公开 Release。
 
 插件配置在 Dashboard 的插件配置页（`_conf_schema.json`），由 `src/infrastructure/config` 的 Pydantic 定义生成，按登录、网络、签到、通知、缓存、显示和资源分组。资源仓库默认直连，也可使用 GitHub 加速前缀；首次同步只克隆 `main`，后续只允许 `main` 的 fast-forward 更新；资源契约、迁移、镜像信任和回滚详见 [docs/usage/resources.md](docs/usage/resources.md) 与 [docs/dev/maintenance.md](docs/dev/maintenance.md)。资源编辑使用独立的 [dna-resource-editor](https://github.com/FlanChanXwO/dna-resource-editor)，不把编辑器代码放入资源仓库。
 
-生成型图片卡片统一使用 AstrBot 4.27.1 及以上版本的全局 HTML/T2I 服务；插件不会覆盖全局
+生成型图片卡片统一使用 AstrBot 4.26.0 及以上版本的全局 HTML/T2I 服务；插件不会覆盖全局
 T2I 地址。模板和素材由 `src/infrastructure/rendering/` 统一处理，渲染失败时记录内部原因并向用户
 返回通用提示。
 
