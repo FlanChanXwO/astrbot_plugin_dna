@@ -94,12 +94,12 @@
 
 ## Task 08：实现客户端更新 HTTP transport
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：按更新契约实现公开 API 读取、User-Agent、响应校验和安全失败分类；复用现有 HTTP 门禁，不下载大文件。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `src/infrastructure/http/client_updates.py`，实现 PC/安卓固定主机、完整分支路径、契约 User-Agent、VersionList 与两类补丁清单 JSON 读取；按安卓资源目录 key 构造清单路径，复用 `RequestConcurrencyGate`（注入时按 URL single-flight），只汇总 `fileSize`，不请求 `.pak`/`.sig`。新增 typed observation、失败类别和安全 transport error；网络/5xx 只回退一次，4xx、JSON/清单结构错误不回退；版本清单主机切换后，补丁清单沿用成功主机并按请求回退到另一契约主机。由于当前 Python 3.14 环境的已安装 aiohttp 导入会缺少 `cgi`，保留 `aiohttp.ClientSession` fake seam，并在导入不可用时使用项目已有 `httpx` 兼容实现，未修改依赖。
+- 验证证据：先新增补丁清单主机回退 Red 测试并确认失败（`ClientUpdateTransportError: network failure`），再实现回退后运行 `python3 -m pytest --confcutdir=tests -q tests/test_goal3_task07_client_updates_transport.py`，7 项通过；Task02/04/07 相关回归共 35 项通过。`ruff check .`、目标文件 `ruff format --check`、`python3 -m compileall -q .`、`pyright src/modules/client_updates src/infrastructure/http/client_updates.py`（0 errors）和 `git diff --check` 均通过；3 个受影响 Python 文件 LSP 诊断无错误。
+- 剩余风险：尚未连接真实上游执行在线冒烟；实际服务端的 HTTP 响应兼容性仍由后续集成/部署验证。客户端更新 service、订阅、scheduler 和 bootstrap 尚未实现。
+- 下一步：Task 09，为订阅 use case 与命令 registry 编写 Red 测试。
 
 ## Task 09：为订阅 use case 与命令 registry 编写 Red 测试
 

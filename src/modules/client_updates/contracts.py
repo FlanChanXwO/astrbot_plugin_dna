@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import cast
+from types import MappingProxyType
+from typing import Protocol, cast
 
 
 _DECIMAL_KEY = re.compile(r"^[0-9]+$")
@@ -45,6 +46,42 @@ class ClientUpdateStructureError(ValueError):
         """不把内部 detail 拼入 repr，避免异常被意外序列化。"""
 
         return "ClientUpdateStructureError()"
+
+
+class ClientUpdateFailureKind(StrEnum):
+    """客户端更新 transport 的可观察失败类别。"""
+
+    NETWORK = "network"
+    STATUS = "status"
+    CONTRACT = "contract"
+    SERVER = "server"
+
+
+class ClientUpdateTransportError(Exception):
+    """不会把服务端原文、URL 或凭据带到用户响应的更新读取错误。"""
+
+    def __init__(
+        self,
+        kind: ClientUpdateFailureKind | str,
+        *,
+        resource: str = "客户端更新数据",
+        status_code: int | None = None,
+        detail: str = "",
+    ) -> None:
+        self.kind = ClientUpdateFailureKind(kind)
+        self.resource = resource
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(f"client update transport {self.kind.value} failure")
+
+    def __repr__(self) -> str:
+        """异常 repr 只保留类别、固定资源名和状态码。"""
+
+        return (
+            "ClientUpdateTransportError("
+            f"kind={self.kind.value!r}, resource={self.resource!r}, "
+            f"status_code={self.status_code!r})"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +133,41 @@ ClientVersion = ClientVersionSnapshot
 
 
 @dataclass(frozen=True, slots=True)
+class ClientUpdateObservation:
+    """一次 transport 成功读取的最新版本及新增补丁大小。"""
+
+    snapshot: ClientVersionSnapshot
+    patch_sizes: Mapping[int, int] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.snapshot, ClientVersionSnapshot):
+            raise TypeError("snapshot 必须是 ClientVersionSnapshot")
+        if not isinstance(self.patch_sizes, Mapping):
+            raise TypeError("patch_sizes 必须是补丁版本到字节数的映射")
+        normalized: dict[int, int] = {}
+        for patch_version, size_bytes in self.patch_sizes.items():
+            if type(patch_version) is not int or patch_version < 0:
+                raise ValueError("patch_sizes 的补丁版本号必须是非负整数")
+            if type(size_bytes) is not int or size_bytes < 0:
+                raise ValueError("patch_sizes 的大小必须是非负整数")
+            normalized[patch_version] = size_bytes
+        object.__setattr__(self, "patch_sizes", MappingProxyType(normalized))
+
+
+class ClientUpdateTransport(Protocol):
+    """客户端更新 use case 所需的最小读取 transport。"""
+
+    async def get_observation(
+        self,
+        platform: ClientPlatform | str,
+        *,
+        previous_patch_version: int | None = None,
+    ) -> ClientUpdateObservation:
+        """读取一个平台的最新版本和指定历史区间的补丁大小。"""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
 class ClientUpdateChange:
     """一次已确认的客户端版本变化及其新增字节数。"""
 
@@ -139,16 +211,15 @@ class ClientUpdateChange:
         )
 
 
-def parse_version_list(
+def parse_version_list_entries(
     payload: object,
     platform: ClientPlatform | str,
-) -> ClientVersionSnapshot:
-    """校验并选择 VersionList 中数值上最新的一条版本记录。
+) -> tuple[ClientVersionSnapshot, ...]:
+    """严格解析 VersionList 中的全部版本条目。
 
     ``versionList`` 的 key 是字符串：PC 通常是 patchVersion，安卓通常同时
-    充当资源目录号。因此排序始终使用归一化后的整数 ``version_key``，并以
-    ``patch_version`` 作为同值时的稳定次序；安卓资源目录保留原始 key，不猜测
-    或改写路径中的数字。
+    充当资源目录号。因此每条记录都保留数值 ``version_key`` 和安卓资源目录，
+    供 transport 在历史区间读取清单时使用。
     """
 
     normalized_platform = _coerce_platform(platform)
@@ -202,6 +273,16 @@ def parse_version_list(
             )
         )
 
+    return tuple(versions)
+
+
+def parse_version_list(
+    payload: object,
+    platform: ClientPlatform | str,
+) -> ClientVersionSnapshot:
+    """校验并选择 VersionList 中数值上最新的一条版本记录。"""
+
+    versions = parse_version_list_entries(payload, platform)
     return max(
         versions, key=lambda version: (version.version_key, version.patch_version)
     )
@@ -314,9 +395,14 @@ __all__ = [
     "ClientPlatform",
     "ClientRegion",
     "ClientUpdateChange",
+    "ClientUpdateFailureKind",
+    "ClientUpdateObservation",
     "ClientUpdateStructureError",
+    "ClientUpdateTransport",
+    "ClientUpdateTransportError",
     "ClientVersion",
     "ClientVersionSnapshot",
     "parse_version_list",
+    "parse_version_list_entries",
     "sum_patch_file_sizes",
 ]

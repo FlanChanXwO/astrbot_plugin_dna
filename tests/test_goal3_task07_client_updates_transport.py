@@ -417,3 +417,53 @@ async def test_malformed_manifest_does_not_produce_partial_patch_size(
 
     assert raised.value.kind is ClientUpdateFailureKind.CONTRACT
     assert "pakFilesMap" not in str(raised.value)
+
+
+@pytest.mark.asyncio
+async def test_manifest_network_failure_falls_back_to_contract_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """补丁清单主机网络失败时只切换到另一契约主机。"""
+
+    version_url = _version_url(PC_MAIN, PC_BRANCH)
+    primary_pak_url = _manifest_url(PC_MAIN, PC_BRANCH, "101", "PakFilesInfo.json")
+    fallback_pak_url = _manifest_url(PC_FALLBACK, PC_BRANCH, "101", "PakFilesInfo.json")
+    primary_res_url = _manifest_url(PC_MAIN, PC_BRANCH, "101", "ResDiscreteInfo.json")
+    session = _FakeSession(
+        {
+            version_url: _FakeResponse(
+                200,
+                _version_list(
+                    {
+                        "100": _version_entry(100, revamp=100),
+                        "101": _version_entry(101, revamp=101),
+                    }
+                ),
+            ),
+            primary_pak_url: OSError("primary manifest unavailable"),
+            fallback_pak_url: _FakeResponse(
+                200,
+                _manifest(
+                    "WindowsNoEditor",
+                    [{"fileName": "pc-101.pak", "fileSize": 7}],
+                ),
+            ),
+            primary_res_url: _FakeResponse(
+                200,
+                _manifest(
+                    "WindowsNoEditor",
+                    [{"fileName": "res-101.pak", "fileSize": 3}],
+                ),
+            ),
+        }
+    )
+    monkeypatch.setattr(client_updates_http.aiohttp, "ClientSession", lambda: session)
+
+    observation = await ClientUpdateTransport().get_observation(
+        ClientPlatform.PC,
+        previous_patch_version=100,
+    )
+
+    assert observation.patch_sizes == {101: 10}
+    assert [request.url for request in session.requests].count(fallback_pak_url) == 1
+    _assert_json_requests(session.requests, PC_USER_AGENT)
