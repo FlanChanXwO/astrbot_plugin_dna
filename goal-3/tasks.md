@@ -22,12 +22,12 @@
 
 ## Task 03：实现 typed contract、版本解析与大小归一化
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：新增客户端更新领域 contract 和纯解析逻辑；严格暴露结构错误，不依赖 AstrBot event。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `src/modules/client_updates/` 领域包：以 `ClientPlatform`/`ClientRegion` 和不可变 `ClientVersionSnapshot` 固化平台、区服、原始版本键、patch 版本、安卓资源目录及展示版本；`parse_version_list` 严格校验 `VersionList` 并按数值版本键选择最新记录；`sum_patch_file_sizes` 严格读取 PC/安卓目标 `pakFileInfos`，合并 `PakFilesInfo` 与 `ResDiscreteInfo`，按原始非空 `fileName` 去重并拒绝大小冲突、负数、布尔值和缺失结构。
+- 验证证据：运行 `python3 -m pytest --confcutdir=tests -q tests/test_goal3_task02_version_normalization.py`，19 项全部通过；`pyright src/modules/client_updates tests/test_goal3_task02_version_normalization.py` 报告 0 errors/0 warnings/0 informations；`ruff check`、`ruff format --check`、`python3 -m compileall -q` 均通过，LSP 诊断无错误。使用 `--confcutdir=tests` 是因为当前独立工作树缺少既有 `tests/.data` 且环境未安装 `astrbot`，项目根 `conftest.py` 无法加载；该环境问题未修改产品代码。
+- 剩余风险：Android 实际服务端响应若包含与数字 key 不同的显式资源目录字段，当前实现按契约允许的数字 key 原样作为目录号；后续 Task 07/08 需用 fake API fixture 验证真实响应、HTTP 错误分类及路径映射。当前模块只负责纯解析，不包含 transport、基线或调度。
+- 下一步：集中检查 01，复查领域模型、版本比较、大小口径和异常边界。
 
 ## 集中检查 01：领域模型与 API 解析复查
 
