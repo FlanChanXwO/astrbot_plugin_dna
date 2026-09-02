@@ -21,6 +21,7 @@ from src.infrastructure.scheduler_state import (
     SchedulerTaskState,
 )
 from src.infrastructure.subscriptions import SubscriptionStore
+from src.modules.client_updates import ClientUpdateChange
 
 TZ = ZoneInfo("Asia/Shanghai")
 
@@ -278,7 +279,11 @@ async def test_permanent_delete_prevents_client_update_task_creation_after_resta
     release = asyncio.Event()
 
     class _ClientUpdates:
-        async def poll_now(self) -> int:
+        async def poll_now(self) -> tuple[ClientUpdateChange, ...]:
+            return ()
+
+    class _ClientUpdateDelivery:
+        async def deliver(self, _changes: tuple[ClientUpdateChange, ...]) -> int:
             return 0
 
     async def sleep(_seconds: float) -> None:
@@ -288,6 +293,7 @@ async def test_permanent_delete_prevents_client_update_task_creation_after_resta
     registry = SchedulerRegistry(state_path)
     scheduler = ClientUpdatesScheduler(
         _ClientUpdates(),
+        _ClientUpdateDelivery(),
         registry=registry,
         sleep=sleep,
     )
@@ -301,6 +307,7 @@ async def test_permanent_delete_prevents_client_update_task_creation_after_resta
     restarted_registry = SchedulerRegistry(state_path)
     restarted = ClientUpdatesScheduler(
         _ClientUpdates(),
+        _ClientUpdateDelivery(),
         registry=restarted_registry,
         sleep=sleep,
     )

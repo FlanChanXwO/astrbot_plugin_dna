@@ -239,12 +239,12 @@
 
 ## Task 21：接通客户端更新定时推送闭环
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：让 scheduler 从轮询结果取得 per-platform `ClientUpdateChange`，按订阅目标调用 `ClientUpdateDeliveryService`；bootstrap 注入普通 AstrBot 消息发送和能力可选的 OneBot 合并转发适配器；保持平台/目标失败隔离、配置、生命周期和安全文案语义。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：将 `ClientUpdateService.poll_now()` 改为返回本轮各平台的 `ClientUpdateChange`；为 `ClientUpdatesScheduler` 增加显式 delivery port，在独立任务中仅对有变化的结果调用投递服务；bootstrap 构造并注册 `ClientUpdatePushAdapter`、`ClientUpdateDeliveryService`，普通文本绑定 `Context.send_message`，OneBot 合并转发绑定原生 `Nodes`，失败由现有 adapter 降级为普通消息；同步服务注入边界、受影响测试和使用/架构文档。
+- 验证证据：新增 Task 21 闭环测试 3 项通过；客户端更新及调度相关回归共 `69 passed, 1 warning`；客户端模块与 scheduler `pyright` 为 `0 errors, 0 warnings, 0 informations`；`python3 -m compileall -q .`、相关 Ruff check/format、`git diff --check` 通过；bootstrap Ruff check 通过，LSP 对 service、scheduler、bootstrap 无诊断。TDD Red 阶段新测试曾实际得到 3 个失败，随后在实现接线后转绿。
+- 剩余风险：Task 21 仍按当前基线直接投递，尚未持久化 pending 事件、固定首次目标、逐目标 delivered/pending、失败重试和取消清理；这些属于 Task 22。尚未在真实 AstrBot/OneBot 运行实例上发送验证，OneBot 合并能力仍依赖宿主返回成功并在失败时降级；全文件 Ruff format 仍受 bootstrap 中既有的非本任务格式漂移影响。
+- 下一步：Task 22，实现独立待投递事件状态、重试和取消/停用清理。
 
 ## Task 22：实现客户端更新待投递事件状态与重试
 

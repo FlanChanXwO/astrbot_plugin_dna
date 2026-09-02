@@ -14,7 +14,7 @@ from typing import Any, cast
 
 from astrbot.api.star import Context
 from astrbot.core import AstrBotConfig
-from astrbot.core.message.components import At, Plain
+from astrbot.core.message.components import At, Node, Nodes, Plain
 from astrbot.core.message.components import Image as AstrImage
 from astrbot.core.message.message_event_result import MessageChain
 
@@ -79,6 +79,10 @@ from .modules.admin import (
 from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
 from .modules.client_updates.contracts import ClientUpdateTransport
+from .modules.client_updates.delivery import (
+    ClientUpdateDeliveryService,
+    ClientUpdatePushAdapter,
+)
 from .modules.client_updates.service import ClientUpdateService
 from .modules.client_updates.state import ClientUpdateStateStore
 from .modules.encyclopedia.contracts import EncyclopediaTransport
@@ -487,6 +491,47 @@ def build_runtime(
         registry=scheduler_registry,
     )
 
+    async def _send_client_update_text(origin: str, text: str) -> bool:
+        """把客户端更新普通文本交给 AstrBot 主动消息接口。"""
+
+        try:
+            result = context.send_message(origin, MessageChain(chain=[Plain(text)]))
+            if inspect.isawaitable(result):
+                result = await result
+            return result is not False
+        except Exception as error:  # noqa: BLE001
+            from astrbot.api import logger
+
+            logger.warning(
+                "[dnaby][client_update] 普通消息推送失败（错误类型：%s）",
+                type(error).__name__,
+            )
+            return False
+
+    async def _send_client_update_forward(
+        origin: str,
+        texts: tuple[str, ...],
+    ) -> bool:
+        """使用 AstrBot 原生 Nodes 组件尝试 OneBot 合并转发。"""
+
+        nodes = [Node(content=[Plain(text)], name="DNAUID", uin="0") for text in texts]
+        try:
+            result = context.send_message(
+                origin,
+                MessageChain(chain=[Nodes(nodes)]),
+            )
+            if inspect.isawaitable(result):
+                result = await result
+            return result is not False
+        except Exception as error:  # noqa: BLE001
+            from astrbot.api import logger
+
+            logger.warning(
+                "[dnaby][client_update] 合并转发推送失败（错误类型：%s）",
+                type(error).__name__,
+            )
+            return False
+
     resolved_client_updates_transport = (
         client_updates_transport
         or DnaApiClientUpdateTransport(
@@ -516,8 +561,28 @@ def build_runtime(
             ClientUpdateService,
             services["client_update_service"],
         )
+    client_update_push_adapter = ClientUpdatePushAdapter(
+        send_text=_send_client_update_text,
+        send_forward=_send_client_update_forward,
+        merge_forward=settings.notifications.client_update_merge_forward,
+    )
+    if services is not None and "client_update_push_adapter" in services:
+        client_update_push_adapter = cast(
+            ClientUpdatePushAdapter,
+            services["client_update_push_adapter"],
+        )
+    client_update_delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        client_update_push_adapter,
+    )
+    if services is not None and "client_update_delivery" in services:
+        client_update_delivery = cast(
+            ClientUpdateDeliveryService,
+            services["client_update_delivery"],
+        )
     client_updates_scheduler = ClientUpdatesScheduler(
         client_update_service,
+        client_update_delivery,
         enabled=settings.notifications.client_update_enabled,
         check_minutes=settings.notifications.client_update_check_minutes,
         registry=scheduler_registry,
@@ -614,6 +679,8 @@ def build_runtime(
         "client_updates_transport": resolved_client_updates_transport,
         "client_update_state": client_update_state,
         "client_update_service": client_update_service,
+        "client_update_push_adapter": client_update_push_adapter,
+        "client_update_delivery": client_update_delivery,
         "client_updates_scheduler": client_updates_scheduler,
         "admin_api_service": admin_api_service,
         "admin_account_service": admin_account_service,

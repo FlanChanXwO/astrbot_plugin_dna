@@ -155,7 +155,8 @@ async def test_fake_api_rounds_keep_platform_failures_isolated_and_reload_state(
         "platforms": [ClientPlatform.PC.value, ClientPlatform.ANDROID.value]
     }
 
-    assert await service.poll_now() == 1
+    first_changes = await service.poll_now()
+    assert [change.platform for change in first_changes] == [ClientPlatform.ANDROID]
     pc_after_pc_failure = await state.get_baseline(ClientRegion.CN, ClientPlatform.PC)
     android_after_success = await state.get_baseline(
         ClientRegion.CN,
@@ -169,7 +170,8 @@ async def test_fake_api_rounds_keep_platform_failures_isolated_and_reload_state(
     assert android_after_success.last_change is not None
     assert android_after_success.last_change.added_size_bytes == 30
 
-    assert await service.poll_now() == 1
+    second_changes = await service.poll_now()
+    assert [change.platform for change in second_changes] == [ClientPlatform.PC]
     pc_after_success = await state.get_baseline(ClientRegion.CN, ClientPlatform.PC)
     android_after_android_failure = await state.get_baseline(
         ClientRegion.CN,

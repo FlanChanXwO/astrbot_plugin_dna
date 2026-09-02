@@ -9,13 +9,14 @@ registry。
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime, timedelta
 from typing import Protocol, cast
 from zoneinfo import ZoneInfo
 
 from astrbot.api import logger
 
+from ..modules.client_updates.contracts import ClientUpdateChange
 from .scheduler_state import (
     SchedulerRegistry,
     SchedulerTaskDefinition,
@@ -37,7 +38,13 @@ SleepCallable = Callable[[float], Awaitable[None]]
 class SchedulableClientUpdates(Protocol):
     """计划任务所需的客户端更新轮询接口。"""
 
-    async def poll_now(self) -> int: ...
+    async def poll_now(self) -> tuple[ClientUpdateChange, ...]: ...
+
+
+class ClientUpdateDeliveryPort(Protocol):
+    """计划任务所需的客户端更新投递接口。"""
+
+    async def deliver(self, changes: Sequence[ClientUpdateChange]) -> int: ...
 
 
 class ClientUpdatesScheduler:
@@ -46,6 +53,7 @@ class ClientUpdatesScheduler:
     def __init__(
         self,
         client_updates: SchedulableClientUpdates,
+        delivery: ClientUpdateDeliveryPort,
         *,
         enabled: bool = True,
         check_minutes: int = DEFAULT_CLIENT_UPDATE_CHECK_MINUTES,
@@ -54,6 +62,7 @@ class ClientUpdatesScheduler:
         registry: SchedulerRegistry | None = None,
     ) -> None:
         self.client_updates = client_updates
+        self.delivery = delivery
         self.enabled = bool(enabled)
         self.check_minutes = _validate_check_minutes(check_minutes)
         self._sleep = sleep
@@ -88,7 +97,9 @@ class ClientUpdatesScheduler:
             if snapshot is None or snapshot.state is SchedulerTaskState.PAUSED:
                 return
             try:
-                await self.client_updates.poll_now()
+                changes = await self.client_updates.poll_now()
+                if changes:
+                    await self.delivery.deliver(changes)
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001
@@ -203,6 +214,7 @@ __all__ = [
     "CLIENT_UPDATE_TASK_ID",
     "CLIENT_UPDATE_TASK_NAME",
     "DEFAULT_CLIENT_UPDATE_CHECK_MINUTES",
+    "ClientUpdateDeliveryPort",
     "ClientUpdatesScheduler",
     "SchedulableClientUpdates",
 ]

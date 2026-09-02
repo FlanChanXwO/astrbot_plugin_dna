@@ -14,8 +14,16 @@ from src.infrastructure.config import (
     generate_astrbot_schema,
 )
 from src.infrastructure.scheduler_state import SchedulerRegistry, SchedulerTaskState
+from src.modules.client_updates import ClientUpdateChange
 
 CLIENT_UPDATE_TASK_ID = "dnaby_client_update_poll"
+
+
+class _NoopDelivery:
+    """旧 scheduler 行为测试使用的无操作投递端。"""
+
+    async def deliver(self, _changes: tuple[ClientUpdateChange, ...]) -> int:
+        return 0
 
 
 class _FakeClientUpdates:
@@ -26,12 +34,12 @@ class _FakeClientUpdates:
         self.calls = 0
         self.called = asyncio.Event()
 
-    async def poll_now(self) -> int:
+    async def poll_now(self) -> tuple[ClientUpdateChange, ...]:
         self.calls += 1
         self.called.set()
         if self.error is not None:
             raise self.error
-        return 0
+        return ()
 
 
 class _BlockingSleep:
@@ -74,6 +82,7 @@ def _build_scheduler(
     registry = SchedulerRegistry(tmp_path / "scheduler_state.json")
     scheduler = ClientUpdatesScheduler(
         client_updates,
+        _NoopDelivery(),
         enabled=enabled,
         check_minutes=check_minutes,
         registry=registry,

@@ -74,8 +74,9 @@
   `ClientUpdatesScheduler` 独立注册 `dnaby_client_update_poll`，周期为
   `interval@{notifications.client_update_check_minutes}m`，不与公告任务共用周期。`ClientUpdateDeliveryService`
   按 `Subscription.extra_data.platforms` 筛选目标，`ClientUpdatePushAdapter` 仅在 OneBot 且开关开启时
-  尝试合并同轮平台消息，能力不可用或失败则降级为逐平台普通消息并记录安全原因；待投递事件持久化和
-  具体 AstrBot/OneBot 消息节点 bootstrap 接线仍由后续集成覆盖。
+  尝试合并同轮平台消息，能力不可用或失败则降级为逐平台普通消息并记录安全原因；bootstrap 已绑定
+  `Context.send_message`，普通消息使用 `MessageChain`，OneBot 合并转发使用原生 `Nodes`；待投递事件持久化和
+  失败目标重试仍由后续集成覆盖。
 - 通知读取：`src/modules/notices/` 通过 `NoticesTransport` 读取密函（角色/武器/魔之楔分节，
   复用 legacy `get_default_role_for_tool` 的 `instanceInfo`）、公告列表与详情（公共 BBS，
   HTML 清洗复用 `dnaby/dna_ann/utils` 纯逻辑）。公告 transport 解包 `postDetail`、完整翻页

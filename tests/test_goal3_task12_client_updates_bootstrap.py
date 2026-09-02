@@ -94,8 +94,12 @@ async def test_client_update_service_poll_now_observes_both_platforms(
     state = ClientUpdateStateStore(tmp_path / "client_update_state.json")
     service = ClientUpdateService(state, transport=transport)
 
-    assert await service.poll_now() == 0
-    assert await service.poll_now() == 2
+    assert await service.poll_now() == ()
+    changes = await service.poll_now()
+    assert [change.platform for change in changes] == [
+        ClientPlatform.PC,
+        ClientPlatform.ANDROID,
+    ]
     assert transport.calls == [
         (ClientPlatform.PC, None),
         (ClientPlatform.ANDROID, None),
