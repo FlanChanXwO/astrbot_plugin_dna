@@ -112,12 +112,12 @@
 
 ## 集中检查 03：transport、订阅权限与命令范围复查
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 检查：API 契约覆盖、凭据/URL 泄露、命令正则与 registry 投影、权限、订阅数据格式、错误日志和文案边界。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：复查 `src/infrastructure/http/client_updates.py` 与更新 API 契约：固定国服 PC/安卓主机、分支和 User-Agent，仅读取 JSON，不请求 `.pak`/`.sig`，网络/5xx 只回退一次，4xx/结构错误不回退；确认错误字符串与 repr 不带原始响应、URL 或凭据。复查 `SubscriptionStore` 的 `type + unified_msg_origin + uid` 去重和原子 JSON 写入，以及 `CommandRegistry` 的显式模块索引、权限过滤和 manifest 生成边界。确认客户端更新命令、模块索引和 `commands.json` 投影目前尚未实现，符合 Task10 的后续边界，而现有 manifest 没有漂移。
+- 验证证据：使用项目 `.venv` 运行 transport、版本/状态、订阅存储和命令 registry 回归，共 `62 passed`；相关 transport、contract、订阅存储、命令 registry 和模块索引文件的 LSP 诊断均无错误；静态检索确认客户端更新实现只含契约声明的公开 URL、无 token/cookie/authorization，Task09 Red 测试仍明确锁定缺失的 `src.modules.client_updates.commands`。
+- 剩余风险：Task10 必须实现命令与文案、加入 `src/modules/index.py` 并重新生成 `commands.json`；use case 不能只依赖 `admin` 权限过滤，还必须拒绝私聊并校验群聊 actor，且要验证 `extra_data` 为固定顺序的 `{"platforms": ["pc", "android"]}` 子集。Task10/12/15 还需保证 transport 错误日志只记录 `kind/resource` 等安全摘要、不输出 `detail`，并处理领域 `ClientUpdateTransport` protocol 与基础设施同名实现的导入边界。当前无本轮阻塞问题。
+- 下一步：Task10，实现订阅 use case、消息文案与命令 registry。
 
 ## Task 10：实现订阅 use case、消息文案与命令 registry
 
