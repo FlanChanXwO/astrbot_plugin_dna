@@ -130,12 +130,12 @@
 
 ## Task 11：为定时任务与配置编写 Red 测试
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：覆盖独立开关、默认约 1 小时周期、启停幂等、任务错误可观测和配置 schema 生成。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `tests/test_goal3_task11_client_updates_scheduler.py`，为 `NotificationSettings` 的客户端更新三项配置、正周期校验、typed schema 默认值，以及独立 `ClientUpdatesScheduler` 的任务 ID/targets/`interval@60m`、关闭开关、启停幂等和 registry error 可观测性建立 Red 契约；测试使用可注入 sleep 与事件，不依赖真实时钟。
+- 验证证据：Red 阶段运行目标测试得到 `6 failed`：配置字段/schema 当前缺失，scheduler 模块当前尚未实现；随后该测试文件通过 `ruff check`、`compileall`、`git diff --check`，新文件 LSP diagnostics 为空。
+- 剩余风险：本轮只登记契约，尚未实现 `ClientUpdatesScheduler`、scheduler registry 新任务 ID 或三项配置；这些留给 Task12/后续配置同步任务。
+- 下一步：Task 12，实现独立 scheduler 与 bootstrap 接线。
 
 ## Task 12：实现独立 scheduler 与 bootstrap 接线
 
