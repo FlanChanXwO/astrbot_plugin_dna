@@ -110,6 +110,20 @@ def test_command_doc_count_matches_manifest() -> None:
     assert int(match.group(1)) == len(commands)
 
 
+def test_command_doc_lists_every_manifest_name_and_example() -> None:
+    commands = json.loads(_read(COMMANDS))
+    text = _read(COMMANDS_DOC)
+    missing_names = [item["name"] for item in commands if item["name"] not in text]
+    missing_examples = [
+        example
+        for item in commands
+        for example in item.get("examples", [])
+        if f"`{example}`" not in text
+    ]
+    assert not missing_names, f"命令文档缺少 manifest 命令：{missing_names}"
+    assert not missing_examples, f"命令文档缺少 manifest 示例：{missing_examples}"
+
+
 def test_developer_setup_uses_portable_paths() -> None:
     text = _read(DEVELOPER_SETUP)
     assert "/Users/" not in text
