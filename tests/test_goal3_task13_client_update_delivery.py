@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -239,7 +240,9 @@ async def test_push_adapter_does_not_merge_non_onebot_or_disabled_targets(
 
 
 @pytest.mark.asyncio
-async def test_push_adapter_falls_back_to_independent_text_when_forward_fails() -> None:
+async def test_push_adapter_falls_back_to_independent_text_when_forward_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """合并转发能力不可用时，必须降级普通消息且不吞掉其他平台内容。"""
 
     sender = _RecordingMessageSender([], [])
@@ -252,7 +255,12 @@ async def test_push_adapter_falls_back_to_independent_text_when_forward_fails() 
         send_forward=unavailable_forward,
     )
 
-    assert await adapter.send(_push()) is True
+    with caplog.at_level(logging.WARNING):
+        assert await adapter.send(_push()) is True
+
+    assert "OneBot 合并转发" in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "forward component unavailable" not in caplog.text
     assert sender.forward_calls == []
     assert sender.text_calls == [
         ("platform:group:g1", "pc update"),

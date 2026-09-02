@@ -22,6 +22,14 @@ from .service import (
     ClientUpdateRollbackError,
     ClientUpdateService,
 )
+from .delivery import (
+    ClientUpdateDeliveryService,
+    ClientUpdatePush,
+    ClientUpdatePushAdapter,
+    ClientUpdatePushMessage,
+    ClientUpdatePushPort,
+    ClientUpdatePushTarget,
+)
 from .state import (
     STATE_VERSION,
     ClientUpdateBaseline,
@@ -35,6 +43,12 @@ __all__ = [
     "ClientRegion",
     "ClientUpdateBaseline",
     "ClientUpdateChange",
+    "ClientUpdateDeliveryService",
+    "ClientUpdatePush",
+    "ClientUpdatePushAdapter",
+    "ClientUpdatePushMessage",
+    "ClientUpdatePushPort",
+    "ClientUpdatePushTarget",
     "ClientUpdateFailureKind",
     "ClientUpdateObservation",
     "ClientUpdatePatchSizeError",

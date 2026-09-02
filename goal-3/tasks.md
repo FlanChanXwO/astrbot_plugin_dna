@@ -166,12 +166,12 @@
 
 ## Task 14：实现推送 DTO 与 OneBot 合并转发适配
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：扩展推送边界，使业务层不依赖框架组件；OneBot 合并转发安全可用时使用节点，否则按平台普通消息发送并记录原因。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `src/modules/client_updates/delivery.py`，提供框架无关的 `ClientUpdatePushTarget`、`ClientUpdatePushMessage`、`ClientUpdatePush` DTO 与 `ClientUpdatePushPort`；`ClientUpdateDeliveryService` 按订阅 JSON 平台筛选、固定 PC/安卓顺序构造消息并隔离目标失败；`ClientUpdatePushAdapter` 仅在 OneBot 且开关开启且存在转发端口时请求合并转发，端口缺失、抛错或返回失败均记录错误类型/原因并降级为逐平台普通消息，普通消息失败继续尝试同目标的其他平台消息。模块不导入 AstrBot 组件，节点构造由注入的 forward port 负责。
+- 验证证据：Task 13 Red 测试在实现后 Green，目标客户端更新回归共 `56 passed`；新增日志断言确认合并失败会记录 OneBot 原因但不泄露异常原文；`pyright` 报告 `0 errors`，目标文件 `ruff check`、`ruff format --check`、`python3 -m compileall -q` 与 `git diff --check` 均通过。
+- 剩余风险：当前提交固化并实现框架无关推送边界，具体 AstrBot `MessageChain`/OneBot `Node` 构造、bootstrap 注入和 pending 事件持久化仍需后续集成任务覆盖；本轮未执行真实平台发送。
+- 下一步：Task 15，同步命令、配置与数据模型文档。
 
 ## Task 15：同步命令、配置与数据模型文档
 
