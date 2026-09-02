@@ -52,19 +52,6 @@
             <button
               class="nav-item"
               type="button"
-              data-page="panels"
-              :class="{ 'is-active': activePage === 'panels' }"
-              :aria-current="activePage === 'panels' ? 'page' : undefined"
-              @click="navigate('panels')"
-            >
-              <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-6" />
-              </svg>
-              <span>面板图</span>
-            </button>
-            <button
-              class="nav-item"
-              type="button"
               data-page="tasks"
               :class="{ 'is-active': activePage === 'tasks' }"
               :aria-current="activePage === 'tasks' ? 'page' : undefined"
@@ -144,126 +131,6 @@
           </section>
 
           <div v-else class="page-content">
-            <section v-if="activePage === 'panels'" class="content-section" aria-labelledby="panels-title">
-              <div class="section-heading">
-                <div>
-                  <p class="section-kicker">PANEL ASSETS</p>
-                  <h2 id="panels-title">角色面板图</h2>
-                  <p class="section-help">按角色管理自定义面板图；图片只在需要查看时读取。</p>
-                </div>
-                <span class="section-status">{{ panelRoles.length }} 个角色</span>
-              </div>
-
-              <div class="panel-toolbar">
-                <label class="field field--search">
-                  <span>搜索角色</span>
-                  <input
-                    v-model="panelSearch"
-                    type="search"
-                    placeholder="输入角色名称"
-                    autocomplete="off"
-                  />
-                </label>
-                <label class="field">
-                  <span>当前角色</span>
-                  <select v-model="selectedPanelRole" @change="reloadPanelState">
-                    <option value="">请选择角色</option>
-                    <option v-for="role in filteredPanels" :key="role" :value="role">{{ role }}</option>
-                  </select>
-                </label>
-                <button class="button button--secondary" type="button" @click="selectPanelRole(panelSearch)">
-                  载入角色
-                </button>
-                <label class="button button--primary file-button" :class="{ 'is-busy': panelActionBusy }">
-                  上传面板图
-                  <input
-                    id="panel-upload-input"
-                    class="file-input"
-                    type="file"
-                    accept="image/*"
-                    :disabled="!selectedPanelRole || panelActionBusy"
-                    @change="prepareUploadPanel($event)"
-                  />
-                </label>
-                <button
-                  class="button button--secondary"
-                  type="button"
-                  :disabled="panelActionBusy"
-                  @click="confirmCompressPanels"
-                >
-                  压缩全部
-                </button>
-                <button
-                  class="button button--danger"
-                  type="button"
-                  :disabled="!selectedPanelRole || panelActionBusy"
-                  @click="confirmDeleteAllPanels"
-                >
-                  删除当前角色全部
-                </button>
-              </div>
-
-              <p v-if="panelError" class="inline-error" role="alert">{{ panelError }}</p>
-              <div v-if="panelsLoading" class="section-loading" role="status" aria-live="polite">
-                <span class="spinner" aria-hidden="true"></span>
-                正在读取面板图元数据…
-              </div>
-              <div v-else-if="!selectedPanelRole" class="empty-state empty-state--compact">
-                <div class="empty-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-6" /></svg>
-                </div>
-                <h3>选择一个角色开始</h3>
-                <p>可以从角色目录选择，也可以输入角色名称后载入。</p>
-              </div>
-              <div v-else-if="!panelImages.length" class="empty-state empty-state--compact">
-                <div class="empty-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 15l3-3 2 2 2-2 3 3M8 9h.01" /></svg>
-                </div>
-                <h3>当前角色暂无面板图</h3>
-                <p>上传一张自定义图片后，它会出现在这里。</p>
-              </div>
-              <div v-else class="panel-grid">
-                <article v-for="panel in panelImages" :key="panel.id" class="panel-card">
-                  <div class="panel-preview">
-                    <img
-                      v-if="panelImageUrl(panel)"
-                      class="panel-thumbnail"
-                      :src="panelImageUrl(panel)"
-                      :alt="`${panel.filename} 缩略图`"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                    <button
-                      v-else
-                      class="thumbnail-button"
-                      type="button"
-                      :disabled="panel.loading"
-                      @click="loadPanelImage(panel)"
-                    >
-                      {{ panel.loading ? '读取中…' : '按需读取缩略图' }}
-                    </button>
-                  </div>
-                  <div class="panel-card-meta">
-                    <strong>{{ panel.filename }}</strong>
-                    <span>{{ formatBytes(panel.size) }}</span>
-                  </div>
-                  <div class="panel-card-actions">
-                    <button class="button button--secondary button--small" type="button" @click="loadPanelImage(panel)">
-                      {{ panelImageUrl(panel) ? '重新读取' : '查看缩略图' }}
-                    </button>
-                    <button
-                      class="button button--danger button--small"
-                      type="button"
-                      :disabled="panelActionBusy"
-                      @click="confirmDeletePanel(panel)"
-                    >
-                      删除
-                    </button>
-                  </div>
-                </article>
-              </div>
-            </section>
-
             <section v-if="activePage === 'tasks'" class="content-section" aria-labelledby="tasks-title">
               <div class="section-heading">
                 <div>
@@ -531,10 +398,6 @@
                           <dd>{{ account.has_app_credentials ? account.app_status || '已配置' : '未配置' }}</dd>
                         </div>
                         <div>
-                          <dt>Web 凭据</dt>
-                          <dd>{{ account.has_web_credentials ? account.web_status || '已配置' : '未配置' }}</dd>
-                        </div>
-                        <div>
                           <dt>身份范围</dt>
                           <dd>全局 user_id + uid</dd>
                         </div>
@@ -731,29 +594,6 @@
                 <label class="field">
                   <span>App status</span>
                   <input v-model="accountForm.credentials.app_status" type="text" autocomplete="off" />
-                </label>
-              </fieldset>
-              <fieldset class="credential-fieldset">
-                <legend>Web 全部明文凭据</legend>
-                <label class="field">
-                  <span>Web token</span>
-                  <input v-model="accountForm.credentials.web_token" type="text" autocomplete="off" spellcheck="false" />
-                </label>
-                <label class="field">
-                  <span>Web device code</span>
-                  <input v-model="accountForm.credentials.web_device_code" type="text" autocomplete="off" spellcheck="false" />
-                </label>
-                <label class="field">
-                  <span>Web d_num</span>
-                  <input v-model="accountForm.credentials.web_d_num" type="text" autocomplete="off" spellcheck="false" />
-                </label>
-                <label class="field">
-                  <span>Web refresh token</span>
-                  <input v-model="accountForm.credentials.web_refresh_token" type="text" autocomplete="off" spellcheck="false" />
-                </label>
-                <label class="field">
-                  <span>Web status</span>
-                  <input v-model="accountForm.credentials.web_status" type="text" autocomplete="off" />
                 </label>
               </fieldset>
               <div class="drawer-footer">

@@ -61,12 +61,13 @@ from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
+from .modules.account.login_flow import LoginFlowCoordinator
+from .modules.account.transport import LoginTransport, build_transport
 from .modules.admin import (
     AccountDeletionCoordinator,
     AdminAccountService,
     AdminAliasService,
     AdminApiService,
-    AdminPanelService,
     AdminPreviewService,
     AiocqhttpMembershipProbe,
     MembershipService,
@@ -81,7 +82,6 @@ from .modules.notices.contracts import NoticesTransport
 from .modules.notices.service import NoticesService
 from .modules.notices.target_service import AnnouncementTargetService
 from .modules.operations.resource_service import ResourceUpdateService
-from .modules.operations.service import PanelService
 from .modules.player.cache import PlayerCache
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
@@ -155,20 +155,77 @@ def build_runtime(
         runtime_database = AsyncDatabase.from_data_dir(
             StarTools.get_data_dir(PLUGIN_NAME),
         )
+    resolved_account_transport = account_transport or DnaApiAccountTransport()
     account_service = AccountService(
         runtime_database,
-        account_transport or DnaApiAccountTransport(),
+        resolved_account_transport,
         max_bind_count=settings.login.max_bind_count,
     )
+    if services is not None and "account_service" in services:
+        account_service = cast(AccountService, services["account_service"])
+
+    async def _notify_login(actor: Any, response: object) -> None:
+        """把后台登录终态投递回发起登录的 AstrBot 会话。"""
+
+        origin = getattr(actor, "unified_msg_origin", None)
+        text = getattr(response, "text", None)
+        if not isinstance(origin, str) or not origin or not isinstance(text, str):
+            return
+        try:
+            message = MessageChain(chain=[Plain(text)])
+            result = context.send_message(origin, message)
+            if inspect.isawaitable(result):
+                await result
+        except Exception as error:  # noqa: BLE001
+            from astrbot.api import logger
+
+            logger.error(
+                "登录完成消息发送失败 kind=%s",
+                type(error).__name__,
+            )
+
+    login_flow: object
+    if services is not None and "login_flow" in services:
+        login_flow = services["login_flow"]
+    else:
+        external_login_transport: LoginTransport | None = None
+        if settings.login.transport != "local" and settings.login.url.strip():
+            external_login_transport = build_transport(
+                settings.login.url,
+                settings.login.transport,
+                settings.login.shared_secret.get_secret_value(),
+            )
+        injected_login_server = (
+            cast(Any, services["login_server"])
+            if services is not None and "login_server" in services
+            else None
+        )
+        login_flow = LoginFlowCoordinator(
+            account_service,
+            settings.login,
+            account_transport=resolved_account_transport,
+            external_transport=external_login_transport,
+            local_server=injected_login_server,
+            notify=_notify_login,
+        )
+    set_login_flow = getattr(account_service, "set_login_flow", None)
+    if callable(set_login_flow):
+        set_login_flow(login_flow)
     privacy_service = PrivacyService(
         runtime_database,
         allow_mention_query=settings.display.allow_mention_query,
+    )
+    custom_alias_path = runtime_database.path.parent / "alias_custom.json"
+    custom_weapon_alias_path = (
+        runtime_database.path.parent / "weapon_alias_custom.json"
     )
     resource_cache_root = resource_repository_dir(runtime_database.path.parent)
     resource_snapshots = ResourceSnapshotCoordinator(
         resource_cache_root,
         generations_root=resource_generations_dir(runtime_database.path.parent),
         acceleration_prefix=settings.resources.acceleration_prefix,
+        custom_alias_path=custom_alias_path,
+        custom_weapon_alias_path=custom_weapon_alias_path,
     )
     initial_resource_snapshot = resource_snapshots.initialize()
     resource_root = (
@@ -189,7 +246,11 @@ def build_runtime(
     encyclopedia_resources = (
         initial_resource_snapshot.encyclopedia_resources
         if initial_resource_snapshot is not None
-        else EncyclopediaResourceStore.from_root(resource_root)
+        else EncyclopediaResourceStore.from_root(
+            resource_root,
+            custom_alias_path=custom_alias_path,
+            custom_weapon_alias_path=custom_weapon_alias_path,
+        )
     )
     rendered_root = runtime_database.path.parent / "rendered"
     cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
@@ -408,11 +469,13 @@ def build_runtime(
         resource_snapshots=resource_snapshots,
         request_gate=request_gate,
         announcement_targets=announcement_targets,
+        secret_retry_interval_seconds=settings.notifications.secret_retry_interval_seconds,
     )
     notices_scheduler = NoticesScheduler(
         notices_service,
         announcement_enabled=settings.notifications.announcement_enabled,
         poll_minutes=settings.notifications.announcement_check_minutes,
+        push_minute=settings.notifications.secret_push_minute,
         registry=scheduler_registry,
     )
     admin_api_service = AdminApiService(
@@ -429,29 +492,13 @@ def build_runtime(
         announcement_target_service=announcement_targets,
     )
 
-    def _resolve_char_id(char_name: str) -> str | None:
-        from .utils.name_convert import char_name_to_char_id
-
-        return char_name_to_char_id(char_name)
-
-    def _panel_dir_for(char_id: str) -> str:
-        from .utils.master_char_const import get_master_char_panel_dir
-
-        return get_master_char_panel_dir(char_id)
-
-    panel_service = PanelService(
-        runtime_database.path.parent / "panel_custom",
-        resource_root=resource_root,
-        resolve_char_id=_resolve_char_id,
-        panel_dir_for=_panel_dir_for,
-        resource_snapshots=resource_snapshots,
-    )
-
     def _synchronize_resources():
         return resource_snapshots.synchronize()
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
+        resource_root=resource_root,
+        resource_snapshots=resource_snapshots,
     )
     if services is not None and "resource_update_service" in services:
         # 复用现有 services 注入边界，使生命周期测试和宿主可提供同契约实现。
@@ -459,10 +506,27 @@ def build_runtime(
             ResourceUpdateService,
             services["resource_update_service"],
         )
-    admin_panel_service = AdminPanelService(panel_service)
+
+    def _refresh_alias_views() -> None:
+        """别名写入后立即替换当前百科视图，不要求重载插件。"""
+
+        current_root = Path(resolved_services.get("resource_root", resource_root))
+        updated = EncyclopediaResourceStore.from_root(
+            current_root,
+            custom_alias_path=custom_alias_path,
+            custom_weapon_alias_path=custom_weapon_alias_path,
+        )
+        encyclopedia_service.renderer.resources = updated
+        encyclopedia_service.resources = updated
+        checkin_renderer.resources = updated
+        notices_renderer.resources = updated
+        resolved_services["encyclopedia_resources"] = updated
+
     admin_alias_service = AdminAliasService(
         resource_root=resource_root,
-        custom_path=runtime_database.path.parent / "alias_custom.json",
+        custom_path=custom_alias_path,
+        weapon_custom_path=custom_weapon_alias_path,
+        refresh=_refresh_alias_views,
     )
     admin_account_service = AdminAccountService(runtime_database)
     admin_preview_service = AdminPreviewService(
@@ -473,6 +537,7 @@ def build_runtime(
     resolved_services: dict[str, object] = {
         "database": runtime_database,
         "account_service": account_service,
+        "login_flow": login_flow,
         "privacy_service": privacy_service,
         "cache_manager": cache_manager,
         "player_cache": player_cache,
@@ -498,9 +563,7 @@ def build_runtime(
         "admin_api_service": admin_api_service,
         "admin_account_service": admin_account_service,
         "admin_preview_service": admin_preview_service,
-        "admin_panel_service": admin_panel_service,
         "admin_alias_service": admin_alias_service,
-        "panel_service": panel_service,
         "resource_update_service": resource_update_service,
         "resource_snapshots": resource_snapshots,
     }
@@ -515,7 +578,6 @@ def build_runtime(
         encyclopedia_service.resources = new_encyclopedia_resources
         checkin_renderer.resources = new_encyclopedia_resources
         notices_renderer.resources = new_encyclopedia_resources
-        panel_service.resource_root = snapshot.root
         resolved_services["resource_root"] = snapshot.root
         resolved_services["player_resources"] = new_player_resources
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources
@@ -551,6 +613,7 @@ def build_runtime(
     web = WebRegistrar(context, build_admin_web_routes(resolved_services))
     lifecycle = PluginLifecycle(
         start_hooks=(
+            login_flow.start,
             web.initialize,
             cache_maintenance.start,
             resource_update_service.start_preheat,
@@ -566,6 +629,7 @@ def build_runtime(
             sign_scheduler.stop,
             notices_scheduler.stop,
             agent_tools_lifecycle.stop,
+            login_flow.stop,
         ),
     )
     return PluginRuntime(

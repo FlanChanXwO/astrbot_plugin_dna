@@ -24,6 +24,7 @@ from src.infrastructure.resources import (
 )
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.manifest import RUNTIME_RESOURCE_DIRECTORIES
+from src.modules.admin.aliases import AdminAliasService
 from src.modules.player.service import PlayerService
 
 
@@ -205,7 +206,8 @@ def test_resource_sync_rejects_manifest_missing_runtime_layout(tmp_path: Path) -
         ResourceSynchronizer(target, remote=remote, runner=runner).validate()
 
 
-def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) -> None:
     """完整 manifest 下，两个查询模块必须读取同一个运行期资源根。"""
 
     data_dir = tmp_path / "plugin-data"
@@ -264,6 +266,16 @@ def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) -> Non
     assert encyclopedia_resources.guides_for("小甲", ("攻略组",))[0].path == guide
     assert encyclopedia_resources.weekly_asset(100) == weekly
     assert encyclopedia_resources.calendar_asset("calendar-a.png") == calendar
+
+    alias_service = cast(AdminAliasService, runtime.services["admin_alias_service"])
+    assert (await alias_service.add_alias("角色甲", "运行期小甲")).ok is True
+    assert (await alias_service.add_weapon_alias("武器甲", "运行期大剑")).ok is True
+    updated_resources = cast(
+        EncyclopediaResourceStore,
+        runtime.services["encyclopedia_resources"],
+    )
+    assert updated_resources.aliases.resolve_char("运行期小甲") == "角色甲"
+    assert updated_resources.aliases.resolve_weapon("运行期大剑") == "武器甲"
 
 
 def test_resource_sync_clones_once_and_pulls_after_clean_check(tmp_path: Path) -> None:

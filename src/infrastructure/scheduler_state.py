@@ -23,8 +23,9 @@ BUILTIN_SCHEDULER_TASK_IDS = (
 _DAILY_TASK_IDS = frozenset(("dnaby_sign_daily", "dnaby_sign_cleanup"))
 _HOURLY_TASK_IDS = frozenset(("dnaby_mh_push",))
 _INTERVAL_TASK_IDS = frozenset(("dnaby_ann_poll",))
-MH_PUSH_AT: tuple[int, int] = (30, 0)
-MH_PUSH_SCHEDULE = "hourly@30:00"
+# 兼容旧调用方的默认值；实际密函分钟由 NoticesScheduler/typed 配置注入。
+MH_PUSH_AT: tuple[int, int] = (0, 0)
+MH_PUSH_SCHEDULE = "hourly@00:00"
 
 
 def parse_scheduler_schedule(
@@ -59,9 +60,13 @@ def parse_scheduler_schedule(
         return f"daily@{canonical_time}", (hour, minute)
 
     if task_id in _HOURLY_TASK_IDS:
-        if normalized != MH_PUSH_SCHEDULE:
-            raise ValueError("密函任务时间固定为每小时 HH:30")
-        return MH_PUSH_SCHEDULE, MH_PUSH_AT
+        match = re.fullmatch(r"hourly@(\d{1,2}):00", normalized)
+        if match is None:
+            raise ValueError("密函任务 schedule 必须为 hourly@MM:00")
+        minute = int(match.group(1))
+        if minute > 59:
+            raise ValueError("密函任务分钟必须为 0--59")
+        return f"hourly@{minute:02d}:00", (minute, 0)
 
     if task_id in _INTERVAL_TASK_IDS:
         match = re.fullmatch(r"interval@(\d+)m", normalized)

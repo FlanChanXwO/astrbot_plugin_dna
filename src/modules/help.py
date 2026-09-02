@@ -70,7 +70,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="help",
         pattern=r"^帮助$",
-        group="bot主人功能",
+        group="信息查询",
         name="帮助",
         description="查看当前已实现命令",
         examples=("帮助",),

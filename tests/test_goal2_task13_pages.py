@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).parents[1]
 PAGE_ROOT = PROJECT_ROOT / "pages" / "dashboard"
 
@@ -22,13 +21,14 @@ def test_dashboard_shell_has_required_navigation_and_runtime_assets() -> None:
     assert "v-cloak" in html
 
     for page_id, label in (
-        ("panels", "面板图"),
         ("tasks", "任务与探测"),
         ("accounts", "账号与预览"),
         ("aliases", "角色别名"),
     ):
         assert f'data-page="{page_id}"' in html
         assert label in html
+    assert 'data-page="panels"' not in html
+    assert "面板图" not in html
 
     assert "pluginVersion" in html
     assert "Chart.js" not in html

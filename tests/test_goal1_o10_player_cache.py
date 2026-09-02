@@ -41,6 +41,7 @@ class CountingTransport(FixturePlayerTransport):
         self.role_detail_calls = 0
         self.weapon_detail_calls = 0
         self.damage_calls = 0
+        self.last_detail_damage = object()
         self.fail_overview = False
         self.fail_role_detail = False
 
@@ -103,6 +104,7 @@ class CountingRenderer:
 
     async def render_detail(self, role_detail, *_args, **kwargs):
         self.detail_calls += 1
+        self.last_detail_damage = _args[1] if len(_args) > 1 else kwargs.get("damage_calc")
         return self._write("detail", role_detail.char_name)
 
 
@@ -255,7 +257,7 @@ async def test_detail_fresh_cache_reuses_full_bundle_and_card(tmp_path: Path) ->
         assert transport.overview_calls == 1
         assert transport.role_detail_calls == 1
         assert transport.weapon_detail_calls == 2
-        assert transport.damage_calls == 1
+        assert transport.damage_calls == 0
         assert renderer.detail_calls == 1
     finally:
         await database.dispose()

@@ -348,11 +348,6 @@ def _credential_payload(value: object) -> CredentialPayload:
         "app_d_num",
         "app_refresh_token",
         "app_status",
-        "web_token",
-        "web_device_code",
-        "web_d_num",
-        "web_refresh_token",
-        "web_status",
     ):
         field_value = value.get(key, "")
         if not isinstance(field_value, str):
@@ -518,7 +513,6 @@ class AdminWebAdapter:
                         "tasks": True,
                         "targets": True,
                         "members": True,
-                        "panels": True,
                         "aliases": True,
                         "membership_probe": probe_data,
                     },
@@ -772,105 +766,6 @@ class AdminWebAdapter:
             )
         )
 
-    async def _upload_bytes(self) -> bytes:
-        files = await request.files()
-        candidates: list[object] = []
-        getlist = getattr(files, "getlist", None)
-        if callable(getlist):
-            for field_name in ("image", "file"):
-                values = getlist(field_name)
-                if isinstance(values, list):
-                    candidates.extend(values)
-        elif isinstance(files, Mapping):
-            for field_name in ("image", "file"):
-                if field_name in files:
-                    candidates.append(files[field_name])
-        if len(candidates) != 1:
-            raise _RequestValidation
-        candidate = candidates[0]
-        if isinstance(candidate, bytes):
-            return candidate
-        read = getattr(candidate, "read", None)
-        if not callable(read):
-            raise _RequestValidation
-        try:
-            data = read()
-            if inspect.isawaitable(data):
-                data = await data
-        finally:
-            close = getattr(candidate, "close", None)
-            if callable(close):
-                closed = close()
-                if inspect.isawaitable(closed):
-                    await closed
-        if not isinstance(data, bytes):
-            raise _RequestValidation
-        return data
-
-    @_admin_handler
-    async def list_panels(self, role_name: str) -> Any:
-        return _response(
-            await self._call(
-                "admin_panel_service",
-                "list_panel_images",
-                role_name,
-            )
-        )
-
-    @_admin_handler
-    async def get_panel(self, role_name: str, image_id: str) -> Any:
-        return _response(
-            await self._call(
-                "admin_panel_service",
-                "get_panel_image",
-                role_name,
-                image_id,
-            )
-        )
-
-    @_admin_handler
-    async def upload_panel(self, role_name: str) -> Any:
-        return _response(
-            await self._call(
-                "admin_panel_service",
-                "upload_panel_image",
-                role_name,
-                await self._upload_bytes(),
-            )
-        )
-
-    @_admin_handler
-    async def delete_panel(self, role_name: str, image_id: str) -> Any:
-        return _response(
-            await self._call(
-                "admin_panel_service",
-                "delete_panel_image",
-                role_name,
-                image_id,
-            )
-        )
-
-    @_admin_handler
-    async def delete_all_panels(self, role_name: str) -> Any:
-        payload = await _json_object()
-        confirmed = payload.get("confirmed")
-        if type(confirmed) is not bool:
-            raise _RequestValidation
-        return _response(
-            await self._call(
-                "admin_panel_service",
-                "delete_all_panel_images",
-                role_name,
-                confirmed=confirmed,
-            )
-        )
-
-    @_admin_handler
-    async def compress_panels(self) -> Any:
-        return _response(
-            await self._call("admin_panel_service", "compress_panel_images")
-        )
-
     @_admin_handler
     async def list_aliases(self) -> Any:
         return _response(await self._call("admin_alias_service", "list_aliases"))
@@ -1057,48 +952,6 @@ class AdminWebAdapter:
                 self.delete_member_user,
                 ("POST",),
                 "执行全局用户清理",
-            ),
-            WebRoute(
-                f"{prefix}/panels/compress",
-                self.compress_panels,
-                ("POST",),
-                "压缩角色面板图",
-            ),
-            WebRoute(
-                f"{prefix}/panels/<role_name>",
-                self.list_panels,
-                ("GET",),
-                "角色面板图列表",
-            ),
-            WebRoute(
-                f"{prefix}/panels/<role_name>/<image_id>",
-                self.get_panel,
-                ("GET",),
-                "读取角色面板图",
-            ),
-            WebRoute(
-                f"{prefix}/panels/<role_name>/upload",
-                self.upload_panel,
-                ("POST",),
-                "上传角色面板图",
-            ),
-            WebRoute(
-                f"{prefix}/panels/<role_name>/<image_id>",
-                self.delete_panel,
-                ("DELETE",),
-                "删除角色面板图",
-            ),
-            WebRoute(
-                f"{prefix}/panels/<role_name>/<image_id>/delete",
-                self.delete_panel,
-                ("POST",),
-                "删除角色面板图",
-            ),
-            WebRoute(
-                f"{prefix}/panels/<role_name>/delete-all",
-                self.delete_all_panels,
-                ("POST",),
-                "删除角色全部面板图",
             ),
             WebRoute(f"{prefix}/aliases", self.list_aliases, ("GET",), "角色别名列表"),
             WebRoute(

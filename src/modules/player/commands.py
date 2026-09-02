@@ -19,6 +19,9 @@ ROLE_DETAIL_PATTERN = (
     rf"(?:\s*[+＋]\s*(?P<weapon_name_2>{PATTERN}))?$"
 )
 REFRESH_ROLE_PATTERN = rf"^刷新(?P<char_name>{PATTERN})面板$"
+REFRESH_ALL_ROLE_PATTERN = r"^刷新全部角色面板$"
+CLEAR_ROLE_PATTERN = rf"^清理(?P<char_name>{PATTERN})面板缓存$"
+CLEAR_ALL_ROLE_PATTERN = r"^清理全部角色缓存$"
 REFRESH_ADMIN_ROLE_PATTERN = rf"^刷新(?P<uid>\d+)的(?P<char_name>{PATTERN})面板$"
 
 
@@ -28,7 +31,7 @@ def _service(request: CommandRequest) -> PlayerService | PlainTextResponse:
     service = request.services.get("player_service")
     if service is None or not all(
         callable(getattr(service, method, None))
-        for method in ("role_overview", "role_detail", "original_image")
+        for method in ("role_overview", "role_detail")
     ):
         return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
     return cast(PlayerService, service)
@@ -101,6 +104,20 @@ async def player_refresh_role_use_case(
     return await service.refresh_role(_player_request(request, parameters))
 
 
+async def player_refresh_all_roles_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **parameters: Any,
+):
+    service = _refresh_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    operation = getattr(service, "refresh_all_roles", None)
+    if not callable(operation):
+        return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+    return await operation(_player_request(request, parameters))
+
+
 async def player_refresh_admin_role_use_case(
     request: CommandRequest,
     _registry: CommandRegistry,
@@ -122,15 +139,27 @@ async def player_clear_all_cache_use_case(
     _registry: CommandRegistry,
     **_parameters: Any,
 ):
-    if request.permission != "admin":
-        return PlainTextResponse(messages.PLAYER_ADMIN_ONLY)
     service = _refresh_service(request)
     if isinstance(service, PlainTextResponse):
         return service
-    operation = getattr(service, "clear_all_cache", None)
+    operation = getattr(service, "clear_all_role_cache", None)
     if not callable(operation):
         return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
-    return await operation()
+    return await operation(_player_request(request))
+
+
+async def player_clear_role_cache_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **parameters: Any,
+):
+    service = _refresh_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    operation = getattr(service, "clear_role_cache", None)
+    if not callable(operation):
+        return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+    return await operation(_player_request(request, parameters))
 
 
 COMMAND_SPECS = (
@@ -166,13 +195,33 @@ COMMAND_SPECS = (
         use_case=cast(Any, player_refresh_role_use_case),
     ),
     CommandSpec(
+        id="refresh_all_role_cards",
+        pattern=REFRESH_ALL_ROLE_PATTERN,
+        group="角色信息",
+        name="刷新全部角色面板",
+        description="刷新当前 UID 的全部已解锁角色面板数据",
+        examples=("刷新全部角色面板",),
+        permission="user",
+        use_case=cast(Any, player_refresh_all_roles_use_case),
+    ),
+    CommandSpec(
+        id="clear_role_cache",
+        pattern=CLEAR_ROLE_PATTERN,
+        group="角色信息",
+        name="清理角色面板缓存",
+        description="清理当前 UID 指定角色的面板缓存",
+        examples=("清理菲娜面板缓存",),
+        permission="user",
+        use_case=cast(Any, player_clear_role_cache_use_case),
+    ),
+    CommandSpec(
         id="clear_player_cache",
-        pattern=r"^清理全部角色缓存$",
+        pattern=CLEAR_ALL_ROLE_PATTERN,
         group="角色信息",
         name="清理角色缓存",
-        description="管理员清理全部角色数据和卡片缓存",
+        description="清理当前 UID 的全部角色数据和卡片缓存",
         examples=("清理全部角色缓存",),
-        permission="admin",
+        permission="user",
         use_case=cast(Any, player_clear_all_cache_use_case),
     ),
     CommandSpec(
@@ -180,7 +229,7 @@ COMMAND_SPECS = (
         pattern=ROLE_DETAIL_PATTERN,
         group="角色信息",
         name="角色详情卡片",
-        description="查询角色面板/伤害详情",
+        description="查询角色和武器基础详情，不包含伤害计算",
         examples=("角色名面板",),
         permission="user",
         use_case=cast(Any, player_role_detail_use_case),
@@ -201,14 +250,19 @@ COMMAND_SPECS = (
 
 
 __all__ = [
+    "CLEAR_ALL_ROLE_PATTERN",
+    "CLEAR_ROLE_PATTERN",
     "COMMAND_SPECS",
     "PATTERN",
     "REFRESH_ADMIN_ROLE_PATTERN",
+    "REFRESH_ALL_ROLE_PATTERN",
     "REFRESH_ROLE_PATTERN",
     "ROLE_DETAIL_PATTERN",
     "player_clear_all_cache_use_case",
+    "player_clear_role_cache_use_case",
     "player_original_image_use_case",
     "player_refresh_admin_role_use_case",
+    "player_refresh_all_roles_use_case",
     "player_refresh_role_use_case",
     "player_role_detail_use_case",
     "player_role_overview_use_case",

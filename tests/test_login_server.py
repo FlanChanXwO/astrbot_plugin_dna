@@ -90,3 +90,35 @@ def test_login_link_is_sent_before_waiting_for_submission(monkeypatch):
     assert sender.messages == []
     assert len(sent) == 1
     assert "http://localhost:6189/login" in sent[0][0].text
+
+
+def test_legacy_external_login_does_not_echo_service_failure(monkeypatch):
+    """兼容入口也不能把外置服务正文直接转发给用户。"""
+    from src.modules.account import login_router
+    from src.modules.account.transport import TransportResult
+    from src.utils.session import EventContext
+
+    class FailedTransport:
+        async def start(self, **kwargs):
+            return "https://login.example.test/dna/i/auth"
+
+        async def listen(self, auth):
+            return TransportResult(status="failed", msg="external-secret")
+
+    sent: list[str] = []
+
+    async def record_notify(sender, ctx, message):
+        sent.append(message)
+
+    async def skip_send_login(sender, ctx, url):
+        return None
+
+    monkeypatch.setattr(login_router, "build_transport", lambda url: FailedTransport())
+    monkeypatch.setattr(login_router, "send_login", skip_send_login)
+    monkeypatch.setattr(login_router, "send_dna_notify", record_notify)
+
+    ctx = EventContext(user_id="user-1", bot_id="bot-1", user_type="direct")
+    asyncio.run(login_router.page_login_other(None, ctx, "https://login.example.test"))
+
+    assert sent == ["登录服务请求失败! 请稍后再试"]
+    assert "external-secret" not in "".join(sent)

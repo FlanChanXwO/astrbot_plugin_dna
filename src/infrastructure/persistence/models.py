@@ -66,6 +66,12 @@ class AccountBinding(Base):
         default=True,
         server_default=text("1"),
     )
+    auto_sign_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("1"),
+    )
 
 
 class CredentialRecord(Base):
@@ -120,46 +126,13 @@ class CredentialRecord(Base):
         server_default=text("''"),
     )
 
-    web_token: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        default="",
-        server_default=text("''"),
-    )
-    web_device_code: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        default="",
-        server_default=text("''"),
-    )
-    web_d_num: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        default="",
-        server_default=text("''"),
-    )
-    web_refresh_token: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        default="",
-        server_default=text("''"),
-    )
-    web_status: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        default="",
-        server_default=text("''"),
-    )
-
     def __repr__(self) -> str:
         """仅返回非敏感字段，避免 ORM 对象被日志意外序列化时泄露凭据。"""
         return (
             "CredentialRecord("
             f"id={self.id!r}, user_id={self.user_id!r}, "
             f"uid={self.uid!r}, app_status={self.app_status!r}, "
-            f"web_status={self.web_status!r}, "
-            f"has_app_credentials={self.has_app_credentials!r}, "
-            f"has_web_credentials={self.has_web_credentials!r})"
+            f"has_app_credentials={self.has_app_credentials!r})"
         )
 
     @property
@@ -174,18 +147,6 @@ class CredentialRecord(Base):
             )
         )
 
-    @property
-    def has_web_credentials(self) -> bool:
-        """返回是否存在任一 Web 凭据，不返回凭据内容。"""
-        return any(
-            (
-                self.web_token,
-                self.web_device_code,
-                self.web_d_num,
-                self.web_refresh_token,
-            )
-        )
-
     def redacted_snapshot(self) -> dict[str, Any]:
         """生成可用于日志或诊断的脱敏快照。"""
         return {
@@ -193,9 +154,7 @@ class CredentialRecord(Base):
             "user_id": self.user_id,
             "uid": self.uid,
             "app_status": self.app_status,
-            "web_status": self.web_status,
             "has_app_credentials": self.has_app_credentials,
-            "has_web_credentials": self.has_web_credentials,
         }
 
 

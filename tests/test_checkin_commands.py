@@ -16,7 +16,14 @@ from src.entry.commands import (
 from src.entry.response import PlainTextResponse, ResponseFactory
 from src.modules.checkin import messages
 
-CHECKIN_SPEC_IDS = {"sign", "sign_calendar", "sign_all", "sign_result_subscribe"}
+CHECKIN_SPEC_IDS = {
+    "sign",
+    "sign_calendar",
+    "sign_auto_enable",
+    "sign_auto_disable",
+    "sign_all",
+    "sign_result_subscribe",
+}
 
 
 def test_checkin_commands_are_registered_with_legacy_semantics() -> None:
@@ -25,9 +32,13 @@ def test_checkin_commands_are_registered_with_legacy_semantics() -> None:
     assert CHECKIN_SPEC_IDS <= specs.keys()
     assert specs["sign"].pattern == r"^kk(?:签到|社区签到|每日任务|社区任务|库街区签到|sign)$"
     assert specs["sign"].permission == "user"
-    assert specs["sign"].group == "签到"
+    assert specs["sign"].group == "签到服务"
     assert specs["sign_calendar"].pattern == r"^kk(?:签到日历|签到记录|签到历史)$"
     assert specs["sign_calendar"].permission == "user"
+    assert specs["sign_auto_enable"].pattern == r"^kk开启自动签到$"
+    assert specs["sign_auto_disable"].pattern == r"^kk关闭自动签到$"
+    assert specs["sign_auto_enable"].permission == "user"
+    assert specs["sign_auto_disable"].permission == "user"
     assert specs["sign_all"].pattern == r"^kk全部签到$"
     assert specs["sign_all"].permission == "admin"
     assert specs["sign_result_subscribe"].pattern == r"^kk(订阅|取消订阅)签到结果$"
@@ -83,6 +94,11 @@ async def test_generated_sign_all_handler_yields_aggregate_result() -> None:
 
         async def subscribe_sign_result(self, _request: object) -> PlainTextResponse:
             return PlainTextResponse(messages.SIGN_RESULT_SUBSCRIBED)
+
+        async def set_auto_sign(
+            self, _request: object, *, enabled: bool
+        ) -> PlainTextResponse:
+            return PlainTextResponse("自动签到状态已更新")
 
     class GeneratedSignPlugin:
         __module__ = "tests.generated_sign_plugin"
@@ -141,6 +157,11 @@ async def test_generated_sign_result_handler_yields_subscription_result() -> Non
 
         async def subscribe_sign_result(self, _request: object) -> PlainTextResponse:
             return PlainTextResponse(messages.SIGN_RESULT_SUBSCRIBED)
+
+        async def set_auto_sign(
+            self, _request: object, *, enabled: bool
+        ) -> PlainTextResponse:
+            return PlainTextResponse("自动签到状态已更新")
 
     class GeneratedSignPlugin:
         __module__ = "tests.generated_sign_plugin"

@@ -106,8 +106,6 @@ class MhSnapshotEnvelope:
         if window_start.minute or window_start.second or window_start.microsecond:
             raise ValueError("window_start 必须是整点")
         object.__setattr__(self, "window_start", window_start)
-        if fetched_at < window_start + timedelta(minutes=30):
-            raise ValueError("fetched_at 必须在 window_start 后半小时")
         if fetched_at >= window_start + timedelta(hours=1):
             raise ValueError("fetched_at 不属于 window_start")
         if not isinstance(self.fingerprint, str) or len(self.fingerprint) != 64 or any(

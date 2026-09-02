@@ -37,7 +37,7 @@ _CLEANUP_TASK_NAME = "dnaby_sign_cleanup"
 class SchedulableCheckin(Protocol):
     """计划任务所需的签到接口。"""
 
-    async def auto_sign_all(self) -> str: ...
+    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str: ...
     async def clear_sign_records_before(self, record_date: date) -> int: ...
 
 
@@ -97,7 +97,7 @@ class SignScheduler:
         self._tasks: list[asyncio.Task] = []
         self._task_by_id: dict[str, asyncio.Task] = {}
         self._enabled_tasks = {
-            _SIGN_TASK_NAME: self.scheduled_enabled and self.enable_all_users,
+            _SIGN_TASK_NAME: self.scheduled_enabled,
             _CLEANUP_TASK_NAME: True,
         }
         self._task_specs: dict[
@@ -198,8 +198,7 @@ class SignScheduler:
         await self.registry.initialize()
         if self._started:
             return
-        # 自动签到需要「定时开启 + 全部账号授权」；新 schema 没有 per-user 签到开关，
-        # enable_all_users 承担 legacy SigninMaster 对全账号自动签到的门控语义。
+        # 定时签到由总开关控制；是否忽略每个 UID 的开关交给 CheckinService。
         for task_id, enabled in self._enabled_tasks.items():
             if not enabled or await self.registry.is_deleted(task_id):
                 continue
@@ -293,7 +292,9 @@ class SignScheduler:
     async def run_sign_once(self) -> str:
         """执行一次自动签到并把摘要推送给订阅者，返回摘要文本。"""
 
-        text = await self.checkin.auto_sign_all()
+        text = await self.checkin.auto_sign_all(
+            enable_all_users=self.enable_all_users,
+        )
         subscribers = await self.subscriptions.get(messages.SIGN_RESULT_SUBSCRIBE)
         for subscription in subscribers:
             if self._push is None:

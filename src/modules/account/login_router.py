@@ -53,7 +53,6 @@ def bind_local_login_server(server: LocalLoginServer | None) -> None:
 
 
 class LoginSubmission(BaseModel):
-    channel: LoginChannel = Field(description="登录来源")
     mobile: str = Field(description="登录手机号")
     code: str = Field(description="短信验证码")
     dev_code: str | None = Field(default=None, description="登录设备码")
@@ -64,8 +63,6 @@ class LoginSession(BaseModel):
     user_id: str = Field(description="机器人用户标识")
     app_dev_code: str | None = Field(default=None, description="App 设备码")
     app_mobile: str | None = Field(default=None, description="App 已成功发码的手机号")
-    web_dev_code: str | None = Field(default=None, description="Web 设备码")
-    web_mobile: str | None = Field(default=None, description="Web 已成功发码的手机号")
     submission: LoginSubmission | None = Field(default=None, description="待处理的登录提交")
 
 
@@ -75,7 +72,7 @@ class LoginSubmitParams(BaseModel):
     code: str = Field(description="短信验证码")
 
 
-class WebSmsCodeParams(BaseModel):
+class SmsCodeParams(BaseModel):
     auth: str = Field(description="登录会话标识")
     mobile: str = Field(description="接收验证码的手机号")
     v_json: str = Field(alias="vJson", description="CAPTCHA 验证结果")
@@ -99,11 +96,6 @@ async def token_login(sender: Sender, ctx: EventContext, token: str) -> None:
     login_service = DNALoginService(sender, ctx)
     login_result = await login_service.dna_login_by_token(token=token.strip())
     await send_dna_notify(sender, ctx, login_result)
-
-
-async def get_cookie(sender: Sender, ctx: EventContext) -> str:
-    login_service = DNALoginService(sender, ctx)
-    return await login_service.get_cookie()
 
 
 async def get_dna_login_url() -> str:
@@ -208,11 +200,15 @@ async def page_login_other(sender: Sender, ctx: EventContext, url: str) -> None:
     if result is None or result.status == "expired":
         await dna_login_timeout(sender, ctx)
         return
+    if result.status == "cancelled":
+        await send_dna_notify(sender, ctx, "登录已取消")
+        return
     if result.status != "success":
-        message = result.msg
-        if message == "":
-            message = "登录失败"
-        await send_dna_notify(sender, ctx, message)
+        logger.warning(
+            f"[DNA登录] 外置 listen 返回失败状态 user_id={ctx.user_id} "
+            f"status={result.status}"
+        )
+        await send_dna_notify(sender, ctx, "登录服务请求失败! 请稍后再试")
         return
     token = result.token.strip()
     dev_code = result.dev_code.strip()
@@ -222,7 +218,7 @@ async def page_login_other(sender: Sender, ctx: EventContext, url: str) -> None:
         return
 
     credentials = LoginCredentials(
-        channel=result.channel,
+        channel=LoginChannel.APP,
         token=token,
         dev_code=dev_code,
         refresh_token=result.refresh_token,
@@ -260,7 +256,6 @@ async def page_login_local(sender: Sender, ctx: EventContext, url: str) -> None:
                         ctx,
                         f"{submission.mobile},{submission.code}",
                         is_page=True,
-                        channel=submission.channel,
                         dev_code=submission.dev_code,
                     )
                     return
@@ -280,7 +275,6 @@ async def code_login(
     text: str,
     *,
     is_page: bool = False,
-    channel: LoginChannel = LoginChannel.APP,
     dev_code: str | None = None,
 ) -> None:
     try:
@@ -298,7 +292,6 @@ async def code_login(
 
     login_service = DNALoginService(sender, ctx)
     login_result = await login_service.login(
-        channel=channel,
         mobile=phone_number,
         code=code,
         dev_code=dev_code,
@@ -308,8 +301,6 @@ async def code_login(
 
 async def _render_login_page(
     auth: str,
-    template_name: str,
-    login_mode: LoginChannel,
 ) -> HTMLResponse:
     login_session = cache.get(auth)
     if not isinstance(login_session, LoginSession):
@@ -317,38 +308,24 @@ async def _render_login_page(
         return HTMLResponse(template.render(), status_code=404)
 
     server_url = await get_dna_login_url()
-    template = DNA_TEMPLATES.get_template(template_name)
+    template = DNA_TEMPLATES.get_template("index.html.j2")
     return HTMLResponse(
         template.render(
             server_url=server_url,
             auth=auth,
             userId=login_session.user_id,
-            login_mode=login_mode.value,
+            login_mode=LoginChannel.APP.value,
             app_login_url=f"{server_url}/dna/i/{auth}",
-            web_login_url=f"{server_url}/dna/web/{auth}",
         )
     )
 
 
 async def dna_login_index(auth: str) -> HTMLResponse:
-    return await _render_login_page(
-        auth,
-        "index.html.j2",
-        LoginChannel.APP,
-    )
-
-
-async def dna_web_login_index(auth: str) -> HTMLResponse:
-    return await _render_login_page(
-        auth,
-        "web_login.html.j2",
-        LoginChannel.WEB,
-    )
+    return await _render_login_page(auth)
 
 
 async def _submit_login(
     data: LoginSubmitParams,
-    channel: LoginChannel,
 ) -> dict[str, bool | str]:
     login_session = cache.get(data.auth)
     if not isinstance(login_session, LoginSession):
@@ -358,24 +335,14 @@ async def _submit_login(
     if not is_validate_code(data.code):
         return {"success": False, "msg": "无效手机号或验证码"}
 
-    dev_code: str | None = None
-    if channel is LoginChannel.APP:
-        dev_code = login_session.app_dev_code
-        if dev_code is None or login_session.app_mobile != data.mobile:
-            return {
-                "success": False,
-                "msg": "请先为该手机号获取验证码",
-            }
-    elif channel is LoginChannel.WEB:
-        dev_code = login_session.web_dev_code
-        if dev_code is None or login_session.web_mobile != data.mobile:
-            return {
-                "success": False,
-                "msg": "请先为该手机号获取验证码",
-            }
+    dev_code = login_session.app_dev_code
+    if dev_code is None or login_session.app_mobile != data.mobile:
+        return {
+            "success": False,
+            "msg": "请先为该手机号获取验证码",
+        }
 
     submission = LoginSubmission(
-        channel=channel,
         mobile=data.mobile,
         code=data.code,
         dev_code=dev_code,
@@ -397,12 +364,12 @@ async def _parse_submit_params() -> LoginSubmitParams | None:
         return None
 
 
-async def _parse_sms_code_params() -> WebSmsCodeParams | None:
+async def _parse_sms_code_params() -> SmsCodeParams | None:
     data = await request.json(default=None)
     if not isinstance(data, dict):
         return None
     try:
-        return WebSmsCodeParams.model_validate(data)
+        return SmsCodeParams.model_validate(data)
     except Exception:  # noqa: BLE001
         return None
 
@@ -411,14 +378,7 @@ async def dna_login() -> dict[str, bool | str]:
     data = await _parse_submit_params()
     if data is None:
         return {"success": False, "msg": "无效请求"}
-    return await _submit_login(data, LoginChannel.APP)
-
-
-async def dna_web_login() -> dict[str, bool | str]:
-    data = await _parse_submit_params()
-    if data is None:
-        return {"success": False, "msg": "无效请求"}
-    return await _submit_login(data, LoginChannel.WEB)
+    return await _submit_login(data)
 
 
 async def dna_app_get_sms_code() -> dict[str, bool | str]:
@@ -437,7 +397,7 @@ async def dna_app_get_sms_code() -> dict[str, bool | str]:
         login_session = login_session.model_copy(update={"app_dev_code": dev_code})
         cache.set(data.auth, login_session)
 
-    result = await dna_api.get_web_sms_code(
+    result = await dna_api.get_app_sms_code(
         data.mobile,
         data.v_json,
         dev_code,
@@ -454,47 +414,11 @@ async def dna_app_get_sms_code() -> dict[str, bool | str]:
     return {"success": False, "msg": result.throw_msg()}
 
 
-async def dna_web_get_sms_code() -> dict[str, bool | str]:
-    data = await _parse_sms_code_params()
-    if data is None:
-        return {"success": False, "msg": "无效请求"}
-    login_session = cache.get(data.auth)
-    if not isinstance(login_session, LoginSession):
-        return {"success": False, "msg": "登录超时"}
-    if not is_valid_chinese_phone_number(data.mobile):
-        return {"success": False, "msg": "无效手机号"}
-
-    dev_code = login_session.web_dev_code
-    if dev_code is None:
-        dev_code = create_device_code(LoginChannel.WEB)
-        login_session = login_session.model_copy(update={"web_dev_code": dev_code})
-        cache.set(data.auth, login_session)
-
-    result = await dna_api.get_web_sms_code(
-        data.mobile,
-        data.v_json,
-        dev_code,
-    )
-    if result.is_success:
-        current_session = cache.get(data.auth)
-        if not isinstance(current_session, LoginSession):
-            return {"success": False, "msg": "登录超时"}
-        cache.set(
-            data.auth,
-            current_session.model_copy(update={"web_mobile": data.mobile}),
-        )
-        return {"success": True, "msg": "验证码已发送"}
-    return {"success": False, "msg": result.throw_msg()}
-
-
 def get_routes() -> list[tuple[str, Callable, list[str], str]]:
     return [
         (f"{ROUTE_PREFIX}/dna/i/{{auth}}", dna_login_index, ["GET"], "App 登录页"),
-        (f"{ROUTE_PREFIX}/dna/web/{{auth}}", dna_web_login_index, ["GET"], "Web 登录页"),
         (f"{ROUTE_PREFIX}/dna/login", dna_login, ["POST"], "App 登录提交"),
-        (f"{ROUTE_PREFIX}/dna/web/login", dna_web_login, ["POST"], "Web 登录提交"),
         (f"{ROUTE_PREFIX}/dna/getSmsCode", dna_app_get_sms_code, ["POST"], "App 获取短信验证码"),
-        (f"{ROUTE_PREFIX}/dna/web/getSmsCode", dna_web_get_sms_code, ["POST"], "Web 获取短信验证码"),
     ]
 
 
@@ -502,17 +426,13 @@ __all__ = [
     "LoginSession",
     "LoginSubmission",
     "LoginSubmitParams",
-    "WebSmsCodeParams",
+    "SmsCodeParams",
     "bind_local_login_server",
     "cache",
     "code_login",
     "dna_app_get_sms_code",
     "dna_login",
     "dna_login_index",
-    "dna_web_get_sms_code",
-    "dna_web_login",
-    "dna_web_login_index",
-    "get_cookie",
     "get_dna_login_url",
     "get_routes",
     "page_login",

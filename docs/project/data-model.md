@@ -7,14 +7,15 @@
 独立路径，v0.1 不读取、不改写、也不迁移旧数据库。
 
 `alembic/versions/0001_initial.py` 从空库创建 rewrite 的五张 normalized 表；
-`0002_privacy_global_identity` 是旧 schema 的补充约束，当前 head
-`0003_global_identity` 已将账号、凭据和隐私改为跨 AstrBot 平台、跨 Bot 的全局语义：
+`0002_privacy_global_identity` 是旧 schema 的补充约束，`0003_global_identity` 已将账号、
+凭据和隐私改为跨 AstrBot 平台、跨 Bot 的全局语义；当前 head 为
+`0005_auto_sign_enabled`：
 相同的 `user_id` 字符串在不同平台或 Bot 上视为同一身份，平台/Bot 不再是持久化身份键。
 
 | 表 | 用途 | 关键字段 |
 |---|---|---|
-| `account_bindings` | 用户↔UID 全局绑定 | user_id, group_id, uid, is_active |
-| `credential_records` | 私有登录凭据 | user_id, uid, app_*/web_* |
+| `account_bindings` | 用户↔UID 全局绑定 | user_id, group_id, uid, is_active, auto_sign_enabled |
+| `credential_records` | 私有 App 登录凭据 | user_id, uid, app_cookie, app_device_code, app_d_num, app_refresh_token, app_status |
 | `sign_records` | 按 UID 和日期保存签到状态 | uid, date, game_sign, bbs_sign, bbs_detail, bbs_like, bbs_share, bbs_reply |
 | `privacy_settings` | 个人/群组作用域隐私 | user_id, group_id, allow_peek, uid_hidden |
 | `group_privacy_settings` | 群组强制隐私 | group_id, force_allow_peek, force_uid_hidden |
@@ -24,6 +25,15 @@
 保留。降级只恢复 `0002` 的旧空表结构，不恢复被丢弃的数据。真实部署前必须备份
 `dnaby.sqlite3`；需要回退时应同时恢复旧代码和迁移前数据库备份，不能让旧代码直接
 读取新 schema。
+
+`0004_app_credentials_only` 在当前 `credential_records` 表上物理删除
+`web_token`、`web_device_code`、`web_d_num`、`web_refresh_token`、`web_status` 五列，
+保留 App 凭据、身份绑定、签到和订阅等非凭据数据。升级前必须完成 SQLite 备份和完整性检查；
+降级只会创建空的旧 Web 列，不可能恢复已经删除的值，也不能替代迁移前备份。
+
+`0005_auto_sign_enabled` 为每条绑定增加 `auto_sign_enabled`，已有记录默认为 `true`。
+该字段按 `(user_id, uid)` 绑定保存；切换 UID 不共享开关，定时签到默认尊重该字段，
+`sign_in.enable_all_users` 可强制执行，手动“全部签到”忽略该字段。
 
 `src/infrastructure/persistence/repositories.py` 的方法必须接收调用方提供的
 `AsyncSession`；提交和回滚由 `AsyncDatabase.transaction()` 统一负责。生产 schema
@@ -40,8 +50,8 @@
 
 ## 管理页与运行期文件边界
 
-Dashboard 管理页的账号列表默认只返回 App/Web 凭据状态；只有已认证管理员发起显式管理请求
-（页面通常在打开账号详情时）才在管理 API 响应中携带全部明文凭据。该响应使用
+Dashboard 管理页的账号列表默认只返回 App 凭据状态；只有已认证管理员发起显式管理请求
+（页面通常在打开账号详情时）才在管理 API 响应中携带全部 App 明文凭据。该响应使用
 `Cache-Control: no-store`，
 页面不写 `localStorage`/`sessionStorage`，关闭编辑器会清空前端凭据副本；这不能替代管理员对
 屏幕、剪贴板、浏览器扩展、代理和截图的保护。日志、异常、普通命令响应、DTO `repr` 和备份
@@ -54,13 +64,18 @@ Dashboard 管理页的账号列表默认只返回 App/Web 凭据状态；只有�
 除 SQLite 外，以下文件/目录也位于同一 `StarTools.get_data_dir()` 运行期根目录，均不得提交：
 
 - `scheduler_state.json` — 内置任务永久删除 tombstone；删除的业务任务没有管理 API 恢复操作。
-- `alias_custom.json` — 角色自定义别名覆盖层；默认资源别名只读且不被覆盖层改写。
-- `panel_custom/` — 管理页上传的自定义面板图；删除沿用不可恢复语义，需在操作前自行备份。
-- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `rendered/` — 订阅、公告
-  兼容 ID 列表、按目标投递状态及受控的运行期渲染文件。
-- `cache/` — 玩家数据 JSON、完整 T2I 图片卡片以及公告 `announcement/` 类型缓存；玩家条目受 30
-  分钟 fresh、24 小时硬保留和租约保护，公告条目默认 24 小时绝对保留，身份相关 key/tag 不保存
-  原始 user_id 或 UID。
+- `alias_custom.json`、`weapon_alias_custom.json` — 角色和武器自定义别名覆盖层；默认资源别名只读且不被覆盖层改写。
+- `panel_custom/` — 已移除面板管理后的历史文件；插件不再读取或删除，升级前仍可按需备份。
+- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `scheduler_state.json` —
+  订阅、公告兼容 ID 列表、按目标投递状态及任务 tombstone 等持久状态，不是普通缓存。
+- `rendered/` — 受控的运行期临时 JPEG/PNG artifact 文件，不是持久业务缓存。
+- `cache/` — 玩家数据 JSON、完整 T2I 图片卡片以及公告 `announcement/` 类型缓存；玩家条目默认受
+  30 分钟 fresh、24 小时硬保留和租约保护，公告条目默认 24 小时绝对保留，身份相关 key/tag
+  不保存原始 user_id 或 UID。`cache.fresh_ttl_minutes=-1` 时，CacheManager 业务条目永久保持
+  fresh 且不因时间自动清理，仍可由刷新、清理、资源版本变化或显式失效主动删除；`rendered/`
+  临时文件不受该永久模式影响。
+- `_HELP_CACHE` — 进程内帮助卡片缓存，插件终止时清空；`resource_generations/` 与
+  `current.json` 由资源快照协调器按 generation lease 管理；密函缓存按当前小时保存已校验快照。
 
 公告缓存的列表卡、详情页、详情 manifest 和源图都必须在内容完整且图片通过解码校验后写入；
 公告 fingerprint 纳入 key，上游内容变化会失效旧条目。详情图片失败时不写入新的完整卡或
@@ -77,13 +92,13 @@ SQLite、JSON 和文件目录之间不存在同一物理事务。账号删除协
 - `account_bindings` 是按 user_id、uid 归一化的一行一 UID 记录；`group_id` 只保留
   绑定来源上下文，不参与身份键。当前 UID 用 `is_active` 表示，切换在同一个显式
   事务中先取消其他记录再激活目标。
-- 登录返回的每个角色会在同一事务中写入绑定和 App/Web 凭据；达到 typed 配置中的
+- 登录返回的每个角色会在同一事务中写入绑定和 App 凭据；达到 typed 配置中的
   `login.max_bind_count` 时整笔登录回滚，不留下半套记录。
 - 角色结果带有服务端默认标记时，默认角色会成为当前 UID；没有默认标记时，只有首次
   登录才以结果中的第一个角色作为当前 UID。
 - 退出登录只删除当前 active UID 的绑定和凭据，保留其他绑定；删除当前 UID 后会从
   剩余记录中确定性选择新的当前 UID。
-- 凭据查询只返回 UID 与 App/Web 是否保存的状态，不提供 Cookie、token、refresh token、
+- 凭据查询只返回 UID 与 App 是否保存的状态，不提供 Cookie、token、refresh token、
   设备码或 d_num 导出接口。`查看UID` 只展示调用者自己的绑定列表，沿用 legacy 列表
   语义；UID 隐藏策略由后续角色卡片/查询渲染 use case 调用。
 

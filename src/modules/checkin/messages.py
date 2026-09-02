@@ -11,6 +11,8 @@ CHECKIN_PEEK_BLOCKED = "该用户开启了防偷窥，无法查看其游戏信�
 CHECKIN_ALL_STARTED = "已开始执行全部签到"
 CHECKIN_ALL_DONE = "全部签到执行完成"
 CHECKIN_NO_USERS = "没有需要签到的用户"
+CHECKIN_AUTO_ENABLED = "已开启当前 UID 的自动签到"
+CHECKIN_AUTO_DISABLED = "已关闭当前 UID 的自动签到"
 CHECKIN_ALREADY = "今日签到已完成，请勿重复签到"
 CHECKIN_POSTS_EMPTY = "社区任务：帖子列表为空"
 CHECKIN_TASKS_EMPTY = "社区任务列表为空，无法执行社区任务"
@@ -78,6 +80,8 @@ __all__ = [
     "CHECKIN_ALL_DONE",
     "CHECKIN_ALL_STARTED",
     "CHECKIN_ALREADY",
+    "CHECKIN_AUTO_DISABLED",
+    "CHECKIN_AUTO_ENABLED",
     "CHECKIN_CONTEXT_UNAVAILABLE",
     "CHECKIN_DETAIL_FAILED",
     "CHECKIN_LIKE_FAILED",

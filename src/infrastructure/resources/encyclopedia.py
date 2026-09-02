@@ -167,6 +167,7 @@ class EncyclopediaResourceStore:
         root: str | Path,
         *,
         custom_alias_path: str | Path | None = None,
+        custom_weapon_alias_path: str | Path | None = None,
     ) -> EncyclopediaResourceStore:
         """读取默认 alias 与运行期 custom alias，不创建或覆盖任何文件。"""
 
@@ -177,13 +178,22 @@ class EncyclopediaResourceStore:
             if custom_alias_path is not None
             else root_path.parent / "alias_custom.json"
         )
+        weapon_custom_path = (
+            Path(custom_weapon_alias_path).expanduser().resolve()
+            if custom_weapon_alias_path is not None
+            else root_path.parent / "weapon_alias_custom.json"
+        )
         default_char_aliases = cls._read_alias_file(alias_root / "char_alias.json")
+        default_weapon_aliases = cls._read_alias_file(alias_root / "weapon_alias.json")
         aliases = AliasCatalog(
             char_aliases=AliasCatalog.merge(
                 default_char_aliases,
                 cls._read_alias_file(custom_path),
             ),
-            weapon_aliases=cls._read_alias_file(alias_root / "weapon_alias.json"),
+            weapon_aliases=AliasCatalog.merge(
+                default_weapon_aliases,
+                cls._read_alias_file(weapon_custom_path),
+            ),
         )
 
         wiki_assets: dict[tuple[str, str], Path] = {}

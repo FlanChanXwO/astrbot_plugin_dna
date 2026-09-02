@@ -27,7 +27,6 @@ def _service(request: CommandRequest) -> NoticesService | PlainTextResponse:
             "set_mh_push_time",
             "toggle_mh_pic",
             "toggle_mh_text",
-            "test_mh_push",
             "subscribe_ann",
             "unsubscribe_ann",
         )
@@ -138,17 +137,6 @@ async def notices_mh_text_use_case(
     return await service.toggle_mh_text(_notice_request(request))
 
 
-async def notices_mh_test_use_case(
-    request: CommandRequest,
-    _registry: CommandRegistry,
-    **_parameters: Any,
-):
-    service = _service(request)
-    if isinstance(service, PlainTextResponse):
-        return service
-    return await service.test_mh_push(_notice_request(request))
-
-
 async def notices_ann_sub_use_case(
     request: CommandRequest,
     _registry: CommandRegistry,
@@ -246,7 +234,7 @@ COMMAND_SPECS = (
         name="订阅密函图片",
         description="订阅/取消订阅密函图片推送",
         examples=("订阅密函图片",),
-        permission="admin",
+        permission="user",
         use_case=cast(Any, notices_mh_pic_use_case),
     ),
     CommandSpec(
@@ -256,23 +244,13 @@ COMMAND_SPECS = (
         name="订阅密函文本",
         description="订阅/取消订阅密函文本推送",
         examples=("订阅密函文本",),
-        permission="admin",
+        permission="user",
         use_case=cast(Any, notices_mh_text_use_case),
-    ),
-    CommandSpec(
-        id="mh_test",
-        pattern=r"^密函测试$",
-        group="密函",
-        name="密函测试",
-        description="向当前会话发送密函测试推送",
-        examples=("密函测试",),
-        permission="admin",
-        use_case=cast(Any, notices_mh_test_use_case),
     ),
     CommandSpec(
         id="ann_sub",
         pattern=r"^订阅公告$",
-        group="公告",
+        group="管理员功能",
         name="订阅公告",
         description="订阅公告推送（群聊）",
         examples=("订阅公告",),
@@ -282,7 +260,7 @@ COMMAND_SPECS = (
     CommandSpec(
         id="ann_unsub",
         pattern=r"^(?:取消订阅公告|取消公告|退订公告)$",
-        group="公告",
+        group="管理员功能",
         name="取消订阅公告",
         description="取消订阅公告推送（群聊）",
         examples=("取消订阅公告",),
@@ -302,7 +280,6 @@ __all__ = [
     "notices_mh_push_time_use_case",
     "notices_mh_subscribe_use_case",
     "notices_mh_subscriptions_use_case",
-    "notices_mh_test_use_case",
     "notices_mh_text_use_case",
     "notices_mh_use_case",
 ]

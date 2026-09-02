@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
 import httpx
@@ -13,11 +12,9 @@ from .image_utils import (
     download,
     get_event_avatar,
 )
-from .master_char_const import get_master_char_panel_dir
 from .resource.RESOURCE_PATH import (
     ATTR_PATH,
     AVATAR_PATH,
-    CUSTOM_PAINT_PATH,
     MOD_PATH,
     PAINT_PATH,
     SKILL_PATH,
@@ -245,23 +242,6 @@ async def get_paint_img(char_id: str | int, pic_url: str | None = None) -> Image
         return Image.new("RGBA", (1320, 1320))
 
     return _normalize_paint_img(image)
-
-
-def get_role_panel_img(char_id: str | int) -> tuple[Path, Image.Image] | None:
-    panel_dir = CUSTOM_PAINT_PATH / get_master_char_panel_dir(char_id)
-    if not panel_dir.is_dir():
-        return None
-
-    image_extensions = Image.registered_extensions()
-    panel_paths = sorted(
-        path for path in panel_dir.iterdir() if path.is_file() and path.suffix.lower() in image_extensions
-    )
-    if not panel_paths:
-        return None
-
-    panel_path = random.choice(panel_paths)
-    with Image.open(panel_path) as image:
-        return panel_path, image.convert("RGBA")
 
 
 async def get_mod_img(mod_id: str | int, pic_url: str | None = None) -> Image.Image:

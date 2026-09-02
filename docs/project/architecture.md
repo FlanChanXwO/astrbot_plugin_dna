@@ -13,10 +13,11 @@
   `src/entry/response.py` 再转换为 AstrBot 原生 text/chain/image result。
 - 清单/帮助：`commands.json` 由 `scripts/generate_commands_manifest.py` 从代码 registry
   生成，帮助 use case 读取同一 registry。未迁移命令不会注册，也不会出现在帮助中。
-- 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；异常向上暴露，不伪造成功。
+- 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；登录页 listener 在
+  scheduler 之前启动，终止时先取消登录等待并释放 listener，再释放数据库；异常向上暴露，不伪造成功。
 - Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；`src/entry/admin_web.py` 提供统一认证、请求解析、错误/HTTP 状态映射和 no-store JSON，管理路由仅通过 Dashboard extension dispatcher 注册在 `/astrbot_plugin_dnaby/admin/*`，不建立独立未认证入口。
 - 管理页：`pages/dashboard/` 是由 AstrBot Dashboard 承载的 PetiteVue 静态页，只通过上述已认证
-  dispatcher 访问四个功能区（面板图、任务/探测、账号/预览、角色别名）；写操作在服务端确认并
+  dispatcher 访问任务/探测、账号/预览和角色别名三个功能区；写操作在服务端确认并
   成功后重新读取状态，不提供账号/任务创建或帮助命令管理。
 - 事件边界：`src/entry/event.py` 只通过 AstrBot 公开的 sender/self/group 方法提取
   `EventActor`，从公开消息链的 `At` 和 `Reply` 组件分别提取可选目标用户与引用消息
@@ -34,25 +35,25 @@
 - 持久化：`src/infrastructure/persistence/` 使用 SQLAlchemy 2 async 和
   `sqlite+aiosqlite`；`AsyncDatabase.transaction()` 是唯一的提交/回滚边界，repository
   显式接收 `AsyncSession`。Alembic 初始 revision 只创建新五表 schema，运行期文件为
-  `dnaby.sqlite3`，不触碰 legacy `dnaby.db`；凭据模型提供脱敏 repr/快照。
-- 账号：`src/modules/account/` 提供 token/短信 typed 登录、登录页 transport 边界、
-  退出、UID 绑定/切换/删除/列表和凭据状态摘要；`AccountService` 在显式事务内协调
+  `dnaby.sqlite3`，不触碰 legacy `dnaby.db`；凭据模型仅保留 App 字段并提供脱敏
+  repr/快照，`0004_app_credentials_only` 物理删除五个 Web 列。
+- 账号：`src/modules/account/` 提供 token/短信 typed 登录、`LoginFlowCoordinator` 登录页
+  与外置 transport 边界、退出、登录后自动绑定、UID 切换/删除/列表和 App 凭据状态摘要；`AccountService` 在显式事务内协调
   normalized repository，`DnaApiAccountTransport` 只复用 legacy 纯 API，不复用旧事件、
-  数据库或消息段类型。
+  数据库或消息段类型。Web 凭据、Web fallback 和 Web 登录路由不属于当前契约。
 - 隐私：`src/modules/privacy/` 提供个人偷窥/UID 开关、群强制设置、指定目标设置和
   查询解析；个人设置按裸 `user_id` 全局记录保存，群强制设置按裸 `group_id` 独立保存，
   群强制值按字段优先。相同 `user_id` 在不同平台或 Bot 上视为同一身份，跨平台字符串碰撞
   是已接受的部署风险；指定命令要求 AstrBot admin 权限、群聊、有效 `At` 和目标绑定。
   `EventActor.bot_id` 只保留为运行期投递/legacy transport 上下文，不参与账号或隐私查询。
-- 玩家查询：`src/modules/player/` 通过 typed transport 读取角色/武器展柜、角色详情
-  和伤害结果；`src/infrastructure/rendering/` 通过 T2I 生成运行期图片（常规输出 JPEG），详情响应携带
-  per-response 的 `original_image_path` 原面板引用。AstrBot 4.27.x 公开结果边界没有
-  已发送消息 ID 交付点，`原图` 命令显式报告未支持（Task 16.2）；默认 API 适配器只在
-  transport 边界复用 legacy 纯请求、model 和伤害计算逻辑。`PlayerCache` 将 typed 玩家数据
-  和完整卡片接入统一 `CacheManager`；卡片按 generation 版本、数据摘要、身份和显示参数
-  隔离，placeholder 渲染只允许本次发送，不覆盖完整缓存。玩家模块还提供普通用户角色刷新、
-  管理员 UID+角色刷新和仅限管理员的全量玩家缓存清理；刷新按 identity/role tags 精准失效，
-  `cache.refresh_send_card` 决定是否立即返回新卡片。
+- 玩家查询：`src/modules/player/` 通过 App-only typed transport 读取角色/武器展柜和角色详情；
+  正常详情路径不调用伤害计算 API，也不渲染伤害区块；`src/infrastructure/rendering/` 通过 T2I
+  生成运行期 JPEG artifact。详情响应携带 per-response 的 `original_image_path` 原面板引用，
+  `原图` 命令在当前平台显式报告未支持。`PlayerCache` 将 typed 玩家数据和完整卡片接入统一
+  `CacheManager`；卡片按 generation 版本、数据摘要、身份和显示参数隔离，placeholder 渲染只允许
+  本次发送，不覆盖完整缓存。玩家模块提供普通用户单角色/全部角色刷新、单角色/全部角色清理和
+  管理员 UID+角色刷新；刷新按 identity/role tags 精准失效，`cache.refresh_send_card` 决定是否
+  立即返回单角色新卡片。
 - 资料读取：`src/modules/encyclopedia/` 协调便签、周报、日历、图鉴、攻略、兑换码和只读
   别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
@@ -77,15 +78,14 @@
   手动详情图片失败返回固定失败文案，不合成透明/深色占位图；运行期的公告源图、列表卡和详情
   页面使用 `CacheManager` 的 `announcement` 类型，以内容 fingerprint 和 24 小时绝对保留期隔离。
   订阅复用 `SubscriptionStore`（密函按 user+会话、公告按群聊作用域，`extra_message`/`extra_data`
-  存密函名称与订阅级时间窗口）；`NoticesScheduler` 固定每小时 `HH:30` 推送密函、按分钟轮询公告
-  （`AnnStateStore` 保留旧 ID 列表，`AnnDeliveryStateStore` 记录首次观察目标与成功目标），详情、
+  存密函名称与订阅级时间窗口）；`NoticesScheduler` 按配置的每小时 `HH:<minute>` 推送密函、按分钟轮询公告
+  （`AnnStateStore` 保留旧 ID 列表，`AnnDeliveryStateStore` 记录首次观察目标与成功目标），密函按
+  配置的每小时分钟触发并在当前小时快照有效时只推送一次；详情、
   渲染或目标发送失败时保留待重试目标，不发送标题 fallback。推送经注入闭包绑定
   `Context.send_message`，只有发送成功才落成功状态；文本/图片载荷分别映射为 Plain/Image 组件。
-- 面板与资源状态：`src/modules/operations/` 管理运行期数据目录 `panel_custom/` 的自定义
-  面板图（上传 WebP/sha1 去重、列表、按 ID/全部删除、压缩），原图删除因公开结果边界无
-  引用缓存显式报告不支持；`resource_status` 展示公共资源仓库 manifest/必需目录与面板数量。
-  写操作只在隔离 fixture 验证；命令层经 `CommandRequest.images` 从 AstrBot 公开消息链提取
-  图片载荷（`images_from_event`）。
+- 资源状态：`src/modules/operations/` 只提供公共资源状态/下载；`panel_custom/` 是已移除
+  面板管理能力后的遗留目录，插件不读取、统计或删除其中内容。别名维护由
+  `src/modules/admin/aliases.py` 提供角色和武器两类独立 custom 文件。
   资源更新经 `ResourceUpdateService` 调用 `ResourceSnapshotCoordinator`：Git cache 只执行
   `main` 的浅克隆/fetch，候选先由 `git archive FETCH_HEAD` 物化并完整校验，再
   `merge --ff-only FETCH_HEAD`，计算完整文件树 SHA-256，最后原子发布 `resource_generations/<sha>/`
@@ -113,8 +113,8 @@
   `main` 后，插件才会从 canonical GitHub origin 的 `main` fetch、校验并发布 generation；
   插件不拉取编辑器源码，也不把镜像或投稿分支当作发布源。资源仓库的第三方素材不因仓库
   公开或插件 GPL-3.0 而获得统一许可。
-- 当前阶段：当前 main 已注册 `commands.json` 中的 61 条命令，权限为
-  `user=33/admin=28`；未迁移命令不会在新入口中隐式注册，别名仅保留读取命令。
+- 当前阶段：当前 main 已注册 `commands.json` 中的 59 条命令；公共帮助和角色/武器列表属于
+  普通用户，管理员功能统一映射 AstrBot `ADMIN`，未迁移及已删除命令不会在新入口中隐式注册。
 
 ## HTML/T2I 图片渲染
 

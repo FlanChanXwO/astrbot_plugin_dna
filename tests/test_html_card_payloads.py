@@ -160,9 +160,11 @@ def test_help_template_uses_legacy_group_and_item_coordinates() -> None:
     section = {
         "name": "分组",
         "description": "说明",
+        "height": 315,
         "items": [{"name": "命令", "example": "示例", "icon": "data:image/png;base64,AA=="}],
     }
     rendered = environment.get_template("cards/help.html.j2").render(
+        card_height=1700,
         width=2020,
         background="data:image/jpeg;base64,AA==",
         font="data:font/woff2;base64,AA==",
@@ -173,9 +175,10 @@ def test_help_template_uses_legacy_group_and_item_coordinates() -> None:
         footer="data:image/png;base64,AA==",
         subtitle="副标题",
         sections=[section, section],
+        version="v0.2.0",
     )
 
-    assert 'style="top: 766px"' in rendered
-    assert 'style="top: 1081px"' in rendered
+    assert "padding-top: 766px" in rendered
+    assert 'style="height: 315px"' in rendered
     assert "top: 119px" in rendered
     assert "font-weight: 630" in rendered

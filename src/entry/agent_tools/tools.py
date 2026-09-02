@@ -333,7 +333,7 @@ _TOOL_DEFINITIONS = (
     _ToolDefinition(
         "dnaby_player_role_detail",
         "player_role_detail",
-        "查询当前消息用户指定角色的详情、武器与伤害信息；先使用角色目录确认名称。",
+        "查询当前消息用户指定角色的基础详情与武器信息；先使用角色目录确认名称。",
         _image_schema(
             {
                 "char_name": {"type": "string", "description": "角色名称"},

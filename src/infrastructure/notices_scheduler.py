@@ -1,6 +1,6 @@
 """通知（密函/公告）的 asyncio 计划任务。
 
-每小时固定在 ``HH:30`` 推送一次密函，按 ``poll_minutes`` 轮询公告并推送新条目。
+每小时在配置的分钟推送一次密函，按 ``poll_minutes`` 轮询公告并推送新条目。
 任务在 ``start()`` 创建、``stop()`` 取消，``initialize()/terminate()`` 通过生命周期
 钩子驱动；``sleep``/``now`` 可注入以便离线测试，不依赖真实时钟。推送失败由
 ``_run`` 记录日志，不静默。
@@ -17,8 +17,6 @@ from zoneinfo import ZoneInfo
 from astrbot.api import logger
 
 from .scheduler_state import (
-    MH_PUSH_AT,
-    MH_PUSH_SCHEDULE,
     SchedulerRegistry,
     SchedulerTaskDefinition,
     SchedulerTaskNotFound,
@@ -57,6 +55,7 @@ class NoticesScheduler:
         *,
         announcement_enabled: bool = True,
         poll_minutes: int = 10,
+        push_minute: int = 0,
         sleep: SleepCallable = asyncio.sleep,
         now: NowCallable | None = None,
         registry: SchedulerRegistry | None = None,
@@ -64,6 +63,9 @@ class NoticesScheduler:
         self.notices = notices
         self.announcement_enabled = announcement_enabled
         self.poll_minutes = max(1, int(poll_minutes))
+        self.push_minute = int(push_minute)
+        if not 0 <= self.push_minute <= 59:
+            raise ValueError("密函推送分钟必须为 0--59")
         self._sleep = sleep
         self._now = now if now is not None else lambda: datetime.now(TZ)
         self.registry = registry or SchedulerRegistry()
@@ -81,7 +83,7 @@ class NoticesScheduler:
             SchedulerTaskDefinition(
                 id=_MH_PUSH_TASK_NAME,
                 name="密函推送",
-                schedule=MH_PUSH_SCHEDULE,
+                schedule=f"hourly@{self.push_minute:02d}:00",
                 targets=("mh_subscriptions",),
             ),
             enabled=self._enabled_tasks[_MH_PUSH_TASK_NAME],
@@ -103,9 +105,9 @@ class NoticesScheduler:
 
     @property
     def push_time(self) -> tuple[int, int]:
-        """返回固定的每小时 HH:30 触发点，不能由配置或管理页修改。"""
+        """返回配置的每小时触发点。"""
 
-        return MH_PUSH_AT
+        return self.push_minute, 0
 
     async def _run_hourly(
         self,
@@ -114,7 +116,7 @@ class NoticesScheduler:
     ) -> None:
         while True:
             now = self._now()
-            next_run = _next_hourly(now, *MH_PUSH_AT)
+            next_run = _next_hourly(now, *self.push_time)
             await self.registry.set_next_run(task_id, next_run)
             delay = (next_run - now).total_seconds()
             await self._sleep(max(0.0, delay))
@@ -130,8 +132,6 @@ class NoticesScheduler:
                 logger.warning(f"[dnaby][{_MH_PUSH_TASK_NAME}] 定时任务异常")
             else:
                 await self.registry.mark_running(task_id)
-            # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标秒内重复触发
-            await self._sleep(1.0)
 
     async def _run_periodic(
         self,
@@ -241,6 +241,7 @@ class NoticesScheduler:
         if task_id == _MH_PUSH_TASK_NAME:
             if not isinstance(values, tuple):
                 raise ValueError("密函任务 schedule 类型错误")
+            self.push_minute = values[0]
         else:
             if not isinstance(values, int):
                 raise ValueError("公告任务 schedule 类型错误")

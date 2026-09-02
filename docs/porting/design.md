@@ -7,7 +7,7 @@
 把 DNAUID 全面移植为原生 AstrBot 插件。已确认决策：
 
 1. **原生重写集成层**：不引入 gsuid_core 兼容包；命令/发送/配置/DB/订阅/推送/Web/定时任务用 AstrBot 原生写法，仅复用纯逻辑（请求签名、伤害计算、素材处理、攻略/wiki 素材、姓名别名、字体图片工具）；生成型图片统一由 Jinja2 + AstrBot 全局 T2I 输出。
-2. **完整移植登录**：内嵌 Web/App 短信登录页、local 模式、QR、token、短信命令登录、外置传输（http_poll/sse/ws）全保留。
+2. **恢复 App-only 登录**：内嵌 App 短信登录页、local 模式、QR、token、短信命令登录、外置传输（http_poll/sse/ws）保留；Web 凭据、Web 登录页和 Web fallback 不属于发布契约。
 3. **命令改正则触发**：命令由显式 `CommandSpec` registry 声明；`commands.json` 是 registry 投影，`help.json` 在 registry 帮助路径仅提供表现层说明与资源信息。
 4. 使用 `/skill-astrbot-dev` 规范（metadata/requirements/main 聚焦/README/LICENSE）与 `/superpowers-skill` 方法论执行。
 
@@ -73,7 +73,7 @@ astrbot_plugin_dnaby/
 | DB | gsucore base_models/exec_list | 本地 `utils/database/base.py`（sqlmodel+aiosqlite 私有 engine） |
 | 订阅/推送 | `gs_subscribe`/`gss.target_send` | `utils/subscriptions.py` + `context.send_message(umo, chain)` |
 | 定时任务 | `scheduler.scheduled_job` | `initialize()` 内 `asyncio` 循环，`terminate()` 取消 |
-| 登录 Web | `web_app`(FastAPI) | `context.register_web_api` + 进程内 TTL 会话表 |
+| 登录页 | `web_app`(FastAPI) | local 模式 `LocalLoginServer` + 进程内 TTL 会话表；外置模式使用 typed transport |
 | 图片工具 | gsucore image_tools | `src/infrastructure/rendering/`（Jinja2 + AstrBot T2I）与本地 `utils/image_utils.py`（素材处理 + qrcode + httpx） |
 | 帮助/状态 | `register_help`/`register_status` | 帮助卡片（commands.json）+ 可选状态命令 |
 

@@ -77,9 +77,9 @@ def test_admin_routes_are_unique_and_dashboard_scoped() -> None:
         "tasks",
         "targets",
         "members",
-        "panels",
         "aliases",
     }
+    assert all(route.path.split("/")[3] != "panels" for route in routes)
     assert all(route.path.startswith(f"{ADMIN_WEB_PREFIX}/") for route in routes)
 
 
@@ -208,10 +208,8 @@ async def test_account_detail_explicitly_returns_credentials_with_no_store() -> 
         group_id=None,
         is_active=True,
         has_app_credentials=True,
-        has_web_credentials=True,
         credentials=CredentialPayload(
             app_cookie="app-secret",
-            web_token="web-secret",
         ),
     )
 
@@ -238,11 +236,6 @@ async def test_account_detail_explicitly_returns_credentials_with_no_store() -> 
         "app_d_num": "",
         "app_refresh_token": "",
         "app_status": "",
-        "web_token": "web-secret",
-        "web_device_code": "",
-        "web_d_num": "",
-        "web_refresh_token": "",
-        "web_status": "",
     }
 
 

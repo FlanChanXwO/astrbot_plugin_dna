@@ -233,6 +233,18 @@
         "description": "简易密函图片",
         "hint": "是否使用简单密函图片",
         "default": false
+      },
+      "secret_push_minute": {
+        "type": "int",
+        "description": "密函推送分钟",
+        "hint": "每小时在该分钟推送密函，默认整点",
+        "default": 0
+      },
+      "secret_retry_interval_seconds": {
+        "type": "float",
+        "description": "密函数据重试间隔",
+        "hint": "当前小时密函未准备好或校验失败时的重试间隔（秒）",
+        "default": 1
       }
     }
   },
@@ -308,7 +320,7 @@
       "fresh_ttl_minutes": {
         "type": "int",
         "description": "缓存 fresh 保持时间（分钟）",
-        "hint": "缓存内容在此时间内视为 fresh",
+        "hint": "缓存内容在此时间内视为 fresh；-1 表示永久缓存，仅主动失效或刷新时更新",
         "default": 30
       },
       "retention_ttl_hours": {

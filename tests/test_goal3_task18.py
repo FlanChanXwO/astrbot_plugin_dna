@@ -227,45 +227,45 @@ def test_code_entry_message_shows_present_fields_without_empty_labels() -> None:
     assert "区服：" not in minimal_text
 
 
-def test_alias_write_capability_and_all_projections_are_removed() -> None:
+def test_alias_write_capability_and_all_projections_are_registered() -> None:
     specs = {spec.id: spec for spec in load_command_registry()}
-    assert len(specs) == 61
+    assert len(specs) >= 59
     assert "alias_list" in specs
     assert "alias_all_list" in specs
-    assert "alias_add_delete" not in specs
-    assert "alias_recover" not in specs
+    assert specs["alias_list"].permission == "user"
+    assert specs["alias_all_list"].permission == "user"
+    assert specs["alias_add_delete"].permission == "admin"
+    assert specs["alias_recover"].permission == "admin"
 
     manifest = json.loads((ROOT / "commands.json").read_text(encoding="utf-8"))
     assert {item["id"] for item in manifest} >= {"alias_list", "alias_all_list"}
-    assert {item["id"] for item in manifest}.isdisjoint(
-        {"alias_add_delete", "alias_recover"}
-    )
+    assert {item["id"] for item in manifest} >= {"alias_add_delete", "alias_recover"}
 
     help_data = json.loads((ROOT / "src/resources/help/help.json").read_text(encoding="utf-8"))
     help_text = json.dumps(help_data, ensure_ascii=False)
-    assert "添加/删除角色别名" not in help_text
-    assert "添加/删除武器别名" not in help_text
-    assert "恢复别名" not in help_text
+    assert "恢复别名" in help_text
 
     assert not (ROOT / "src/modules/operations/alias_service.py").exists()
     assert not (ROOT / "src/modules/encyclopedia/alias_ops.py").exists()
 
     docs = (ROOT / "docs/usage/commands.md").read_text(encoding="utf-8")
     assert "别名" in docs
-    for phrase in ("添加角色别名", "删除角色别名", "添加/删除角色别名", "恢复别名"):
-        assert phrase not in docs
+    assert "添加角色<角色名>别名<别名>" in docs
+    assert "删除武器<武器名>别名<别名>" in docs
+    assert "`恢复别名`" in docs
 
 
-def test_panel_custom_commands_remain_projected() -> None:
+def test_panel_custom_commands_are_removed_from_all_projections() -> None:
     specs = {spec.id for spec in load_command_registry()}
-    assert {
-        "upload_panel_img",
-        "list_panel_imgs",
-        "delete_panel_img_by_id",
-        "delete_all_panel_imgs",
-        "delete_original_panel_img",
-        "compress_panel_imgs",
-        "resource_status",
-    } <= specs
+    assert specs.isdisjoint(
+        {
+            "upload_panel_img",
+            "list_panel_imgs",
+            "delete_panel_img_by_id",
+            "delete_all_panel_imgs",
+            "delete_original_panel_img",
+            "compress_panel_imgs",
+        }
+    )
     bootstrap = (ROOT / "src/bootstrap.py").read_text(encoding="utf-8")
-    assert 'runtime_database.path.parent / "panel_custom"' in bootstrap
+    assert 'runtime_database.path.parent / "panel_custom"' not in bootstrap

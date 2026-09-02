@@ -83,6 +83,7 @@ class FixturePlayerTransport:
         self.expected_user_id = expected_user_id
         self.expected_uid = expected_uid
         self.fail_con_weapon = fail_con_weapon
+        self.damage_calls = 0
 
     async def get_overview(
         self,
@@ -145,6 +146,7 @@ class FixturePlayerTransport:
         *,
         credential_user_id: str,
     ) -> DamageCalculation:
+        self.damage_calls += 1
         assert actor.user_id == "user-1"
         assert role_detail.char_id == 101
         assert con_weapon is not None or self.fail_con_weapon
@@ -153,6 +155,38 @@ class FixturePlayerTransport:
         assert uid == self.expected_uid
         assert credential_user_id == self.expected_user_id
         return DamageCalculation.success(_damage_fixture())
+
+
+@pytest.mark.asyncio
+async def test_role_detail_does_not_request_damage_for_normal_app_card(tmp_path: Path) -> None:
+    """正常角色详情只读取基础资料，不调用伤害计算 API。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture())
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.role_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={"char_name": "角色甲", "weapon_name_1": "近战甲"},
+        ),
+    )
+
+    assert isinstance(response, ImageResponse)
+    assert transport.damage_calls == 0
+    artifact = read_rendered_artifact(Path(response.image))
+    text = artifact.metadata["dnaby.text"]
+    layout = artifact.metadata["dnaby.layout"]
+    assert "伤害计算" not in text
+    assert "伤害" not in {section["name"] for section in layout["sections"]}
+    await database.dispose()
 
 
 def _overview_fixture() -> RoleOverview:
@@ -421,8 +455,8 @@ async def test_player_query_uses_target_account_credentials(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
-async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp_path: Path) -> None:
-    """详情图按动态高度渲染所有技能、魔之楔和伤害字段。"""
+async def test_role_detail_renders_all_basic_sections_and_original_path(tmp_path: Path) -> None:
+    """详情图保留基础角色资料、技能、魔之楔和武器字段。"""
 
     original = tmp_path / "original-panel.png"
     Image.new("RGBA", (37, 53), "purple").save(original)
@@ -456,7 +490,7 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
     text = artifact.metadata["dnaby.text"]
     layout = artifact.metadata["dnaby.layout"]
     resources = artifact.metadata["dnaby.resources"]
-    for expected in ("角色甲", "技能1", "技能4", "魔之楔1", "魔之楔9", "近战甲", "技能伤害", "派生技能", "总伤害"):
+    for expected in ("角色甲", "技能1", "技能4", "魔之楔1", "魔之楔9", "近战甲"):
         assert expected in text
     assert [section["name"] for section in layout["sections"]] == [
         "角色头部",
@@ -465,7 +499,6 @@ async def test_role_detail_renders_all_skills_modes_damage_and_original_path(tmp
         "溯源",
         "武器",
         "魔之楔",
-        "伤害",
     ]
     assert any(item["kind"] == "original_panel" and item["status"] == "provided" for item in resources)
     original_response = await service.original_image(
@@ -599,11 +632,11 @@ async def test_concurrent_role_details_keep_their_related_original_paths(tmp_pat
         "https://api.example.test/damage?token=secret-url-006",
     ),
 )
-async def test_damage_failure_payload_never_reaches_detail_image(
+async def test_normal_detail_does_not_expose_or_request_damage_payload(
     tmp_path: Path,
     upstream_message: str,
 ) -> None:
-    """伤害失败的上游正文不得进入用户图片或 PNG 文本元数据。"""
+    """正常详情不调用伤害接口，也不把任何伤害正文写入用户图片。"""
 
     class SensitiveDamageTransport(FixturePlayerTransport):
         async def calculate_damage(
@@ -627,9 +660,14 @@ async def test_damage_failure_payload_never_reaches_detail_image(
             return DamageCalculation.failure(upstream_message)
 
     database = await _database_with_binding(tmp_path)
+    transport = SensitiveDamageTransport(
+        _overview_fixture(),
+        _detail_fixture(),
+        _weapon_fixture(),
+    )
     service = PlayerService(
         database,
-        SensitiveDamageTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture()),
+        transport,
         PrivacyService(database),
         PlayerRenderer(tmp_path / "rendered", ResourceMap()),
     )
@@ -644,12 +682,13 @@ async def test_damage_failure_payload_never_reaches_detail_image(
 
     assert isinstance(response, ImageResponse)
     assert response.original_image_path is None
+    assert transport.damage_calls == 0
     assert upstream_message not in repr(response)
     artifact = read_rendered_artifact(Path(response.image))
     text = artifact.metadata["dnaby.text"]
     layout = artifact.metadata["dnaby.layout"]
     resources = artifact.metadata["dnaby.resources"]
-    assert messages.PLAYER_DAMAGE_FAILED in text
+    assert "伤害计算" not in text
     assert upstream_message not in text
     assert upstream_message not in layout
     assert upstream_message not in resources

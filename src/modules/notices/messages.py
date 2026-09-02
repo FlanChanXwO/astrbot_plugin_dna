@@ -43,8 +43,6 @@ MH_PIC_NOT_SUBSCRIBED = "未曾订阅密函图片"
 MH_TEXT_SUBSCRIBED = "成功订阅密函文本"
 MH_TEXT_UNSUBSCRIBED = "成功取消订阅密函文本"
 MH_TEXT_NOT_SUBSCRIBED = "未曾订阅密函文本"
-MH_TEST_SENT = "已发送密函测试"
-MH_TEST_FAILED = "密函测试发送失败"
 ANN_GROUP_ONLY = "请在群聊中订阅"
 ANN_GROUP_UNSUB_ONLY = "请在群聊中取消订阅"
 ANN_ALREADY_SUBSCRIBED = "已经订阅了二重螺旋公告！"
@@ -81,8 +79,6 @@ __all__ = [
     "MH_SUBSCRIBE",
     "MH_SUBSCRIBED_TEMPLATE",
     "MH_SUBSCRIBE_EMPTY",
-    "MH_TEST_FAILED",
-    "MH_TEST_SENT",
     "MH_TEXT_NOT_SUBSCRIBED",
     "MH_TEXT_SUBSCRIBE",
     "MH_TEXT_SUBSCRIBED",

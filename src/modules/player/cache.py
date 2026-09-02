@@ -314,6 +314,40 @@ class PlayerCache:
         )
         return removed
 
+    async def invalidate_role_only(
+        self,
+        target_user_id: str,
+        uid: str,
+        char_id: int,
+    ) -> int:
+        """只失效一个身份的指定角色数据和卡片，不清理概览。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        role = f"role:{char_id}"
+        return await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, role),
+        ) + await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity, role),
+        )
+
+    async def invalidate_identity(
+        self,
+        target_user_id: str,
+        uid: str,
+    ) -> int:
+        """清理一个用户 UID 的全部玩家数据和卡片。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        return await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity,),
+        ) + await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity,),
+        )
+
     async def invalidate_all(self) -> int:
         """只清理玩家数据和卡片，不触碰公告等其它缓存类型。"""
 

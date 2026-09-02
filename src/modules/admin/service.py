@@ -10,7 +10,6 @@ from ...infrastructure.persistence import (
     CredentialRepository,
 )
 from ...infrastructure.persistence.models import AccountBinding, CredentialRecord
-
 from .contracts import (
     CREDENTIAL_FIELDS,
     UNSET,
@@ -78,11 +77,6 @@ def _payload_from_record(record: CredentialRecord) -> CredentialPayload:
         app_d_num=record.app_d_num,
         app_refresh_token=record.app_refresh_token,
         app_status=record.app_status,
-        web_token=record.web_token,
-        web_device_code=record.web_device_code,
-        web_d_num=record.web_d_num,
-        web_refresh_token=record.web_refresh_token,
-        web_status=record.web_status,
     )
 
 
@@ -99,9 +93,7 @@ def _account_from_records(
         group_id=binding.group_id,
         is_active=binding.is_active,
         has_app_credentials=credential.has_app_credentials if credential else False,
-        has_web_credentials=credential.has_web_credentials if credential else False,
         app_status=credential.app_status if credential else "",
-        web_status=credential.web_status if credential else "",
         credentials=payload if include_credentials else None,
     )
 
@@ -177,7 +169,7 @@ class AdminAccountService:
         uid: str,
         update: AdminAccountUpdate,
     ) -> AdminApiResponse[AdminAccount]:
-        """编辑已有绑定的来源群、active 和全部 App/Web 凭据。
+        """编辑已有绑定的来源群、active 和 App 凭据。
 
         更新只允许命中已存在的 ``(user_id, uid)``；凭据记录可以在已有绑定上首次
         建立，但不会借此创建新的账号绑定。
@@ -251,7 +243,7 @@ class AdminAccountService:
         uid: str,
         payload: CredentialPayload,
     ) -> CredentialRecord:
-        """在已有绑定内原子替换十个凭据字段。"""
+        """在已有绑定内原子替换 App 凭据字段。"""
 
         record = await CredentialRepository.get(
             session,

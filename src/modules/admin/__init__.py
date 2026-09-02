@@ -1,5 +1,21 @@
 """Dashboard 管理服务的框架无关 DTO 与账号 use case。"""
 
+from .aliases import (
+    AdminAliasCatalog,
+    AdminAliasEntry,
+    AdminAliasService,
+    AliasAdminService,
+    AliasCatalog,
+    AliasEntry,
+)
+from .api import (
+    AdminApiService,
+    AdminTaskService,
+    TaskAdminService,
+    TaskSnapshot,
+    TaskTarget,
+    TaskTargetUpdate,
+)
 from .contracts import (
     ADMIN_NO_STORE_HEADERS,
     CREDENTIAL_FIELDS,
@@ -15,22 +31,6 @@ from .contracts import (
     DeletionPreview,
     DeletionStepResult,
     DeletionStepStatus,
-)
-from .api import (
-    AdminApiService,
-    AdminTaskService,
-    TaskAdminService,
-    TaskSnapshot,
-    TaskTarget,
-    TaskTargetUpdate,
-)
-from .aliases import (
-    AdminAliasCatalog,
-    AdminAliasEntry,
-    AdminAliasService,
-    AliasAdminService,
-    AliasCatalog,
-    AliasEntry,
 )
 from .deletion import (
     AccountDeletionCoordinator,
@@ -57,25 +57,10 @@ from .preview import (
     AdminPreviewRequest,
     AdminPreviewService,
 )
-from .panels import (
-    AdminPanelService,
-    PanelAdminService,
-    PanelCompressionResult,
-    PanelDeletionResult,
-    PanelImage,
-    PanelImageInfo,
-    PanelImageMetadata,
-    PanelImagePayload,
-)
 from .service import AdminAccountService
 
 __all__ = [
     "ADMIN_NO_STORE_HEADERS",
-    "AdminAliasCatalog",
-    "AdminAliasEntry",
-    "AdminAliasService",
-    "AdminApiService",
-    "AdminTaskService",
     "CREDENTIAL_FIELDS",
     "UNSET",
     "AccountDeletionCoordinator",
@@ -83,14 +68,18 @@ __all__ = [
     "AdminAccount",
     "AdminAccountService",
     "AdminAccountUpdate",
+    "AdminAliasCatalog",
+    "AdminAliasEntry",
+    "AdminAliasService",
     "AdminApiResponse",
+    "AdminApiService",
     "AdminError",
     "AdminErrorCode",
     "AdminPreviewImage",
     "AdminPreviewRenderer",
     "AdminPreviewRequest",
     "AdminPreviewService",
-    "AdminPanelService",
+    "AdminTaskService",
     "AiocqhttpMembershipProbe",
     "AliasAdminService",
     "AliasCatalog",
@@ -112,13 +101,6 @@ __all__ = [
     "MembershipScanResult",
     "MembershipService",
     "MembershipStatus",
-    "PanelAdminService",
-    "PanelCompressionResult",
-    "PanelDeletionResult",
-    "PanelImage",
-    "PanelImageInfo",
-    "PanelImageMetadata",
-    "PanelImagePayload",
     "TaskAdminService",
     "TaskSnapshot",
     "TaskTarget",

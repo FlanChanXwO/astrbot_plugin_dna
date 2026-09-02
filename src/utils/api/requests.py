@@ -53,10 +53,7 @@ from .api import (
 )
 from .auth import (
     DNACapability,
-    LoginChannel,
     get_capability_credentials,
-    get_channel_credentials,
-    get_token_user_id,
 )
 from .damage_model import (
     BuildConfigData,
@@ -73,11 +70,8 @@ from .request_util import (
     RespCode,
     get_base_header,
     get_damage_header,
-    get_web_login_header,
 )
 from .sign import get_dev_code, get_signed_headers_and_body
-from .sign_130 import generate_headers_130
-from .sign_h5 import generate_headers_h5
 
 _DamageDataT = TypeVar("_DamageDataT")
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
@@ -196,12 +190,6 @@ class DNAApi:
             if checked_user is not None:
                 return checked_user
 
-        web_credentials = get_channel_credentials(
-            dna_user,
-            LoginChannel.WEB,
-        )
-        if web_credentials is not None:
-            return dna_user
         return None
 
     async def check_cookie(self, dna_user: DNAUser) -> DNAUser | None:
@@ -272,16 +260,7 @@ class DNAApi:
 
         return rsa_pub
 
-    async def _get_web_signed_headers_and_body(
-        self,
-        payload: dict[str, Any],
-        dev_code: str,
-    ) -> tuple[dict[str, str], dict[str, Any]]:
-        headers = get_web_login_header(dev_code)
-        rsa_pub = await self.get_rsa_public_key()
-        return generate_headers_h5(headers, payload, rsa_pub)
-
-    async def get_web_sms_code(
+    async def get_app_sms_code(
         self,
         mobile: str | int,
         v_json: str,
@@ -319,33 +298,6 @@ class DNAApi:
             rsa_public_key=rsa_pub,
         )
         return await self._dna_request(LOGIN_URL, "POST", headers, data=payload)
-
-    async def login_web(
-        self,
-        mobile: str | int,
-        code: str,
-        dev_code: str,
-    ) -> DNAApiResp[Any]:
-        payload = {
-            "mobile": mobile,
-            "code": code,
-            "gameList": DNA_GAME_ID,
-            "loginType": 1,
-        }
-        headers = await get_base_header(dev_code)
-        rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
-            url=LOGIN_URL,
-            header=headers,
-            data=payload,
-            rsa_public_key=rsa_pub,
-        )
-        return await self._dna_request(
-            LOGIN_URL,
-            "POST",
-            headers,
-            data=payload,
-        )
 
     async def refresh_token(self, token: str, refresh_token: str, dev_code: str):
         headers = await get_base_header(dev_code=dev_code, token=token)
@@ -403,12 +355,6 @@ class DNAApi:
         )
         if credentials is None:
             return DNAApiResp[Any].err("当前账号没有可用的角色卡片凭据")
-        if credentials.channel is LoginChannel.WEB:
-            return await self.get_web_default_role(
-                credentials.token,
-                credentials.dev_code,
-            )
-
         header = await get_base_header(
             credentials.dev_code,
             token=credentials.token,
@@ -423,30 +369,6 @@ class DNAApi:
         )
         return await self._dna_request(ROLE_FOR_TOOL_URL, "POST", headers, data=payload)
 
-    async def get_web_default_role(
-        self,
-        token: str,
-        dev_code: str,
-    ) -> DNAApiResp[Any]:
-        user_id = get_token_user_id(token)
-        if user_id is None:
-            return DNAApiResp[Any].err("Web token 格式错误")
-
-        headers = await get_base_header(dev_code, token=token)
-        payload = {"otherUserId": user_id, "type": 2}
-        rsa_pub = await self.get_rsa_public_key()
-        headers, payload = generate_headers_130(
-            headers,
-            payload,
-            rsa_pub,
-        )
-        return await self._dna_request(
-            ROLE_FOR_TOOL_URL,
-            "POST",
-            headers,
-            data=payload,
-        )
-
     async def _damage_request(
         self,
         dna_user: DNAUser,
@@ -459,7 +381,7 @@ class DNAApi:
             DNACapability.DAMAGE_CALCULATION,
         )
         if credentials is None:
-            return response_model.err("伤害计算需要 Web 登录")
+            return response_model.err("伤害计算需要 App 登录")
 
         response = await self._dna_request(
             url,
@@ -552,17 +474,6 @@ class DNAApi:
             "charEid": char_eid,
             "type": 1,
         }
-        if credentials.channel is LoginChannel.WEB:
-            user_id = get_token_user_id(credentials.token)
-            if user_id is None:
-                return DNAApiResp[Any].err("Web token 格式错误")
-            data.update(
-                {
-                    "type": 2,
-                    "userId": user_id,
-                    "otherUserId": user_id,
-                }
-            )
         return await self._dna_request(ROLE_DETAIL_URL, "POST", headers, data=data)
 
     async def get_weapon_detail(
@@ -587,17 +498,6 @@ class DNAApi:
             "weaponEid": weapon_eid,
             "type": 1,
         }
-        if credentials.channel is LoginChannel.WEB:
-            user_id = get_token_user_id(credentials.token)
-            if user_id is None:
-                return DNAApiResp[Any].err("Web token 格式错误")
-            data.update(
-                {
-                    "type": 2,
-                    "userId": user_id,
-                    "otherUserId": user_id,
-                }
-            )
         return await self._dna_request(WEAPON_DETAIL_URL, "POST", headers, data=data)
 
     async def get_short_note_info(

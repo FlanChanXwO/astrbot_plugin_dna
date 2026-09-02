@@ -313,6 +313,25 @@ def _validate_asset_headers(root: Path) -> None:
 class ResourceGenerationValidator:
     """验证可发布 generation 的 manifest、数据契约、素材头和运行期索引。"""
 
+    def __init__(
+        self,
+        *,
+        custom_alias_path: str | Path | None = None,
+        custom_weapon_alias_path: str | Path | None = None,
+    ) -> None:
+        """保存运行目录的 custom 别名路径，避免 generation 根目录推导错误。"""
+
+        self.custom_alias_path = (
+            None
+            if custom_alias_path is None
+            else Path(custom_alias_path).expanduser().absolute()
+        )
+        self.custom_weapon_alias_path = (
+            None
+            if custom_weapon_alias_path is None
+            else Path(custom_weapon_alias_path).expanduser().absolute()
+        )
+
     def validate(self, root: str | Path, commit_sha: str) -> ResourceSnapshot:
         root_input = Path(root).expanduser()
         try:
@@ -328,7 +347,11 @@ class ResourceGenerationValidator:
             from ..rendering.player import ResourceMap
 
             player_resources = ResourceMap.from_root(root_path)
-            encyclopedia_resources = EncyclopediaResourceStore.from_root(root_path)
+            encyclopedia_resources = EncyclopediaResourceStore.from_root(
+                root_path,
+                custom_alias_path=self.custom_alias_path,
+                custom_weapon_alias_path=self.custom_weapon_alias_path,
+            )
             content_sha256 = _content_sha256(root_path)
         except ResourceGenerationError as exc:
             raise ResourceGenerationError(f"资源候选 generation 校验失败：{exc}") from exc
@@ -400,6 +423,8 @@ class ResourceSnapshotCoordinator:
         acceleration_prefix: str | None = None,
         runner: GitRunner = run_git,
         validator: ResourceGenerationValidator | None = None,
+        custom_alias_path: str | Path | None = None,
+        custom_weapon_alias_path: str | Path | None = None,
     ) -> None:
         # 保留运行期目录的符号链接状态，防止 resolve() 把资源写到边界之外。
         self.repository = Path(repository).expanduser().absolute()
@@ -408,7 +433,10 @@ class ResourceSnapshotCoordinator:
         self.remote = remote
         self.acceleration_prefix = acceleration_prefix
         self._runner = runner
-        self._validator = validator or ResourceGenerationValidator()
+        self._validator = validator or ResourceGenerationValidator(
+            custom_alias_path=custom_alias_path,
+            custom_weapon_alias_path=custom_weapon_alias_path,
+        )
         self._lock = threading.RLock()
         self._current: ResourceSnapshot | None = None
         self._leases: dict[str, int] = {}

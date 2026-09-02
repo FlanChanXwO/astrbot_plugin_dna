@@ -12,7 +12,6 @@ from zoneinfo import ZoneInfo
 import pytest
 from PIL import Image
 
-from src.entry.event import EventActor
 from src.infrastructure.cache import CacheManager
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from src.infrastructure.rendering import NoticesRenderer, RenderedNoticesImage
@@ -20,7 +19,7 @@ from src.infrastructure.rendering.errors import T2IRenderError
 from src.infrastructure.resources import EncyclopediaResourceStore
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.notices import messages
-from src.modules.notices.contracts import AnnBlock, AnnDetail, MhSnapshot, NoticeRequest
+from src.modules.notices.contracts import AnnBlock, AnnDetail, MhSnapshot
 from src.modules.notices.service import NoticesService
 from src.modules.privacy import PrivacyService
 from tests.test_notices import FakeNoticesTransport, _mh_snapshot
@@ -50,19 +49,6 @@ async def _database_with_binding(tmp_path: Path) -> AsyncDatabase:
     return database
 
 
-def _request(text: str = "密函测试") -> NoticeRequest:
-    return NoticeRequest(
-        actor=EventActor(
-            "user-1",
-            "bot-1",
-            "group-1",
-            unified_msg_origin="platform:group:g1",
-        ),
-        target_user_id=None,
-        text=text,
-    )
-
-
 def _service(
     database: AsyncDatabase,
     transport: FakeNoticesTransport,
@@ -83,30 +69,6 @@ def _service(
         cache_manager=cache_manager,
         clock=lambda: datetime(2026, 8, 30, 12, 35, tzinfo=SHANGHAI),
     )
-
-
-@pytest.mark.asyncio
-async def test_mh_test_push_reports_target_failure(tmp_path: Path) -> None:
-    """密函测试目标失败时不能返回成功文案。"""
-
-    database = await _database_with_binding(tmp_path)
-
-    async def push(_origin: str, _payload: object) -> bool:
-        return False
-
-    service = _service(
-        database,
-        FakeNoticesTransport(),
-        tmp_path,
-        subscriptions=SubscriptionStore(tmp_path / "subscriptions.json"),
-        push=push,
-    )
-
-    response = await service.test_mh_push(_request())
-
-    assert response.text == "密函测试发送失败"
-    assert response.text != messages.MH_TEST_SENT
-    await database.dispose()
 
 
 @pytest.mark.asyncio

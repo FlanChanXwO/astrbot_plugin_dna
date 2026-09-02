@@ -197,9 +197,11 @@ class CacheSettings(_SettingsModel):
 
     fresh_ttl_minutes: int = Field(
         default=30,
-        ge=0,
+        ge=-1,
         description="缓存 fresh 保持时间（分钟）",
-        json_schema_extra={"hint": "缓存内容在此时间内视为 fresh"},
+        json_schema_extra={
+            "hint": "缓存内容在此时间内视为 fresh；-1 表示永久缓存，仅主动失效或刷新时更新"
+        },
     )
     retention_ttl_hours: int = Field(
         default=24,
@@ -341,6 +343,19 @@ class NotificationSettings(_SettingsModel):
         default=False,
         description="简易密函图片",
         json_schema_extra={"hint": "是否使用简单密函图片"},
+    )
+    secret_push_minute: int = Field(
+        default=0,
+        ge=0,
+        le=59,
+        description="密函推送分钟",
+        json_schema_extra={"hint": "每小时在该分钟推送密函，默认整点"},
+    )
+    secret_retry_interval_seconds: float = Field(
+        default=1,
+        gt=0,
+        description="密函数据重试间隔",
+        json_schema_extra={"hint": "当前小时密函未准备好或校验失败时的重试间隔（秒）"},
     )
 
 

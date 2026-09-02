@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import base64
 import secrets
-from binascii import Error as BinasciiError
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
-
-from pydantic import ValidationError
-
-from .model import DNATokenPayload
 
 if TYPE_CHECKING:
     from ..database.models import DNAUser
@@ -17,7 +11,6 @@ if TYPE_CHECKING:
 
 class LoginChannel(StrEnum):
     APP = "app"
-    WEB = "web"
 
 
 class DNACapability(StrEnum):
@@ -28,10 +21,10 @@ class DNACapability(StrEnum):
 
 
 _CAPABILITY_CHANNELS = {
-    DNACapability.ROLE_CARD: (LoginChannel.APP, LoginChannel.WEB),
+    DNACapability.ROLE_CARD: (LoginChannel.APP,),
     DNACapability.ACCOUNT_QUERY: (LoginChannel.APP,),
     DNACapability.ACCOUNT_ACTION: (LoginChannel.APP,),
-    DNACapability.DAMAGE_CALCULATION: (LoginChannel.WEB,),
+    DNACapability.DAMAGE_CALCULATION: (LoginChannel.APP,),
 }
 
 
@@ -58,25 +51,16 @@ def get_channel_credentials(
     dna_user: DNAUser,
     channel: LoginChannel,
 ) -> LoginCredentials | None:
-    if channel is LoginChannel.APP:
-        if dna_user.cookie == "" or dna_user.dev_code == "" or dna_user.status == "无效":
-            return None
-        return LoginCredentials(
-            channel=channel,
-            token=dna_user.cookie,
-            dev_code=dna_user.dev_code,
-            d_num=dna_user.d_num,
-            refresh_token=dna_user.refresh_token,
-        )
-
-    if dna_user.web_token == "" or dna_user.web_dev_code == "" or dna_user.web_status == "无效":
+    if channel is not LoginChannel.APP:
+        return None
+    if dna_user.cookie == "" or dna_user.dev_code == "" or dna_user.status == "无效":
         return None
     return LoginCredentials(
         channel=channel,
-        token=dna_user.web_token,
-        dev_code=dna_user.web_dev_code,
-        d_num=dna_user.web_d_num,
-        refresh_token=dna_user.web_refresh_token,
+        token=dna_user.cookie,
+        dev_code=dna_user.dev_code,
+        d_num=dna_user.d_num,
+        refresh_token=dna_user.refresh_token,
     )
 
 
@@ -93,19 +77,3 @@ def get_capability_credentials(
 
 def create_device_code(channel: LoginChannel) -> str:
     return "2" + secrets.token_hex(16)
-
-
-def get_token_user_id(token: str) -> str | None:
-    parts = token.split(".")
-    if len(parts) < 2:
-        return None
-
-    payload = parts[1]
-    payload += "=" * (-len(payload) % 4)
-    try:
-        token_payload = DNATokenPayload.model_validate_json(
-            base64.urlsafe_b64decode(payload),
-        )
-    except (BinasciiError, ValidationError, ValueError):
-        return None
-    return str(token_payload.userId)

@@ -334,7 +334,10 @@ class AdminApiService:
         if not self._is_known_task(task_id):
             return _failure(AdminErrorCode.NOT_FOUND, "任务不存在")
         if task_id == "dnaby_mh_push":
-            return _failure(AdminErrorCode.CONFLICT, "密函任务时间固定为每小时 HH:30")
+            return _failure(
+                AdminErrorCode.CONFLICT,
+                "密函任务时间由 notifications.secret_push_minute 配置",
+            )
         try:
             normalized = normalize_scheduler_schedule(task_id, schedule)
         except Exception as error:  # noqa: BLE001

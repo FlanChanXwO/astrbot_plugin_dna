@@ -284,6 +284,8 @@ def test_build_runtime_propagates_all_settings(tmp_path):
             "announcement_enabled": False,
             "announcement_check_minutes": 20,
             "secret_simple_image": True,
+            "secret_push_minute": 17,
+            "secret_retry_interval_seconds": 2,
         },
     }
     db = AsyncDatabase(tmp_path / "test.sqlite3")
@@ -304,6 +306,8 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     assert runtime.settings.notifications.announcement_enabled is False
     assert runtime.settings.notifications.announcement_check_minutes == 20
     assert runtime.settings.notifications.secret_simple_image is True
+    assert runtime.settings.notifications.secret_push_minute == 17
+    assert runtime.settings.notifications.secret_retry_interval_seconds == 2
 
     # 2. 验证下发到各个具体 service / scheduler
     account_service = runtime.services["account_service"]
@@ -330,7 +334,7 @@ def test_build_runtime_propagates_all_settings(tmp_path):
 
     notices_scheduler = runtime.services["notices_scheduler"]
     assert notices_scheduler.announcement_enabled is False
-    assert notices_scheduler.push_time == (30, 0)
+    assert notices_scheduler.push_time == (17, 0)
     assert notices_scheduler.poll_minutes == 20
 
     # 3. 验证命令前缀动态生效

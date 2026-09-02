@@ -2,7 +2,7 @@
   {
     "id": "help",
     "pattern": "^kk帮助$",
-    "group": "bot主人功能",
+    "group": "信息查询",
     "name": "帮助",
     "description": "查看当前已实现命令",
     "examples": [
@@ -10,6 +10,18 @@
     ],
     "permission": "user",
     "use_case": "src.modules.help.help_use_case"
+  },
+  {
+    "id": "account_token_login",
+    "pattern": "^kk(?:token登录|登录token)\\s*(?P<arg>.*)$",
+    "group": "皎皎角登录",
+    "name": "token登录",
+    "description": "使用 App token 登录，不输出原始凭据",
+    "examples": [
+      "kktoken登录tttttttttttttttttttttttttttttttttttttttt"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.account.commands.account_token_login_use_case"
   },
   {
     "id": "account_login",
@@ -145,15 +157,39 @@
     "use_case": "src.modules.player.commands.player_refresh_role_use_case"
   },
   {
+    "id": "refresh_all_role_cards",
+    "pattern": "^kk刷新全部角色面板$",
+    "group": "角色信息",
+    "name": "刷新全部角色面板",
+    "description": "刷新当前 UID 的全部已解锁角色面板数据",
+    "examples": [
+      "kk刷新全部角色面板"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_refresh_all_roles_use_case"
+  },
+  {
+    "id": "clear_role_cache",
+    "pattern": "^kk清理(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板缓存$",
+    "group": "角色信息",
+    "name": "清理角色面板缓存",
+    "description": "清理当前 UID 指定角色的面板缓存",
+    "examples": [
+      "kk清理菲娜面板缓存"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_clear_role_cache_use_case"
+  },
+  {
     "id": "clear_player_cache",
     "pattern": "^kk清理全部角色缓存$",
     "group": "角色信息",
     "name": "清理角色缓存",
-    "description": "管理员清理全部角色数据和卡片缓存",
+    "description": "清理当前 UID 的全部角色数据和卡片缓存",
     "examples": [
       "kk清理全部角色缓存"
     ],
-    "permission": "admin",
+    "permission": "user",
     "use_case": "src.modules.player.commands.player_clear_all_cache_use_case"
   },
   {
@@ -161,7 +197,7 @@
     "pattern": "^kk(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:面板|信息|详情|面包|🍞)(?:\\s*[+＋]\\s*(?P<weapon_name_1>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?(?:\\s*[+＋]\\s*(?P<weapon_name_2>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?$",
     "group": "角色信息",
     "name": "角色详情卡片",
-    "description": "查询角色面板/伤害详情",
+    "description": "查询角色和武器基础详情，不包含伤害计算",
     "examples": [
       "kk角色名面板"
     ],
@@ -231,7 +267,7 @@
   {
     "id": "privacy_enable_peek_admin",
     "pattern": "^kk指定开偷窥$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "指定开偷窥",
     "description": "允许会话中被艾特的玩家被其它人查看该玩家的游戏信息",
     "examples": [
@@ -243,7 +279,7 @@
   {
     "id": "privacy_disable_peek_admin",
     "pattern": "^kk指定防偷窥$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "指定防偷窥",
     "description": "禁止会话中被艾特的玩家被其它人查看该玩家的游戏信息",
     "examples": [
@@ -255,7 +291,7 @@
   {
     "id": "privacy_enable_peek_all",
     "pattern": "^kk全体开偷窥$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "全体开偷窥",
     "description": "允许会话中所有玩家相互查看自己的游戏信息",
     "examples": [
@@ -267,7 +303,7 @@
   {
     "id": "privacy_disable_peek_all",
     "pattern": "^kk全体防偷窥$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "全体防偷窥",
     "description": "禁止会话中所有玩家相互查看自己的游戏信息",
     "examples": [
@@ -279,7 +315,7 @@
   {
     "id": "privacy_cancel_peek_all",
     "pattern": "^kk取消全体偷窥$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "取消全体偷窥",
     "description": "取消全体偷窥设置，恢复个人设置",
     "examples": [
@@ -291,7 +327,7 @@
   {
     "id": "privacy_enable_uid_hidden_admin",
     "pattern": "^kk指定隐藏UID$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "指定隐藏UID",
     "description": "为会话中被艾特的玩家开启UID隐藏",
     "examples": [
@@ -303,7 +339,7 @@
   {
     "id": "privacy_disable_uid_hidden_admin",
     "pattern": "^kk指定显示UID$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "指定显示UID",
     "description": "为会话中被艾特的玩家关闭UID隐藏",
     "examples": [
@@ -315,7 +351,7 @@
   {
     "id": "privacy_enable_uid_hidden_all",
     "pattern": "^kk全体隐藏UID$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "全体隐藏UID",
     "description": "强制会话中所有玩家隐藏UID",
     "examples": [
@@ -327,7 +363,7 @@
   {
     "id": "privacy_disable_uid_hidden_all",
     "pattern": "^kk全体显示UID$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "全体显示UID",
     "description": "强制会话中所有玩家显示UID",
     "examples": [
@@ -339,7 +375,7 @@
   {
     "id": "privacy_cancel_uid_hidden_all",
     "pattern": "^kk取消全体UID隐藏$",
-    "group": "群管理员功能",
+    "group": "管理员功能",
     "name": "取消全体UID隐藏",
     "description": "取消全体UID隐藏设置，恢复个人设置",
     "examples": [
@@ -435,19 +471,19 @@
   {
     "id": "alias_list",
     "pattern": "^kk(?!添加|删除|恢复|强制恢复)(?P<alias_type>角色|武器)?(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)别名(列表)?$",
-    "group": "bot主人功能",
+    "group": "图鉴",
     "name": "别名列表",
     "description": "查看角色/武器别名列表",
     "examples": [
       "kk角色名别名"
     ],
-    "permission": "admin",
+    "permission": "user",
     "use_case": "src.modules.encyclopedia.commands.alias_list_use_case"
   },
   {
     "id": "alias_all_list",
     "pattern": "^kk(?:角色列表|武器列表)$",
-    "group": "bot主人功能",
+    "group": "图鉴",
     "name": "角色/武器列表",
     "description": "查看全部角色或武器列表",
     "examples": [
@@ -457,9 +493,34 @@
     "use_case": "src.modules.encyclopedia.commands.alias_all_list_use_case"
   },
   {
+    "id": "alias_add_delete",
+    "pattern": "^kk(?P<action>添加|删除)(?P<alias_type>角色|武器)?(?P<name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)别名(?P<new_alias>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)$",
+    "group": "bot主人功能",
+    "name": "添加/删除别名",
+    "description": "维护角色或武器别名",
+    "examples": [
+      "kk添加角色菲娜别名小菲"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.encyclopedia.commands.alias_add_delete_use_case"
+  },
+  {
+    "id": "alias_recover",
+    "pattern": "^kk(?:恢复别名|强制恢复别名)$",
+    "group": "bot主人功能",
+    "name": "恢复别名",
+    "description": "重新加载默认别名或清除自定义别名",
+    "examples": [
+      "kk恢复别名",
+      "kk强制恢复别名"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.encyclopedia.commands.alias_recover_use_case"
+  },
+  {
     "id": "sign",
     "pattern": "^kk(?:签到|社区签到|每日任务|社区任务|库街区签到|sign)$",
-    "group": "签到",
+    "group": "签到服务",
     "name": "签到",
     "description": "每日签到",
     "examples": [
@@ -471,7 +532,7 @@
   {
     "id": "sign_calendar",
     "pattern": "^kk(?:签到日历|签到记录|签到历史)$",
-    "group": "签到",
+    "group": "签到服务",
     "name": "签到日历",
     "description": "查看签到日历",
     "examples": [
@@ -481,9 +542,33 @@
     "use_case": "src.modules.checkin.commands.checkin_sign_calendar_use_case"
   },
   {
+    "id": "sign_auto_enable",
+    "pattern": "^kk开启自动签到$",
+    "group": "签到服务",
+    "name": "开启自动签到",
+    "description": "开启当前 UID 的自动签到",
+    "examples": [
+      "kk开启自动签到"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.checkin.commands.checkin_auto_sign_use_case"
+  },
+  {
+    "id": "sign_auto_disable",
+    "pattern": "^kk关闭自动签到$",
+    "group": "签到服务",
+    "name": "关闭自动签到",
+    "description": "关闭当前 UID 的自动签到",
+    "examples": [
+      "kk关闭自动签到"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.checkin.commands.checkin_auto_sign_use_case"
+  },
+  {
     "id": "sign_all",
     "pattern": "^kk全部签到$",
-    "group": "签到",
+    "group": "bot主人功能",
     "name": "全部签到",
     "description": "手动触发全部账号签到",
     "examples": [
@@ -495,7 +580,7 @@
   {
     "id": "sign_result_subscribe",
     "pattern": "^kk(订阅|取消订阅)签到结果$",
-    "group": "签到",
+    "group": "bot主人功能",
     "name": "订阅签到结果",
     "description": "订阅/取消订阅签到结果推送",
     "examples": [
@@ -587,7 +672,7 @@
     "examples": [
       "kk订阅密函图片"
     ],
-    "permission": "admin",
+    "permission": "user",
     "use_case": "src.modules.notices.commands.notices_mh_pic_use_case"
   },
   {
@@ -599,25 +684,13 @@
     "examples": [
       "kk订阅密函文本"
     ],
-    "permission": "admin",
+    "permission": "user",
     "use_case": "src.modules.notices.commands.notices_mh_text_use_case"
-  },
-  {
-    "id": "mh_test",
-    "pattern": "^kk密函测试$",
-    "group": "密函",
-    "name": "密函测试",
-    "description": "向当前会话发送密函测试推送",
-    "examples": [
-      "kk密函测试"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.notices.commands.notices_mh_test_use_case"
   },
   {
     "id": "ann_sub",
     "pattern": "^kk订阅公告$",
-    "group": "公告",
+    "group": "管理员功能",
     "name": "订阅公告",
     "description": "订阅公告推送（群聊）",
     "examples": [
@@ -629,7 +702,7 @@
   {
     "id": "ann_unsub",
     "pattern": "^kk(?:取消订阅公告|取消公告|退订公告)$",
-    "group": "公告",
+    "group": "管理员功能",
     "name": "取消订阅公告",
     "description": "取消订阅公告推送（群聊）",
     "examples": [
@@ -639,95 +712,23 @@
     "use_case": "src.modules.notices.commands.notices_ann_unsub_use_case"
   },
   {
-    "id": "upload_panel_img",
-    "pattern": "^kk上传(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图$",
-    "group": "面板图管理",
-    "name": "上传面板图",
-    "description": "上传角色自定义面板图",
-    "examples": [
-      "kk上传角色面板图"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.operations.commands.panel_upload_use_case"
-  },
-  {
-    "id": "list_panel_imgs",
-    "pattern": "^kk(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图列表$",
-    "group": "面板图管理",
-    "name": "面板图列表",
-    "description": "查看角色已上传的面板图",
-    "examples": [
-      "kk角色面板图列表"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.operations.commands.panel_list_use_case"
-  },
-  {
-    "id": "delete_panel_img_by_id",
-    "pattern": "^kk删除(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板图(?P<image_id>\\S+)$",
-    "group": "面板图管理",
-    "name": "删除面板图",
-    "description": "按 ID 删除角色面板图",
-    "examples": [
-      "kk删除角色面板图abc"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.operations.commands.panel_delete_by_id_use_case"
-  },
-  {
-    "id": "delete_all_panel_imgs",
-    "pattern": "^kk删除(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)全部面板图$",
-    "group": "面板图管理",
-    "name": "删除全部面板图",
-    "description": "删除角色全部面板图",
-    "examples": [
-      "kk删除角色全部面板图"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.operations.commands.panel_delete_all_use_case"
-  },
-  {
-    "id": "delete_original_panel_img",
-    "pattern": "^kk原图删除$",
-    "group": "面板图管理",
-    "name": "删除原图",
-    "description": "删除引用面板图对应的原图",
-    "examples": [
-      "kk原图删除"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.operations.commands.panel_delete_original_use_case"
-  },
-  {
-    "id": "compress_panel_imgs",
-    "pattern": "^kk压缩面板图$",
-    "group": "面板图管理",
-    "name": "压缩面板图",
-    "description": "压缩全部自定义面板图",
-    "examples": [
-      "kk压缩面板图"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.operations.commands.panel_compress_use_case"
-  },
-  {
     "id": "resource_status",
     "pattern": "^kk资源状态$",
-    "group": "面板图管理",
+    "group": "资源管理",
     "name": "资源状态",
-    "description": "查看公共资源仓库与自定义面板状态",
+    "description": "查看公共资源仓库状态",
     "examples": [
       "kk资源状态"
     ],
     "permission": "admin",
-    "use_case": "src.modules.operations.commands.panel_resource_status_use_case"
+    "use_case": "src.modules.operations.commands.resource_status_use_case"
   },
   {
     "id": "download_resource",
     "pattern": "^kk下载全部资源$",
     "group": "资源管理",
     "name": "下载全部资源",
-    "description": "下载全部资源",
+    "description": "下载全部公共资源",
     "examples": [
       "kk下载全部资源"
     ],

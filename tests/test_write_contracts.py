@@ -38,7 +38,6 @@ from src.modules.checkin.service import CheckinService
 from src.modules.notices.ann_state import AnnStateStore
 from src.modules.notices.contracts import AnnDetail, AnnSnapshot, MhSnapshot
 from src.modules.notices.service import NoticesService
-from src.modules.operations.service import PanelService
 from src.modules.privacy.service import PrivacyService
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -47,13 +46,12 @@ TESTS_DIR = Path(__file__).resolve().parent
 WRITE_COMMANDS: dict[str, str] = {
     "account_login": "user",
     "account_logout": "user",
-    "account_bind": "user",
     "account_switch": "user",
     "account_delete_all": "user",
     "account_delete": "user",
     "refresh_role_card": "user",
     "refresh_admin_role_card": "admin",
-    "clear_player_cache": "admin",
+    "clear_player_cache": "user",
     "privacy_enable_peek_personal": "user",
     "privacy_disable_peek_personal": "user",
     "privacy_enable_uid_hidden": "user",
@@ -73,17 +71,10 @@ WRITE_COMMANDS: dict[str, str] = {
     "sign_result_subscribe": "admin",
     "mh_subscribe_by_name": "user",
     "mh_subscribe_cycle": "user",
-    "mh_pic_subscribe": "admin",
-    "mh_text_subscribe": "admin",
-    "mh_test": "admin",
+    "mh_pic_subscribe": "user",
+    "mh_text_subscribe": "user",
     "ann_sub": "admin",
     "ann_unsub": "admin",
-    "upload_panel_img": "admin",
-    "list_panel_imgs": "admin",
-    "delete_panel_img_by_id": "admin",
-    "delete_all_panel_imgs": "admin",
-    "delete_original_panel_img": "admin",
-    "compress_panel_imgs": "admin",
     "resource_status": "admin",
     "download_resource": "admin",
 }
@@ -98,10 +89,6 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
         ),
     ),
     "account_logout": (
-        "test_account.py",
-        ("test_bind_switch_delete_logout_lifecycle_uses_normalized_records",),
-    ),
-    "account_bind": (
         "test_account.py",
         ("test_bind_switch_delete_logout_lifecycle_uses_normalized_records",),
     ),
@@ -177,10 +164,6 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
         "test_notices_subscriptions.py",
         ("test_toggle_mh_pic_and_text_are_session_scoped",),
     ),
-    "mh_test": (
-        "test_notices_subscriptions.py",
-        ("test_test_mh_push_sends_to_current_session",),
-    ),
     "ann_sub": (
         "test_notices_subscriptions.py",
         ("test_ann_sub_unsub_group_scoped", "test_ann_sub_requires_group"),
@@ -188,30 +171,6 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     "ann_unsub": (
         "test_notices_subscriptions.py",
         ("test_ann_sub_unsub_group_scoped",),
-    ),
-    "upload_panel_img": (
-        "test_operations.py",
-        ("test_upload_panel_img_saves_webp_and_reports_count",),
-    ),
-    "list_panel_imgs": (
-        "test_operations.py",
-        ("test_list_panel_imgs_returns_chain_with_images",),
-    ),
-    "delete_panel_img_by_id": (
-        "test_operations.py",
-        ("test_delete_panel_img_by_id",),
-    ),
-    "delete_all_panel_imgs": (
-        "test_operations.py",
-        ("test_delete_all_panel_imgs_removes_directory",),
-    ),
-    "delete_original_panel_img": (
-        "test_operations.py",
-        ("test_delete_original_panel_img_reports_unsupported",),
-    ),
-    "compress_panel_imgs": (
-        "test_operations.py",
-        ("test_compress_panel_imgs",),
     ),
     "resource_status": (
         "test_operations.py",
@@ -231,7 +190,7 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
     "clear_player_cache": (
         "test_goal1_o11_refresh_and_cleanup.py",
-        ("test_clear_all_cache_command_only_clears_player_entries",),
+        ("test_clear_all_role_cache_command_only_clears_current_uid_player_entries",),
     ),
 }
 
@@ -424,12 +383,6 @@ async def _services(db: AsyncDatabase, tmp_path) -> dict[str, object]:
         "privacy_service": await _privacy_service(db),
         "checkin_service": await _checkin_service(db, tmp_path),
         "notices_service": await _notices_service(db, tmp_path),
-        "panel_service": PanelService(
-            tmp_path / "panel_custom",
-            resource_root=tmp_path / "resources",
-            resolve_char_id=lambda name: "101",
-            panel_dir_for=lambda char_id: f"role-{char_id}",
-        ),
     }
 
 

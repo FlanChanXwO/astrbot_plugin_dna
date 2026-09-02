@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ...entry.commands import COMMAND_GROUP_ORDER
 from ...version import PLUGIN_VERSION
 from .assets import font_data_uri, image_data_uri
 from .renderer import HtmlRenderer
@@ -20,6 +21,10 @@ HELP_FONT_PATH = Path(__file__).parents[2] / "resources" / "fonts" / "MiSansVF.w
 ICON_DIR = Path(__file__).parents[2] / "resources" / "help" / "icon_path"
 
 CARD_W = 2020
+HELP_TOP = 766
+HELP_FOOTER_HEIGHT = 40
+HELP_FOOTER_MARGIN_TOP = 32
+HELP_FOOTER_MARGIN_BOTTOM = 40
 _RENDERER = HtmlRenderer()
 _ICON_ALIASES = {
     # GScore 依赖目录遍历顺序处理部分命中；显式固定两个无同名文件的歧义项。
@@ -91,7 +96,8 @@ def _find_icon(name: str) -> Path:
 def _help_sections(plugin_help: dict[str, Any], prefix: str = "kk") -> list[dict[str, Any]]:
     """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
     sections: list[dict[str, Any]] = []
-    for name, value in plugin_help.items():
+    for name in _ordered_group_names(plugin_help):
+        value = plugin_help[name]
         items = []
         for command in value.get("data", []):
             item_name = str(command.get("name", ""))
@@ -102,7 +108,15 @@ def _help_sections(plugin_help: dict[str, Any], prefix: str = "kk") -> list[dict
                     "name": item_name,
                 }
             )
-        sections.append({"description": str(value.get("desc", "")), "items": items, "name": name})
+        rows = max(1, (len(items) + 3) // 4)
+        sections.append(
+            {
+                "description": str(value.get("desc", "")),
+                "height": 140 + rows * 175,
+                "items": items,
+                "name": name,
+            },
+        )
     return sections
 
 
@@ -138,14 +152,39 @@ def _registry_help_sections(
                 "name": spec.name,
             },
         )
-    return [
+    sections = [
         {
             "description": descriptions.get(group, ""),
+            "height": 140 + max(1, (len(items) + 3) // 4) * 175,
             "items": items,
             "name": group,
         }
-        for group, items in grouped.items()
+        for group in _ordered_group_names(grouped)
+        for items in (grouped[group],)
     ]
+    return sections
+
+
+def _ordered_group_names(grouped: dict[str, object]) -> list[str]:
+    """按产品约定排序帮助分组，未知分组接在已知分组之后。"""
+
+    preferred = {name: index for index, name in enumerate(COMMAND_GROUP_ORDER)}
+    first_seen = {name: index for index, name in enumerate(grouped)}
+    return sorted(
+        grouped,
+        key=lambda name: (preferred.get(name, len(preferred)), first_seen[name]),
+    )
+
+
+def _card_height(sections: list[dict[str, Any]], lines: list[dict[str, Any]]) -> int:
+    """根据实际分组行数计算画布高度，给 footer 留出安全间距。"""
+
+    if sections:
+        content_bottom = HELP_TOP + sum(int(section["height"]) for section in sections)
+    else:
+        rows = max(1, (len(lines) + 3) // 4)
+        content_bottom = 900 + rows * 175
+    return content_bottom + HELP_FOOTER_MARGIN_TOP + HELP_FOOTER_HEIGHT + HELP_FOOTER_MARGIN_BOTTOM
 
 
 async def get_help(
@@ -176,6 +215,7 @@ async def get_help(
         "cag_background": image_data_uri(
             Path(__file__).parents[2] / "resources" / "textures" / "help" / "cag_bg.png",
         ),
+        "card_height": _card_height(sections, lines),
         "font": font_data_uri(HELP_FONT_PATH),
         "footer": image_data_uri(
             Path(__file__).parents[2] / "resources" / "textures" / "common" / "footer.png",

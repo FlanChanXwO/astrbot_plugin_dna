@@ -20,7 +20,8 @@ class _FakeCheckin:
         self.auto_calls = 0
         self.cleanup_calls: list[date] = []
 
-    async def auto_sign_all(self) -> str:
+    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
+        del enable_all_users
         self.auto_calls += 1
         return "[二重螺旋]自动任务\n今日成功游戏签到 2 个账号\n今日社区签到 1 个账号"
 
@@ -58,8 +59,8 @@ async def test_scheduler_start_is_idempotent_and_stop_cancels_tasks(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_scheduler_requires_enable_all_users_for_sign_task(tmp_path: Path) -> None:
-    """未授权全部账号时，定时签到任务不创建，只保留清理任务。"""
+async def test_scheduler_runs_sign_task_without_forcing_all_users(tmp_path: Path) -> None:
+    """定时签到任务按绑定开关运行，不要求强制全部账号。"""
 
     scheduler = SignScheduler(
         _FakeCheckin(),
@@ -70,8 +71,11 @@ async def test_scheduler_requires_enable_all_users_for_sign_task(tmp_path: Path)
     )
 
     await scheduler.start()
-    assert len(scheduler._tasks) == 1
-    assert scheduler._tasks[0].get_name() == "dnaby_sign_cleanup"
+    assert len(scheduler._tasks) == 2
+    assert {task.get_name() for task in scheduler._tasks} == {
+        "dnaby_sign_daily",
+        "dnaby_sign_cleanup",
+    }
     await scheduler.stop()
 
 

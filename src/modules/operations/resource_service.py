@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from pathlib import Path
 from typing import TypeVar
 
 from astrbot.api import logger
@@ -12,7 +13,9 @@ from ...entry.response import PlainTextResponse
 from ...infrastructure.resources import (
     GitUnavailableError,
     ResourceLocalChangesError,
+    ResourceManifest,
     ResourceRemoteMismatchError,
+    ResourceSnapshotCoordinator,
     ResourceSyncError,
     ResourceSyncResult,
 )
@@ -63,8 +66,12 @@ class ResourceUpdateService:
         self,
         *,
         synchronize: SynchronizeFn,
+        resource_root: str | Path | None = None,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.synchronize = synchronize
+        self.resource_root = Path(resource_root) if resource_root is not None else None
+        self.resource_snapshots = resource_snapshots
         self._flight_lock = asyncio.Lock()
         self._inflight: asyncio.Task[ResourceSyncResult] | None = None
         self._preheat_task: asyncio.Task[None] | None = None
@@ -174,5 +181,48 @@ class ResourceUpdateService:
             return PlainTextResponse(messages.RESOURCE_SYNC_FAILED.format(detail=str(error)))
         action = "已克隆" if result.action == "cloned" else "已更新"
         return PlainTextResponse(messages.RESOURCE_DOWNLOADED.format(action=action, version=result.resource_version))
+
+    async def status(self):
+        """展示公共资源状态；不读取已移除的自定义面板目录。"""
+
+        if self.resource_snapshots is None:
+            return self._status_response(self.resource_root)
+        with self.resource_snapshots.optional_lease() as snapshot:
+            root = snapshot.root if snapshot is not None else self.resource_root
+            return self._status_response(root)
+
+    @staticmethod
+    def _status_response(resource_root: Path | None) -> PlainTextResponse:
+        if resource_root is None:
+            return PlainTextResponse(messages.RESOURCE_STATUS_EMPTY)
+        lines = [messages.RESOURCE_STATUS_HEADER]
+        lines.append(messages.resource_status_line("资源仓库目录", str(resource_root)))
+        if not resource_root.is_dir():
+            lines.append(messages.RESOURCE_STATUS_EMPTY)
+            return PlainTextResponse("\n".join(lines))
+
+        manifest_path = resource_root / "resource_manifest.json"
+        if not manifest_path.is_file():
+            lines.append(messages.resource_status_line("manifest", "缺失"))
+            return PlainTextResponse("\n".join(lines))
+        try:
+            manifest = ResourceManifest.load(manifest_path)
+        except Exception:  # noqa: BLE001 - 状态查询只将 manifest 归类为不可读。
+            lines.append(messages.resource_status_line("manifest", "损坏或不可读"))
+            return PlainTextResponse("\n".join(lines))
+        lines.append(messages.resource_status_line("manifest", f"v{manifest.format_version}"))
+        lines.append(messages.resource_status_line("资源版本", manifest.resource_version))
+        present = [
+            directory
+            for directory in manifest.required_dirs
+            if (resource_root / directory).is_dir()
+        ]
+        lines.append(
+            messages.resource_status_line(
+                "必需目录",
+                f"{len(present)}/{len(manifest.required_dirs)} 存在",
+            ),
+        )
+        return PlainTextResponse("\n".join(lines))
 
 __all__ = ["ResourceUpdateService"]

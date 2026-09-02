@@ -22,7 +22,8 @@ from .contracts import (
     AccountTransport,
     AccountTransportError,
     LoginAttempt,
-    LoginChannel,
+    LoginCredentials,
+    LoginResult,
     RoleInfo,
 )
 
@@ -108,9 +109,20 @@ class AccountService:
         self.database = database
         self.transport = transport
         self.max_bind_count = max_bind_count
+        self._login_flow: object | None = None
+
+    def set_login_flow(self, login_flow: object | None) -> None:
+        """注入独立登录流程，避免账号事务持有 Web/HTTP 生命周期。"""
+
+        self._login_flow = login_flow
 
     async def begin_login(self, actor: AccountActor) -> PlainTextResponse:
         """创建登录页会话并立即返回地址。"""
+
+        if self._login_flow is not None:
+            begin = getattr(self._login_flow, "begin", None)
+            if callable(begin):
+                return await begin(actor)
 
         try:
             url = await self.transport.begin_login(actor)
@@ -132,7 +144,7 @@ class AccountService:
         actor: AccountActor,
         attempt: LoginAttempt,
     ) -> PlainTextResponse:
-        """认证并在单一事务中写入角色绑定及渠道凭据。"""
+        """认证并在单一事务中写入角色绑定及 App 凭据。"""
 
         try:
             result = await self.transport.authenticate(attempt)
@@ -144,6 +156,48 @@ class AccountService:
                 exc.status_code,
             )
             return PlainTextResponse(messages.transport_error(exc.kind))
+
+        return await self.complete_login(actor, result)
+
+    async def login_with_credentials(
+        self,
+        actor: AccountActor,
+        credentials: LoginCredentials,
+    ) -> PlainTextResponse:
+        """校验外部登录回执并复用同一事务完成角色绑定。"""
+
+        authenticate_credentials = getattr(
+            self.transport,
+            "authenticate_credentials",
+            None,
+        )
+        try:
+            if callable(authenticate_credentials):
+                result = await authenticate_credentials(credentials)
+            else:
+                result = await self.transport.authenticate(
+                    LoginAttempt.from_token(
+                        credentials.token,
+                        channel=credentials.channel,
+                        dev_code=credentials.dev_code,
+                    ),
+                )
+        except AccountTransportError as exc:
+            logger.warning(
+                "账号请求失败 operation=%s kind=%s status_code=%s",
+                "login_with_credentials",
+                exc.kind.value,
+                exc.status_code,
+            )
+            return PlainTextResponse(messages.transport_error(exc.kind))
+        return await self.complete_login(actor, result)
+
+    async def complete_login(
+        self,
+        actor: AccountActor,
+        result: LoginResult,
+    ) -> PlainTextResponse:
+        """持久化已经完成认证的结果，并维护当前 UID。"""
 
         if result.status == "cancelled":
             return PlainTextResponse(messages.LOGIN_CANCELLED)
@@ -186,26 +240,15 @@ class AccountService:
                             group_id=actor.group_id,
                             is_active=False,
                         )
-                    if result.credentials.channel is LoginChannel.APP:
-                        await CredentialRepository.save_app(
-                            session,
-                            user_id=actor.user_id,
-                            uid=role.uid,
-                            token=result.credentials.token,
-                            device_code=result.credentials.dev_code,
-                            d_num=result.credentials.d_num,
-                            refresh_token=result.credentials.refresh_token,
-                        )
-                    else:
-                        await CredentialRepository.save_web(
-                            session,
-                            user_id=actor.user_id,
-                            uid=role.uid,
-                            token=result.credentials.token,
-                            device_code=result.credentials.dev_code,
-                            d_num=result.credentials.d_num,
-                            refresh_token=result.credentials.refresh_token,
-                        )
+                    await CredentialRepository.save_app(
+                        session,
+                        user_id=actor.user_id,
+                        uid=role.uid,
+                        token=result.credentials.token,
+                        device_code=result.credentials.dev_code,
+                        d_num=result.credentials.d_num,
+                        refresh_token=result.credentials.refresh_token,
+                    )
 
                 default_role = next(
                     (role for role in reversed(roles) if role.is_default),
@@ -222,7 +265,7 @@ class AccountService:
             return PlainTextResponse(messages.LOGIN_BIND_LIMIT)
 
         return PlainTextResponse(
-            messages.login_success(roles, result.credentials.channel),
+            messages.login_success(roles),
         )
 
     async def bind_uid(
@@ -282,7 +325,7 @@ class AccountService:
         actor: AccountActor,
         uid: str,
     ) -> PlainTextResponse:
-        """删除 UID 绑定及其 App/Web 凭据，并修复当前 UID。"""
+        """删除 UID 绑定及其 App 凭据，并修复当前 UID。"""
 
         try:
             normalized_uid = _valid_uid(uid)
@@ -346,9 +389,7 @@ class AccountService:
                 user_id=actor.user_id,
                 uid=current.uid,
             )
-            if credential is None or not (
-                credential.has_app_credentials or credential.has_web_credentials
-            ):
+            if credential is None or not credential.has_app_credentials:
                 return PlainTextResponse(messages.NOT_LOGGED_IN)
 
             await AccountBindingRepository.delete(
@@ -404,7 +445,6 @@ class AccountService:
                 (
                     record.uid,
                     record.has_app_credentials,
-                    record.has_web_credentials,
                 )
                 for record in records
             ),

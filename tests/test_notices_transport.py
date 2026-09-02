@@ -114,11 +114,6 @@ async def _transport_with_credential(tmp_path: Path) -> tuple[DnaApiNoticesTrans
             app_d_num="",
             app_refresh_token="",
             app_status="",
-            web_token="",
-            web_device_code="",
-            web_d_num="",
-            web_refresh_token="",
-            web_status="",
         )
     return DnaApiNoticesTransport(database), database
 
@@ -235,11 +230,6 @@ async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, mo
             app_d_num="",
             app_refresh_token="",
             app_status="",
-            web_token="",
-            web_device_code="",
-            web_d_num="",
-            web_refresh_token="",
-            web_status="",
         )
         await CredentialRepository.add(
             session,
@@ -250,11 +240,6 @@ async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, mo
             app_d_num="",
             app_refresh_token="",
             app_status="",
-            web_token="",
-            web_device_code="",
-            web_d_num="",
-            web_refresh_token="",
-            web_status="",
         )
 
     transport = DnaApiNoticesTransport(database)

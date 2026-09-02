@@ -1,4 +1,4 @@
-"""面板/资源命令的 registry 归属、正则与 handler 边界测试。"""
+"""资源命令的 registry 归属、正则与 handler 边界测试。"""
 
 from __future__ import annotations
 
@@ -18,13 +18,8 @@ from src.entry.response import PlainTextResponse, ResponseFactory
 from src.modules.operations import messages
 
 OPERATIONS_SPEC_IDS = {
-    "upload_panel_img",
-    "list_panel_imgs",
-    "delete_panel_img_by_id",
-    "delete_all_panel_imgs",
-    "delete_original_panel_img",
-    "compress_panel_imgs",
     "resource_status",
+    "download_resource",
 }
 
 
@@ -34,7 +29,7 @@ def test_operations_commands_are_registered_for_admin() -> None:
     assert OPERATIONS_SPEC_IDS <= specs.keys()
     for command_id in OPERATIONS_SPEC_IDS:
         assert specs[command_id].permission == "admin", command_id
-        assert specs[command_id].group == "面板图管理"
+        assert specs[command_id].group == "资源管理"
 
 
 def test_images_from_event_extracts_file_sources() -> None:
@@ -55,7 +50,7 @@ def test_images_from_event_extracts_file_sources() -> None:
 
 @pytest.mark.asyncio
 async def test_operations_handler_reports_service_missing() -> None:
-    """缺少 panel_service 时 use case 必须返回显式不可用文案。"""
+    """缺少资源服务时 use case 必须返回显式不可用文案。"""
 
     spec = load_command_registry().get("resource_status")
 
@@ -77,26 +72,8 @@ async def test_operations_handler_reports_service_missing() -> None:
 async def test_generated_resource_status_handler_yields_text() -> None:
     """真实生成 handler 把资源状态纯文本结果交给 AstrBot 边界。"""
 
-    class FakePanelService:
-        async def upload_panel_img(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("unused")
-
-        async def list_panel_imgs(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("unused")
-
-        async def delete_panel_img_by_id(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("unused")
-
-        async def delete_all_panel_imgs(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("unused")
-
-        async def delete_original_panel_img(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("unused")
-
-        async def compress_panel_imgs(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("unused")
-
-        async def resource_status(self, _request: object) -> PlainTextResponse:
+    class FakeResourceService:
+        async def status(self) -> PlainTextResponse:
             return PlainTextResponse("资源状态：\n资源仓库目录: /tmp/resources")
 
     class GeneratedOperationsPlugin:
@@ -131,7 +108,7 @@ async def test_generated_resource_status_handler_yields_text() -> None:
         SimpleNamespace(
             commands=registry,
             responses=ResponseFactory(),
-            services={"panel_service": FakePanelService()},
+            services={"resource_update_service": FakeResourceService()},
         ),
     )
 

@@ -108,14 +108,28 @@ generation、candidate 和 archive 临时物；不会扫描、删除或迁移 `p
 - `dnaby.sqlite3` — SQLAlchemy 2 async 数据库（账号绑定、凭据、隐私、签到记录）。
 - `subscriptions.json` — 订阅存储；`ann_state.json` — 兼容旧版的公告已知 id 列表；
   `ann_delivery_state.json` — 版本化的公告按目标投递状态。
-- `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json` — 角色自定义别名覆盖层。
-- `cache/` — 玩家数据 JSON、完整 T2I 图片卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，
+- `scheduler_state.json` — 内置任务永久删除 tombstone；`alias_custom.json`、`weapon_alias_custom.json`
+  — 角色和武器自定义别名覆盖层。
+- `cache/` — 玩家数据 JSON、完整 JPEG/PNG T2I 图片卡片以及公告列表/详情缓存；公告缓存还包含已校验的源图，
   缓存 key 和身份 tag 只保存 SHA-256 摘要。
 - `login_qr/` — 二维码登录兼容 helper 的临时路径；文件名使用 user_id 的 SHA-256 摘要，发送后
   若 helper 产生文件则由登录流程删除。
 - `rendered/` — 玩家/资料/通知 renderer 生成的临时 PNG。
-- `panel_custom/` — admin 上传的自定义面板图（WebP，按内容 sha1 去重）；它是本地数据
-  目录，与资源仓库的 `panel/`（只读原始面板）分离。
+- `panel_custom/` — 已移除面板管理功能后保留的历史文件目录；插件不再读取、统计或自动删除。
+  它仍与资源仓库的 `panel/`（标准只读面板资源）分离。
+
+### 缓存边界速查
+
+- `CacheManager`：通用 API 数据、玩家概览/角色详情数据与 PNG 卡片，以及公告列表、详情、
+  manifest 和通过解码校验的源图。
+- 密函缓存：按当前小时保存经过结构校验的快照；成功推送后同一小时不重复推送。
+- `rendered/`：事件响应产生的临时渲染文件，不属于持久业务缓存；活动发送租约释放后才可清理。
+- 帮助卡片：进程内 `_HELP_CACHE`，插件停止时清空。
+- 资源快照：`resource_generations/` 和 `current.json` 由资源协调器管理，generation lease
+  结束后才回收旧快照。
+- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`、
+  `scheduler_state.json`：持久状态，不纳入普通缓存清理。
+- `panel_custom/`：功能移除后的遗留文件，仅保留、不读取、不删除。
 
 玩家和资料 renderer 生成的 `rendered/*.png` 会在响应边界确认其位于受控渲染目录后，交给
 AstrBot 当前事件的临时文件生命周期清理，同时登记到进程内 rendered 租约表。后台维护任务按
@@ -130,19 +144,26 @@ AstrBot 当前事件的临时文件生命周期清理，同时登记到进程内
 尝试向 transport 刷新。刷新失败时，如果存在完整旧卡，会附带“可能已过期”提示发送；没有
 旧卡则用旧数据渲染本次响应，但不会把它重新写成完整卡片。
 
+将 `cache.fresh_ttl_minutes` 设为 `-1` 可开启 `CacheManager` 永久缓存模式：业务缓存一直
+返回 `fresh`，不会因 fresh 或硬保留期自动失效、清理或触发后台刷新，直到角色刷新、角色缓存
+清理、资源版本变化产生新 key 或其它显式 `invalidate`。资源版本变化不会自动删除旧条目，
+永久模式下旧条目需要显式清理。该模式不改变 `rendered/` 的临时文件语义；
+`rendered/` 仍按 `cache.retention_ttl_hours` 清理，避免把发送过程产生的临时图片永久留在磁盘。
+
 渲染结果带有 `placeholder` 素材时标记为 `incomplete`，允许本次发送占位图，但不会写入或
 覆盖完整 T2I 图片卡片。卡片 key 同时关联查询身份、角色/武器参数、隐私显示选项、数据摘要和
 当前 generation 的 commit/content/resource version；资源切换后会自然 miss 并重新渲染，旧
 条目等待硬保留期清理。缓存失效接口支持 cache type、完整 tag 集合、资源版本或精确 key
 组合筛选，只删除无活动租约的普通条目，不会越过运行期目录边界。
 
-O11 新增三条玩家缓存操作：普通用户可用 `刷新<角色名>面板` 强制刷新自己的角色，管理员可用
-`刷新<游戏UID>的<角色名>面板` 指定 UID，管理员还可用 `清理全部角色缓存` 仅清除玩家数据和完整
-卡片。角色刷新先精准失效该身份的概览与指定角色 tags，再重新读取并按
-`cache.refresh_send_card` 决定返回新卡片或仅返回成功文案；指定 UID 的 transport 凭据仍由当前
-操作者作用域提供。维护任务启动时先执行一次清理，随后复用 `cache.fresh_ttl_minutes` 作为扫描
-周期；若该配置为合法的 `0`（所有缓存立即视为 stale），则复用硬保留期作为扫描周期，避免零秒
-忙循环，不增加无产品语义的固定间隔配置。
+玩家缓存操作为：普通用户可用 `刷新<角色名>面板`、`刷新全部角色面板` 强制刷新当前 UID，
+`清理<角色名>面板缓存` 精准清除单个角色，`清理全部角色缓存` 清除当前 UID 的玩家数据和
+完整卡片；管理员另可用 `刷新<游戏UID>的<角色名>面板` 指定 UID。全部刷新只返回汇总，不逐张
+发送图片；角色刷新先精准失效该身份的概览与指定角色 tags，再重新读取并按
+`cache.refresh_send_card` 决定返回新卡片或仅返回成功文案。维护任务启动时先执行一次清理，随后
+复用 `cache.fresh_ttl_minutes` 作为扫描周期；若该配置为合法的 `0`（所有缓存立即视为 stale）
+或 `-1`（永久缓存模式），则复用硬保留期作为扫描周期，避免零秒忙循环或停止对 rendered 临时
+文件的维护，不增加无产品语义的固定间隔配置。
 
 ## 公告列表、详情与缓存
 
@@ -167,7 +188,7 @@ SHA-256 fingerprint 纳入缓存 key，上游内容变化会自然 miss；详情
 `other/ann_card/`、`other/sign/`、`other/calendar/` 是插件数据目录内的运行期缓存或补充资源，
 不属于公共资源仓库，也不会被上传或提交。typed 公告 renderer 使用统一的
 `cache/announcement/` 保存已校验源图、列表卡和详情页；上述 legacy 目录只为旧的直接调用路径
-保留。`panel_custom/` 继续由面板服务独立维护。
+保留。`panel_custom/` 仅作为历史文件保留，不再由任何面板服务读取或维护。
 
 `ImageFetcher` 是共享图片下载边界。调用方必须把目标限制在上述运行期目录；它会对已有文件做
 PIL 完整解码校验，下载先写同目录临时文件，校验通过后才原子替换。连接/超时、429 和 5xx
