@@ -10,7 +10,7 @@ from collections.abc import Awaitable
 from typing import Any, cast
 
 from ...entry.commands import CommandRegistry, CommandRequest, CommandSpec
-from ...entry.response import PlainTextResponse
+from ...entry.response import CommandResponse, PlainTextResponse
 from . import messages
 from .service import AccountService, parse_login_attempt
 
@@ -55,7 +55,7 @@ async def account_login_use_case(
     request: CommandRequest,
     _registry: CommandRegistry,
     **parameters: Any,
-) -> PlainTextResponse:
+) -> CommandResponse:
     """执行登录页启动、token 登录或手机号验证码登录。"""
 
     target = _service_and_actor(request)

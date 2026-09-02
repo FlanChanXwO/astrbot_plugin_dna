@@ -12,6 +12,12 @@
 
 # Changelog
 
+## Login display configuration — 2026-09-02
+
+- 修复 rewrite 登录入口未读取 `login.qr_login`、`login.tencent_docs` 和 `login.forward_login` 的问题。
+- 二维码、腾讯文档链接和合并转发模式现在会作用于 `kk登录` 命令。
+
+
 ## v0.2.0 — 管理面板与全局身份（2026-08-29）
 
 ### Added

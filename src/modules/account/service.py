@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from ...entry.response import PlainTextResponse
+from ...entry.response import LoginResponse, PlainTextResponse
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -116,7 +116,9 @@ class AccountService:
 
         self._login_flow = login_flow
 
-    async def begin_login(self, actor: AccountActor) -> PlainTextResponse:
+    async def begin_login(
+        self, actor: AccountActor
+    ) -> PlainTextResponse | LoginResponse:
         """创建登录页会话并立即返回地址。"""
 
         if self._login_flow is not None:

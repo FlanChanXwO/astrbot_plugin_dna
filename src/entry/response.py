@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from astrbot.api.message_components import Image as AstrImage
+from astrbot.api.message_components import Node as AstrNode
+from astrbot.api.message_components import Nodes as AstrNodes
 from astrbot.api.message_components import Plain as AstrPlain
 
 from ..infrastructure.rendering.temporary import RenderedFileStore
@@ -18,6 +20,16 @@ class PlainTextResponse:
     """纯文本 use case 响应。"""
 
     text: str
+    need_at: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class LoginResponse:
+    """登录入口的组合响应，承载二维码和合并转发选项。"""
+
+    text: str
+    qr_bytes: bytes | None = None
+    forward: bool = False
     need_at: bool = False
 
 
@@ -58,7 +70,13 @@ class MultiImageResponse:
             raise TypeError("多图响应只能包含 ImageResponse")
 
 
-CommandResponse = PlainTextResponse | ChainResponse | ImageResponse | MultiImageResponse
+CommandResponse = (
+    PlainTextResponse
+    | LoginResponse
+    | ChainResponse
+    | ImageResponse
+    | MultiImageResponse
+)
 
 
 def write_temporary_image(
@@ -210,6 +228,25 @@ class ResponseFactory:
         self._track_temporary_images(event, response)
         if isinstance(response, PlainTextResponse):
             return self.plain(event, response.text, need_at=response.need_at)
+        if isinstance(response, LoginResponse):
+            components: list[Any] = []
+            if response.need_at:
+                get_group_id = getattr(event, "get_group_id", None)
+                get_sender_id = getattr(event, "get_sender_id", None)
+                group_id = get_group_id() if callable(get_group_id) else None
+                user_id = get_sender_id() if callable(get_sender_id) else None
+                if group_id and user_id:
+                    from astrbot.api.message_components import At
+
+                    components.append(At(qq=str(user_id)))
+            components.append(AstrPlain(response.text))
+            if response.qr_bytes is not None:
+                components.append(AstrImage.fromBytes(response.qr_bytes))
+            if response.forward:
+                return event.chain_result(
+                    AstrNodes([AstrNode(content=components, name="二重螺旋登录")])
+                )
+            return event.chain_result(components)
         if isinstance(response, ChainResponse):
             return self.chain(event, response.components)
         if isinstance(response, ImageResponse):
@@ -223,6 +260,7 @@ __all__ = [
     "ChainResponse",
     "CommandResponse",
     "ImageResponse",
+    "LoginResponse",
     "MultiImageResponse",
     "PlainTextResponse",
     "ResponseFactory",
