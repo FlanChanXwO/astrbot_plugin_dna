@@ -85,12 +85,12 @@
 
 ## Task 07：为 HTTP transport 编写 fake-transport/协议测试
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：覆盖 PC/安卓完整路径映射、VersionList 和资源清单读取、`fileSize` 汇总、两个平台独立失败及响应结构错误；不接受未在契约中定义的直接大小字段。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：新增 `tests/test_goal3_task07_client_updates_transport.py`，固化 `ClientUpdateTransport.get_observation(platform, previous_patch_version=...)` 与 typed observation/error seam；fake session 覆盖 PC/安卓完整 VersionList/补丁清单 URL、对应 User-Agent、安卓资源目录 key、两类清单文件名去重汇总、未知直接大小字段忽略、主机一次回退、单平台网络失败隔离和 malformed VersionList/manifest 的结构错误。
+- 验证证据：Red 阶段运行 `python3 -m pytest --confcutdir=tests -q tests/test_goal3_task07_client_updates_transport.py`，在 transport 模块尚不存在时明确失败：`ModuleNotFoundError: No module named 'src.infrastructure.http.client_updates'`；测试文件 `ruff format --check`、`ruff check`、`python3 -m compileall -q` 和 `git diff --check` 均通过。测试 fake 使用标准库 `OSError` 表示网络失败，避免当前 Python 3.14 环境下已安装 aiohttp 导入 `cgi` 失败掩盖预期 Red。
+- 剩余风险：Task 08 尚需实现上述 transport seam、真实 HTTP 客户端与现有请求并发门；当前仅证明契约在缺少实现时会失败，尚无 Green 的主机回退、状态码分类、响应结构校验和实际服务端 fixture 证据。Python 3.14 与现有 aiohttp 安装的兼容性需在实现时通过项目既有运行时或客户端选择处理，不在本 task 静默升级依赖。
+- 下一步：Task 08，实现客户端更新 HTTP transport。
 
 ## Task 08：实现客户端更新 HTTP transport
 
