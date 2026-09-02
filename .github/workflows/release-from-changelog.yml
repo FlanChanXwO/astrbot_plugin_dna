@@ -87,9 +87,16 @@ jobs:
             printf 'notes_file=%s\n' "$notes_file"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Authenticate GitHub CLI
+        env:
+          GH_AUTH_VALUE: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$GH_AUTH_VALUE" | gh auth login --hostname github.com --with-token
+
       - name: Create or update GitHub Release
         env:
-          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.parse.outputs.tag }}
           RELEASE_NOTES_FILE: ${{ steps.parse.outputs.notes_file }}
         shell: bash
@@ -121,7 +128,6 @@ jobs:
 
       - name: Verify release body
         env:
-          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.parse.outputs.tag }}
         shell: bash
         run: |
