@@ -116,7 +116,7 @@
 - `NoticesService` 新增密函按名订阅/取消（去重、禁全部、推送时间窗口）、图片/文本会话
   开关、owner 测试推送、公告群订阅/取消与 `push_mh_now`/`poll_ann_now`（`AnnStateStore`
   记录已知公告 id，只推送新条目）。
-- `NoticesScheduler` 固定每小时 `HH:30` 推送密函、按
+- `NoticesScheduler` 按 `notifications.secret_push_minute` 配置的分钟每小时推送密函、按
   `announcement_check_minutes` 轮询公告，`initialize()` 启动/`terminate()` 取消，幂等；
   推送闭包把 str/Path 分别映射为 Plain/Image 组件绑定 `Context.send_message`。
 - 全部订阅/推送只在隔离 SubscriptionStore + fake transport + 注入 push 下验证；

@@ -6,7 +6,7 @@ import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
 from contextlib import nullcontext
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -117,13 +117,6 @@ class NoticesService:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("密函时钟必须带时区")
         return value.astimezone(SHANGHAI)
-
-    @staticmethod
-    def _mh_gate_open(now: datetime) -> bool:
-        """仅在每小时 HH:30 后运行定时密函推送。"""
-
-        window_start = MhSnapshotCache.window_start(now)
-        return now >= window_start + timedelta(minutes=30)
 
     async def _verified_mh_snapshot(
         self,
@@ -670,9 +663,6 @@ class NoticesService:
         if self.subscriptions is None or self.push is None:
             return 0
         now = self._now()
-        if not self._mh_gate_open(now):
-            logger.info("密函推送：当前小时尚未到 HH:30，跳过密函推送")
-            return 0
         window_start = MhSnapshotCache.window_start(now)
         if self._mh_pushed_window == window_start:
             logger.debug("密函推送：当前小时已完成，跳过重复推送")
