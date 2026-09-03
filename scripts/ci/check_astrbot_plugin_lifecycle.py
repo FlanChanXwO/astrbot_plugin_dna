@@ -141,10 +141,6 @@ def _build_official_runtime(
     )
 
 
-def _await_if_needed(value: Any) -> Awaitable[Any] | Any:
-    return _legacy._await_if_needed(value)
-
-
 def _added(before: tuple[object, ...], after: tuple[object, ...]) -> tuple[object, ...]:
     before_ids = {id(item) for item in before}
     return tuple(item for item in after if id(item) not in before_ids)
@@ -465,19 +461,28 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _build_parser().parse_args()
+    plugin_dir = Path(args.plugin_dir).expanduser().resolve()
     try:
         report = asyncio.run(
             run_loader_check(
                 astrbot_source=args.astrbot_source,
                 astrbot_version=args.astrbot_version,
-                plugin_dir=args.plugin_dir,
+                plugin_dir=plugin_dir,
                 astrbot_root=args.astrbot_root,
                 plugin_name=args.plugin_name,
             ),
         )
-    except BaseException as error:  # noqa: BLE001
+    except _CATCHABLE_ERRORS as error:
         # 复用旧 harness 的完整 traceback + 凭据脱敏输出。
-        print(_legacy._format_failure(error), file=sys.stderr)
+        print(
+            _legacy._format_failure(
+                error,
+                astrbot_version=args.astrbot_version,
+                plugin_name=args.plugin_name,
+                plugin_dir=plugin_dir,
+            ),
+            file=sys.stderr,
+        )
         return 1
 
     print(
