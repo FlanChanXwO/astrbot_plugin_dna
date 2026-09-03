@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -40,6 +43,51 @@ def test_player_commands_are_explicit_and_legacy_patterns_are_preserved() -> Non
         "weapon_name_1",
         "weapon_name_2",
     )
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "刷新菲娜面板",
+        "刷新全部角色面板",
+        "刷新123456的菲娜面板",
+        "清理菲娜面板缓存",
+    ),
+)
+def test_role_detail_pattern_reserves_management_prefixes(text: str) -> None:
+    assert re.match(ROLE_DETAIL_PATTERN, text) is None
+
+
+def test_role_info_help_examples_have_single_command_match() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    help_data = json.loads(
+        (project_root / "src/resources/help/help.json").read_text(encoding="utf-8")
+    )
+    expected_command_ids = {
+        "刷新角色面板": "refresh_role_card",
+        "刷新全部角色面板": "refresh_all_role_cards",
+        "清理角色面板缓存": "clear_role_cache",
+        "清理角色缓存": "clear_player_cache",
+        "角色详情卡片": "role_detail_card",
+    }
+    registry = load_command_registry()
+
+    for item in help_data["角色信息"]["data"]:
+        message = "kk" + item["eg"]
+        matches = [
+            spec.id for spec in registry if re.match(spec.pattern, message) is not None
+        ]
+        assert matches == [expected_command_ids[item["name"]]], message
+
+
+def test_admin_refresh_has_single_command_match() -> None:
+    registry = load_command_registry()
+    message = "kk刷新123456的菲娜面板"
+    matches = [
+        spec.id for spec in registry if re.match(spec.pattern, message) is not None
+    ]
+
+    assert matches == ["refresh_admin_role_card"]
 
 
 def test_reply_id_comes_from_public_astrbot_reply_component() -> None:

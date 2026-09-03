@@ -14,11 +14,11 @@ PATTERN = (
     r"[\u4e00-\u9fa5a-zA-Z0-9\U0001F300-\U0001FAFF\U00002600-\U000027BF-—·()（）?？]+"
 )
 ROLE_DETAIL_PATTERN = (
-    rf"^(?P<char_name>{PATTERN})(?:面板|信息|详情|面包|🍞)"
+    rf"^(?P<char_name>(?!(?:刷新|清理)){PATTERN})(?:面板|信息|详情|面包|🍞)"
     rf"(?:\s*[+＋]\s*(?P<weapon_name_1>{PATTERN}))?"
     rf"(?:\s*[+＋]\s*(?P<weapon_name_2>{PATTERN}))?$"
 )
-REFRESH_ROLE_PATTERN = rf"^刷新(?P<char_name>{PATTERN})面板$"
+REFRESH_ROLE_PATTERN = rf"^刷新(?P<char_name>(?!全部角色面板$|\d+的){PATTERN})面板$"
 REFRESH_ALL_ROLE_PATTERN = r"^刷新全部角色面板$"
 CLEAR_ROLE_PATTERN = rf"^清理(?P<char_name>{PATTERN})面板缓存$"
 CLEAR_ALL_ROLE_PATTERN = r"^清理全部角色缓存$"
