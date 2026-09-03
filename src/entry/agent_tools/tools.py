@@ -19,7 +19,7 @@ from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
 from astrbot.core.message.message_event_result import MessageChain
 
-from ...modules.agent_tools.contracts import AgentQueryResult
+from ...modules.agent_tools.contracts import AgentQueryPresentation, AgentQueryResult
 from ...modules.agent_tools.queries import AgentQueryCatalog, build_query_catalog
 from ..response import (
     ChainResponse,
@@ -102,6 +102,8 @@ def _json_value(value: object) -> object:
 def _response_data(response: object) -> object:
     """把框架无关响应转换为不含本地路径的 Agent data。"""
 
+    if isinstance(response, AgentQueryPresentation):
+        return _json_value(response.data)
     if isinstance(response, PlainTextResponse):
         return {"type": "text", "text": response.text}
     if isinstance(response, ImageResponse):
@@ -123,6 +125,20 @@ def _response_data(response: object) -> object:
             "items": [_response_data(item) for item in response.components],
         }
     return _json_value(response)
+
+
+def _image_status_data(
+    presentation: AgentQueryPresentation | None,
+    sent: bool,
+) -> dict[str, object]:
+    """在保留结构化查询数据的同时返回图片直发状态。"""
+
+    if presentation is None:
+        return {"image_sent": sent}
+    data = _response_data(presentation)
+    if not isinstance(data, Mapping):
+        return {"result": data, "image_sent": sent}
+    return {**data, "image_sent": sent}
 
 
 def _result_json(result: AgentQueryResult[Any]) -> str:
@@ -283,13 +299,21 @@ class AgentQueryTool(FunctionTool):
         if not raw_send_image or not result.ok:
             return _result_json(result)
 
+        presentation = (
+            result.data if isinstance(result.data, AgentQueryPresentation) else None
+        )
+        direct_response = (
+            presentation.direct_response
+            if presentation is not None
+            else result.data
+        )
         event = context.context.event
-        sent, error = await _send_image_response(event, result.data)
+        sent, error = await _send_image_response(event, direct_response)
         if not sent:
             return _result_json(
                 AgentQueryResult.failure(
                     kind=result.kind,
-                    data={"image_sent": False},
+                    data=_image_status_data(presentation, False),
                     cache=result.cache,
                     error=error,
                 )
@@ -297,7 +321,7 @@ class AgentQueryTool(FunctionTool):
         return _result_json(
             AgentQueryResult.success(
                 kind=result.kind,
-                data={"image_sent": True},
+                data=_image_status_data(presentation, True),
                 cache=result.cache,
             )
         )
@@ -326,7 +350,7 @@ _TOOL_DEFINITIONS = (
     _ToolDefinition(
         "dnaby_player_overview",
         "player_overview",
-        "查询当前消息用户绑定 UID 的角色与武器概览。身份固定来自当前事件，不接受用户 ID 或 UID 参数。",
+        "查询当前消息用户绑定 UID 的角色与武器概览。返回已拥有角色/武器的结构化数据，名称和数量以接口结果为准，不要根据图片或资源目录猜测。身份固定来自当前事件，不接受用户 ID 或 UID 参数。",
         _image_schema(),
         supports_image=True,
     ),

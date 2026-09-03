@@ -8,7 +8,12 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from ...entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from ...entry.response import (
+    ChainResponse,
+    CommandResponse,
+    ImageResponse,
+    PlainTextResponse,
+)
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import PlayerRenderer
 from ...infrastructure.resources import ResourceSnapshotCoordinator
@@ -49,6 +54,12 @@ class _OverviewState:
     overview: RoleOverview
     digest: str
     stale: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _OverviewResult:
+    overview: RoleOverview
+    response: CommandResponse
 
 
 @dataclass(frozen=True, slots=True)
@@ -342,8 +353,11 @@ class PlayerService:
     def _stale_response(image: ImageResponse) -> ChainResponse:
         return ChainResponse((PlainTextResponse(messages.PLAYER_CACHE_STALE), image))
 
-    async def role_overview(self, request: PlayerCommandRequest):
-        """读取并渲染角色/武器总览。"""
+    async def _role_overview_result(
+        self,
+        request: PlayerCommandRequest,
+    ) -> _OverviewResult | PlainTextResponse:
+        """读取概览快照并生成可复用的图片响应。"""
 
         resolved = await self._resolve_uid(request)
         if isinstance(resolved, PlainTextResponse):
@@ -375,7 +389,10 @@ class PlayerService:
             if state.stale:
                 cached = await self._cached_card(card_key, now=now, fresh_only=False)
                 if cached is not None:
-                    return self._stale_response(cached[1])
+                    return _OverviewResult(
+                        state.overview,
+                        self._stale_response(cached[1]),
+                    )
                 response = await self._render_overview(
                     state.overview,
                     request,
@@ -383,10 +400,13 @@ class PlayerService:
                     uid,
                     uid_hidden,
                 )
-                return self._stale_response(response)
+                return _OverviewResult(
+                    state.overview,
+                    self._stale_response(response),
+                )
             cached = await self._cached_card(card_key, now=now, fresh_only=True)
             if cached is not None:
-                return cached[1]
+                return _OverviewResult(state.overview, cached[1])
         response = await self._render_overview(
             state.overview,
             request,
@@ -408,7 +428,26 @@ class PlayerService:
                 resource_version=resource_version,
                 now=now,
             )
-        return response
+        return _OverviewResult(state.overview, response)
+
+    async def role_overview(self, request: PlayerCommandRequest) -> CommandResponse:
+        """读取并渲染角色/武器总览。"""
+
+        result = await self._role_overview_result(request)
+        if isinstance(result, PlainTextResponse):
+            return result
+        return result.response
+
+    async def role_overview_for_agent(
+        self,
+        request: PlayerCommandRequest,
+    ) -> tuple[RoleOverview, CommandResponse] | PlainTextResponse:
+        """为 Agent 返回同一概览快照及图片响应。"""
+
+        result = await self._role_overview_result(request)
+        if isinstance(result, PlainTextResponse):
+            return result
+        return result.overview, result.response
 
     @staticmethod
     def _find_role(overview: RoleOverview, input_name: str) -> RoleItem | None:
