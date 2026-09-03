@@ -24,24 +24,20 @@ from src.infrastructure.config import (
 def test_cache_settings_expose_the_planned_defaults() -> None:
     settings = DnabySettings.from_config({})
 
-    assert settings.cache.fresh_ttl_minutes == 30
-    assert settings.cache.retention_ttl_hours == 24
-    assert settings.cache.announcement_ttl_hours == 24
-    assert settings.cache.refresh_send_card is True
+    assert settings.cache.ttl_hours == 24
 
     schema = generate_astrbot_schema()
     cache_items = schema["cache"]["items"]
-    assert cache_items["fresh_ttl_minutes"]["default"] == 30
-    assert "-1" in cache_items["fresh_ttl_minutes"]["hint"]
-    assert cache_items["retention_ttl_hours"]["default"] == 24
-    assert cache_items["announcement_ttl_hours"]["default"] == 24
-    assert cache_items["refresh_send_card"]["default"] is True
+    assert set(cache_items) == {"ttl_hours"}
+    assert cache_items["ttl_hours"]["default"] == 24
+    assert "-1" in cache_items["ttl_hours"]["hint"]
+    assert "0" in cache_items["ttl_hours"]["hint"]
 
 
 @pytest.mark.asyncio
-async def test_negative_fresh_ttl_keeps_cache_until_explicit_invalidation(tmp_path) -> None:
+async def test_negative_ttl_keeps_cache_until_explicit_invalidation(tmp_path) -> None:
     settings = DnabySettings.from_config(
-        {"cache": {"fresh_ttl_minutes": -1}},
+        {"cache": {"ttl_hours": -1}},
     )
     manager = CacheManager(tmp_path, settings.cache)
     created_at = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
@@ -198,7 +194,7 @@ async def test_put_does_not_silently_overwrite_corrupt_metadata(tmp_path) -> Non
 
 @pytest.mark.asyncio
 async def test_cleanup_removes_entries_past_the_hard_retention_window(tmp_path) -> None:
-    settings = CacheSettings(retention_ttl_hours=1)
+    settings = CacheSettings(ttl_hours=1)
     manager = CacheManager(tmp_path, settings)
     created_at = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
     await manager.put("role", "expired", b"old", now=created_at)
@@ -218,29 +214,29 @@ async def test_cleanup_removes_entries_past_the_hard_retention_window(tmp_path) 
 
 
 @pytest.mark.asyncio
-async def test_cache_manager_distinguishes_stale_from_retention_miss(tmp_path) -> None:
-    settings = CacheSettings(retention_ttl_hours=2)
+async def test_cache_manager_returns_miss_at_unified_ttl_boundary(tmp_path) -> None:
+    settings = CacheSettings(ttl_hours=1)
     manager = CacheManager(tmp_path, settings)
     created_at = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
     await manager.put("role", "aging", b"card", now=created_at)
 
-    stale = await manager.get(
+    fresh = await manager.get(
         "role",
         "aging",
-        now=created_at + timedelta(minutes=30),
+        now=created_at + timedelta(minutes=59),
     )
     expired = await manager.get(
         "role",
         "aging",
-        now=created_at + timedelta(hours=2),
+        now=created_at + timedelta(hours=1),
     )
 
-    assert stale.status == "stale"
-    assert stale.entry is not None
-    assert stale.entry.content == b"card"
+    assert fresh.status == "fresh"
+    assert fresh.entry is not None
+    assert fresh.entry.content == b"card"
     assert expired.status == "miss"
     assert expired.entry is None
-    assert expired.reason == "retention_expired"
+    assert expired.reason == "ttl_expired"
 
 
 @pytest.mark.asyncio
@@ -272,7 +268,7 @@ async def test_sidecar_metadata_is_persisted_without_the_raw_cache_key(tmp_path)
 
 @pytest.mark.asyncio
 async def test_active_lease_protects_an_expired_entry_from_cleanup(tmp_path) -> None:
-    settings = CacheSettings(retention_ttl_hours=1)
+    settings = CacheSettings(ttl_hours=1)
     manager = CacheManager(tmp_path, settings)
     created_at = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
     expiry = created_at + timedelta(hours=1)
@@ -310,7 +306,7 @@ async def test_lease_validator_rejects_undecodable_payload(tmp_path) -> None:
 async def test_concurrent_leases_keep_the_entry_until_all_consumers_release(
     tmp_path,
 ) -> None:
-    settings = CacheSettings(retention_ttl_hours=1)
+    settings = CacheSettings(ttl_hours=1)
     manager = CacheManager(tmp_path, settings)
     created_at = datetime(2026, 8, 30, 12, 0, tzinfo=timezone.utc)
     expiry = created_at + timedelta(hours=1)

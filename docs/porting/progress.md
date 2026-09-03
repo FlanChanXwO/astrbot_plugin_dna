@@ -43,8 +43,9 @@
 
 - `PlayerCache` 接入玩家概览和完整角色卡片缓存；普通用户可刷新自己的指定角色，管理员可按
   游戏 UID+角色刷新，并可清理全部玩家 JSON/PNG 缓存而保留其它业务缓存。
-- `cache.refresh_send_card` 控制刷新后返回新卡片或成功文案；刷新按身份和角色 tags 精准失效，
-  不误删其它角色或其它缓存类型。缓存和 rendered 维护任务均纳入 runtime 生命周期。
+- 玩家、公告、密函和其它 `CacheManager` 内容统一使用 `cache.ttl_hours`；刷新按身份和角色
+  tags 精准失效，不误删其它角色或其它缓存类型。单角色刷新固定返回新卡片，批量刷新仍只返回
+  汇总；缓存和 rendered 维护任务均纳入 runtime 生命周期。
 - `RenderedFileStore` 清理已知前缀下的过期孤儿并保护活动发送租约；`ResponseFactory` 在受控
   rendered 文件交给 AstrBot 事件清理时登记租约，回归测试覆盖此前约 741 MB 无界增长问题。
 - 离线证据见 `tests/test_goal1_o10_player_cache.py` 与

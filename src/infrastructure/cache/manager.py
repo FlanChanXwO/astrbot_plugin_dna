@@ -20,7 +20,7 @@ from ..config.settings import CacheSettings
 
 logger = logging.getLogger(__name__)
 
-CacheState = Literal["fresh", "stale", "miss"]
+CacheState = Literal["fresh", "miss"]
 ContentValidator = Callable[[bytes], bool | None | Awaitable[bool | None]]
 
 
@@ -255,19 +255,12 @@ class CacheManager:
         raw = json.loads(path.read_text(encoding="utf-8"))
         return CacheMetadata.from_dict(raw)
 
-    def _retention_seconds(self, cache_type: str) -> float:
-        if self.settings.fresh_ttl_minutes == -1:
-            # -1 是 CacheManager 的永久模式：业务缓存不因时间自动失效或清理。
-            # rendered/ 临时文件由独立的 RenderedFileStore 继续按原保留期清理。
-            return float("inf")
-        if cache_type == "announcement":
-            return self.settings.announcement_ttl_hours * 60 * 60
-        return self.settings.retention_ttl_hours * 60 * 60
+    def _ttl_seconds(self) -> float:
+        """返回统一内容缓存 TTL；-1 为永久，0 为禁用持久缓存。"""
 
-    def _fresh_seconds(self) -> float:
-        if self.settings.fresh_ttl_minutes == -1:
+        if self.settings.ttl_hours == -1:
             return float("inf")
-        return self.settings.fresh_ttl_minutes * 60
+        return float(self.settings.ttl_hours * 60 * 60)
 
     async def put(
         self,
@@ -280,7 +273,7 @@ class CacheManager:
         validator: ContentValidator | None = None,
         now: datetime | None = None,
     ) -> CacheMetadata:
-        """原子写入一条非空完整内容，并生成 sidecar metadata。"""
+        """校验并写入内容；TTL 为 0 时仅返回内存 metadata，不触碰磁盘。"""
 
         if not isinstance(content, bytes):
             raise TypeError("缓存内容必须是 bytes")
@@ -289,7 +282,21 @@ class CacheManager:
             raise TypeError("resource_version 必须是字符串或 None")
         normalized_now = self._normalize_now(now)
         normalized_tags = self._normalize_tags(tags)
-        data_path, metadata_path = self._paths(cache_type, key)
+        normalized_type = self._validate_cache_type(cache_type)
+        key_digest = self.key_digest(key)
+        metadata = CacheMetadata(
+            cache_type=normalized_type,
+            key=key_digest,
+            content_sha256=hashlib.sha256(content).hexdigest(),
+            created_at=normalized_now,
+            last_accessed_at=normalized_now,
+            resource_version=resource_version,
+            tags=normalized_tags,
+        )
+        if self.settings.ttl_hours == 0:
+            return metadata
+
+        data_path, metadata_path = self._paths(normalized_type, key)
         async with self._lock:
             self._ensure_cache_directory(data_path.parent)
             if data_path.is_symlink() or metadata_path.is_symlink():
@@ -309,16 +316,7 @@ class CacheManager:
                     raise CacheMetadataError(
                         "已有缓存 metadata 无法读取，拒绝覆盖"
                     ) from error
-            metadata = CacheMetadata(
-                cache_type=cache_type,
-                key=self.key_digest(key),
-                content_sha256=hashlib.sha256(content).hexdigest(),
-                created_at=normalized_now,
-                last_accessed_at=normalized_now,
-                resource_version=resource_version,
-                tags=normalized_tags,
-                lease_count=lease_count,
-            )
+            metadata = replace(metadata, lease_count=lease_count)
             self._atomic_write(data_path, content)
             self._atomic_write(
                 metadata_path,
@@ -336,10 +334,15 @@ class CacheManager:
         validator: ContentValidator | None = None,
         now: datetime | None = None,
     ) -> CacheLookup:
-        """读取缓存并按 fresh/stale/miss 返回状态。"""
+        """读取统一 TTL 下的 fresh 条目；未命中时只返回 miss 及原因。"""
 
         normalized_now = self._normalize_now(now)
-        data_path, metadata_path = self._paths(cache_type, key)
+        normalized_type = self._validate_cache_type(cache_type)
+        key_digest = self.key_digest(key)
+        if self.settings.ttl_hours == 0:
+            return CacheLookup("miss", reason="disabled")
+
+        data_path, metadata_path = self._paths(normalized_type, key)
         async with self._lock:
             if self._entry_path_is_unsafe(data_path, metadata_path):
                 return CacheLookup("miss", reason="unsafe_path")
@@ -348,9 +351,16 @@ class CacheManager:
             try:
                 metadata = self._read_metadata(metadata_path)
                 content = data_path.read_bytes()
-            except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+            except (
+                OSError,
+                UnicodeError,
+                json.JSONDecodeError,
+                KeyError,
+                TypeError,
+                ValueError,
+            ):
                 return CacheLookup("miss", reason="invalid_metadata")
-            if metadata.cache_type != cache_type or metadata.key != self.key_digest(key):
+            if metadata.cache_type != normalized_type or metadata.key != key_digest:
                 return CacheLookup("miss", reason="invalid_metadata")
             if metadata.integrity != "complete":
                 return CacheLookup("miss", reason="invalid_integrity")
@@ -365,13 +375,8 @@ class CacheManager:
             age_seconds = max(
                 0.0, (normalized_now - metadata.created_at).total_seconds()
             )
-            if age_seconds >= self._retention_seconds(cache_type):
-                return CacheLookup("miss", reason="retention_expired")
-            status: CacheState = (
-                "fresh"
-                if age_seconds < self._fresh_seconds()
-                else "stale"
-            )
+            if age_seconds >= self._ttl_seconds():
+                return CacheLookup("miss", reason="ttl_expired")
             accessed = replace(metadata, last_accessed_at=normalized_now)
             self._atomic_write(
                 metadata_path,
@@ -379,7 +384,7 @@ class CacheManager:
                     accessed.to_dict(), ensure_ascii=False, sort_keys=True
                 ).encode("utf-8"),
             )
-            return CacheLookup(status, CacheEntry(content, accessed))
+            return CacheLookup("fresh", CacheEntry(content, accessed))
 
     @asynccontextmanager
     async def lease(
@@ -393,7 +398,11 @@ class CacheManager:
         """持有一条缓存租约，避免清理器删除正在使用的条目。"""
 
         normalized_now = self._normalize_now(now)
-        data_path, metadata_path = self._paths(cache_type, key)
+        normalized_type = self._validate_cache_type(cache_type)
+        key_digest = self.key_digest(key)
+        if self.settings.ttl_hours == 0:
+            raise CacheMissError("缓存已禁用")
+        data_path, metadata_path = self._paths(normalized_type, key)
         async with self._lock:
             if self._entry_path_is_unsafe(data_path, metadata_path):
                 raise CacheMissError("缓存条目路径不安全")
@@ -411,7 +420,7 @@ class CacheManager:
                 ValueError,
             ) as error:
                 raise CacheMissError("缓存条目 metadata 无效") from error
-            if metadata.cache_type != cache_type or metadata.key != self.key_digest(key):
+            if metadata.cache_type != normalized_type or metadata.key != key_digest:
                 raise CacheMissError("缓存条目 metadata 身份不匹配")
             if metadata.integrity != "complete":
                 raise CacheMissError("缓存条目完整性不是 complete")
@@ -426,8 +435,8 @@ class CacheManager:
             age_seconds = max(
                 0.0, (normalized_now - metadata.created_at).total_seconds()
             )
-            if age_seconds >= self._retention_seconds(cache_type):
-                raise CacheMissError("缓存条目已超过硬保留期")
+            if age_seconds >= self._ttl_seconds():
+                raise CacheMissError("缓存条目已过期")
             leased_metadata = replace(
                 metadata,
                 last_accessed_at=normalized_now,
@@ -445,7 +454,10 @@ class CacheManager:
             yield entry
         finally:
             async with self._lock:
-                if not self._entry_path_is_unsafe(data_path, metadata_path) and metadata_path.is_file():
+                if (
+                    not self._entry_path_is_unsafe(data_path, metadata_path)
+                    and metadata_path.is_file()
+                ):
                     try:
                         current = self._read_metadata(metadata_path)
                         if current.lease_count > 0:
@@ -467,14 +479,14 @@ class CacheManager:
                         TypeError,
                         ValueError,
                     ) as error:
-                        # 释放阶段不能覆盖调用方异常；损坏 sidecar 保留现场交给维护任务处理。
+                        # 释放阶段不能覆盖调用方异常；损坏 sidecar 保留现场交给维护任务。
                         logger.warning(
                             "缓存租约释放失败，保留条目等待维护: %s",
                             type(error).__name__,
                         )
 
     async def cleanup(self, *, now: datetime | None = None) -> int:
-        """删除超过硬保留期且没有活动租约的条目，并清理孤儿 payload。"""
+        """删除超过统一 TTL 且没有活动租约的条目，并清理孤儿 payload。"""
 
         normalized_now = self._normalize_now(now)
         async with self._lock:
@@ -502,7 +514,7 @@ class CacheManager:
                     0.0, (normalized_now - metadata.created_at).total_seconds()
                 )
                 if (
-                    age_seconds >= self._retention_seconds(metadata.cache_type)
+                    age_seconds >= self._ttl_seconds()
                     and metadata.lease_count == 0
                 ):
                     if data_path.exists() or data_path.is_symlink():

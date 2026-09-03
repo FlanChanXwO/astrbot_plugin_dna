@@ -99,12 +99,20 @@ HTTP(S) 基础地址；镜像请求失败会明确报告，不会把失败伪装
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
-| `cache.fresh_ttl_minutes` | `30` | 缓存保持 fresh 的时间，单位为分钟；`-1` 表示仅在主动刷新或失效时更新。 |
-| `cache.retention_ttl_hours` | `24` | 缓存允许保留的时间，单位为小时。 |
-| `cache.announcement_ttl_hours` | `24` | 公告和已校验资源缓存的保留时间，单位为小时。 |
-| `cache.refresh_send_card` | `true` | 手动刷新成功后是否立即发送新卡片。 |
+| `cache.ttl_hours` | `24` | 所有 `CacheManager` 内容缓存共用的整数 TTL（小时）。`-1` 永久有效，`0` 禁用持久缓存，正整数表示缓存有效期。 |
 
-将 `cache.fresh_ttl_minutes` 设为 `0` 会让缓存立即进入待刷新状态；设为 `-1` 时业务缓存只在主动刷新或失效时更新。`cache.retention_ttl_hours` 和 `cache.announcement_ttl_hours` 仍应填写正数。
+`cache.ttl_hours` 只允许 `-1`、`0` 和正整数，小于 `-1` 会在配置校验时失败：
+
+- `-1`：内容缓存读取始终返回 `fresh`，时间维护不会删除条目；显式刷新或 `invalidate` 仍然有效。
+- `0`：`get` 始终返回原因 `disabled` 的 `miss`，不读取磁盘；`put` 只校验内容并返回内存 metadata，
+  不创建或写入持久缓存文件。维护任务仍会删除已有且无活动租约的缓存残留。
+- 正整数：条目年龄小于 TTL 时返回 `fresh`；到达 TTL 后直接返回原因 `ttl_expired` 的 `miss`，
+  不再提供旧内容回退。维护任务删除到期且无活动租约的条目。
+
+`rendered/` 临时文件不属于内容缓存，内部固定按 24 小时清理；`resource_generations/` 等资源快照
+继续由资源协调器按 generation lease 管理。旧的 `fresh_ttl_minutes`、`retention_ttl_hours`、
+`announcement_ttl_hours`、`refresh_send_card` 会记录 warning 后丢弃，不迁移旧的自定义数值；可变
+AstrBot 配置中的旧字段也会被移除。
 
 ## Agent Tools `agent_tools`
 

@@ -152,7 +152,6 @@ async def test_refresh_wins_over_older_inflight_overview_write(tmp_path: Path) -
         return new_overview
 
     transport.get_overview = get_overview
-    service.refresh_send_card = False
     try:
         stale_query = asyncio.create_task(service.role_overview(_request()))
         await first_started.wait()

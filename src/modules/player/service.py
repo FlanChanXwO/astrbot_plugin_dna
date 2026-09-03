@@ -8,7 +8,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from ...entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from ...entry.response import CommandResponse, ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import PlayerRenderer
 from ...infrastructure.resources import ResourceSnapshotCoordinator
@@ -48,7 +48,12 @@ _MASTER_ALIASES = {
 class _OverviewState:
     overview: RoleOverview
     digest: str
-    stale: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _OverviewResult:
+    overview: RoleOverview
+    response: CommandResponse
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +73,6 @@ class _RoleDetailBundle:
 class _DetailState:
     bundle: _RoleDetailBundle
     digest: str | None
-    stale: bool = False
 
 
 class PlayerService:
@@ -84,7 +88,6 @@ class PlayerService:
         show_unowned_roles: bool = True,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache: PlayerCache | None = None,
-        refresh_send_card: bool = True,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.database = database
@@ -94,7 +97,6 @@ class PlayerService:
         self.show_unowned_roles = show_unowned_roles
         self.resource_snapshots = resource_snapshots
         self.cache = cache
-        self.refresh_send_card = refresh_send_card
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._overview_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
@@ -212,47 +214,18 @@ class PlayerService:
         key = self.cache.overview_data_key(target_user_id, uid)
         lookup = await self.cache.get_data(key, now=now)
         cached_entry = lookup.entry
-        cached_overview: RoleOverview | None = None
-        if cached_entry is not None:
+        if cached_entry is not None and lookup.status == "fresh":
             try:
                 cached_overview = RoleOverview.model_validate(
                     self.cache.decode_json(cached_entry.content),
                 )
             except (KeyError, TypeError, ValueError):
                 cached_overview = None
-        if cached_overview is not None and lookup.status == "fresh":
-            assert cached_entry is not None
-            return _OverviewState(
-                cached_overview,
-                cached_entry.metadata.content_sha256,
-            )
-        if cached_overview is not None and lookup.status == "stale":
-            assert cached_entry is not None
-            try:
-                overview = await self._fetch_overview(request, target_user_id, uid)
-            except PlayerTransportError as error:
-                logger.warning(
-                    "玩家请求失败 kind=%s resource=%s cache=%s",
-                    error.kind.value,
-                    error.resource,
-                    "stale",
-                )
+            if cached_overview is not None:
                 return _OverviewState(
                     cached_overview,
                     cached_entry.metadata.content_sha256,
-                    stale=True,
                 )
-            metadata = await self.cache.put_data(
-                key,
-                overview,
-                tags=(
-                    "player_data",
-                    "overview",
-                    self.cache.identity_tag(target_user_id, uid),
-                ),
-                now=now,
-            )
-            return _OverviewState(overview, metadata.content_sha256)
 
         try:
             overview = await self._fetch_overview(request, target_user_id, uid)
@@ -275,14 +248,13 @@ class PlayerService:
         key: str,
         *,
         now: datetime,
-        fresh_only: bool,
-    ) -> tuple[str, ImageResponse] | None:
+    ) -> ImageResponse | None:
         if self.cache is None:
             return None
         lookup = await self.cache.get_card(key, now=now)
-        if lookup.entry is None or (fresh_only and lookup.status != "fresh"):
+        if lookup.entry is None:
             return None
-        return lookup.status, await self.cache.card_response(key, now=now)
+        return await self.cache.card_response(key, now=now)
 
     @staticmethod
     def _response_from_rendered(rendered) -> ImageResponse:
@@ -338,12 +310,11 @@ class PlayerService:
             now=now,
         )
 
-    @staticmethod
-    def _stale_response(image: ImageResponse) -> ChainResponse:
-        return ChainResponse((PlainTextResponse(messages.PLAYER_CACHE_STALE), image))
-
-    async def role_overview(self, request: PlayerCommandRequest):
-        """读取并渲染角色/武器总览。"""
+    async def _role_overview_result(
+        self,
+        request: PlayerCommandRequest,
+    ) -> _OverviewResult | PlainTextResponse:
+        """读取概览快照并生成可复用的图片响应。"""
 
         resolved = await self._resolve_uid(request)
         if isinstance(resolved, PlainTextResponse):
@@ -363,6 +334,7 @@ class PlayerService:
             group_id=request.actor.group_id,
         )
         resource_version = self._resource_version()
+        card_key: str | None = None
         if self.cache is not None:
             card_key = self.cache.overview_card_key(
                 target_user_id,
@@ -372,21 +344,9 @@ class PlayerService:
                 uid_hidden,
                 self.show_unowned_roles,
             )
-            if state.stale:
-                cached = await self._cached_card(card_key, now=now, fresh_only=False)
-                if cached is not None:
-                    return self._stale_response(cached[1])
-                response = await self._render_overview(
-                    state.overview,
-                    request,
-                    target_user_id,
-                    uid,
-                    uid_hidden,
-                )
-                return self._stale_response(response)
-            cached = await self._cached_card(card_key, now=now, fresh_only=True)
+            cached = await self._cached_card(card_key, now=now)
             if cached is not None:
-                return cached[1]
+                return _OverviewResult(state.overview, cached)
         response = await self._render_overview(
             state.overview,
             request,
@@ -394,7 +354,7 @@ class PlayerService:
             uid,
             uid_hidden,
         )
-        if self.cache is not None and not state.stale:
+        if self.cache is not None:
             assert card_key is not None
             await self._store_card(
                 card_key,
@@ -408,7 +368,26 @@ class PlayerService:
                 resource_version=resource_version,
                 now=now,
             )
-        return response
+        return _OverviewResult(state.overview, response)
+
+    async def role_overview(self, request: PlayerCommandRequest) -> CommandResponse:
+        """读取并渲染角色/武器总览。"""
+
+        result = await self._role_overview_result(request)
+        if isinstance(result, PlainTextResponse):
+            return result
+        return result.response
+
+    async def role_overview_for_agent(
+        self,
+        request: PlayerCommandRequest,
+    ) -> tuple[RoleOverview, CommandResponse] | PlainTextResponse:
+        """为 Agent 返回同一概览快照及图片响应。"""
+
+        result = await self._role_overview_result(request)
+        if isinstance(result, PlainTextResponse):
+            return result
+        return result.overview, result.response
 
     @staticmethod
     def _find_role(overview: RoleOverview, input_name: str) -> RoleItem | None:
@@ -596,61 +575,18 @@ class PlayerService:
         )
         lookup = await self.cache.get_data(key, now=now)
         cached_entry = lookup.entry
-        cached_bundle: _RoleDetailBundle | None = None
-        if cached_entry is not None:
+        if cached_entry is not None and lookup.status == "fresh":
             try:
                 cached_bundle = self._detail_from_payload(
                     self.cache.decode_json(cached_entry.content),
                 )
             except (KeyError, TypeError, ValueError):
                 cached_bundle = None
-        if cached_bundle is not None and lookup.status == "fresh":
-            assert cached_entry is not None
-            return _DetailState(
-                cached_bundle,
-                cached_entry.metadata.content_sha256,
-            )
-        if cached_bundle is not None and lookup.status == "stale":
-            assert cached_entry is not None
-            try:
-                bundle = await self._fetch_detail_bundle(
-                    request,
-                    target_user_id,
-                    uid,
-                    role,
-                    selected,
-                )
-            except PlayerTransportError as error:
-                logger.warning(
-                    "玩家请求失败 kind=%s resource=%s cache=%s",
-                    error.kind.value,
-                    error.resource,
-                    "stale",
-                )
+            if cached_bundle is not None:
                 return _DetailState(
                     cached_bundle,
                     cached_entry.metadata.content_sha256,
-                    stale=True,
                 )
-            if not bundle.cacheable:
-                return _DetailState(
-                    cached_bundle,
-                    cached_entry.metadata.content_sha256,
-                    stale=True,
-                )
-            metadata = await self.cache.put_data(
-                key,
-                self._detail_payload(bundle),
-                tags=self.cache.detail_data_tags(
-                    target_user_id,
-                    uid,
-                    role.char_id,
-                    overview_digest,
-                ),
-                now=now,
-            )
-            digest = metadata.content_sha256
-            return _DetailState(bundle, digest)
 
         try:
             bundle = await self._fetch_detail_bundle(
@@ -712,7 +648,6 @@ class PlayerService:
         overview_state: _OverviewState,
         *,
         now: datetime,
-        send_card: bool = True,
     ):
         """在已取得概览后读取、缓存并渲染一个角色详情。"""
 
@@ -751,7 +686,6 @@ class PlayerService:
         )
         resource_version = self._resource_version()
         detail_digest = detail_state.digest
-        stale = overview_state.stale or detail_state.stale
         card_key: str | None = None
         if self.cache is not None and detail_digest is not None:
             selected_names = tuple(weapon.name for _, weapon in selected)
@@ -765,14 +699,10 @@ class PlayerService:
                 resource_version,
                 uid_hidden,
             )
-            if send_card and not stale and detail_state.bundle.cacheable:
-                cached = await self._cached_card(card_key, now=now, fresh_only=True)
+            if detail_state.bundle.cacheable:
+                cached = await self._cached_card(card_key, now=now)
                 if cached is not None:
-                    return cached[1]
-            if stale:
-                cached = await self._cached_card(card_key, now=now, fresh_only=False)
-                if cached is not None:
-                    return self._stale_response(cached[1])
+                    return cached
 
         response = await self._render_detail(
             detail_state.bundle,
@@ -786,7 +716,6 @@ class PlayerService:
             self.cache is not None
             and card_key is not None
             and detail_digest is not None
-            and not stale
             and detail_state.bundle.cacheable
         ):
             await self._store_card(
@@ -802,10 +731,6 @@ class PlayerService:
                 resource_version=resource_version,
                 now=now,
             )
-        if stale:
-            return self._stale_response(response)
-        if not send_card:
-            return PlainTextResponse(messages.PLAYER_CACHE_REFRESHED)
         return response
 
     async def role_detail(self, request: PlayerCommandRequest):
@@ -879,7 +804,7 @@ class PlayerService:
         *,
         uid: str | None = None,
     ):
-        """强制刷新指定角色，并按配置决定是否返回新卡片。"""
+        """强制刷新指定角色并返回新的完整卡片。"""
 
         if uid is not None:
             target_user_id = request.actor.user_id
@@ -921,7 +846,6 @@ class PlayerService:
             refresh_uid,
             _OverviewState(overview, overview_digest),
             now=now,
-            send_card=self.refresh_send_card,
         )
 
     async def refresh_all_roles(self, request: PlayerCommandRequest):

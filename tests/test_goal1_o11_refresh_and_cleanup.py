@@ -46,16 +46,16 @@ def test_o11_commands_are_registered_with_the_declared_permission_boundary() -> 
     assert registry.match("kk清理全部角色缓存").command.id == "clear_player_cache"
 
 
-def test_zero_fresh_ttl_uses_retention_period_for_maintenance_cadence(
+def test_zero_ttl_uses_rendered_retention_for_maintenance_cadence(
     tmp_path: Path,
 ) -> None:
-    """立即 stale 配置不能让后台维护进入零秒忙循环或阻止 bootstrap。"""
+    """禁用内容缓存时仍需维护 rendered 临时文件，不能进入零秒忙循环。"""
 
     from src.bootstrap import build_runtime
 
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),
-        {"cache": {"fresh_ttl_minutes": 0}},
+        {"cache": {"ttl_hours": 0}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
     )
     maintenance = cast(CacheMaintenance, runtime.services["cache_maintenance"])
@@ -63,16 +63,16 @@ def test_zero_fresh_ttl_uses_retention_period_for_maintenance_cadence(
     assert maintenance.interval_seconds == 24 * 60 * 60
 
 
-def test_permanent_fresh_ttl_uses_retention_period_for_maintenance_cadence(
+def test_permanent_ttl_uses_rendered_retention_for_maintenance_cadence(
     tmp_path: Path,
 ) -> None:
-    """永久缓存配置不能把后台维护周期变成负数或忙循环。"""
+    """永久内容缓存不能把后台维护周期变成负数或忙循环。"""
 
     from src.bootstrap import build_runtime
 
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),
-        {"cache": {"fresh_ttl_minutes": -1}},
+        {"cache": {"ttl_hours": -1}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
     )
     maintenance = cast(CacheMaintenance, runtime.services["cache_maintenance"])
@@ -80,17 +80,17 @@ def test_permanent_fresh_ttl_uses_retention_period_for_maintenance_cadence(
     assert maintenance.interval_seconds == 24 * 60 * 60
 
 
-def test_bootstrap_wires_refresh_setting_and_cache_maintenance(
+def test_bootstrap_wires_unified_cache_and_maintenance_dependencies(
     tmp_path: Path,
 ) -> None:
-    """bootstrap 必须把刷新开关和同一组缓存维护依赖交给 runtime。"""
+    """bootstrap 必须把统一缓存和 rendered 维护依赖交给 runtime。"""
 
     from src.bootstrap import build_runtime
     from src.modules.player.service import PlayerService
 
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),
-        {"cache": {"refresh_send_card": False}},
+        {"cache": {"ttl_hours": 2}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
     )
     player_service = cast(PlayerService, runtime.services["player_service"])
@@ -98,7 +98,8 @@ def test_bootstrap_wires_refresh_setting_and_cache_maintenance(
     rendered_store = runtime.services["rendered_store"]
     maintenance = cast(CacheMaintenance, runtime.services["cache_maintenance"])
 
-    assert player_service.refresh_send_card is False
+    assert not hasattr(player_service, "refresh_send_card")
+    assert maintenance.interval_seconds == 2 * 60 * 60
     assert maintenance.manager is cache_manager
     assert maintenance.rendered is rendered_store
 
@@ -137,7 +138,8 @@ async def test_user_refresh_forces_target_role_and_keeps_other_role_cache(
         assert transport.overview_calls == 2
         assert transport.role_detail_calls == 2
         assert renderer.detail_calls == 2
-        assert "角色甲" in Image.open(response.image).info["dnaby.text"]
+        with Image.open(response.image) as image:
+            assert image.info["comment"].decode("utf-8") == "角色甲"
         assert (
             await cache.manager.get("player_data", "other-role-data", now=clock.value)
         ).status == "fresh"
@@ -149,17 +151,13 @@ async def test_user_refresh_forces_target_role_and_keeps_other_role_cache(
 
 
 @pytest.mark.asyncio
-async def test_refresh_send_card_false_refreshes_cache_without_returning_image(
-    tmp_path: Path,
-) -> None:
+async def test_refresh_role_always_returns_a_new_card(tmp_path: Path) -> None:
     clock = MutableClock()
     database, transport, renderer, _cache, service = await _service(tmp_path, clock)
-    service.refresh_send_card = False
     try:
         response = await service.refresh_role(_request(detail=True))
 
-        assert isinstance(response, PlainTextResponse)
-        assert response.text == messages.PLAYER_CACHE_REFRESHED
+        assert isinstance(response, ImageResponse)
         assert transport.overview_calls == 1
         assert transport.role_detail_calls == 1
         assert renderer.detail_calls == 1
