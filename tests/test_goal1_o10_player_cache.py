@@ -11,8 +11,9 @@ import pytest
 from PIL import Image
 
 from src.entry.event import EventActor
-from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from src.entry.response import ImageResponse, PlainTextResponse
 from src.infrastructure.cache import CacheManager
+from src.infrastructure.config import CacheSettings
 from src.modules.player import messages
 from src.modules.player.cache import PlayerCache
 from src.modules.player.contracts import (
@@ -138,12 +139,18 @@ def _request(*, detail: bool = False) -> PlayerCommandRequest:
     )
 
 
-async def _service(tmp_path: Path, clock: MutableClock, *, snapshots=None):
+async def _service(
+    tmp_path: Path,
+    clock: MutableClock,
+    *,
+    snapshots=None,
+    ttl_hours: int = 24,
+):
     database = await _database_with_binding(tmp_path)
     transport = CountingTransport()
     renderer = CountingRenderer(tmp_path / "rendered")
     cache = PlayerCache(
-        CacheManager(tmp_path / "cache"),
+        CacheManager(tmp_path / "cache", CacheSettings(ttl_hours=ttl_hours)),
         tmp_path / "rendered",
     )
     service = PlayerService(
@@ -177,13 +184,17 @@ async def test_overview_fresh_cache_reuses_data_and_card(tmp_path: Path) -> None
 
 
 @pytest.mark.asyncio
-async def test_overview_stale_data_refreshes_and_replaces_card(tmp_path: Path) -> None:
+async def test_overview_expired_data_refreshes_and_replaces_card(tmp_path: Path) -> None:
     clock = MutableClock()
-    database, transport, renderer, _cache, service = await _service(tmp_path, clock)
+    database, transport, renderer, _cache, service = await _service(
+        tmp_path,
+        clock,
+        ttl_hours=1,
+    )
     try:
         await service.role_overview(_request())
         transport.overview = transport.overview.model_copy(update={"role_name": "刷新后的玩家"})
-        clock.value += timedelta(minutes=31)
+        clock.value += timedelta(hours=1)
 
         response = await service.role_overview(_request())
 
@@ -197,23 +208,22 @@ async def test_overview_stale_data_refreshes_and_replaces_card(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
-async def test_overview_stale_refresh_failure_uses_complete_old_card(tmp_path: Path) -> None:
+async def test_overview_expired_refresh_failure_does_not_return_old_card(tmp_path: Path) -> None:
     clock = MutableClock()
-    database, transport, renderer, _cache, service = await _service(tmp_path, clock)
+    database, transport, renderer, _cache, service = await _service(
+        tmp_path,
+        clock,
+        ttl_hours=1,
+    )
     try:
-        first = await service.role_overview(_request())
-        old_bytes = Path(first.image).read_bytes()
-        clock.value += timedelta(minutes=31)
+        await service.role_overview(_request())
+        clock.value += timedelta(hours=1)
         transport.fail_overview = True
 
         response = await service.role_overview(_request())
 
-        assert isinstance(response, ChainResponse)
-        warning, image = response.components
-        assert isinstance(warning, PlainTextResponse)
-        assert warning.text == messages.PLAYER_CACHE_STALE
-        assert isinstance(image, ImageResponse)
-        assert Path(image.image).read_bytes() == old_bytes
+        assert isinstance(response, PlainTextResponse)
+        assert response.text == messages.transport_error("server")
         assert transport.overview_calls == 2
         assert renderer.overview_calls == 1
     finally:
@@ -263,23 +273,24 @@ async def test_detail_fresh_cache_reuses_full_bundle_and_card(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
-async def test_detail_stale_refresh_failure_uses_complete_old_card(tmp_path: Path) -> None:
+async def test_detail_expired_refresh_failure_does_not_return_old_card(tmp_path: Path) -> None:
     clock = MutableClock()
-    database, transport, renderer, _cache, service = await _service(tmp_path, clock)
+    database, transport, renderer, _cache, service = await _service(
+        tmp_path,
+        clock,
+        ttl_hours=1,
+    )
     try:
-        first = await service.role_detail(_request(detail=True))
-        old_bytes = Path(first.image).read_bytes()
-        clock.value += timedelta(minutes=31)
+        await service.role_detail(_request(detail=True))
+        clock.value += timedelta(hours=1)
         transport.fail_role_detail = True
 
         response = await service.role_detail(_request(detail=True))
 
-        assert isinstance(response, ChainResponse)
-        warning, image = response.components
-        assert isinstance(warning, PlainTextResponse)
-        assert warning.text == messages.PLAYER_CACHE_STALE
-        assert isinstance(image, ImageResponse)
-        assert Path(image.image).read_bytes() == old_bytes
+        assert isinstance(response, PlainTextResponse)
+        assert response.text == messages.transport_error("server")
+        assert transport.overview_calls == 2
+        assert transport.role_detail_calls == 2
         assert renderer.detail_calls == 1
     finally:
         await database.dispose()

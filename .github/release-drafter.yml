@@ -1,0 +1,52 @@
+template: $CHANGES
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+exclude-labels:
+  - "dependencies"
+  - "skip-changelog"
+autolabeler:
+  - label: "bug"
+    branch:
+      - '/fix\/.+/'
+  - label: "change"
+    branch:
+      - '/change\/.+/'
+  - label: "enhancement"
+    branch:
+      - '/feature\/.+/'
+      - '/feat\/.+/'
+      - '/improve\/.+/'
+  - label: "area: github-actions"
+    files:
+      - .github/**/*
+  - label: "breaking-change"
+    title:
+      - "/.+!:.+/"
+categories:
+  - title: 💥 Breaking Changes
+    labels:
+      - breaking-change
+  - title: 🚀 Features
+    labels:
+      - enhancement
+  - title: 🐛 Bug Fixes
+    labels:
+      - bug
+  - title: 🛠️ CI and Maintenance
+    labels:
+      - "area: github-actions"
+      - change
+  - title: 💫 Others
+change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+change-title-escapes: '\<*_&'
+version-resolver:
+  major:
+    labels:
+      - "major"
+  minor:
+    labels:
+      - "minor"
+  patch:
+    labels:
+      - "patch"
+  default: patch

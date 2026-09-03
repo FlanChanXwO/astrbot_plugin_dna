@@ -23,7 +23,7 @@ class CacheCleanupReport:
 
 
 class CacheMaintenance:
-    """按 fresh 周期触发统一缓存清理，并提供显式的一次性入口。"""
+    """按内容 TTL 扫描周期触发统一缓存清理，并提供显式的一次性入口。"""
 
     def __init__(
         self,

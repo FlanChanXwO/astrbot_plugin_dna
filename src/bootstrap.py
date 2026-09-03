@@ -43,6 +43,7 @@ from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
     CheckinRenderer,
+    DEFAULT_RENDERED_RETENTION_SECONDS,
     EncyclopediaRenderer,
     NoticesRenderer,
     PlayerRenderer,
@@ -102,14 +103,11 @@ PluginConfig = AstrBotConfig | dict[str, Any] | None
 
 
 def _cache_maintenance_interval(settings: DnabySettings) -> float:
-    """返回缓存维护周期，避免 fresh=0 时创建零秒忙循环。"""
+    """返回缓存维护周期；禁用/永久模式仍维护 rendered 临时文件。"""
 
-    fresh_seconds = settings.cache.fresh_ttl_minutes * 60
-    if fresh_seconds > 0:
-        return float(fresh_seconds)
-    # fresh=0 是合法的“立即 stale”配置；复用硬保留期作为扫描周期，
-    # 保持清理任务可运行且不额外引入没有产品语义的固定间隔。
-    return float(settings.cache.retention_ttl_hours * 60 * 60)
+    if settings.cache.ttl_hours > 0:
+        return float(settings.cache.ttl_hours * 60 * 60)
+    return float(DEFAULT_RENDERED_RETENTION_SECONDS)
 
 
 @dataclass(slots=True)
@@ -272,13 +270,11 @@ def build_runtime(
     )
     rendered_store = RenderedFileStore(
         rendered_root,
-        retention_seconds=settings.cache.retention_ttl_hours * 60 * 60,
+        retention_seconds=DEFAULT_RENDERED_RETENTION_SECONDS,
     )
     cache_maintenance = CacheMaintenance(
         cache_manager,
         rendered_store,
-        # 复用已配置的角色数据 fresh 周期作为清理扫描频率，避免新增一个
-        # 没有产品语义依据的固定定时配置。
         interval_seconds=_cache_maintenance_interval(settings),
     )
     if services is not None:
@@ -321,7 +317,6 @@ def build_runtime(
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,
-        refresh_send_card=settings.cache.refresh_send_card,
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,

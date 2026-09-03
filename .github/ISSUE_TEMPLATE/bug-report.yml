@@ -1,0 +1,55 @@
+name: Bug 反馈
+title: "Bug: 请填写简短描述"
+description: 报告可复现的问题，帮助我们定位并修复插件故障
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先确认问题仍存在于当前版本，并移除日志中的账号信息、凭据和其他隐私内容。
+
+  - type: textarea
+    id: describe
+    attributes:
+      label: 问题描述
+      description: 清晰、简洁地说明实际发生了什么。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 提供从安装或配置开始的最小复现步骤，并附上触发命令或操作。
+      placeholder: |
+        1. 安装 AstrBot 与插件版本……
+        2. 使用配置……
+        3. 执行命令……
+        4. 观察到……
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: AstrBot 与插件版本
+      description: 填写 AstrBot 版本、DNABY 插件版本及运行环境。
+      placeholder: "AstrBot 4.27.1；DNABY v0.2.0；Python 3.12"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+      description: 描述你期望看到的结果。
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 截图或脱敏日志
+      description: 粘贴与问题相关的日志或截图；请先删除账号信息、凭据和其他隐私内容。
+    validations:
+      required: false

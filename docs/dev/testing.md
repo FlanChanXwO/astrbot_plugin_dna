@@ -28,8 +28,8 @@ ruff check .
   资源/图片缓存的故障注入审查。
 - `test_goal1_o16_agent_tools.py` — Agent 查询 request/result、当前事件身份提取、共享领域查询
   适配和身份参数拒绝。
-- `test_goal1_o17_agent_tools.py` — 16 个只读工具的官方注册、JSON envelope、图片发送、路径/二进制
-  脱敏、身份覆盖拒绝和图片失败语义。
+- `test_goal1_o17_agent_tools.py` — 16 个只读工具的官方注册、JSON envelope、玩家概览结构化角色/武器
+  数据、图片发送、路径/二进制脱敏、身份覆盖拒绝和图片失败语义。
 - `test_goal1_o18_agent_tools.py` — 签到原始消息确认、模型参数拒绝、当前 UID、消息 ID 幂等、总开关
   和 runtime 生命周期。
 - `test_goal1_d06_agent_tools.py` — 信息/示例 prompt 负向确认、工具范围、并发注册、注销残留重试和
@@ -49,10 +49,11 @@ ruff check .
 - `test_privacy_commands.py` — 14 条隐私命令的 registry 权限、公开 `At` 目标提取和缺失目标边界。
 - `test_player.py` — 角色概览/详情 fixture、动态图片尺寸、完整文本/布局/资源元数据、伤害
   结果、并发详情各自的原面板引用和伤害失败内容脱敏。
-- `test_goal1_o10_player_cache.py` — 玩家 JSON/PNG 缓存的 fresh/stale/24 小时保留语义、旧卡
-  回退、不完整占位隔离、资源版本换代和多条件精准失效。
+- `test_goal1_o10_player_cache.py` — 玩家 JSON/PNG 缓存的统一 TTL fresh/miss 语义、到期重新请求、
+  不完整占位隔离、资源版本换代和多条件精准失效。
 - `test_goal1_o11_refresh_and_cleanup.py` — 普通单角色/全部角色刷新、单角色/全部角色缓存清理、
-  `refresh_send_card`、rendered 孤儿清理、活动发送文件租约和维护任务生命周期。
+  固定新卡片返回、rendered 孤儿清理、活动发送文件租约和维护任务生命周期。
+- `test_unified_cache_ttl.py` — TTL 配置迁移、-1/0/正数模式、玩家缓存和 rendered 生命周期边界。
 - `test_player_commands.py` — 玩家命令正则、显式 registry、AstrBot `Reply` 消息 ID提取和
   service 缺失边界。
 - `test_checkin.py` — 签到成功/已签到/transport 失败/日历精简/帖子遍历/批量聚合，

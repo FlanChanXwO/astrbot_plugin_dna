@@ -21,6 +21,7 @@ from src.entry.agent_tools.tools import (
 from src.entry.event import EventActor
 from src.entry.response import ImageResponse, PlainTextResponse
 from src.modules.agent_tools.queries import AgentQueryCatalog, build_query_catalog
+from src.modules.player.contracts import RoleItem, RoleOverview, WeaponItem
 
 
 class FakeEvent:
@@ -56,6 +57,66 @@ def _agent_wrapper(event: FakeEvent | None = None) -> ContextWrapper[AstrAgentCo
     return ContextWrapper(context=agent_context)
 
 
+def _agent_overview() -> RoleOverview:
+    return RoleOverview(
+        role_id="role-1",
+        role_chars=[
+            RoleItem(
+                char_id=index,
+                name=f"真实角色{index}",
+                level=80,
+                unlocked=True,
+            )
+            for index in range(1, 20)
+        ]
+        + [RoleItem(char_id=20, name="未拥有角色", unlocked=False)],
+        close_weapons=[
+            WeaponItem(
+                weapon_id=201,
+                name="近战武器",
+                level=60,
+                unlocked=True,
+            ),
+            WeaponItem(
+                weapon_id=202,
+                name="未拥有近战武器",
+                unlocked=False,
+            ),
+        ],
+        ranged_weapons=[
+            WeaponItem(
+                weapon_id=301,
+                name="远程武器",
+                level=70,
+                unlocked=True,
+            ),
+            WeaponItem(
+                weapon_id=302,
+                name="未拥有远程武器",
+                unlocked=False,
+            ),
+        ],
+    )
+
+
+def _expected_overview_data(*, image_sent: bool | None = None) -> dict[str, object]:
+    data: dict[str, object] = {
+        "type": "player_overview",
+        "role_count": 19,
+        "roles": [
+            {"name": f"真实角色{index}", "level": 80}
+            for index in range(1, 20)
+        ],
+        "weapons": {
+            "close": [{"name": "近战武器", "level": 60}],
+            "ranged": [{"name": "远程武器", "level": 70}],
+        },
+    }
+    if image_sent is not None:
+        data["image_sent"] = image_sent
+    return data
+
+
 class FakePlayerService:
     def __init__(self, image_path: Path) -> None:
         self.image_path = image_path
@@ -64,6 +125,13 @@ class FakePlayerService:
     async def role_overview(self, request):
         self.requests.append(request)
         return ImageResponse(str(self.image_path), temporary=True)
+
+    async def role_overview_for_agent(self, request):
+        self.requests.append(request)
+        return (
+            _agent_overview(),
+            ImageResponse(str(self.image_path), temporary=True),
+        )
 
     async def role_detail(self, request):
         self.requests.append(request)
@@ -220,17 +288,13 @@ async def test_default_agent_result_is_json_without_local_image_path(tmp_path: P
 
     assert set(payload) == {"ok", "kind", "data", "cache", "error"}
     assert payload["ok"] is True
-    assert payload["data"] == {
-        "type": "image",
-        "available": True,
-        "incomplete": False,
-    }
+    assert payload["data"] == _expected_overview_data()
     assert str(image_path) not in json.dumps(payload, ensure_ascii=False)
     assert event.sent == []
 
 
 @pytest.mark.asyncio
-async def test_send_image_sends_to_current_event_and_returns_only_status(tmp_path: Path) -> None:
+async def test_send_image_sends_to_current_event_and_preserves_data(tmp_path: Path) -> None:
     image_path = tmp_path / "private-rendered.png"
     image_path.write_bytes(b"not sent in model context")
     event = FakeEvent()
@@ -245,7 +309,7 @@ async def test_send_image_sends_to_current_event_and_returns_only_status(tmp_pat
     assert payload == {
         "ok": True,
         "kind": "player_overview",
-        "data": {"image_sent": True},
+        "data": _expected_overview_data(image_sent=True),
         "cache": None,
         "error": None,
     }
@@ -268,7 +332,7 @@ async def test_send_image_failure_is_explicit_and_never_success(tmp_path: Path) 
     payload = json.loads(await tool.call(_agent_wrapper(event), send_image=True))
 
     assert payload["ok"] is False
-    assert payload["data"] == {"image_sent": False}
+    assert payload["data"] == _expected_overview_data(image_sent=False)
     assert payload["error"]
     assert str(image_path) not in json.dumps(payload, ensure_ascii=False)
 
@@ -284,11 +348,7 @@ async def test_missing_image_file_is_not_reported_available_or_sent(tmp_path: Pa
     )
 
     default_payload = json.loads(await tool.call(_agent_wrapper(event)))
-    assert default_payload["data"] == {
-        "type": "image",
-        "available": False,
-        "incomplete": False,
-    }
+    assert default_payload["data"] == _expected_overview_data()
     assert str(image_path) not in json.dumps(default_payload, ensure_ascii=False)
 
     send_payload = json.loads(
@@ -297,7 +357,7 @@ async def test_missing_image_file_is_not_reported_available_or_sent(tmp_path: Pa
     assert send_payload == {
         "ok": False,
         "kind": "player_overview",
-        "data": {"image_sent": False},
+        "data": _expected_overview_data(image_sent=False),
         "cache": None,
         "error": "图片响应不可发送",
     }

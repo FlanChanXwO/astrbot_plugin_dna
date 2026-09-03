@@ -33,12 +33,14 @@ from .renderer import HtmlRenderer
 from .spec import ClipRect, RenderSpec
 from .temporary import (
     DEFAULT_RENDERED_PREFIXES,
+    DEFAULT_RENDERED_RETENTION_SECONDS,
     RenderedCleanupReport,
     RenderedFileStore,
 )
 
 __all__ = [
     "DEFAULT_RENDERED_PREFIXES",
+    "DEFAULT_RENDERED_RETENTION_SECONDS",
     "AssetRenderError",
     "CheckinRenderer",
     "ClipRect",
