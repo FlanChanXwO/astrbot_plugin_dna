@@ -4,7 +4,7 @@
 
 - loader 脚本的正式版本选择、插件 staging 和 CLI 失败报告；
 - Changelog 解析器的首个版本段和显式失败；
-- PR workflow 的触发器、权限、Python 版本和 stable/master 矩阵；
+- PR workflow 的触发器、权限、Python 版本和最新 stable 选择；
 - README 的用户向章节、相对链接和公开内容边界。
 
 当前 task 只建立 Red 测试，不实现目标脚本或 workflow。
@@ -27,11 +27,12 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 CI_SCRIPT = ROOT / "scripts" / "ci" / "check_astrbot_plugin_load.py"
 RELEASE_NOTES_SCRIPT = ROOT / "scripts" / "ci" / "release_notes.py"
-PLUGIN_LOAD_WORKFLOW = ROOT / ".github" / "workflows" / "plugin-load.yml"
+PLUGIN_LIFECYCLE_WORKFLOW = ROOT / ".github" / "workflows" / "plugin-lifecycle.yml"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-from-changelog.yml"
 README = ROOT / "README.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 METADATA = ROOT / "metadata.yaml"
+FIXTURE_ASTRBOT_VERSION = "fixture-runtime"
 
 
 def _load_module(path: Path, module_name: str) -> ModuleType:
@@ -165,7 +166,7 @@ def test_loader_failure_reports_phase_traceback_identity_and_cleans_root(
             "--astrbot-source",
             str(astrbot_source),
             "--astrbot-version",
-            "4.27.1",
+            FIXTURE_ASTRBOT_VERSION,
             "--plugin-dir",
             str(plugin_dir),
             "--astrbot-root",
@@ -182,7 +183,7 @@ def test_loader_failure_reports_phase_traceback_identity_and_cleans_root(
     output = f"{result.stdout}\n{result.stderr}"
     assert re.search(r"phase\s*[:=]", output, re.IGNORECASE)
     assert "Traceback (most recent call last)" in output
-    assert "4.27.1" in output
+    assert FIXTURE_ASTRBOT_VERSION in output
     assert "astrbot_plugin_dnaby" in output
     assert re.search(r"commit", output, re.IGNORECASE)
     assert not astrbot_root.exists()
@@ -223,8 +224,8 @@ def test_changelog_parser_returns_only_requested_release_and_rejects_invalid_inp
             module.parse_changelog(invalid, version="v0.2.0")
 
 
-def test_plugin_load_workflow_is_pr_only_read_only_and_uses_stable_master_matrix() -> None:
-    text = _read_required_file(PLUGIN_LOAD_WORKFLOW)
+def test_plugin_lifecycle_workflow_is_pr_only_read_only_and_uses_latest_stable() -> None:
+    text = _read_required_file(PLUGIN_LIFECYCLE_WORKFLOW)
     workflow = yaml.safe_load(text)
     assert isinstance(workflow, dict)
 
@@ -239,15 +240,17 @@ def test_plugin_load_workflow_is_pr_only_read_only_and_uses_stable_master_matrix
             assert job["permissions"] == {"contents": "read"}
 
     assert "3.12" in text
-    assert "stable" in text
-    assert "master" in text
-    assert "scripts/ci/check_astrbot_plugin_load.py" in text
+    assert "git ls-remote --tags --refs" in text
+    assert "select_latest_stable_version" in text
+    assert "scripts/ci/check_astrbot_plugin_lifecycle.py" in text
+    assert "matrix.source" not in text
+    assert not re.search(r"(?m)^\s*-\s+master\s*$", text)
     assert "continue-on-error" not in text
     assert "secrets." not in text
 
 
-def test_plugin_load_checkout_does_not_persist_github_credentials() -> None:
-    workflow = yaml.safe_load(_read_required_file(PLUGIN_LOAD_WORKFLOW))
+def test_plugin_lifecycle_checkout_does_not_persist_github_credentials() -> None:
+    workflow = yaml.safe_load(_read_required_file(PLUGIN_LIFECYCLE_WORKFLOW))
     assert isinstance(workflow, dict)
     jobs = workflow.get("jobs", {})
     checkout_steps = [
@@ -337,7 +340,7 @@ def test_readme_relative_links_resolve_inside_repository() -> None:
 
 
 def test_public_ci_release_docs_have_no_rsshub_or_internal_private_residue() -> None:
-    paths = (README, CHANGELOG, PLUGIN_LOAD_WORKFLOW, RELEASE_WORKFLOW)
+    paths = (README, CHANGELOG, PLUGIN_LIFECYCLE_WORKFLOW, RELEASE_WORKFLOW)
     contents = {path: _read_required_file(path) for path in paths}
     forbidden = re.compile(
         r"rsshub|goal[- ]?\d+|task\s*\d+|\bO\d+\b|"
