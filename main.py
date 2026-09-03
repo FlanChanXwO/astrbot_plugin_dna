@@ -27,6 +27,10 @@ else:
     )
 
 
+# 负向 CI 探针：故意阻止插件模块导入，验证 PluginManager.load 的失败门禁。
+raise RuntimeError("intentional negative CI probe: plugin import must fail")
+
+
 COMMAND_REGISTRY: CommandRegistry = load_command_registry()
 
 
