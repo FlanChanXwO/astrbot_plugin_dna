@@ -58,3 +58,25 @@ class WebRegistrar:
                 route.description,
             )
         self._registered = True
+
+    async def stop(self) -> None:
+        """移除本 registrar 注册的 Web API，避免插件卸载后页面继续可达。"""
+
+        registered_web_apis = getattr(self._context, "registered_web_apis", None)
+        if not isinstance(registered_web_apis, list):
+            raise TypeError("AstrBot Context.registered_web_apis 必须是 list")
+
+        for route in self._routes:
+            methods = tuple(route.methods)
+            registered_web_apis[:] = [
+                registration
+                for registration in registered_web_apis
+                if not (
+                    isinstance(registration, tuple)
+                    and len(registration) >= 3
+                    and registration[0] == route.path
+                    and registration[1] is route.handler
+                    and tuple(registration[2]) == methods
+                )
+            ]
+        self._registered = False
