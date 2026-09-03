@@ -48,12 +48,20 @@ class AgentQueryRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class AgentQueryPresentation:
+    """给 Agent 同时提供结构化数据和可选直发响应。"""
+
+    data: object
+    direct_response: object | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class AgentQueryResult(Generic[ResultData]):
     """Agent 查询的稳定结果 envelope。
 
     ``data`` 暂时保留领域响应对象，由后续 Agent adapter 负责转成 JSON 或发送
-    图片；这样领域层不需要依赖 AstrBot。``to_dict`` 固定 envelope 字段，避免
-    后续工具各自发明返回形状。
+    图片；结构化数据和可选直发响应使用 ``AgentQueryPresentation`` 携带；这样领域层
+    不需要依赖 AstrBot。``to_dict`` 固定 envelope 字段，避免后续工具各自发明返回形状。
     """
 
     ok: bool
@@ -119,6 +127,7 @@ class AgentQueryUseCase(Protocol):
 
 
 __all__ = [
+    "AgentQueryPresentation",
     "AgentQueryRequest",
     "AgentQueryResult",
     "AgentQueryUseCase",

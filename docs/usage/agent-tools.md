@@ -11,6 +11,8 @@ Agent Tools 是 AstrBot Agent 可调用的独立工具集合，不是聊天命�
 - 关闭时不注册任何 DNABY Agent Tool，也不创建签到写入口。
 - 开启时由插件 `initialize()` 注册 16 个只读工具和 1 个签到工具，共 17 个；
   `terminate()` 逐项解除注册。
+- 修改开关后需要重新加载插件或重启 AstrBot，使 `initialize()` 重新执行；只修改 schema 不会改变
+  已运行进程中的工具集合。
 - 工具不使用聊天命令前缀，模型直接按工具名称和 schema 调用。
 - 生命周期支持重复初始化/终止和热重载；注销失败会保留失败项并在下一次终止或启动时重试，
   同时向调用方暴露真实错误。
@@ -25,7 +27,7 @@ O24 对 `atri` 的只读核验确认当前 `agent_tools.enabled=false`，因此�
 
 | 工具 | 作用 | 参数 | 类型 |
 | --- | --- | --- | --- |
-| `dnaby_player_overview` | 当前消息用户的角色与武器概览 | `send_image` | 只读 |
+| `dnaby_player_overview` | 当前消息用户的角色与武器概览；返回真实拥有角色/武器的结构化清单，可选直发图片 | `send_image` | 只读 |
 | `dnaby_player_role_detail` | 当前消息用户指定角色的基础详情与武器信息 | `char_name`（必填）、`weapon_name_1`、`weapon_name_2`、`send_image` | 只读 |
 | `dnaby_stamina` | 当前消息用户的便笺和体力 | `send_image` | 只读 |
 | `dnaby_weekly_report_current` | 当前周资源周报 | `send_image` | 只读 |
@@ -46,6 +48,9 @@ O24 对 `atri` 的只读核验确认当前 `agent_tools.enabled=false`，因此�
 `dnaby_sign_calendar` 只查询，不执行签到；`dnaby_mh_subscriptions` 只查看订阅，不创建、
 修改或删除订阅。Agent Tools 没有账号、凭据、隐私、资源或管理配置写操作。
 
+`dnaby_role_directory` 返回资源仓库中的角色/武器全集，不代表当前用户拥有的内容。核验当前用户的
+拥有数量和名称必须使用 `dnaby_player_overview` 的结构化 `data`。
+
 ## 返回契约与图片
 
 工具默认返回 JSON 字符串，字段固定为：
@@ -60,12 +65,34 @@ O24 对 `atri` 的只读核验确认当前 `agent_tools.enabled=false`，因此�
 }
 ```
 
-失败时 `ok` 为 `false`，`error` 保留明确错误类别；不会用空数据伪装成功。图片结果只描述
-类型、可用性、完整性等状态，不包含本地文件路径或二进制。
+失败时 `ok` 为 `false`，`error` 保留明确错误类别；不会用空数据伪装成功。除
+`dnaby_player_overview` 外，图片结果只描述类型、可用性、完整性等状态，不包含本地文件路径或二进制。
 
-对支持图片的工具传入 `send_image=true` 后，图片会经当前原始事件直接发送给当前消息用户，
-Agent 只收到 `data: {"image_sent": true}`。转换失败、发送失败或结果没有可发送图片时，
-返回 `ok=false`、`image_sent=false` 和明确错误，不返回成功状态。
+`dnaby_player_overview` 的 `data` 来自同一次已校验的玩家概览快照，契约为：
+
+```json
+{
+  "type": "player_overview",
+  "role_count": 2,
+  "roles": [
+    {"name": "接口返回的角色甲", "level": 80},
+    {"name": "接口返回的角色乙", "level": 70}
+  ],
+  "weapons": {
+    "close": [{"name": "接口返回的近战武器", "level": 60}],
+    "ranged": []
+  }
+}
+```
+
+`role_count` 和 `roles` 只统计玩家概览中 `unlocked=true` 的角色，并逐项保留接口返回的名称；若
+接口返回 19 个已拥有角色，`role_count` 必须为 19，`roles` 必须包含这 19 个真实名称，不能由模型
+根据图片或角色目录猜测。
+
+对支持图片的工具传入 `send_image=true` 后，图片会经当前原始事件直接发送给当前消息用户。
+`dnaby_player_overview` 会在上述结构化 `data` 上增加 `"image_sent": true/false`；其它图片工具
+返回 `data: {"image_sent": true/false}`。转换失败、发送失败或结果没有可发送图片时，返回
+`ok=false`、`image_sent=false` 和明确错误，不返回成功状态。
 
 ## 身份与签到安全
 

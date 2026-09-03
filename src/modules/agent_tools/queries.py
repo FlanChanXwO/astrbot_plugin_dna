@@ -5,12 +5,16 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
-from ...entry.response import CommandResponse
+from ...entry.response import CommandResponse, PlainTextResponse
 from ..checkin.contracts import CheckinCommandRequest
 from ..encyclopedia.contracts import EncyclopediaRequest
 from ..notices.contracts import NoticeRequest
-from ..player.contracts import PlayerCommandRequest
-from .contracts import AgentQueryRequest, AgentQueryResult
+from ..player.contracts import PlayerCommandRequest, RoleOverview
+from .contracts import (
+    AgentQueryPresentation,
+    AgentQueryRequest,
+    AgentQueryResult,
+)
 
 QueryHandler = Callable[[AgentQueryRequest], Awaitable[Any]]
 
@@ -120,10 +124,49 @@ def _checkin_request(request: AgentQueryRequest) -> CheckinCommandRequest:
     )
 
 
-async def player_overview_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
-    """复用玩家角色/武器概览 service。"""
+def build_player_overview_data(overview: RoleOverview) -> dict[str, object]:
+    """把玩家概览转换为 Agent 可核验的拥有数据。"""
 
-    return await service.role_overview(_player_request(request))
+    roles = [
+        {"name": item.name, "level": item.level}
+        for item in overview.role_chars
+        if item.unlocked
+    ]
+    close_weapons = [
+        {"name": item.name, "level": item.level}
+        for item in overview.close_weapons
+        if item.unlocked
+    ]
+    ranged_weapons = [
+        {"name": item.name, "level": item.level}
+        for item in overview.ranged_weapons
+        if item.unlocked
+    ]
+    return {
+        "type": "player_overview",
+        "role_count": len(roles),
+        "roles": roles,
+        "weapons": {
+            "close": close_weapons,
+            "ranged": ranged_weapons,
+        },
+    }
+
+
+async def player_overview_query(
+    service: Any,
+    request: AgentQueryRequest,
+) -> AgentQueryPresentation | CommandResponse:
+    """为 Agent 返回同一概览快照的结构化数据和图片响应。"""
+
+    result = await service.role_overview_for_agent(_player_request(request))
+    if isinstance(result, PlainTextResponse):
+        return result
+    overview, response = result
+    return AgentQueryPresentation(
+        data=build_player_overview_data(overview),
+        direct_response=response,
+    )
 
 
 async def player_role_detail_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
@@ -292,6 +335,7 @@ __all__ = [
     "AgentQueryCatalog",
     "announcement_detail_query",
     "announcement_list_query",
+    "build_player_overview_data",
     "build_query_catalog",
     "calendar_query",
     "codes_query",

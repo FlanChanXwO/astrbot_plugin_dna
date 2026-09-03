@@ -61,6 +61,8 @@
   管理写入口。
 - [x] 支持图片的查询覆盖默认不发送、单图/多图成功、事件不支持发送、转换失败和发送
   失败；失败返回 `ok=false`/`image_sent=false`，JSON 不含本地路径或二进制。
+- [x] `dnaby_player_overview` 返回同一 typed 概览快照中的已拥有角色/武器名称与数量；图片
+  直发只影响 `image_sent` 状态，不会丢失 Agent 可核验的结构化数据。
 - [x] `dnaby_sign` 覆盖明确肯定短语、否定、疑问、信息询问、示例文本和 prompt 指令；
   不接受 `confirmed`、目标或 UID 参数。
 - [x] 同一消息 ID 并发调用只执行一次 fake transport，使用当前事件用户的当前激活 UID；
