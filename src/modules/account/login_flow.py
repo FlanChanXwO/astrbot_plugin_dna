@@ -19,9 +19,10 @@ from astrbot.api.web import request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse
 
-from ...entry.response import PlainTextResponse
+from ...entry.response import LoginResponse, PlainTextResponse
 from ...infrastructure.config.settings import LoginSettings
 from ...infrastructure.http.login_server import LocalLoginServer, Route
+from ...infrastructure.rendering.qr import render_qr_code
 from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 from ...utils.api.auth import create_device_code
 from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES
@@ -107,7 +108,7 @@ def _public_base(raw: str) -> str:
 class LoginFlowProvider(Protocol):
     """命令层使用的登录页提供器。"""
 
-    async def begin(self, actor: AccountActor) -> PlainTextResponse: ...
+    async def begin(self, actor: AccountActor) -> PlainTextResponse | LoginResponse: ...
 
     async def start(self) -> None: ...
 
@@ -181,7 +182,9 @@ class LoginFlowCoordinator:
         """取消所有等待、清空会话并释放 local listener。"""
 
         async with self._session_lock:
-            tasks = [session.task for session in self._sessions.values() if session.task]
+            tasks = [
+                session.task for session in self._sessions.values() if session.task
+            ]
             for task in tasks:
                 if task is not asyncio.current_task():
                     task.cancel()
@@ -192,8 +195,8 @@ class LoginFlowCoordinator:
                 await self.local_server.stop()
             self._started = False
 
-    async def begin(self, actor: AccountActor) -> PlainTextResponse:
-        """创建登录会话并在任何等待发生前返回地址。"""
+    async def begin(self, actor: AccountActor) -> PlainTextResponse | LoginResponse:
+        """创建登录会话并按登录展示配置返回地址、二维码或合并转发。"""
 
         async with self._session_lock:
             if not self._started:
@@ -202,7 +205,7 @@ class LoginFlowCoordinator:
             key = _actor_key(actor)
             existing = self._sessions.get(key)
             if existing is not None and not existing.completed.is_set():
-                return PlainTextResponse(messages.login_page(existing.url))
+                return await self._build_login_response(actor, existing.url)
 
             auth = secrets.token_urlsafe(32)
             try:
@@ -238,7 +241,50 @@ class LoginFlowCoordinator:
                 self._wait_for_completion(key, session),
                 name="dnaby-login-wait",
             )
-            return PlainTextResponse(messages.login_page(normalized_url))
+            return await self._build_login_response(actor, normalized_url)
+
+    async def _build_login_response(
+        self, actor: AccountActor, url: str
+    ) -> PlainTextResponse | LoginResponse:
+        """把登录展示配置应用到当前 rewrite 入口，而不是只留在 legacy 路由。"""
+
+        forward = self.settings.forward_login and not (
+            actor.group_id is None and actor.bot_id == "onebot"
+        )
+        if self.settings.qr_login:
+            try:
+                qr_bytes = await render_qr_code(url)
+            except Exception as error:  # noqa: BLE001
+                logger.error("登录二维码生成失败 kind=%s", type(error).__name__)
+                return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
+            return LoginResponse(
+                text=(
+                    f"[二重螺旋] 您的id为【{actor.user_id}】\n"
+                    "请扫描下方二维码获取登录地址，并复制地址到浏览器打开\n"
+                ),
+                qr_bytes=qr_bytes,
+                forward=forward,
+                need_at=bool(actor.group_id),
+            )
+        if self.settings.tencent_docs:
+            url = f"https://docs.qq.com/scenario/link.html?url={url}"
+            text = (
+                f"[二重螺旋] 您的id为【{actor.user_id}】\n"
+                "请复制地址到浏览器打开\n"
+                f" {url}\n"
+                "登录地址10分钟内有效"
+            )
+            return LoginResponse(
+                text=text,
+                forward=forward,
+                need_at=bool(actor.group_id),
+            )
+        if forward:
+            return LoginResponse(
+                text=messages.login_page(url),
+                forward=True,
+            )
+        return PlainTextResponse(messages.login_page(url))
 
     async def _start_transport(self, actor: AccountActor, auth: str) -> str:
         if self.settings.transport == "local":

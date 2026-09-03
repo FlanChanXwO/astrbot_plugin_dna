@@ -15,13 +15,13 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 
 ## 支持的 AstrBot 版本
 
-当前插件要求 **AstrBot 4.27.1 或更高版本**。建议升级 AstrBot 后再升级插件；如果 Dashboard 报告版本不兼容，请先确认 AstrBot 版本和插件目录中的 [`metadata.yaml`](metadata.yaml)。
+当前插件要求 **AstrBot 4.26.0 或更高版本**。建议升级 AstrBot 后再升级插件；如果 Dashboard 报告版本不兼容，请先确认 AstrBot 版本和插件目录中的 [`metadata.yaml`](metadata.yaml)。
 
 图片卡片使用 AstrBot 提供的全局 HTML/T2I 能力。未启用该能力时，文字查询仍可用，但需要图片渲染的命令可能无法生成卡片。
 
 ## 手动安装
 
-1. 准备 AstrBot 4.27.1 或更高版本，并确认可以访问 AstrBot 的插件目录。
+1. 准备 AstrBot 4.26.0 或更高版本，并确认可以访问 AstrBot 的插件目录。
 2. 在 AstrBot 根目录执行：
 
    ```bash
@@ -206,7 +206,7 @@ data/plugin_data/astrbot_plugin_dnaby/
 
 ### 升级后如何确认插件版本？
 
-检查 [`metadata.yaml`](metadata.yaml) 中的 `version`，并在 AstrBot 日志或 Dashboard 中确认插件重新加载成功。当前版本要求 AstrBot 4.27.1 或更高版本。
+检查 [`metadata.yaml`](metadata.yaml) 中的 `version`，并在 AstrBot 日志或 Dashboard 中确认插件重新加载成功。当前版本要求 AstrBot 4.26.0 或更高版本。
 
 ## 开发与本地测试
 

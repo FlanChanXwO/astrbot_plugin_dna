@@ -39,7 +39,7 @@ ruff check .
 
 ## HTML/T2I 图片
 
-运行时要求 AstrBot 4.27.1 或更高版本，并使用 AstrBot 的全局 HTML/T2I 能力。插件不会启动
+运行时要求 AstrBot 4.26.0 或更高版本，并使用 AstrBot 的全局 HTML/T2I 能力。插件不会启动
 私有渲染服务，也不会覆盖 AstrBot 的全局设置；服务不可用时，图片命令会返回统一失败提示。
 
 ## 相关文档
