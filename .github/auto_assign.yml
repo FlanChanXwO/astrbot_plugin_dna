@@ -1,0 +1,13 @@
+# 自动为 Pull Request 请求维护者审查。
+addReviewers: true
+addAssignees: false
+
+reviewers:
+  - FlanChanXwO
+
+# 0 表示添加全部配置的审查者。
+numberOfReviewers: 0
+
+skipKeywords:
+  - wip
+  - draft

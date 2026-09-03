@@ -1,26 +1,24 @@
 # Agent Tools
 
 Agent Tools 是 AstrBot Agent 可调用的独立工具集合，不是聊天命令，也不进入
-`commands.json`。工具通过 AstrBot 官方 `FunctionTool`/`Context` API 注册，身份和当前
-消息来自 `AstrAgentContext.event`。
+`commands.json`。工具通过 AstrBot 官方工具接口注册，身份和当前消息来自原始事件。
 
 ## 启用与生命周期
 
-在 AstrBot Dashboard 的插件配置中开启 `agent_tools.enabled` 才会启用。默认值为 `false`：
+在 AstrBot Dashboard 的插件配置中开启 `agent_tools.enabled` 才会启用，默认值为 `false`：
 
-- 关闭时不注册任何 DNABY Agent Tool，也不创建签到写入口。
+- 关闭时不注册任何 DNABY Agent Tools，也不创建签到写入口。
 - 开启时由插件 `initialize()` 注册 16 个只读工具和 1 个签到工具，共 17 个；
   `terminate()` 逐项解除注册。
 - 修改开关后需要重新加载插件或重启 AstrBot，使 `initialize()` 重新执行；只修改 schema 不会改变
   已运行进程中的工具集合。
-- 工具不使用聊天命令前缀，模型直接按工具名称和 schema 调用。
-- 生命周期支持重复初始化/终止和热重载；注销失败会保留失败项并在下一次终止或启动时重试，
-  同时向调用方暴露真实错误。
+- 工具不使用聊天命令前缀，模型按照工具名称和 schema 调用。
+- 生命周期支持重复初始化/终止和热重载；注册或注销失败会返回明确错误，注销残留会在下一次
+  终止或启动时重试。
 
-O24 对 `atri` 的只读核验确认当前 `agent_tools.enabled=false`，因此生产实例当前不注册这 17 个工具，
-也不会触发真实签到；启用前仍须按发布清单完成精确 SHA 预检、认证 reload 和工具枚举复核。
+Agent Tools 不会改变聊天命令，也不会代替管理员执行账号、凭据、隐私、订阅或资源管理操作。
 
-## 工具清单与参数
+## 工具清单
 
 除特别标注外，工具只允许表中参数，额外参数会返回结构化失败；所有参数名均为英文。
 支持图片的工具额外提供可选 `send_image: boolean`，默认 `false`。
@@ -45,13 +43,12 @@ O24 对 `atri` 的只读核验确认当前 `agent_tools.enabled=false`，因此�
 | `dnaby_sign_calendar` | 当前用户的签到日历和任务进度 | `send_image` | 只读 |
 | `dnaby_sign` | 执行当前用户当前激活 UID 的签到 | 无 | 唯一写工具 |
 
-`dnaby_sign_calendar` 只查询，不执行签到；`dnaby_mh_subscriptions` 只查看订阅，不创建、
-修改或删除订阅。Agent Tools 没有账号、凭据、隐私、资源或管理配置写操作。
+`dnaby_sign_calendar` 只查询；`dnaby_mh_subscriptions` 只查看订阅，不创建、修改或删除订阅。
 
 `dnaby_role_directory` 返回资源仓库中的角色/武器全集，不代表当前用户拥有的内容。核验当前用户的
 拥有数量和名称必须使用 `dnaby_player_overview` 的结构化 `data`。
 
-## 返回契约与图片
+## 返回格式
 
 工具默认返回 JSON 字符串，字段固定为：
 
@@ -65,8 +62,8 @@ O24 对 `atri` 的只读核验确认当前 `agent_tools.enabled=false`，因此�
 }
 ```
 
-失败时 `ok` 为 `false`，`error` 保留明确错误类别；不会用空数据伪装成功。除
-`dnaby_player_overview` 外，图片结果只描述类型、可用性、完整性等状态，不包含本地文件路径或二进制。
+失败时 `ok` 为 `false`，`error` 会保留明确的错误类别；不会用空数据伪装成功。除
+`dnaby_player_overview` 外，图片结果只描述类型、可用性、完整性等状态，不返回本地文件路径或二进制。
 
 `dnaby_player_overview` 的 `data` 来自同一次已校验的玩家概览快照，契约为：
 
@@ -96,17 +93,11 @@ O24 对 `atri` 的只读核验确认当前 `agent_tools.enabled=false`，因此�
 
 ## 身份与签到安全
 
-- 查询身份只从当前 `AstrAgentContext.event` 提取，不能由模型传入或覆盖。
-- 工具拒绝 `user_id`、`target_user_id`、`bot_id`、`credential_user_id`、`uid` 等身份参数；
-  不支持的额外参数也会失败。
-- `dnaby_sign` 不接受 `confirmed`、用户/UID、目标或其它工具参数，模型不能用布尔值伪造确认。
-- 只有当前原始消息包含完整、明确的肯定签到短语，且不含否定或疑问表达时，才允许执行签到；
-  信息询问、示例文本和 prompt 指令不会被当成确认。
-- 签到固定使用当前消息用户的当前激活 UID，真实写请求仍由注入的签到 transport 执行。
-- 同一消息 ID 使用原始事件级锁和结果缓存幂等，AstrBot 同一 Agent 运行中的工具重试不会重复执行；
-  不对被重新构造的不同事件对象提供跨请求持久化幂等，以免引入无界进程缓存或未经迁移的状态表。
-  未绑定、凭据失效、网络失败、上游拒绝和已签到等失败会保留显式结果。
+- 查询身份只从当前原始 AstrBot 事件提取，模型不能传入或覆盖目标用户、UID 或 Bot 身份。
+- 工具拒绝 `user_id`、`target_user_id`、`bot_id`、`credential_user_id`、`uid` 等身份参数。
+- `dnaby_sign` 不接受确认布尔值、用户、UID、目标或其它额外参数。
+- 只有当前原始消息包含明确的肯定签到短语，且没有否定或疑问表达时，才允许执行签到。
+- 签到固定使用当前消息用户的当前激活 UID；未绑定、凭据失效、网络失败、上游拒绝和已签到都会返回明确结果。
+- 同一消息 ID 的重复调用会复用本次事件的结果，避免一次 Agent 运行中的重复签到。
 
-配置字段说明见[配置文档](configuration.md)，工具的生命周期维护说明见
-[维护文档](../dev/maintenance.md)，离线契约测试见[测试文档](../dev/testing.md)。发布前
-adapter 模拟、精确 SHA 和阶段三回滚步骤见[发布与回滚清单](../porting/agent-tools-release-checklist.md)。
+配置字段见 [配置说明](configuration.md)，聊天命令见 [命令说明](commands.md)。
