@@ -52,8 +52,8 @@
   `原图` 命令在当前平台显式报告未支持。`PlayerCache` 将 typed 玩家数据和完整卡片接入统一
   `CacheManager`；卡片按 generation 版本、数据摘要、身份和显示参数隔离，placeholder 渲染只允许
   本次发送，不覆盖完整缓存。玩家模块提供普通用户单角色/全部角色刷新、单角色/全部角色清理和
-  管理员 UID+角色刷新；刷新按 identity/role tags 精准失效，`cache.refresh_send_card` 决定是否
-  立即返回单角色新卡片。
+  管理员 UID+角色刷新；刷新按 identity/role tags 精准失效。单角色刷新固定返回新的完整卡片，
+  批量刷新只返回汇总。
 - 资料读取：`src/modules/encyclopedia/` 协调便签、周报、日历、图鉴、攻略、兑换码和只读
   别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
   `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
@@ -76,7 +76,8 @@
   密函按模式生成默认 1700×900 或简洁分栏图；公告均按 typed snapshot 保留完整内容，详情多页
   通过 `MultiImageResponse` 在同一回复发送。
   手动详情图片失败返回固定失败文案，不合成透明/深色占位图；运行期的公告源图、列表卡和详情
-  页面使用 `CacheManager` 的 `announcement` 类型，以内容 fingerprint 和 24 小时绝对保留期隔离。
+  页面使用 `CacheManager` 的 `announcement` 类型，以内容 fingerprint 隔离，并与玩家、密函共用
+  `cache.ttl_hours`；`0` 禁用持久缓存，`-1` 永久有效。
   订阅复用 `SubscriptionStore`（密函按 user+会话、公告按群聊作用域，`extra_message`/`extra_data`
   存密函名称与订阅级时间窗口）；`NoticesScheduler` 按配置的每小时 `HH:<minute>` 推送密函、按分钟轮询公告
   （`AnnStateStore` 保留旧 ID 列表，`AnnDeliveryStateStore` 记录首次观察目标与成功目标），密函按
