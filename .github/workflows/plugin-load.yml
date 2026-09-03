@@ -83,11 +83,12 @@ jobs:
           python -m pip install --disable-pip-version-check -e "$ASTRBOT_SOURCE"
           python -m pip install --disable-pip-version-check -r "$GITHUB_WORKSPACE/requirements.txt"
 
-      - name: Run lifecycle cleanup contract test
+      - name: Run lifecycle cleanup contract tests
         shell: bash
         run: |
           set -euo pipefail
           python tests/test_goal5_loader_cleanup_contracts.py -v
+          python tests/test_goal5_web_lifecycle.py -v
 
       - name: Run official PluginManager lifecycle check
         env:
