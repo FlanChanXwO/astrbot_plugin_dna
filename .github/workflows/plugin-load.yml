@@ -87,6 +87,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python tests/test_ci_latest_stable_workflow.py -v
           python tests/test_goal5_loader_cleanup_contracts.py -v
           python tests/test_goal5_web_lifecycle.py -v
 
