@@ -15,6 +15,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 CI_SCRIPT = ROOT / "scripts" / "ci" / "check_astrbot_plugin_lifecycle.py"
 PLUGIN_NAME = "astrbot_plugin_dnaby"
+FIXTURE_ASTRBOT_VERSION = "fixture-runtime"
+FIXTURE_ASTRBOT_SPEC = "fixture-spec"
 
 
 def _load_module() -> ModuleType:
@@ -34,7 +36,7 @@ def _seed_plugin_source(root: Path) -> None:
         "author: FlanChanXwO\n"
         "desc: fake\n"
         "version: v0.2.0\n"
-        "astrbot_version: '>=4.27.1'\n",
+        f"astrbot_version: {FIXTURE_ASTRBOT_SPEC}\n",
         encoding="utf-8",
     )
     (root / "commands.json").write_text('[{"id": "demo"}]\n', encoding="utf-8")
@@ -175,7 +177,7 @@ async def _run(
     (tmp_path / "astrbot-source").mkdir()
     return await module.run_loader_check(
         astrbot_source=tmp_path / "astrbot-source",
-        astrbot_version="4.27.1",
+        astrbot_version=FIXTURE_ASTRBOT_VERSION,
         plugin_dir=plugin_dir,
         astrbot_root=tmp_path / "astrbot-root",
         plugin_name=PLUGIN_NAME,
