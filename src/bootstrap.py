@@ -42,8 +42,8 @@ from .infrastructure.http import (
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
-    CheckinRenderer,
     DEFAULT_RENDERED_RETENTION_SECONDS,
+    CheckinRenderer,
     EncyclopediaRenderer,
     NoticesRenderer,
     PlayerRenderer,
@@ -226,9 +226,7 @@ def build_runtime(
         allow_mention_query=settings.display.allow_mention_query,
     )
     custom_alias_path = runtime_database.path.parent / "alias_custom.json"
-    custom_weapon_alias_path = (
-        runtime_database.path.parent / "weapon_alias_custom.json"
-    )
+    custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
     resource_cache_root = resource_repository_dir(runtime_database.path.parent)
     resource_snapshots = ResourceSnapshotCoordinator(
         resource_cache_root,
