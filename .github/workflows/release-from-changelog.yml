@@ -1,0 +1,96 @@
+name: Release from Changelog
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - CHANGELOG.md
+  workflow_dispatch:
+    inputs:
+      tag_prefix:
+        description: "可选的 tag 前缀；留空时使用 v"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-from-changelog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Parse Changelog
+        id: parse
+        env:
+          TAG_PREFIX: ${{ inputs.tag_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/release_notes.py \
+            --changelog CHANGELOG.md \
+            --tag-prefix "${TAG_PREFIX:-}" \
+            --output "$RUNNER_TEMP/release-notes.md" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Authenticate GitHub CLI
+        env:
+          GH_AUTH_VALUE: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$GH_AUTH_VALUE" | gh auth login --hostname github.com --with-token
+
+      - name: Create or update GitHub Release
+        env:
+          RELEASE_TAG: ${{ steps.parse.outputs.tag }}
+          RELEASE_NOTES_FILE: ${{ steps.parse.outputs.notes_file }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes-file "$RELEASE_NOTES_FILE"
+            echo "Updated release $RELEASE_TAG"
+            exit 0
+          fi
+
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes-file "$RELEASE_NOTES_FILE"
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$RELEASE_TAG" \
+              --notes-file "$RELEASE_NOTES_FILE"
+          fi
+          echo "Created release $RELEASE_TAG"
+
+      - name: Verify release body
+        env:
+          RELEASE_TAG: ${{ steps.parse.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body // ""')"
+          if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+            echo "Release $RELEASE_TAG 的正文为空。" >&2
+            exit 1
+          fi

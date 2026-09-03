@@ -1,0 +1,58 @@
+name: PR triage
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      # 只检出目标 PR 的 base commit，labeler 配置来自受信任的目标分支。
+      - name: Checkout base repository files
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Ensure triage labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ensure_label() {
+            local name="$1"
+            local color="$2"
+            local description="$3"
+            if gh label create "$name" --repo "$REPO" --color "$color" --description "$description"; then
+              return 0
+            fi
+            gh label edit "$name" --repo "$REPO" --color "$color" --description "$description"
+          }
+
+          ensure_label "area: docs" "0E8A16" "文档变更"
+          ensure_label "area: runtime" "5319E7" "插件运行代码变更"
+          ensure_label "area: tests" "C5DEF5" "测试变更"
+          ensure_label "area: github-actions" "FBCA04" "GitHub workflow 或仓库自动化变更"
+          ensure_label "release" "BFD4F2" "发布元数据或 Changelog 变更"
+
+      - name: Apply path labels
+        uses: actions/labeler@8558fd74291d67161a8a78ce36a881fa63b766a9
+        with:
+          repo-token: ${{ github.token }}
+          configuration-path: .github/labeler.yml
+
+      - name: Assign maintainer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        shell: bash
+        run: gh pr edit "$PR_URL" --add-assignee FlanChanXwO

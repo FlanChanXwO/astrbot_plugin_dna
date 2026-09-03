@@ -1,28 +1,44 @@
 # astrbot_plugin_dnaby 文档
 
-索引页，只放目录与阅读路径，不展开内容。每个概念只在一个最具体文档里出现。
+这里按使用任务组织文档。普通用户从安装和配置开始即可完成插件使用；贡献者与维护者再阅读开发、架构和历史资料。
 
-## 阅读路径
+## 普通用户
 
-- **从零了解** → [porting/design.md](porting/design.md)（移植设计 + 决策）
-- **开发流程** → [dev/setup.md](dev/setup.md)、[dev/testing.md](dev/testing.md)、[dev/maintenance.md](dev/maintenance.md)
-- **命令、配置、Agent Tools 与资源** → [usage/commands.md](usage/commands.md)、[usage/configuration.md](usage/configuration.md)、[usage/agent-tools.md](usage/agent-tools.md)、[usage/resources.md](usage/resources.md)、[usage/login.md](usage/login.md)、[usage/admin-pages.md](usage/admin-pages.md)
-- **架构与数据** → [project/architecture.md](project/architecture.md)、[project/data-model.md](project/data-model.md)
-- **移植过程交付物** → [porting/progress.md](porting/progress.md)（当前进度/已知问题）、[porting/plan.md](porting/plan.md)、[porting/review-v0.1.md](porting/review-v0.1.md)、[porting/review-v0.2-debug.md](porting/review-v0.2-debug.md)（账号/隐私集中审查）、[porting/review-v0.3-player.md](porting/review-v0.3-player.md)（玩家矩阵）、[porting/review-v0.3-encyclopedia.md](porting/review-v0.3-encyclopedia.md)（资料矩阵）、[porting/review-v0.3-debug.md](porting/review-v0.3-debug.md)、[porting/review-v0.4-checkin.md](porting/review-v0.4-checkin.md)（签到集中审查）、[porting/review-v0.5-notices.md](porting/review-v0.5-notices.md)（通知集中审查）、[porting/review-v0.6-operations.md](porting/review-v0.6-operations.md)（运维/面板集中审查）、[porting/offline-write-contracts.md](porting/offline-write-contracts.md)（写入型离线契约）、[porting/render-compare-mh.md](porting/render-compare-mh.md)（本地离线渲染对比：密函）、[porting/agent-tools-release-checklist.md](porting/agent-tools-release-checklist.md)（Agent Tools 发布/回滚）、[porting/review.md](porting/review.md)（legacy 审查存档）、[porting/final_report.md](porting/final_report.md)（legacy 最终报告存档）
-- **原 GsCore 登录排查档案** → [legacy/](legacy/README.md)（01..09 + 安全设计-存档，来自上游 DNAUID）
+1. [插件 README](../README.md)：安装、首次配置、常用命令和常见问题。
+2. [命令说明](usage/commands.md)：完整命令分组、权限和触发规则。
+3. [配置说明](usage/configuration.md)：Dashboard 配置项、默认值和调整建议。
+4. [账号登录](usage/login.md)：登录方式、transport 选择和排障。
+5. [公共资源](usage/resources.md)：资源目录、同步、缓存和缺失资源处理。
+6. [Dashboard 管理页](usage/admin-pages.md)：管理员可用的账号、任务、探测和别名操作。
+7. [Agent Tools](usage/agent-tools.md)：可选的结构化查询工具与签到安全边界。
 
-资源编辑器的 Cloudflare/GitHub App/Turnstile、required Check、密钥轮换与跨仓回滚 runbook
-位于独立编辑器仓库的 [`docs/operations.md`](https://github.com/FlanChanXwO/dna-resource-editor/blob/main/docs/operations.md)，
-公共资源数据契约位于 [`docs/resource-contract.md`](https://github.com/FlanChanXwO/dna-resource-editor/blob/main/docs/resource-contract.md)。
+## 贡献者与维护者
+
+- [开发环境](dev/setup.md)：本地目录约定、依赖安装和基础检查。
+- [测试说明](dev/testing.md)：测试范围、运行方式和 AstrBot 集成边界。
+- [维护说明](dev/maintenance.md)：运行期数据、备份、升级和回滚操作。
+- [项目架构](project/architecture.md)：入口、模块和基础设施边界。
+- [数据模型](project/data-model.md)：持久化实体和状态关系。
+
+## 维护者历史资料
+
+以下内容记录历史设计、迁移决策和专项审计，不是普通用户的安装或配置指南；判断当前使用行为时，以根目录 README 和“普通用户”部分的文档为准。
+
+- [移植设计](porting/design.md)
+- [移植计划与进度](porting/plan.md)、[进度记录](porting/progress.md)
+- [阶段评审记录](porting/review.md)、[版本与领域评审](porting/review-v0.1.md)、[账号与隐私评审](porting/review-v0.2-account.md)、[调试评审](porting/review-v0.2-debug.md)
+- [玩家领域评审](porting/review-v0.3-player.md)、[图鉴领域评审](porting/review-v0.3-encyclopedia.md)、[签到评审](porting/review-v0.4-checkin.md)、[通知评审](porting/review-v0.5-notices.md)、[运维与面板评审](porting/review-v0.6-operations.md)
+- [离线写入契约](porting/offline-write-contracts.md)、[渲染对比记录](porting/render-compare-mh.md)、[Agent Tools 发布清单](porting/agent-tools-release-checklist.md)、[最终报告](porting/final_report.md)
+- [原登录问题排查档案](legacy/README.md)
 
 ## 目录结构
 
-```
+```text
 docs/
   README.md        # 本索引
-  porting/         # 移植设计、计划、评审、最终报告（superpowers 交付物）
-  dev/             # 过程：setup / testing / maintenance
-  usage/           # 使用：commands / configuration / agent-tools / resources / login / admin-pages
-  project/         # 事实：architecture / data-model
-  legacy/          # 原 DNAUID 登录排查档案
+  usage/           # 普通用户使用说明
+  dev/             # 贡献者与维护者文档
+  project/         # 当前架构与数据模型
+  porting/         # 历史设计、迁移和审计资料
+  legacy/          # 原登录问题排查档案
 ```

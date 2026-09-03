@@ -1,142 +1,129 @@
 # 配置
 
-插件配置在 AstrBot Dashboard 插件配置页。根目录 `_conf_schema.json` 由
-`src/infrastructure/config` 中的 Pydantic 模型生成；修改配置定义后运行
-`python3 scripts/generate_config_schema.py` 同步 schema，不手工维护两份字段定义。
+插件配置入口是 AstrBot Dashboard 的插件配置页。根目录 [`_conf_schema.json`](../../_conf_schema.json)
+是当前配置字段的机器可读投影；修改配置定义后，应由项目脚本重新生成，不要手工维护第二份字段清单。
+修改 Dashboard 配置后请重载插件。
 
-## 分组
+配置分为八组：`login`、`network`、`sign_in`、`notifications`、`display`、`resources`、`cache` 和
+`agent_tools`。下面列出常用字段与默认值；完整类型、提示和可选项以 schema 为准。
 
-- `login`：登录 URL、监听地址/端口、接入方式、共享密钥、二维码/转发登录和未登录绑定数量。
-  接入方式支持 `local`、`http_poll`、`sse`、`ws`；local 模式留空 URL 时使用内置服务的实际
-  监听地址，配置 URL 时优先用它作为公开登录地址。
-  登录展示选项由当前 rewrite 登录命令直接读取：`qr_login` 发送二维码，`tencent_docs` 将地址包装为
-  腾讯文档可复制链接，`forward_login` 将登录内容包装为合并转发消息；二维码优先于腾讯文档，
-  OneBot 私聊仍按平台限制发送普通消息。
-- `network`：API/本地代理、需要或不需要代理的函数、WebSocket 保活和连接等待时间。
-- `sign_in`：社区任务列表、定时签到时间、并发间隔和签到报告。游戏签到与社区任务固定
-  启用，不提供功能开启配置；`scheduled_enabled` 仅控制每日定时任务是否运行。`sign_time`
-  必须是有效的 `HH:mm` 时间；显式非法值会在配置校验/插件启动时报告错误，不会静默改用
-  `00:05`。
-- `notifications`：公告轮询、密函订阅与订阅级时间窗口、图片模式。密函自动推送默认在每小时
-  整点，可用 `secret_push_minute` 配置分钟；当前小时缓存由服务按有效性自动管理。
-- `cache`：玩家数据、玩家卡片和公告缓存的 fresh/硬保留时间，以及手动刷新后的发送策略。
-- `display`：命令前缀、攻略来源、未拥有角色展示和 AT 查询开关；
-  `allow_mention_query` 控制是否允许查询被 @ 的他人。命令前缀可填写字符串或字符串列表；
-  显式非法结构会在配置校验时报告错误，不会静默改回 `kk`。（角色原图引用因公开结果边界
-  无消息 ID 交付点暂不支持，不再提供开关。）
-- `resources`：公共资源仓库的 GitHub 加速模式和自定义 HTTP(S) 加速前缀。默认
-  `github_acceleration=off` 直连；`edgeone`、`hk`、`gh_proxy`、`dpik` 使用内置前缀，
-  `custom` 只使用经过规范化的自定义基础 URL。镜像失败会直接报告，不会静默回退直连。
-- `agent_tools`：AstrBot Agent Tools 总开关。默认关闭；工具列表、参数、返回和安全边界见
-  [Agent Tools 使用说明](agent-tools.md)。
+## 登录 `login`
 
-资源配置的唯一字段是：
+登录接入方式支持 `local`、`http_poll`、`sse` 和 `ws`；local 模式留空 URL 时使用内置服务的实际
+监听地址，填写 `login.url` 后优先使用该公开地址。`login.qr_login` 发送二维码，
+`login.tencent_docs` 将地址包装为腾讯文档可复制链接，`login.forward_login` 将登录内容包装为
+合并转发消息；二维码优先于腾讯文档，OneBot 私聊仍按平台限制发送普通消息。
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
-| `resources.github_acceleration` | `off` | `off/edgeone/hk/gh_proxy/dpik/custom`；只影响公共资源 Git/Raw 请求。 |
-| `resources.custom_github_acceleration_url` | 空字符串 | 仅 `custom` 使用；必须是无凭据、无 query/fragment 的 HTTP(S) 基础 URL。 |
+| `login.url` | 空 | 外置登录服务地址；留空时使用插件内置服务。 |
+| `login.bind_host` | `127.0.0.1` | 内置登录服务监听地址。 |
+| `login.port` | `6189` | 内置登录服务监听端口；`0` 表示由系统分配临时端口。 |
+| `login.transport` | `local` | 登录接入方式，可选 `local`、`http_poll`、`sse`、`ws`。 |
+| `login.shared_secret` | 空 | 外置登录接入使用的共享密钥；使用内置服务时留空。 |
+| `login.tencent_docs` | `false` | 是否启用腾讯文档登录辅助。 |
+| `login.qr_login` | `false` | 是否启用二维码登录。 |
+| `login.forward_login` | `false` | 是否启用转发消息登录。 |
+| `login.max_bind_count` | `2` | 每个用户允许绑定的最大 UID 数量。 |
 
-## 通知与缓存字段
+`local` 模式在插件启动时使用内置登录服务；填写 `login.url` 后，登录回复优先使用该公开地址。
+需要让其他设备访问时，`login.bind_host` 和 `login.url` 必须填写调用方可访问的地址。登录参数应在私聊中发送，不要发到公开群聊。
 
-公告目标由运行期 `subscriptions.json` 唯一维护；旧 `announcement_groups` 仅保留给人工参考，不再导入、同步或恢复。
+## 网络 `network`
 
-`notifications` 中的公告字段用于全局开关和兼容状态；密函推送时间窗口属于每条订阅记录，
-通过 `订阅密函时间17:23` 或 `订阅密函周期17:23` 设置，不是全局配置。
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `network.max_concurrent_requests` | `4` | 短生命周期网络请求的最大并发数。 |
+| `network.api_proxy_url` | 空 | API 请求代理地址；不需要代理时留空。 |
+| `network.local_proxy_url` | 空 | 本地登录或 WebSocket 请求的代理地址。 |
+| `network.proxy_functions` | `[]` | 指定使用代理的功能，可选 `all`、`get_sms_code`、`login`。 |
+| `network.no_proxy_functions` | `[]` | 指定强制直连的功能。 |
+| `network.websocket_continue_seconds` | `300` | WebSocket 保活时间。 |
+| `network.websocket_wait_seconds` | `5` | WebSocket 连接等待时间。 |
+
+代理字段只影响对应的网络请求；公共资源的加速模式单独由 `resources` 配置。
+
+## 签到 `sign_in`
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `sign_in.community_tasks` | `bbs_sign、bbs_detail、bbs_like、bbs_share、bbs_reply` | 要执行的社区任务列表。 |
+| `sign_in.enable_all_users` | `false` | 是否让定时签到覆盖所有已登录用户。 |
+| `sign_in.scheduled_enabled` | `false` | 是否开启每日定时签到。 |
+| `sign_in.sign_time` | `00:05` | 每日定时签到时间，格式为 `HH:mm`。 |
+| `sign_in.concurrency` | `1` | 自动签到并发数。 |
+| `sign_in.concurrency_interval_seconds` | `[3, 5]` | 自动签到任务之间的间隔范围，单位为秒。 |
+| `sign_in.private_report` | `false` | 是否发送私聊签到报告。 |
+| `sign_in.group_report` | `false` | 是否发送群聊签到报告。 |
+| `sign_in.group_report_image` | `false` | 是否使用图片发送群聊签到报告。 |
+
+`sign_in.scheduled_enabled` 默认关闭。开启后还需要设置有效的 `sign_in.sign_time`；
+`sign_in.enable_all_users` 决定定时任务是否覆盖所有已登录用户，手动签到命令不受定时开关影响。
+
+## 通知 `notifications`
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
 | `notifications.announcement_enabled` | `true` | 是否启用公告推送。 |
-| `notifications.announcement_ids` | `[]` | 已处理公告 ID 的兼容状态列表。 |
-| `notifications.announcement_check_minutes` | `10` | 公告轮询间隔，范围 `0..60` 分钟。 |
-| `notifications.secret_subscriptions` | `["group"]` | 密函订阅作用域，可选 `private`、`group`。 |
+| `notifications.announcement_ids` | `[]` | 已处理公告 ID 列表，通常无需手动修改。 |
+| `notifications.announcement_check_minutes` | `10` | 公告检查间隔，单位为分钟。 |
+| `notifications.secret_subscriptions` | `['group']` | 密函订阅作用域，可选 `private`、`group`。 |
 | `notifications.secret_simple_image` | `false` | 是否使用简易密函图片。 |
-| `notifications.secret_push_minute` | `0` | 每小时密函推送的分钟，范围 `0..59`；默认整点。 |
-| `notifications.secret_retry_interval_seconds` | `1` | 密函数据尚未准备好或校验失败时的重试间隔；取消或停止会立即结束等待。 |
+| `notifications.secret_push_minute` | `0` | 每小时推送密函的分钟数，`0` 表示整点。 |
+| `notifications.secret_retry_interval_seconds` | `1` | 密函数据未准备好时的重试间隔，单位为秒。 |
 
-密函自动推送由 scheduler 安排在每小时 `HH:<secret_push_minute>`，只按订阅记录的时间窗口筛选目标；全局
-`notifications.secret_push_time` 与 `notifications.secret_cache` 已移除，旧版 `MHPushSubscribe`
-和 `MHCache` 也不会进入 typed 配置或生成 schema。当前小时缓存由服务按有效性自动管理。
+公告与密函订阅还可以通过聊天命令管理，具体见 [命令说明](commands.md)。
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `cache.fresh_ttl_minutes` | `30` | 缓存保持 fresh 的时间；设为 `0` 表示立即视为 stale，设为 `-1` 表示 `CacheManager` 业务缓存永久保持 fresh 且不因时间自动清理，直到主动刷新或失效。 |
-| `cache.retention_ttl_hours` | `24` | 玩家缓存的硬保留时间；超过后维护任务可清理。 |
-| `cache.announcement_ttl_hours` | `24` | 公告列表、详情、manifest 和已校验源图的绝对保留时间。 |
-| `cache.refresh_send_card` | `true` | 手动刷新成功后是否立即发送新的完整卡片。 |
-
-`-1` 只对 `cache.fresh_ttl_minutes` 有特殊含义；`retention_ttl_hours` 和
-`announcement_ttl_hours` 仍必须填写正数。永久模式下业务缓存不会因为时间自动失效或清理，
-但 `rendered/` 临时文件仍按 `retention_ttl_hours` 回收。
-
-## Agent Tools 配置
+## 显示 `display`
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
-| `agent_tools.enabled` | `false` | 是否注册 DNABY Agent Tools；关闭时注册数量为 0，开启时注册 17 个（16 个只读查询和 1 个签到写工具）。 |
+| `display.command_prefixes` | `['kk']` | 命令触发前缀，可以填写字符串或字符串列表；列表中包含空字符串时允许无前缀触发。 |
+| `display.guide_providers` | `['all']` | 角色攻略来源，可选 `all`、`狩月庭攻略组`、`猫冬`。 |
+| `display.show_unowned_roles` | `true` | 是否在角色信息卡片中显示未拥有的角色和武器。 |
+| `display.allow_mention_query` | `true` | 是否允许通过 @ 查询其他用户的角色信息。 |
 
-这是 Agent Tools 的唯一配置开关。它不改变聊天命令的注册，也不开放账号、凭据、隐私、订阅、
-资源或管理配置写操作。修改后需重新加载插件，生命周期会在 `initialize()`/`terminate()`
-中完成注册和解除注册。
+如果把 `display.command_prefixes` 改成自定义前缀，发送命令时请使用新前缀；修改后重载插件即可生效。
 
-fresh 过期但仍在硬保留期内时会尝试刷新；刷新失败且存在完整旧卡时会带过期提示。公告缓存的
-绝对保留使用 `cache.announcement_ttl_hours`，不受已移除的全局密函缓存开关控制。
+## 公共资源 `resources`
 
-公共资源仓库、manifest、兑换码 v1、旧 GitCode `end_at` 迁移和镜像切换步骤见
-[资源运维说明](resources.md)。插件没有传统 HTTP/SOCKS 代理配置；不要把
-`network.local_proxy_url` 当作资源镜像配置。
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `resources.github_acceleration` | `off` | 公共资源同步方式，可选 `off`、`edgeone`、`hk`、`gh_proxy`、`dpik`、`custom`。 |
+| `resources.custom_github_acceleration_url` | 空 | `custom` 模式使用的 HTTP(S) 基础地址；其他模式无需填写。 |
 
-新入口在 bootstrap 边界将 AstrBot 配置转换为 `DnabySettings`；use case 不直接读取
-未类型化字典。legacy `dnaby/dna_config` 的 `DNAConfig.get_config("Key").data` 语义
-仅为迁移参考，旧 SQLite 和旧配置不会在本阶段自动迁移；新资源下载不会回写旧配置或旧
-数据库。
+默认 `resources.github_acceleration` 为 `off`。使用 `custom` 时只填写不含凭据、查询参数和片段的
+HTTP(S) 基础地址；镜像请求失败会明确报告，不会把失败伪装成同步成功。资源同步和目录说明见 [公共资源](resources.md)。
 
-## 新数据库首次初始化
+## 缓存 `cache`
 
-账号和隐私 use case 使用 `StarTools.get_data_dir("astrbot_plugin_dnaby")/dnaby.sqlite3`。
-生产 runtime 不调用测试专用的 `create_schema_for_tests()`；首次启用或 schema 版本变更前，
-部署者须在安装了项目依赖的环境中执行 Alembic 初始迁移，并通过环境变量提供目标 URL：
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `cache.fresh_ttl_minutes` | `30` | 缓存保持 fresh 的时间，单位为分钟；`-1` 表示仅在主动刷新或失效时更新。 |
+| `cache.retention_ttl_hours` | `24` | 缓存允许保留的时间，单位为小时。 |
+| `cache.announcement_ttl_hours` | `24` | 公告和已校验资源缓存的保留时间，单位为小时。 |
+| `cache.refresh_send_card` | `true` | 手动刷新成功后是否立即发送新卡片。 |
 
-```bash
-DNABY_DATABASE_URL="sqlite+aiosqlite:////绝对路径/dnaby.sqlite3" \
-  alembic -c /绝对路径/astrbot_plugin_dnaby/alembic.ini upgrade head
+将 `cache.fresh_ttl_minutes` 设为 `0` 会让缓存立即进入待刷新状态；设为 `-1` 时业务缓存只在主动刷新或失效时更新。`cache.retention_ttl_hours` 和 `cache.announcement_ttl_hours` 仍应填写正数。
+
+## Agent Tools `agent_tools`
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `agent_tools.enabled` | `false` | 是否注册结构化查询工具；默认关闭，开启后需重载插件。 |
+
+开启后不会改变聊天命令，也不会允许工具代替管理员执行账号、隐私、订阅或资源管理操作。工具列表和安全边界见 [Agent Tools 使用说明](agent-tools.md)。
+
+## 数据目录与图片
+
+插件运行期数据统一保存在 AstrBot 的插件数据目录：
+
+```text
+data/plugin_data/astrbot_plugin_dnaby/
 ```
 
-迁移失败应停止部署并保留原错误；不要把旧 `dnaby.db` 改名或交给新 schema 直接打开。
-当前本地验证环境未安装 Alembic，隔离 migration round-trip 按测试约定显式 skip；这不等同于
-生产 schema 已完成迁移。此前 `atri` 只读核验观察到生产数据库 revision 为 `0003_global_identity`；
-该观察不代表本次文档/冒烟执行了 migration，也不替代升级前备份。
+目录由 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 提供，不写入插件源码目录。账号绑定、订阅、缓存、图片和公共资源都在这里管理；升级前请备份该目录，不要把其中的数据库、登录信息或订阅记录上传到公开位置。
 
-`AccountService` 使用 `login.max_bind_count` 约束新增 UID；登录成功会自动建立绑定，聊天侧只保留
-切换、删除和查看 UID，不提供脱离登录流程的公开绑定命令。登录页会话由 runtime 注入的
-`LoginFlowCoordinator` 管理：local 服务在初始化时启动、在终止时先清理登录等待再释放端口；
-外置 transport 只使用 typed `login.url`、`login.transport` 和 `login.shared_secret`。未配置
-外置地址时不会伪造登录链接，而是返回稳定的登录服务失败提示。
+图片卡片使用 AstrBot 4.26.0 及以上版本提供的全局 HTML/T2I 能力，不新增插件私有渲染服务配置。未启用该能力或服务返回无效图片时，需要图片的命令会返回统一失败提示，文字查询仍可继续使用。
 
-登录凭据当前为 App-only；Web 登录页、Web token fallback 和五个 Web 凭据数据库列已移除。
-执行 `alembic upgrade head` 前必须按维护文档备份并检查 `dnaby.sqlite3`；降级只创建空 Web
-列，不能恢复已经删除的凭据。
-
-`account_bindings.auto_sign_enabled` 在 `0005_auto_sign_enabled` 中新增，已有绑定默认值为
-`true`。开启或关闭自动签到只修改当前用户当前 UID，切换 UID 后各绑定独立；手动“全部签到”
-忽略该开关，定时任务默认尊重该开关，`sign_in.enable_all_users` 可强制全部执行。
-
-隐私 use case 按 `display.allow_mention_query` 解析他人查询；关闭时查询目标会回到调用者，
-查询自己仍然允许。个人/群强制隐私的具体命令见 [commands.md](commands.md)。
-
-共享密钥使用 Pydantic `SecretStr`，schema 默认值保持为空；不得把实际密钥写入
-Git、日志、异常或用户可见响应。
-
-资源加速配置中的自定义 URL 只允许 HTTP(S) 基础地址，自动去除首尾空白和尾部斜杠，
-拒绝控制字符、反斜杠、userinfo、query、fragment 及相对路径段；无效配置不会回显原始
-输入。该配置只影响公共资源 Git/Raw 请求，不复用 `network.local_proxy_url`。
-
-切换加速前先执行 owner 命令 `资源状态` 记录当前 manifest/resource version；修改配置后执行
-`下载全部资源`，确认新 generation 的 commit 和状态，再保留配置。镜像只负责传输，插件仍
-校验规范 GitHub origin、`main`、manifest 和完整资源候选；镜像不可用时会显式失败，不能把
-失败当作已更新，也不会自动直连或改走 ZIP。
-
-## HTML/T2I 图片渲染
-
-生成型图片复用 AstrBot 4.26.0 及以上版本的全局 HTML/T2I 服务，不新增插件私有 endpoint 配置。
-服务不可用或返回无效图片时，命令返回统一失败提示，详细原因仅记录到 AstrBot 日志。
+如需查看命令前缀、登录和资源同步的实际操作，请继续阅读 [命令说明](commands.md)、[账号登录](login.md) 和 [公共资源](resources.md)。
