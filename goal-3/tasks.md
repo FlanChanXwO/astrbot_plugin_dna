@@ -229,12 +229,12 @@
 
 ## Task 20：终审、回滚核对与 goal 完成
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：复核 input/plan/tasks 与实际实现一致，确认文档、配置、测试、回滚说明完整；通过后再登记 goal 完成。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：重新通读 `goal-3/input.md`、`plan.md`、`tasks.md` 并完成最终实现审查；确认客户端更新查询、群聊管理员订阅、PC/安卓独立基线、独立轮询、固定 pending 目标、失败隔离、OneBot 合并转发降级、取消清理、schema v1 兼容升级与 `StarTools.get_data_dir` 运行期边界均与已确认决策一致。复核命令 registry、typed 配置、状态文件、文档和 CHANGELOG；确认客户端更新状态与公告状态分离，未新增第三方依赖，未引入 `gsuid_core`/`gsucore`，并保留按提交边界回滚、旧状态安全失败和 OneBot 普通消息降级说明。
+- 验证证据：最终投影审计确认 `manifest_records=63`、`commands.json=63` 且完全相等，配置 schema 完全相等，客户端更新配置默认值为 `enabled=true`、`check_minutes=60`、`merge_forward=true`；终审相关测试 `13 passed, 1 warning`；`python3 -m compileall -q .`、客户端更新范围 `ruff check`、`ruff format --check`、`pyright src/modules/client_updates src/infrastructure/client_updates_scheduler.py src/infrastructure/http/client_updates.py`（0 errors/warnings/informations）、LSP 当前诊断和 `git diff --check` 均通过；工作树干净。Task 19 已记录全量 pytest `919 passed, 1 skipped, 3 failed` 与 full Ruff 的 18 个既有错误，失败均经核对不属于本目标改动范围；本轮全量影响分析工具因大 diff 超时，未将其作为通过依据。
+- 剩余风险：尚未在真实 AstrBot/OneBot 实例执行发送冒烟；订阅文件与客户端状态文件没有跨文件物理事务，发送成功后的 delivered 写盘失败仍按 at-least-once 语义允许后续重复；上游公开 HTTP 元数据完整性风险保持为既有设计边界；上述 3 个无关 pytest 失败和 18 个无关 Ruff 错误仍待其所属目标处理。
+- 下一步：所有 Task 与集中检查均已完成，登记 goal-3 完成。
 
 
 ## Task 21：接通客户端更新定时推送闭环
