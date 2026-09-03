@@ -13,7 +13,7 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-CI_SCRIPT = ROOT / "scripts" / "ci" / "check_astrbot_plugin_load.py"
+CI_SCRIPT = ROOT / "scripts" / "ci" / "check_astrbot_plugin_lifecycle.py"
 PLUGIN_NAME = "astrbot_plugin_dnaby"
 
 
