@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
@@ -16,6 +15,7 @@ from typing import Protocol
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from . import messages
 from .contracts import ClientPlatform, ClientUpdateChange
+from .routing import active_subscriptions as _active_subscriptions
 from .state import (
     ClientUpdatePendingEvent,
     ClientUpdatePendingTarget,
@@ -151,6 +151,9 @@ class ClientUpdateDeliveryService:
             raise RuntimeError("client update delivery state unavailable")
 
         ordered_changes = _order_changes(changes)
+        pending_keys_before = {
+            event.event_key for event in await state.pending_events()
+        }
         delivered = await self._deliver_pending_events()
         pending_keys = {event.event_key for event in await state.pending_events()}
         if not ordered_changes:
@@ -160,6 +163,10 @@ class ClientUpdateDeliveryService:
         new_events: list[ClientUpdatePendingEvent] = []
         new_event_keys = set(pending_keys)
         for change in ordered_changes:
+            if change.event_key in pending_keys_before:
+                # pending-first 已尝试过这个事件；无论成功清理还是失败保留，
+                # 当前轮询结果都不能再次创建它，否则成功路径会重复推送。
+                continue
             targets = tuple(
                 ClientUpdatePendingTarget(
                     origin=subscription.unified_msg_origin,
@@ -344,27 +351,6 @@ def _build_push(
     )
 
 
-def _active_subscriptions(
-    subscriptions: Sequence[Subscription],
-) -> dict[
-    tuple[str, str],
-    tuple[Subscription, tuple[ClientPlatform, ...] | None],
-]:
-    """以最新订阅记录覆盖同身份旧记录，保留停用状态供 pending 清理。"""
-
-    active: dict[
-        tuple[str, str],
-        tuple[Subscription, tuple[ClientPlatform, ...] | None],
-    ] = {}
-    for subscription in subscriptions:
-        key = (subscription.unified_msg_origin, subscription.uid)
-        active[key] = (
-            subscription,
-            _subscription_platforms(subscription) if subscription.enabled else None,
-        )
-    return active
-
-
 def _group_pending_events(
     events: Sequence[ClientUpdatePendingEvent],
 ) -> tuple[tuple[ClientUpdatePendingTarget, list[ClientUpdatePendingEvent]], ...]:
@@ -402,32 +388,6 @@ def _order_changes(
             key=lambda change: _CLIENT_PLATFORM_ORDER[change.platform],
         )
     )
-
-
-def _subscription_platforms(
-    subscription: Subscription,
-) -> tuple[ClientPlatform, ...] | None:
-    try:
-        payload = json.loads(subscription.extra_data)
-        if not isinstance(payload, dict):
-            raise TypeError("订阅平台元数据必须是对象")
-        raw_platforms = payload.get("platforms")
-        if not isinstance(raw_platforms, list):
-            raise TypeError("订阅平台元数据缺少 platforms 列表")
-        selected = {ClientPlatform(value) for value in raw_platforms}
-        if not selected:
-            raise ValueError("订阅平台元数据为空")
-        return tuple(
-            platform
-            for platform in (ClientPlatform.PC, ClientPlatform.ANDROID)
-            if platform in selected
-        )
-    except (TypeError, ValueError, json.JSONDecodeError) as error:
-        logger.warning(
-            "[dnaby][client_update] 订阅平台元数据无效，跳过投递（错误类型：%s）",
-            type(error).__name__,
-        )
-        return None
 
 
 __all__ = [

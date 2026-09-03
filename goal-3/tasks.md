@@ -220,12 +220,12 @@
 
 ## Task 19：执行最终测试、构建和代码审查
 
-- [ ] 状态：pending
+- [x] 状态：completed
 - 目标：运行项目要求的 compileall、pytest、ruff，并完成 code-review-expert 级别自审；确认没有高风险已知问题。
-- 实际完成：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际完成：完成最终构建、测试、lint、类型与 LSP 诊断，并按 SOLID、死代码、错误边界、安全性、数据一致性和回滚路径完成 code-review-expert 级别自审。修复审查发现的基线先推进而 pending 事件后落盘的数据丢失窗口：定时轮询现在通过 `ClientUpdateStateStore.save_baseline_with_pending_event()` 原子保存新基线和首次固定目标，并复用共享订阅路由；pending-first 成功清理事件后不会再次投递同一变化。新增 Task 19 回归测试，并同步修正 Goal 3 新增命令导致的两个直接测试契约断言（mention policy、registry 数量）。
+- 验证证据：TDD Red 阶段新增回归测试实际 `2 failed`，修复后 `2 passed, 1 warning`；客户端更新/调度相关回归（含 Task 19）`79 passed, 1 warning`。`python3 -m compileall -q .` 通过；`/opt/homebrew/bin/pyright src/modules/client_updates src/infrastructure/client_updates_scheduler.py` 为 `0 errors, 0 warnings, 0 informations`；客户端更新实现及相关测试 `ruff check` 通过，目标实现文件 `ruff format --check` 通过；LSP 全部已打开文件无诊断；`git diff --check` 通过。最终全量 pytest 为 `919 passed, 1 skipped, 3 failed, 5 warnings`，剩余失败仅为既有且与本任务无关的 `test_user_refresh_forces_target_role_and_keeps_other_role_cache`、`test_plugin_main_imports_from_astrbot_namespace`、`test_help_layout_orders_groups_and_computes_height_from_content`。运行时版本 `ruff check .` 仍有 18 个既有错误，均不在本任务改动文件；未为过门禁修改无关渲染、脚本、玩家代码。
+- 剩余风险：尚未在真实 AstrBot/OneBot 实例执行发送冒烟；订阅文件与客户端状态文件仍没有跨文件物理事务；发送成功后写入 delivered 失败仍按 at-least-once 语义允许后续重复；上游公开 HTTP 元数据端点的完整性风险是既有设计边界。上述 3 个全量 pytest 失败和 18 个 full Ruff 错误不属于本任务改动范围。
+- 下一步：Task 20，执行终审、回滚核对与 goal 完成登记。
 
 ## Task 20：终审、回滚核对与 goal 完成
 

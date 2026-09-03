@@ -26,6 +26,7 @@ from .contracts import (
     ClientUpdateTransportError,
     ClientVersionSnapshot,
 )
+from .routing import pending_targets_for_change
 from .state import ClientUpdateBaseline, ClientUpdateStateStore
 
 
@@ -70,6 +71,23 @@ class ClientUpdateService:
         补丁参与汇总；变化确认成功后才会写入新的基线。
         """
 
+        return await self._observe(
+            current,
+            observed_at=observed_at,
+            patch_sizes=patch_sizes,
+            stage_pending=False,
+        )
+
+    async def _observe(
+        self,
+        current: ClientVersionSnapshot,
+        *,
+        observed_at: datetime,
+        patch_sizes: Mapping[int, int],
+        stage_pending: bool,
+    ) -> ClientUpdateChange | None:
+        """执行观察；定时轮询可要求基线和 pending 事件一次落盘。"""
+
         if not isinstance(current, ClientVersionSnapshot):
             raise TypeError("current 必须是 ClientVersionSnapshot")
 
@@ -102,12 +120,28 @@ class ClientUpdateService:
             current,
             patch_sizes,
         )
-        await self.state.save_baseline(
-            ClientUpdateBaseline(
-                snapshot=current,
-                observed_at=observed_at,
-                last_change=change,
+        new_baseline = ClientUpdateBaseline(
+            snapshot=current,
+            observed_at=observed_at,
+            last_change=change,
+        )
+        if not stage_pending:
+            await self.state.save_baseline(new_baseline)
+            return change
+
+        subscriptions = self.subscriptions
+        targets = (
+            pending_targets_for_change(
+                change,
+                await subscriptions.get(messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE),
             )
+            if subscriptions is not None
+            else ()
+        )
+        await self.state.save_baseline_with_pending_event(
+            new_baseline,
+            change,
+            targets,
         )
         return change
 
@@ -130,10 +164,11 @@ class ClientUpdateService:
                     ),
                 )
                 _validate_observation(observation, platform)
-                change = await self.observe(
+                change = await self._observe(
                     observation.snapshot,
                     observed_at=datetime.now(timezone.utc),
                     patch_sizes=observation.patch_sizes,
+                    stage_pending=True,
                 )
             except ClientUpdateTransportError as error:
                 _log_transport_failure("poll", platform, error)

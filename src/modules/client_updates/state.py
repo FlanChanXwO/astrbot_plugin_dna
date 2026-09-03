@@ -192,6 +192,57 @@ class ClientUpdateStateStore:
                 self._baselines = previous
                 raise
 
+    async def save_baseline_with_pending_event(
+        self,
+        baseline: ClientUpdateBaseline,
+        change: ClientUpdateChange,
+        targets: Iterable[ClientUpdatePendingTarget],
+    ) -> ClientUpdatePendingEvent | None:
+        """原子保存新基线和变化事件，避免基线先推进后丢失事件。
+
+        ``targets`` 只在事件首次生成时生效；已有同键事件继续保留其固定目标。
+        没有匹配目标时仍保存基线，但不会创建事件。
+        """
+
+        if not isinstance(baseline, ClientUpdateBaseline):
+            raise TypeError("baseline 必须是 ClientUpdateBaseline")
+        if not isinstance(change, ClientUpdateChange):
+            raise TypeError("change 必须是 ClientUpdateChange")
+        if baseline.last_change != change:
+            raise ValueError("baseline.last_change 必须等于 change")
+        key = _baseline_key(baseline.snapshot.region, baseline.snapshot.platform)
+        event = ClientUpdatePendingEvent(change, tuple(targets))
+        if event.targets and not event.pending_targets:
+            raise ValueError("新建事件至少需要一个 pending 目标")
+
+        async with self._lock:
+            self._load_unlocked()
+            existing = self._pending_events.get(event.event_key)
+            if existing is not None and existing.change != event.change:
+                raise ClientUpdateStateError("event key maps to different change")
+
+            previous_baselines = self._baselines.copy()
+            previous_pending_events = self._pending_events.copy()
+            self._baselines[key] = baseline
+            if existing is None and event.targets:
+                self._pending_events[event.event_key] = event
+                stored_event = event
+            else:
+                stored_event = existing
+            try:
+                self._save_unlocked()
+            except OSError as error:
+                self._baselines = previous_baselines
+                self._pending_events = previous_pending_events
+                raise ClientUpdateStateError(
+                    "state file could not be replaced"
+                ) from error
+            except BaseException:
+                self._baselines = previous_baselines
+                self._pending_events = previous_pending_events
+                raise
+            return stored_event
+
     async def ensure_pending_event(
         self,
         change: ClientUpdateChange,
