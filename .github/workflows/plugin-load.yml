@@ -97,7 +97,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/ci/check_astrbot_plugin_load.py \
+          python scripts/ci/check_astrbot_plugin_lifecycle.py \
             --astrbot-source "$ASTRBOT_SOURCE" \
             --astrbot-version "$ASTRBOT_VERSION" \
             --plugin-dir "$GITHUB_WORKSPACE" \
