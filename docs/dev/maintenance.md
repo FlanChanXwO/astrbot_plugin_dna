@@ -158,8 +158,8 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 
 从旧共享下载器迁移到 `ImageFetcher` 时，部署者可在停写、完成备份并核对目录归属后，人工清理
 以下两个旧图片缓存范围。typed 公告 renderer 的当前缓存位于
-`data/plugin_data/astrbot_plugin_dnaby/cache/announcement/`，由 `CacheManager` 按公告绝对保留期
-和租约管理，不属于下面这次 legacy 清理范围：
+`data/plugin_data/astrbot_plugin_dnaby/cache/announcement/`，由 `CacheManager` 按统一
+`cache.ttl_hours` 和租约管理，不属于下面这次 legacy 清理范围：
 
 - `data/plugin_data/astrbot_plugin_dnaby/resource/`
 - `data/plugin_data/astrbot_plugin_dnaby/other/ann_card/`

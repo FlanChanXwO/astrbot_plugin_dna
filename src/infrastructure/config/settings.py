@@ -30,6 +30,14 @@ from .legacy import _LEGACY_MAP, DNA_PREFIX, DNAConfig, DNASignConfig
 logger = logging.getLogger(__name__)
 _REMOVED_MH_LEGACY_KEYS = frozenset(("MHPushSubscribe", "MHCache"))
 _REMOVED_MH_TYPED_FIELDS = frozenset(("secret_push_time", "secret_cache"))
+_REMOVED_CACHE_FIELDS = frozenset(
+    (
+        "fresh_ttl_minutes",
+        "retention_ttl_hours",
+        "announcement_ttl_hours",
+        "refresh_send_card",
+    )
+)
 
 
 class _SettingsModel(BaseModel):
@@ -193,32 +201,15 @@ class ResourceSettings(_SettingsModel):
 
 
 class CacheSettings(_SettingsModel):
-    """统一文件缓存的时间和发送策略。"""
+    """统一内容缓存的 TTL 配置。"""
 
-    fresh_ttl_minutes: int = Field(
-        default=30,
+    ttl_hours: int = Field(
+        default=24,
         ge=-1,
-        description="缓存 fresh 保持时间（分钟）",
+        description="统一内容缓存 TTL（小时）",
         json_schema_extra={
-            "hint": "缓存内容在此时间内视为 fresh；-1 表示永久缓存，仅主动失效或刷新时更新"
+            "hint": "-1 表示永久缓存；0 表示禁用持久缓存；正整数表示缓存有效小时数"
         },
-    )
-    retention_ttl_hours: int = Field(
-        default=24,
-        gt=0,
-        description="缓存硬保留时间（小时）",
-        json_schema_extra={"hint": "缓存超过此时间后允许清理"},
-    )
-    announcement_ttl_hours: int = Field(
-        default=24,
-        gt=0,
-        description="公告缓存保留时间（小时）",
-        json_schema_extra={"hint": "公告缓存的绝对保留时间"},
-    )
-    refresh_send_card: bool = Field(
-        default=True,
-        description="刷新后发送卡片",
-        json_schema_extra={"hint": "刷新成功后是否立即发送新卡片"},
     )
 
 
@@ -436,6 +427,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
             raise TypeError(f"配置分组 {section_name} 必须是对象")
 
     _log_discarded_mh_config(raw_dict)
+    _log_discarded_cache_config(raw_dict)
 
     # 1. 检查并迁移 GScore 嵌套 section ("DNAUID配置", "DNAUID签到配置")
     for section_key in ("DNAUID配置", "DNAUID签到配置"):
@@ -485,6 +477,8 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
                     k in _REMOVED_MH_TYPED_FIELDS or k == "announcement_groups"
                 ):
                     continue
+                if group_name == "cache" and k in _REMOVED_CACHE_FIELDS:
+                    continue
                 result[group_name][k] = v
 
     return result
@@ -527,6 +521,7 @@ class DnabySettings(_SettingsModel):
         # 若传入的是可变字典（例如 AstrBotConfig），同步更新其标准分组键
         if isinstance(config, dict):
             _discard_removed_mh_config(config)
+            _discard_removed_cache_config(config)
             for group_name, group_values in migrated.items():
                 if group_name not in config or not isinstance(config[group_name], dict):
                     config[group_name] = dict(group_values)
@@ -576,6 +571,29 @@ def _discard_removed_mh_config(raw: dict[str, Any]) -> None:
     if isinstance(notifications, dict):
         for field in _REMOVED_MH_TYPED_FIELDS:
             notifications.pop(field, None)
+
+
+def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
+    """记录旧版缓存配置被丢弃，但不迁移旧的自定义数值。"""
+
+    cache = raw.get("cache")
+    if not isinstance(cache, Mapping):
+        return
+    for field in _REMOVED_CACHE_FIELDS:
+        if field in cache:
+            logger.warning(
+                "[dnaby][config] 丢弃已移除的缓存配置 cache.%s",
+                field,
+            )
+
+
+def _discard_removed_cache_config(raw: dict[str, Any]) -> None:
+    """从 AstrBot 可变配置中移除旧缓存字段，避免再次持久化。"""
+
+    cache = raw.get("cache")
+    if isinstance(cache, dict):
+        for field in _REMOVED_CACHE_FIELDS:
+            cache.pop(field, None)
 
 
 __all__ = [

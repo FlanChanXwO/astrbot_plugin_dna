@@ -18,6 +18,9 @@ DEFAULT_RENDERED_PREFIXES = (
     "dnaby-resource-",
 )
 
+# 内容缓存 TTL 与 rendered 临时文件生命周期相互独立。
+DEFAULT_RENDERED_RETENTION_SECONDS = 24 * 60 * 60
+
 
 @dataclass(frozen=True, slots=True)
 class RenderedCleanupReport:
@@ -186,6 +189,7 @@ class RenderedFileStore:
 
 __all__ = [
     "DEFAULT_RENDERED_PREFIXES",
+    "DEFAULT_RENDERED_RETENTION_SECONDS",
     "RenderedCleanupReport",
     "RenderedFileStore",
 ]
