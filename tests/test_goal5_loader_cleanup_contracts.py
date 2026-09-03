@@ -5,12 +5,12 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import sys
+import tempfile
+import unittest
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 CI_SCRIPT = ROOT / "scripts" / "ci" / "check_astrbot_plugin_load.py"
@@ -189,68 +189,73 @@ async def _run(
     )
 
 
-@pytest.mark.asyncio
-async def test_lifecycle_uses_official_terminate_and_unbind_then_verifies_clean_state(
-    tmp_path: Path,
-) -> None:
-    module = _load_module()
-    events: list[str] = []
-    state = _RuntimeState()
+class LoaderCleanupContractTests(unittest.IsolatedAsyncioTestCase):
+    async def test_lifecycle_uses_official_terminate_and_unbind_then_verifies_clean_state(
+        self,
+    ) -> None:
+        module = _load_module()
+        events: list[str] = []
+        state = _RuntimeState()
 
-    report = await _run(module, tmp_path, events=events, state=state)
+        with tempfile.TemporaryDirectory() as directory:
+            report = await _run(module, Path(directory), events=events, state=state)
 
-    assert events == [
-        f"load:{PLUGIN_NAME}",
-        "initialize",
-        "manager-terminate",
-        "plugin-terminate",
-        f"unbind:{PLUGIN_NAME}:data.plugins.{PLUGIN_NAME}.main",
-    ]
-    assert report.terminate_succeeded is True
-    assert report.unbind_succeeded is True
-    assert report.resource_cleanup_succeeded is True
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("leak_registry", ["handlers", "tools", "web_apis"])
-async def test_lifecycle_rejects_runtime_registry_residue(
-    tmp_path: Path,
-    leak_registry: str,
-) -> None:
-    module = _load_module()
-    events: list[str] = []
-    state = _RuntimeState()
-
-    with pytest.raises(module.LoaderCheckError, match=leak_registry) as caught:
-        await _run(
-            module,
-            tmp_path,
-            events=events,
-            state=state,
-            leak_registry=leak_registry,
+        self.assertEqual(
+            events,
+            [
+                f"load:{PLUGIN_NAME}",
+                "initialize",
+                "manager-terminate",
+                "plugin-terminate",
+                f"unbind:{PLUGIN_NAME}:data.plugins.{PLUGIN_NAME}.main",
+            ],
         )
+        self.assertTrue(report.terminate_succeeded)
+        self.assertTrue(report.unbind_succeeded)
+        self.assertTrue(report.resource_cleanup_succeeded)
 
-    assert caught.value.phase == "resource cleanup"
+    async def test_lifecycle_rejects_runtime_registry_residue(self) -> None:
+        for leak_registry in ("handlers", "tools", "web_apis"):
+            with self.subTest(leak_registry=leak_registry):
+                module = _load_module()
+                events: list[str] = []
+                state = _RuntimeState()
+                with tempfile.TemporaryDirectory() as directory:
+                    with self.assertRaisesRegex(
+                        module.LoaderCheckError,
+                        leak_registry,
+                    ) as caught:
+                        await _run(
+                            module,
+                            Path(directory),
+                            events=events,
+                            state=state,
+                            leak_registry=leak_registry,
+                        )
+                self.assertEqual(caught.exception.phase, "resource cleanup")
+
+    async def test_lifecycle_rejects_background_task_residue(self) -> None:
+        module = _load_module()
+        events: list[str] = []
+        state = _RuntimeState()
+
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                with self.assertRaisesRegex(module.LoaderCheckError, "tasks") as caught:
+                    await _run(
+                        module,
+                        Path(directory),
+                        events=events,
+                        state=state,
+                        leak_task=True,
+                    )
+            self.assertEqual(caught.exception.phase, "resource cleanup")
+        finally:
+            for task in state.tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*state.tasks, return_exceptions=True)
 
 
-@pytest.mark.asyncio
-async def test_lifecycle_rejects_background_task_residue(tmp_path: Path) -> None:
-    module = _load_module()
-    events: list[str] = []
-    state = _RuntimeState()
-
-    try:
-        with pytest.raises(module.LoaderCheckError, match="tasks") as caught:
-            await _run(
-                module,
-                tmp_path,
-                events=events,
-                state=state,
-                leak_task=True,
-            )
-        assert caught.value.phase == "resource cleanup"
-    finally:
-        for task in state.tasks:
-            if not task.done():
-                task.cancel()
-        await asyncio.gather(*state.tasks, return_exceptions=True)
+if __name__ == "__main__":
+    unittest.main()
