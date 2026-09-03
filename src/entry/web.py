@@ -44,6 +44,30 @@ class WebRegistrar:
 
         return self._registered
 
+    @staticmethod
+    def _registry(context: Context) -> list[tuple[Any, ...]]:
+        registered_web_apis = getattr(context, "registered_web_apis", None)
+        if not isinstance(registered_web_apis, list):
+            raise TypeError("AstrBot Context.registered_web_apis 必须是 list")
+        return registered_web_apis
+
+    @classmethod
+    def unregister_plugin_routes(cls, context: Context, plugin_name: str) -> None:
+        """从 AstrBot 全局 Web registry 移除指定插件命名空间下的全部路由。"""
+
+        prefix = f"/{plugin_name}/"
+        registered_web_apis = cls._registry(context)
+        registered_web_apis[:] = [
+            registration
+            for registration in registered_web_apis
+            if not (
+                isinstance(registration, tuple)
+                and registration
+                and isinstance(registration[0], str)
+                and registration[0].startswith(prefix)
+            )
+        ]
+
     async def initialize(self) -> None:
         """将路由交给 AstrBot；注册失败时保留异常并不伪造成功。"""
 
@@ -62,10 +86,7 @@ class WebRegistrar:
     async def stop(self) -> None:
         """移除本 registrar 注册的 Web API，避免插件卸载后页面继续可达。"""
 
-        registered_web_apis = getattr(self._context, "registered_web_apis", None)
-        if not isinstance(registered_web_apis, list):
-            raise TypeError("AstrBot Context.registered_web_apis 必须是 list")
-
+        registered_web_apis = self._registry(self._context)
         for route in self._routes:
             methods = tuple(route.methods)
             registered_web_apis[:] = [
