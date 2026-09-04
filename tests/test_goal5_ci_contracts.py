@@ -224,7 +224,7 @@ def test_changelog_parser_returns_only_requested_release_and_rejects_invalid_inp
             module.parse_changelog(invalid, version="v0.2.0")
 
 
-def test_plugin_load_workflow_is_pr_only_read_only_and_matches_required_status_checks() -> None:
+def test_plugin_lifecycle_workflow_is_pr_only_read_only_and_uses_latest_stable() -> None:
     text = _read_required_file(PLUGIN_LIFECYCLE_WORKFLOW)
     workflow = yaml.safe_load(text)
     assert isinstance(workflow, dict)
@@ -234,14 +234,8 @@ def test_plugin_load_workflow_is_pr_only_read_only_and_matches_required_status_c
     assert set(trigger) == {"pull_request"}
     assert "pull_request_target" not in text
 
-    assert workflow.get("name") == "AstrBot plugin load"
     assert workflow.get("permissions") == {"contents": "read"}
-    jobs = workflow.get("jobs", {})
-    assert len(jobs) == 1
-    job = next(iter(jobs.values()))
-    assert job["name"] == "AstrBot plugin load (${{ matrix.source }})"
-    assert job["strategy"]["matrix"]["source"] == ["stable", "master"]
-    for job in jobs.values():
+    for job in workflow.get("jobs", {}).values():
         if "permissions" in job:
             assert job["permissions"] == {"contents": "read"}
 
@@ -249,8 +243,8 @@ def test_plugin_load_workflow_is_pr_only_read_only_and_matches_required_status_c
     assert "git ls-remote --tags --refs" in text
     assert "select_latest_stable_version" in text
     assert "scripts/ci/check_astrbot_plugin_lifecycle.py" in text
-    assert 'if [[ "$SOURCE_KIND" == "stable" ]]' in text
-    assert 'elif [[ "$SOURCE_KIND" == "master" ]]' in text
+    assert "matrix.source" not in text
+    assert not re.search(r"(?m)^\s*-\s+master\s*$", text)
     assert "continue-on-error" not in text
     assert "secrets." not in text
 
