@@ -78,18 +78,27 @@ class WebRegistrar:
         ]
 
     async def initialize(self) -> None:
-        """将路由交给 AstrBot；注册失败时保留异常并不伪造成功。"""
+        """将路由交给 AstrBot；失败时回滚本次已注册的路由。"""
 
         if self._registered:
             return
 
-        for route in self._routes:
-            self._context.register_web_api(
-                route.path,
-                route.handler,
-                list(route.methods),
-                route.description,
-            )
+        registered_web_apis = self._registry(self._context)
+        previous_registry = (
+            list(registered_web_apis) if registered_web_apis is not None else None
+        )
+        try:
+            for route in self._routes:
+                self._context.register_web_api(
+                    route.path,
+                    route.handler,
+                    list(route.methods),
+                    route.description,
+                )
+        except BaseException:
+            if registered_web_apis is not None and previous_registry is not None:
+                registered_web_apis[:] = previous_registry
+            raise
         self._registered = True
 
     async def stop(self) -> None:
