@@ -24,6 +24,7 @@ class TransportErrorKind(StrEnum):
     NETWORK = "network"
     STATUS = "status"
     SERVER = "server"
+    CREDENTIAL = "credential"
 
 
 class AccountTransportError(Exception):

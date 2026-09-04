@@ -55,14 +55,18 @@ class EncyclopediaService:
     def _renderer_context(self):
         if self.resource_snapshots is None:
             return nullcontext(self.renderer)
-        return self.resource_snapshots.bind_renderer(self.renderer, "encyclopedia_resources")
+        return self.resource_snapshots.bind_renderer(
+            self.renderer, "encyclopedia_resources"
+        )
 
     @contextmanager
     def _resource_context(self) -> Iterator[EncyclopediaResourceStore]:
         if self.resource_snapshots is None:
             yield self.resources
             return
-        with self.resource_snapshots.bind_resource("encyclopedia_resources") as resources:
+        with self.resource_snapshots.bind_resource(
+            "encyclopedia_resources"
+        ) as resources:
             yield resources or self.resources
 
     def _copy_resource_image(self, path: Path) -> ImageResponse:
@@ -76,6 +80,8 @@ class EncyclopediaService:
     async def _resolve_uid(
         self,
         request: EncyclopediaRequest,
+        *,
+        operation: str,
     ) -> tuple[str, str] | PlainTextResponse:
         """先应用隐私策略，再按最终目标读取绑定 UID。"""
 
@@ -92,11 +98,21 @@ class EncyclopediaService:
                 user_id=target_user_id,
             )
         if binding is None:
-            return PlainTextResponse(messages.UID_INVALID)
+            target = target_user_id != request.actor.user_id
+            logger.warning(
+                "账号绑定缺失 operation=%s scope=%s reason=local_binding_missing",
+                operation,
+                "target" if target else "self",
+            )
+            return PlainTextResponse(messages.account_not_bound(target=target))
         return target_user_id, binding.uid
 
     @staticmethod
-    def _transport_response(error: EncyclopediaTransportError) -> PlainTextResponse:
+    def _transport_response(
+        error: EncyclopediaTransportError,
+        *,
+        target: bool = False,
+    ) -> PlainTextResponse:
         """映射安全错误类别；不向用户返回 detail。"""
 
         logger.warning(
@@ -107,12 +123,14 @@ class EncyclopediaService:
 
         if error.kind is EncyclopediaFailureKind.NOT_FOUND:
             return PlainTextResponse(messages.not_found(error.resource))
-        return PlainTextResponse(messages.transport_error(error.kind.value))
+        return PlainTextResponse(
+            messages.transport_error(error.kind.value, target=target)
+        )
 
     async def stamina(self, request: EncyclopediaRequest):
         """读取并渲染当前用户或被允许查询用户的便签。"""
 
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="stamina")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
@@ -123,7 +141,9 @@ class EncyclopediaService:
                 credential_user_id=target_user_id,
             )
         except EncyclopediaTransportError as error:
-            return self._transport_response(error)
+            return self._transport_response(
+                error, target=target_user_id != request.actor.user_id
+            )
         uid_hidden = await self.privacy.is_uid_hidden(
             target_user_id,
             group_id=request.actor.group_id,
@@ -136,18 +156,23 @@ class EncyclopediaService:
                 uid=uid,
                 uid_hidden=uid_hidden,
             )
-        return ImageResponse(str(rendered.path), temporary=True, sidecar=rendered.sidecar, manifest=rendered.manifest)
+        return ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            sidecar=rendered.sidecar,
+            manifest=rendered.manifest,
+        )
 
     async def weekly_report(self, request: EncyclopediaRequest):
         """读取并渲染本周/上周周报。"""
 
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="weekly_report")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
         week_type = request.parameters.get("week_type", 1)
         if week_type not in (1, 2):
-            return PlainTextResponse("周报类型无效")
+            return PlainTextResponse(messages.weekly_type_invalid())
         try:
             report = await self.transport.get_weekly_report(
                 request.actor,
@@ -156,7 +181,9 @@ class EncyclopediaService:
                 credential_user_id=target_user_id,
             )
         except EncyclopediaTransportError as error:
-            return self._transport_response(error)
+            return self._transport_response(
+                error, target=target_user_id != request.actor.user_id
+            )
         uid_hidden = await self.privacy.is_uid_hidden(
             target_user_id,
             group_id=request.actor.group_id,
@@ -169,7 +196,12 @@ class EncyclopediaService:
                 uid=uid,
                 uid_hidden=uid_hidden,
             )
-        return ImageResponse(str(rendered.path), temporary=True, sidecar=rendered.sidecar, manifest=rendered.manifest)
+        return ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            sidecar=rendered.sidecar,
+            manifest=rendered.manifest,
+        )
 
     async def calendar(self, request: EncyclopediaRequest):
         """读取并渲染活动日历。"""
@@ -183,7 +215,12 @@ class EncyclopediaService:
                 snapshot,
                 actor=request.actor,
             )
-        return ImageResponse(str(rendered.path), temporary=True, sidecar=rendered.sidecar, manifest=rendered.manifest)
+        return ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            sidecar=rendered.sidecar,
+            manifest=rendered.manifest,
+        )
 
     async def wiki(self, request: EncyclopediaRequest):
         """按角色、武器、魔灵别名读取本地图鉴素材。"""
@@ -222,7 +259,9 @@ class EncyclopediaService:
             for asset in assets:
                 # legacy 按作者目录读取图片，作者文案只在每个作者组的首张图前出现。
                 if asset.provider != previous_provider:
-                    components.append(PlainTextResponse(f"攻略作者：{asset.provider}"))
+                    components.append(
+                        PlainTextResponse(messages.guide_author(asset.provider))
+                    )
                     previous_provider = asset.provider
                 image = (
                     self._copy_resource_image(asset.path)
@@ -266,7 +305,7 @@ class EncyclopediaService:
             expiry = snapshot.entries[0].expires_at
         if expiry is not None:
             components.append(
-                PlainTextResponse(f"有效期至：{self._format_expiry(expiry)}"),
+                PlainTextResponse(messages.code_expiry(self._format_expiry(expiry))),
             )
         return ChainResponse(tuple(components))
 
@@ -280,15 +319,15 @@ class EncyclopediaService:
                 canonical = resources.aliases.resolve_weapon(name)
                 aliases = resources.aliases.weapon_alias_list(name)
                 if canonical is None or aliases is None:
-                    return PlainTextResponse(f"武器【{name}】不存在，请检查名称")
+                    return PlainTextResponse(messages.alias_weapon_not_found(name))
                 return PlainTextResponse(
-                    f"武器【{canonical}】别名列表：\n" + "\n".join(aliases),
+                    messages.alias_weapon_list(canonical, "\n".join(aliases)),
                 )
             aliases = resources.aliases.char_alias_list(name)
             if aliases is None:
-                return PlainTextResponse(f"角色【{name}】不存在，请检查名称")
+                return PlainTextResponse(messages.alias_char_not_found(name))
             return PlainTextResponse(
-                f"角色【{name}】别名列表：\n" + "\n".join(aliases),
+                messages.alias_char_list(name, "\n".join(aliases)),
             )
 
     async def alias_all_list(self, request: EncyclopediaRequest):
@@ -296,8 +335,16 @@ class EncyclopediaService:
 
         with self._resource_context() as resources:
             if request.text == "武器列表":
-                return PlainTextResponse("武器列表：\n" + "\n".join(resources.aliases.all_weapons()))
-            return PlainTextResponse("角色列表：\n" + "\n".join(resources.aliases.all_chars()))
+                return PlainTextResponse(
+                    messages.alias_all_list(
+                        "武器", "\n".join(resources.aliases.all_weapons())
+                    )
+                )
+            return PlainTextResponse(
+                messages.alias_all_list(
+                    "角色", "\n".join(resources.aliases.all_chars())
+                )
+            )
 
 
 __all__ = ["EncyclopediaService"]

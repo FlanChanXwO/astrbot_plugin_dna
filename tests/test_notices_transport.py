@@ -101,7 +101,9 @@ def test_ann_detail_non_list_content_is_observable_structure_error() -> None:
         DnaApiNoticesTransport._ann_detail(data, "1001")
 
 
-async def _transport_with_credential(tmp_path: Path) -> tuple[DnaApiNoticesTransport, AsyncDatabase]:
+async def _transport_with_credential(
+    tmp_path: Path,
+) -> tuple[DnaApiNoticesTransport, AsyncDatabase]:
     database = AsyncDatabase(tmp_path / "notices.sqlite3")
     await database.create_schema_for_tests()
     async with database.transaction() as session:
@@ -125,11 +127,14 @@ def _patch_dna_api(monkeypatch, fake) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_mh_network_failure_is_observable_and_redacted(tmp_path, monkeypatch) -> None:
+async def test_get_mh_network_failure_is_observable_and_redacted(
+    tmp_path, monkeypatch
+) -> None:
     """网络失败映射为 NETWORK 错误，凭据/异常原文不进异常。"""
 
     transport, database = await _transport_with_credential(tmp_path)
     try:
+
         def boom(*_args, **_kwargs):
             raise aiohttp.ClientError("connection refused token=secret-mh")
 
@@ -150,13 +155,18 @@ async def test_get_mh_network_failure_is_observable_and_redacted(tmp_path, monke
 
 
 @pytest.mark.asyncio
-async def test_get_mh_status_error_does_not_fabricate_success(tmp_path, monkeypatch) -> None:
+async def test_get_mh_status_error_does_not_fabricate_success(
+    tmp_path, monkeypatch
+) -> None:
     """服务端返回失败状态必须抛错，不把 msg 原文带进异常。"""
 
     transport, database = await _transport_with_credential(tmp_path)
     try:
+
         def failing(*_args, **_kwargs):
-            return SimpleNamespace(is_success=False, code=403, msg="token=secret-forbidden")
+            return SimpleNamespace(
+                is_success=False, code=403, msg="token=secret-forbidden"
+            )
 
         async def failing_async(*_args, **_kwargs):
             return failing()
@@ -169,7 +179,7 @@ async def test_get_mh_status_error_does_not_fabricate_success(tmp_path, monkeypa
                 credential_user_id="user-1",
             )
         error = raised.value
-        assert error.kind is NoticesFailureKind.STATUS
+        assert error.kind is NoticesFailureKind.CREDENTIAL
         assert "secret-forbidden" not in str(error)
         assert "secret-forbidden" not in repr(error)
     finally:
@@ -182,6 +192,7 @@ async def test_get_mh_structure_change_is_server_error(tmp_path, monkeypatch) ->
 
     transport, database = await _transport_with_credential(tmp_path)
     try:
+
         def ok_but_empty(*_args, **_kwargs):
             return SimpleNamespace(is_success=True, code=0, data={"roleInfo": {}})
 
@@ -201,12 +212,15 @@ async def test_get_mh_structure_change_is_server_error(tmp_path, monkeypatch) ->
 
 
 @pytest.mark.asyncio
-async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, monkeypatch) -> None:
+async def test_get_mh_any_falls_back_to_next_valid_credential(
+    tmp_path: Path, monkeypatch
+) -> None:
     """当首个凭据失效或报错时，get_mh_any 自动回退尝试后续有效凭据并成功返回。"""
 
     database = AsyncDatabase(tmp_path / "notices_multi.sqlite3")
     await database.create_schema_for_tests()
     from src.infrastructure.persistence import AccountBindingRepository
+
     async with database.transaction() as session:
         await AccountBindingRepository.add(
             session,
@@ -245,6 +259,7 @@ async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, mo
     transport = DnaApiNoticesTransport(database)
 
     try:
+
         async def fake_get_default_role(user):
             # user-1 模拟服务端返回错误（例如 userId 为空或凭据过期）
             if getattr(user, "user_id", "") == "user-1":
@@ -261,6 +276,9 @@ async def test_get_mh_any_falls_back_to_next_valid_credential(tmp_path: Path, mo
         snapshot = await transport.get_mh_any()
         assert len(snapshot.sections) == 2
         assert snapshot.sections[0].type_name == "角色"
-        assert [item.name for item in snapshot.sections[0].instances] == ["扼守", "拆解"]
+        assert [item.name for item in snapshot.sections[0].instances] == [
+            "扼守",
+            "拆解",
+        ]
     finally:
         await database.dispose()

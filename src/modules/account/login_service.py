@@ -14,9 +14,10 @@ from ...utils.api.model import DNALoginRes, DNARoleListRes
 from ...utils.constants.constants import DNA_GAME_ID
 from ...utils.database.models import DNABind, DNAUser
 from ...utils.session import EventContext, Sender
+from . import messages
 
-complete_error_msg = "您尚未注册二重螺旋账号，请先在【皎皎角】进行角色绑定"
-role_error_msg = "未找到二重螺旋角色，请在皎皎角注册账号后重新登录"
+complete_error_msg = messages.LEGACY_COMPLETE_ERROR
+role_error_msg = messages.LEGACY_ROLE_ERROR
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -60,7 +61,7 @@ class DNALoginService:
         dev_code: str | None = None,
     ) -> str:
         if channel is not LoginChannel.APP:
-            return "当前仅支持 App 登录"
+            return messages.LOGIN_APP_ONLY
         dev_code = dev_code or create_device_code(LoginChannel.APP)
         result = await dna_api.login_app(mobile, code, dev_code)
         if not result.is_success:
@@ -88,7 +89,7 @@ class DNALoginService:
     ) -> str:
         normalized_token = token.strip()
         if not normalized_token:
-            return "token不能为空"
+            return messages.LOGIN_TOKEN_EMPTY
         credentials = LoginCredentials(
             channel=LoginChannel.APP,
             token=normalized_token,
@@ -100,7 +101,7 @@ class DNALoginService:
 
     async def login_with_credentials(self, credentials: LoginCredentials) -> str:
         if credentials.channel is not LoginChannel.APP:
-            return "当前仅支持 App 登录"
+            return messages.LOGIN_APP_ONLY
         roles_to_bind = await self._get_roles(credentials)
         if isinstance(roles_to_bind, str):
             return roles_to_bind
@@ -119,21 +120,22 @@ class DNALoginService:
             await self._save_credentials(role.uid, credentials)
             await self._bind_uid(role)
             role_ids_msg.append(
-                {"name": role.name or "未命名角色", "uid": role.uid}
+                {
+                    "name": role.name or messages.UNNAMED_ROLE,
+                    "uid": role.uid,
+                }
             )
             if role.is_default:
                 role_ids_msg.insert(0, role_ids_msg.pop())
 
-        message = ["登录成功, 已为您绑定以下角色:"]
-        message.extend(f"- 名字: {role['name']}" for role in role_ids_msg)
-        return "\n".join(message)
+        return messages.legacy_login_success(role["name"] for role in role_ids_msg)
 
     async def _get_roles(
         self,
         credentials: LoginCredentials,
     ) -> list[_RoleToBind] | str:
         if credentials.channel is not LoginChannel.APP:
-            return "当前仅支持 App 登录"
+            return messages.LOGIN_APP_ONLY
         role_list_response = await dna_api.get_app_role_list(
             credentials.token,
             credentials.dev_code,
@@ -196,5 +198,6 @@ class DNALoginService:
                 self.ctx.bot_id,
                 role.uid,
             )
+
 
 __all__ = ["DNALoginService"]

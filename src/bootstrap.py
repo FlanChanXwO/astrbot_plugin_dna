@@ -28,6 +28,7 @@ from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
+from .infrastructure.i18n import validate_tip_catalog
 from .infrastructure.http import (
     ClientUpdateTransport as DnaApiClientUpdateTransport,
 )
@@ -156,6 +157,8 @@ def build_runtime(
 ) -> PluginRuntime:
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
 
+    # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
+    validate_tip_catalog()
     settings = DnabySettings.from_config(config)
     request_gate = RequestConcurrencyGate(settings.network.max_concurrent_requests)
     runtime_database = database

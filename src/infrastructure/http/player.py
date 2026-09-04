@@ -14,6 +14,7 @@ import aiohttp
 
 from ...entry.event import EventActor
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
+from ...modules.player import messages
 from ...modules.player.contracts import (
     DamageCalculation,
     DamageSnapshot,
@@ -23,6 +24,7 @@ from ...modules.player.contracts import (
     RoleOverview,
     WeaponDetail,
 )
+from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
 
 
@@ -30,6 +32,8 @@ def _error_kind(response: Any) -> PlayerFailureKind:
     code = getattr(response, "code", None)
     if code == -999:
         return PlayerFailureKind.NETWORK
+    if is_credential_failure(response):
+        return PlayerFailureKind.CREDENTIAL
     if isinstance(code, int) and code >= 400:
         return PlayerFailureKind.STATUS
     return PlayerFailureKind.SERVER
@@ -77,11 +81,15 @@ class DnaApiPlayerTransport:
                 user_id=credential_user_id,
                 uid=uid,
             )
-        if record is None:
+        if (
+            record is None
+            or record.app_status == "无效"
+            or not record.has_app_credentials
+        ):
             raise PlayerTransportError(
-                PlayerFailureKind.SERVER,
+                PlayerFailureKind.CREDENTIAL,
                 resource="账号凭据",
-                detail="credential record is missing",
+                detail="credential record is missing or invalid",
             )
         try:
             from ...utils.database.models import DNAUser
@@ -285,9 +293,17 @@ class DnaApiPlayerTransport:
                 ),
             )
             if not response.is_success:
-                return DamageCalculation.failure(response.msg or "伤害计算服务响应异常")
+                if is_credential_failure(response):
+                    raise PlayerTransportError(
+                        PlayerFailureKind.CREDENTIAL,
+                        resource="伤害计算",
+                        detail=f"api response code={getattr(response, 'code', None)!r}",
+                    )
+                return DamageCalculation.failure(
+                    response.msg or messages.PLAYER_DAMAGE_FAILED
+                )
             if response.data is None:
-                return DamageCalculation.failure("伤害计算服务响应异常")
+                return DamageCalculation.failure(messages.PLAYER_DAMAGE_FAILED)
             return DamageCalculation.success(
                 DamageSnapshot.model_validate(response.data.model_dump(by_alias=True)),
             )

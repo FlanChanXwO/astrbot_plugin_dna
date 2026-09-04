@@ -28,6 +28,7 @@ class PlayerFailureKind(StrEnum):
     NETWORK = "network"
     STATUS = "status"
     SERVER = "server"
+    CREDENTIAL = "credential"
     NOT_FOUND = "not_found"
     NOT_UNLOCKED = "not_unlocked"
 
@@ -57,67 +58,125 @@ class RoleItem(_PlayerModel):
     """角色展柜中的一项。"""
 
     char_id: int = Field(validation_alias="charId", serialization_alias="charId")
-    char_eid: str | None = Field(default=None, validation_alias="charEid", serialization_alias="charEid")
-    element_icon: str = Field(default="", validation_alias="elementIcon", serialization_alias="elementIcon")
+    char_eid: str | None = Field(
+        default=None, validation_alias="charEid", serialization_alias="charEid"
+    )
+    element_icon: str = Field(
+        default="", validation_alias="elementIcon", serialization_alias="elementIcon"
+    )
     icon: str = ""
     level: int = 0
     name: str
-    grade_level: int = Field(default=0, validation_alias="gradeLevel", serialization_alias="gradeLevel")
-    unlocked: bool = Field(default=False, validation_alias="unLocked", serialization_alias="unLocked")
+    grade_level: int = Field(
+        default=0, validation_alias="gradeLevel", serialization_alias="gradeLevel"
+    )
+    unlocked: bool = Field(
+        default=False, validation_alias="unLocked", serialization_alias="unLocked"
+    )
 
 
 class WeaponItem(_PlayerModel):
     """武器展柜中的一项。"""
 
-    element_icon: str = Field(default="", validation_alias="elementIcon", serialization_alias="elementIcon")
+    element_icon: str = Field(
+        default="", validation_alias="elementIcon", serialization_alias="elementIcon"
+    )
     icon: str = ""
     level: int = 0
     name: str
-    unlocked: bool = Field(default=False, validation_alias="unLocked", serialization_alias="unLocked")
-    weapon_eid: str | None = Field(default=None, validation_alias="weaponEid", serialization_alias="weaponEid")
+    unlocked: bool = Field(
+        default=False, validation_alias="unLocked", serialization_alias="unLocked"
+    )
+    weapon_eid: str | None = Field(
+        default=None, validation_alias="weaponEid", serialization_alias="weaponEid"
+    )
     weapon_id: int = Field(validation_alias="weaponId", serialization_alias="weaponId")
-    skill_level: int = Field(default=0, validation_alias="skillLevel", serialization_alias="skillLevel")
+    skill_level: int = Field(
+        default=0, validation_alias="skillLevel", serialization_alias="skillLevel"
+    )
 
 
 class RoleAchievement(_PlayerModel):
     """角色总览的额外统计项。"""
 
     param_key: str = Field(validation_alias="paramKey", serialization_alias="paramKey")
-    param_value: str = Field(validation_alias="paramValue", serialization_alias="paramValue")
+    param_value: str = Field(
+        validation_alias="paramValue", serialization_alias="paramValue"
+    )
 
 
 class RoleOverview(_PlayerModel):
     """`defaultRoleForTool` 中 roleShow 的完整 typed 投影。"""
 
     role_id: str = Field(validation_alias="roleId", serialization_alias="roleId")
-    role_name: str = Field(default="", validation_alias="roleName", serialization_alias="roleName")
+    role_name: str = Field(
+        default="", validation_alias="roleName", serialization_alias="roleName"
+    )
     level: int | None = None
     params: list[RoleAchievement] = Field(default_factory=list)
-    achievement_total: int = Field(default=0, validation_alias="achievementTotal", serialization_alias="achievementTotal")
-    role_chars: list[RoleItem] = Field(default_factory=list, validation_alias="roleChars", serialization_alias="roleChars")
+    achievement_total: int = Field(
+        default=0,
+        validation_alias="achievementTotal",
+        serialization_alias="achievementTotal",
+    )
+    role_chars: list[RoleItem] = Field(
+        default_factory=list,
+        validation_alias="roleChars",
+        serialization_alias="roleChars",
+    )
     ranged_weapons: list[WeaponItem] = Field(
         default_factory=list,
         validation_alias="langRangeWeapons",
         serialization_alias="langRangeWeapons",
     )
-    close_weapons: list[WeaponItem] = Field(default_factory=list, validation_alias="closeWeapons", serialization_alias="closeWeapons")
+    close_weapons: list[WeaponItem] = Field(
+        default_factory=list,
+        validation_alias="closeWeapons",
+        serialization_alias="closeWeapons",
+    )
 
 
 class RoleAttribute(_PlayerModel):
     """角色面板属性。"""
 
-    skill_range: str = Field(default="", validation_alias="skillRange", serialization_alias="skillRange")
-    strong_value: str = Field(default="", validation_alias="strongValue", serialization_alias="strongValue")
-    skill_intensity: str = Field(default="", validation_alias="skillIntensity", serialization_alias="skillIntensity")
-    weapon_tags: list[str | None] = Field(default_factory=list, validation_alias="weaponTags", serialization_alias="weaponTags")
+    skill_range: str = Field(
+        default="", validation_alias="skillRange", serialization_alias="skillRange"
+    )
+    strong_value: str = Field(
+        default="", validation_alias="strongValue", serialization_alias="strongValue"
+    )
+    skill_intensity: str = Field(
+        default="",
+        validation_alias="skillIntensity",
+        serialization_alias="skillIntensity",
+    )
+    weapon_tags: list[str | None] = Field(
+        default_factory=list,
+        validation_alias="weaponTags",
+        serialization_alias="weaponTags",
+    )
     defense: int = Field(default=0, validation_alias="def", serialization_alias="def")
-    enmity_value: str = Field(default="", validation_alias="enmityValue", serialization_alias="enmityValue")
-    skill_efficiency: str = Field(default="", validation_alias="skillEfficiency", serialization_alias="skillEfficiency")
-    skill_sustain: str = Field(default="", validation_alias="skillSustain", serialization_alias="skillSustain")
-    max_hp: int = Field(default=0, validation_alias="maxHp", serialization_alias="maxHp")
+    enmity_value: str = Field(
+        default="", validation_alias="enmityValue", serialization_alias="enmityValue"
+    )
+    skill_efficiency: str = Field(
+        default="",
+        validation_alias="skillEfficiency",
+        serialization_alias="skillEfficiency",
+    )
+    skill_sustain: str = Field(
+        default="", validation_alias="skillSustain", serialization_alias="skillSustain"
+    )
+    max_hp: int = Field(
+        default=0, validation_alias="maxHp", serialization_alias="maxHp"
+    )
     atk: int = 0
-    max_es: int = Field(default=0, validation_alias="maxES", serialization_alias="maxES")
-    max_sp: int = Field(default=0, validation_alias="maxSp", serialization_alias="maxSp")
+    max_es: int = Field(
+        default=0, validation_alias="maxES", serialization_alias="maxES"
+    )
+    max_sp: int = Field(
+        default=0, validation_alias="maxSp", serialization_alias="maxSp"
+    )
 
 
 class RoleSkill(_PlayerModel):
@@ -126,7 +185,9 @@ class RoleSkill(_PlayerModel):
     skill_id: int = Field(validation_alias="skillId", serialization_alias="skillId")
     icon: str = ""
     level: int = 0
-    skill_name: str = Field(validation_alias="skillName", serialization_alias="skillName")
+    skill_name: str = Field(
+        validation_alias="skillName", serialization_alias="skillName"
+    )
 
     @property
     def skillId(self) -> int:
@@ -162,17 +223,33 @@ class RoleDetail(_PlayerModel):
     paint: str = ""
     char_id: int = Field(validation_alias="charId", serialization_alias="charId")
     char_name: str = Field(validation_alias="charName", serialization_alias="charName")
-    element_icon: str = Field(default="", validation_alias="elementIcon", serialization_alias="elementIcon")
+    element_icon: str = Field(
+        default="", validation_alias="elementIcon", serialization_alias="elementIcon"
+    )
     traces: list[RoleTrace] = Field(default_factory=list)
-    current_volume: int = Field(default=0, validation_alias="currentVolume", serialization_alias="currentVolume")
-    sum_volume: int = Field(default=0, validation_alias="sumVolume", serialization_alias="sumVolume")
+    current_volume: int = Field(
+        default=0, validation_alias="currentVolume", serialization_alias="currentVolume"
+    )
+    sum_volume: int = Field(
+        default=0, validation_alias="sumVolume", serialization_alias="sumVolume"
+    )
     level: int = 0
     icon: str = ""
-    grade_level: int = Field(default=0, validation_alias="gradeLevel", serialization_alias="gradeLevel")
-    element_name: str = Field(default="", validation_alias="elementName", serialization_alias="elementName")
+    grade_level: int = Field(
+        default=0, validation_alias="gradeLevel", serialization_alias="gradeLevel"
+    )
+    element_name: str = Field(
+        default="", validation_alias="elementName", serialization_alias="elementName"
+    )
     modes: list[Mode] = Field(default_factory=list)
-    con_weapon_eid: str | None = Field(default=None, validation_alias="conWeaponEid", serialization_alias="conWeaponEid")
-    con_weapon_id: int | None = Field(default=None, validation_alias="conWeaponId", serialization_alias="conWeaponId")
+    con_weapon_eid: str | None = Field(
+        default=None,
+        validation_alias="conWeaponEid",
+        serialization_alias="conWeaponEid",
+    )
+    con_weapon_id: int | None = Field(
+        default=None, validation_alias="conWeaponId", serialization_alias="conWeaponId"
+    )
 
     @property
     def charId(self) -> int:
@@ -217,16 +294,26 @@ class WeaponDetail(_PlayerModel):
     """武器详情 API 的完整合法字段。"""
 
     attribute: WeaponAttribute
-    current_volume: int = Field(default=0, validation_alias="currentVolume", serialization_alias="currentVolume")
-    element_icon: str = Field(default="", validation_alias="elementIcon", serialization_alias="elementIcon")
-    element_name: str = Field(default="", validation_alias="elementName", serialization_alias="elementName")
+    current_volume: int = Field(
+        default=0, validation_alias="currentVolume", serialization_alias="currentVolume"
+    )
+    element_icon: str = Field(
+        default="", validation_alias="elementIcon", serialization_alias="elementIcon"
+    )
+    element_name: str = Field(
+        default="", validation_alias="elementName", serialization_alias="elementName"
+    )
     icon: str = ""
     weapon_id: int = Field(validation_alias="id", serialization_alias="id")
     level: int = 0
     modes: list[Mode] = Field(default_factory=list)
     name: str
-    skill_level: int = Field(default=0, validation_alias="skillLevel", serialization_alias="skillLevel")
-    sum_volume: int = Field(default=0, validation_alias="sumVolume", serialization_alias="sumVolume")
+    skill_level: int = Field(
+        default=0, validation_alias="skillLevel", serialization_alias="skillLevel"
+    )
+    sum_volume: int = Field(
+        default=0, validation_alias="sumVolume", serialization_alias="sumVolume"
+    )
 
     @property
     def id(self) -> int:
@@ -261,7 +348,9 @@ class AttributeBag(_PlayerModel):
     empty: bool | None = None
     atk: float | None = None
     atk1: float | None = None
-    defense: float | None = Field(default=None, validation_alias="def", serialization_alias="def")
+    defense: float | None = Field(
+        default=None, validation_alias="def", serialization_alias="def"
+    )
     hp: float | None = None
     es: float | None = None
     sp: float | None = None
@@ -293,7 +382,9 @@ class DamageSkill(_PlayerModel):
 
     id: int
     name: str
-    parent_id: int | None = Field(default=None, validation_alias="parentId", serialization_alias="parentId")
+    parent_id: int | None = Field(
+        default=None, validation_alias="parentId", serialization_alias="parentId"
+    )
     normal_skill_attributes: list[SkillAttribute] = Field(
         default_factory=list,
         validation_alias="normalSkillAttributes",
@@ -309,8 +400,16 @@ class DamageSkill(_PlayerModel):
 class DamageValues(_PlayerModel):
     """三类武器伤害和环境后的伤害。"""
 
-    close_weapon_damage: str | None = Field(default=None, validation_alias="closeWeaponDamage", serialization_alias="closeWeaponDamage")
-    con_weapon_damage: str | None = Field(default=None, validation_alias="conWeaponDamage", serialization_alias="conWeaponDamage")
+    close_weapon_damage: str | None = Field(
+        default=None,
+        validation_alias="closeWeaponDamage",
+        serialization_alias="closeWeaponDamage",
+    )
+    con_weapon_damage: str | None = Field(
+        default=None,
+        validation_alias="conWeaponDamage",
+        serialization_alias="conWeaponDamage",
+    )
     ranged_weapon_damage: str | None = Field(
         default=None,
         validation_alias="langRangeWeaponDamage",
@@ -338,8 +437,12 @@ class DamageSnapshot(_PlayerModel):
 
     skills: list[DamageSkill] = Field(default_factory=list)
     damage: DamageValues
-    final_attribute: AttributeBag = Field(validation_alias="finalAttribute", serialization_alias="finalAttribute")
-    base_attribute: AttributeBag = Field(validation_alias="baseAttribute", serialization_alias="baseAttribute")
+    final_attribute: AttributeBag = Field(
+        validation_alias="finalAttribute", serialization_alias="finalAttribute"
+    )
+    base_attribute: AttributeBag = Field(
+        validation_alias="baseAttribute", serialization_alias="baseAttribute"
+    )
 
 
 @dataclass(frozen=True, slots=True)

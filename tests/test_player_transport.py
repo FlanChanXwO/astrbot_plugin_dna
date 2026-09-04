@@ -83,6 +83,8 @@ async def test_legacy_user_preserves_target_credential_owner(tmp_path) -> None:
             session,
             user_id="target-1",
             uid="9876543210987",
+            app_cookie="cookie-fixture",
+            app_device_code="device-fixture",
         )
 
     transport = DnaApiPlayerTransport(database)

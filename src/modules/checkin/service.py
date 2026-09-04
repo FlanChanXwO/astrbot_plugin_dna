@@ -55,7 +55,13 @@ class CheckinService:
         privacy: PrivacyService,
         renderer: CheckinRenderer,
         *,
-        community_tasks: tuple[str, ...] = ("bbs_sign", "bbs_detail", "bbs_like", "bbs_share", "bbs_reply"),
+        community_tasks: tuple[str, ...] = (
+            "bbs_sign",
+            "bbs_detail",
+            "bbs_like",
+            "bbs_share",
+            "bbs_reply",
+        ),
         concurrency: int = 1,
         interval_range: tuple[int, int] = (0, 0),
         subscriptions: SubscriptionStore | None = None,
@@ -74,10 +80,16 @@ class CheckinService:
     def _renderer_context(self):
         if self.resource_snapshots is None:
             return nullcontext(self.renderer)
-        return self.resource_snapshots.bind_renderer(self.renderer, "encyclopedia_resources")
+        return self.resource_snapshots.bind_renderer(
+            self.renderer, "encyclopedia_resources"
+        )
 
     @staticmethod
-    def _transport_response(error: CheckinTransportError) -> PlainTextResponse:
+    def _transport_response(
+        error: CheckinTransportError,
+        *,
+        target: bool = False,
+    ) -> PlainTextResponse:
         """记录安全错误类别并映射为稳定的用户文案。"""
 
         logger.warning(
@@ -85,13 +97,17 @@ class CheckinService:
             error.kind.value,
             error.resource,
         )
-        return PlainTextResponse(messages.transport_error(error.kind))
+        return PlainTextResponse(messages.transport_error(error.kind, target=target))
 
     async def _resolve_uid(
         self,
         request: CheckinCommandRequest,
+        *,
+        operation: str,
     ) -> tuple[str, str] | PlainTextResponse:
-        resolution = await self.privacy.resolve_query(request.actor, request.target_user_id)
+        resolution = await self.privacy.resolve_query(
+            request.actor, request.target_user_id
+        )
         if resolution.blocked:
             return PlainTextResponse(messages.CHECKIN_PEEK_BLOCKED)
         target_user_id = resolution.resolved_user_id
@@ -101,7 +117,13 @@ class CheckinService:
                 user_id=target_user_id,
             )
         if binding is None:
-            return PlainTextResponse(messages.CHECKIN_UID_INVALID)
+            target = target_user_id != request.actor.user_id
+            logger.warning(
+                "账号绑定缺失 operation=%s scope=%s reason=local_binding_missing",
+                operation,
+                "target" if target else "self",
+            )
+            return PlainTextResponse(messages.account_not_bound(target=target))
         return target_user_id, binding.uid
 
     async def _load_snapshot(self, uid: str) -> CheckinSnapshot:
@@ -240,7 +262,9 @@ class CheckinService:
         posts: tuple[CommunityPost, ...] | None = None
 
         tasks = tuple(
-            task for task in task_process.daily_tasks if task.mark_name in self.community_tasks
+            task
+            for task in task_process.daily_tasks
+            if task.mark_name in self.community_tasks
         )
         if not tasks:
             return SignStatus.FAILED, (), messages.CHECKIN_TASKS_EMPTY
@@ -356,12 +380,12 @@ class CheckinService:
         await self._save_snapshot(snapshot)
 
         lines: list[str] = []
-        lines.append(f"签到状态: {messages.sign_status(game_status)}")
-        lines.append("社区任务:")
+        lines.append(messages.sign_detail_status(game_status))
+        lines.append(messages.sign_detail_community_title())
         lines.extend(community_lines)
         if error:
-            lines.append(f"错误信息: {error}")
-        lines.append("-----------------------------")
+            lines.append(messages.sign_detail_error(error))
+        lines.append(messages.sign_detail_separator())
         return CheckinOutcome(
             game_status=game_status,
             bbs_status=bbs_status,
@@ -372,20 +396,22 @@ class CheckinService:
     async def manual_sign(self, request: CheckinCommandRequest):
         """为当前用户或被允许查询用户执行一次签到。"""
 
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="manual_sign")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
         try:
             outcome = await self._sign_one(request.actor, uid, target_user_id)
         except CheckinTransportError as error:
-            return self._transport_response(error)
+            return self._transport_response(
+                error, target=target_user_id != request.actor.user_id
+            )
         return PlainTextResponse("\n".join(outcome.detail_lines))
 
     async def sign_calendar(self, request: CheckinCommandRequest):
         """读取并渲染当前用户或被允许查询用户的签到日历。"""
 
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="sign_calendar")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
@@ -411,7 +437,9 @@ class CheckinService:
                 credential_user_id=target_user_id,
             )
         except CheckinTransportError as error:
-            return self._transport_response(error)
+            return self._transport_response(
+                error, target=target_user_id != request.actor.user_id
+            )
         data = CheckinCalendarData(
             calendar=calendar,
             tasks=tasks,
@@ -430,7 +458,12 @@ class CheckinService:
                 target_user_id=target_user_id,
                 uid_hidden=uid_hidden,
             )
-        return ImageResponse(str(rendered.path), temporary=True, sidecar=rendered.sidecar, manifest=rendered.manifest)
+        return ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            sidecar=rendered.sidecar,
+            manifest=rendered.manifest,
+        )
 
     async def _run_all_signs(
         self,
@@ -506,7 +539,7 @@ class CheckinService:
         lines = [
             messages.CHECKIN_ALL_STARTED,
             messages.CHECKIN_ALL_DONE,
-            f"今日成功签到 {summary.success} 个账号，失败 {summary.failed} 个账号",
+            messages.all_summary(summary.success, summary.failed),
         ]
         return PlainTextResponse("\n".join(lines))
 
@@ -518,11 +551,12 @@ class CheckinService:
             enable_all_users=enable_all_users,
         )
         if summary.success == 0 and summary.failed == 0:
-            return f"[二重螺旋]自动任务\n{messages.CHECKIN_NO_USERS}"
-        return (
-            f"[二重螺旋]自动任务\n"
-            f"今日成功游戏签到 {summary.game_success} 个账号\n"
-            f"今日社区签到 {summary.bbs_success} 个账号"
+            return f"{messages.auto_task_header()}\n{messages.CHECKIN_NO_USERS}"
+        return "\n".join(
+            (
+                messages.auto_task_header(),
+                messages.auto_summary(summary.game_success, summary.bbs_success),
+            )
         )
 
     async def set_auto_sign(
@@ -551,7 +585,9 @@ class CheckinService:
         if not changed:
             return PlainTextResponse(messages.CHECKIN_UID_INVALID)
         return PlainTextResponse(
-            messages.CHECKIN_AUTO_ENABLED if enabled else messages.CHECKIN_AUTO_DISABLED,
+            messages.CHECKIN_AUTO_ENABLED
+            if enabled
+            else messages.CHECKIN_AUTO_DISABLED,
         )
 
     async def subscribe_sign_result(self, request: CheckinCommandRequest):

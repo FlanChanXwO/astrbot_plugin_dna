@@ -22,6 +22,7 @@ class EncyclopediaFailureKind(StrEnum):
     STATUS = "status"
     CONTRACT = "contract"
     SERVER = "server"
+    CREDENTIAL = "credential"
     NOT_FOUND = "not_found"
     RESOURCE = "resource"
 

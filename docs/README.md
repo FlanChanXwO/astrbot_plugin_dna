@@ -17,6 +17,7 @@
 - [开发环境](dev/setup.md)：本地目录约定、依赖安装和基础检查。
 - [测试说明](dev/testing.md)：测试范围、运行方式和 AstrBot 集成边界。
 - [维护说明](dev/maintenance.md)：运行期数据、备份、升级和回滚操作。
+- [运行期用户文案](dev/i18n.md)：文案目录、兼容层和加载失败约束。
 - [项目架构](project/architecture.md)：入口、模块和基础设施边界。
 - [数据模型](project/data-model.md)：持久化实体和状态关系。
 
