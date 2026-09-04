@@ -186,6 +186,7 @@
     "cache_cleared": "角色缓存已清理",
     "all_role_cache_cleared": "当前 UID 的全部角色缓存已清理",
     "role_cache_cleared": "角色【{name}】缓存已清理",
+    "role_refreshed": "角色【{name}】面板已刷新",
     "all_refreshed": "角色面板刷新完成：成功 {success} 个，失败 {failed} 个",
     "admin_only": "该命令仅限管理员使用",
     "refresh_self_only": "普通用户只能刷新自己的角色面板",

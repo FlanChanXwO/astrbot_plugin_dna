@@ -105,6 +105,7 @@ HTTP(S) 基础地址；镜像请求失败会明确报告，不会把失败伪装
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
 | `cache.ttl_hours` | `24` | 所有 `CacheManager` 内容缓存共用的整数 TTL（小时）。`-1` 永久有效，`0` 禁用持久缓存，正整数表示缓存有效期。 |
+| `cache.refresh_send_card` | `true` | 单角色主动刷新成功后是否在成功提示后发送新面板图片。`false` 仍完整刷新、渲染并更新缓存，只省略图片；批量刷新始终只返回汇总。 |
 
 `cache.ttl_hours` 只允许 `-1`、`0` 和正整数，小于 `-1` 会在配置校验时失败：
 
@@ -116,8 +117,12 @@ HTTP(S) 基础地址；镜像请求失败会明确报告，不会把失败伪装
 
 `rendered/` 临时文件不属于内容缓存，内部固定按 24 小时清理；`resource_generations/` 等资源快照
 继续由资源协调器按 generation lease 管理。旧的 `fresh_ttl_minutes`、`retention_ttl_hours`、
-`announcement_ttl_hours`、`refresh_send_card` 会记录 warning 后丢弃，不迁移旧的自定义数值；可变
-AstrBot 配置中的旧字段也会被移除。
+`announcement_ttl_hours` 会记录 warning 后丢弃，不迁移旧的自定义数值；`cache.refresh_send_card`
+保留已有配置值，缺失时默认启用（`true`）。可变 AstrBot 配置中的旧 TTL 字段也会被移除。
+
+单角色主动刷新成功时固定先返回 `角色【正式名】面板已刷新`；`refresh_send_card=true` 时随后
+附带新面板图片，`false` 时仅返回文字，但不会跳过刷新、渲染或缓存更新。刷新全部角色命令继续
+只返回成功/失败汇总，不逐张发送图片。
 
 ## Agent Tools `agent_tools`
 

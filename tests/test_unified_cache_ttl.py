@@ -10,28 +10,36 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from src.infrastructure.cache import CacheManager, CacheMissError
-from src.infrastructure.config import CacheSettings, DnabySettings, generate_astrbot_schema
+from src.infrastructure.config import (
+    CacheSettings,
+    DnabySettings,
+    generate_astrbot_schema,
+)
 from src.infrastructure.persistence import AsyncDatabase
-from src.entry.response import ImageResponse
+from src.modules.player import messages
 from tests.test_goal1_o10_player_cache import _request, _service
-
 
 UTC_NOW = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
 
 
-def test_cache_ttl_has_one_field_default_and_supported_bounds() -> None:
+def test_cache_ttl_and_refresh_send_card_defaults_and_supported_bounds() -> None:
     assert CacheSettings().ttl_hours == 24
-    assert set(CacheSettings.model_fields) == {"ttl_hours"}
+    assert CacheSettings().refresh_send_card is True
+    assert set(CacheSettings.model_fields) == {"ttl_hours", "refresh_send_card"}
 
     for value in (-1, 0, 1, 24):
         assert CacheSettings(ttl_hours=value).ttl_hours == value
+
+    assert CacheSettings(refresh_send_card=True).refresh_send_card is True
+    assert CacheSettings(refresh_send_card=False).refresh_send_card is False
 
     with pytest.raises(ValidationError):
         CacheSettings(ttl_hours=-2)
 
 
-def test_legacy_cache_fields_are_discarded_and_do_not_persist(
+def test_legacy_cache_fields_are_discarded_but_refresh_send_card_is_preserved(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = {
@@ -47,29 +55,32 @@ def test_legacy_cache_fields_are_discarded_and_do_not_persist(
     settings = DnabySettings.from_config(config)
 
     assert settings.cache.ttl_hours == 24
+    assert settings.cache.refresh_send_card is False
     assert not set(config["cache"]) & {
         "fresh_ttl_minutes",
         "retention_ttl_hours",
         "announcement_ttl_hours",
-        "refresh_send_card",
     }
+    assert config["cache"]["refresh_send_card"] is False
     assert "丢弃已移除的缓存配置" in caplog.text
     for field in (
         "fresh_ttl_minutes",
         "retention_ttl_hours",
         "announcement_ttl_hours",
-        "refresh_send_card",
     ):
         assert field in caplog.text
+    assert "cache.refresh_send_card" not in caplog.text
 
 
-def test_cache_schema_exposes_only_ttl_hours() -> None:
+def test_cache_schema_exposes_ttl_and_refresh_send_card() -> None:
     cache_items = generate_astrbot_schema()["cache"]["items"]
 
-    assert set(cache_items) == {"ttl_hours"}
+    assert set(cache_items) == {"ttl_hours", "refresh_send_card"}
     assert cache_items["ttl_hours"]["default"] == 24
     assert "-1" in cache_items["ttl_hours"]["hint"]
     assert "0" in cache_items["ttl_hours"]["hint"]
+    assert cache_items["refresh_send_card"]["default"] is True
+    assert "图片" in cache_items["refresh_send_card"]["hint"]
 
 
 @pytest.mark.asyncio
@@ -172,20 +183,23 @@ async def test_player_cache_disabled_fetches_and_renders_every_time(tmp_path: Pa
         assert transport.overview_calls == 2
         assert renderer.overview_calls == 2
         assert not list((tmp_path / "cache").rglob("*.data"))
-        assert not hasattr(service, "refresh_send_card")
+        assert service.refresh_send_card is True
     finally:
         await database.dispose()
 
 
 @pytest.mark.asyncio
-async def test_manual_role_refresh_always_returns_a_new_card(tmp_path: Path) -> None:
+async def test_manual_role_refresh_returns_notice_and_a_new_card(tmp_path: Path) -> None:
     from tests.test_goal1_o10_player_cache import MutableClock
 
     clock = MutableClock()
     database, _transport, _renderer, _cache, service = await _service(tmp_path, clock)
     try:
         response = await service.refresh_role(_request(detail=True))
-        assert isinstance(response, ImageResponse)
-        assert response.incomplete is False
+        assert isinstance(response, ChainResponse)
+        assert isinstance(response.components[0], PlainTextResponse)
+        assert isinstance(response.components[1], ImageResponse)
+        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
+        assert response.components[1].incomplete is False
     finally:
         await database.dispose()

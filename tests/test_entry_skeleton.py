@@ -315,6 +315,7 @@ def test_response_factory_tracks_only_generated_images_for_event_cleanup(
         event,
         ChainResponse(
             (
+                PlainTextResponse("角色【角色甲】面板已刷新"),
                 ImageResponse(str(generated), temporary=True),
                 ImageResponse(str(original)),
             ),
