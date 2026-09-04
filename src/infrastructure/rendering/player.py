@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import random
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -50,9 +51,9 @@ from ..resources.encyclopedia import EncyclopediaResourceStore
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
-from .image_inspector import inspect_image
 from .damage_renderer import draw_role_damage_section
 from .fonts import load_runtime_font
+from .image_inspector import inspect_image
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
@@ -128,6 +129,7 @@ async def _draw_role_overview_card(
     role_show: RoleShowForTool,
     show_none: bool = True,
     uid_hidden: bool = False,
+    hero_background_path: Path | None = None,
 ) -> bytes:
     role_items = [
         ItemTemp(
@@ -221,7 +223,9 @@ async def _draw_role_overview_card(
             "item_foreground": image_data_uri(ROLE_TEXT_PATH / "item_fg.png"),
             "item_mask": image_data_uri(ROLE_TEXT_PATH / "item_mask.png"),
             "sections": sections,
-            "title_background": image_data_uri(ROLE_TEXT_PATH / "title_bg.jpg"),
+            "title_background": image_data_uri(
+                hero_background_path or ROLE_TEXT_PATH / "title_bg.jpg"
+            ),
             "title_mask": image_data_uri(ROLE_TEXT_PATH / "title_mask.png"),
             "height": height,
             "width": 1200,
@@ -239,9 +243,16 @@ async def draw_role_info_card_core(
     show_none: bool = True,
     ev_stub: EventContext | None = None,
     avatar_user_id: str | None = None,
+    hero_background_path: Path | None = None,
 ) -> bytes:
     ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
-    return await _draw_role_overview_card(ctx, role_show, show_none=show_none, uid_hidden=uid_hidden)
+    return await _draw_role_overview_card(
+        ctx,
+        role_show,
+        show_none=show_none,
+        uid_hidden=uid_hidden,
+        hero_background_path=hero_background_path,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -585,6 +596,26 @@ class ResourceMap:
                 return p
         return None
 
+    def random_panel_background(self) -> Path | None:
+        """从运行期 panel/ 图集随机选一张通用 hero 背景；无图集或均为非图片时返回 None。
+
+        上游公共资源仓库把 panel/ 定义为通用横版卡片背景图集（如 panel_1..5.png），
+        非角色专属；基本信息卡（kk卡片）顶部 hero 背景在每次查询时随机取一张，
+        图集缺失时由调用方回退本地素材，不伪造资源也不中断渲染。
+        """
+
+        if self.root is None:
+            return None
+        panel_root = self.root / "panel"
+        if not panel_root.is_dir():
+            return None
+        candidates = sorted(
+            path
+            for path in panel_root.iterdir()
+            if path.is_file() and path.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+        )
+        return random.choice(candidates) if candidates else None
+
     def role_avatar(self, char_id: str | int) -> Path | None:
         key = str(char_id)
         if key in self.role_avatars:
@@ -758,12 +789,18 @@ class PlayerRenderer:
                 unified_msg_origin=actor.unified_msg_origin or "",
             )
         )
+        hero_background = (
+            self.resources.random_panel_background()
+            if isinstance(self.resources, ResourceMap)
+            else None
+        )
         image_bytes = await draw_role_info_card_core(
             role_show,
             uid_hidden=uid_hidden,
             show_none=show_unowned,
             ev_stub=ev_stub,
             avatar_user_id=target_user_id or (actor.user_id if actor is not None else uid),
+            hero_background_path=hero_background,
         )
         lines = [
             overview.role_name,
@@ -778,6 +815,21 @@ class PlayerRenderer:
         ]
         resources = [self._font_resource()]
         if isinstance(self.resources, ResourceMap):
+            # panel 是可回退的装饰性 hero 背景：图集缺失时渲染仍完整（回退本地
+            # title_bg），因此用 fallback 而非 placeholder，不使整卡被判 incomplete。
+            resources.append(
+                {
+                    "kind": "panel_background",
+                    "status": (
+                        "provided" if hero_background is not None else "fallback"
+                    ),
+                    "source": (
+                        f"panel/{hero_background.name}"
+                        if hero_background is not None
+                        else "panel/"
+                    ),
+                }
+            )
             for role in overview.role_chars:
                 if self.resources.root is not None:
                     status = self.resources.get_avatar_status(role.char_id)
