@@ -75,8 +75,8 @@ jobs:
         run: |
           set -euo pipefail
           python tests/test_ci_latest_stable_workflow.py -v
-          python tests/test_goal5_loader_cleanup_contracts.py -v
-          python tests/test_goal5_web_lifecycle.py -v
+          python tests/test_loader_cleanup_contracts.py -v
+          python tests/test_web_lifecycle.py -v
 
       - name: Run official PluginManager lifecycle check
         env:

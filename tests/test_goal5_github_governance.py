@@ -19,6 +19,7 @@ EXPECTED_FILES = {
     Path("labeler.yml"),
     Path("release-drafter.yml"),
     Path("workflows/auto-assign.yml"),
+    Path("workflows/plugin-lifecycle.yml"),
     Path("workflows/pr-triage.yml"),
     Path("workflows/release-from-changelog.yml"),
 }
