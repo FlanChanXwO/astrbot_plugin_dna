@@ -19,7 +19,6 @@ from src.infrastructure.resources import generation as generation_module
 from src.modules.operations import messages
 from src.modules.operations.resource_service import ResourceUpdateService
 
-
 GENERATION = "a" * 40
 
 
