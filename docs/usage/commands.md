@@ -1,14 +1,14 @@
 # 命令
 
 插件默认命令前缀为 `kk`，例如 `kk帮助`、`kk签到`、`kk登录`。实际触发前缀以 Dashboard 的
-`display.command_prefixes` 为准；下文命令主体省略前缀，发送时请在主体前加上当前配置的前缀。
+`general.command_prefixes` 为准；下文命令主体省略前缀，发送时请在主体前加上当前配置的前缀。
 
 当前清单包含 63 条命令，覆盖账号、玩家信息、图鉴、攻略、签到、密函、公告、兑换码、隐私、别名、公共资源和客户端更新。完整的正则、示例和权限以 [`commands.json`](../../commands.json) 为准，发送 `帮助` 可以查看当前实例的帮助卡片。
 
 ## Agent Tools
 
 Agent Tools 是独立的结构化工具，不属于聊天命令，不使用命令前缀，也不会出现在聊天帮助中。它们
-由 `agent_tools.enabled` 控制，默认关闭；启用方式和工具列表见 [Agent Tools 使用说明](agent-tools.md)。
+由 `ai.agent_tools_enabled` 控制，默认关闭；启用方式和工具列表见 [Agent Tools 使用说明](agent-tools.md)。
 
 ## 账号与登录
 
@@ -56,9 +56,9 @@ Agent Tools 是独立的结构化工具，不属于聊天命令，不使用命�
   `取消订阅客户端更新`：取消当前群的客户端更新订阅。
 - 订阅按当前会话目标保存，平台选择写入 `Subscription.extra_data` 的规范化 `platforms` 字段；
   重复订阅会更新平台筛选而不是创建重复记录。首次订阅或首次成功检查只建立基线，不补发无法确认时间范围的历史更新。
-- `notifications.client_update_enabled` 启用后，独立任务按 `notifications.client_update_check_minutes` 检查；
+- `client_updates.enabled` 启用后，独立任务按 `client_updates.check_minutes` 检查；
   检测到变化时按平台展示区服、旧版本、新版本和新增更新大小，单个平台失败会记录安全日志并保留其他平台结果。
-- OneBot 且 `notifications.client_update_merge_forward` 开启时，同轮多平台消息会尝试合并转发；
+- OneBot 且 `client_updates.merge_forward` 开启时，同轮多平台消息会尝试合并转发；
   非 OneBot 不受此开关影响，合并失败时降级为逐平台普通消息。
 
 > 客户端更新变化会以 `event_key` 固定首次匹配目标，逐目标记录 `pending`/`delivered`；下一轮先重试未完成目标，
@@ -72,8 +72,8 @@ Agent Tools 是独立的结构化工具，不属于聊天命令，不使用命�
 - `开启自动签到`、`关闭自动签到`：开关当前用户当前 UID 的自动签到。
 - `订阅签到结果`、`取消订阅签到结果`：开关定时签到结果推送。
 
-定时签到需要同时开启 `sign_in.scheduled_enabled` 并设置有效的 `sign_in.sign_time`。打开
-`sign_in.enable_all_users` 后，定时任务会覆盖所有已登录用户；手动 `全部签到` 不受该开关影响。
+定时签到使用有效的 `sign_in.sign_time`，实际执行对象由每个 UID 的自动签到个人开关决定。
+`sign_in.default_auto_sign_enabled` 只影响新 UID 首次绑定时的默认值；手动 `全部签到` 仍按命令语义执行。
 
 ## 密函与公告
 
@@ -119,7 +119,7 @@ Agent Tools 是独立的结构化工具，不属于聊天命令，不使用命�
 - `指定隐藏UID`、`指定显示UID`：设置被 @ 用户的 UID 展示方式。
 - `全体隐藏UID`、`全体显示UID`、`取消全体UID隐藏`：设置或取消群组 UID 展示规则。
 
-群组强制规则优先于个人设置；命令在找不到有效的 @ 目标时会明确提示，不会静默改查其他用户。是否允许普通查询使用 @ 目标由 `display.allow_mention_query` 控制。
+群组强制规则优先于个人设置；命令在找不到有效的 @ 目标时会明确提示，不会静默改查其他用户。是否允许普通查询使用 @ 目标由 `general.allow_mention_query` 控制。
 
 ## 权限说明
 
@@ -130,7 +130,7 @@ Agent Tools 是独立的结构化工具，不属于聊天命令，不使用命�
 
 ## 完整命令索引
 
-以下索引直接对应当前 `commands.json` 的 63 个 registry 项；示例使用默认 `kk` 前缀，如果修改了 `display.command_prefixes`，请替换为实际前缀。`角色原图（暂不支持）` 会明确返回不支持提示。
+以下索引直接对应当前 `commands.json` 的 63 个 registry 项；示例使用默认 `kk` 前缀，如果修改了 `general.command_prefixes`，请替换为实际前缀。`角色原图（暂不支持）` 会明确返回不支持提示。
 
 | 分组 | 命令 | 示例 | 权限 |
 | --- | --- | --- | --- |

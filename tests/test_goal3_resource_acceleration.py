@@ -113,7 +113,9 @@ def test_bootstrap_passes_resource_acceleration_to_downloader(
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
     )
 
-    cast(ResourceUpdateService, runtime.services["resource_update_service"]).synchronize()
+    cast(
+        ResourceUpdateService, runtime.services["resource_update_service"]
+    ).synchronize()
 
     assert calls == [(tmp_path, "https://mirror.example/gh")]
 
@@ -145,14 +147,16 @@ def test_custom_acceleration_url_rejects_unsafe_values_without_echoing_input(
 def test_resource_schema_projects_acceleration_group() -> None:
     schema = generate_astrbot_schema()
     assert set(schema) == {
-        "cache",
+        "general",
         "login",
-        "network",
+        "ai",
         "sign_in",
         "notifications",
+        "client_updates",
         "display",
+        "network",
         "resources",
-        "agent_tools",
+        "cache",
     }
     resources = schema["resources"]
     assert resources["type"] == "object"
@@ -252,8 +256,12 @@ def test_clone_uses_depth_single_main_no_tags_and_temporary_mirror_config(
         DEFAULT_RESOURCE_REMOTE,
         str(target),
     )
-    network_calls = [call for call in calls if _git_command(call) in {"clone", "fetch", "pull"}]
-    local_calls = [call for call in calls if _git_command(call) not in {"clone", "fetch", "pull"}]
+    network_calls = [
+        call for call in calls if _git_command(call) in {"clone", "fetch", "pull"}
+    ]
+    local_calls = [
+        call for call in calls if _git_command(call) not in {"clone", "fetch", "pull"}
+    ]
     assert network_calls and all(call[:1] == ("-c",) for call in network_calls)
     assert local_calls and all(call[:1] != ("-c",) for call in local_calls)
 

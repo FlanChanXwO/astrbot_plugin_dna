@@ -104,7 +104,9 @@ class FakeCheckinTransport:
         return SignStatus.DONE
 
 
-async def _checkin_service(tmp_path: Path) -> tuple[AsyncDatabase, CheckinService, FakeCheckinTransport]:
+async def _checkin_service(
+    tmp_path: Path,
+) -> tuple[AsyncDatabase, CheckinService, FakeCheckinTransport]:
     database = AsyncDatabase(tmp_path / "agent-sign.sqlite3")
     await database.create_schema_for_tests()
     async with database.transaction() as session:
@@ -170,7 +172,10 @@ async def test_sign_tool_uses_current_active_uid_and_dedupes_same_message(
         payload = json.loads(first)
         assert payload["ok"] is True
         assert payload["kind"] == "sign"
-        assert payload["data"] == {"type": "text", "text": "签到状态: ✅ 已完成\n社区任务:\n-----------------------------"}
+        assert payload["data"] == {
+            "type": "text",
+            "text": "签到状态: ✅ 已完成\n社区任务:\n-----------------------------",
+        }
         assert payload["cache"] is None
         assert payload["error"] is None
         assert transport.calls == [
@@ -208,7 +213,9 @@ async def test_sign_tool_dedupes_same_event_across_wrapper_instances() -> None:
 
 
 @pytest.mark.asyncio
-async def test_sign_tool_rejects_model_confirmation_target_and_missing_message_id() -> None:
+async def test_sign_tool_rejects_model_confirmation_target_and_missing_message_id() -> (
+    None
+):
     class CountingService:
         def __init__(self) -> None:
             self.calls: list[Any] = []
@@ -279,7 +286,9 @@ def _lifecycle_services() -> dict[str, object]:
 
 
 @pytest.mark.asyncio
-async def test_agent_tools_lifecycle_total_switch_and_hot_reload_are_idempotent() -> None:
+async def test_agent_tools_lifecycle_total_switch_and_hot_reload_are_idempotent() -> (
+    None
+):
     context = FakeToolContext()
     lifecycle = AgentToolsLifecycle(
         context=context,
@@ -326,12 +335,15 @@ async def test_agent_tools_disabled_registers_nothing() -> None:
 
 def test_agent_tools_config_has_one_explicit_total_switch() -> None:
     assert DnabySettings.from_config({}).agent_tools.enabled is False
-    assert DnabySettings.from_config(
-        {"agent_tools": {"enabled": True}},
-    ).agent_tools.enabled is True
+    assert (
+        DnabySettings.from_config(
+            {"agent_tools": {"enabled": True}},
+        ).agent_tools.enabled
+        is True
+    )
     schema = generate_astrbot_schema()
-    assert schema["agent_tools"]["items"]["enabled"]["type"] == "bool"
-    assert schema["agent_tools"]["items"]["enabled"]["default"] is False
+    assert schema["ai"]["items"]["agent_tools_enabled"]["type"] == "bool"
+    assert schema["ai"]["items"]["agent_tools_enabled"]["default"] is False
 
 
 @pytest.mark.asyncio

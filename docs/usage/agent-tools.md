@@ -5,7 +5,7 @@ Agent Tools 是 AstrBot Agent 可调用的独立工具集合，不是聊天命�
 
 ## 启用与生命周期
 
-在 AstrBot Dashboard 的插件配置中开启 `agent_tools.enabled` 才会启用，默认值为 `false`：
+在 AstrBot Dashboard 的插件配置中开启 `ai.agent_tools_enabled` 才会启用，默认值为 `false`：
 
 - 关闭时不注册任何 DNABY Agent Tools，也不创建签到写入口。
 - 开启时由插件 `initialize()` 注册 16 个只读工具和 1 个签到工具，共 17 个；

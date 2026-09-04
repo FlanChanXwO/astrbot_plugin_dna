@@ -53,14 +53,16 @@ def test_generated_schema_is_astrbot_compatible(tmp_path: Path) -> None:
     schema = generate_astrbot_schema()
     assert json.loads(Path("_conf_schema.json").read_text(encoding="utf-8")) == schema
     assert set(schema) == {
+        "general",
         "login",
-        "network",
+        "ai",
         "sign_in",
         "notifications",
+        "client_updates",
         "display",
+        "network",
         "resources",
         "cache",
-        "agent_tools",
     }
     assert schema["login"]["type"] == "object"
     assert schema["login"]["items"]["transport"]["options"] == [

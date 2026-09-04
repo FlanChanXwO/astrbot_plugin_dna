@@ -130,6 +130,24 @@ def test_goal6_unsafe_local_proxy_is_not_promoted_and_emits_warning(
     assert any("代理" in record.getMessage() for record in caplog.records)
 
 
+def test_goal6_legacy_flat_proxy_does_not_widen_without_all_scope(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """旧版扁平局部代理也必须经过完整作用域检查。"""
+
+    raw = {
+        "LocalProxyUrl": "http://127.0.0.1:7890",
+        "NeedProxyFunc": ["login"],
+        "NoNeedProxyFunc": [],
+    }
+
+    with caplog.at_level(logging.WARNING):
+        migrated = migrate_config_dict(raw)
+
+    assert "proxy_url" not in migrated["network"]
+    assert any("代理" in record.getMessage() for record in caplog.records)
+
+
 def test_goal6_conflicting_api_proxy_sources_fail_explicitly() -> None:
     """不同来源给出不同 API 地址时必须显式报告冲突。"""
 

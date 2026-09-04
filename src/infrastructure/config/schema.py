@@ -10,10 +10,12 @@ from typing import Any, Literal, Union, get_args, get_origin
 from pydantic import BaseModel, SecretStr
 
 from .settings import (
-    AgentToolsSettings,
+    AISettings,
     CacheSettings,
+    ClientUpdatesSettings,
     DisplaySettings,
     DnabySettings,
+    GeneralSettings,
     LoginSettings,
     NetworkSettings,
     NotificationSettings,
@@ -22,14 +24,16 @@ from .settings import (
 )
 
 _GROUPS: tuple[tuple[str, type[BaseModel]], ...] = (
+    ("general", GeneralSettings),
     ("login", LoginSettings),
-    ("network", NetworkSettings),
+    ("ai", AISettings),
     ("sign_in", SignInSettings),
     ("notifications", NotificationSettings),
+    ("client_updates", ClientUpdatesSettings),
     ("display", DisplaySettings),
+    ("network", NetworkSettings),
     ("resources", ResourceSettings),
     ("cache", CacheSettings),
-    ("agent_tools", AgentToolsSettings),
 )
 
 

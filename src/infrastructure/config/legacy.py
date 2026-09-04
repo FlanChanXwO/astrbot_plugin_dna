@@ -211,12 +211,12 @@ _LEGACY_MAP: dict[str, tuple[str, str]] = {
     "DNATencentWord": ("login", "tencent_docs"),
     "DNAQRLogin": ("login", "qr_login"),
     "DNALoginForward": ("login", "forward_login"),
-    # display
-    "CommandPrefix": ("display", "command_prefixes"),
+    # general/display
+    "CommandPrefix": ("general", "command_prefixes"),
     "DNAPaint": ("display", "guide_providers"),
     "DNAPaintShowNone": ("display", "show_unowned_roles"),
-    "DNAAt": ("display", "allow_mention_query"),
-    "AllowAtQuery": ("display", "allow_mention_query"),
+    "DNAAt": ("general", "allow_mention_query"),
+    "AllowAtQuery": ("general", "allow_mention_query"),
     # notifications
     "DNAAnnState": ("notifications", "announcement_enabled"),
     "DNAAnnIds": ("notifications", "announcement_ids"),
@@ -225,15 +225,15 @@ _LEGACY_MAP: dict[str, tuple[str, str]] = {
     "MHSimplePic": ("notifications", "secret_simple_image"),
     "MHPushTask": ("notifications", "announcement_enabled"),
     # network
-    "DNAUrlProxyUrl": ("network", "api_proxy_url"),
-    "LocalProxyUrl": ("network", "local_proxy_url"),
+    "DNAUrlProxyUrl": ("network", "api_base_url"),
+    "LocalProxyUrl": ("network", "proxy_url"),
     "NeedProxyFunc": ("network", "proxy_functions"),
     "NoNeedProxyFunc": ("network", "no_proxy_functions"),
     "WebSocketContinueTime": ("network", "websocket_continue_seconds"),
     "WebSocketWaitTime": ("network", "websocket_wait_seconds"),
     # sign_in
     "SignTime": ("sign_in", "sign_time"),
-    "SignAllUser": ("sign_in", "enable_all_users"),
+    "SignAllUser": ("sign_in", "default_auto_sign_enabled"),
     "DNABBSLink": ("sign_in", "community_tasks"),
     "SignRandomTime": ("sign_in", "concurrency_interval_seconds"),
     "PrivateSignReport": ("sign_in", "private_report"),
