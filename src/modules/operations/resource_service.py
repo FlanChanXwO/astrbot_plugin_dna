@@ -166,8 +166,8 @@ class ResourceUpdateService:
         if interruption is not None:
             raise interruption
 
-    async def download_all(self, _request: object):
-        """下载全部公共资源（浅克隆或 ff-only 更新）。"""
+    async def sync_resources(self, _request: object):
+        """同步全部公共资源（浅克隆或 ff-only 更新）。"""
 
         try:
             result = await self.synchronize_once()
@@ -179,8 +179,22 @@ class ResourceUpdateService:
             return PlainTextResponse(messages.RESOURCE_GIT_UNAVAILABLE)
         except ResourceSyncError as error:
             return PlainTextResponse(messages.RESOURCE_SYNC_FAILED.format(detail=str(error)))
+        if result.action == "unchanged":
+            return PlainTextResponse(
+                messages.RESOURCE_UP_TO_DATE.format(version=result.resource_version),
+            )
         action = "已克隆" if result.action == "cloned" else "已更新"
-        return PlainTextResponse(messages.RESOURCE_DOWNLOADED.format(action=action, version=result.resource_version))
+        return PlainTextResponse(
+            messages.RESOURCE_DOWNLOADED.format(
+                action=action,
+                version=result.resource_version,
+            ),
+        )
+
+    async def download_all(self, _request: object):
+        """兼容旧命令入口，转发到 ``sync_resources``。"""
+
+        return await self.sync_resources(_request)
 
     async def status(self):
         """展示公共资源状态；不读取已移除的自定义面板目录。"""

@@ -9,6 +9,7 @@ import re
 import shutil
 import tarfile
 import threading
+from builtins import BaseExceptionGroup
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from copy import copy
@@ -41,7 +42,7 @@ class ResourceGenerationError(ResourceSyncError):
 
 @dataclass(frozen=True, slots=True)
 class ResourceSnapshot:
-    """一个经过完整校验、可供运行期读取的不可变资源视图。"""
+    """一个不可变资源视图；完整校验完成前内容哈希可以为空。"""
 
     commit_sha: str
     root: Path
@@ -437,8 +438,19 @@ class ResourceSnapshotCoordinator:
             custom_alias_path=custom_alias_path,
             custom_weapon_alias_path=custom_weapon_alias_path,
         )
+        self._custom_alias_path = (
+            Path(custom_alias_path).expanduser().absolute()
+            if custom_alias_path is not None
+            else getattr(self._validator, "custom_alias_path", None)
+        )
+        self._custom_weapon_alias_path = (
+            Path(custom_weapon_alias_path).expanduser().absolute()
+            if custom_weapon_alias_path is not None
+            else getattr(self._validator, "custom_weapon_alias_path", None)
+        )
         self._lock = threading.RLock()
         self._current: ResourceSnapshot | None = None
+        self._expected_content_sha256: str | None = None
         self._leases: dict[str, int] = {}
         self._retired: set[str] = set()
         self._listeners: list[SnapshotListener] = []
@@ -524,30 +536,87 @@ class ResourceSnapshotCoordinator:
             if path.is_dir() and re.fullmatch(r"[0-9a-fA-F]+", path.name) and path.name != active:
                 self._remove_generation(path)
 
+    def _load_light_snapshot(self, generation: str) -> ResourceSnapshot:
+        """读取已发布 generation 的 metadata 和运行期索引，不执行完整校验。"""
+
+        root = self._generation_path(generation)
+        if root.is_symlink() or not root.is_dir():
+            raise ResourceGenerationError("当前资源 generation 目录不存在或不安全")
+        try:
+            manifest = ResourceManifest.load(root / "resource_manifest.json")
+            from ..rendering.player import ResourceMap
+
+            player_resources = ResourceMap.from_root(root)
+            encyclopedia_resources = EncyclopediaResourceStore.from_root(
+                root,
+                custom_alias_path=self._custom_alias_path,
+                custom_weapon_alias_path=self._custom_weapon_alias_path,
+            )
+        except ResourceGenerationError:
+            raise
+        except (OSError, UnicodeError, ValueError, TypeError) as exc:
+            raise ResourceGenerationError("当前资源 generation metadata 不可读") from exc
+        return ResourceSnapshot(
+            commit_sha=generation,
+            root=root.resolve(),
+            manifest=manifest,
+            player_resources=player_resources,
+            encyclopedia_resources=encyclopedia_resources,
+        )
+
+    def load_current(self) -> ResourceSnapshot | None:
+        """只读取 current 指针和 generation metadata，供启动阶段使用。"""
+
+        with self._lock:
+            self._ensure_storage_roots()
+            generation, expected_content_sha256 = self._read_generation_pointer()
+            if generation is None:
+                self._current = None
+                self._expected_content_sha256 = None
+                return None
+            snapshot = self._load_light_snapshot(generation)
+            self._current = snapshot
+            self._expected_content_sha256 = expected_content_sha256
+            return snapshot
+
+    def validate_current(self) -> ResourceSnapshot | None:
+        """对当前 generation 执行完整校验；无 current 时返回 ``None``。"""
+
+        with self._lock:
+            snapshot = self._current
+            if snapshot is None:
+                snapshot = self.load_current()
+            if snapshot is None:
+                return None
+            expected_content_sha256 = self._expected_content_sha256
+            validated = self._validator.validate(snapshot.root, snapshot.commit_sha)
+            if (
+                expected_content_sha256 is not None
+                and expected_content_sha256.casefold()
+                != validated.content_sha256.casefold()
+            ):
+                raise ResourceGenerationError("当前资源 generation 内容哈希不匹配")
+            if expected_content_sha256 is None:
+                self._write_state(validated)
+            self._current = validated
+            self._expected_content_sha256 = validated.content_sha256
+            return validated
+
     def initialize(self) -> ResourceSnapshot | None:
-        """读取当前指针并清理重启后没有 lease 的孤立 generation。"""
+        """兼容旧生命周期调用：完整恢复当前 generation 并清理孤立目录。"""
 
         with self._lock:
             self._ensure_storage_roots()
             self.generations_root.mkdir(parents=True, exist_ok=True)
             self._ensure_storage_roots()
-            generation, expected_content_sha256 = self._read_generation_pointer()
-            if generation is None:
-                self._current = None
+            snapshot = self.load_current()
+            if snapshot is None:
                 self._cleanup_orphans(None)
                 return None
-            root = self._generation_path(generation)
-            snapshot = self._validator.validate(root, generation)
-            if (
-                expected_content_sha256 is not None
-                and expected_content_sha256.casefold() != snapshot.content_sha256.casefold()
-            ):
-                raise ResourceGenerationError("当前资源 generation 内容哈希不匹配")
-            self._current = snapshot
-            if expected_content_sha256 is None:
-                self._write_state(snapshot)
-            self._cleanup_orphans(generation)
-            return snapshot
+            validated = self.validate_current()
+            if validated is not None:
+                self._cleanup_orphans(validated.commit_sha)
+            return validated
 
     def acquire(self) -> ResourceLease:
         """为一次资源读取取得当前 generation lease。"""
@@ -643,46 +712,80 @@ class ResourceSnapshotCoordinator:
         previous = self._current
         self._write_state(snapshot)
         self._current = snapshot
+        self._expected_content_sha256 = snapshot.content_sha256
         if previous is not None and previous.commit_sha != snapshot.commit_sha:
             self._retired.add(previous.commit_sha)
         for listener in tuple(self._listeners):
             listener(snapshot)
         self._collect_retired()
 
-    def _materialize(self, synchronizer: ResourceSynchronizer, commit_sha: str) -> ResourceSnapshot:
+    def _materialize(
+        self, synchronizer: ResourceSynchronizer, commit_sha: str
+    ) -> tuple[ResourceSnapshot, bool]:
         self._ensure_storage_roots()
         self.generations_root.mkdir(parents=True, exist_ok=True)
         self._ensure_storage_roots()
         candidate = self.generations_root / f".candidate-{uuid4().hex}"
         archive = self.generations_root / f".archive-{uuid4().hex}.tar"
+        final: Path | None = None
+        created_final = False
+        snapshot: ResourceSnapshot | None = None
+        primary_error: BaseException | None = None
         try:
             candidate.mkdir()
             synchronizer.archive_fetch_head(archive)
             _extract_archive(archive, candidate)
             self._validator.validate(candidate, commit_sha)
             final = self._generation_path(commit_sha)
-            if final.exists():
+            if final.exists() or final.is_symlink():
                 if not final.is_dir() or final.is_symlink():
                     raise ResourceGenerationError("资源 generation 目标不是安全目录")
-                existing = self._validator.validate(final, commit_sha)
-                return existing
-            candidate.rename(final)
-            # 索引中的 Path 必须在 rename 后重新建立，不能继续指向已删除的 candidate。
-            return self._validator.validate(final, commit_sha)
-        finally:
-            if candidate.exists():
-                if candidate.is_dir() and not candidate.is_symlink():
-                    self._remove_generation(candidate)
-                else:
-                    candidate.unlink()
-            if archive.exists():
-                archive.unlink()
+                snapshot = self._validator.validate(final, commit_sha)
+            else:
+                candidate.rename(final)
+                created_final = True
+                # 索引中的 Path 必须在 rename 后重新建立，不能继续指向已删除的 candidate。
+                snapshot = self._validator.validate(final, commit_sha)
+        except BaseException as error:  # noqa: BLE001 - 清理边界必须保留原始失败。
+            primary_error = error
 
-    def synchronize(self) -> ResourceSyncResult:
+        cleanup_errors: list[BaseException] = []
+
+        def cleanup(path: Path, *, generation: bool) -> None:
+            if not path.exists() and not path.is_symlink():
+                return
+            try:
+                if generation and path.is_dir() and not path.is_symlink():
+                    self._remove_generation(path)
+                else:
+                    path.unlink()
+            except BaseException as error:  # noqa: BLE001 - 必须显式报告清理失败。
+                cleanup_errors.append(error)
+
+        cleanup(candidate, generation=True)
+        cleanup(archive, generation=False)
+        if created_final and (primary_error is not None or cleanup_errors) and final is not None:
+            cleanup(final, generation=True)
+
+        if primary_error is not None:
+            if cleanup_errors:
+                raise BaseExceptionGroup(
+                    "资源 generation 物化和清理均失败",
+                    [primary_error, *cleanup_errors],
+                ) from primary_error
+            raise primary_error
+        if cleanup_errors:
+            raise BaseExceptionGroup("资源 generation 临时文件清理失败", cleanup_errors)
+        assert snapshot is not None
+        return snapshot, created_final
+
+    def sync_resources(self) -> ResourceSyncResult:
         """同步 cache、验证 FETCH_HEAD 候选并原子发布新快照。"""
 
         with self._lock:
             self._ensure_storage_roots(require_repository=True)
+            if self._current is None:
+                self.load_current()
             synchronizer = ResourceSynchronizer(
                 self.repository,
                 remote=self.remote,
@@ -703,11 +806,37 @@ class ResourceSnapshotCoordinator:
                     resource_version="",
                 )
             commit_sha = synchronizer.fetch_head_revision()
-            snapshot = self._materialize(synchronizer, commit_sha)
-            synchronizer.fast_forward_fetch_head()
-            synchronizer.validate()
-            if self._current is None or self._current.commit_sha != commit_sha:
-                self._activate(snapshot)
+            current = self._current
+            if current is not None and current.commit_sha == commit_sha:
+                return replace(
+                    result,
+                    action="unchanged",
+                    resource_version=current.resource_version,
+                    commit_sha=commit_sha,
+                    generation_root=current.root,
+                    content_sha256=current.content_sha256,
+                )
+
+            snapshot, created_final = self._materialize(synchronizer, commit_sha)
+            try:
+                synchronizer.fast_forward_fetch_head()
+                synchronizer.validate()
+                if self._current is None or self._current.commit_sha != commit_sha:
+                    self._activate(snapshot)
+            except BaseException as error:
+                cleanup_errors: list[BaseException] = []
+                current = self._current
+                if created_final and (current is None or current.commit_sha != commit_sha):
+                    try:
+                        self._remove_generation(snapshot.root)
+                    except BaseException as cleanup_error:  # noqa: BLE001
+                        cleanup_errors.append(cleanup_error)
+                if cleanup_errors:
+                    raise BaseExceptionGroup(
+                        "资源 generation 发布和清理均失败",
+                        [error, *cleanup_errors],
+                    ) from error
+                raise
             return replace(
                 result,
                 resource_version=snapshot.resource_version,
@@ -715,6 +844,11 @@ class ResourceSnapshotCoordinator:
                 generation_root=snapshot.root,
                 content_sha256=snapshot.content_sha256,
             )
+
+    def synchronize(self) -> ResourceSyncResult:
+        """兼容旧调用方，转发到 ``sync_resources``。"""
+
+        return self.sync_resources()
 
 
 ResourceGenerationManager = ResourceSnapshotCoordinator

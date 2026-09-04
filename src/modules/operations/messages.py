@@ -13,6 +13,7 @@ RESOURCE_REMOTE_MISMATCH = get_tip("operations.resource_remote_mismatch")
 RESOURCE_LOCAL_CHANGES = get_tip_template("operations.resource_local_changes")
 RESOURCE_SYNC_FAILED = get_tip_template("operations.resource_sync_failed")
 RESOURCE_DOWNLOADED = get_tip_template("operations.resource_downloaded")
+RESOURCE_UP_TO_DATE = get_tip_template("operations.resource_up_to_date")
 
 
 def resource_status_line(label: str, value: str) -> str:
@@ -29,5 +30,6 @@ __all__ = [
     "RESOURCE_STATUS_EMPTY",
     "RESOURCE_STATUS_HEADER",
     "RESOURCE_SYNC_FAILED",
+    "RESOURCE_UP_TO_DATE",
     "resource_status_line",
 ]

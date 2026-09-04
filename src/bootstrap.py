@@ -53,7 +53,6 @@ from .infrastructure.rendering import (
 )
 from .infrastructure.resources import (
     EncyclopediaResourceStore,
-    ResourceManifest,
     ResourceSnapshot,
     ResourceSnapshotCoordinator,
 )
@@ -247,19 +246,14 @@ def build_runtime(
         custom_alias_path=custom_alias_path,
         custom_weapon_alias_path=custom_weapon_alias_path,
     )
-    # 启动阶段只使用运行期资源仓库路径；完整 generation 校验和 Git 同步
-    # 仅允许由显式“同步资源”路径触发，避免构造 runtime 时做重型 I/O。
-    initial_resource_snapshot: ResourceSnapshot | None = None
+    # 启动阶段只读取 current 指针和已发布 generation 的轻量 metadata；
+    # 完整校验和 Git 同步仅允许由显式资源同步路径触发，避免构造 runtime 时做重型 I/O。
+    initial_resource_snapshot = resource_snapshots.load_current()
     resource_root = (
         initial_resource_snapshot.root
         if initial_resource_snapshot is not None
         else resource_cache_root
     )
-    manifest_path = resource_root / "resource_manifest.json"
-    if manifest_path.exists():
-        ResourceManifest.load(
-            manifest_path,
-        ).validate_runtime_layout(resource_root)
     player_resources = (
         initial_resource_snapshot.player_resources
         if initial_resource_snapshot is not None

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+from builtins import ExceptionGroup
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -194,6 +195,66 @@ def test_sync_archives_fetch_head_and_publishes_only_valid_main_generation(
     assert state["content_sha256"] == result.content_sha256
     assert [item.commit_sha for item in published] == [result.commit_sha]
     assert source.exists()
+
+
+def test_sync_resources_is_canonical_sync_entrypoint(tmp_path: Path) -> None:
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+
+    result = coordinator.sync_resources()
+
+    assert result.commit_sha
+    assert coordinator.current_snapshot is not None
+    assert coordinator.current_snapshot.commit_sha == result.commit_sha
+
+
+def test_sync_same_remote_commit_returns_unchanged_without_rebuilding_generation(
+    tmp_path: Path,
+) -> None:
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    calls_before = len(runner.calls)
+
+    second = coordinator.synchronize()
+    new_calls = runner.calls[calls_before:]
+
+    assert second.action == "unchanged"
+    assert second.commit_sha == first.commit_sha
+    assert second.generation_root == first.generation_root
+    assert not any(_operation(call) == "archive" for call in new_calls)
+    assert not any(_operation(call) == "merge" for call in new_calls)
+
+
+def test_sync_reports_validation_and_cleanup_failures_together(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _source, _target, runner = _fixture(tmp_path)
+
+    class FailingValidator:
+        def validate(self, root: Path, commit_sha: str):
+            del root, commit_sha
+            raise ResourceGenerationError("candidate invalid")
+
+    coordinator = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+        validator=FailingValidator(),
+    )
+
+    def fail_cleanup(_path: Path) -> None:
+        raise OSError("cleanup failed")
+
+    monkeypatch.setattr(coordinator, "_remove_generation", fail_cleanup)
+
+    with pytest.raises(ExceptionGroup) as caught:
+        coordinator.synchronize()
+
+    messages = {str(error) for error in caught.value.exceptions}
+    assert "candidate invalid" in messages
+    assert "cleanup failed" in messages
 
 
 def test_invalid_candidate_keeps_last_verified_snapshot_and_cleans_temp_files(

@@ -168,6 +168,7 @@
     "resource_local_changes": "{detail}",
     "resource_sync_failed": "资源同步失败：{detail}",
     "resource_downloaded": "资源{action}完成，版本 {version}",
+    "resource_up_to_date": "资源已是最新，版本 {version}",
     "resource_status_line": "{label}: {value}"
   },
   "player": {
