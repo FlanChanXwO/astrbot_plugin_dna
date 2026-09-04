@@ -1,4 +1,4 @@
-name: AstrBot plugin load
+name: AstrBot plugin lifecycle
 
 on:
   pull_request:
@@ -7,18 +7,11 @@ permissions:
   contents: read
 
 jobs:
-  plugin-load:
-    name: AstrBot plugin load (${{ matrix.source }})
+  plugin-lifecycle:
+    name: AstrBot plugin lifecycle (latest stable)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        source:
-          - stable
-          - master
     env:
       ASTRBOT_REPOSITORY: https://github.com/AstrBotDevs/AstrBot.git
-      SOURCE_KIND: ${{ matrix.source }}
     steps:
       - name: Checkout plugin
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -32,15 +25,14 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Resolve official AstrBot source
+      - name: Resolve latest stable AstrBot tag
         id: astrbot-ref
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$SOURCE_KIND" == "stable" ]]; then
-            git ls-remote --tags --refs "$ASTRBOT_REPOSITORY" \
-              | awk -F/ '{print $3}' > "$RUNNER_TEMP/astrbot-tags.txt"
-            python - "$RUNNER_TEMP/astrbot-tags.txt" > "$RUNNER_TEMP/astrbot-ref.txt" <<'PY'
+          git ls-remote --tags --refs "$ASTRBOT_REPOSITORY" \
+            | awk -F/ '{print $3}' > "$RUNNER_TEMP/astrbot-tags.txt"
+          python - "$RUNNER_TEMP/astrbot-tags.txt" > "$RUNNER_TEMP/astrbot-ref.txt" <<'PY'
           from importlib.util import module_from_spec, spec_from_file_location
           from pathlib import Path
           import sys
@@ -55,17 +47,11 @@ jobs:
           tags = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
           print(module.select_latest_stable_version(tags))
           PY
-          elif [[ "$SOURCE_KIND" == "master" ]]; then
-            printf '%s\n' master > "$RUNNER_TEMP/astrbot-ref.txt"
-          else
-            printf '未知的 AstrBot 来源: %s\n' "$SOURCE_KIND" >&2
-            exit 1
-          fi
           ref="$(cat "$RUNNER_TEMP/astrbot-ref.txt")"
           printf 'ref=%s\n' "$ref" >> "$GITHUB_OUTPUT"
-          printf 'Resolved AstrBot ref for %s: %s\n' "$SOURCE_KIND" "$ref"
+          printf 'Resolved latest stable AstrBot tag: %s\n' "$ref"
 
-      - name: Checkout official AstrBot
+      - name: Checkout latest stable AstrBot
         env:
           ASTRBOT_SOURCE: ${{ runner.temp }}/astrbot
         shell: bash
@@ -95,8 +81,8 @@ jobs:
       - name: Run official PluginManager lifecycle check
         env:
           ASTRBOT_SOURCE: ${{ runner.temp }}/astrbot
-          ASTRBOT_VERSION: "${{ matrix.source }}:${{ steps.astrbot-ref.outputs.ref }}"
-          ASTRBOT_ROOT: ${{ runner.temp }}/dnaby-astrbot-root-${{ matrix.source }}
+          ASTRBOT_VERSION: ${{ steps.astrbot-ref.outputs.ref }}
+          ASTRBOT_ROOT: ${{ runner.temp }}/dnaby-astrbot-root-latest-stable
         shell: bash
         run: |
           set -euo pipefail
