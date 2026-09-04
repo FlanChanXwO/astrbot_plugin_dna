@@ -325,6 +325,22 @@ class NotificationSettings(_SettingsModel):
         description="公告检查间隔",
         json_schema_extra={"hint": "公告推送检查间隔（分钟）"},
     )
+    client_update_enabled: bool = Field(
+        default=True,
+        description="客户端更新推送开关",
+        json_schema_extra={"hint": "是否启用独立的客户端更新定时检查与推送"},
+    )
+    client_update_check_minutes: int = Field(
+        default=60,
+        gt=0,
+        description="客户端更新检查间隔",
+        json_schema_extra={"hint": "客户端更新定时检查间隔（分钟），必须为正整数"},
+    )
+    client_update_merge_forward: bool = Field(
+        default=True,
+        description="客户端更新合并转发",
+        json_schema_extra={"hint": "OneBot 平台是否将同轮客户端更新合并为转发消息"},
+    )
     secret_subscriptions: list[Literal["private", "group"]] = Field(
         default_factory=lambda: ["group"],
         description="密函订阅作用域",

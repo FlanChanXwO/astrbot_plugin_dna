@@ -67,12 +67,17 @@
 | `notifications.announcement_enabled` | `true` | 是否启用公告推送。 |
 | `notifications.announcement_ids` | `[]` | 已处理公告 ID 列表，通常无需手动修改。 |
 | `notifications.announcement_check_minutes` | `10` | 公告检查间隔，单位为分钟。 |
+| `notifications.client_update_enabled` | `true` | 是否启用独立客户端更新定时检查与推送。 |
+| `notifications.client_update_check_minutes` | `60` | 客户端更新检查间隔，单位为分钟，必须为正整数；不与公告轮询周期共用。 |
+| `notifications.client_update_merge_forward` | `true` | OneBot 同轮 PC/安卓结果是否尝试合并转发；合并失败时降级为普通消息。 |
 | `notifications.secret_subscriptions` | `['group']` | 密函订阅作用域，可选 `private`、`group`。 |
 | `notifications.secret_simple_image` | `false` | 是否使用简易密函图片。 |
 | `notifications.secret_push_minute` | `0` | 每小时推送密函的分钟数，`0` 表示整点。 |
 | `notifications.secret_retry_interval_seconds` | `1` | 密函数据未准备好时的重试间隔，单位为秒。 |
 
 公告与密函订阅还可以通过聊天命令管理，具体见 [命令说明](commands.md)。
+
+客户端更新任务使用 `dnaby_client_update_poll`，按 `notifications.client_update_check_minutes` 独立检查，不复用公告轮询周期。客户端更新状态写入 `client_update_state.json`，按区服和平台保存成功观察基线与未完成投递状态；手动查询只读，首次订阅或首次成功检查只建立缺失基线，不推送无法确认时间范围的历史变化。
 
 ## 显示 `display`
 

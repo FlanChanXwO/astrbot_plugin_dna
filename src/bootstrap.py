@@ -14,7 +14,7 @@ from typing import Any, cast
 
 from astrbot.api.star import Context
 from astrbot.core import AstrBotConfig
-from astrbot.core.message.components import At, Plain
+from astrbot.core.message.components import At, Node, Nodes, Plain
 from astrbot.core.message.components import Image as AstrImage
 from astrbot.core.message.message_event_result import MessageChain
 
@@ -26,7 +26,11 @@ from .entry.lifecycle import PluginLifecycle
 from .entry.response import ResponseFactory
 from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
+from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
+from .infrastructure.http import (
+    ClientUpdateTransport as DnaApiClientUpdateTransport,
+)
 from .infrastructure.http import (
     DnaApiAccountTransport,
     DnaApiCheckinTransport,
@@ -38,8 +42,8 @@ from .infrastructure.http import (
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
-    CheckinRenderer,
     DEFAULT_RENDERED_RETENTION_SECONDS,
+    CheckinRenderer,
     EncyclopediaRenderer,
     NoticesRenderer,
     PlayerRenderer,
@@ -75,6 +79,13 @@ from .modules.admin import (
 )
 from .modules.checkin.contracts import CheckinTransport
 from .modules.checkin.service import CheckinService
+from .modules.client_updates.contracts import ClientUpdateTransport
+from .modules.client_updates.delivery import (
+    ClientUpdateDeliveryService,
+    ClientUpdatePushAdapter,
+)
+from .modules.client_updates.service import ClientUpdateService
+from .modules.client_updates.state import ClientUpdateStateStore
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.ann_delivery_state import AnnDeliveryStateStore
@@ -139,6 +150,7 @@ def build_runtime(
     encyclopedia_transport: EncyclopediaTransport | None = None,
     checkin_transport: CheckinTransport | None = None,
     notices_transport: NoticesTransport | None = None,
+    client_updates_transport: ClientUpdateTransport | None = None,
     services: Mapping[str, object] | None = None,
     plugin_context: object | None = None,
 ) -> PluginRuntime:
@@ -214,9 +226,7 @@ def build_runtime(
         allow_mention_query=settings.display.allow_mention_query,
     )
     custom_alias_path = runtime_database.path.parent / "alias_custom.json"
-    custom_weapon_alias_path = (
-        runtime_database.path.parent / "weapon_alias_custom.json"
-    )
+    custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
     resource_cache_root = resource_repository_dir(runtime_database.path.parent)
     resource_snapshots = ResourceSnapshotCoordinator(
         resource_cache_root,
@@ -473,6 +483,110 @@ def build_runtime(
         push_minute=settings.notifications.secret_push_minute,
         registry=scheduler_registry,
     )
+
+    async def _send_client_update_text(origin: str, text: str) -> bool:
+        """把客户端更新普通文本交给 AstrBot 主动消息接口。"""
+
+        try:
+            result = context.send_message(origin, MessageChain(chain=[Plain(text)]))
+            if inspect.isawaitable(result):
+                result = await result
+            return result is not False
+        except Exception as error:  # noqa: BLE001
+            from astrbot.api import logger
+
+            logger.warning(
+                "[dnaby][client_update] 普通消息推送失败（错误类型：%s）",
+                type(error).__name__,
+            )
+            return False
+
+    async def _send_client_update_forward(
+        origin: str,
+        texts: tuple[str, ...],
+    ) -> bool:
+        """使用 AstrBot 原生 Nodes 组件尝试 OneBot 合并转发。"""
+
+        nodes = [Node(content=[Plain(text)], name="DNAUID", uin="0") for text in texts]
+        try:
+            result = context.send_message(
+                origin,
+                MessageChain(chain=[Nodes(nodes)]),
+            )
+            if inspect.isawaitable(result):
+                result = await result
+            return result is not False
+        except Exception as error:  # noqa: BLE001
+            from astrbot.api import logger
+
+            logger.warning(
+                "[dnaby][client_update] 合并转发推送失败（错误类型：%s）",
+                type(error).__name__,
+            )
+            return False
+
+    resolved_client_updates_transport = (
+        client_updates_transport
+        or DnaApiClientUpdateTransport(
+            request_gate=request_gate,
+        )
+    )
+    if services is not None and "client_updates_transport" in services:
+        resolved_client_updates_transport = cast(
+            ClientUpdateTransport,
+            services["client_updates_transport"],
+        )
+    client_update_state = ClientUpdateStateStore(
+        runtime_database.path.parent / "client_update_state.json",
+    )
+    if services is not None and "client_update_state" in services:
+        client_update_state = cast(
+            ClientUpdateStateStore,
+            services["client_update_state"],
+        )
+    client_update_service = ClientUpdateService(
+        client_update_state,
+        transport=resolved_client_updates_transport,
+        subscriptions=subscriptions,
+    )
+    if services is not None and "client_update_service" in services:
+        client_update_service = cast(
+            ClientUpdateService,
+            services["client_update_service"],
+        )
+    client_update_push_adapter = ClientUpdatePushAdapter(
+        send_text=_send_client_update_text,
+        send_forward=_send_client_update_forward,
+        merge_forward=settings.notifications.client_update_merge_forward,
+    )
+    if services is not None and "client_update_push_adapter" in services:
+        client_update_push_adapter = cast(
+            ClientUpdatePushAdapter,
+            services["client_update_push_adapter"],
+        )
+    client_update_delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        client_update_push_adapter,
+        state=client_update_state,
+    )
+    if services is not None and "client_update_delivery" in services:
+        client_update_delivery = cast(
+            ClientUpdateDeliveryService,
+            services["client_update_delivery"],
+        )
+    client_updates_scheduler = ClientUpdatesScheduler(
+        client_update_service,
+        client_update_delivery,
+        enabled=settings.notifications.client_update_enabled,
+        check_minutes=settings.notifications.client_update_check_minutes,
+        registry=scheduler_registry,
+    )
+    if services is not None and "client_updates_scheduler" in services:
+        client_updates_scheduler = cast(
+            ClientUpdatesScheduler,
+            services["client_updates_scheduler"],
+        )
+
     admin_api_service = AdminApiService(
         scheduler_registry,
         subscriptions,
@@ -481,6 +595,7 @@ def build_runtime(
             "dnaby_sign_cleanup": sign_scheduler,
             "dnaby_mh_push": notices_scheduler,
             "dnaby_ann_poll": notices_scheduler,
+            "dnaby_client_update_poll": client_updates_scheduler,
         },
         membership_service,
         config_store=config if isinstance(config, dict) else None,
@@ -555,6 +670,12 @@ def build_runtime(
         "notices_service": notices_service,
         "announcement_target_service": announcement_targets,
         "notices_scheduler": notices_scheduler,
+        "client_updates_transport": resolved_client_updates_transport,
+        "client_update_state": client_update_state,
+        "client_update_service": client_update_service,
+        "client_update_push_adapter": client_update_push_adapter,
+        "client_update_delivery": client_update_delivery,
+        "client_updates_scheduler": client_updates_scheduler,
         "admin_api_service": admin_api_service,
         "admin_account_service": admin_account_service,
         "admin_preview_service": admin_preview_service,
@@ -614,6 +735,7 @@ def build_runtime(
             resource_update_service.start_preheat,
             sign_scheduler.start,
             notices_scheduler.start,
+            client_updates_scheduler.start,
             agent_tools_lifecycle.start,
         ),
         # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler、资源线程，再释放数据库。
@@ -623,6 +745,7 @@ def build_runtime(
             resource_update_service.stop,
             sign_scheduler.stop,
             notices_scheduler.stop,
+            client_updates_scheduler.stop,
             agent_tools_lifecycle.stop,
             login_flow.stop,
         ),

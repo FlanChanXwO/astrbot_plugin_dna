@@ -27,6 +27,8 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
 - `dnaby.sqlite3`：账号绑定、凭据、隐私和签到记录；其中凭据是明文敏感数据。
 - `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`：订阅、公告兼容 ID 列表与按
   目标投递状态。
+- `client_update_state.json`：客户端更新版本化基线、最近一次变化摘要和未完成的按目标投递事件；
+  事件成功或取消/停用清理后不保留完成历史，不保存凭据或原始响应。
 - `scheduler_state.json`：任务永久删除 tombstone。
 - `alias_custom.json`、`weapon_alias_custom.json`：角色与武器自定义别名；`panel_custom/` 仅是
   已移除面板管理后的历史文件目录，插件不再读取。
@@ -42,7 +44,7 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
 test -f "$DATA_DIR/dnaby.sqlite3"
 mkdir -p -- "$BACKUP_DIR"
 cp -p -- "$DATA_DIR/dnaby.sqlite3" "$BACKUP_DIR/dnaby.sqlite3"
-for item in subscriptions.json ann_state.json ann_delivery_state.json scheduler_state.json alias_custom.json weapon_alias_custom.json; do
+for item in subscriptions.json ann_state.json ann_delivery_state.json client_update_state.json scheduler_state.json alias_custom.json weapon_alias_custom.json; do
   test ! -e "$DATA_DIR/$item" || cp -p -- "$DATA_DIR/$item" "$BACKUP_DIR/$item"
 done
 test ! -d "$DATA_DIR/panel_custom" || cp -a -- "$DATA_DIR/panel_custom" "$BACKUP_DIR/panel_custom"
@@ -51,6 +53,11 @@ test ! -d "$DATA_DIR/panel_custom" || cp -a -- "$DATA_DIR/panel_custom" "$BACKUP
 上述命令只建立副本，不代表备份已经可恢复；部署者还应记录代码版本、迁移前 schema 版本、
 备份路径和校验结果，并在受控环境验证副本可读。不要把备份提交 Git、上传到 issue 或粘贴到
 聊天记录。
+
+客户端更新状态在待投递事件接线后使用 `schema_version: 2`，除基线和最近变化外还保存未完成的
+按目标事件；当前版本可读取仅含基线的 schema v1，并在下一次写入时升级。若回滚到只识别 v1 的旧
+代码，必须停写并恢复升级前备份的 `client_update_state.json`，否则旧代码会拒绝 v2；不要手工删除
+`pending_events` 或覆盖其他运行期状态来伪造回滚成功。
 
 ## 破坏性迁移与回滚
 
@@ -147,12 +154,12 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 ## 资源升级与迁移
 
 升级插件前备份整个 `data/plugin_data/astrbot_plugin_dnaby/`，至少确认
-`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `panel_custom/`
-可恢复。资源更新
+`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`、`client_update_state.json`
+和 `panel_custom/` 可恢复。资源更新
 本身只在 `resources/` 使用 Git 增量缓存，并在 `resource_generations/<commit-sha>/` 生成已验证
 快照；快照保存完整文件树 SHA-256，`resource_generations/current.json` 同时保存 commit 和摘要。
 启动预热不阻塞插件初始化，管理员下载会等待同一同步任务；终止时会排空该任务。没有摘要的旧
-指针会在校验后补写；启动或下载过程不会删除/迁移面板图、数据库、订阅或公告状态。
+指针会在校验后补写；启动或下载过程不会删除/迁移面板图、数据库、订阅、公告或客户端更新状态。
 
 ### 共享下载器旧缓存的一次性清理
 

@@ -81,6 +81,7 @@ def test_production_query_and_write_commands_have_explicit_mention_policy() -> N
         "role_detail_card",
         "role_original_image",
         "stamina",
+        "client_update",
         "weekly_report_current",
         "weekly_report_last",
         "calendar",

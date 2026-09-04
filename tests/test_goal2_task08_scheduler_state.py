@@ -21,6 +21,7 @@ from src.infrastructure.scheduler_state import (
     SchedulerTaskState,
 )
 from src.infrastructure.subscriptions import SubscriptionStore
+from src.modules.client_updates import ClientUpdateChange
 
 TZ = ZoneInfo("Asia/Shanghai")
 
@@ -266,10 +267,62 @@ async def test_permanent_delete_prevents_notice_task_creation_after_restart(
 
 
 @pytest.mark.asyncio
+async def test_permanent_delete_prevents_client_update_task_creation_after_restart(
+    tmp_path: Path,
+) -> None:
+    """客户端更新任务删除后，重启 scheduler 不得重新创建后台任务。"""
+
+    from src.infrastructure.client_updates_scheduler import ClientUpdatesScheduler
+
+    state_path = tmp_path / "scheduler_state.json"
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class _ClientUpdates:
+        async def poll_now(self) -> tuple[ClientUpdateChange, ...]:
+            return ()
+
+    class _ClientUpdateDelivery:
+        async def deliver(self, _changes: tuple[ClientUpdateChange, ...]) -> int:
+            return 0
+
+    async def sleep(_seconds: float) -> None:
+        entered.set()
+        await release.wait()
+
+    registry = SchedulerRegistry(state_path)
+    scheduler = ClientUpdatesScheduler(
+        _ClientUpdates(),
+        _ClientUpdateDelivery(),
+        registry=registry,
+        sleep=sleep,
+    )
+    await scheduler.start()
+    await entered.wait()
+    await scheduler.delete_task("dnaby_client_update_poll")
+    assert scheduler._tasks == []
+    assert await registry.is_deleted("dnaby_client_update_poll") is True
+    await scheduler.stop()
+
+    restarted_registry = SchedulerRegistry(state_path)
+    restarted = ClientUpdatesScheduler(
+        _ClientUpdates(),
+        _ClientUpdateDelivery(),
+        registry=restarted_registry,
+        sleep=sleep,
+    )
+    await restarted.start()
+    assert restarted.started is True
+    assert restarted._tasks == []
+    assert await restarted_registry.get_snapshot("dnaby_client_update_poll") is None
+    await restarted.stop()
+
+
+@pytest.mark.asyncio
 async def test_bootstrap_wires_one_shared_registry_and_state_path(
     tmp_path: Path,
 ) -> None:
-    """runtime 将四个任务汇总到同一个运行期 scheduler_state.json。"""
+    """runtime 将五个任务汇总到同一个运行期 scheduler_state.json。"""
 
     from src.bootstrap import build_runtime
     from src.infrastructure.persistence import AsyncDatabase
@@ -295,4 +348,5 @@ async def test_bootstrap_wires_one_shared_registry_and_state_path(
         "dnaby_sign_cleanup",
         "dnaby_mh_push",
         "dnaby_ann_poll",
+        "dnaby_client_update_poll",
     }

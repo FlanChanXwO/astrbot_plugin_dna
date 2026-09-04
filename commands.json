@@ -700,6 +700,46 @@
     "use_case": "src.modules.notices.commands.notices_ann_unsub_use_case"
   },
   {
+    "id": "client_update",
+    "pattern": "^kk客户端更新(?:\\s+(?P<platform>PC|安卓))?$",
+    "group": "信息查询",
+    "name": "客户端更新",
+    "description": "查询国服 PC 与安卓客户端版本更新",
+    "examples": [
+      "kk客户端更新",
+      "kk客户端更新 PC",
+      "kk客户端更新 安卓"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.client_updates.commands.client_update_query_use_case"
+  },
+  {
+    "id": "client_update_subscribe",
+    "pattern": "^kk订阅客户端更新(?:\\s+(?P<platform>PC|安卓))?$",
+    "group": "信息查询",
+    "name": "订阅客户端更新",
+    "description": "订阅群聊中的客户端更新推送",
+    "examples": [
+      "kk订阅客户端更新",
+      "kk订阅客户端更新 PC",
+      "kk订阅客户端更新 安卓"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.client_updates.commands.client_update_subscribe_use_case"
+  },
+  {
+    "id": "client_update_unsubscribe",
+    "pattern": "^kk取消订阅客户端更新$",
+    "group": "信息查询",
+    "name": "取消订阅客户端更新",
+    "description": "取消当前群的客户端更新推送",
+    "examples": [
+      "kk取消订阅客户端更新"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.client_updates.commands.client_update_unsubscribe_use_case"
+  },
+  {
     "id": "resource_status",
     "pattern": "^kk资源状态$",
     "group": "资源管理",

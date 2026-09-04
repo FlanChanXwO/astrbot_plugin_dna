@@ -18,11 +18,12 @@ BUILTIN_SCHEDULER_TASK_IDS = (
     "dnaby_sign_cleanup",
     "dnaby_mh_push",
     "dnaby_ann_poll",
+    "dnaby_client_update_poll",
 )
 
 _DAILY_TASK_IDS = frozenset(("dnaby_sign_daily", "dnaby_sign_cleanup"))
 _HOURLY_TASK_IDS = frozenset(("dnaby_mh_push",))
-_INTERVAL_TASK_IDS = frozenset(("dnaby_ann_poll",))
+_INTERVAL_TASK_IDS = frozenset(("dnaby_ann_poll", "dnaby_client_update_poll"))
 # 兼容旧调用方的默认值；实际密函分钟由 NoticesScheduler/typed 配置注入。
 MH_PUSH_AT: tuple[int, int] = (0, 0)
 MH_PUSH_SCHEDULE = "hourly@00:00"
@@ -35,8 +36,9 @@ def parse_scheduler_schedule(
     """严格解析现有任务的调度参数并返回规范值。
 
     API 更新不能复用 scheduler 构造函数的“非法值回退默认值”语义，否则管理页
-    会把用户的错误输入伪装成成功。每日时间沿用 ``SignInSettings`` 的边界，公告
-    interval 沿用 ``NotificationSettings`` 的 1--60 分钟约束。
+    会把用户的错误输入伪装成成功。每日时间沿用 ``SignInSettings`` 的边界；公告
+    interval 沿用 ``NotificationSettings`` 的 1--60 分钟约束；客户端更新
+    interval 使用独立的正整数配置，不与公告周期共享。
     """
 
     if task_id not in BUILTIN_SCHEDULER_TASK_IDS:
@@ -71,8 +73,14 @@ def parse_scheduler_schedule(
     if task_id in _INTERVAL_TASK_IDS:
         match = re.fullmatch(r"interval@(\d+)m", normalized)
         if match is None:
-            raise ValueError("公告任务 schedule 必须为 interval@Nm")
+            raise ValueError("任务 schedule 必须为 interval@Nm")
         minutes = int(match.group(1))
+        if task_id == "dnaby_client_update_poll":
+            try:
+                NotificationSettings(client_update_check_minutes=minutes)
+            except ValueError as error:
+                raise ValueError("客户端更新检查间隔必须为正整数") from error
+            return f"interval@{minutes}m", minutes
         try:
             NotificationSettings(announcement_check_minutes=minutes)
         except ValueError as error:

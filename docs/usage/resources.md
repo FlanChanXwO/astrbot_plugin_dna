@@ -80,13 +80,15 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 不会回退旧内容。资源版本变化会使相关图片自然重新生成。`rendered/` 临时文件仍由内部固定的
 24 小时周期清理，资源快照继续由 generation lease 独立管理。
 
+客户端更新的基线与投递状态单独保存在运行期数据目录的 `client_update_state.json`，不属于公共资源缓存；资源快照清理不会删除该文件。
+
 图片下载会先写入同目录临时文件，完成文件头和图片解码检查后再替换目标文件。下载失败不会
 生成空文件、透明假图或看似成功的路径；错误回复不会包含完整地址、响应正文或凭据信息。
 
 ## 备份与排障
 
 升级插件前，建议备份整个 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 目录，至少确认
-数据库、订阅记录、公告状态、自定义别名、`resources/` 和 `resource_generations/` 可以恢复。
+数据库、订阅记录、公告状态、客户端更新状态、自定义别名、`resources/` 和 `resource_generations/` 可以恢复。
 备份不应提交到 Git、上传到 issue 或粘贴到聊天中。
 
 如果资源状态异常：

@@ -66,8 +66,11 @@ Dashboard 管理页的账号列表默认只返回 App 凭据状态；只有已�
 - `scheduler_state.json` — 内置任务永久删除 tombstone；删除的业务任务没有管理 API 恢复操作。
 - `alias_custom.json`、`weapon_alias_custom.json` — 角色和武器自定义别名覆盖层；默认资源别名只读且不被覆盖层改写。
 - `panel_custom/` — 已移除面板管理后的历史文件；插件不再读取或删除，升级前仍可按需备份。
-- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` 和 `scheduler_state.json` —
-  订阅、公告兼容 ID 列表、按目标投递状态及任务 tombstone 等持久状态，不是普通缓存。
+- `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json` — 订阅、公告兼容 ID 列表与按目标
+  投递状态等持久状态，不是普通缓存。
+- `client_update_state.json` — 客户端更新的版本化状态文件，当前保存国服 PC/安卓各自的成功观察基线、
+  最近一次变化摘要和 `pending_events`。事件以 `event_key` 去重，并保存首次匹配的 origin/uid/bot_id 目标
+  及其 `pending`/`delivered` 状态；事件全部成功或目标被移除后清理，不保存凭据或原始上游响应。
 - `rendered/` — 受控的运行期临时 JPEG/PNG artifact 文件，不是持久业务缓存。
 - `cache/` — 玩家数据 JSON、完整 T2I 图片卡片以及公告、密函等 `CacheManager` 内容；所有
   条目共用 `cache.ttl_hours`，默认 24 小时，身份相关 key/tag 不保存原始 user_id 或 UID。
@@ -76,6 +79,18 @@ Dashboard 管理页的账号列表默认只返回 App 凭据状态；只有已�
   继续按内部固定 24 小时周期清理。
 - `_HELP_CACHE` — 进程内帮助卡片缓存，插件终止时清空；`resource_generations/` 与
   `current.json` 由资源快照协调器按 generation lease 管理；密函缓存按当前小时保存已校验快照。
+
+### 客户端更新状态与订阅
+
+- `subscriptions.json` 中的客户端更新类型为 `订阅DNA客户端更新`；群聊订阅使用空 `uid`，
+  `unified_msg_origin` 标识当前会话，`extra_data` 保存规范化的 `{"platforms":["pc","android"]}`
+  子集。重复的 type+origin+uid 记录会更新平台筛选，停用记录不会参与投递。
+- `client_update_state.json` 带 `schema_version`，当前按 `cn+pc`、`cn+android` 保存最近成功观察的
+  snapshot、`observed_at` 和可选的 `last_change`，并保存待投递事件的变化快照、固定目标集合及每目标
+  的 `pending`/`delivered` 状态。写入使用临时文件替换；JSON 损坏或结构非法时显式失败，不静默清空状态。
+  schema v1 仅含基线时会在下一次写入升级为当前版本，已完成事件不形成无界历史。
+- 客户端更新推送 DTO 只携带目标路由、平台和用户可见文本；OneBot 节点构造留在入口/bootstrap 适配边界，
+  不把框架组件或真实凭据写入状态文件。
 
 公告缓存的列表卡、详情页、详情 manifest 和源图都必须在内容完整且图片通过解码校验后写入；
 公告 fingerprint 纳入 key，上游内容变化会失效旧条目。详情图片失败时不写入新的完整卡或
@@ -131,5 +146,5 @@ SQLite、JSON 和文件目录之间不存在同一物理事务。账号删除协
 | `DNAPrivacy` | 个人隐私 | user_id, bot_id, group_id, allow_peek, uid_hidden |
 | `DNAGroupPrivacy` | 群隐私 | group_id, bot_id, force_allow_peek, force_uid_hidden |
 
-订阅数据仍是 legacy 参考实现中的 JSON（`data/plugin_data/astrbot_plugin_dnaby/subscriptions.json`）；
-新订阅模型不在 Task 9 范围内。
+`subscriptions.json` 是当前 rewrite 的运行期订阅存储；legacy `dnaby/utils/database` 中的旧订阅结构仅供迁移参考。
+客户端更新订阅使用独立的 `订阅DNA客户端更新` 类型与 `extra_data.platforms`，不与公告/密函订阅语义混用。
