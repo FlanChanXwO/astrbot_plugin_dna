@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         DnaApiAccountTransport,
         TransportErrorKind,
     )
+    from .app import AppTransport, AppTransportError, AppTransportFailureKind
     from .checkin import DnaApiCheckinTransport
     from .client_updates import ClientUpdateTransport
     from .concurrency import RequestConcurrencyGate
@@ -25,6 +26,9 @@ if TYPE_CHECKING:
 __all__ = [
     "DEFAULT_CODE_URL",
     "AccountTransportError",
+    "AppTransport",
+    "AppTransportError",
+    "AppTransportFailureKind",
     "ClientUpdateTransport",
     "DnaApiAccountTransport",
     "DnaApiCheckinTransport",
@@ -36,6 +40,9 @@ __all__ = [
 ]
 
 _SYMBOL_MODULES = {
+    "AppTransport": ".app",
+    "AppTransportError": ".app",
+    "AppTransportFailureKind": ".app",
     "AccountTransportError": ".account",
     "DnaApiAccountTransport": ".account",
     "TransportErrorKind": ".account",

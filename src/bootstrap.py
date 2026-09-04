@@ -160,6 +160,14 @@ def build_runtime(
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()
     settings = DnabySettings.from_config(config)
+    from .utils import dna_api
+
+    dna_api.configure_network(
+        api_base_url=settings.network.api_base_url,
+        proxy_url=settings.network.proxy_url,
+        websocket_continue_seconds=settings.network.websocket_continue_seconds,
+        websocket_wait_seconds=settings.network.websocket_wait_seconds,
+    )
     request_gate = RequestConcurrencyGate(settings.network.max_concurrent_requests)
     runtime_database = database
     if runtime_database is None:

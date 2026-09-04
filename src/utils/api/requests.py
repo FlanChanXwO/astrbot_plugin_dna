@@ -1,17 +1,21 @@
 import asyncio
 import hashlib
-import inspect
 import json
 import random
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, ClassVar, Literal, TypeVar
+from typing import Any, Literal, TypeVar
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import aiohttp
 from astrbot.api import logger
 
+from ...infrastructure.http.app import (
+    AppTransport,
+    AppTransportError,
+    AppTransportFailureKind,
+)
 from ..constants.constants import DNA_GAME_ID
 from ..database.models import DNAUser
 from ..utils import timed_async_cache
@@ -35,6 +39,7 @@ from .api import (
     LIKE_POST_URL,
     LOGIN_LOG_URL,
     LOGIN_URL,
+    MAIN_URL,
     REFRESH_TOKEN_URL,
     REPLY_POST_URL,
     ROLE_DETAIL_URL,
@@ -47,9 +52,6 @@ from .api import (
     WIKI_DETAIL_URL,
     WIKI_HOME_LIST_URL,
     WIKI_LIST_URL,
-    get_local_proxy_url,
-    get_need_proxy_func,
-    get_no_need_proxy_func,
 )
 from .auth import (
     DNACapability,
@@ -67,7 +69,6 @@ from .damage_model import (
 from .dnum import check_decrypt_dnum
 from .request_util import (
     DNAApiResp,
-    RespCode,
     get_base_header,
     get_damage_header,
 )
@@ -132,33 +133,33 @@ def _post_list_cache_key(_self: "DNAApi", dna_user: DNAUser) -> str:
     )
 
 
-class DNARequestError(RuntimeError):
-    """表示服务端返回了业务层失败，交给统一请求循环处理。"""
-
-
 class DNAApi:
-    ssl_verify = True
-    _sessions: ClassVar[dict[str, aiohttp.ClientSession]] = {}
-    _session_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
+    """legacy DNAApi facade backed by the unified App transport."""
 
-    async def get_session(self, proxy: str | None = None) -> aiohttp.ClientSession:
-        # 使用代理 URL 作为 key，None 表示直连
-        key = proxy or "no_proxy"
+    def __init__(self, *, app_transport: AppTransport | None = None) -> None:
+        self.app_transport = app_transport or AppTransport(api_base_url=MAIN_URL)
 
-        # 检查是否已有可用的 session
-        if key in self._sessions and not self._sessions[key].closed:
-            return self._sessions[key]
+    def configure_network(
+        self,
+        *,
+        api_base_url: str = "",
+        proxy_url: str = "",
+        websocket_continue_seconds: int | None = None,
+        websocket_wait_seconds: int | None = None,
+    ) -> None:
+        """把 typed network 配置同步到 REST 与官方业务 WS 两个出口。"""
 
-        async with self._session_lock:
-            # 双重检查，避免并发创建多个 session
-            if key in self._sessions and not self._sessions[key].closed:
-                return self._sessions[key]
+        self.app_transport.set_network(
+            api_base_url=api_base_url,
+            proxy_url=proxy_url,
+        )
+        from .ws_manager import configure_ws_manager
 
-            session = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(ssl=self.ssl_verify),
-            )
-            self._sessions[key] = session
-            return session
+        configure_ws_manager(
+            proxy_url=proxy_url,
+            continue_seconds=websocket_continue_seconds,
+            wait_seconds=websocket_wait_seconds,
+        )
 
     async def get_dna_user(self, uid: str, user_id: str, bot_id: str) -> DNAUser | None:
         dna_user = await DNAUser.select_dna_user(uid, user_id, bot_id)
@@ -216,7 +217,11 @@ class DNAApi:
                 dna_user.d_num = res.data["dNum"]
                 dna_user.status = ""
                 await DNAUser.update_data_by_data(
-                    select_data={"user_id": dna_user.user_id, "bot_id": dna_user.bot_id, "uid": dna_user.uid},
+                    select_data={
+                        "user_id": dna_user.user_id,
+                        "bot_id": dna_user.bot_id,
+                        "uid": dna_user.uid,
+                    },
                     update_data={
                         "status": "",
                         "cookie": dna_user.cookie,
@@ -249,7 +254,9 @@ class DNAApi:
     async def get_rsa_public_key(self) -> str:
         dev_code = get_dev_code()
         headers = await get_base_header(dev_code=dev_code)
-        res = await self._dna_request(url=GET_RSA_PUBLIC_KEY_URL, method="POST", header=headers)
+        res = await self._dna_request(
+            url=GET_RSA_PUBLIC_KEY_URL, method="POST", header=headers
+        )
 
         rsa_pub = _RSA_PUBLIC_KEY_FALLBACK
 
@@ -289,7 +296,12 @@ class DNAApi:
         dev_code: str,
     ) -> DNAApiResp[Any]:
         headers = await get_base_header(dev_code)
-        payload = {"code": code, "gameList": DNA_GAME_ID, "loginType": 1, "mobile": mobile}
+        payload = {
+            "code": code,
+            "gameList": DNA_GAME_ID,
+            "loginType": 1,
+            "mobile": mobile,
+        }
         rsa_pub = await self.get_rsa_public_key()
         headers, payload = get_signed_headers_and_body(
             url=LOGIN_URL,
@@ -545,7 +557,9 @@ class DNAApi:
             token=credentials.token,
         )
         data = {"weekType": week_type}
-        return await self._dna_request(ITEM_WEEKLY_REPORT_URL, "POST", headers, data=data)
+        return await self._dna_request(
+            ITEM_WEEKLY_REPORT_URL, "POST", headers, data=data
+        )
 
     async def have_sign_in(
         self,
@@ -648,8 +662,16 @@ class DNAApi:
         )
         data = {"gameId": DNA_GAME_ID}
         try:
-            return await self._dna_request(GET_TASK_PROCESS_URL, "POST", headers, data=data)
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, TypeError, ValueError) as e:
+            return await self._dna_request(
+                GET_TASK_PROCESS_URL, "POST", headers, data=data
+            )
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.exception("get_task_process", e)
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
@@ -682,8 +704,16 @@ class DNAApi:
             "timeType": 0,
         }
         try:
-            return await self._dna_request(GET_POST_LIST_URL, "POST", headers, data=data)
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, TypeError, ValueError) as e:
+            return await self._dna_request(
+                GET_POST_LIST_URL, "POST", headers, data=data
+            )
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.exception("get_post_list", e)
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
@@ -708,8 +738,16 @@ class DNAApi:
             )
         data = {"postId": post_id}
         try:
-            return await self._dna_request(GET_POST_DETAIL_URL, "POST", header, data=data)
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, TypeError, ValueError) as e:
+            return await self._dna_request(
+                GET_POST_DETAIL_URL, "POST", header, data=data
+            )
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.exception("get_post_detail", e)
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
@@ -750,7 +788,13 @@ class DNAApi:
         )
         try:
             return await self._dna_request(LIKE_POST_URL, "POST", headers, data=payload)
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, TypeError, ValueError) as e:
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.exception("do_like", e)
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
@@ -772,7 +816,13 @@ class DNAApi:
         data = {"gameId": DNA_GAME_ID}
         try:
             return await self._dna_request(SHARE_POST_URL, "POST", header, data=data)
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, TypeError, ValueError) as e:
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.exception("do_share", e)
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
@@ -835,7 +885,9 @@ class DNAApi:
         return []
 
     async def get_calendar_info(self):
-        headers = await get_base_header(is_h5=True, is_need_origin=True, is_need_refer=True)
+        headers = await get_base_header(
+            is_h5=True, is_need_origin=True, is_need_refer=True
+        )
         data = {}
         res = await self._dna_request(CALENDAR_LIST_URL, "POST", headers, data=data)
         if res.is_success and isinstance(res.data, dict):
@@ -843,14 +895,24 @@ class DNAApi:
         return []
 
     async def get_wiki_home_list(self):
-        headers = await get_base_header(is_h5=True, is_need_origin=True, is_need_refer=True)
+        headers = await get_base_header(
+            is_h5=True, is_need_origin=True, is_need_refer=True
+        )
         data = {}
         try:
-            res = await self._dna_request(WIKI_HOME_LIST_URL, "POST", headers, data=data)
+            res = await self._dna_request(
+                WIKI_HOME_LIST_URL, "POST", headers, data=data
+            )
             if res.is_success and isinstance(res.data, dict):
                 return res.data
             return None
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, TypeError, ValueError) as e:
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.exception("get_wiki_home_list", e)
             return None
 
@@ -869,7 +931,9 @@ class DNAApi:
             page_size: 每页数量
             filter_ids: 筛选条件ID，多个用逗号分隔
         """
-        headers = await get_base_header(is_h5=True, is_need_origin=True, is_need_refer=True)
+        headers = await get_base_header(
+            is_h5=True, is_need_origin=True, is_need_refer=True
+        )
         data: dict[str, Any] = {
             "pageNum": page_num,
             "pageSize": page_size,
@@ -880,7 +944,13 @@ class DNAApi:
         try:
             res = await self._dna_request(WIKI_LIST_URL, "POST", headers, data=data)
             return res
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, TypeError, ValueError) as e:
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.exception("get_wiki_list", e)
             return DNAApiResp[Any].err("请求皎皎角Wiki服务失败")
 
@@ -890,12 +960,20 @@ class DNAApi:
         Args:
             wiki_id: 图鉴的wikiId
         """
-        headers = await get_base_header(is_h5=True, is_need_origin=True, is_need_refer=True)
+        headers = await get_base_header(
+            is_h5=True, is_need_origin=True, is_need_refer=True
+        )
         data = {"id": wiki_id}
         try:
             res = await self._dna_request(WIKI_DETAIL_URL, "POST", headers, data=data)
             return res
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, TypeError, ValueError) as e:
+        except (
+            aiohttp.ClientError,
+            asyncio.TimeoutError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as e:
             logger.exception("get_wiki_detail", e)
             return DNAApiResp[Any].err("请求皎皎角Wiki详情失败")
 
@@ -924,86 +1002,45 @@ class DNAApi:
         params: dict[str, Any] | None = None,
         json_data: dict[str, Any] | None = None,
         data: str | dict[str, Any] | None = None,
-        max_retries: int = 3,
-        retry_delay: float = 1.0,
     ) -> DNAApiResp[str | dict[str, Any] | list[Any]]:
+        """通过统一 App transport 发送一次请求，不隐式重试或吞掉失败。"""
+
         if header is None:
             header = await get_base_header()
 
-        proxy_func = get_need_proxy_func()
-        func = inspect.stack()[1].function
-        if func in proxy_func or "all" in proxy_func:
-            proxy_url = get_local_proxy_url()
+        raw_res = await self.app_transport.request_json(
+            method,
+            url,
+            headers=header,
+            params=params,
+            json=json_data,
+            data=data,
+        )
+        if isinstance(raw_res, dict):
+            raw_data = raw_res.get("data")
+            if isinstance(raw_data, str):
+                try:
+                    raw_res["data"] = json.loads(raw_data)
+                except json.JSONDecodeError as error:
+                    logger.debug("[DNA] data 字段不是 JSON: %s", type(error).__name__)
+
+            logger.debug(
+                "[DNA] App response url=%s code=%s success=%s",
+                url,
+                raw_res.get("code"),
+                raw_res.get("success"),
+            )
         else:
-            proxy_url = None
+            logger.debug(
+                "[DNA] App response url=%s type=%s", url, type(raw_res).__name__
+            )
 
-        if proxy_url and func in get_no_need_proxy_func():
-            proxy_url = None
-
-        is_proxy = proxy_url is not None
-        session = await self.get_session(proxy=proxy_url)
-        for attempt in range(max_retries):
-            try:
-                async with session.request(
-                    method,
-                    url,
-                    headers=header,
-                    params=params,
-                    json=json_data,
-                    data=data,
-                    proxy=proxy_url,
-                    timeout=aiohttp.ClientTimeout(total=30),
-                ) as response:
-                    try:
-                        raw_res = await response.json()
-                    except aiohttp.ContentTypeError:
-                        _raw_data = await response.text()
-                        raw_res = {
-                            "code": RespCode.ERROR.value,
-                            "data": _raw_data,
-                        }
-                    if isinstance(raw_res, dict):
-                        try:
-                            raw_res["data"] = json.loads(raw_res.get("data", ""))
-                        except (TypeError, json.JSONDecodeError) as error:
-                            logger.debug(f"[DNA] data 字段不是 JSON: {error}")
-
-                    # 请求头、请求体和响应 data 可能包含 token/cookie，只记录状态摘要。
-                    if isinstance(raw_res, dict):
-                        response_summary = (
-                            f"code={raw_res.get('code')} "
-                            f"success={raw_res.get('success')} "
-                            f"msg={raw_res.get('msg')}"
-                        )
-                    else:
-                        response_summary = f"response_type={type(raw_res).__name__}"
-                    logger.debug(
-                        f"[DNA] url:[{url}] func:[{func}] "
-                        f"is_proxy:[{is_proxy}] {response_summary}"
-                    )
-
-                    res = DNAApiResp[Any].model_validate(raw_res)
-                    if res.code == 10100 and res.msg == "业务异常":
-                        raise DNARequestError(f"{url} 业务异常 code={res.code} msg={res.msg}")
-                    elif res.code == 200 and res.msg == "请求成功" and not res.data:
-                        if (
-                            url.endswith(("/user/login/log", "/user/getSmsCode", "/encourage/level/shareTask"))
-                        ):
-                            return res
-                        raise DNARequestError(f"{url} 请求成功，但数据为空 code={res.code} msg={res.msg}")
-
-                    return res
-            except (
-                aiohttp.ClientError,
-                asyncio.TimeoutError,
-                DNARequestError,
-                OSError,
-                TypeError,
-                UnicodeError,
-                ValueError,
-            ) as e:
-                logger.warning(f"请求失败: {e}")
-                if attempt < max_retries - 1:  # 最后一次重试不需要等待
-                    await asyncio.sleep(retry_delay * (2**attempt))
-
-        return DNAApiResp[Any].err("请求服务器失败，请稍后再试")
+        try:
+            return DNAApiResp[Any].model_validate(raw_res)
+        except (TypeError, ValueError) as error:
+            raise AppTransportError(
+                AppTransportFailureKind.SERVER,
+                method=method,
+                url=url,
+                detail=f"response contract failed: {type(error).__name__}",
+            ) from None

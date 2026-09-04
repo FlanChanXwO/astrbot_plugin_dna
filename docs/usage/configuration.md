@@ -111,6 +111,9 @@ schema 为准。
 `dna-login`、GitHub、公共资源 CDN、AstrBot 或第三方攻略接口。WebSocket 两项也只描述 API
 WebSocket，不描述 OneBot 或外置登录服务的连接。
 
+运行期由统一 App transport 发送 REST 请求并管理官方业务 WebSocket；调用方函数名不会改变代理
+范围。取消、网络断开、非 2xx、服务端响应异常和 WebSocket close/error 会分别暴露给上层处理。
+
 旧版 `api_proxy_url`、扁平 `DNAUrlProxyUrl` 会迁移为 `network.api_base_url`。旧版局部代理只有在
 `local_proxy_url` 非空、`proxy_functions` 恰为 `['all']` 且 `no_proxy_functions` 为空时，才会迁移为
 `network.proxy_url`；其他组合不会扩大代理范围，会记录 warning 并要求重新配置 `network.proxy_url`。
