@@ -1,39 +1,73 @@
-"""资料查询的用户可见文案。
-
-文案集中在模块边界，service 不拼接服务端原文；这样网络、状态码和结构变化不会
-把 token、URL 或调试细节意外发送到聊天中。
-"""
+"""资料查询的用户可见文案兼容层。"""
 
 from datetime import datetime
 
+from ...infrastructure.i18n import get_tip
 from .contracts import CodeEntry
 
-CONTEXT_UNAVAILABLE = "资料查询需要有效的消息上下文"
-SERVICE_UNAVAILABLE = "资料服务暂不可用，请检查插件配置"
-UID_INVALID = "尚未登录，请先登录"
-PEEK_BLOCKED = "该用户不允许被查询"
-CODE_TITLE = "[DNA兑换码]"
-CODE_EMPTY = f"{CODE_TITLE} 暂无可用兑换码"
+CONTEXT_UNAVAILABLE = get_tip("encyclopedia.context_unavailable")
+SERVICE_UNAVAILABLE = get_tip("encyclopedia.service_unavailable")
+UID_INVALID = get_tip("encyclopedia.uid_invalid")
+PEEK_BLOCKED = get_tip("encyclopedia.peek_blocked")
+CODE_TITLE = get_tip("encyclopedia.code_title")
+CODE_EMPTY = get_tip("encyclopedia.code_empty")
 
 
-def transport_error(kind: str) -> str:
+def account_not_bound(*, target: bool = False) -> str:
+    """生成本地账号绑定缺失文案。"""
+
+    return get_tip(
+        "common.target_account_not_bound" if target else "common.account_not_bound"
+    )
+
+
+def transport_error(kind: str, *, target: bool = False) -> str:
     """按安全失败类别生成稳定文案。"""
 
-    labels = {
-        "network": "网络",
-        "status": "服务状态",
-        "contract": "数据契约",
-        "server": "服务",
-        "not_found": "资料",
-        "resource": "资源",
-    }
-    return f"{labels.get(kind, '资料')}服务暂不可用，请稍后重试"
+    if kind == "credential":
+        return get_tip(
+            "common.credential_invalid" if target else "common.login_expired"
+        )
+    return get_tip("common.service_unavailable")
 
 
 def not_found(resource: str) -> str:
     """生成资源未找到文案，不包含底层路径。"""
 
-    return f"{resource}未找到，请检查名称或资源配置"
+    return get_tip("encyclopedia.not_found", resource=resource)
+
+
+def code_expiry(value: str) -> str:
+    return get_tip("encyclopedia.code_expires_at", value=value)
+
+
+def weekly_type_invalid() -> str:
+    return get_tip("encyclopedia.weekly_type_invalid")
+
+
+def guide_author(provider: str) -> str:
+    return get_tip("encyclopedia.guide_author", provider=provider)
+
+
+def alias_weapon_not_found(name: str) -> str:
+    return get_tip("encyclopedia.alias_weapon_not_found", name=name)
+
+
+def alias_weapon_list(name: str, aliases: str) -> str:
+    return get_tip("encyclopedia.alias_weapon_list", name=name, aliases=aliases)
+
+
+def alias_char_not_found(name: str) -> str:
+    return get_tip("encyclopedia.alias_char_not_found", name=name)
+
+
+def alias_char_list(name: str, aliases: str) -> str:
+    return get_tip("encyclopedia.alias_char_list", name=name, aliases=aliases)
+
+
+def alias_all_list(kind: str, items: str) -> str:
+    key = "encyclopedia.weapon_list" if kind == "武器" else "encyclopedia.char_list"
+    return get_tip(key, items=items)
 
 
 def _format_code_datetime(value: datetime) -> str:
@@ -45,9 +79,12 @@ def _format_code_datetime(value: datetime) -> str:
 def code_entry(entry: CodeEntry | str, expiry: str = "") -> str:
     """渲染兑换码本身及 provider 提供的非空可选字段。"""
 
-    # 保留旧调用形态，避免注入型 fixture 或外部集成在过渡期间失效。
     if isinstance(entry, str):
-        return f"{entry}（有效期至：{expiry}）" if expiry else entry
+        return (
+            get_tip("encyclopedia.code_expiry_only", code=entry, expiry=expiry)
+            if expiry
+            else entry
+        )
 
     if (
         entry.expires_at is not None
@@ -56,19 +93,37 @@ def code_entry(entry: CodeEntry | str, expiry: str = "") -> str:
         and not entry.platforms
         and not entry.servers
     ):
-        return f"{entry.code}（有效期至：{_format_code_datetime(entry.expires_at)}）"
+        return get_tip(
+            "encyclopedia.code_expiry_only",
+            code=entry.code,
+            expiry=_format_code_datetime(entry.expires_at),
+        )
 
     lines = [entry.code]
     if entry.reward:
-        lines.append(f"奖励：{entry.reward}")
+        lines.append(get_tip("encyclopedia.code_reward", reward=entry.reward))
     if entry.valid_from is not None:
-        lines.append(f"生效时间：{_format_code_datetime(entry.valid_from)}")
+        lines.append(
+            get_tip(
+                "encyclopedia.code_valid_from",
+                value=_format_code_datetime(entry.valid_from),
+            )
+        )
     if entry.expires_at is not None:
-        lines.append(f"有效期至：{_format_code_datetime(entry.expires_at)}")
+        lines.append(
+            get_tip(
+                "encyclopedia.code_expires_at",
+                value=_format_code_datetime(entry.expires_at),
+            )
+        )
     if entry.platforms:
-        lines.append(f"平台：{'、'.join(entry.platforms)}")
+        lines.append(
+            get_tip("encyclopedia.code_platforms", value="、".join(entry.platforms))
+        )
     if entry.servers:
-        lines.append(f"区服：{'、'.join(entry.servers)}")
+        lines.append(
+            get_tip("encyclopedia.code_servers", value="、".join(entry.servers))
+        )
     return "\n".join(lines)
 
 
@@ -79,7 +134,16 @@ __all__ = [
     "PEEK_BLOCKED",
     "SERVICE_UNAVAILABLE",
     "UID_INVALID",
+    "account_not_bound",
+    "alias_all_list",
+    "alias_char_list",
+    "alias_char_not_found",
+    "alias_weapon_list",
+    "alias_weapon_not_found",
     "code_entry",
+    "code_expiry",
+    "guide_author",
     "not_found",
     "transport_error",
+    "weekly_type_invalid",
 ]

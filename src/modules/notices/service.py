@@ -29,6 +29,7 @@ from .ann_state import AnnStateStore
 from .contracts import (
     MhSnapshot,
     NoticeRequest,
+    NoticesFailureKind,
     NoticesTransport,
     NoticesTransportError,
     validate_mh_snapshot,
@@ -151,6 +152,8 @@ class NoticesService:
     async def _resolve_uid(
         self,
         request: NoticeRequest,
+        *,
+        operation: str,
     ) -> tuple[str, str] | PlainTextResponse:
         resolution = await self.privacy.resolve_query(
             request.actor, request.target_user_id
@@ -164,7 +167,16 @@ class NoticesService:
                 user_id=target_user_id,
             )
         if binding is None:
-            return PlainTextResponse(messages.NOTICES_UID_INVALID, need_at=True)
+            target = target_user_id != request.actor.user_id
+            logger.warning(
+                "账号绑定缺失 operation=%s scope=%s reason=local_binding_missing",
+                operation,
+                "target" if target else "self",
+            )
+            return PlainTextResponse(
+                messages.account_not_bound(target=target),
+                need_at=True,
+            )
         return target_user_id, binding.uid
 
     @staticmethod
@@ -196,7 +208,7 @@ class NoticesService:
     async def mh(self, request: NoticeRequest):
         """读取并渲染当前小时段的密函数据。"""
 
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="mh")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
@@ -218,6 +230,14 @@ class NoticesService:
                 error.kind.value,
                 error.resource,
             )
+            if error.kind is NoticesFailureKind.CREDENTIAL:
+                return PlainTextResponse(
+                    messages.transport_error(
+                        error.kind.value,
+                        target=target_user_id != request.actor.user_id,
+                    ),
+                    need_at=True,
+                )
             return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)
         except ValueError:
             logger.warning("通知数据解析失败 operation=%s", "mh")
@@ -356,7 +376,7 @@ class NoticesService:
                 extra_message=",".join(merged),
             )
             return PlainTextResponse(
-                f"{messages.MH_SUBSCRIBED_TEMPLATE.format(names=mh_name)}!当前订阅密函: {','.join(merged)}",
+                messages.mh_subscribed_current(mh_name, ",".join(merged)),
                 need_at=True,
             )
         except RuntimeError:
@@ -408,7 +428,7 @@ class NoticesService:
                     uid=request.actor.user_id,
                 )
                 return PlainTextResponse(
-                    f"{messages.MH_UNSUBSCRIBED.format(name=mh_name)}!当前订阅密函: ",
+                    messages.mh_unsubscribed_empty_current(mh_name),
                     need_at=True,
                 )
             await self.subscriptions.update(
@@ -418,7 +438,7 @@ class NoticesService:
                 extra_message=",".join(remaining),
             )
             return PlainTextResponse(
-                f"{messages.MH_UNSUBSCRIBED.format(name=mh_name)}!当前订阅密函: {','.join(remaining)}",
+                messages.mh_unsubscribed_current(mh_name, ",".join(remaining)),
                 need_at=True,
             )
         except RuntimeError:
@@ -452,9 +472,7 @@ class NoticesService:
             lines.append(messages.MH_PUSH_TIME_SET.format(start=start, end=end))
         else:
             lines.append(messages.MH_PUSH_TIME_UNLIMITED)
-            lines.append(
-                f"可以使用命令设置推送时间: {messages.COMMAND_PREFIX}订阅密函时间17:23"
-            )
+            lines.append(messages.mh_push_time_hint(messages.COMMAND_PREFIX))
         return PlainTextResponse("\n".join(lines), need_at=True)
 
     async def set_mh_push_time(self, request: NoticeRequest):
@@ -744,10 +762,10 @@ class NoticesService:
             if not matched_keys_ordered:
                 continue
 
-            lines = ["当前订阅密函已刷新:"]
+            lines = [messages.mh_refresh_title()]
             for key in matched_keys_ordered:
                 type_name, _, mh_name = key.partition(":")
-                lines.append(f"{type_name} : {mh_name or key}")
+                lines.append(messages.mh_list_item(type_name, mh_name or key))
 
             at_target: str | list[str] | None = None
             if at_users:
@@ -763,12 +781,12 @@ class NoticesService:
             if self._mh_subscription_in_window(sub, current_hour)
         ]
         if all_text_subs:
-            text_lines = ["【密函已刷新】"]
+            text_lines = [messages.mh_text_title()]
             for type_name in ("角色", "武器", "魔之楔"):
                 if by_type.get(type_name):
-                    text_lines.append(f"\n-- {type_name} --")
+                    text_lines.append(messages.mh_text_section(type_name))
                     text_lines.extend(
-                        f"{i}. {name}"
+                        messages.mh_text_item(i, name)
                         for i, name in enumerate(by_type[type_name], start=1)
                     )
             full_text = "\n".join(text_lines)

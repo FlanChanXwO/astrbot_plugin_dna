@@ -33,6 +33,7 @@ from ...modules.notices.contracts import (
     NoticesTransportError,
     validate_mh_snapshot,
 )
+from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
 
 
@@ -40,6 +41,8 @@ def _error_kind(response: Any) -> NoticesFailureKind:
     code = getattr(response, "code", None)
     if code == -999:
         return NoticesFailureKind.NETWORK
+    if is_credential_failure(response):
+        return NoticesFailureKind.CREDENTIAL
     if isinstance(code, int) and code >= 400:
         return NoticesFailureKind.STATUS
     return NoticesFailureKind.SERVER
@@ -87,11 +90,15 @@ class DnaApiNoticesTransport:
                 user_id=credential_user_id,
                 uid=uid,
             )
-        if record is None:
+        if (
+            record is None
+            or record.app_status == "无效"
+            or not record.has_app_credentials
+        ):
             raise NoticesTransportError(
                 NoticesFailureKind.CREDENTIAL,
                 resource="账号凭据",
-                detail="credential record is missing",
+                detail="credential record is missing or invalid",
             )
         try:
             from ...utils.database.models import DNAUser

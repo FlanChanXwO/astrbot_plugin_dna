@@ -27,6 +27,7 @@ from ...modules.checkin.contracts import (
     TaskProcess,
 )
 from ...modules.player.contracts import RoleOverview
+from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
 
 
@@ -34,6 +35,8 @@ def _error_kind(response: Any) -> CheckinFailureKind:
     code = getattr(response, "code", None)
     if code == -999:
         return CheckinFailureKind.NETWORK
+    if is_credential_failure(response):
+        return CheckinFailureKind.CREDENTIAL
     if isinstance(code, int) and code >= 400:
         return CheckinFailureKind.STATUS
     return CheckinFailureKind.SERVER
@@ -81,11 +84,15 @@ class DnaApiCheckinTransport:
                 user_id=credential_user_id,
                 uid=uid,
             )
-        if record is None:
+        if (
+            record is None
+            or record.app_status == "无效"
+            or not record.has_app_credentials
+        ):
             raise CheckinTransportError(
                 CheckinFailureKind.CREDENTIAL,
                 resource="账号凭据",
-                detail="credential record is missing",
+                detail="credential record is missing or invalid",
             )
         try:
             from ...utils.database.models import DNAUser

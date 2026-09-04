@@ -58,7 +58,9 @@ def _calendar_fixture(*, today_signed: bool | None = False) -> SignCalendar:
             )
             for index, day in enumerate(range(1, 8))
         ),
-        period=SignPeriod(period_id=9, name="周期甲", over_days=7, start_date=0, end_date=0),
+        period=SignPeriod(
+            period_id=9, name="周期甲", over_days=7, start_date=0, end_date=0
+        ),
         role_info=SignRoleInfo(role_id="101", role_name="角色甲", level=60),
     )
 
@@ -102,7 +104,9 @@ class FakeCheckinTransport:
     ) -> None:
         self.calendar = calendar if calendar is not None else _calendar_fixture()
         self.game_result = game_result
-        self.task_process = task_process if task_process is not None else _task_fixture()
+        self.task_process = (
+            task_process if task_process is not None else _task_fixture()
+        )
         self.bbs_result = bbs_result
         self.total_days = total_days
         self.posts = posts
@@ -116,12 +120,16 @@ class FakeCheckinTransport:
         if self.fail is not None and (self.fail_uid is None or self.fail_uid == uid):
             raise self.fail
 
-    async def get_sign_calendar(self, actor, uid, *, credential_user_id) -> SignCalendar:
+    async def get_sign_calendar(
+        self, actor, uid, *, credential_user_id
+    ) -> SignCalendar:
         self._maybe_fail(uid, "get_sign_calendar")
         assert credential_user_id == "user-1"
         return self.calendar
 
-    async def game_sign(self, actor, uid, award: DayAward, *, credential_user_id) -> SignStatus:
+    async def game_sign(
+        self, actor, uid, award: DayAward, *, credential_user_id
+    ) -> SignStatus:
         self._maybe_fail(uid, "game_sign")
         assert award.award_id == 3
         assert award.day_in_period == 4
@@ -154,7 +162,9 @@ class FakeCheckinTransport:
             close_weapons=[],
         )
 
-    async def get_post_list(self, actor, uid, *, credential_user_id) -> tuple[CommunityPost, ...]:
+    async def get_post_list(
+        self, actor, uid, *, credential_user_id
+    ) -> tuple[CommunityPost, ...]:
         self._maybe_fail(uid, "get_post_list")
         return self.posts
 
@@ -233,7 +243,9 @@ def _request(
 
 
 @pytest.mark.asyncio
-async def test_manual_sign_completes_game_and_community_and_saves_record(tmp_path: Path) -> None:
+async def test_manual_sign_completes_game_and_community_and_saves_record(
+    tmp_path: Path,
+) -> None:
     """签到成功必须保存当天记录并返回完成文案。"""
 
     database = await _database_with_binding(tmp_path)
@@ -259,7 +271,9 @@ async def test_manual_sign_completes_game_and_community_and_saves_record(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_manual_sign_skips_without_transport_when_already_complete(tmp_path: Path) -> None:
+async def test_manual_sign_skips_without_transport_when_already_complete(
+    tmp_path: Path,
+) -> None:
     """今天已完成的账号直接提示重复签到，不调用 transport。"""
 
     database = await _database_with_binding(tmp_path)
@@ -287,7 +301,9 @@ async def test_manual_sign_skips_without_transport_when_already_complete(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_manual_sign_transport_failure_is_visible_and_redacted(tmp_path: Path) -> None:
+async def test_manual_sign_transport_failure_is_visible_and_redacted(
+    tmp_path: Path,
+) -> None:
     """transport 错误只映射稳定文案，不回显上游正文。"""
 
     database = await _database_with_binding(tmp_path)
@@ -309,7 +325,9 @@ async def test_manual_sign_transport_failure_is_visible_and_redacted(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_manual_sign_incomplete_calendar_is_visible_failure(tmp_path: Path) -> None:
+async def test_manual_sign_incomplete_calendar_is_visible_failure(
+    tmp_path: Path,
+) -> None:
     """后端精简返回日历时不伪造成功，游戏签到标为失败。"""
 
     database = await _database_with_binding(tmp_path)
@@ -319,7 +337,9 @@ async def test_manual_sign_incomplete_calendar_is_visible_failure(tmp_path: Path
         user_gold=None,
         signin_time=None,
         day_awards=(),
-        period=SignPeriod(period_id=9, name="周期甲", over_days=7, start_date=0, end_date=0),
+        period=SignPeriod(
+            period_id=9, name="周期甲", over_days=7, start_date=0, end_date=0
+        ),
         role_info=None,
     )
     transport = FakeCheckinTransport(calendar=incomplete)
@@ -334,7 +354,9 @@ async def test_manual_sign_incomplete_calendar_is_visible_failure(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_manual_sign_bbs_detail_completes_via_post_iteration(tmp_path: Path) -> None:
+async def test_manual_sign_bbs_detail_completes_via_post_iteration(
+    tmp_path: Path,
+) -> None:
     """浏览任务按目标次数遍历帖子后完成并保存计数。"""
 
     database = await _database_with_binding(tmp_path)
@@ -461,7 +483,7 @@ async def test_manual_sign_uid_invalid_when_unbound(tmp_path: Path) -> None:
     response = await service.manual_sign(_request())
 
     assert isinstance(response, PlainTextResponse)
-    assert response.text == messages.CHECKIN_UID_INVALID
+    assert response.text == "当前未绑定账号，请先登录"
     assert transport.calls == []
     await database.dispose()
 
@@ -470,7 +492,9 @@ async def test_manual_sign_uid_invalid_when_unbound(tmp_path: Path) -> None:
 async def test_manual_sign_peek_blocked_visible(tmp_path: Path) -> None:
     """目标用户防偷窥时显式拒绝，不执行签到。"""
 
-    database = await _database_with_binding(tmp_path, user_id="target-1", uid=TARGET_UID)
+    database = await _database_with_binding(
+        tmp_path, user_id="target-1", uid=TARGET_UID
+    )
     async with database.transaction() as session:
         await PrivacySettingRepository.add(
             session,
@@ -482,7 +506,9 @@ async def test_manual_sign_peek_blocked_visible(tmp_path: Path) -> None:
     service = _service(database, transport, allow_mention_query=True)
 
     response = await service.manual_sign(
-        _request(actor=EventActor("user-1", "bot-1", "group-1"), target_user_id="target-1"),
+        _request(
+            actor=EventActor("user-1", "bot-1", "group-1"), target_user_id="target-1"
+        ),
     )
 
     assert isinstance(response, PlainTextResponse)
@@ -499,7 +525,9 @@ async def test_subscribe_sign_result_adds_and_dedupes(tmp_path: Path) -> None:
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     transport = FakeCheckinTransport()
     service = _service(database, transport, subscriptions=subscriptions)
-    actor = EventActor("user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1")
+    actor = EventActor(
+        "user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1"
+    )
 
     response = await service.subscribe_sign_result(
         _request(actor=actor, text="订阅签到结果"),
@@ -526,7 +554,9 @@ async def test_unsubscribe_sign_result_removes_subscription(tmp_path: Path) -> N
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     transport = FakeCheckinTransport()
     service = _service(database, transport, subscriptions=subscriptions)
-    actor = EventActor("user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1")
+    actor = EventActor(
+        "user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1"
+    )
     await service.subscribe_sign_result(_request(actor=actor, text="订阅签到结果"))
 
     response = await service.subscribe_sign_result(
@@ -619,7 +649,9 @@ async def test_clear_sign_records_before_deletes_old_records(tmp_path: Path) -> 
 
 
 @pytest.mark.asyncio
-async def test_manual_sign_reports_tasks_empty_when_no_enabled_task(tmp_path: Path) -> None:
+async def test_manual_sign_reports_tasks_empty_when_no_enabled_task(
+    tmp_path: Path,
+) -> None:
     """社区启用但 API 未返回启用任务时，显示明确文案而非帖子列表为空。"""
 
     database = await _database_with_binding(tmp_path)
@@ -656,7 +688,9 @@ async def test_subscribe_sign_result_surfaces_corrupt_store(tmp_path: Path) -> N
     subscriptions = SubscriptionStore(path)
     transport = FakeCheckinTransport()
     service = _service(database, transport, subscriptions=subscriptions)
-    actor = EventActor("user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1")
+    actor = EventActor(
+        "user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1"
+    )
 
     response = await service.subscribe_sign_result(
         _request(actor=actor, text="订阅签到结果"),

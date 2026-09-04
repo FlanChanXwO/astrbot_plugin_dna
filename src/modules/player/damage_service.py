@@ -18,6 +18,7 @@ from ...utils.api.damage_model import (
 from ...utils.api.model import Mode, RoleDetail, WeaponDetail
 from ...utils.api.request_util import DNAApiResp
 from ...utils.database.models import DNAUser
+from . import messages
 
 _SKILL_LEVEL_BONUS_RE = re.compile(
     r"\[([^\]]+)]\s*等级\s*\+\s*(\d+)",
@@ -69,7 +70,9 @@ class RoleDamageBuild:
     @property
     def all_environment_config_ids(self) -> tuple[int, ...]:
         companion_ids = tuple(
-            config_id for companion in self.companions for config_id in companion.environment_config_ids
+            config_id
+            for companion in self.companions
+            for config_id in companion.environment_config_ids
         )
         return self.environment_config_ids + companion_ids
 
@@ -132,7 +135,10 @@ def _get_official_skills(
         if parent_skill_id not in extend_limits:
             continue
         extend_limits[parent_skill_id] += 1
-    return {skill_id: min(extend_limit, 2) for skill_id, extend_limit in extend_limits.items()}
+    return {
+        skill_id: min(extend_limit, 2)
+        for skill_id, extend_limit in extend_limits.items()
+    }
 
 
 def get_calculation_skill_levels(
@@ -173,7 +179,11 @@ def build_role_damage_request(
         tuple(official_skills),
     )
     con_weapon_detail = build.con_weapon_detail
-    con_weapon_modes = [] if con_weapon_detail is None else _build_mode_selections(con_weapon_detail.modes)
+    con_weapon_modes = (
+        []
+        if con_weapon_detail is None
+        else _build_mode_selections(con_weapon_detail.modes)
+    )
     return CharacterCalculateRequest(
         charGradeLevel=role_detail.gradeLevel,
         charLevel=role_detail.level,
@@ -191,9 +201,15 @@ def build_role_damage_request(
         ],
         conWeaponModes=con_weapon_modes,
         charId=role_detail.charId,
-        closeWeapon=(None if build.close_weapon_detail is None else _build_weapon_request(build.close_weapon_detail)),
+        closeWeapon=(
+            None
+            if build.close_weapon_detail is None
+            else _build_weapon_request(build.close_weapon_detail)
+        ),
         langRangeWeapon=(
-            None if build.lang_range_weapon_detail is None else _build_weapon_request(build.lang_range_weapon_detail)
+            None
+            if build.lang_range_weapon_detail is None
+            else _build_weapon_request(build.lang_range_weapon_detail)
         ),
         isSv=build.is_sv,
         isEv=build.is_ev,
@@ -210,7 +226,10 @@ async def calculate_role_damage(
     role_detail = build.role_detail
     config_response = await dna_api.get_damage_config(dna_user)
     if not config_response.is_success:
-        return DNAApiResp[CharacterCalculateData].err(config_response.msg)
+        return DNAApiResp[CharacterCalculateData].err(
+            config_response.msg,
+            code=config_response.code,
+        )
     if config_response.data is None:
         raise RuntimeError("官方 H5 配置响应缺少 data")
 
@@ -220,16 +239,19 @@ async def calculate_role_damage(
     )
     if official_skills is None:
         return DNAApiResp[CharacterCalculateData].err(
-            f"官方 H5 缺少{role_detail.charName}的伤害配置",
+            messages.damage_config_missing(role_detail.charName),
         )
     if not official_skills:
         return DNAApiResp[CharacterCalculateData].err(
-            f"官方 H5 暂未开放{role_detail.charName}的伤害计算",
+            messages.damage_not_open(role_detail.charName),
         )
 
     if role_detail.level not in _OFFICIAL_CHARACTER_LEVELS:
         return DNAApiResp[CharacterCalculateData].err(
-            f"角色「{role_detail.charName}」Lv.{role_detail.level} 不在官网计算档位中",
+            messages.damage_role_level_unsupported(
+                role_detail.charName,
+                role_detail.level,
+            ),
         )
 
     weapons = (
@@ -239,7 +261,11 @@ async def calculate_role_damage(
     for label, weapon in weapons:
         if weapon is not None and weapon.level not in _OFFICIAL_WEAPON_LEVELS:
             return DNAApiResp[CharacterCalculateData].err(
-                f"{label}「{weapon.name}」Lv.{weapon.level} 不在官网计算档位中",
+                messages.damage_weapon_level_unsupported(
+                    label,
+                    weapon.name,
+                    weapon.level,
+                ),
             )
 
     try:

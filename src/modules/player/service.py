@@ -111,10 +111,17 @@ class PlayerService:
             return nullcontext(self.renderer)
         return self.resource_snapshots.bind_renderer(self.renderer, "player_resources")
 
-    async def _resolve_uid(self, request: PlayerCommandRequest) -> tuple[str, str] | PlainTextResponse:
+    async def _resolve_uid(
+        self,
+        request: PlayerCommandRequest,
+        *,
+        operation: str,
+    ) -> tuple[str, str] | PlainTextResponse:
         """解析目标用户和当前绑定 UID，先应用隐私策略再读取账号。"""
 
-        resolution = await self.privacy.resolve_query(request.actor, request.target_user_id)
+        resolution = await self.privacy.resolve_query(
+            request.actor, request.target_user_id
+        )
         if resolution.blocked:
             return PlainTextResponse(messages.PLAYER_PEEK_BLOCKED)
         target_user_id = resolution.resolved_user_id
@@ -124,11 +131,21 @@ class PlayerService:
                 user_id=target_user_id,
             )
         if binding is None:
-            return PlainTextResponse(messages.PLAYER_UID_INVALID)
+            target = target_user_id != request.actor.user_id
+            logger.warning(
+                "账号绑定缺失 operation=%s scope=%s reason=local_binding_missing",
+                operation,
+                "target" if target else "self",
+            )
+            return PlainTextResponse(messages.account_not_bound(target=target))
         return target_user_id, binding.uid
 
     @staticmethod
-    def _transport_response(error: PlayerTransportError) -> PlainTextResponse:
+    def _transport_response(
+        error: PlayerTransportError,
+        *,
+        target: bool = False,
+    ) -> PlainTextResponse:
         """映射安全错误类别；不向用户返回 detail。"""
 
         logger.warning(
@@ -138,10 +155,12 @@ class PlayerService:
         )
 
         if error.kind is PlayerFailureKind.NOT_FOUND:
-            return PlainTextResponse(f"{error.resource}未找到，请检查是否正确")
+            return PlainTextResponse(messages.not_found(error.resource))
         if error.kind is PlayerFailureKind.NOT_UNLOCKED:
-            return PlainTextResponse(f"{error.resource}暂未拥有，无法查看")
-        return PlainTextResponse(messages.transport_error(error.kind.value))
+            return PlainTextResponse(messages.not_unlocked(error.resource))
+        return PlainTextResponse(
+            messages.transport_error(error.kind.value, target=target)
+        )
 
     def _now(self) -> datetime:
         return self.clock()
@@ -191,7 +210,9 @@ class PlayerService:
             try:
                 overview = await self._fetch_overview(request, target_user_id, uid)
             except PlayerTransportError as error:
-                return self._transport_response(error)
+                return self._transport_response(
+                    error, target=target_user_id != request.actor.user_id
+                )
             return _OverviewState(overview, self._value_digest(overview))
 
         async with self._overview_lock(target_user_id, uid):
@@ -230,7 +251,9 @@ class PlayerService:
         try:
             overview = await self._fetch_overview(request, target_user_id, uid)
         except PlayerTransportError as error:
-            return self._transport_response(error)
+            return self._transport_response(
+                error, target=target_user_id != request.actor.user_id
+            )
         metadata = await self.cache.put_data(
             key,
             overview,
@@ -316,7 +339,7 @@ class PlayerService:
     ) -> _OverviewResult | PlainTextResponse:
         """读取概览快照并生成可复用的图片响应。"""
 
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="role_overview")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
@@ -400,7 +423,11 @@ class PlayerService:
         if exact is not None:
             return exact
         return next(
-            (item for item in overview.role_chars if normalized and normalized in item.name),
+            (
+                item
+                for item in overview.role_chars
+                if normalized and normalized in item.name
+            ),
             None,
         )
 
@@ -411,9 +438,14 @@ class PlayerService:
         input_name: str,
     ) -> tuple[str, WeaponItem] | None:
         normalized = input_name.strip()
-        for slot, weapons in (("近战武器", close_weapons), ("远程武器", ranged_weapons)):
+        for slot, weapons in (
+            ("近战武器", close_weapons),
+            ("远程武器", ranged_weapons),
+        ):
             for weapon in weapons:
-                if normalized == weapon.name or (normalized and normalized in weapon.name):
+                if normalized == weapon.name or (
+                    normalized and normalized in weapon.name
+                ):
                     return slot, weapon
         return None
 
@@ -428,7 +460,9 @@ class PlayerService:
         selected: list[tuple[str, WeaponItem]] = []
         slots: set[str] = set()
         for input_name in names:
-            found = cls._find_weapon(overview.close_weapons, overview.ranged_weapons, input_name)
+            found = cls._find_weapon(
+                overview.close_weapons, overview.ranged_weapons, input_name
+            )
             if found is None:
                 return PlainTextResponse(messages.PLAYER_WEAPON_NOT_FOUND)
             slot, weapon = found
@@ -515,7 +549,10 @@ class PlayerService:
         )
 
         weapon_sections: list[tuple[str, WeaponDetail]] = []
-        if role_detail.con_weapon_id is not None and role_detail.con_weapon_eid is not None:
+        if (
+            role_detail.con_weapon_id is not None
+            and role_detail.con_weapon_eid is not None
+        ):
             con_weapon = await self.transport.get_weapon_detail(
                 request.actor,
                 uid,
@@ -563,8 +600,12 @@ class PlayerService:
                     selected,
                 )
             except PlayerTransportError as error:
-                return self._transport_response(error)
-            return _DetailState(bundle, self._value_digest(self._detail_payload(bundle)))
+                return self._transport_response(
+                    error, target=target_user_id != request.actor.user_id
+                )
+            return _DetailState(
+                bundle, self._value_digest(self._detail_payload(bundle))
+            )
 
         key = self.cache.detail_data_key(
             target_user_id,
@@ -597,7 +638,9 @@ class PlayerService:
                 selected,
             )
         except PlayerTransportError as error:
-            return self._transport_response(error)
+            return self._transport_response(
+                error, target=target_user_id != request.actor.user_id
+            )
         if not bundle.cacheable:
             return _DetailState(bundle, None)
         metadata = await self.cache.put_data(
@@ -736,7 +779,7 @@ class PlayerService:
     async def role_detail(self, request: PlayerCommandRequest):
         """读取角色详情和选定武器后生成一张基础详情图。"""
 
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="role_detail")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
@@ -772,7 +815,9 @@ class PlayerService:
                 refresh_uid,
             )
         except PlayerTransportError as error:
-            return self._transport_response(error)
+            return self._transport_response(
+                error, target=target_user_id != request.actor.user_id
+            )
 
         char_name = str(request.parameters.get("char_name", "")).strip()
         role = self._find_role(overview, char_name)
@@ -814,7 +859,7 @@ class PlayerService:
         else:
             if request.target_user_id not in (None, request.actor.user_id):
                 return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
-            resolved = await self._resolve_uid(request)
+            resolved = await self._resolve_uid(request, operation="refresh_role")
             if isinstance(resolved, PlainTextResponse):
                 return resolved
             target_user_id, refresh_uid = resolved
@@ -853,7 +898,7 @@ class PlayerService:
 
         if request.target_user_id not in (None, request.actor.user_id):
             return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="refresh_all_roles")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, refresh_uid = resolved
@@ -866,7 +911,9 @@ class PlayerService:
                     refresh_uid,
                 )
             except PlayerTransportError as error:
-                return self._transport_response(error)
+                return self._transport_response(
+                    error, target=target_user_id != request.actor.user_id
+                )
 
             if self.cache is not None:
                 await self.cache.invalidate_identity(target_user_id, refresh_uid)
@@ -954,7 +1001,7 @@ class PlayerService:
         char_name = str(request.parameters.get("char_name", "")).strip()
         if not char_name:
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="clear_role_cache")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
@@ -970,7 +1017,9 @@ class PlayerService:
         if role is None:
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
         await self.cache.invalidate_role_only(target_user_id, uid, role.char_id)
-        return PlainTextResponse(messages.PLAYER_ROLE_CACHE_CLEARED.format(name=char_name))
+        return PlainTextResponse(
+            messages.PLAYER_ROLE_CACHE_CLEARED.format(name=char_name)
+        )
 
     async def clear_all_cache(self) -> PlainTextResponse:
         """清理全部玩家数据和卡片缓存，保留其它业务缓存。"""
@@ -980,14 +1029,16 @@ class PlayerService:
         await self.cache.invalidate_all()
         return PlainTextResponse(messages.PLAYER_CACHE_CLEARED)
 
-    async def clear_all_role_cache(self, request: PlayerCommandRequest) -> PlainTextResponse:
+    async def clear_all_role_cache(
+        self, request: PlayerCommandRequest
+    ) -> PlainTextResponse:
         """清理当前用户当前 UID 的全部角色数据和卡片缓存。"""
 
         if request.target_user_id not in (None, request.actor.user_id):
             return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
         if self.cache is None:
             return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
-        resolved = await self._resolve_uid(request)
+        resolved = await self._resolve_uid(request, operation="clear_all_role_cache")
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved

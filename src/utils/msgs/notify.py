@@ -1,9 +1,10 @@
+from ...infrastructure.i18n import get_tip
 from ...utils.utils import get_using_id, is_uid_hidden, mask_uid_in_text
 from ..session import EventContext, Sender
 
-title = "[二重螺旋]\n"
-HTML_RENDER_FAILED = "图片渲染失败，请稍后重试；管理员可查看日志了解详情。"
-MENTION_TARGET_UNRESOLVED = "未识别到有效的 @ 目标，请重新@要查询的用户后再试。"
+title = get_tip("legacy.title")
+HTML_RENDER_FAILED = get_tip("legacy.html_render_failed")
+MENTION_TARGET_UNRESOLVED = get_tip("legacy.mention_target_unresolved")
 
 
 async def send_dna_notify(
@@ -15,30 +16,17 @@ async def send_dna_notify(
     prefix: str = title,
     immediate: bool = False,
 ):
-    """发送DNA通知消息
-
-    Args:
-        sender: 发送器
-        ctx: 事件上下文
-        msg: 消息内容
-        need_at: 是否需要@发送者
-        is_uid_list_view: 是否为查看UID列表的请求（此时不脱敏）
-    """
-    # 检查是否需要脱敏（除非是查看UID列表）
+    """发送 DNA 通知消息，并统一执行 UID 脱敏和 Sender 适配。"""
     if not is_uid_list_view and ctx.group_id:
         uid_hidden = await is_uid_hidden(ctx.user_id, ctx.bot_id, ctx.group_id)
         if uid_hidden:
             msg = _mask_uid_in_message(msg)
     elif not is_uid_list_view:
-        # 私聊场景
         uid_hidden = await is_uid_hidden(ctx.user_id, ctx.bot_id)
         if uid_hidden:
             msg = _mask_uid_in_message(msg)
 
-    if need_at:
-        at_sender = bool(ctx.group_id)
-    else:
-        at_sender = False
+    at_sender = bool(ctx.group_id) if need_at else False
     if immediate:
         await sender.send_now(f"{prefix}{msg}", at_sender=at_sender)
     else:
@@ -64,7 +52,7 @@ async def send_dna_text(
 
 
 def _mask_uid_in_message(msg: str) -> str:
-    """对消息中的UID进行脱敏处理"""
+    """对消息中的 UID 进行脱敏处理。"""
     return mask_uid_in_text(msg)
 
 
@@ -72,30 +60,37 @@ async def dna_uid_invalid(sender: Sender, ctx: EventContext, need_at: bool = Tru
     from ...infrastructure.config.settings import DNA_PREFIX
 
     is_use_other_id = await get_using_id(ctx) != ctx.user_id
-    msg = (
-        [
-            "登录已失效，请重新登录",
-            f"请重新输入命令【{DNA_PREFIX}登录】进行登录",
+    if is_use_other_id:
+        msg = [
+            get_tip("legacy.uid_invalid_target"),
+            get_tip("legacy.target_login_command", prefix=DNA_PREFIX),
         ]
-        if not is_use_other_id
-        else ["该用户尚未登录", f"请让该用户输入命令【{DNA_PREFIX}登录】进行登录"]
-    )
-    msg = "\n".join(msg)
-    return await send_dna_notify(sender, ctx, msg, need_at)
+    else:
+        msg = [
+            get_tip("legacy.uid_invalid_self"),
+            get_tip("legacy.login_command", prefix=DNA_PREFIX),
+        ]
+    return await send_dna_notify(sender, ctx, "\n".join(msg), need_at)
 
 
 async def dna_token_invalid(sender: Sender, ctx: EventContext, need_at: bool = True):
-    msg = ["Token无效，请重新登录"]
     is_use_other_id = await get_using_id(ctx) != ctx.user_id
-    msg = "\n".join(msg) if not is_use_other_id else "该用户的 Token 无效"
-    return await send_dna_notify(sender, ctx, msg, need_at)
+    key = (
+        "legacy.token_invalid_target"
+        if is_use_other_id
+        else "legacy.token_invalid_self"
+    )
+    return await send_dna_notify(sender, ctx, get_tip(key), need_at)
 
 
 async def dna_not_found(
     sender: Sender, ctx: EventContext, resource_name: str, need_at: bool = True
 ):
     return await send_dna_notify(
-        sender, ctx, f"{resource_name}未找到，请检查是否正确", need_at
+        sender,
+        ctx,
+        get_tip("legacy.not_found", resource=resource_name),
+        need_at,
     )
 
 
@@ -103,18 +98,22 @@ async def dna_peek_blocked(sender: Sender, ctx: EventContext, need_at: bool = Tr
     from ...infrastructure.config.settings import DNAConfig
 
     allow_config = DNAConfig.get_config("AllowAtQuery")
-    if not allow_config or not allow_config.data:
-        msg = "AT查询功能未开启，无法查看他人游戏信息"
-    else:
-        msg = "该用户开启了防偷窥，无法查看其游戏信息"
-    return await send_dna_notify(sender, ctx, msg, need_at)
+    key = (
+        "legacy.peek_disabled"
+        if not allow_config or not allow_config.data
+        else "legacy.peek_blocked"
+    )
+    return await send_dna_notify(sender, ctx, get_tip(key), need_at)
 
 
 async def dna_not_unlocked(
     sender: Sender, ctx: EventContext, resource_name: str, need_at: bool = True
 ):
     return await send_dna_notify(
-        sender, ctx, f"{resource_name}暂未拥有，无法查看", need_at
+        sender,
+        ctx,
+        get_tip("legacy.not_unlocked", resource=resource_name),
+        need_at,
     )
 
 
@@ -122,38 +121,28 @@ async def dna_login_fail(sender: Sender, ctx: EventContext, need_at: bool = True
     from ...infrastructure.config.settings import DNA_PREFIX
 
     msg = [
-        "账号登录失败",
-        f"请重新输入命令【{DNA_PREFIX}登录】进行登录",
+        get_tip("legacy.login_fail"),
+        get_tip("legacy.login_command", prefix=DNA_PREFIX),
     ]
-    msg = "\n".join(msg)
-    return await send_dna_notify(sender, ctx, msg, need_at)
+    return await send_dna_notify(sender, ctx, "\n".join(msg), need_at)
 
 
 async def dna_login_timeout(sender: Sender, ctx: EventContext, need_at: bool = True):
-    msg = [
-        "登录超时, 请重新登录",
-    ]
-    msg = "\n".join(msg)
-    return await send_dna_notify(sender, ctx, msg)
+    return await send_dna_notify(sender, ctx, get_tip("legacy.login_timeout"))
 
 
 async def dna_code_login_fail(sender: Sender, ctx: EventContext, need_at: bool = True):
     from ...infrastructure.config.settings import DNA_PREFIX
 
     msg = [
-        "手机号+验证码登录失败",
-        f"请重新输入命令【{DNA_PREFIX}登录 手机号,验证码】进行登录",
+        get_tip("legacy.code_login_fail"),
+        get_tip("legacy.code_login_command", prefix=DNA_PREFIX),
     ]
-    msg = "\n".join(msg)
-    return await send_dna_notify(sender, ctx, msg, need_at)
+    return await send_dna_notify(sender, ctx, "\n".join(msg), need_at)
 
 
 async def dna_login_success(sender: Sender, ctx: EventContext, need_at: bool = True):
-    msg = [
-        "登录成功",
-    ]
-    msg = "\n".join(msg)
-    return await send_dna_notify(sender, ctx, msg, need_at)
+    return await send_dna_notify(sender, ctx, get_tip("legacy.login_success"), need_at)
 
 
 async def dna_bind_uid_result(
@@ -165,60 +154,37 @@ async def dna_bind_uid_result(
 ):
     from ...infrastructure.config.settings import DNA_PREFIX
 
+    def bind_command() -> str:
+        return get_tip("legacy.bind_bind_command", prefix=DNA_PREFIX)
+
     code_map = {
-        4: [
-            "UID删除成功！",
-        ],
-        3: [
-            "删除全部UID成功！",
-        ],
-        2: [
-            f"绑定的UID列表为：\n{uid}",
-        ],
-        1: [
-            "UID切换成功！",
-        ],
+        4: [get_tip("legacy.bind_delete")],
+        3: [get_tip("legacy.bind_delete_all")],
+        2: [get_tip("legacy.bind_list", uid=uid)],
+        1: [get_tip("legacy.bind_switch")],
         0: [
-            "UID绑定成功！",
-            f"当前仅支持查询部分信息，完整功能请使用【{DNA_PREFIX}登录】",
+            get_tip("legacy.bind_success"),
+            get_tip("legacy.bind_partial_login", prefix=DNA_PREFIX),
         ],
-        -1: [
-            "UID的位数不正确！",
-            f"请重新输入命令【{DNA_PREFIX}绑定 UID】进行绑定",
-        ],
-        -2: [
-            "该UID已经绑定过了！",
-            f"请重新输入命令【{DNA_PREFIX}绑定 UID】进行绑定",
-        ],
-        -3: [
-            "你输入了错误的格式!",
-            f"请重新输入命令【{DNA_PREFIX}绑定 UID】进行绑定",
-        ],
-        -4: [
-            "绑定UID达到上限!",
-        ],
-        -5: [
-            "尚未绑定任何UID!",
-        ],
+        -1: [get_tip("legacy.bind_invalid_length"), bind_command()],
+        -2: [get_tip("legacy.bind_duplicate"), bind_command()],
+        -3: [get_tip("legacy.bind_bad_format"), bind_command()],
+        -4: [get_tip("legacy.bind_limit")],
+        -5: [get_tip("legacy.bind_none")],
         -6: [
-            "删除失败！",
-            "该命令末尾需要跟正确的UID!",
-            "例如【{DNA_PREFIX}删除123456】",
+            get_tip("legacy.bind_delete_failed"),
+            get_tip("legacy.bind_delete_suffix"),
+            get_tip("legacy.bind_delete_example", prefix=DNA_PREFIX),
         ],
-        -99: [
-            "绑定失败",
-            f"请重新输入命令【{DNA_PREFIX}绑定 UID】进行绑定",
-        ],
+        -99: [get_tip("legacy.bind_failed"), bind_command()],
     }
     if code not in code_map:
         raise ValueError(f"Invalid code: {code}")
 
-    # 查看UID列表时不脱敏（code=2）
-    is_uid_list_view = code == 2
     return await send_dna_notify(
         sender,
         ctx,
         "\n".join(code_map[code]),
         need_at=need_at,
-        is_uid_list_view=is_uid_list_view,
+        is_uid_list_view=code == 2,
     )

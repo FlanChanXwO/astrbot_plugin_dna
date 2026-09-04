@@ -240,7 +240,7 @@ async def test_mh_uid_invalid_when_unbound(tmp_path: Path) -> None:
     response = await service.mh(_request())
 
     assert isinstance(response, PlainTextResponse)
-    assert response.text == messages.NOTICES_UID_INVALID
+    assert response.text == "当前未绑定账号，请先登录"
     assert transport.calls == []
     await database.dispose()
 

@@ -823,7 +823,7 @@ async def test_player_query_errors_are_visible_and_typed(tmp_path: Path) -> None
     )
 
     assert isinstance(response, PlainTextResponse)
-    assert "请重新登录" in response.text
+    assert response.text == "当前未绑定账号，请先登录"
     assert isinstance(original_response, PlainTextResponse)
     assert "引用" in original_response.text
     await database.dispose()

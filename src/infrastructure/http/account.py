@@ -11,6 +11,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from .auth import is_credential_failure
 from ...modules.account.contracts import (
     AccountActor,
     AccountTransportError,
@@ -29,6 +30,8 @@ def _response_error(response: Any) -> AccountTransportError:
     code = getattr(response, "code", None)
     if code == -999:
         kind = TransportErrorKind.NETWORK
+    elif is_credential_failure(response):
+        kind = TransportErrorKind.CREDENTIAL
     elif isinstance(code, int) and code >= 400:
         kind = TransportErrorKind.STATUS
     else:
@@ -254,8 +257,7 @@ class DnaApiAccountTransport:
             credentials = LoginCredentials(
                 channel=LoginChannel.APP,
                 token=attempt.token,
-                dev_code=attempt.dev_code
-                or create_device_code(LegacyLoginChannel.APP),
+                dev_code=attempt.dev_code or create_device_code(LegacyLoginChannel.APP),
             )
             roles = await self._get_roles(api, credentials)
             return LoginResult.success(credentials, roles=roles)
