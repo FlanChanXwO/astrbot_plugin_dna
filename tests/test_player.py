@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from io import BytesIO
 from pathlib import Path
 from shutil import copyfile
 
@@ -833,3 +834,91 @@ def test_player_renderer_uses_bundled_chinese_font_without_private_resources(tmp
     renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())
 
     assert isinstance(renderer._font(19), ImageFont.FreeTypeFont)
+
+
+def test_resource_map_random_panel_background_returns_none_when_unavailable(tmp_path: Path) -> None:
+    """无运行期 panel 图集时随机 hero 背景必须返回 None，不伪造素材或指向不存在文件。"""
+
+    assert ResourceMap().random_panel_background() is None
+    empty_root = tmp_path / "empty"
+    assert ResourceMap.from_root(empty_root).random_panel_background() is None
+    panel_root = empty_root / "panel"
+    panel_root.mkdir(parents=True)
+    (panel_root / ".gitkeep").write_text("", encoding="utf-8")
+    assert ResourceMap.from_root(empty_root).random_panel_background() is None
+
+
+def test_resource_map_random_panel_background_selects_image_from_panel(tmp_path: Path) -> None:
+    """panel 图集存在时随机背景从其中取一张合法图片，忽略非图片文件。"""
+
+    panel_root = tmp_path / "resources" / "panel"
+    panel_root.mkdir(parents=True)
+    Image.new("RGBA", (48, 24), "red").save(panel_root / "panel_1.png")
+    Image.new("RGB", (48, 24), "blue").save(panel_root / "panel_2.jpg")
+    (panel_root / ".gitkeep").write_text("", encoding="utf-8")
+    mapped = ResourceMap.from_root(tmp_path / "resources")
+
+    picked = mapped.random_panel_background()
+
+    assert picked is not None
+    assert picked.parent == panel_root
+    assert picked.name in {"panel_1.png", "panel_2.jpg"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "with_panel",
+    [True, False],
+    ids=["provided", "fallback"],
+)
+async def test_role_overview_records_panel_background_and_passes_hero_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    with_panel: bool,
+) -> None:
+    """基本信息卡 hero 背景取运行期 panel/ 随机图并记录 metadata；无图集时标 fallback。
+
+    mock 渲染函数捕获透传的 hero_background_path，避免把每次随机选择与真实 T2I
+    渲染耦合；render_overview 的 metadata 构造与 artifact 写入仍真实执行。
+    """
+
+    import src.infrastructure.rendering.player as player_module
+
+    captured: dict[str, object] = {}
+
+    async def fake_overview(*args: object, **kwargs: object) -> bytes:
+        captured.update(kwargs)
+        buffer = BytesIO()
+        Image.new("RGB", (12, 16), "#335577").save(buffer, format="JPEG")
+        return buffer.getvalue()
+
+    monkeypatch.setattr(player_module, "draw_role_info_card_core", fake_overview)
+    resource_root = tmp_path / "resources"
+    if with_panel:
+        panel_dir = resource_root / "panel"
+        panel_dir.mkdir(parents=True)
+        Image.new("RGB", (48, 24), "#4b1f7a").save(panel_dir / "panel_1.png")
+    renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap.from_root(resource_root))
+
+    overview = await renderer.render_overview(
+        _overview_fixture(),
+        uid=UID,
+        uid_hidden=False,
+    )
+
+    hero_path = captured.get("hero_background_path")
+    if with_panel:
+        assert hero_path is not None
+        assert hero_path.name == "panel_1.png"
+        expected_status = "provided"
+        expected_source = "panel/panel_1.png"
+    else:
+        assert hero_path is None
+        expected_status = "fallback"
+        expected_source = "panel/"
+    assert any(
+        item["kind"] == "panel_background"
+        and item["status"] == expected_status
+        and item["source"] == expected_source
+        for item in overview.resources
+    )
