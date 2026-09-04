@@ -122,7 +122,7 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 | --- | --- | --- |
 | `agent_tools.enabled` | `false` | 是否注册结构化查询工具；默认关闭，开启后需重载插件。 |
 
-首次使用图鉴、攻略或图片卡片时，公共资源可能尚未同步。管理员可以先发送 `kk资源状态` 查看状态，再发送 `kk下载全部资源` 触发同步；同步失败时请根据返回信息和 AstrBot 日志排查网络或资源配置。
+首次使用图鉴、攻略或图片卡片时，公共资源可能尚未同步。管理员可以先发送 `kk资源状态` 查看状态，再发送 `kk同步资源` 触发同步；同步失败时请根据返回信息和 AstrBot 日志排查网络或资源配置。
 
 ## 命令
 
@@ -161,7 +161,7 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 - `kk添加角色菲娜别名小菲`、`kk删除角色菲娜别名小菲`：维护角色别名。
 - `kk添加武器武器名别名别名`、`kk删除武器武器名别名别名`：维护武器别名。
 - `kk恢复别名`、`kk强制恢复别名`：重新加载默认别名，或清除自定义别名。
-- `kk资源状态`、`kk下载全部资源`：查看或同步公共资源。
+- `kk资源状态`、`kk同步资源`：查看或同步公共资源。
 
 管理员隐私命令还包括 `kk指定开偷窥`、`kk指定防偷窥`、`kk全体开偷窥`、`kk全体防偷窥`、`kk指定隐藏UID` 和 `kk全体隐藏UID` 等；完整触发形式请以 [`commands.json`](commands.json) 为准。
 
@@ -190,7 +190,7 @@ data/plugin_data/astrbot_plugin_dnaby/
 
 ### 图片、图鉴或攻略显示缺失怎么办？
 
-先让管理员发送 `kk资源状态`。如果资源目录尚未准备好，发送 `kk下载全部资源`；如果同步失败，检查 `resources.github_acceleration`、网络连接和 AstrBot 日志。图片卡片还需要 AstrBot 的全局 HTML/T2I 能力。
+先让管理员发送 `kk资源状态`。如果资源目录尚未准备好，发送 `kk同步资源`；如果同步失败，检查 `resources.github_acceleration`、网络连接和 AstrBot 日志。图片卡片还需要 AstrBot 的全局 HTML/T2I 能力。
 
 ### 登录页打不开怎么办？
 

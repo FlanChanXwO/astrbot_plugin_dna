@@ -186,7 +186,7 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 
 对错误资源在资源仓库创建 `git revert` PR，等待 Check 通过后合并；不 force-push、不删除坏
 commit、不把镜像内容直接提升为发布源。插件候选校验失败时继续提供上一份已验证 generation，
-成功回滚后再执行 admin `下载全部资源`。
+成功回滚后再执行 admin `同步资源`。
 
 ### 编辑器 Worker
 

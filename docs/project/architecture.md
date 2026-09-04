@@ -93,15 +93,15 @@
   配置的每小时分钟触发并在当前小时快照有效时只推送一次；详情、
   渲染或目标发送失败时保留待重试目标，不发送标题 fallback。推送经注入闭包绑定
   `Context.send_message`，只有发送成功才落成功状态；文本/图片载荷分别映射为 Plain/Image 组件。
-- 资源状态：`src/modules/operations/` 只提供公共资源状态/下载；`panel_custom/` 是已移除
+- 资源状态：`src/modules/operations/` 只提供公共资源状态/同步；`panel_custom/` 是已移除
   面板管理能力后的遗留目录，插件不读取、统计或删除其中内容。别名维护由
   `src/modules/admin/aliases.py` 提供角色和武器两类独立 custom 文件。
   资源更新经 `ResourceUpdateService` 调用 `ResourceSnapshotCoordinator`：Git cache 只执行
   `main` 的浅克隆/fetch，候选先由 `git archive FETCH_HEAD` 物化并完整校验，再
   `merge --ff-only FETCH_HEAD`，计算完整文件树 SHA-256，最后原子发布 `resource_generations/<sha>/`
   和带摘要的当前指针。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
-  `下载全部资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
-  启动预热与该命令共享 single-flight，同步终止前会排空后台任务。
+  `同步资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
+  并发管理员请求共享 single-flight；插件启动不自动预热资源，terminate 不等待未发起的资源同步。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
   GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `fetch --no-tags origin main`，可用临时

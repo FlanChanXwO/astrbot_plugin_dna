@@ -45,7 +45,7 @@ async def resource_download_use_case(
     service = _resource_service(request)
     if isinstance(service, PlainTextResponse):
         return service
-    return await service.download_all(None)
+    return await service.sync_resources(None)
 
 
 COMMAND_SPECS = (
@@ -61,11 +61,11 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="download_resource",
-        pattern=r"^下载全部资源$",
+        pattern=r"^同步资源$",
         group="资源管理",
-        name="下载全部资源",
-        description="下载全部公共资源",
-        examples=("下载全部资源",),
+        name="同步资源",
+        description="同步全部公共资源",
+        examples=("同步资源",),
         permission="admin",
         use_case=cast(Any, resource_download_use_case),
     ),
