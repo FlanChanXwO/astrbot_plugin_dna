@@ -101,16 +101,26 @@ def _service(
 
 
 @pytest.mark.asyncio
-async def test_mh_before_half_hour_is_realtime_only_and_push_does_not_fetch(
+async def test_mh_before_half_hour_pushes_from_current_hour_snapshot(
     tmp_path: Path,
 ) -> None:
-    """密函查询从整点起即可写入并复用当前小时的有效快照。"""
+    """计划任务不应额外受固定 HH:30 门槛限制。"""
 
     database = await _database_with_binding(tmp_path)
     now = [datetime(2026, 8, 30, 12, 10, tzinfo=SHANGHAI)]
     cache = CacheManager(tmp_path / "cache")
     transport = FakeNoticesTransport()
-    service = _service(database, transport, tmp_path, now=now, cache=cache)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    pushed: list[tuple[str, object]] = []
+    service = _service(
+        database,
+        transport,
+        tmp_path,
+        now=now,
+        cache=cache,
+        subscriptions=subscriptions,
+        pushed=pushed,
+    )
 
     response = await service.mh(_request())
 
@@ -122,7 +132,20 @@ async def test_mh_before_half_hour_is_realtime_only_and_push_does_not_fetch(
         now=now[0],
     )
     assert lookup.entry is not None
-    assert await service.push_mh_now() == 0
+    await subscriptions.add(
+        messages.MH_SUBSCRIBE,
+        origin="platform:group:g1",
+        user_id="user-1",
+        bot_id="bot-1",
+        group_id="group-1",
+        uid="user-1",
+        extra_message="角色:扼守",
+    )
+
+    assert await service.push_mh_now() == 1
+    assert len(pushed) == 1
+    assert pushed[0][0] == "platform:group:g1"
+    assert "角色 : 扼守" in str(pushed[0][1])
     assert transport.calls == ["get_mh"]
     await database.dispose()
 
