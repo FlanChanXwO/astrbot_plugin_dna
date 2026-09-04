@@ -173,6 +173,7 @@ def build_runtime(
         runtime_database,
         resolved_account_transport,
         max_bind_count=settings.login.max_bind_count,
+        default_auto_sign_enabled=settings.sign_in.default_auto_sign_enabled,
     )
     if services is not None and "account_service" in services:
         account_service = cast(AccountService, services["account_service"])
@@ -380,8 +381,6 @@ def build_runtime(
         checkin_service,
         subscriptions,
         sign_time=settings.sign_in.sign_time,
-        scheduled_enabled=settings.sign_in.scheduled_enabled,
-        enable_all_users=settings.sign_in.enable_all_users,
         push=_push_sign,
         registry=scheduler_registry,
     )

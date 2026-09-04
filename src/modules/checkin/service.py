@@ -469,17 +469,16 @@ class CheckinService:
         self,
         *,
         respect_auto_sign: bool = False,
-        enable_all_users: bool = False,
     ) -> CheckinSummary:
         """为目标绑定执行签到并按并发/间隔聚合结果。
 
-        手动“全部签到”显式忽略开关；计划任务默认尊重每个用户 UID 的设置，
-        ``enable_all_users`` 是配置要求的管理员强制模式。
+        手动“全部签到”显式忽略开关；计划任务只执行每个用户 UID 已开启
+        的自动签到绑定，不再存在覆盖个人选择的全局强制模式。
         """
 
         async with self.database.session() as session:
             bindings = await AccountBindingRepository.list_all(session)
-        if respect_auto_sign and not enable_all_users:
+        if respect_auto_sign:
             bindings = [binding for binding in bindings if binding.auto_sign_enabled]
         if not bindings:
             return CheckinSummary()
@@ -543,13 +542,10 @@ class CheckinService:
         ]
         return PlainTextResponse("\n".join(lines))
 
-    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
-        """供计划任务调用的全账号自动签到，返回可推送摘要。"""
+    async def auto_sign_all(self) -> str:
+        """供计划任务调用的自动签到，始终尊重每个 UID 的个人开关。"""
 
-        summary = await self._run_all_signs(
-            respect_auto_sign=True,
-            enable_all_users=enable_all_users,
-        )
+        summary = await self._run_all_signs(respect_auto_sign=True)
         if summary.success == 0 and summary.failed == 0:
             return f"{messages.auto_task_header()}\n{messages.CHECKIN_NO_USERS}"
         return "\n".join(

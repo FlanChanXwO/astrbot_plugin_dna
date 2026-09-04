@@ -32,8 +32,8 @@
 降级只会创建空的旧 Web 列，不可能恢复已经删除的值，也不能替代迁移前备份。
 
 `0005_auto_sign_enabled` 为每条绑定增加 `auto_sign_enabled`，已有记录默认为 `true`。
-该字段按 `(user_id, uid)` 绑定保存；切换 UID 不共享开关，定时签到默认尊重该字段，
-`sign_in.enable_all_users` 可强制执行，手动“全部签到”忽略该字段。
+该字段按 `(user_id, uid)` 绑定保存；切换 UID 不共享开关，定时签到始终按该字段筛选，
+不再存在覆盖个人选择的全局强制开关；手动“全部签到”忽略该字段。
 
 `src/infrastructure/persistence/repositories.py` 的方法必须接收调用方提供的
 `AsyncSession`；提交和回滚由 `AsyncDatabase.transaction()` 统一负责。生产 schema

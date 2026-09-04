@@ -37,7 +37,7 @@ _CLEANUP_TASK_NAME = "dnaby_sign_cleanup"
 class SchedulableCheckin(Protocol):
     """计划任务所需的签到接口。"""
 
-    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str: ...
+    async def auto_sign_all(self) -> str: ...
     async def clear_sign_records_before(self, record_date: date) -> int: ...
 
 
@@ -77,8 +77,6 @@ class SignScheduler:
         *,
         sign_time: str | tuple[int, int] = "00:05",
         cleanup_time: tuple[int, int] = (0, 5),
-        scheduled_enabled: bool = True,
-        enable_all_users: bool = False,
         sleep: SleepCallable = asyncio.sleep,
         now: NowCallable | None = None,
         push: PushCallable | None = None,
@@ -88,16 +86,16 @@ class SignScheduler:
         self.subscriptions = subscriptions
         self.sign_time = _parse_hhmm(sign_time)
         self.cleanup_time = _parse_hhmm(cleanup_time)
-        self.scheduled_enabled = scheduled_enabled
-        self.enable_all_users = enable_all_users
         self._sleep = sleep
         self._now = now if now is not None else lambda: datetime.now(TZ)
         self._push = push
         self.registry = registry or SchedulerRegistry()
         self._tasks: list[asyncio.Task] = []
         self._task_by_id: dict[str, asyncio.Task] = {}
+        # 任务始终注册；是否执行某个 UID 由 AccountBinding.auto_sign_enabled 决定，
+        # 管理员仍可通过 registry 暂停或删除整个 scheduler 任务。
         self._enabled_tasks = {
-            _SIGN_TASK_NAME: self.scheduled_enabled,
+            _SIGN_TASK_NAME: True,
             _CLEANUP_TASK_NAME: True,
         }
         self._task_specs: dict[
@@ -198,7 +196,7 @@ class SignScheduler:
         await self.registry.initialize()
         if self._started:
             return
-        # 定时签到由总开关控制；是否忽略每个 UID 的开关交给 CheckinService。
+        # 签到任务始终存在；CheckinService 会按每个 UID 的个人开关筛选候选。
         for task_id, enabled in self._enabled_tasks.items():
             if not enabled or await self.registry.is_deleted(task_id):
                 continue
@@ -292,9 +290,7 @@ class SignScheduler:
     async def run_sign_once(self) -> str:
         """执行一次自动签到并把摘要推送给订阅者，返回摘要文本。"""
 
-        text = await self.checkin.auto_sign_all(
-            enable_all_users=self.enable_all_users,
-        )
+        text = await self.checkin.auto_sign_all()
         subscribers = await self.subscriptions.get(messages.SIGN_RESULT_SUBSCRIBE)
         for subscription in subscribers:
             if self._push is None:

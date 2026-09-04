@@ -27,8 +27,7 @@ TZ = ZoneInfo("Asia/Shanghai")
 
 
 class _Checkin:
-    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
-        del enable_all_users
+    async def auto_sign_all(self) -> str:
         return "ok"
 
     async def clear_sign_records_before(self, record_date) -> int:
@@ -79,8 +78,6 @@ def admin_api(
         _Checkin(),
         subscriptions,
         sign_time="00:05",
-        scheduled_enabled=True,
-        enable_all_users=True,
         registry=registry,
     )
     notices_scheduler = NoticesScheduler(
@@ -221,8 +218,6 @@ async def test_running_schedule_update_rebuilds_the_affected_loop(
         _Checkin(),
         subscriptions,
         sign_time="00:05",
-        scheduled_enabled=True,
-        enable_all_users=True,
         now=lambda: datetime(2026, 8, 28, 23, 59, tzinfo=TZ),
         sleep=sleep,
         registry=registry,

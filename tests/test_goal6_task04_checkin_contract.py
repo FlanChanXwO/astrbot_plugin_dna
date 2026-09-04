@@ -32,7 +32,6 @@ from src.modules.checkin.contracts import (
 )
 from src.modules.checkin.service import CheckinService
 
-
 UID_ONE = "1234567890123"
 UID_TWO = "2234567890123"
 UID_THREE = "3234567890123"

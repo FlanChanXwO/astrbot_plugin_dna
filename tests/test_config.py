@@ -305,6 +305,7 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     # 2. 验证下发到各个具体 service / scheduler
     account_service = runtime.services["account_service"]
     assert account_service.max_bind_count == 7
+    assert account_service.default_auto_sign_enabled is True
 
     privacy_service = runtime.services["privacy_service"]
     assert privacy_service.allow_mention_query is False
@@ -322,8 +323,6 @@ def test_build_runtime_propagates_all_settings(tmp_path):
 
     sign_scheduler = runtime.services["sign_scheduler"]
     assert sign_scheduler.sign_time == (7, 15)
-    assert sign_scheduler.scheduled_enabled is True
-    assert sign_scheduler.enable_all_users is True
 
     notices_scheduler = runtime.services["notices_scheduler"]
     assert notices_scheduler.announcement_enabled is False

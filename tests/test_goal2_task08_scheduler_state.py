@@ -167,8 +167,7 @@ async def test_scheduler_records_daily_next_run_and_error_state(tmp_path: Path) 
     calls: list[float] = []
 
     class _FailingCheckin:
-        async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
-            del enable_all_users
+        async def auto_sign_all(self) -> str:
             checkin_failed.set()
             raise RuntimeError("upstream detail must not enter snapshot")
 
@@ -188,8 +187,6 @@ async def test_scheduler_records_daily_next_run_and_error_state(tmp_path: Path) 
         SubscriptionStore(tmp_path / "subscriptions.json"),
         registry=registry,
         sign_time="00:05",
-        scheduled_enabled=True,
-        enable_all_users=True,
         now=lambda: datetime(2026, 8, 28, 23, 59, 30, tzinfo=TZ),
         sleep=sleep,
     )
