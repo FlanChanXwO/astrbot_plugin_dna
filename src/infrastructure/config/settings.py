@@ -930,22 +930,6 @@ def _log_discarded_mh_config(raw: Mapping[str, Any]) -> None:
         logger.warning("[dnaby][config] 丢弃已移除的全局密函配置 %s.%s", location, key)
 
 
-def _discard_removed_mh_config(raw: dict[str, Any]) -> None:
-    """从 AstrBot 可变配置中移除已废弃密函全局键，避免再次持久化。"""
-
-    for key in _REMOVED_MH_LEGACY_KEYS:
-        raw.pop(key, None)
-    for section_name in ("DNAUID配置", "DNAUID签到配置"):
-        section = raw.get(section_name)
-        if isinstance(section, dict):
-            for key in _REMOVED_MH_LEGACY_KEYS:
-                section.pop(key, None)
-    notifications = raw.get("notifications")
-    if isinstance(notifications, dict):
-        for field in _REMOVED_MH_TYPED_FIELDS:
-            notifications.pop(field, None)
-
-
 def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
     """记录旧版缓存配置被丢弃，但不迁移旧的自定义数值。"""
 
@@ -958,15 +942,6 @@ def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
                 "[dnaby][config] 丢弃已移除的缓存配置 cache.%s",
                 field,
             )
-
-
-def _discard_removed_cache_config(raw: dict[str, Any]) -> None:
-    """从 AstrBot 可变配置中移除旧缓存字段，避免再次持久化。"""
-
-    cache = raw.get("cache")
-    if isinstance(cache, dict):
-        for field in _REMOVED_CACHE_FIELDS:
-            cache.pop(field, None)
 
 
 __all__ = [
