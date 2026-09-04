@@ -28,7 +28,6 @@ from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
-from .infrastructure.i18n import validate_tip_catalog
 from .infrastructure.http import (
     ClientUpdateTransport as DnaApiClientUpdateTransport,
 )
@@ -40,6 +39,7 @@ from .infrastructure.http import (
     DnaApiPlayerTransport,
     RequestConcurrencyGate,
 )
+from .infrastructure.i18n import validate_tip_catalog
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
@@ -318,6 +318,7 @@ def build_runtime(
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,
+        refresh_send_card=settings.cache.refresh_send_card,
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,

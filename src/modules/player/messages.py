@@ -15,6 +15,7 @@ PLAYER_CACHE_REFRESHED = get_tip("player.cache_refreshed")
 PLAYER_CACHE_CLEARED = get_tip("player.cache_cleared")
 PLAYER_ALL_ROLE_CACHE_CLEARED = get_tip("player.all_role_cache_cleared")
 PLAYER_ROLE_CACHE_CLEARED = get_tip_template("player.role_cache_cleared")
+PLAYER_ROLE_REFRESHED = get_tip_template("player.role_refreshed")
 PLAYER_ALL_REFRESHED = get_tip_template("player.all_refreshed")
 PLAYER_ADMIN_ONLY = get_tip("player.admin_only")
 PLAYER_REFRESH_SELF_ONLY = get_tip("player.refresh_self_only")
@@ -103,6 +104,7 @@ __all__ = [
     "PLAYER_ROLE_CACHE_CLEARED",
     "PLAYER_ROLE_NOT_FOUND",
     "PLAYER_ROLE_NOT_UNLOCKED",
+    "PLAYER_ROLE_REFRESHED",
     "PLAYER_SERVICE_UNAVAILABLE",
     "PLAYER_UID_INVALID",
     "PLAYER_WEAPON_CONFLICT",

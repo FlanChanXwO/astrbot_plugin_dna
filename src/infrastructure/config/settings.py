@@ -35,7 +35,6 @@ _REMOVED_CACHE_FIELDS = frozenset(
         "fresh_ttl_minutes",
         "retention_ttl_hours",
         "announcement_ttl_hours",
-        "refresh_send_card",
     )
 )
 
@@ -210,6 +209,11 @@ class CacheSettings(_SettingsModel):
         json_schema_extra={
             "hint": "-1 表示永久缓存；0 表示禁用持久缓存；正整数表示缓存有效小时数"
         },
+    )
+    refresh_send_card: bool = Field(
+        default=True,
+        description="刷新后发送角色面板",
+        json_schema_extra={"hint": "主动刷新单个角色后是否发送新的角色面板图片"},
     )
 
 

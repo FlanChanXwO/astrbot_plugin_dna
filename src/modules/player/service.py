@@ -8,7 +8,12 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from ...entry.response import CommandResponse, ImageResponse, PlainTextResponse
+from ...entry.response import (
+    ChainResponse,
+    CommandResponse,
+    ImageResponse,
+    PlainTextResponse,
+)
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import PlayerRenderer
 from ...infrastructure.resources import ResourceSnapshotCoordinator
@@ -57,6 +62,13 @@ class _OverviewResult:
 
 
 @dataclass(frozen=True, slots=True)
+class _RefreshOverviewState:
+    overview: RoleOverview
+    digest: str
+    role: RoleItem
+
+
+@dataclass(frozen=True, slots=True)
 class _RoleDetailBundle:
     role_detail: RoleDetail
     weapon_sections: tuple[tuple[str, WeaponDetail], ...]
@@ -88,6 +100,7 @@ class PlayerService:
         show_unowned_roles: bool = True,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache: PlayerCache | None = None,
+        refresh_send_card: bool = True,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.database = database
@@ -97,6 +110,7 @@ class PlayerService:
         self.show_unowned_roles = show_unowned_roles
         self.resource_snapshots = resource_snapshots
         self.cache = cache
+        self.refresh_send_card = refresh_send_card
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._overview_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
@@ -807,7 +821,7 @@ class PlayerService:
         refresh_uid: str,
         *,
         now: datetime,
-    ) -> tuple[RoleOverview, str] | PlainTextResponse:
+    ) -> _RefreshOverviewState | PlainTextResponse:
         try:
             overview = await self._fetch_overview(
                 request,
@@ -841,7 +855,7 @@ class PlayerService:
             overview_digest = overview_metadata.content_sha256
         else:
             overview_digest = self._value_digest(overview)
-        return overview, overview_digest
+        return _RefreshOverviewState(overview, overview_digest, role)
 
     async def refresh_role(
         self,
@@ -883,15 +897,23 @@ class PlayerService:
 
         if isinstance(refreshed, PlainTextResponse):
             return refreshed
-        overview, overview_digest = refreshed
 
-        return await self._role_detail_from_overview(
+        response = await self._role_detail_from_overview(
             request,
             target_user_id,
             refresh_uid,
-            _OverviewState(overview, overview_digest),
+            _OverviewState(refreshed.overview, refreshed.digest),
             now=now,
         )
+        if isinstance(response, PlainTextResponse):
+            return response
+
+        notice = PlainTextResponse(
+            messages.PLAYER_ROLE_REFRESHED.format(name=refreshed.role.name),
+        )
+        if not self.refresh_send_card:
+            return notice
+        return ChainResponse((notice, response))
 
     async def refresh_all_roles(self, request: PlayerCommandRequest):
         """刷新当前 UID 的概览和全部已解锁角色详情，只返回汇总。"""

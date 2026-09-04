@@ -13,7 +13,12 @@ from PIL import Image
 
 from src.entry.commands import CommandRegistry, CommandRequest, load_command_registry
 from src.entry.event import EventActor
-from src.entry.response import ImageResponse, PlainTextResponse, ResponseFactory
+from src.entry.response import (
+    ChainResponse,
+    ImageResponse,
+    PlainTextResponse,
+    ResponseFactory,
+)
 from src.infrastructure.cache import CacheMaintenance
 from src.infrastructure.persistence import AsyncDatabase
 from src.infrastructure.rendering import RenderedFileStore
@@ -90,7 +95,7 @@ def test_bootstrap_wires_unified_cache_and_maintenance_dependencies(
 
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),
-        {"cache": {"ttl_hours": 2}},
+        {"cache": {"ttl_hours": 2, "refresh_send_card": False}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
     )
     player_service = cast(PlayerService, runtime.services["player_service"])
@@ -98,7 +103,7 @@ def test_bootstrap_wires_unified_cache_and_maintenance_dependencies(
     rendered_store = runtime.services["rendered_store"]
     maintenance = cast(CacheMaintenance, runtime.services["cache_maintenance"])
 
-    assert not hasattr(player_service, "refresh_send_card")
+    assert player_service.refresh_send_card is False
     assert maintenance.interval_seconds == 2 * 60 * 60
     assert maintenance.manager is cache_manager
     assert maintenance.rendered is rendered_store
@@ -134,11 +139,14 @@ async def test_user_refresh_forces_target_role_and_keeps_other_role_cache(
 
         response = await service.refresh_role(_request(detail=True))
 
-        assert isinstance(response, ImageResponse)
+        assert isinstance(response, ChainResponse)
+        assert isinstance(response.components[0], PlainTextResponse)
+        assert isinstance(response.components[1], ImageResponse)
+        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
         assert transport.overview_calls == 2
         assert transport.role_detail_calls == 2
         assert renderer.detail_calls == 2
-        with Image.open(response.image) as image:
+        with Image.open(response.components[1].image) as image:
             assert image.info["comment"].decode("utf-8") == "角色甲"
         assert (
             await cache.manager.get("player_data", "other-role-data", now=clock.value)
@@ -151,19 +159,99 @@ async def test_user_refresh_forces_target_role_and_keeps_other_role_cache(
 
 
 @pytest.mark.asyncio
-async def test_refresh_role_always_returns_a_new_card(tmp_path: Path) -> None:
+async def test_refresh_role_returns_notice_and_a_new_card(tmp_path: Path) -> None:
     clock = MutableClock()
     database, transport, renderer, _cache, service = await _service(tmp_path, clock)
     try:
         response = await service.refresh_role(_request(detail=True))
 
-        assert isinstance(response, ImageResponse)
+        assert isinstance(response, ChainResponse)
+        assert isinstance(response.components[0], PlainTextResponse)
+        assert isinstance(response.components[1], ImageResponse)
+        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
         assert transport.overview_calls == 1
         assert transport.role_detail_calls == 1
         assert renderer.detail_calls == 1
         cached = await service.role_detail(_request(detail=True))
         assert isinstance(cached, ImageResponse)
         assert transport.role_detail_calls == 1
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_role_without_card_returns_notice_but_still_renders_and_caches(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock()
+    database, transport, renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        service.refresh_send_card = False
+
+        response = await service.refresh_role(_request(detail=True))
+
+        assert isinstance(response, PlainTextResponse)
+        assert response.text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
+        assert transport.overview_calls == 1
+        assert transport.role_detail_calls == 1
+        assert renderer.detail_calls == 1
+
+        cached = await service.role_detail(_request(detail=True))
+        assert isinstance(cached, ImageResponse)
+        assert transport.role_detail_calls == 1
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_role_notice_uses_canonical_name_for_fuzzy_input(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock()
+    database, _transport, _renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        service.refresh_send_card = False
+        request = _request(detail=True)
+        request.parameters["char_name"] = "角色"
+
+        response = await service.refresh_role(request)
+
+        assert isinstance(response, PlainTextResponse)
+        assert response.text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_role_failure_never_returns_success_notice(tmp_path: Path) -> None:
+    clock = MutableClock()
+    database, transport, _renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        transport.fail_role_detail = True
+
+        response = await service.refresh_role(_request(detail=True))
+
+        assert isinstance(response, PlainTextResponse)
+        assert response.text == messages.transport_error("server")
+        assert "面板已刷新" not in response.text
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_admin_refresh_role_uses_the_same_success_response(tmp_path: Path) -> None:
+    clock = MutableClock()
+    database, _transport, _renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        response = await service.refresh_role(
+            _request(detail=True),
+            uid="1234567890123",
+        )
+
+        assert isinstance(response, ChainResponse)
+        assert isinstance(response.components[0], PlainTextResponse)
+        assert isinstance(response.components[1], ImageResponse)
+        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
     finally:
         await database.dispose()
 

@@ -340,6 +340,12 @@
         "description": "统一内容缓存 TTL（小时）",
         "hint": "-1 表示永久缓存；0 表示禁用持久缓存；正整数表示缓存有效小时数",
         "default": 24
+      },
+      "refresh_send_card": {
+        "type": "bool",
+        "description": "刷新后发送角色面板",
+        "hint": "主动刷新单个角色后是否发送新的角色面板图片",
+        "default": true
       }
     }
   },
