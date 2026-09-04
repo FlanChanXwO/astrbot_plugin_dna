@@ -33,9 +33,12 @@ class WebRegistrar:
         self,
         context: Context,
         routes: Iterable[WebRoute] = (),
+        *,
+        plugin_name: str = "astrbot_plugin_dnaby",
     ) -> None:
         self._context = context
         self._routes = tuple(routes)
+        self._plugin_name = plugin_name
         self._registered = False
 
     @property
@@ -88,3 +91,11 @@ class WebRegistrar:
                 route.description,
             )
         self._registered = True
+
+    async def stop(self) -> None:
+        """撤销本实例注册的路由，并允许同一 runtime 再次初始化。"""
+
+        if not self._registered:
+            return
+        self.unregister_plugin_routes(self._context, self._plugin_name)
+        self._registered = False

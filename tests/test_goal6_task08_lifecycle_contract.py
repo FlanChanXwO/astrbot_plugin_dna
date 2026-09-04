@@ -23,9 +23,11 @@ class _CapturedLifecycle:
         *,
         start_hooks: Iterable[LifecycleHook] = (),
         stop_hooks: Iterable[LifecycleHook] = (),
+        finalizer_hooks: Iterable[LifecycleHook] = (),
     ) -> None:
         self.start_hooks = tuple(start_hooks)
         self.stop_hooks = tuple(stop_hooks)
+        self.finalizer_hooks = tuple(finalizer_hooks)
 
 
 class _ResourceServiceSpy:
@@ -276,3 +278,62 @@ async def test_terminate_cancels_scheduler_before_transport_and_database() -> No
         "ws-close",
         "database-close",
     ]
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_records_total_and_phase_timings() -> None:
+    """初始化和终止都应保留总耗时及各阶段耗时。"""
+
+    async def start() -> None:
+        return None
+
+    async def stop() -> None:
+        return None
+
+    lifecycle = PluginLifecycle(start_hooks=(start,), stop_hooks=(stop,))
+
+    await lifecycle.initialize()
+    initialize_timings = lifecycle.last_timings
+    assert (
+        initialize_timings["initialize.total"]
+        >= initialize_timings["initialize.phase_0"]
+        >= 0
+    )
+
+    await lifecycle.terminate()
+    terminate_timings = lifecycle.last_timings
+    assert (
+        terminate_timings["terminate.total"]
+        >= terminate_timings["terminate.phase_0"]
+        >= 0
+    )
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_runs_finalizers_after_steps() -> None:
+    """传输和数据库等最终资源应在所有业务步骤停止后按声明顺序释放。"""
+
+    events: list[str] = []
+
+    async def start() -> None:
+        events.append("start")
+
+    async def stop() -> None:
+        events.append("stop")
+
+    async def close_transport() -> None:
+        events.append("transport-close")
+
+    async def close_database() -> None:
+        events.append("database-close")
+
+    lifecycle = PluginLifecycle(
+        start_hooks=(start,),
+        stop_hooks=(stop,),
+        finalizer_hooks=(close_transport, close_database),
+    )
+
+    await lifecycle.initialize()
+    await lifecycle.terminate()
+
+    assert events == ["start", "stop", "transport-close", "database-close"]

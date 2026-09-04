@@ -247,7 +247,9 @@ def build_runtime(
         custom_alias_path=custom_alias_path,
         custom_weapon_alias_path=custom_weapon_alias_path,
     )
-    initial_resource_snapshot = resource_snapshots.initialize()
+    # 启动阶段只使用运行期资源仓库路径；完整 generation 校验和 Git 同步
+    # 仅允许由显式“同步资源”路径触发，避免构造 runtime 时做重型 I/O。
+    initial_resource_snapshot: ResourceSnapshot | None = None
     resource_root = (
         initial_resource_snapshot.root
         if initial_resource_snapshot is not None
@@ -737,28 +739,35 @@ def build_runtime(
 
     _warn_deprecated_announcement_config()
 
-    web = WebRegistrar(context, build_admin_web_routes(resolved_services))
+    web = WebRegistrar(
+        context,
+        build_admin_web_routes(resolved_services),
+        plugin_name=PLUGIN_NAME,
+    )
     lifecycle = PluginLifecycle(
         start_hooks=(
             login_flow.start,
             web.initialize,
             cache_maintenance.start,
-            resource_update_service.start_preheat,
             sign_scheduler.start,
             notices_scheduler.start,
             client_updates_scheduler.start,
             agent_tools_lifecycle.start,
         ),
-        # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler、资源线程，再释放数据库。
+        # stop_hooks 与 start_hooks 按阶段对齐；PluginLifecycle 会逆序执行，
+        # 先取消 scheduler/监听任务，再运行 transport 和数据库 finalizer。
         stop_hooks=(
-            runtime_database.dispose,
+            login_flow.stop,
+            web.stop,
             cache_maintenance.stop,
-            resource_update_service.stop,
             sign_scheduler.stop,
             notices_scheduler.stop,
             client_updates_scheduler.stop,
             agent_tools_lifecycle.stop,
-            login_flow.stop,
+        ),
+        finalizer_hooks=(
+            dna_api.close,
+            runtime_database.dispose,
         ),
     )
     return PluginRuntime(

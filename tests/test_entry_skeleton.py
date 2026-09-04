@@ -206,7 +206,7 @@ async def test_plugin_lifecycle_cleans_up_when_start_hook_fails():
     with pytest.raises(RuntimeError, match="start-two failed"):
         await lifecycle.initialize()
 
-    assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+    assert calls == ["start-one", "start-two", "stop-one"]
     assert lifecycle.started is False
 
 
@@ -225,10 +225,10 @@ async def test_plugin_lifecycle_reports_cleanup_errors_after_start_failure():
 
     async def stop_one() -> None:
         calls.append("stop-one")
+        raise ValueError("stop-one failed")
 
     async def stop_two() -> None:
         calls.append("stop-two")
-        raise ValueError("stop-two failed")
 
     lifecycle = PluginLifecycle(
         start_hooks=(start_one, start_two),
@@ -238,11 +238,11 @@ async def test_plugin_lifecycle_reports_cleanup_errors_after_start_failure():
     with pytest.raises(ExceptionGroup) as error_info:
         await lifecycle.initialize()
 
-    assert calls == ["start-one", "start-two", "stop-two", "stop-one"]
+    assert calls == ["start-one", "start-two", "stop-one"]
     assert lifecycle.started is False
     assert {str(error) for error in error_info.value.exceptions} == {
         "start-two failed",
-        "stop-two failed",
+        "stop-one failed",
     }
 
 

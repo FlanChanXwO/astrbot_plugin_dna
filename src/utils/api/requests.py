@@ -161,6 +161,16 @@ class DNAApi:
             wait_seconds=websocket_wait_seconds,
         )
 
+    async def close(self) -> None:
+        """释放统一 App REST session 和官方业务 WebSocket 连接池。"""
+
+        try:
+            await self.app_transport.close()
+        finally:
+            from .ws_manager import get_ws_manager
+
+            get_ws_manager().close_all()
+
     async def get_dna_user(self, uid: str, user_id: str, bot_id: str) -> DNAUser | None:
         dna_user = await DNAUser.select_dna_user(uid, user_id, bot_id)
         if dna_user is None:
