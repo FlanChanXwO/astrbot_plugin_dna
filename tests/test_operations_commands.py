@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable
 from types import SimpleNamespace
 from typing import Any, cast
@@ -116,3 +117,39 @@ async def test_generated_resource_status_handler_yields_text() -> None:
     result = [item async for item in handler(Event())]
 
     assert result == ["资源状态：\n资源仓库目录: /tmp/resources"]
+
+
+@pytest.mark.asyncio
+async def test_download_resource_yields_started_before_sync_result() -> None:
+    """下载命令应先回执开始同步，再等待耗时同步结果。"""
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    class FakeResourceService:
+        async def download_all(self, _request: object) -> PlainTextResponse:
+            started.set()
+            await release.wait()
+            return PlainTextResponse("资源已更新完成，版本 2.0")
+
+    spec = load_command_registry().get("download_resource")
+    request = SimpleNamespace(
+        command_id="download_resource",
+        text="kk下载全部资源",
+        parameters={},
+        actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
+        services={"resource_update_service": FakeResourceService()},
+    )
+    generator = cast(Any, spec.use_case(request, load_command_registry()))
+
+    first = await anext(generator)
+    assert first == PlainTextResponse("开始同步公共资源，请稍候，完成后会发送结果")
+    assert not started.is_set()
+
+    second_task = asyncio.create_task(anext(generator))
+    await started.wait()
+    assert not second_task.done()
+
+    release.set()
+    second = await second_task
+    assert second == PlainTextResponse("资源已更新完成，版本 2.0")

@@ -161,6 +161,7 @@
   "operations": {
     "context_unavailable": "运维命令上下文不可用",
     "service_unavailable": "运维服务不可用",
+    "resource_sync_started": "开始同步公共资源，请稍候，完成后会发送结果",
     "resource_status_empty": "公共资源仓库尚未同步到数据目录",
     "resource_status_header": "资源状态：",
     "resource_git_unavailable": "未找到 git 可执行文件，无法同步公共资源仓库",

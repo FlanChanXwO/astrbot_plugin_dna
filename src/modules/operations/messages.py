@@ -6,6 +6,7 @@ from ...infrastructure.i18n import get_tip, get_tip_template
 
 OPERATIONS_CONTEXT_UNAVAILABLE = get_tip("operations.context_unavailable")
 OPERATIONS_SERVICE_UNAVAILABLE = get_tip("operations.service_unavailable")
+RESOURCE_SYNC_STARTED = get_tip("operations.resource_sync_started")
 RESOURCE_STATUS_EMPTY = get_tip("operations.resource_status_empty")
 RESOURCE_STATUS_HEADER = get_tip("operations.resource_status_header")
 RESOURCE_GIT_UNAVAILABLE = get_tip("operations.resource_git_unavailable")
@@ -23,6 +24,7 @@ __all__ = [
     "OPERATIONS_CONTEXT_UNAVAILABLE",
     "OPERATIONS_SERVICE_UNAVAILABLE",
     "RESOURCE_DOWNLOADED",
+    "RESOURCE_SYNC_STARTED",
     "RESOURCE_GIT_UNAVAILABLE",
     "RESOURCE_LOCAL_CHANGES",
     "RESOURCE_REMOTE_MISMATCH",
