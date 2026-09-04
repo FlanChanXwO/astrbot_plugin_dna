@@ -21,6 +21,8 @@ CLIENT_UPDATE_SUBSCRIBED_RETRY = (
 CLIENT_UPDATE_UNSUBSCRIBED = "成功取消订阅客户端更新！"
 CLIENT_UPDATE_NOT_SUBSCRIBED = "未曾订阅客户端更新！"
 
+_DETECTED_PREFIX = "检测到二重螺旋"
+
 _PLATFORM_NAMES = {
     ClientPlatform.PC: "PC",
     ClientPlatform.ANDROID: "安卓",
@@ -37,6 +39,7 @@ def format_current(snapshot: ClientVersionSnapshot) -> str:
     """格式化没有可比较基线时的当前版本。"""
 
     return (
+        f"{_DETECTED_PREFIX}"
         f"国服 {platform_name(snapshot.platform)} 客户端\n"
         f"当前版本：{snapshot.version_text}"
     )
@@ -52,6 +55,7 @@ def format_change(change: ClientUpdateChange) -> str:
     """格式化一次已确认的版本变化。"""
 
     return (
+        f"{_DETECTED_PREFIX}"
         f"国服 {platform_name(change.platform)} 客户端更新\n"
         f"版本：{change.previous.version_text} → {change.current.version_text}\n"
         f"新增更新：{format_size(change.added_size_bytes)}"
