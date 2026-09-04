@@ -19,6 +19,8 @@ EXPECTED_FILES = {
     Path("labeler.yml"),
     Path("release-drafter.yml"),
     Path("workflows/auto-assign.yml"),
+    Path("workflows/plugin-lifecycle.yml"),
+    Path("workflows/plugin-load.yml"),
     Path("workflows/pr-triage.yml"),
     Path("workflows/release-from-changelog.yml"),
 }
@@ -49,7 +51,7 @@ def test_github_governance_file_set_is_complete_and_single_plugin_oriented() -> 
     actual = {
         path.relative_to(GITHUB)
         for path in GITHUB.rglob("*")
-        if path.is_file() and path.name != "plugin-load.yml"
+        if path.is_file()
     }
     assert actual == EXPECTED_FILES
 

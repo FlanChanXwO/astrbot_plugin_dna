@@ -1,13 +1,13 @@
-"""Goal 5 Task 03：CI、发布脚本与用户文档的 TDD Red 契约。
+"""CI、发布脚本与用户文档的公共契约测试。
 
 本文件只测试已在 ``goal-5/plan.md`` 中确认的公共 seam：
 
 - loader 脚本的正式版本选择、插件 staging 和 CLI 失败报告；
 - Changelog 解析器的首个版本段和显式失败；
-- PR workflow 的触发器、权限、Python 版本和最新 stable 选择；
+- PR workflow 的触发器、权限、Python 版本、stable 解析与 stable/master 矩阵；
 - README 的用户向章节、相对链接和公开内容边界。
 
-当前 task 只建立 Red 测试，不实现目标脚本或 workflow。
+Goal 过程中的 Red/Green 证据记录在 ``goal-5/tasks.md``。
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CI_SCRIPT = ROOT / "scripts" / "ci" / "check_astrbot_plugin_load.py"
 RELEASE_NOTES_SCRIPT = ROOT / "scripts" / "ci" / "release_notes.py"
 PLUGIN_LIFECYCLE_WORKFLOW = ROOT / ".github" / "workflows" / "plugin-lifecycle.yml"
+PLUGIN_LOAD_WORKFLOW = ROOT / ".github" / "workflows" / "plugin-load.yml"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release-from-changelog.yml"
 README = ROOT / "README.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
@@ -340,7 +341,13 @@ def test_readme_relative_links_resolve_inside_repository() -> None:
 
 
 def test_public_ci_release_docs_have_no_rsshub_or_internal_private_residue() -> None:
-    paths = (README, CHANGELOG, PLUGIN_LIFECYCLE_WORKFLOW, RELEASE_WORKFLOW)
+    paths = (
+        README,
+        CHANGELOG,
+        PLUGIN_LIFECYCLE_WORKFLOW,
+        PLUGIN_LOAD_WORKFLOW,
+        RELEASE_WORKFLOW,
+    )
     contents = {path: _read_required_file(path) for path in paths}
     forbidden = re.compile(
         r"rsshub|goal[- ]?\d+|task\s*\d+|\bO\d+\b|"

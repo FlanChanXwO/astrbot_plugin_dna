@@ -8,7 +8,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 LIFECYCLE_WORKFLOW = WORKFLOWS / "plugin-lifecycle.yml"
-LEGACY_WORKFLOW = WORKFLOWS / "plugin-load.yml"
 
 
 class LifecycleWorkflowContractTests(unittest.TestCase):
@@ -16,10 +15,6 @@ class LifecycleWorkflowContractTests(unittest.TestCase):
         self.assertTrue(
             LIFECYCLE_WORKFLOW.is_file(),
             "生命周期 CI 应使用 .github/workflows/plugin-lifecycle.yml",
-        )
-        self.assertFalse(
-            LEGACY_WORKFLOW.exists(),
-            "旧 plugin-load.yml 应在迁移后移除，避免命名和职责不一致",
         )
 
         text = LIFECYCLE_WORKFLOW.read_text(encoding="utf-8")
