@@ -18,6 +18,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 CI_SCRIPT = ROOT / "scripts" / "ci" / "check_astrbot_plugin_load.py"
+FIXTURE_ASTRBOT_VERSION = "fixture-runtime"
+FIXTURE_ASTRBOT_SPEC = "fixture-spec"
 
 
 def _load_module(path: Path, module_name: str) -> ModuleType:
@@ -126,7 +128,7 @@ def _seed_plugin_source(root: Path) -> None:
         "author: FlanChanXwO\n"
         "desc: fake\n"
         "version: v0.2.0\n"
-        "astrbot_version: '>=4.27.1'\n",
+        f"astrbot_version: {FIXTURE_ASTRBOT_SPEC}\n",
         encoding="utf-8",
     )
     (root / "commands.json").write_text(
@@ -152,7 +154,7 @@ async def test_loader_calls_official_load_and_terminates_after_success(
 
     report = await module.run_loader_check(
         astrbot_source=tmp_path / "astrbot-source",
-        astrbot_version="4.27.1",
+        astrbot_version=FIXTURE_ASTRBOT_VERSION,
         plugin_dir=plugin_dir,
         astrbot_root=root,
         plugin_name="astrbot_plugin_dnaby",
@@ -160,7 +162,7 @@ async def test_loader_calls_official_load_and_terminates_after_success(
     )
 
     assert events == ["load:astrbot_plugin_dnaby", "initialize", "terminate"]
-    assert report.astrbot_version == "4.27.1"
+    assert report.astrbot_version == FIXTURE_ASTRBOT_VERSION
     assert report.plugin_name == "astrbot_plugin_dnaby"
     assert report.plugin_version == "v0.2.0"
     assert report.load_succeeded is True
@@ -183,7 +185,7 @@ async def test_loader_failure_still_terminates_plugin_and_preserves_phase(
     with pytest.raises(module.LoaderCheckError, match="official loader") as caught:
         await module.run_loader_check(
             astrbot_source=tmp_path / "astrbot-source",
-            astrbot_version="master",
+            astrbot_version=FIXTURE_ASTRBOT_VERSION,
             plugin_dir=plugin_dir,
             astrbot_root=root,
             plugin_name="astrbot_plugin_dnaby",
@@ -219,7 +221,7 @@ async def test_official_load_failure_record_preserves_initialize_traceback(
     with pytest.raises(module.LoaderCheckError, match="official initialize sentinel") as caught:
         await module.run_loader_check(
             astrbot_source=tmp_path / "astrbot-source",
-            astrbot_version="4.27.1",
+            astrbot_version=FIXTURE_ASTRBOT_VERSION,
             plugin_dir=plugin_dir,
             astrbot_root=root,
             plugin_name="astrbot_plugin_dnaby",
@@ -255,7 +257,7 @@ async def test_initialize_failure_keeps_original_error_and_runs_termination_clea
     with pytest.raises(module.LoaderCheckError, match="initialize sentinel") as caught:
         await module.run_loader_check(
             astrbot_source=tmp_path / "astrbot-source",
-            astrbot_version="4.27.1",
+            astrbot_version=FIXTURE_ASTRBOT_VERSION,
             plugin_dir=plugin_dir,
             astrbot_root=root,
             plugin_name="astrbot_plugin_dnaby",
@@ -291,7 +293,7 @@ async def test_loader_rejects_success_without_registered_plugin(
     with pytest.raises(module.LoaderCheckError, match="registered|registration") as caught:
         await module.run_loader_check(
             astrbot_source=tmp_path / "astrbot-source",
-            astrbot_version="4.27.1",
+            astrbot_version=FIXTURE_ASTRBOT_VERSION,
             plugin_dir=plugin_dir,
             astrbot_root=root,
             plugin_name="astrbot_plugin_dnaby",
@@ -318,7 +320,7 @@ async def test_termination_failure_is_a_nonzero_cleanup_phase(
     with pytest.raises(module.LoaderCheckError, match="terminate sentinel") as caught:
         await module.run_loader_check(
             astrbot_source=tmp_path / "astrbot-source",
-            astrbot_version="4.27.1",
+            astrbot_version=FIXTURE_ASTRBOT_VERSION,
             plugin_dir=plugin_dir,
             astrbot_root=root,
             plugin_name="astrbot_plugin_dnaby",
@@ -351,7 +353,7 @@ def test_failure_format_redacts_secret_like_values(
     except RuntimeError as error:
         rendered = module._format_failure(
             error,
-            astrbot_version="4.27.1",
+            astrbot_version=FIXTURE_ASTRBOT_VERSION,
             plugin_name="astrbot_plugin_dnaby",
             plugin_dir=plugin_dir,
         )

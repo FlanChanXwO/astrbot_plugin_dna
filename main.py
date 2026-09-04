@@ -18,6 +18,7 @@ if __package__:
         install_command_handlers,
         load_command_registry,
     )
+    from .src.entry.web import WebRegistrar
 else:
     from src.bootstrap import PluginRuntime, build_runtime
     from src.entry.commands import (
@@ -25,6 +26,7 @@ else:
         install_command_handlers,
         load_command_registry,
     )
+    from src.entry.web import WebRegistrar
 
 
 COMMAND_REGISTRY: CommandRegistry = load_command_registry()
@@ -55,9 +57,12 @@ class DnabyPlugin(Star):
         await self._runtime.initialize()
 
     async def terminate(self) -> None:
-        """由 AstrBot 调用，停止插件 runtime。"""
+        """由 AstrBot 调用，停止插件 runtime 并撤销 Dashboard Web 路由。"""
 
-        await self._runtime.terminate()
+        try:
+            await self._runtime.terminate()
+        finally:
+            WebRegistrar.unregister_plugin_routes(self.context, self.name)
 
 
 install_command_handlers(DnabyPlugin, COMMAND_REGISTRY)
