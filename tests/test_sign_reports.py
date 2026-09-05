@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import date
 from pathlib import Path
 
@@ -16,39 +17,55 @@ from src.modules.checkin.contracts import AutoSignReport, GroupSignReport
 class _StructuredCheckin:
     def __init__(self) -> None:
         self.report_calls = 0
+        self.requested_group_ids: list[frozenset[str] | None] = []
 
-    async def auto_sign_report(self, *, enable_all_users: bool = False) -> AutoSignReport:
+    async def auto_sign_report(
+        self,
+        *,
+        enable_all_users: bool = False,
+        group_ids: Collection[str] | None = None,
+    ) -> AutoSignReport:
         del enable_all_users
         self.report_calls += 1
+        self.requested_group_ids.append(
+            None if group_ids is None else frozenset(group_ids)
+        )
+        group_reports = {
+            "group-a": (
+                GroupSignReport(
+                    report_type="game",
+                    success=1,
+                    failed=0,
+                    summary_text="群 A 游戏签到：成功 1，失败 0",
+                    detail_text="A-UID: 游戏签到成功",
+                ),
+                GroupSignReport(
+                    report_type="community",
+                    success=1,
+                    failed=1,
+                    summary_text="群 A 社区签到：成功 1，失败 1",
+                    detail_text="A-UID: 社区签到成功\nA2-UID: 社区签到失败",
+                ),
+            ),
+            "group-b": (
+                GroupSignReport(
+                    report_type="game",
+                    success=2,
+                    failed=0,
+                    summary_text="群 B 游戏签到：成功 2，失败 0",
+                    detail_text="B-UID: 游戏签到成功",
+                ),
+            ),
+        }
+        if group_ids is not None:
+            group_reports = {
+                group_id: reports
+                for group_id, reports in group_reports.items()
+                if group_id in group_ids
+            }
         return AutoSignReport(
             summary_text="全局汇总：游戏 3，社区 2",
-            group_reports={
-                "group-a": (
-                    GroupSignReport(
-                        report_type="game",
-                        success=1,
-                        failed=0,
-                        summary_text="群 A 游戏签到：成功 1，失败 0",
-                        detail_text="A-UID: 游戏签到成功",
-                    ),
-                    GroupSignReport(
-                        report_type="community",
-                        success=1,
-                        failed=1,
-                        summary_text="群 A 社区签到：成功 1，失败 1",
-                        detail_text="A-UID: 社区签到成功\nA2-UID: 社区签到失败",
-                    ),
-                ),
-                "group-b": (
-                    GroupSignReport(
-                        report_type="game",
-                        success=2,
-                        failed=0,
-                        summary_text="群 B 游戏签到：成功 2，失败 0",
-                        detail_text="B-UID: 游戏签到成功",
-                    ),
-                ),
-            },
+            group_reports=group_reports,
         )
 
     async def clear_sign_records_before(self, record_date: date) -> int:
@@ -112,6 +129,7 @@ async def test_sign_scheduler_routes_global_and_group_reports_independently(
 
     assert text == "全局汇总：游戏 3，社区 2"
     assert checkin.report_calls == 1
+    assert checkin.requested_group_ids == [frozenset({"group-a", "group-b"})]
     assert [(origin, payload.text) for origin, payload in pushed] == [
         ("platform:group:global", "全局汇总：游戏 3，社区 2"),
         ("platform:group:both", "全局汇总：游戏 3，社区 2"),

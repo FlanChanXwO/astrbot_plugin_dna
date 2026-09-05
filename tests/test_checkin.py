@@ -24,6 +24,8 @@ from src.modules.checkin import messages
 from src.modules.checkin.contracts import (
     CheckinCommandRequest,
     CheckinFailureKind,
+    CheckinOutcome,
+    CheckinSummary,
     CheckinTransportError,
     CommunityPost,
     CommunityTask,
@@ -34,7 +36,7 @@ from src.modules.checkin.contracts import (
     SignStatus,
     TaskProcess,
 )
-from src.modules.checkin.service import CheckinService
+from src.modules.checkin.service import CheckinService, _CheckinBatchResult
 from src.modules.privacy import PrivacyService
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
@@ -772,6 +774,100 @@ async def test_auto_sign_report_groups_game_and_community_by_group(
         assert all(messages.sign_detail_separator() not in item.detail_text for item in reports)
 
     del original_calendar
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_group_report_uses_structured_details_not_display_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """群报告分类消费结构化详情，不依赖最终展示文本的行位置。"""
+
+    database = await _database_with_binding(tmp_path)
+    service = _service(database, FakeCheckinTransport(), group_report=True)
+    outcome = CheckinOutcome(
+        game_status=SignStatus.DONE,
+        bbs_status=SignStatus.FAILED,
+        detail_lines=("展示层社区标题", "展示层误分类游戏行", "展示层误分类社区行"),
+        error="社区操作失败",
+        game_detail_lines=("游戏签到：已完成", "游戏奖励：5"),
+        community_detail_lines=("社区点赞：失败",),
+    )
+
+    async def run_all_signs_with_results(**_kwargs: object) -> _CheckinBatchResult:
+        return _CheckinBatchResult(
+            summary=CheckinSummary(success=1, failed=0, game_success=1, bbs_success=0),
+            group_results={"group-1": (("uid-1", outcome),)},
+        )
+
+    monkeypatch.setattr(
+        service, "_run_all_signs_with_results", run_all_signs_with_results
+    )
+
+    report = await service.auto_sign_report()
+    reports = {item.report_type: item for item in report.group_reports["group-1"]}
+
+    assert reports["game"].detail_text == "\n".join(
+        messages.group_detail("uid-1", line)
+        for line in outcome.game_detail_lines
+    )
+    assert reports["community"].detail_text == "\n".join(
+        [
+            messages.group_detail("uid-1", "社区点赞：失败"),
+            messages.group_detail("uid-1", messages.sign_detail_error(outcome.error)),
+        ]
+    )
+    assert "展示层误分类" not in reports["game"].detail_text
+    assert "展示层误分类" not in reports["community"].detail_text
+
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_auto_sign_report_builds_only_requested_group_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """只为调度器传入的订阅群生成报告及图片，避免无订阅群的渲染开销。"""
+
+    database = await _database_with_binding(tmp_path)
+    service = _service(
+        database,
+        FakeCheckinTransport(),
+        group_report=True,
+        group_report_image=True,
+    )
+    outcome = CheckinOutcome(
+        game_status=SignStatus.DONE,
+        bbs_status=SignStatus.DONE,
+        game_detail_lines=("游戏签到：已完成",),
+        community_detail_lines=("社区签到：已完成",),
+    )
+
+    async def run_all_signs_with_results(**_kwargs: object) -> _CheckinBatchResult:
+        return _CheckinBatchResult(
+            summary=CheckinSummary(success=2, failed=0, game_success=2, bbs_success=2),
+            group_results={
+                "group-1": (("uid-1", outcome),),
+                "group-2": (("uid-2", outcome),),
+            },
+        )
+
+    rendered: list[str] = []
+
+    async def render(text: str, *, theme: str = "blue") -> bytes:
+        rendered.append(theme)
+        return f"image:{theme}".encode()
+
+    monkeypatch.setattr(
+        service, "_run_all_signs_with_results", run_all_signs_with_results
+    )
+    monkeypatch.setattr("src.modules.checkin.service.create_sign_info_image", render)
+
+    report = await service.auto_sign_report(group_ids={"group-1"})
+
+    assert set(report.group_reports) == {"group-1"}
+    assert rendered == ["blue", "yellow"]
+
     await database.dispose()
 
 

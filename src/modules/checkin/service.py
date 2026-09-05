@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import random
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -378,10 +378,11 @@ class CheckinService:
         snapshot = await self._load_snapshot(uid)
         if self._game_complete(snapshot) and self._community_complete(snapshot):
             return CheckinOutcome(
-                SignStatus.SKIP,
-                SignStatus.SKIP,
-                (messages.CHECKIN_ALREADY,),
-                "",
+                game_status=SignStatus.SKIP,
+                bbs_status=SignStatus.SKIP,
+                detail_lines=(messages.CHECKIN_ALREADY,),
+                game_detail_lines=(messages.sign_detail_status(SignStatus.SKIP),),
+                community_detail_lines=(messages.sign_detail_status(SignStatus.SKIP),),
             )
 
         game_status = await self._run_game(actor, uid, credential_user_id, snapshot)
@@ -393,8 +394,8 @@ class CheckinService:
         )
         await self._save_snapshot(snapshot)
 
-        lines: list[str] = []
-        lines.append(messages.sign_detail_status(game_status))
+        game_detail_lines = (messages.sign_detail_status(game_status),)
+        lines: list[str] = list(game_detail_lines)
         lines.append(messages.sign_detail_community_title())
         lines.extend(community_lines)
         if error:
@@ -405,6 +406,8 @@ class CheckinService:
             bbs_status=bbs_status,
             detail_lines=tuple(lines),
             error=error,
+            game_detail_lines=game_detail_lines,
+            community_detail_lines=community_lines,
         )
 
     async def manual_sign(self, request: CheckinCommandRequest):
@@ -575,15 +578,15 @@ class CheckinService:
         report_type: str,
     ) -> tuple[str, ...]:
         if report_type == "game":
-            lines = outcome.detail_lines[:1]
-            if not lines:
-                lines = (messages.sign_detail_status(outcome.game_status),)
+            lines = outcome.game_detail_lines
+            status = outcome.game_status
         else:
-            lines = outcome.detail_lines[2:]
-            if lines and lines[-1] == messages.sign_detail_separator():
-                lines = lines[:-1]
-            if not lines:
-                lines = (messages.sign_detail_status(outcome.bbs_status),)
+            lines = outcome.community_detail_lines
+            status = outcome.bbs_status
+            if outcome.error:
+                lines = (*lines, messages.sign_detail_error(outcome.error))
+        if not lines:
+            lines = (messages.sign_detail_status(status),)
         return tuple(messages.group_detail(uid, line) for line in lines)
 
     async def _build_group_report(
@@ -646,8 +649,13 @@ class CheckinService:
         self,
         *,
         enable_all_users: bool = False,
+        group_ids: Collection[str] | None = None,
     ) -> AutoSignReport:
-        """执行一次自动签到并返回全局与按群拆分的结构化报告。"""
+        """执行一次自动签到并返回全局与目标群的结构化报告。
+
+        ``group_ids=None`` 保留直接调用时生成所有群报告的语义；调度器传入实际订阅
+        群集合（包括空集合）后，服务只构建这些群的报告，避免未订阅群的图片渲染。
+        """
 
         result = await self._run_all_signs_with_results(
             respect_auto_sign=True,
@@ -658,7 +666,10 @@ class CheckinService:
             return AutoSignReport(summary_text=summary_text)
 
         group_reports: dict[str, tuple[GroupSignReport, ...]] = {}
+        target_group_ids = None if group_ids is None else frozenset(group_ids)
         for group_id, group_results in result.group_results.items():
+            if target_group_ids is not None and group_id not in target_group_ids:
+                continue
             group_reports[group_id] = (
                 await self._build_group_report("game", group_results),
                 await self._build_group_report("community", group_results),

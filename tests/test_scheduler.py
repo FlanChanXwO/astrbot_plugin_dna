@@ -20,11 +20,18 @@ class _FakeCheckin:
     def __init__(self) -> None:
         self.auto_calls = 0
         self.cleanup_calls: list[date] = []
+        self.requested_group_ids: list[frozenset[str] | None] = []
 
     async def auto_sign_report(
-        self, *, enable_all_users: bool = False
+        self,
+        *,
+        enable_all_users: bool = False,
+        group_ids=None,
     ) -> AutoSignReport:
         del enable_all_users
+        self.requested_group_ids.append(
+            None if group_ids is None else frozenset(group_ids)
+        )
         self.auto_calls += 1
         return AutoSignReport(
             summary_text=(
@@ -134,6 +141,7 @@ async def test_run_sign_once_pushes_summary_to_subscribers(tmp_path: Path) -> No
     assert "今日成功游戏签到 2 个账号" in text
     assert pushed == [("platform:group:g1", SignPushPayload(text=text))]
     assert checkin.auto_calls == 1
+    assert checkin.requested_group_ids == [frozenset()]
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Protocol
@@ -51,7 +51,10 @@ class SchedulableCheckin(Protocol):
     """计划任务所需的签到接口。"""
 
     async def auto_sign_report(
-        self, *, enable_all_users: bool = False
+        self,
+        *,
+        enable_all_users: bool = False,
+        group_ids: Collection[str] | None = None,
     ) -> AutoSignReport: ...
     async def clear_sign_records_before(self, record_date: date) -> int: ...
 
@@ -337,8 +340,17 @@ class SignScheduler:
     async def run_sign_once(self) -> str:
         """执行一次自动签到，分别推送全局汇总和本群报告。"""
 
+        group_subscribers = await self.subscriptions.get(
+            messages.SIGN_GROUP_REPORT_SUBSCRIBE
+        )
+        target_group_ids = frozenset(
+            subscription.group_id
+            for subscription in group_subscribers
+            if subscription.group_id
+        )
         report = await self.checkin.auto_sign_report(
             enable_all_users=self.enable_all_users,
+            group_ids=target_group_ids,
         )
         global_payload = SignPushPayload(text=report.summary_text)
         global_subscribers = await self.subscriptions.get(
@@ -350,9 +362,6 @@ class SignScheduler:
                 global_payload,
             )
 
-        group_subscribers = await self.subscriptions.get(
-            messages.SIGN_GROUP_REPORT_SUBSCRIBE
-        )
         for subscription in group_subscribers:
             group_reports = report.group_reports.get(subscription.group_id, ())
             for group_report in group_reports:

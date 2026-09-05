@@ -30,9 +30,9 @@ TZ = ZoneInfo("Asia/Shanghai")
 
 class _Checkin:
     async def auto_sign_report(
-        self, *, enable_all_users: bool = False
+        self, *, enable_all_users: bool = False, group_ids=None
     ) -> AutoSignReport:
-        del enable_all_users
+        del enable_all_users, group_ids
         return AutoSignReport(summary_text="ok")
 
     async def clear_sign_records_before(self, record_date) -> int:

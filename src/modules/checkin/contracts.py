@@ -153,8 +153,12 @@ class CheckinOutcome:
 
     game_status: SignStatus
     bbs_status: SignStatus
+    # 兼容手动签到展示的完整文本投影，不作为群报告的业务数据源。
     detail_lines: tuple[str, ...] = ()
     error: str = ""
+    # 群报告直接消费两类结构化详情，避免从 detail_lines 反向推断业务归属。
+    game_detail_lines: tuple[str, ...] = ()
+    community_detail_lines: tuple[str, ...] = ()
 
     @property
     def success(self) -> bool:
