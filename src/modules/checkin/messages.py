@@ -30,6 +30,12 @@ SIGN_RESULT_STORE_UNAVAILABLE = get_tip("checkin.sign_result_store_unavailable")
 SIGN_RESULT_EMPTY = get_tip("checkin.sign_result_empty")
 SIGN_RESULT_CLEANED = get_tip("checkin.sign_result_cleaned")
 
+SIGN_GROUP_REPORT_SUBSCRIBE = "订阅二重螺旋本群签到报告"
+SIGN_GROUP_REPORT_SUBSCRIBED = get_tip("checkin.sign_group_report_subscribed")
+SIGN_GROUP_REPORT_UNSUBSCRIBED = get_tip("checkin.sign_group_report_unsubscribed")
+SIGN_GROUP_REPORT_GROUP_ONLY = get_tip("checkin.sign_group_report_group_only")
+SIGN_GROUP_REPORT_DISABLED = get_tip("checkin.sign_group_report_disabled")
+
 SIGN_STATUS_TEXT = {
     SignStatus.DONE: get_tip("checkin.status_done"),
     SignStatus.SKIP: get_tip("checkin.status_skip"),
@@ -90,6 +96,18 @@ def auto_task_header() -> str:
     return get_tip("checkin.auto_task_header")
 
 
+def group_summary(report_type: str, success: int, failed: int) -> str:
+    key = {
+        "game": "checkin.group_game_summary",
+        "community": "checkin.group_community_summary",
+    }[report_type]
+    return get_tip(key, success=success, failed=failed)
+
+
+def group_detail(uid: str, detail: str) -> str:
+    return get_tip("checkin.group_detail", uid=uid, detail=detail)
+
+
 def community_label(mark_name: str) -> str:
     key = _COMMUNITY_LABEL_KEYS.get(mark_name)
     return get_tip(key) if key else mark_name
@@ -139,6 +157,11 @@ __all__ = [
     "CHECKIN_SERVICE_UNAVAILABLE",
     "CHECKIN_TASKS_EMPTY",
     "CHECKIN_UID_INVALID",
+    "SIGN_GROUP_REPORT_DISABLED",
+    "SIGN_GROUP_REPORT_GROUP_ONLY",
+    "SIGN_GROUP_REPORT_SUBSCRIBE",
+    "SIGN_GROUP_REPORT_SUBSCRIBED",
+    "SIGN_GROUP_REPORT_UNSUBSCRIBED",
     "SIGN_RESULT_CLEANED",
     "SIGN_RESULT_EMPTY",
     "SIGN_RESULT_ORIGIN_MISSING",
@@ -152,6 +175,8 @@ __all__ = [
     "auto_task_header",
     "community_label",
     "community_target",
+    "group_detail",
+    "group_summary",
     "sign_detail_community_title",
     "sign_detail_error",
     "sign_detail_separator",

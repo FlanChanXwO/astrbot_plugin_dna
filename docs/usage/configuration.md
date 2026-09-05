@@ -53,12 +53,14 @@
 | `sign_in.sign_time` | `00:05` | 每日定时签到时间，格式为 `HH:mm`。 |
 | `sign_in.concurrency` | `1` | 自动签到并发数。 |
 | `sign_in.concurrency_interval_seconds` | `[3, 5]` | 自动签到任务之间的间隔范围，单位为秒。 |
-| `sign_in.private_report` | `false` | 是否发送私聊签到报告。 |
-| `sign_in.group_report` | `false` | 是否发送群聊签到报告。 |
-| `sign_in.group_report_image` | `false` | 是否使用图片发送群聊签到报告。 |
+| `sign_in.private_report` | `false` | 是否发送私聊签到报告；本轮不改变其既有语义。 |
+| `sign_in.group_report` | `false` | 群组报告总开关；开启后仍需在目标群执行 `订阅本群签到报告`。 |
+| `sign_in.group_report_image` | `false` | 仅控制本群报告格式；`false` 发送文字，`true` 发送图片并保留必要明细文字。 |
 
 `sign_in.scheduled_enabled` 默认关闭。开启后还需要设置有效的 `sign_in.sign_time`；
 `sign_in.enable_all_users` 决定定时任务是否覆盖所有已登录用户，手动签到命令不受定时开关影响。
+`订阅签到结果` 管理所有账号、所有群的全局文字汇总，`订阅本群签到报告` 管理当前群的独立
+报告，两种订阅互不覆盖。游戏签到和社区签到分别发送；私聊绑定只进入全局汇总，不会被路由到群。
 
 ## 通知 `notifications`
 

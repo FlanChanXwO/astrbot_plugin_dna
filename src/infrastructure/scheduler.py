@@ -11,11 +11,13 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from ..modules.checkin import messages
+from ..modules.checkin.contracts import AutoSignReport, GroupSignReport
 from .scheduler_state import (
     SchedulerRegistry,
     SchedulerTaskDefinition,
@@ -28,7 +30,18 @@ from .subscriptions import SubscriptionStore
 TZ = ZoneInfo("Asia/Shanghai")
 NowCallable = Callable[[], datetime]
 SleepCallable = Callable[[float], Awaitable[None]]
-PushCallable = Callable[[str, str], Awaitable[Any]]
+
+
+@dataclass(frozen=True, slots=True)
+class SignPushPayload:
+    """推送适配器接收的签到消息；图片存在时附带明细文本。"""
+
+    text: str
+    image_bytes: bytes | None = None
+    detail_text: str = ""
+
+
+PushCallable = Callable[[str, SignPushPayload], Awaitable[Any]]
 
 _SIGN_TASK_NAME = "dnaby_sign_daily"
 _CLEANUP_TASK_NAME = "dnaby_sign_cleanup"
@@ -37,7 +50,9 @@ _CLEANUP_TASK_NAME = "dnaby_sign_cleanup"
 class SchedulableCheckin(Protocol):
     """计划任务所需的签到接口。"""
 
-    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str: ...
+    async def auto_sign_report(
+        self, *, enable_all_users: bool = False
+    ) -> AutoSignReport: ...
     async def clear_sign_records_before(self, record_date: date) -> int: ...
 
 
@@ -116,7 +131,10 @@ class SignScheduler:
                 id=_SIGN_TASK_NAME,
                 name="每日自动签到",
                 schedule=f"daily@{self.sign_time[0]:02d}:{self.sign_time[1]:02d}",
-                targets=("sign_result_subscriptions",),
+                targets=(
+                    "sign_result_subscriptions",
+                    "sign_group_report_subscriptions",
+                ),
             ),
             enabled=self._enabled_tasks[_SIGN_TASK_NAME],
         )
@@ -289,25 +307,60 @@ class SignScheduler:
     async def _on_cleanup_time(self) -> None:
         await self.run_cleanup_once()
 
-    async def run_sign_once(self) -> str:
-        """执行一次自动签到并把摘要推送给订阅者，返回摘要文本。"""
+    async def _push_payload(self, origin: str, payload: SignPushPayload) -> None:
+        """推送单个目标；单个目标失败不影响其他目标。"""
 
-        text = await self.checkin.auto_sign_all(
+        if self._push is None:
+            return
+        try:
+            result = self._push(origin, payload)
+            if inspect.isawaitable(result):
+                await result
+        except Exception:  # noqa: BLE001
+            from astrbot.api import logger
+
+            logger.warning("[dnaby][sign_push] 推送失败")
+
+    @staticmethod
+    def _group_payload(report: GroupSignReport) -> SignPushPayload:
+        """把一类群报告转换为推送层 payload。"""
+
+        text = "\n".join(
+            part for part in (report.summary_text, report.detail_text) if part
+        )
+        return SignPushPayload(
+            text=text,
+            image_bytes=report.image_bytes,
+            detail_text=report.detail_text,
+        )
+
+    async def run_sign_once(self) -> str:
+        """执行一次自动签到，分别推送全局汇总和本群报告。"""
+
+        report = await self.checkin.auto_sign_report(
             enable_all_users=self.enable_all_users,
         )
-        subscribers = await self.subscriptions.get(messages.SIGN_RESULT_SUBSCRIBE)
-        for subscription in subscribers:
-            if self._push is None:
-                continue
-            try:
-                res = self._push(subscription.unified_msg_origin, text)
-                if inspect.isawaitable(res):
-                    await res
-            except Exception:  # noqa: BLE001
-                from astrbot.api import logger
+        global_payload = SignPushPayload(text=report.summary_text)
+        global_subscribers = await self.subscriptions.get(
+            messages.SIGN_RESULT_SUBSCRIBE
+        )
+        for subscription in global_subscribers:
+            await self._push_payload(
+                subscription.unified_msg_origin,
+                global_payload,
+            )
 
-                logger.warning("[dnaby][sign_push] 推送失败")
-        return text
+        group_subscribers = await self.subscriptions.get(
+            messages.SIGN_GROUP_REPORT_SUBSCRIBE
+        )
+        for subscription in group_subscribers:
+            group_reports = report.group_reports.get(subscription.group_id, ())
+            for group_report in group_reports:
+                await self._push_payload(
+                    subscription.unified_msg_origin,
+                    self._group_payload(group_report),
+                )
+        return report.summary_text
 
     async def run_cleanup_once(self) -> int:
         """清理 2 天前的签到记录，返回删除条数。"""
@@ -316,4 +369,4 @@ class SignScheduler:
         return await self.checkin.clear_sign_records_before(two_days_ago)
 
 
-__all__ = ["SignScheduler"]
+__all__ = ["SignPushPayload", "SignScheduler"]

@@ -62,7 +62,7 @@ from .infrastructure.resources.paths import (
     resource_generations_dir,
     resource_repository_dir,
 )
-from .infrastructure.scheduler import SignScheduler
+from .infrastructure.scheduler import SignPushPayload, SignScheduler
 from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
 from .modules.account import AccountService
@@ -363,10 +363,19 @@ def build_runtime(
         interval_range=settings.sign_in.concurrency_interval_seconds,
         subscriptions=subscriptions,
         resource_snapshots=resource_snapshots,
+        group_report=settings.sign_in.group_report,
+        group_report_image=settings.sign_in.group_report_image,
     )
 
-    async def _push_sign(origin: str, text: str) -> None:
-        msg = MessageChain(chain=[Plain(text)])
+    async def _push_sign(origin: str, payload: SignPushPayload) -> None:
+        chain: list[Any] = []
+        if payload.image_bytes is not None:
+            chain.append(AstrImage.fromBytes(payload.image_bytes))
+            if payload.detail_text:
+                chain.append(Plain(payload.detail_text))
+        else:
+            chain.append(Plain(payload.text))
+        msg = MessageChain(chain=chain)
         try:
             res = context.send_message(origin, msg)
             if inspect.isawaitable(res):

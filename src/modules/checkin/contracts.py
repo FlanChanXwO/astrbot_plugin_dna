@@ -176,6 +176,26 @@ class CheckinSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class GroupSignReport:
+    """一个群的一类签到报告。"""
+
+    report_type: str
+    success: int
+    failed: int
+    summary_text: str
+    detail_text: str = ""
+    image_bytes: bytes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AutoSignReport:
+    """一次自动签到的全局汇总与按群分组报告。"""
+
+    summary_text: str
+    group_reports: dict[str, tuple[GroupSignReport, ...]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class CheckinCalendarData:
     """签到日历渲染所需的聚合输入。"""
 
@@ -315,6 +335,7 @@ class CheckinTransport(Protocol):
 
 
 __all__ = [
+    "AutoSignReport",
     "CheckinCalendarData",
     "CheckinCommandRequest",
     "CheckinFailureKind",
@@ -326,6 +347,7 @@ __all__ = [
     "CommunityPost",
     "CommunityTask",
     "DayAward",
+    "GroupSignReport",
     "SignCalendar",
     "SignPeriod",
     "SignRoleInfo",

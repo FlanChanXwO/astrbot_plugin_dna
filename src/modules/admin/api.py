@@ -41,7 +41,12 @@ TaskSnapshot = SchedulerTaskSnapshot
 
 _TASK_IDS = frozenset(BUILTIN_SCHEDULER_TASK_IDS)
 _TASK_TARGET_TYPES: dict[str, frozenset[str]] = {
-    "dnaby_sign_daily": frozenset((checkin_messages.SIGN_RESULT_SUBSCRIBE,)),
+    "dnaby_sign_daily": frozenset(
+        (
+            checkin_messages.SIGN_RESULT_SUBSCRIBE,
+            checkin_messages.SIGN_GROUP_REPORT_SUBSCRIBE,
+        )
+    ),
     "dnaby_sign_cleanup": frozenset(),
     "dnaby_mh_push": frozenset(
         (

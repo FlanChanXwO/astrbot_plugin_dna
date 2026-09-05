@@ -21,15 +21,19 @@ from src.modules.admin import (
     AdminErrorCode,
     TaskTargetUpdate,
 )
+from src.modules.checkin import messages as checkin_messages
+from src.modules.checkin.contracts import AutoSignReport
 from src.modules.notices import messages as notices_messages
 
 TZ = ZoneInfo("Asia/Shanghai")
 
 
 class _Checkin:
-    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
+    async def auto_sign_report(
+        self, *, enable_all_users: bool = False
+    ) -> AutoSignReport:
         del enable_all_users
-        return "ok"
+        return AutoSignReport(summary_text="ok")
 
     async def clear_sign_records_before(self, record_date) -> int:
         del record_date
@@ -107,6 +111,32 @@ def admin_api(
         config_store=config,
     )
     return api, config, subscriptions
+
+
+@pytest.mark.asyncio
+async def test_sign_task_lists_global_and_group_report_targets(
+    admin_api: tuple[AdminApiService, dict[str, object], SubscriptionStore],
+) -> None:
+    api, _config, subscriptions = admin_api
+    await subscriptions.add(
+        checkin_messages.SIGN_RESULT_SUBSCRIBE,
+        origin="group:global",
+        group_id="global",
+    )
+    await subscriptions.add(
+        checkin_messages.SIGN_GROUP_REPORT_SUBSCRIBE,
+        origin="group:local",
+        group_id="local",
+    )
+
+    response = await api.list_targets("dnaby_sign_daily")
+
+    assert response.ok is True
+    assert response.data is not None
+    assert {target.to_dict()["unified_msg_origin"] for target in response.data} == {
+        "group:global",
+        "group:local",
+    }
 
 
 @pytest.mark.asyncio

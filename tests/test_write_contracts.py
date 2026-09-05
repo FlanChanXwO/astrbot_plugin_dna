@@ -69,6 +69,7 @@ WRITE_COMMANDS: dict[str, str] = {
     "sign": "user",
     "sign_all": "admin",
     "sign_result_subscribe": "admin",
+    "sign_group_report_subscribe": "admin",
     "mh_subscribe_by_name": "user",
     "mh_subscribe_cycle": "user",
     "mh_pic_subscribe": "user",
@@ -147,6 +148,10 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
             "test_subscribe_sign_result_adds_and_dedupes",
             "test_unsubscribe_sign_result_removes_subscription",
         ),
+    ),
+    "sign_group_report_subscribe": (
+        "test_checkin.py",
+        ("test_subscribe_group_report_is_independent_and_group_only",),
     ),
     "mh_subscribe_by_name": (
         "test_notices_subscriptions.py",
