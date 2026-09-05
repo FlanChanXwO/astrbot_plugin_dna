@@ -22,6 +22,10 @@ from pydantic import (
     model_validator,
 )
 
+from ...modules.client_updates.channels import (
+    CLIENT_UPDATE_CHANNELS,
+    normalize_client_update_channel_ids,
+)
 from ..resources.acceleration import (
     GithubAccelerationMode,
     normalize_http_base_url,
@@ -367,13 +371,22 @@ class ClientUpdatesSettings(_SettingsModel):
         description="客户端更新检查间隔",
         json_schema_extra={"hint": "客户端更新定时检查间隔（分钟），必须为正整数"},
     )
-    channels: list[Literal["pc_cn", "android_astc_cn"]] = Field(
-        default_factory=lambda: ["pc_cn", "android_astc_cn"],
+    channels: list[str] = Field(
+        default_factory=lambda: list(CLIENT_UPDATE_CHANNELS),
         description="客户端更新渠道",
         json_schema_extra={
             "hint": "只能选择代码 registry 中的固定渠道 ID，不填写 URL、branch 或 manifest key"
         },
     )
+
+    @field_validator("channels", mode="before")
+    @classmethod
+    def _normalize_channels(cls, value: Any) -> list[str]:
+        try:
+            return list(normalize_client_update_channel_ids(value))
+        except (TypeError, ValueError) as error:
+            raise ValueError("客户端更新渠道必须全部是已注册的渠道 ID") from error
+
     merge_forward: bool = Field(
         default=True,
         description="客户端更新合并转发",

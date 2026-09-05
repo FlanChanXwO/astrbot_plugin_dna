@@ -555,6 +555,7 @@ def build_runtime(
         client_update_state,
         transport=resolved_client_updates_transport,
         subscriptions=subscriptions,
+        channels=tuple(settings.client_updates.channels),
     )
     if services is not None and "client_update_service" in services:
         client_update_service = cast(
@@ -564,7 +565,7 @@ def build_runtime(
     client_update_push_adapter = ClientUpdatePushAdapter(
         send_text=_send_client_update_text,
         send_forward=_send_client_update_forward,
-        merge_forward=settings.notifications.client_update_merge_forward,
+        merge_forward=settings.client_updates.merge_forward,
     )
     if services is not None and "client_update_push_adapter" in services:
         client_update_push_adapter = cast(
@@ -584,8 +585,8 @@ def build_runtime(
     client_updates_scheduler = ClientUpdatesScheduler(
         client_update_service,
         client_update_delivery,
-        enabled=settings.notifications.client_update_enabled,
-        check_minutes=settings.notifications.client_update_check_minutes,
+        enabled=settings.client_updates.enabled,
+        check_minutes=settings.client_updates.check_minutes,
         registry=scheduler_registry,
     )
     if services is not None and "client_updates_scheduler" in services:

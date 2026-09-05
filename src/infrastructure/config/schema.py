@@ -9,6 +9,7 @@ from typing import Any, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel, SecretStr
 
+from ...modules.client_updates.channels import CLIENT_UPDATE_CHANNELS
 from .settings import (
     AISettings,
     CacheSettings,
@@ -121,18 +122,21 @@ def _field_schema(field: Any) -> dict[str, Any]:
 def generate_astrbot_schema() -> dict[str, dict[str, Any]]:
     """生成可被 AstrBot 4.27.x 递归解析的 schema。"""
 
-    return {
-        group_name: {
+    result: dict[str, dict[str, Any]] = {}
+    for group_name, model in _GROUPS:
+        fields: dict[str, dict[str, Any]] = {}
+        for field_name, field in model.model_fields.items():
+            field_schema = _field_schema(field)
+            if group_name == "client_updates" and field_name == "channels":
+                field_schema["options"] = list(CLIENT_UPDATE_CHANNELS)
+            fields[field_name] = field_schema
+        result[group_name] = {
             "description": DnabySettings.model_fields[group_name].description
             or group_name,
             "type": "object",
-            "items": {
-                field_name: _field_schema(field)
-                for field_name, field in model.model_fields.items()
-            },
+            "items": fields,
         }
-        for group_name, model in _GROUPS
-    }
+    return result
 
 
 def write_astrbot_schema(path: str | Path) -> Path:

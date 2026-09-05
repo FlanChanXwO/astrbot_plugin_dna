@@ -137,9 +137,7 @@ class ClientUpdateStateStore:
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path).expanduser().resolve()
-        self._baselines: dict[
-            tuple[ClientRegion, ClientPlatform], ClientUpdateBaseline
-        ] = {}
+        self._baselines: dict[tuple[ClientRegion, str], ClientUpdateBaseline] = {}
         self._pending_events: dict[str, ClientUpdatePendingEvent] = {}
         self._lock = asyncio.Lock()
         self._loaded = False
@@ -158,11 +156,15 @@ class ClientUpdateStateStore:
         region: ClientRegion | str,
         platform: ClientPlatform | str,
     ) -> ClientUpdateBaseline | None:
-        """读取一个区服/平台基线，未建立时返回 ``None``。"""
+        """读取一个区服/平台或固定渠道基线，未建立时返回 ``None``。"""
 
-        key = _baseline_key(region, platform)
+        candidates = _baseline_lookup_keys(region, platform)
         await self.load()
-        return self._baselines.get(key)
+        for key in candidates:
+            baseline = self._baselines.get(key)
+            if baseline is not None:
+                return baseline
+        return None
 
     async def pending_events(self) -> tuple[ClientUpdatePendingEvent, ...]:
         """按首次生成顺序返回仍未完成的投递事件。"""
@@ -175,7 +177,7 @@ class ClientUpdateStateStore:
 
         if not isinstance(baseline, ClientUpdateBaseline):
             raise TypeError("baseline 必须是 ClientUpdateBaseline")
-        key = _baseline_key(baseline.snapshot.region, baseline.snapshot.platform)
+        key = _snapshot_baseline_key(baseline.snapshot)
 
         async with self._lock:
             self._load_unlocked()
@@ -210,7 +212,7 @@ class ClientUpdateStateStore:
             raise TypeError("change 必须是 ClientUpdateChange")
         if baseline.last_change != change:
             raise ValueError("baseline.last_change 必须等于 change")
-        key = _baseline_key(baseline.snapshot.region, baseline.snapshot.platform)
+        key = _snapshot_baseline_key(baseline.snapshot)
         event = ClientUpdatePendingEvent(change, tuple(targets))
         if event.targets and not event.pending_targets:
             raise ValueError("新建事件至少需要一个 pending 目标")
@@ -430,20 +432,24 @@ class ClientUpdateStateStore:
             if not isinstance(raw_baselines, Mapping):
                 raise TypeError("state.baselines must be an object")
 
-            baselines: dict[
-                tuple[ClientRegion, ClientPlatform], ClientUpdateBaseline
-            ] = {}
+            baselines: dict[tuple[ClientRegion, str], ClientUpdateBaseline] = {}
             for raw_key, raw_baseline in raw_baselines.items():
-                region, platform = _parse_baseline_key(raw_key)
+                region, channel_or_platform = _parse_baseline_key(raw_key)
                 baseline = _parse_baseline(
                     raw_baseline, f"state.baselines[{raw_key!r}]"
                 )
+                if baseline.snapshot.region is not region:
+                    raise ValueError("baseline key and snapshot region differ")
+                expected_platform = _platform_for_identity(channel_or_platform)
+                if baseline.snapshot.platform is not expected_platform:
+                    raise ValueError("baseline key and snapshot platform differ")
                 if (
-                    baseline.snapshot.region is not region
-                    or baseline.snapshot.platform is not platform
+                    _is_registered_channel_id(channel_or_platform)
+                    and baseline.snapshot.channel_id is not None
+                    and baseline.snapshot.channel_id != channel_or_platform
                 ):
-                    raise ValueError("baseline key and snapshot identity differ")
-                baselines[(region, platform)] = baseline
+                    raise ValueError("baseline key and snapshot channel differ")
+                baselines[(region, channel_or_platform)] = baseline
 
             if schema_version == _LEGACY_STATE_VERSION:
                 raw_pending_events: object = []
@@ -468,10 +474,12 @@ class ClientUpdateStateStore:
         payload = {
             "schema_version": STATE_VERSION,
             "baselines": {
-                _format_baseline_key(region, platform): _baseline_to_json(baseline)
-                for (region, platform), baseline in sorted(
+                _format_baseline_key(region, channel_or_platform): _baseline_to_json(
+                    baseline
+                )
+                for (region, channel_or_platform), baseline in sorted(
                     self._baselines.items(),
-                    key=lambda item: (item[0][0].value, item[0][1].value),
+                    key=lambda item: (item[0][0].value, item[0][1]),
                 )
             },
             "pending_events": [
@@ -495,25 +503,95 @@ class ClientUpdateStateStore:
 
 def _baseline_key(
     region: ClientRegion | str,
-    platform: ClientPlatform | str,
-) -> tuple[ClientRegion, ClientPlatform]:
+    platform_or_channel: ClientPlatform | str,
+) -> tuple[ClientRegion, str]:
     try:
-        return ClientRegion(region), ClientPlatform(platform)
+        normalized_region = ClientRegion(region)
     except (TypeError, ValueError) as error:
-        raise ValueError("不支持的客户端区服或平台") from error
+        raise ValueError("不支持的客户端区服") from error
+
+    try:
+        return normalized_region, ClientPlatform(platform_or_channel).value
+    except (TypeError, ValueError):
+        channel = _resolve_channel(platform_or_channel)
+        if channel.region is not normalized_region:
+            raise ValueError("客户端更新渠道与区服不一致")
+        return normalized_region, channel.channel_id
 
 
-def _format_baseline_key(region: ClientRegion, platform: ClientPlatform) -> str:
-    return f"{region.value}:{platform.value}"
+def _baseline_lookup_keys(
+    region: ClientRegion | str,
+    platform_or_channel: ClientPlatform | str,
+) -> tuple[tuple[ClientRegion, str], ...]:
+    normalized_region = ClientRegion(region)
+    if isinstance(platform_or_channel, str):
+        try:
+            platform = ClientPlatform(platform_or_channel)
+        except ValueError:
+            return (_baseline_key(normalized_region, platform_or_channel),)
+        channel_id = _default_channel_id(platform)
+        return (
+            (normalized_region, channel_id),
+            (normalized_region, platform.value),
+        )
+    platform = ClientPlatform(platform_or_channel)
+    channel_id = _default_channel_id(platform)
+    return (
+        (normalized_region, channel_id),
+        (normalized_region, platform.value),
+    )
 
 
-def _parse_baseline_key(value: object) -> tuple[ClientRegion, ClientPlatform]:
+def _snapshot_baseline_key(
+    snapshot: ClientVersionSnapshot,
+) -> tuple[ClientRegion, str]:
+    if snapshot.channel_id is None:
+        return snapshot.region, snapshot.platform.value
+    channel = _resolve_channel(snapshot.channel_id)
+    if (
+        channel.region is not snapshot.region
+        or channel.platform is not snapshot.platform
+    ):
+        raise ValueError("snapshot channel identity differs")
+    return snapshot.region, channel.channel_id
+
+
+def _format_baseline_key(region: ClientRegion, channel_or_platform: str) -> str:
+    return f"{region.value}:{channel_or_platform}"
+
+
+def _parse_baseline_key(value: object) -> tuple[ClientRegion, str]:
     if not isinstance(value, str):
         raise TypeError("baseline key must be a string")
     parts = value.split(":")
     if len(parts) != 2:
         raise ValueError("baseline key must contain region and platform")
     return _baseline_key(parts[0], parts[1])
+
+
+def _default_channel_id(platform: ClientPlatform) -> str:
+    from .channels import default_channel_id_for_platform
+
+    return default_channel_id_for_platform(platform)
+
+
+def _resolve_channel(channel_id: str):
+    from .channels import resolve_client_update_channel
+
+    return resolve_client_update_channel(channel_id)
+
+
+def _is_registered_channel_id(value: str) -> bool:
+    from .channels import CLIENT_UPDATE_CHANNELS
+
+    return value in CLIENT_UPDATE_CHANNELS
+
+
+def _platform_for_identity(channel_or_platform: str) -> ClientPlatform:
+    try:
+        return ClientPlatform(channel_or_platform)
+    except ValueError:
+        return _resolve_channel(channel_or_platform).platform
 
 
 def _baseline_to_json(baseline: ClientUpdateBaseline) -> dict[str, Any]:
@@ -529,7 +607,7 @@ def _baseline_to_json(baseline: ClientUpdateBaseline) -> dict[str, Any]:
 
 
 def _snapshot_to_json(snapshot: ClientVersionSnapshot) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "region": snapshot.region.value,
         "platform": snapshot.platform.value,
         "version_key": snapshot.version_key,
@@ -541,16 +619,22 @@ def _snapshot_to_json(snapshot: ClientVersionSnapshot) -> dict[str, Any]:
         "revamp": snapshot.revamp,
         "patch_key": snapshot.patch_key,
     }
+    if snapshot.channel_id is not None:
+        payload["channel_id"] = snapshot.channel_id
+    return payload
 
 
 def _change_to_json(change: ClientUpdateChange) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "region": change.region.value,
         "platform": change.platform.value,
         "previous": _snapshot_to_json(change.previous),
         "current": _snapshot_to_json(change.current),
         "added_size_bytes": change.added_size_bytes,
     }
+    if change.channel_id != change.platform.value:
+        payload["channel_id"] = change.channel_id
+    return payload
 
 
 def _pending_event_to_json(event: ClientUpdatePendingEvent) -> dict[str, Any]:
@@ -664,6 +748,7 @@ def _parse_snapshot(value: object, context: str) -> ClientVersionSnapshot:
         minor=cast(int, _required(entry, "minor", context)),
         revamp=cast(int, _required(entry, "revamp", context)),
         patch_key=cast(int, _required(entry, "patch_key", context)),
+        channel_id=cast(str | None, entry.get("channel_id")),
     )
     version_text = _required(entry, "version_text", context)
     if not isinstance(version_text, str) or version_text != snapshot.version_text:
@@ -685,6 +770,7 @@ def _parse_change(value: object, context: str) -> ClientUpdateChange | None:
         added_size_bytes=cast(int, _required(entry, "added_size_bytes", context)),
         region=cast(ClientRegion, _required(entry, "region", context)),
         platform=cast(ClientPlatform, _required(entry, "platform", context)),
+        channel_id=cast(str | None, entry.get("channel_id")),
     )
 
 

@@ -8,13 +8,21 @@ AstrBot event、HTTP 请求或消息投递。手动查询保持只读；订阅�
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 
 from ...entry.response import PlainTextResponse
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from ...infrastructure.utils.logger import logger
 from . import messages
+from .channels import (
+    CLIENT_UPDATE_CHANNELS,
+    ClientUpdateChannel,
+    default_channel_id_for_platform,
+    normalize_client_update_channel_ids,
+    resolve_client_update_channel,
+    select_enabled_channels,
+)
 from .contracts import (
     ClientPlatform,
     ClientRegion,
@@ -52,10 +60,39 @@ class ClientUpdateService:
         *,
         transport: ClientUpdateTransport | None = None,
         subscriptions: SubscriptionStore | None = None,
+        channels: Sequence[str] | None = None,
     ) -> None:
         self.state = state
         self.transport = transport
         self.subscriptions = subscriptions
+        self._channel_mode = channels is not None
+        self.channels = (
+            tuple(CLIENT_UPDATE_CHANNELS)
+            if channels is None
+            else normalize_client_update_channel_ids(channels)
+        )
+        # 未传 channels 时保留旧 platform transport seam；bootstrap 传入配置后
+        # 才切换到固定 channel ID，避免破坏已有自定义 transport。
+        self._poll_targets: tuple[ClientPlatform | str, ...] = (
+            (ClientPlatform.PC, ClientPlatform.ANDROID)
+            if channels is None
+            else self.channels
+        )
+
+    def _targets_for_platforms(
+        self,
+        platforms: tuple[ClientPlatform, ...],
+    ) -> tuple[ClientPlatform | str, ...]:
+        if not self._channel_mode:
+            return platforms
+        return tuple(
+            channel_id
+            for platform in platforms
+            for channel_id in select_enabled_channels(
+                self.channels,
+                platform=platform,
+            )
+        )
 
     async def observe(
         self,
@@ -91,7 +128,10 @@ class ClientUpdateService:
         if not isinstance(current, ClientVersionSnapshot):
             raise TypeError("current 必须是 ClientVersionSnapshot")
 
-        baseline = await self.state.get_baseline(current.region, current.platform)
+        baseline = await self.state.get_baseline(
+            current.region,
+            current.channel_id or current.platform,
+        )
         if baseline is None:
             await self.state.save_baseline(
                 ClientUpdateBaseline(snapshot=current, observed_at=observed_at)
@@ -146,24 +186,27 @@ class ClientUpdateService:
         return change
 
     async def poll_now(self) -> tuple[ClientUpdateChange, ...]:
-        """轮询 PC/安卓并维护成功观察基线，返回本轮确认的变化。"""
+        """轮询已启用渠道并维护成功观察基线，返回本轮确认的变化。"""
 
         if self.transport is None:
             raise RuntimeError("client update transport unavailable")
 
         changes: list[ClientUpdateChange] = []
-        for platform in (ClientPlatform.PC, ClientPlatform.ANDROID):
-            baseline = await self.state.get_baseline(ClientRegion.CN, platform)
+        for target in self._poll_targets:
+            baseline = await self.state.get_baseline(
+                _target_region(target),
+                target,
+            )
             try:
                 observation = await self.transport.get_observation(
-                    platform,
+                    target,
                     previous_patch_version=(
                         baseline.snapshot.patch_version
                         if baseline is not None
                         else None
                     ),
                 )
-                _validate_observation(observation, platform)
+                _validate_observation(observation, target)
                 change = await self._observe(
                     observation.snapshot,
                     observed_at=datetime.now(timezone.utc),
@@ -171,14 +214,14 @@ class ClientUpdateService:
                     stage_pending=True,
                 )
             except ClientUpdateTransportError as error:
-                _log_transport_failure("poll", platform, error)
+                _log_transport_failure("poll", target, error)
                 continue
             except (
                 ClientUpdatePatchSizeError,
                 ClientUpdateRollbackError,
                 ClientUpdateStructureError,
             ) as error:
-                _log_query_failure(platform, type(error).__name__)
+                _log_query_failure(target, type(error).__name__)
                 continue
             if change is not None:
                 changes.append(change)
@@ -193,18 +236,21 @@ class ClientUpdateService:
             return PlainTextResponse(messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE)
 
         result: list[str] = []
-        for platform in request.platforms:
-            baseline = await self.state.get_baseline(ClientRegion.CN, platform)
+        for target in self._targets_for_platforms(request.platforms):
+            baseline = await self.state.get_baseline(
+                _target_region(target),
+                target,
+            )
             try:
                 observation = await self.transport.get_observation(
-                    platform,
+                    target,
                     previous_patch_version=(
                         baseline.snapshot.patch_version
                         if baseline is not None
                         else None
                     ),
                 )
-                _validate_observation(observation, platform)
+                _validate_observation(observation, target)
                 if baseline is None:
                     result.append(messages.format_current(observation.snapshot))
                     continue
@@ -220,14 +266,14 @@ class ClientUpdateService:
                     observation.patch_sizes,
                 )
             except ClientUpdateTransportError as error:
-                _log_transport_failure("query", platform, error)
+                _log_transport_failure("query", target, error)
                 continue
             except (
                 ClientUpdatePatchSizeError,
                 ClientUpdateRollbackError,
                 ClientUpdateStructureError,
             ) as error:
-                _log_query_failure(platform, type(error).__name__)
+                _log_query_failure(target, type(error).__name__)
                 continue
             result.append(messages.format_change(change))
 
@@ -339,20 +385,24 @@ class ClientUpdateService:
     async def _initialize_missing_baselines(
         self,
         platforms: tuple[ClientPlatform, ...],
-    ) -> tuple[ClientPlatform, ...]:
-        """只为没有基线的平台建立首个成功观察，返回本次失败的平台。"""
+    ) -> tuple[ClientPlatform | str, ...]:
+        """只为没有基线的平台或渠道建立首个成功观察。"""
 
+        targets = self._targets_for_platforms(platforms)
         if self.transport is None:
-            return platforms
+            return targets
 
-        failed: list[ClientPlatform] = []
-        for platform in platforms:
-            baseline = await self.state.get_baseline(ClientRegion.CN, platform)
+        failed: list[ClientPlatform | str] = []
+        for target in targets:
+            baseline = await self.state.get_baseline(
+                _target_region(target),
+                target,
+            )
             if baseline is not None:
                 continue
             try:
-                observation = await self.transport.get_observation(platform)
-                _validate_observation(observation, platform)
+                observation = await self.transport.get_observation(target)
+                _validate_observation(observation, target)
                 await self.state.save_baseline(
                     ClientUpdateBaseline(
                         snapshot=observation.snapshot,
@@ -360,11 +410,11 @@ class ClientUpdateService:
                     )
                 )
             except ClientUpdateTransportError as error:
-                _log_transport_failure("subscribe_baseline", platform, error)
-                failed.append(platform)
+                _log_transport_failure("subscribe_baseline", target, error)
+                failed.append(target)
             except (ClientUpdateStructureError, ValueError) as error:
-                _log_query_failure(platform, type(error).__name__)
-                failed.append(platform)
+                _log_query_failure(target, type(error).__name__)
+                failed.append(target)
         return tuple(failed)
 
 
@@ -397,15 +447,59 @@ def _change_from_baseline(
 
 def _validate_observation(
     observation: ClientUpdateObservation,
-    platform: ClientPlatform,
+    target: ClientPlatform | str,
 ) -> None:
     if not isinstance(observation, ClientUpdateObservation):
         raise ClientUpdateStructureError("transport 返回了无效 observation")
+
+    expected_platform = _target_platform(target)
     if (
-        observation.snapshot.region is not ClientRegion.CN
-        or observation.snapshot.platform is not platform
+        observation.snapshot.region is not _target_region(target)
+        or observation.snapshot.platform is not expected_platform
     ):
         raise ClientUpdateStructureError("observation 的区服或平台与请求不一致")
+
+    if _is_explicit_channel_target(target):
+        channel = _target_channel(target)
+        if observation.snapshot.channel_id != channel.channel_id:
+            raise ClientUpdateStructureError("observation 的渠道与请求不一致")
+
+
+def _target_platform(target: ClientPlatform | str) -> ClientPlatform:
+    try:
+        return ClientPlatform(target)
+    except (TypeError, ValueError):
+        return _target_channel(target).platform
+
+
+def _target_region(target: ClientPlatform | str) -> ClientRegion:
+    if not _is_explicit_channel_target(target):
+        return ClientRegion.CN
+    return _target_channel(target).region
+
+
+def _target_channel(target: ClientPlatform | str) -> ClientUpdateChannel:
+    try:
+        platform = ClientPlatform(target)
+    except (TypeError, ValueError):
+        return resolve_client_update_channel(target)
+    return resolve_client_update_channel(default_channel_id_for_platform(platform))
+
+
+def _is_explicit_channel_target(target: ClientPlatform | str) -> bool:
+    if isinstance(target, ClientPlatform):
+        return False
+    try:
+        ClientPlatform(target)
+    except (TypeError, ValueError):
+        return True
+    return False
+
+
+def _target_label(target: ClientPlatform | str) -> str:
+    if _is_explicit_channel_target(target):
+        return _target_channel(target).channel_id
+    return _target_platform(target).value
 
 
 def _serialize_platforms(platforms: tuple[ClientPlatform, ...]) -> str:
@@ -418,24 +512,24 @@ def _serialize_platforms(platforms: tuple[ClientPlatform, ...]) -> str:
 
 def _log_transport_failure(
     operation: str,
-    platform: ClientPlatform,
+    target: ClientPlatform | str,
     error: ClientUpdateTransportError,
 ) -> None:
     """只记录可观测的安全摘要，不把 transport detail 带入日志。"""
 
     logger.warning(
-        "客户端更新请求失败 operation=%s platform=%s kind=%s resource=%s",
+        "客户端更新请求失败 operation=%s target=%s kind=%s resource=%s",
         operation,
-        platform.value,
+        _target_label(target),
         error.kind.value,
         error.resource,
     )
 
 
-def _log_query_failure(platform: ClientPlatform, category: str) -> None:
+def _log_query_failure(target: ClientPlatform | str, category: str) -> None:
     logger.warning(
-        "客户端更新结果不可用 platform=%s category=%s",
-        platform.value,
+        "客户端更新结果不可用 target=%s category=%s",
+        _target_label(target),
         category,
     )
 
