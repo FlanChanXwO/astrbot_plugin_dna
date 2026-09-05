@@ -131,7 +131,7 @@ def test_dynamic_plugin_builds_admin_runtime_from_package_namespace():
         register_web_api=lambda *args: registered.append(args),
     )
 
-    runtime = module.build_runtime(context, {})
+    runtime = module.build_runtime(context, {"login": {"port": 0}})
 
     async def lifecycle() -> None:
         await runtime.initialize()

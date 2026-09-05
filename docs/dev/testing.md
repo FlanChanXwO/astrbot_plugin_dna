@@ -20,8 +20,8 @@ ruff check .
 - `test_goal3_resource_generations.py` — Task 17/O08 的 `FETCH_HEAD` archive 候选、manifest 文件
   哈希、PIL 图片解码、完整内容摘要、原子 generation 发布、失败保留旧快照、并发 lease、renderer
   绑定与重启孤立物清理。
-- `test_resource_service.py`、`test_goal1_o08_resources.py` — 资源预热与管理员下载 single-flight、
-  终止排空和 bootstrap 生命周期注入。
+- `test_resource_service.py` — 显式资源预热与管理员下载 single-flight、终止排空和失败可观测性。
+- `test_goal1_o08_resources.py` — bootstrap 注入资源服务但不在插件启停阶段自动预热。
 - `test_goal1_o09_image_fetcher.py` — 图片下载的瞬态重试、`Retry-After`、非重试状态、PIL 完整
   校验、原子缓存、损坏缓存修复、single-flight、legacy 调用方复用和失败日志脱敏。
 - `test_goal1_d03_review.py` — O07–O09 的符号链接路径边界、取消后后台同步失败可观测性，以及

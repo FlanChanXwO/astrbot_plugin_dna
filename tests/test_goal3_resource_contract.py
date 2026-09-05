@@ -23,8 +23,12 @@ def _default_resource_root() -> Path:
     return Path(__file__).resolve().parents[5] / "astrbot_plugin_dna_resources"
 
 
-_DEFAULT_RESOURCE_ROOT = _default_resource_root()
-RESOURCE_ROOT = Path(os.environ.get("DNA_RESOURCE_REPO", _DEFAULT_RESOURCE_ROOT))
+_CONFIGURED_RESOURCE_ROOT = os.environ.get("DNA_RESOURCE_REPO")
+RESOURCE_ROOT = (
+    Path(_CONFIGURED_RESOURCE_ROOT)
+    if _CONFIGURED_RESOURCE_ROOT
+    else _default_resource_root()
+)
 LEGACY_FIXTURE = Path(__file__).parent / "fixtures" / "goal3_legacy_dna_codes.json"
 ALLOWED_PLATFORMS = {"pc", "android", "ios"}
 ALLOWED_SERVERS = {"cn", "global"}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -257,6 +258,26 @@ class LoaderCleanupContractTests(unittest.IsolatedAsyncioTestCase):
                 if not task.done():
                     task.cancel()
             await asyncio.gather(*state.tasks, return_exceptions=True)
+
+    def test_lifecycle_ci_enables_canonical_agent_tools_key(self) -> None:
+        module = _load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = (
+                root / "data" / "config" / f"{PLUGIN_NAME}_config.json"
+            )
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                json.dumps({"login": {"port": 0}}),
+                encoding="utf-8",
+            )
+
+            module._enable_ci_agent_tools(root, PLUGIN_NAME)
+
+            payload = json.loads(config_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(payload["ai"]["agent_tools_enabled"])
+        self.assertNotIn("agent_tools", payload)
 
 
 if __name__ == "__main__":

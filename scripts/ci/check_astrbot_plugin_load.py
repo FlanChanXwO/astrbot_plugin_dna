@@ -219,9 +219,8 @@ def _write_ci_plugin_config(astrbot_root: Path, plugin_name: str) -> None:
         json.dumps(
             {
                 "login": {"port": 0},
-                "sign_in": {"scheduled_enabled": False},
                 "notifications": {"announcement_enabled": False},
-                "agent_tools": {"enabled": False},
+                "ai": {"agent_tools_enabled": False},
             },
             ensure_ascii=False,
             indent=2,

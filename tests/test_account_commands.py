@@ -160,7 +160,7 @@ async def test_bootstrap_exposes_injected_account_service() -> None:
     service = FakeAccountService()
     runtime = build_runtime(
         Context(),
-        {},
+        {"login": {"port": 0}},
         services={"account_service": service},
     )
 

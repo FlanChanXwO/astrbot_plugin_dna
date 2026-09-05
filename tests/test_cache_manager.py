@@ -25,13 +25,15 @@ def test_cache_settings_expose_the_planned_defaults() -> None:
     settings = DnabySettings.from_config({})
 
     assert settings.cache.ttl_hours == 24
+    assert settings.cache.refresh_send_card is True
 
     schema = generate_astrbot_schema()
     cache_items = schema["cache"]["items"]
-    assert set(cache_items) == {"ttl_hours"}
+    assert set(cache_items) == {"ttl_hours", "refresh_send_card"}
     assert cache_items["ttl_hours"]["default"] == 24
     assert "-1" in cache_items["ttl_hours"]["hint"]
     assert "0" in cache_items["ttl_hours"]["hint"]
+    assert cache_items["refresh_send_card"]["default"] is True
 
 
 @pytest.mark.asyncio

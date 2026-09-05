@@ -58,6 +58,15 @@ def _git_bytes(*args: str, cwd: Path | None = None) -> bytes:
 
 
 def _resource_repo_root() -> Path:
+    configured = os.environ.get("DNA_RESOURCE_REPO")
+    if configured:
+        candidate = Path(configured).expanduser()
+        if (candidate / "resource_manifest.json").is_file():
+            return candidate
+        raise AssertionError(
+            f"DNA_RESOURCE_REPO 不是有效的 astrbot_plugin_dna_resources checkout: {candidate}"
+        )
+
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "astrbot_plugin_dna_resources"
         if (candidate / "resource_manifest.json").is_file():
@@ -157,6 +166,15 @@ class LocalBareRunner:
 
 
 def _editor_root() -> Path:
+    configured = os.environ.get("DNA_RESOURCE_EDITOR")
+    if configured:
+        candidate = Path(configured).expanduser()
+        if (candidate / "package.json").is_file():
+            return candidate
+        raise AssertionError(
+            f"DNA_RESOURCE_EDITOR 不是有效的 dna-resource-editor checkout: {candidate}"
+        )
+
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "dna-resource-editor"
         if (candidate / "package.json").is_file():

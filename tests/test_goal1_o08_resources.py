@@ -25,15 +25,15 @@ class FakeResourceUpdateService:
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_starts_and_stops_injected_resource_preheat_service(
+async def test_bootstrap_does_not_preheat_injected_resource_service(
     tmp_path: Path,
 ) -> None:
-    """runtime 生命周期应驱动资源预热服务，并允许测试注入隔离实现。"""
+    """runtime 启停不应自动触发资源同步，资源服务仍可注入供管理命令使用。"""
 
     resource_service = FakeResourceUpdateService()
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),
-        {},
+        {"login": {"port": 0}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
         services={"resource_update_service": resource_service},
     )
@@ -42,4 +42,4 @@ async def test_bootstrap_starts_and_stops_injected_resource_preheat_service(
     await runtime.terminate()
 
     assert runtime.services["resource_update_service"] is resource_service
-    assert resource_service.calls == ["start", "stop"]
+    assert resource_service.calls == []

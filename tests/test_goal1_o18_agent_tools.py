@@ -355,7 +355,7 @@ async def test_runtime_initialize_and_terminate_register_agent_tools_once(
     context = FakeToolContext()
     runtime = build_runtime(
         context,
-        {"agent_tools": {"enabled": True}},
+        {"agent_tools": {"enabled": True}, "login": {"port": 0}},
         database=AsyncDatabase(tmp_path / "runtime.sqlite3"),
     )
     expected_names = (*AGENT_TOOL_NAMES, "dnaby_sign")

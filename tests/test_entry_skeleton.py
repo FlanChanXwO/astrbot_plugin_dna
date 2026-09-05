@@ -51,7 +51,7 @@ async def test_plugin_can_initialize_and_terminate_with_admin_web_registrations(
 
     monkeypatch.setattr(ResourceSnapshotCoordinator, "synchronize", fake_synchronize)
     context = FakeContext()
-    plugin = DnabyPlugin(context)
+    plugin = DnabyPlugin(context, {"login": {"port": 0}})
 
     assert isinstance(plugin, Star)
 

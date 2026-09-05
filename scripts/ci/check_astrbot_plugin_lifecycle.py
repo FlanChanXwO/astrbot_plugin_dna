@@ -86,10 +86,10 @@ def _enable_ci_agent_tools(astrbot_root: Path, plugin_name: str) -> None:
 
     config_path = astrbot_root / "data" / "config" / f"{plugin_name}_config.json"
     payload = json.loads(config_path.read_text(encoding="utf-8"))
-    agent_tools = payload.setdefault("agent_tools", {})
-    if not isinstance(agent_tools, dict):
-        raise TypeError("CI 插件配置中的 agent_tools 必须是对象")
-    agent_tools["enabled"] = True
+    ai = payload.setdefault("ai", {})
+    if not isinstance(ai, dict):
+        raise TypeError("CI 插件配置中的 ai 必须是对象")
+    ai["agent_tools_enabled"] = True
     config_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
