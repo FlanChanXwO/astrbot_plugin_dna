@@ -8,6 +8,7 @@ import json
 import random
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from io import BytesIO
@@ -30,7 +31,7 @@ from ...modules.notices.ann_utils import (
     pick_time,
     post_time_to_timestamp,
 )
-from ...modules.notices.contracts import AnnDetail, AnnSnapshot, MhSnapshot
+from ...modules.notices.contracts import AnnDetail, AnnSnapshot, MhSection, MhSnapshot
 from ...utils import dna_api, get_datetime
 from ...utils.api.mh_map import get_mh_type_name
 from ...utils.api.model import DNARoleForToolInstanceInfo
@@ -321,27 +322,31 @@ def _is_subscribed(
     )
 
 
+_MhRenderSection = DNARoleForToolInstanceInfo | MhSection
+
+
 def _mh_payload(
-    mh_result: list[DNARoleForToolInstanceInfo],
+    mh_result: Sequence[_MhRenderSection],
     subscribe_list: list[str] | None,
 ) -> list[dict[str, object]]:
-    """将密函数据和本地类型图标转换为 HTML 模板 payload。"""
+    """将 legacy/typed 密函分节和本地类型图标转换为 HTML payload。"""
 
     entries: list[dict[str, object]] = []
     for mh in mh_result:
-        if not mh.mh_type:
-            logger.warning("mh_type is None: %s", mh.model_json_schema())
+        mh_type = getattr(mh, "mh_type", None)
+        if not mh_type:
+            logger.warning("密函分节缺少类型，跳过渲染")
             continue
-        type_name = get_mh_type_name(mh.mh_type)
-        icon_path = MH_TEXT_PATH / f"mh_{mh.mh_type}.png"
+        type_name = getattr(mh, "type_name", None) or get_mh_type_name(mh_type)
+        icon_path = MH_TEXT_PATH / f"mh_{mh_type}.png"
         entries.append(
             {
                 "icon": image_data_uri(icon_path) if icon_path.exists() else None,
                 "instances": [
                     {
-                        "name": instance.name,
+                        "name": getattr(instance, "name", ""),
                         "subscribed": _is_subscribed(
-                            instance.name, type_name, subscribe_list
+                            getattr(instance, "name", ""), type_name, subscribe_list
                         ),
                     }
                     for instance in mh.instances
@@ -366,7 +371,7 @@ def _simple_refresh_text(seconds: int) -> str:
 
 
 async def draw_mh_simple(
-    mh_result: list[DNARoleForToolInstanceInfo],
+    mh_result: Sequence[_MhRenderSection],
     remaining_seconds: int,
     subscribe_list: list[str] | None = None,
 ) -> bytes:
@@ -388,7 +393,7 @@ async def draw_mh_simple(
 
 
 async def draw_mh_card(
-    mh_result: list[DNARoleForToolInstanceInfo],
+    mh_result: Sequence[_MhRenderSection],
     remaining_seconds: int,
     subscribe_list: list[str] | None = None,
     bg_name: str | None = None,
@@ -830,18 +835,6 @@ class NoticesRenderer:
         """根据配置或入参渲染标准 1700×900 密函大图卡片或简洁分栏卡。"""
 
         is_simple = self.simple_image if simple_image is None else simple_image
-        legacy = [
-            DNARoleForToolInstanceInfo.model_validate(
-                {
-                    "mh_type": section.mh_type,
-                    "instances": [
-                        {"id": item.instance_id, "name": item.name}
-                        for item in section.instances
-                    ],
-                },
-            )
-            for section in snapshot.sections
-        ]
         now = get_datetime()
         next_refresh = now.replace(minute=0, second=0, microsecond=0) + timedelta(
             hours=1
@@ -849,13 +842,13 @@ class NoticesRenderer:
         remaining_seconds = int((next_refresh - now).total_seconds())
         if is_simple:
             image_bytes = await draw_mh_simple(
-                legacy,
+                snapshot.sections,
                 remaining_seconds,
                 subscribe_list=subscribe_list,
             )
         else:
             image_bytes = await draw_mh_card(
-                legacy,
+                snapshot.sections,
                 remaining_seconds,
                 subscribe_list=subscribe_list,
             )

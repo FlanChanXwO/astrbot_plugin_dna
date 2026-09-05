@@ -18,6 +18,7 @@ from ...entry.event import EventActor
 from ...modules.player.contracts import (
     DamageCalculation,
     RoleDetail,
+    RoleHeader,
     RoleOverview,
     WeaponDetail,
 )
@@ -131,6 +132,14 @@ async def _draw_role_overview_card(
     uid_hidden: bool = False,
     hero_background_path: Path | None = None,
 ) -> bytes:
+    role_chars = getattr(role_show, "roleChars", getattr(role_show, "role_chars", []))
+    close_weapons = getattr(role_show, "closeWeapons", getattr(role_show, "close_weapons", []))
+    ranged_weapons = getattr(
+        role_show,
+        "langRangeWeapons",
+        getattr(role_show, "ranged_weapons", []),
+    )
+    params = getattr(role_show, "params", [])
     role_items = [
         ItemTemp(
             type="role",
@@ -142,7 +151,7 @@ async def _draw_role_overview_card(
             grade_level=getattr(role, "gradeLevel", getattr(role, "grade_level", None)),
             unlocked=getattr(role, "unLocked", getattr(role, "unlocked", False)),
         )
-        for role in role_show.roleChars
+        for role in role_chars
     ]
     close_items = [
         ItemTemp(
@@ -155,7 +164,7 @@ async def _draw_role_overview_card(
             grade_level=getattr(weapon, "skillLevel", getattr(weapon, "skill_level", None)),
             unlocked=getattr(weapon, "unLocked", getattr(weapon, "unlocked", False)),
         )
-        for weapon in role_show.closeWeapons
+        for weapon in close_weapons
     ]
     lang_items = [
         ItemTemp(
@@ -168,7 +177,7 @@ async def _draw_role_overview_card(
             grade_level=getattr(weapon, "skillLevel", getattr(weapon, "skill_level", None)),
             unlocked=getattr(weapon, "unLocked", getattr(weapon, "unlocked", False)),
         )
-        for weapon in role_show.langRangeWeapons
+        for weapon in ranged_weapons
     ]
     achievements = [
         {"label": "角色数量", "value": str(sum(item.unlocked for item in role_items))},
@@ -177,21 +186,22 @@ async def _draw_role_overview_card(
     ]
     achievements.extend(
         {"label": getattr(item, "paramKey", getattr(item, "param_key", "")), "value": str(getattr(item, "paramValue", getattr(item, "param_value", "")))}
-        for item in role_show.params
+        for item in params
         if getattr(item, "paramKey", getattr(item, "param_key", "")) in ("装饰数量", "魔灵数量")
     )
-    total_achv = getattr(role_show.roleAchv, "total", getattr(role_show, "achievement_total", 0))
+    role_achievement = getattr(role_show, "roleAchv", None)
+    total_achv = getattr(role_achievement, "total", getattr(role_show, "achievement_total", 0))
     achievements.append({"label": "总成就数", "value": str(total_achv)})
     header_stats = [
         (getattr(item, "paramKey", getattr(item, "param_key", "")), str(getattr(item, "paramValue", getattr(item, "param_value", ""))))
-        for item in role_show.params
+        for item in params
         if getattr(item, "paramKey", getattr(item, "param_key", "")) in ("总活跃天数", "游戏时长")
     ]
     header = await build_profile_header(
         ctx,
         getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
         getattr(role_show, "roleName", getattr(role_show, "role_name", "")),
-        user_level=role_show.level,
+        user_level=getattr(role_show, "level", None),
         stats=header_stats,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
@@ -238,7 +248,7 @@ draw_role_overview_card = _draw_role_overview_card
 
 
 async def draw_role_info_card_core(
-    role_show: RoleShowForTool,
+    role_show: RoleShowForTool | RoleOverview,
     uid_hidden: bool = False,
     show_none: bool = True,
     ev_stub: EventContext | None = None,
@@ -516,17 +526,10 @@ async def render_role_card_image(
 
     char_id = str(getattr(role_detail, "charId", getattr(role_detail, "char_id", 0)))
     char_name = getattr(role_detail, "charName", getattr(role_detail, "char_name", ""))
-    role_show = RoleShowForTool.model_validate(
-        {
-            "roleId": char_id,
-            "roleName": char_name,
-            "level": role_detail.level,
-            "params": [],
-            "roleAchv": {"total": 0},
-            "roleChars": [],
-            "closeWeapons": [],
-            "langRangeWeapons": [],
-        }
+    role_show = RoleHeader(
+        role_id=char_id,
+        role_name=char_name,
+        level=role_detail.level,
     )
     ctx = EventContext(user_id=uid)
     damage_calc = (
@@ -766,18 +769,6 @@ class PlayerRenderer:
         uid_hidden: bool = False,
         show_unowned: bool = True,
     ) -> RenderedPlayerImage:
-        role_show = RoleShowForTool.model_validate(
-            {
-                "roleId": overview.role_id,
-                "roleName": overview.role_name,
-                "level": overview.level,
-                "params": [item.model_dump(by_alias=True) for item in overview.params],
-                "roleAchv": {"total": overview.achievement_total},
-                "roleChars": [item.model_dump(by_alias=True) for item in overview.role_chars],
-                "closeWeapons": [item.model_dump(by_alias=True) for item in overview.close_weapons],
-                "langRangeWeapons": [item.model_dump(by_alias=True) for item in overview.ranged_weapons],
-            }
-        )
         ev_stub = (
             None
             if actor is None
@@ -795,7 +786,7 @@ class PlayerRenderer:
             else None
         )
         image_bytes = await draw_role_info_card_core(
-            role_show,
+            overview,
             uid_hidden=uid_hidden,
             show_none=show_unowned,
             ev_stub=ev_stub,
@@ -901,30 +892,17 @@ class PlayerRenderer:
         char_id = str(detail.char_id)
         char_name = detail.char_name
         if overview is not None:
-            role_show = RoleShowForTool.model_validate(
-                {
-                    "roleId": overview.role_id,
-                    "roleName": overview.role_name,
-                    "level": overview.level,
-                    "params": [p.model_dump(by_alias=True) for p in overview.params],
-                    "roleAchv": {"total": overview.achievement_total},
-                    "roleChars": [c.model_dump(by_alias=True) for c in overview.role_chars],
-                    "closeWeapons": [w.model_dump(by_alias=True) for w in overview.close_weapons],
-                    "langRangeWeapons": [w.model_dump(by_alias=True) for w in overview.ranged_weapons],
-                }
+            role_show = RoleHeader(
+                role_id=overview.role_id,
+                role_name=overview.role_name,
+                level=overview.level,
+                params=list(overview.params),
             )
         else:
-            role_show = RoleShowForTool.model_validate(
-                {
-                    "roleId": char_id,
-                    "roleName": char_name,
-                    "level": detail.level,
-                    "params": [],
-                    "roleAchv": {"total": 0},
-                    "roleChars": [],
-                    "closeWeapons": [],
-                    "langRangeWeapons": [],
-                }
+            role_show = RoleHeader(
+                role_id=char_id,
+                role_name=char_name,
+                level=detail.level,
             )
 
         ev_stub = (

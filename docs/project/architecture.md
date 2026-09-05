@@ -56,8 +56,8 @@
   批量刷新只返回汇总。
 - 资料读取：`src/modules/encyclopedia/` 协调便签、周报、日历、图鉴、攻略、兑换码和只读
   别名；需要账号的便签/周报先经过隐私解析并使用目标用户凭据，日历和兑换码不读取账号。
-  `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以完整 typed
-  snapshot 生成可审查的 PNG，不按资料条目截断。
+  `EncyclopediaResourceStore` 只索引运行期资源，`EncyclopediaRenderer` 以 typed snapshot
+  生成可审查的图片，不按资料条目截断。
 - 签到：`src/modules/checkin/` 通过 `CheckinTransport` 协调游戏/社区签到、签到日历和
   admin 批量签到；当天计数落到 `sign_records` 表（Task 9 的 `SignRecordRepository`）。admin 身份由 AstrBot 权限过滤器授权。
   真实写操作只走注入 transport（默认 `DnaApiCheckinTransport` 复用 legacy 纯 API），
@@ -131,6 +131,20 @@
 生成型用户可见图片由 `src/infrastructure/rendering/` 的 Jinja2 模板和 AstrBot 全局 T2I 适配器生成。
 资源先编码为 `data:` URI，`HtmlRenderer` 负责统一截图规格和返回图片格式校验；渲染异常在命令 handler
 边界记录分类与内部原因，并返回 `notify.py` 定义的通用失败文案。插件不修改全局 T2I 网络策略。
+
+## 查询接口的数据边界
+
+查询型 transport 遵循“上游 envelope 校验 → 消费者 projection → 领域 DTO → 最小 renderer
+view”的单向边界。transport 继续校验成功状态、凭据、网络异常和 `data is None`，再使用
+`extra="ignore"` 的消费者专用 Pydantic projection 只读取当前命令需要的字段；真正必需的
+周期、奖励、日期、资源身份或正文缺失时仍显式失败。投影细节与非目标见
+[查询接口消费者专用最小数据投影设计](../superpowers/specs/2026-09-05-query-projection-design.md)。
+
+玩家完整卡片/选择/详情使用完整 `RoleOverview` 或详情 DTO；签到日历、日常便签和周报只
+使用玩家领域的 `RoleHeader`，不要求完整角色和武器展柜。签到日历附带但非模板必需的残缺
+`roleInfo` 会被忽略为 `None`，而周期和奖励仍保持严格。密函、公告和活动日历分别按
+service/renderer 实际读取字段解析，不共享全量 legacy response model。新命令路径直接从
+领域 DTO 生成 renderer view；旧 `draw_*` legacy 入口作为兼容适配器保留。
 
 ## `legacy-reference` 迁移参考
 

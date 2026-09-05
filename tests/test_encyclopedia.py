@@ -375,6 +375,74 @@ async def test_stamina_renderer_uses_legacy_dnauid_canvas(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
+async def test_typed_stamina_renderer_skips_legacy_model_revalidation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """typed 便签渲染不应为了兼容模板再次校验完整 legacy 响应。"""
+
+    from src.infrastructure.rendering import encyclopedia as encyclopedia_module
+    from src.modules.player.contracts import RoleHeader
+
+    payload = BytesIO()
+    Image.new("RGB", (31, 19), "#123456").save(payload, format="JPEG")
+
+    async def fake_draw(_ctx, role, snapshot, **_kwargs):
+        assert isinstance(role, RoleHeader)
+        assert isinstance(snapshot, PlayerShortNote)
+        return payload.getvalue()
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("typed 便签渲染不应调用 legacy model_validate")
+
+    monkeypatch.setattr(encyclopedia_module, "_draw_stamina_card", fake_draw)
+    monkeypatch.setattr(encyclopedia_module.DNARoleForToolRes, "model_validate", fail)
+    monkeypatch.setattr(encyclopedia_module.DNARoleShortNoteRes, "model_validate", fail)
+
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
+    rendered = await renderer.render_stamina(_short_note(), uid=UID)
+
+    assert rendered.path.read_bytes() == payload.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_typed_weekly_renderer_skips_legacy_model_revalidation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """typed 周报渲染不应回拼完整 legacy 周报/角色模型。"""
+
+    from src.infrastructure.rendering import encyclopedia as encyclopedia_module
+    from src.modules.player.contracts import RoleHeader
+
+    payload = BytesIO()
+    Image.new("RGB", (31, 19), "#123456").save(payload, format="JPEG")
+
+    async def fake_draw(_ctx, role, report, **_kwargs):
+        assert isinstance(role, RoleHeader)
+        assert isinstance(report, WeeklyReport)
+        return payload.getvalue()
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("typed 周报渲染不应调用 legacy model_validate")
+
+    monkeypatch.setattr(encyclopedia_module, "_draw_weekly_report_card", fake_draw)
+    monkeypatch.setattr(encyclopedia_module.DNARoleForToolRes, "model_validate", fail)
+    monkeypatch.setattr(encyclopedia_module.DNAItemWeeklyReportRes, "model_validate", fail)
+
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
+    rendered = await renderer.render_weekly_report(_weekly(), uid=UID)
+
+    assert rendered.path.read_bytes() == payload.getvalue()
+
+
+@pytest.mark.asyncio
 async def test_weekly_renderer_uses_all_legacy_material_rows(tmp_path: Path) -> None:
     """周报按原素材卡模式动态增高，七个资源和空分类都必须保留。"""
 

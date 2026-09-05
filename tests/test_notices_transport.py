@@ -101,6 +101,26 @@ def test_ann_detail_non_list_content_is_observable_structure_error() -> None:
         DnaApiNoticesTransport._ann_detail(data, "1001")
 
 
+def test_mh_projection_does_not_use_full_legacy_response_model(monkeypatch) -> None:
+    from src.utils.api.model import DNAMHRes
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("密函查询不应调用全量 legacy DNAMHRes")
+
+    monkeypatch.setattr(DNAMHRes, "model_validate", fail)
+
+    snapshot = DnaApiNoticesTransport._mh_snapshot(
+        {
+            "instanceInfo": [
+                {"instances": [{"id": 1, "name": "角色密函"}]},
+                {"instances": [{"id": 2, "name": "武器密函"}]},
+            ],
+        },
+    )
+
+    assert [section.mh_type for section in snapshot.sections] == ["role", "weapon"]
+
+
 async def _transport_with_credential(
     tmp_path: Path,
 ) -> tuple[DnaApiNoticesTransport, AsyncDatabase]:

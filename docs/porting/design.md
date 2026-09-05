@@ -84,3 +84,25 @@ astrbot_plugin_dnaby/
 - fonts/wiki/guide/panel/image 素材放入插件外的私有 `FlanChanXwO/dnaby_resources`；插件只通过
   manifest + Git fast-forward-only 同步接口读取，建立/推送资源仓库需独立授权。
 - 数据目录：`data/plugin_data/astrbot_plugin_dnaby/`。
+
+## 8. 查询型接口的数据边界
+
+查询型 transport 的数据链路固定为：
+
+```text
+DNAApiResp envelope/status/data 检查
+  → 消费者专用 Pydantic projection
+  → 领域 DTO
+  → 最小 renderer view / template payload
+```
+
+projection 只声明当前 service 或 renderer 实际读取的字段，并忽略上游新增字段；真正必需
+的周期、奖励、日期、资源身份和公告正文仍保持严格校验。角色卡片、角色选择和角色详情
+使用完整角色投影，签到日历、日常便签和周报使用玩家领域的 `RoleHeader`，不因完整角色或
+武器展柜缺失而失败。签到日历的残缺附带 `roleInfo` 不参与日历渲染，解析为 `None`；周期
+与奖励字段仍是必需输入。
+
+新命令路径不把领域 DTO 回拼为 `DNACalendarSignRes`、`DNAItemWeeklyReportRes` 或
+`DNARoleForToolRes` 等全量 legacy response model。旧 legacy 绘制入口继续作为适配器保留，
+从而兼容已有脚本。该边界规则不改变上游请求参数、命令、数据库、运行期目录或写操作协议。
+专项设计见 [`2026-09-05-query-projection-design.md`](../superpowers/specs/2026-09-05-query-projection-design.md)。

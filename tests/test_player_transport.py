@@ -9,7 +9,11 @@ import pytest
 from src.entry.event import EventActor
 from src.infrastructure.http.player import DnaApiPlayerTransport, _response_data
 from src.infrastructure.persistence import AsyncDatabase, CredentialRepository
-from src.modules.player.contracts import PlayerFailureKind, PlayerTransportError
+from src.modules.player.contracts import (
+    PlayerFailureKind,
+    PlayerTransportError,
+    RoleHeader,
+)
 
 
 def _legacy_role_payload() -> dict[str, object]:
@@ -49,6 +53,17 @@ def test_legacy_role_payload_maps_to_complete_typed_overview() -> None:
     assert overview.role_chars[0].char_id == 101
     assert overview.role_chars[0].char_eid == "char-eid"
     assert overview.params[0].param_value == "99"
+
+
+def test_role_header_accepts_role_identity_without_full_collections() -> None:
+    header = DnaApiPlayerTransport._role_header(
+        {"roleInfo": {"roleShow": {"roleId": "role-1"}}},
+    )
+
+    assert isinstance(header, RoleHeader)
+    assert header.role_id == "role-1"
+    assert header.role_name == ""
+    assert header.params == []
 
 
 def test_player_transport_error_redacts_server_shape_and_response_data() -> None:

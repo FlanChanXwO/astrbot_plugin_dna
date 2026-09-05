@@ -13,7 +13,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 
 from ...entry.event import EventActor
-from ..player.contracts import RoleOverview
+from ..player.contracts import RoleHeader
 
 
 class CheckinFailureKind(StrEnum):
@@ -182,7 +182,7 @@ class CheckinCalendarData:
     calendar: SignCalendar
     tasks: TaskProcess | None = None
     total_sign_in_days: int = 0
-    role_overview: RoleOverview | None = None
+    role_overview: RoleHeader | None = None
     snapshot: CheckinSnapshot | None = None
 
 
@@ -256,8 +256,8 @@ class CheckinTransport(Protocol):
         uid: str,
         *,
         credential_user_id: str,
-    ) -> RoleOverview:
-        """读取签到日历头部所需的角色总览。"""
+    ) -> RoleHeader:
+        """读取签到日历头部所需的轻量角色信息。"""
         ...
 
     async def get_post_list(
