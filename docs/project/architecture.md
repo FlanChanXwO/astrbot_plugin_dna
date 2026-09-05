@@ -72,7 +72,7 @@
 - 客户端更新：`src/modules/client_updates/` 提供国服 PC/安卓查询、群聊管理员订阅、平台筛选、
   成功观察基线和框架无关的推送 DTO；手动查询不写基线，首次订阅/首次成功检查只建立缺失基线。
   `ClientUpdatesScheduler` 独立注册 `dnaby_client_update_poll`，周期为
-  `interval@{notifications.client_update_check_minutes}m`，不与公告任务共用周期。`ClientUpdateDeliveryService`
+  `interval@{client_updates.check_minutes}m`，不与公告任务共用周期。`ClientUpdateDeliveryService`
   按 `Subscription.extra_data.platforms` 筛选目标，`ClientUpdatePushAdapter` 仅在 OneBot 且开关开启时
   尝试合并同轮平台消息，能力不可用或失败则降级为逐平台普通消息并记录安全原因；bootstrap 已绑定
   `Context.send_message`，普通消息使用 `MessageChain`，OneBot 合并转发使用原生 `Nodes`。状态 store 持久化

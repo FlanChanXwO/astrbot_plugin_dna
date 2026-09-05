@@ -127,7 +127,7 @@ SQLite、JSON 和文件目录之间不存在同一物理事务。账号删除协
   仍支持可选 group_id 作用域，读取群组作用域时回退到全局个人值。
 - `GroupPrivacySetting` 按裸 group_id 保存两个可独立清除的强制字段。查询 UID 隐藏
   和偷窥权限时，群强制字段优先；对应字段清除后恢复个人值。
-- `display.allow_mention_query` 关闭时，@ 他人的查询解析回调用者；查询自己不受该开关和
+- `general.allow_mention_query` 关闭时，@ 他人的查询解析回调用者；查询自己不受该开关和
   目标个人防偷窥设置影响。群强制防偷窥或目标个人 `allow_peek=False` 时同样解析回调用者。
 - 指定隐私写入只检查目标是否存在任意 user UID 绑定，不向响应或异常暴露目标 UID。
 

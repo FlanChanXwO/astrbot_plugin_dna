@@ -9,7 +9,7 @@
 
 ## Agent Tools 热重载
 
-Agent Tools 只由 `agent_tools.enabled` 控制。启用后由插件生命周期在初始化时注册、终止时
+Agent Tools 只由 `ai.agent_tools_enabled` 控制。启用后由插件生命周期在初始化时注册、终止时
 解除注册，不要在 Dashboard 或聊天命令中手工重复注册；关闭开关后应确认 Context 中没有
 DNABY 工具。若注销某个工具失败，生命周期会保留失败项，下一次终止或启动先重试残留并继续
 暴露错误，维护时应查看 AstrBot 日志中的工具名和错误类型，不要用重启容器掩盖问题。
@@ -116,8 +116,8 @@ force push 或删除分支；应保留失败版本、备份和回滚记录，便
    reload endpoint，再重复状态和最小 smoke。代码回滚不等于数据库回滚，破坏性 schema 必须按上文备份恢复。
 
 O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`、
-`v0.2.0`、detached/clean；命令 registry 60 条；资源 generation/content SHA 与
-[资源说明](../usage/resources.md)一致；`agent_tools.enabled=false`；容器运行、restart count 为 0，
+`v0.2.0`、detached/clean；当时命令 registry 60 条；当前 registry 为 63 条；上述 60 条仅是 O24 当日快照。资源 generation/content SHA 与
+[资源说明](../usage/resources.md)一致；`ai.agent_tools_enabled=false`；容器运行、restart count 为 0，
 容器内 import/schema smoke 通过。O24 未调用 reload、未切换 SHA、未修改生产配置或运行期数据。
 
 ## 任务 tombstone 恢复边界
