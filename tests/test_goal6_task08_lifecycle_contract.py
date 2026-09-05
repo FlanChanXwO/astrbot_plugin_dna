@@ -30,16 +30,6 @@ class _CapturedLifecycle:
         self.finalizer_hooks = tuple(finalizer_hooks)
 
 
-class _ResourceServiceSpy:
-    """用于确认资源服务不会被隐式预热。"""
-
-    async def start_preheat(self) -> None:
-        raise AssertionError("生命周期不应注册资源预热")
-
-    async def stop(self) -> None:
-        return None
-
-
 class _RestTransportSpy:
     def __init__(self, events: list[str]) -> None:
         self.events = events
@@ -72,7 +62,7 @@ def _build_runtime_for_hook_capture(
 ) -> _CapturedLifecycle:
     """构造一次 runtime 并返回 bootstrap 注册的 hook。"""
 
-    import src.bootstrap as bootstrap
+    from src import bootstrap
 
     captured: _CapturedLifecycle | None = None
 
@@ -97,13 +87,6 @@ def _build_runtime_for_hook_capture(
     return captured
 
 
-def _is_bound_hook(hook: LifecycleHook, owner: object, name: str) -> bool:
-    return (
-        getattr(hook, "__self__", None) is owner
-        and getattr(hook, "__name__", "") == name
-    )
-
-
 def test_build_runtime_does_not_run_full_resource_initialization(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -114,9 +97,8 @@ def test_build_runtime_does_not_run_full_resource_initialization(
 
     def record_full_initialization(_self: ResourceSnapshotCoordinator) -> None:
         calls.append("full-resource-initialize")
-        return None
 
-    import src.bootstrap as bootstrap
+    from src import bootstrap
 
     monkeypatch.setattr(
         ResourceSnapshotCoordinator, "initialize", record_full_initialization
@@ -132,22 +114,22 @@ def test_build_runtime_does_not_run_full_resource_initialization(
     assert calls == []
 
 
-def test_build_runtime_does_not_register_resource_preheat(
+def test_build_runtime_does_not_register_resource_lifecycle_hook(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """启动 hook 不得创建会触发 Git/同步的资源预热任务。"""
+    """资源同步服务不应注册启动或停止生命周期 hook。"""
 
-    resource_service = _ResourceServiceSpy()
+    resource_service = object()
     lifecycle = _build_runtime_for_hook_capture(
         monkeypatch,
         tmp_path,
         services={"resource_update_service": resource_service},
     )
 
+    hooks = (*lifecycle.start_hooks, *lifecycle.stop_hooks, *lifecycle.finalizer_hooks)
     assert not any(
-        _is_bound_hook(hook, resource_service, "start_preheat")
-        for hook in lifecycle.start_hooks
+        getattr(hook, "__self__", None) is resource_service for hook in hooks
     )
 
 
