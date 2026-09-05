@@ -190,7 +190,7 @@ class WebSocketManager:
             )
 
             run_options = {
-                "sslopt": {"cert_reqs": ssl.CERT_NONE},
+                "sslopt": {"cert_reqs": ssl.CERT_REQUIRED},
                 **self._proxy_options(),
             }
             threading.Thread(
