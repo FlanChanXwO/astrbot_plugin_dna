@@ -7,7 +7,7 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 - **账号管理**：登录、退出登录、切换 UID、查看绑定 UID，以及严格脱敏的登录状态查询。
 - **角色与玩家信息**：角色总览、角色详情、面板刷新、缓存清理、日常便笺、周报和日历。
 - **图鉴与攻略**：角色/武器列表、角色图鉴、别名查询、角色攻略和当前可用兑换码。
-- **签到服务**：手动签到、签到日历、当前 UID 的自动签到，以及社区任务和签到报告配置。
+- **签到服务**：手动签到、签到日历、当前 UID 的自动签到，以及可独立订阅的全局汇总和本群报告。
 - **密函与公告**：查看密函和公告，按会话订阅推送；管理员可以管理群聊公告订阅。
 - **隐私控制**：控制他人是否可以查询自己的信息，并选择是否在卡片中显示 UID。
 - **管理员工具**：批量签到、角色/武器别名维护、公共资源状态查看与资源同步。
@@ -75,9 +75,9 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 | `sign_in.sign_time` | `00:05` | 每日定时签到时间，格式为 `HH:mm`。 |
 | `sign_in.concurrency` | `1` | 自动签到并发数。 |
 | `sign_in.concurrency_interval_seconds` | `[3, 5]` | 自动签到任务之间的随机间隔范围，单位为秒。 |
-| `sign_in.private_report` | `false` | 是否发送私聊签到报告。 |
-| `sign_in.group_report` | `false` | 是否发送群聊签到报告。 |
-| `sign_in.group_report_image` | `false` | 是否用图片发送群聊签到报告。 |
+| `sign_in.private_report` | `false` | 是否发送私聊签到报告；本轮不改变其既有语义。 |
+| `sign_in.group_report` | `false` | 群组报告总开关；还需在目标群订阅本群签到报告。 |
+| `sign_in.group_report_image` | `false` | 仅影响本群报告格式；关闭发文字，开启发图片并保留必要明细。 |
 
 ### 通知 `notifications`
 
@@ -126,7 +126,7 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 
 ## 命令
 
-默认前缀为 `kk`。下列示例均使用默认前缀；如果修改了 `display.command_prefixes`，请把示例中的 `kk` 替换为自己的前缀。完整的 60 条命令、参数和权限见 [`commands.json`](commands.json)，命令使用说明见 [`docs/usage/commands.md`](docs/usage/commands.md)。
+默认前缀为 `kk`。下列示例均使用默认前缀；如果修改了 `display.command_prefixes`，请把示例中的 `kk` 替换为自己的前缀。完整的 64 条命令、参数和权限见 [`commands.json`](commands.json)，命令使用说明见 [`docs/usage/commands.md`](docs/usage/commands.md)。
 
 ### 常用命令
 
@@ -144,11 +144,18 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 | 兑换码 | `kk兑换码` | 查看当前可用的兑换码。 |
 | 签到 | `kk签到`、`kk签到日历` | 手动签到或查看签到日历。 |
 | 自动签到 | `kk开启自动签到`、`kk关闭自动签到` | 开关当前 UID 的自动签到。 |
+| 签到推送 | `kk订阅签到结果`、`kk取消订阅签到结果` | 管理所有账号、所有群的全局文字汇总。 |
+| 本群签到报告 | `kk订阅本群签到报告`、`kk取消订阅本群签到报告` | 管理当前群的独立报告；需要 AstrBot 管理员权限，并且必须在群聊中执行。 |
 | 密函 | `kk密函`、`kk密函列表`、`kk我的密函` | 查看密函、列表和当前订阅。 |
 | 公告 | `kk公告`、`kk公告 1` | 查看公告列表或指定公告详情。 |
 | 隐私 | `kk开偷窥`、`kk防偷窥`、`kk隐藏UID`、`kk显示UID` | 设置个人查询权限和 UID 展示方式。 |
 
 登录参数属于敏感信息，建议在私聊中完成登录，不要直接发到公开群聊。`获取ck`、`获取Token` 等状态命令只返回脱敏状态，不会把原始登录信息作为聊天回复。
+
+签到推送需要同时满足订阅和配置：全局汇总由 `订阅签到结果` 控制；本群报告由
+`sign_in.group_report` 与 `订阅本群签到报告` 共同控制。两者可以同时开启，也可以分别关闭。
+游戏、社区报告分开发送；开启 `sign_in.group_report_image` 只会改变本群报告的格式，不会改变全局
+汇总的文字格式。
 
 部分查询命令支持在消息中 @ 目标用户；是否允许查询他人由 `display.allow_mention_query` 控制。关闭后，普通查询只读取发送者自己的信息。
 
@@ -157,6 +164,8 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 以下命令需要 AstrBot `ADMIN` 权限：
 
 - `kk全部签到`：手动触发所有符合条件的账号签到。
+- `kk订阅签到结果`、`kk取消订阅签到结果`：开关所有账号、所有群的全局文字汇总。
+- `kk订阅本群签到报告`、`kk取消订阅本群签到报告`：开关当前群的独立签到报告；需要 AstrBot 管理员权限，并且必须在群聊中执行。
 - `kk订阅公告`、`kk取消订阅公告`：开关当前群聊的公告推送。
 - `kk添加角色菲娜别名小菲`、`kk删除角色菲娜别名小菲`：维护角色别名。
 - `kk添加武器武器名别名别名`、`kk删除武器武器名别名别名`：维护武器别名。

@@ -23,6 +23,7 @@ CHECKIN_SPEC_IDS = {
     "sign_auto_disable",
     "sign_all",
     "sign_result_subscribe",
+    "sign_group_report_subscribe",
 }
 
 
@@ -139,6 +140,69 @@ async def test_generated_sign_all_handler_yields_aggregate_result() -> None:
 
     assert "全部签到执行完成" in result[0]
     assert "今日成功签到 2 个账号，失败 0 个账号" in result[0]
+
+
+@pytest.mark.asyncio
+async def test_generated_group_report_handler_yields_subscription_result() -> None:
+    """本群签到报告命令通过真实 handler 转换为纯文本结果。"""
+
+    class FakeCheckinService:
+        async def manual_sign(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def sign_calendar(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def sign_all(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def subscribe_sign_result(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("unused")
+
+        async def subscribe_group_report(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse(messages.SIGN_GROUP_REPORT_SUBSCRIBED)
+
+        async def set_auto_sign(
+            self, _request: object, *, enabled: bool
+        ) -> PlainTextResponse:
+            return PlainTextResponse("自动签到状态已更新")
+
+    class GeneratedSignPlugin:
+        __module__ = "tests.generated_sign_plugin"
+
+    class Event:
+        def get_message_str(self) -> str:
+            return "kk订阅本群签到报告"
+
+        def get_sender_id(self) -> str:
+            return "user-1"
+
+        def get_self_id(self) -> str:
+            return "bot-1"
+
+        def get_group_id(self) -> str:
+            return "group-1"
+
+        def plain_result(self, text: str) -> str:
+            return text
+
+    spec = load_command_registry().get("sign_group_report_subscribe")
+    registry = CommandRegistry((spec,))
+    install_command_handlers(GeneratedSignPlugin, registry)
+    plugin = GeneratedSignPlugin()
+    object.__setattr__(
+        plugin,
+        "_runtime",
+        SimpleNamespace(
+            commands=registry,
+            responses=ResponseFactory(),
+            services={"checkin_service": FakeCheckinService()},
+        ),
+    )
+
+    result = [item async for item in plugin.handle_sign_group_report_subscribe(Event())]
+
+    assert result == [messages.SIGN_GROUP_REPORT_SUBSCRIBED]
 
 
 @pytest.mark.asyncio

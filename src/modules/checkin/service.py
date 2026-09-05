@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import random
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from contextlib import nullcontext
+from dataclasses import dataclass
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -22,12 +23,14 @@ from ...infrastructure.persistence import (
     SignRecordRepository,
 )
 from ...infrastructure.rendering import CheckinRenderer
+from ...infrastructure.rendering.checkin import create_sign_info_image
 from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
 from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (
+    AutoSignReport,
     CheckinCalendarData,
     CheckinCommandRequest,
     CheckinOutcome,
@@ -36,6 +39,7 @@ from .contracts import (
     CheckinTransport,
     CheckinTransportError,
     CommunityPost,
+    GroupSignReport,
     SignStatus,
 )
 
@@ -43,6 +47,12 @@ SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 GAME_SIGN_TARGET = 1
 BBS_SIGN_TARGET = 1
 ERROR_TIMES = 3
+
+
+@dataclass(frozen=True, slots=True)
+class _CheckinBatchResult:
+    summary: CheckinSummary
+    group_results: dict[str, tuple[tuple[str, CheckinOutcome], ...]]
 
 
 class CheckinService:
@@ -66,6 +76,8 @@ class CheckinService:
         interval_range: tuple[int, int] = (0, 0),
         subscriptions: SubscriptionStore | None = None,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
+        group_report: bool = False,
+        group_report_image: bool = False,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -76,6 +88,8 @@ class CheckinService:
         self.interval_range = interval_range
         self.subscriptions = subscriptions
         self.resource_snapshots = resource_snapshots
+        self.group_report = group_report
+        self.group_report_image = group_report_image
 
     def _renderer_context(self):
         if self.resource_snapshots is None:
@@ -364,10 +378,11 @@ class CheckinService:
         snapshot = await self._load_snapshot(uid)
         if self._game_complete(snapshot) and self._community_complete(snapshot):
             return CheckinOutcome(
-                SignStatus.SKIP,
-                SignStatus.SKIP,
-                (messages.CHECKIN_ALREADY,),
-                "",
+                game_status=SignStatus.SKIP,
+                bbs_status=SignStatus.SKIP,
+                detail_lines=(messages.CHECKIN_ALREADY,),
+                game_detail_lines=(messages.sign_detail_status(SignStatus.SKIP),),
+                community_detail_lines=(messages.sign_detail_status(SignStatus.SKIP),),
             )
 
         game_status = await self._run_game(actor, uid, credential_user_id, snapshot)
@@ -379,8 +394,8 @@ class CheckinService:
         )
         await self._save_snapshot(snapshot)
 
-        lines: list[str] = []
-        lines.append(messages.sign_detail_status(game_status))
+        game_detail_lines = (messages.sign_detail_status(game_status),)
+        lines: list[str] = list(game_detail_lines)
         lines.append(messages.sign_detail_community_title())
         lines.extend(community_lines)
         if error:
@@ -391,6 +406,8 @@ class CheckinService:
             bbs_status=bbs_status,
             detail_lines=tuple(lines),
             error=error,
+            game_detail_lines=game_detail_lines,
+            community_detail_lines=community_lines,
         )
 
     async def manual_sign(self, request: CheckinCommandRequest):
@@ -465,29 +482,26 @@ class CheckinService:
             manifest=rendered.manifest,
         )
 
-    async def _run_all_signs(
+    async def _run_all_signs_with_results(
         self,
         *,
         respect_auto_sign: bool = False,
         enable_all_users: bool = False,
-    ) -> CheckinSummary:
-        """为目标绑定执行签到并按并发/间隔聚合结果。
-
-        手动“全部签到”显式忽略开关；计划任务默认尊重每个用户 UID 的设置，
-        ``enable_all_users`` 是配置要求的管理员强制模式。
-        """
+    ) -> _CheckinBatchResult:
+        """为目标绑定执行签到，同时保留按群路由所需的结果。"""
 
         async with self.database.session() as session:
             bindings = await AccountBindingRepository.list_all(session)
         if respect_auto_sign and not enable_all_users:
             bindings = [binding for binding in bindings if binding.auto_sign_enabled]
         if not bindings:
-            return CheckinSummary()
+            return _CheckinBatchResult(CheckinSummary(), {})
 
         success = 0
         failed = 0
         game_success = 0
         bbs_success = 0
+        grouped: dict[str, list[tuple[str, CheckinOutcome]]] = {}
         semaphore = asyncio.Semaphore(self.concurrency)
 
         async def process(binding) -> CheckinOutcome:
@@ -504,30 +518,107 @@ class CheckinService:
                     binding.user_id,
                 )
 
-        tasks = [process(binding) for binding in bindings]
-        for i in range(0, len(tasks), self.concurrency):
-            batch = tasks[i : i + self.concurrency]
-            results = await asyncio.gather(*batch, return_exceptions=True)
-            for result in results:
-                if not isinstance(result, CheckinOutcome):
-                    failed += 1
-                    continue
-                if result.success:
-                    success += 1
+        for i in range(0, len(bindings), self.concurrency):
+            batch_bindings = bindings[i : i + self.concurrency]
+            tasks = [process(binding) for binding in batch_bindings]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for binding, result in zip(batch_bindings, results):
+                if isinstance(result, CheckinOutcome):
+                    outcome = result
+                    if result.success:
+                        success += 1
+                    else:
+                        failed += 1
+                    if result.game_status in (SignStatus.DONE, SignStatus.SKIP):
+                        game_success += 1
+                    if result.bbs_status in (SignStatus.DONE, SignStatus.SKIP):
+                        bbs_success += 1
                 else:
+                    outcome = CheckinOutcome(SignStatus.FAILED, SignStatus.FAILED)
                     failed += 1
-                if result.game_status in (SignStatus.DONE, SignStatus.SKIP):
-                    game_success += 1
-                if result.bbs_status in (SignStatus.DONE, SignStatus.SKIP):
-                    bbs_success += 1
+
+                if binding.group_id:
+                    grouped.setdefault(binding.group_id, []).append(
+                        (binding.uid, outcome)
+                    )
             if self.interval_range[1] > 0:
                 await asyncio.sleep(random.uniform(*self.interval_range))
 
-        return CheckinSummary(
+        return _CheckinBatchResult(
+            summary=CheckinSummary(
+                success=success,
+                failed=failed,
+                game_success=game_success,
+                bbs_success=bbs_success,
+            ),
+            group_results={
+                group_id: tuple(results)
+                for group_id, results in grouped.items()
+            },
+        )
+
+    async def _run_all_signs(
+        self,
+        *,
+        respect_auto_sign: bool = False,
+        enable_all_users: bool = False,
+    ) -> CheckinSummary:
+        """为目标绑定执行签到并返回全局聚合结果。"""
+
+        result = await self._run_all_signs_with_results(
+            respect_auto_sign=respect_auto_sign,
+            enable_all_users=enable_all_users,
+        )
+        return result.summary
+
+    @staticmethod
+    def _group_detail_lines(
+        uid: str,
+        outcome: CheckinOutcome,
+        report_type: str,
+    ) -> tuple[str, ...]:
+        if report_type == "game":
+            lines = outcome.game_detail_lines
+            status = outcome.game_status
+        else:
+            lines = outcome.community_detail_lines
+            status = outcome.bbs_status
+            if outcome.error:
+                lines = (*lines, messages.sign_detail_error(outcome.error))
+        if not lines:
+            lines = (messages.sign_detail_status(status),)
+        return tuple(messages.group_detail(uid, line) for line in lines)
+
+    async def _build_group_report(
+        self,
+        report_type: str,
+        results: tuple[tuple[str, CheckinOutcome], ...],
+    ) -> GroupSignReport:
+        status_attr = "game_status" if report_type == "game" else "bbs_status"
+        success = sum(
+            getattr(outcome, status_attr) in (SignStatus.DONE, SignStatus.SKIP)
+            for _uid, outcome in results
+        )
+        failed = len(results) - success
+        detail_lines = tuple(
+            line
+            for uid, outcome in results
+            for line in self._group_detail_lines(uid, outcome, report_type)
+        )
+        summary_text = messages.group_summary(report_type, success, failed)
+        image_bytes = None
+        if self.group_report_image:
+            image_bytes = await create_sign_info_image(
+                summary_text,
+                theme="blue" if report_type == "game" else "yellow",
+            )
+        return GroupSignReport(
+            report_type=report_type,
             success=success,
             failed=failed,
-            game_success=game_success,
-            bbs_success=bbs_success,
+            summary_text=summary_text,
+            detail_text="\n".join(detail_lines),
+            image_bytes=image_bytes,
         )
 
     async def sign_all(self, request: CheckinCommandRequest):
@@ -543,13 +634,8 @@ class CheckinService:
         ]
         return PlainTextResponse("\n".join(lines))
 
-    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
-        """供计划任务调用的全账号自动签到，返回可推送摘要。"""
-
-        summary = await self._run_all_signs(
-            respect_auto_sign=True,
-            enable_all_users=enable_all_users,
-        )
+    @staticmethod
+    def _auto_summary_text(summary: CheckinSummary) -> str:
         if summary.success == 0 and summary.failed == 0:
             return f"{messages.auto_task_header()}\n{messages.CHECKIN_NO_USERS}"
         return "\n".join(
@@ -558,6 +644,49 @@ class CheckinService:
                 messages.auto_summary(summary.game_success, summary.bbs_success),
             )
         )
+
+    async def auto_sign_report(
+        self,
+        *,
+        enable_all_users: bool = False,
+        group_ids: Collection[str] | None = None,
+    ) -> AutoSignReport:
+        """执行一次自动签到并返回全局与目标群的结构化报告。
+
+        ``group_ids=None`` 保留直接调用时生成所有群报告的语义；调度器传入实际订阅
+        群集合（包括空集合）后，服务只构建这些群的报告，避免未订阅群的图片渲染。
+        """
+
+        result = await self._run_all_signs_with_results(
+            respect_auto_sign=True,
+            enable_all_users=enable_all_users,
+        )
+        summary_text = self._auto_summary_text(result.summary)
+        if not self.group_report:
+            return AutoSignReport(summary_text=summary_text)
+
+        group_reports: dict[str, tuple[GroupSignReport, ...]] = {}
+        target_group_ids = None if group_ids is None else frozenset(group_ids)
+        for group_id, group_results in result.group_results.items():
+            if target_group_ids is not None and group_id not in target_group_ids:
+                continue
+            group_reports[group_id] = (
+                await self._build_group_report("game", group_results),
+                await self._build_group_report("community", group_results),
+            )
+        return AutoSignReport(
+            summary_text=summary_text,
+            group_reports=group_reports,
+        )
+
+    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
+        """供计划任务调用的全账号自动签到，返回可推送摘要。"""
+
+        summary = await self._run_all_signs(
+            respect_auto_sign=True,
+            enable_all_users=enable_all_users,
+        )
+        return self._auto_summary_text(summary)
 
     async def set_auto_sign(
         self,
@@ -614,6 +743,37 @@ class CheckinService:
             # 订阅文件损坏时转为用户可见错误，不让 handler 崩溃。
             return PlainTextResponse(messages.SIGN_RESULT_STORE_UNAVAILABLE)
         return PlainTextResponse(messages.SIGN_RESULT_SUBSCRIBED)
+
+    async def subscribe_group_report(self, request: CheckinCommandRequest):
+        """订阅/取消订阅当前群的签到报告（admin）。"""
+
+        if self.subscriptions is None:
+            return PlainTextResponse(messages.CHECKIN_SERVICE_UNAVAILABLE)
+        if request.actor is None or not request.actor.group_id:
+            return PlainTextResponse(messages.SIGN_GROUP_REPORT_GROUP_ONLY)
+        origin = request.actor.unified_msg_origin
+        if not origin:
+            return PlainTextResponse(messages.SIGN_RESULT_ORIGIN_MISSING)
+        try:
+            if "取消" in request.text:
+                await self.subscriptions.delete(
+                    messages.SIGN_GROUP_REPORT_SUBSCRIBE,
+                    origin,
+                )
+                return PlainTextResponse(messages.SIGN_GROUP_REPORT_UNSUBSCRIBED)
+            if not self.group_report:
+                return PlainTextResponse(messages.SIGN_GROUP_REPORT_DISABLED)
+            await self.subscriptions.add(
+                messages.SIGN_GROUP_REPORT_SUBSCRIBE,
+                origin=origin,
+                user_id=request.actor.user_id,
+                group_id=request.actor.group_id,
+                bot_id=request.actor.bot_id,
+                user_type="group",
+            )
+        except RuntimeError:
+            return PlainTextResponse(messages.SIGN_RESULT_STORE_UNAVAILABLE)
+        return PlainTextResponse(messages.SIGN_GROUP_REPORT_SUBSCRIBED)
 
     async def clear_sign_records_before(self, record_date: date) -> int:
         """清理指定日期之前的签到记录，返回删除条数。"""

@@ -153,8 +153,12 @@ class CheckinOutcome:
 
     game_status: SignStatus
     bbs_status: SignStatus
+    # 兼容手动签到展示的完整文本投影，不作为群报告的业务数据源。
     detail_lines: tuple[str, ...] = ()
     error: str = ""
+    # 群报告直接消费两类结构化详情，避免从 detail_lines 反向推断业务归属。
+    game_detail_lines: tuple[str, ...] = ()
+    community_detail_lines: tuple[str, ...] = ()
 
     @property
     def success(self) -> bool:
@@ -173,6 +177,26 @@ class CheckinSummary:
     failed: int = 0
     game_success: int = 0
     bbs_success: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class GroupSignReport:
+    """一个群的一类签到报告。"""
+
+    report_type: str
+    success: int
+    failed: int
+    summary_text: str
+    detail_text: str = ""
+    image_bytes: bytes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AutoSignReport:
+    """一次自动签到的全局汇总与按群分组报告。"""
+
+    summary_text: str
+    group_reports: dict[str, tuple[GroupSignReport, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,6 +339,7 @@ class CheckinTransport(Protocol):
 
 
 __all__ = [
+    "AutoSignReport",
     "CheckinCalendarData",
     "CheckinCommandRequest",
     "CheckinFailureKind",
@@ -326,6 +351,7 @@ __all__ = [
     "CommunityPost",
     "CommunityTask",
     "DayAward",
+    "GroupSignReport",
     "SignCalendar",
     "SignPeriod",
     "SignRoleInfo",

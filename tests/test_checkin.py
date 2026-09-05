@@ -24,6 +24,8 @@ from src.modules.checkin import messages
 from src.modules.checkin.contracts import (
     CheckinCommandRequest,
     CheckinFailureKind,
+    CheckinOutcome,
+    CheckinSummary,
     CheckinTransportError,
     CommunityPost,
     CommunityTask,
@@ -34,7 +36,7 @@ from src.modules.checkin.contracts import (
     SignStatus,
     TaskProcess,
 )
-from src.modules.checkin.service import CheckinService
+from src.modules.checkin.service import CheckinService, _CheckinBatchResult
 from src.modules.privacy import PrivacyService
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
@@ -213,6 +215,8 @@ def _service(
     interval_range: tuple[int, int] = (0, 0),
     allow_mention_query: bool = True,
     subscriptions: SubscriptionStore | None = None,
+    group_report: bool = False,
+    group_report_image: bool = False,
 ) -> CheckinService:
     return CheckinService(
         database,
@@ -226,6 +230,8 @@ def _service(
         concurrency=concurrency,
         interval_range=interval_range,
         subscriptions=subscriptions,
+        group_report=group_report,
+        group_report_image=group_report_image,
     )
 
 
@@ -589,6 +595,85 @@ async def test_subscribe_sign_result_without_origin_is_visible(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
+async def test_subscribe_group_report_is_independent_and_group_only(
+    tmp_path: Path,
+) -> None:
+    """本群报告订阅使用独立类型，且私聊不能创建群订阅。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    service = _service(
+        database,
+        FakeCheckinTransport(),
+        subscriptions=subscriptions,
+        group_report=True,
+    )
+    actor = EventActor(
+        "user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1"
+    )
+
+    response = await service.subscribe_group_report(
+        _request(actor=actor, text="订阅本群签到报告")
+    )
+    global_response = await service.subscribe_sign_result(
+        _request(actor=actor, text="订阅签到结果")
+    )
+    private_response = await service.subscribe_group_report(
+        _request(
+            actor=EventActor(
+                "user-1", "bot-1", None, unified_msg_origin="platform:direct:u1"
+            ),
+            text="订阅本群签到报告",
+        )
+    )
+
+    assert response.text == messages.SIGN_GROUP_REPORT_SUBSCRIBED
+    assert global_response.text == messages.SIGN_RESULT_SUBSCRIBED
+    assert private_response.text == messages.SIGN_GROUP_REPORT_GROUP_ONLY
+    assert len(await subscriptions.get(messages.SIGN_GROUP_REPORT_SUBSCRIBE)) == 1
+    assert len(await subscriptions.get(messages.SIGN_RESULT_SUBSCRIBE)) == 1
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_group_report_unsubscribe_works_when_config_is_disabled(
+    tmp_path: Path,
+) -> None:
+    """关闭群报告后禁止新增，但取消订阅仍能清理旧记录。"""
+
+    database = await _database_with_binding(tmp_path)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    actor = EventActor(
+        "user-1", "bot-1", "group-1", unified_msg_origin="platform:group:g1"
+    )
+    await subscriptions.add(
+        messages.SIGN_GROUP_REPORT_SUBSCRIBE,
+        origin=actor.unified_msg_origin or "",
+        user_id=actor.user_id,
+        group_id=actor.group_id or "",
+        bot_id=actor.bot_id,
+    )
+    service = _service(
+        database,
+        FakeCheckinTransport(),
+        subscriptions=subscriptions,
+        group_report=False,
+    )
+
+    denied = await service.subscribe_group_report(
+        _request(actor=actor, text="订阅本群签到报告")
+    )
+    removed = await service.subscribe_group_report(
+        _request(actor=actor, text="取消订阅本群签到报告")
+    )
+
+    assert denied.text == messages.SIGN_GROUP_REPORT_DISABLED
+    assert removed.text == messages.SIGN_GROUP_REPORT_UNSUBSCRIBED
+    assert await subscriptions.get(messages.SIGN_GROUP_REPORT_SUBSCRIBE) == ()
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_auto_sign_all_summary_counts_game_and_community(tmp_path: Path) -> None:
     """自动签到摘要区分游戏/社区成功数。"""
 
@@ -601,6 +686,238 @@ async def test_auto_sign_all_summary_counts_game_and_community(tmp_path: Path) -
     assert "[二重螺旋]自动任务" in text
     assert "今日成功游戏签到 1 个账号" in text
     assert "今日社区签到 1 个账号" in text
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_auto_sign_all_preserves_text_only_compatibility(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """兼容接口只返回全局文字，不因群报告配置触发图片渲染。"""
+
+    database = await _database_with_binding(tmp_path)
+    rendered = False
+
+    async def render(*_args: object, **_kwargs: object) -> bytes:
+        nonlocal rendered
+        rendered = True
+        return b"unexpected"
+
+    monkeypatch.setattr("src.modules.checkin.service.create_sign_info_image", render)
+    service = _service(
+        database,
+        FakeCheckinTransport(),
+        group_report=True,
+        group_report_image=True,
+    )
+
+    text = await service.auto_sign_all()
+
+    assert "今日成功游戏签到 1 个账号" in text
+    assert rendered is False
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_auto_sign_report_groups_game_and_community_by_group(
+    tmp_path: Path,
+) -> None:
+    """自动签到报告按群拆分游戏/社区结果，私聊绑定只进入全局汇总。"""
+
+    database = AsyncDatabase(tmp_path / "checkin.sqlite3")
+    await database.create_schema_for_tests()
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-a",
+            uid="uid-a",
+            group_id="group-a",
+            is_active=True,
+        )
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-b",
+            uid="uid-b",
+            group_id="group-b",
+            is_active=True,
+        )
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-private",
+            uid="uid-private",
+            group_id=None,
+            is_active=True,
+        )
+
+    transport = FakeCheckinTransport()
+    original_calendar = transport.get_sign_calendar
+
+    async def get_sign_calendar(actor, uid, *, credential_user_id):
+        del actor, credential_user_id
+        transport.calls.append("get_sign_calendar")
+        return transport.calendar
+
+    transport.get_sign_calendar = get_sign_calendar
+    service = _service(database, transport, group_report=True)
+
+    report = await service.auto_sign_report()
+
+    assert set(report.group_reports) == {"group-a", "group-b"}
+    assert "uid-private" not in report.group_reports
+    assert "今日成功游戏签到 3 个账号" in report.summary_text
+    assert "今日社区签到 3 个账号" in report.summary_text
+    for group_id, uid in (("group-a", "uid-a"), ("group-b", "uid-b")):
+        reports = report.group_reports[group_id]
+        assert {item.report_type for item in reports} == {"game", "community"}
+        assert all(item.success == 1 and item.failed == 0 for item in reports)
+        assert all(uid in item.detail_text for item in reports)
+        assert all(messages.sign_detail_separator() not in item.detail_text for item in reports)
+
+    del original_calendar
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_group_report_uses_structured_details_not_display_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """群报告分类消费结构化详情，不依赖最终展示文本的行位置。"""
+
+    database = await _database_with_binding(tmp_path)
+    service = _service(database, FakeCheckinTransport(), group_report=True)
+    outcome = CheckinOutcome(
+        game_status=SignStatus.DONE,
+        bbs_status=SignStatus.FAILED,
+        detail_lines=("展示层社区标题", "展示层误分类游戏行", "展示层误分类社区行"),
+        error="社区操作失败",
+        game_detail_lines=("游戏签到：已完成", "游戏奖励：5"),
+        community_detail_lines=("社区点赞：失败",),
+    )
+
+    async def run_all_signs_with_results(**_kwargs: object) -> _CheckinBatchResult:
+        return _CheckinBatchResult(
+            summary=CheckinSummary(success=1, failed=0, game_success=1, bbs_success=0),
+            group_results={"group-1": (("uid-1", outcome),)},
+        )
+
+    monkeypatch.setattr(
+        service, "_run_all_signs_with_results", run_all_signs_with_results
+    )
+
+    report = await service.auto_sign_report()
+    reports = {item.report_type: item for item in report.group_reports["group-1"]}
+
+    assert reports["game"].detail_text == "\n".join(
+        messages.group_detail("uid-1", line)
+        for line in outcome.game_detail_lines
+    )
+    assert reports["community"].detail_text == "\n".join(
+        [
+            messages.group_detail("uid-1", "社区点赞：失败"),
+            messages.group_detail("uid-1", messages.sign_detail_error(outcome.error)),
+        ]
+    )
+    assert "展示层误分类" not in reports["game"].detail_text
+    assert "展示层误分类" not in reports["community"].detail_text
+
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_auto_sign_report_builds_only_requested_group_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """只为调度器传入的订阅群生成报告及图片，避免无订阅群的渲染开销。"""
+
+    database = await _database_with_binding(tmp_path)
+    service = _service(
+        database,
+        FakeCheckinTransport(),
+        group_report=True,
+        group_report_image=True,
+    )
+    outcome = CheckinOutcome(
+        game_status=SignStatus.DONE,
+        bbs_status=SignStatus.DONE,
+        game_detail_lines=("游戏签到：已完成",),
+        community_detail_lines=("社区签到：已完成",),
+    )
+
+    async def run_all_signs_with_results(**_kwargs: object) -> _CheckinBatchResult:
+        return _CheckinBatchResult(
+            summary=CheckinSummary(success=2, failed=0, game_success=2, bbs_success=2),
+            group_results={
+                "group-1": (("uid-1", outcome),),
+                "group-2": (("uid-2", outcome),),
+            },
+        )
+
+    rendered: list[str] = []
+
+    async def render(text: str, *, theme: str = "blue") -> bytes:
+        rendered.append(theme)
+        return f"image:{theme}".encode()
+
+    monkeypatch.setattr(
+        service, "_run_all_signs_with_results", run_all_signs_with_results
+    )
+    monkeypatch.setattr("src.modules.checkin.service.create_sign_info_image", render)
+
+    report = await service.auto_sign_report(group_ids={"group-1"})
+
+    assert set(report.group_reports) == {"group-1"}
+    assert rendered == ["blue", "yellow"]
+
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_auto_sign_report_group_reports_are_disabled_by_config(
+    tmp_path: Path,
+) -> None:
+    """群组报告总开关关闭时，结构化结果不生成群报告。"""
+
+    database = await _database_with_binding(tmp_path)
+    service = _service(database, FakeCheckinTransport(), group_report=False)
+
+    report = await service.auto_sign_report()
+
+    assert report.group_reports == {}
+    assert "今日成功游戏签到 1 个账号" in report.summary_text
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_auto_sign_report_renders_group_images_only_when_enabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """图片开关只影响群组报告，并按游戏/社区使用不同主题。"""
+
+    database = await _database_with_binding(tmp_path)
+    rendered: list[tuple[str, str]] = []
+
+    async def render(text: str, *, theme: str = "blue") -> bytes:
+        rendered.append((text, theme))
+        return f"image:{theme}".encode()
+
+    monkeypatch.setattr("src.modules.checkin.service.create_sign_info_image", render)
+    service = _service(
+        database,
+        FakeCheckinTransport(),
+        group_report=True,
+        group_report_image=True,
+    )
+
+    report = await service.auto_sign_report()
+
+    group_reports = report.group_reports["group-1"]
+    assert {item.report_type for item in group_reports} == {"game", "community"}
+    assert {item.image_bytes for item in group_reports} == {
+        b"image:blue",
+        b"image:yellow",
+    }
+    assert [theme for _text, theme in rendered] == ["blue", "yellow"]
+    assert all(text.startswith("✅[二重螺旋]") for text, _theme in rendered)
     await database.dispose()
 
 

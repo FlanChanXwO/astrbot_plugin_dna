@@ -8,9 +8,10 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from src.infrastructure.scheduler import SignScheduler
+from src.infrastructure.scheduler import SignPushPayload, SignScheduler
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.checkin import messages
+from src.modules.checkin.contracts import AutoSignReport
 
 TZ = ZoneInfo("Asia/Shanghai")
 
@@ -19,11 +20,26 @@ class _FakeCheckin:
     def __init__(self) -> None:
         self.auto_calls = 0
         self.cleanup_calls: list[date] = []
+        self.requested_group_ids: list[frozenset[str] | None] = []
 
-    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
+    async def auto_sign_report(
+        self,
+        *,
+        enable_all_users: bool = False,
+        group_ids=None,
+    ) -> AutoSignReport:
         del enable_all_users
+        self.requested_group_ids.append(
+            None if group_ids is None else frozenset(group_ids)
+        )
         self.auto_calls += 1
-        return "[二重螺旋]自动任务\n今日成功游戏签到 2 个账号\n今日社区签到 1 个账号"
+        return AutoSignReport(
+            summary_text=(
+                "[二重螺旋]自动任务\n"
+                "今日成功游戏签到 2 个账号\n"
+                "今日社区签到 1 个账号"
+            )
+        )
 
     async def clear_sign_records_before(self, record_date: date) -> int:
         self.cleanup_calls.append(record_date)
@@ -107,11 +123,11 @@ async def test_run_sign_once_pushes_summary_to_subscribers(tmp_path: Path) -> No
         user_id="owner-1",
         bot_id="bot-1",
     )
-    pushed: list[tuple[str, str]] = []
+    pushed: list[tuple[str, SignPushPayload]] = []
     checkin = _FakeCheckin()
 
-    async def push(origin: str, text: str) -> None:
-        pushed.append((origin, text))
+    async def push(origin: str, payload: SignPushPayload) -> None:
+        pushed.append((origin, payload))
 
     scheduler = SignScheduler(
         checkin,
@@ -123,8 +139,29 @@ async def test_run_sign_once_pushes_summary_to_subscribers(tmp_path: Path) -> No
     text = await scheduler.run_sign_once()
 
     assert "今日成功游戏签到 2 个账号" in text
-    assert pushed == [("platform:group:g1", text)]
+    assert pushed == [("platform:group:g1", SignPushPayload(text=text))]
     assert checkin.auto_calls == 1
+    assert checkin.requested_group_ids == [frozenset()]
+
+
+@pytest.mark.asyncio
+async def test_subscription_load_failure_does_not_skip_auto_sign(tmp_path: Path) -> None:
+    """订阅存储损坏时任务报告失败，但自动签到仍先执行一次。"""
+
+    subscriptions_path = tmp_path / "subscriptions.json"
+    subscriptions_path.write_text("{", encoding="utf-8")
+    checkin = _FakeCheckin()
+    scheduler = SignScheduler(
+        checkin,
+        SubscriptionStore(subscriptions_path),
+        sleep=_noop_sleep,
+    )
+
+    with pytest.raises(RuntimeError, match="订阅文件损坏"):
+        await scheduler.run_sign_once()
+
+    assert checkin.auto_calls == 1
+    assert checkin.requested_group_ids == [frozenset()]
 
 
 @pytest.mark.asyncio
@@ -182,7 +219,7 @@ async def test_run_sign_once_continues_when_one_subscriber_push_fails(tmp_path: 
     pushed: list[str] = []
     checkin = _FakeCheckin()
 
-    async def push(origin: str, text: str) -> None:
+    async def push(origin: str, _payload: SignPushPayload) -> None:
         if "fail_group" in origin:
             raise ConnectionResetError("network failed")
         pushed.append(origin)
