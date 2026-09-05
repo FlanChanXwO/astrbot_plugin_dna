@@ -147,10 +147,10 @@ async def test_poll_stages_change_atomically_with_baseline_before_delivery(
     monkeypatch.undo()
     changes = await service.poll_now()
 
-    assert [change.event_key for change in changes] == ["cn:pc:100:101"]
+    assert [change.event_key for change in changes] == ["cn:pc_cn:100:101"]
     pending = await state.pending_events()
     assert len(pending) == 1
-    assert pending[0].event_key == "cn:pc:100:101"
+    assert pending[0].event_key == "cn:pc_cn:100:101"
     assert [(target.origin, target.uid) for target in pending[0].pending_targets] == [
         ("onebot:group:a", "")
     ]

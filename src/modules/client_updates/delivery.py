@@ -20,6 +20,7 @@ from .state import (
     ClientUpdatePendingEvent,
     ClientUpdatePendingTarget,
     ClientUpdateStateStore,
+    canonicalize_client_update_change,
 )
 
 logger = logging.getLogger(__name__)
@@ -150,7 +151,10 @@ class ClientUpdateDeliveryService:
         if state is None:
             raise RuntimeError("client update delivery state unavailable")
 
-        ordered_changes = _order_changes(changes)
+        ordered_changes = tuple(
+            canonicalize_client_update_change(change)
+            for change in _order_changes(changes)
+        )
         pending_keys_before = {
             event.event_key for event in await state.pending_events()
         }

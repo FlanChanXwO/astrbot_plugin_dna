@@ -102,7 +102,7 @@ async def test_pending_event_persists_fixed_targets_and_reloads(tmp_path: Path) 
     )
 
     assert isinstance(created, ClientUpdatePendingEvent)
-    assert created.event_key == "cn:pc:100:101"
+    assert created.event_key == "cn:pc_cn:100:101"
     assert [target.origin for target in created.pending_targets] == [
         "onebot:group:a",
         "telegram:group:b",
@@ -116,7 +116,10 @@ async def test_pending_event_persists_fixed_targets_and_reloads(tmp_path: Path) 
     reloaded = ClientUpdateStateStore(path)
     events = await reloaded.pending_events()
     assert events == (created,)
-    assert events[0].change == change
+    assert events[0].change.event_key == created.event_key
+    assert events[0].change.channel_id == "pc_cn"
+    assert events[0].change.previous.channel_id == "pc_cn"
+    assert events[0].change.current.channel_id == "pc_cn"
 
 
 @pytest.mark.asyncio

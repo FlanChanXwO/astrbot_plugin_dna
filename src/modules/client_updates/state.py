@@ -184,6 +184,7 @@ class ClientUpdateStateStore:
 
         if not isinstance(baseline, ClientUpdateBaseline):
             raise TypeError("baseline 必须是 ClientUpdateBaseline")
+        baseline = _canonicalize_baseline_for_state(baseline)
         key = _snapshot_baseline_key(baseline.snapshot)
 
         async with self._lock:
@@ -217,6 +218,8 @@ class ClientUpdateStateStore:
             raise TypeError("baseline 必须是 ClientUpdateBaseline")
         if not isinstance(change, ClientUpdateChange):
             raise TypeError("change 必须是 ClientUpdateChange")
+        baseline = _canonicalize_baseline_for_state(baseline)
+        change = _canonicalize_change_for_state(change, context="change")
         if baseline.last_change != change:
             raise ValueError("baseline.last_change 必须等于 change")
         key = _snapshot_baseline_key(baseline.snapshot)
@@ -264,6 +267,7 @@ class ClientUpdateStateStore:
 
         if not isinstance(change, ClientUpdateChange):
             raise TypeError("change 必须是 ClientUpdateChange")
+        change = _canonicalize_change_for_state(change, context="change")
         event = ClientUpdatePendingEvent(change, tuple(targets))
         if not event.targets:
             return None
@@ -697,6 +701,65 @@ def _platform_for_identity(channel_or_platform: str) -> ClientPlatform:
         return _resolve_channel(channel_or_platform).platform
 
 
+def _canonicalize_baseline_for_state(
+    baseline: ClientUpdateBaseline,
+) -> ClientUpdateBaseline:
+    """在持久化边界把旧 platform 身份转换为固定 channel。"""
+
+    channel_id = _canonical_channel_id_for_identity(
+        baseline.snapshot.region,
+        baseline.snapshot.channel_id or baseline.snapshot.platform.value,
+    )
+    snapshot = _align_snapshot_to_channel(
+        baseline.snapshot,
+        channel_id,
+        "baseline.snapshot",
+        canonicalize=True,
+    )
+    last_change = baseline.last_change
+    if last_change is not None:
+        last_change = _canonicalize_change_for_state(
+            last_change,
+            channel_id=channel_id,
+            context="baseline.last_change",
+        )
+    return ClientUpdateBaseline(
+        snapshot=snapshot,
+        observed_at=baseline.observed_at,
+        last_change=last_change,
+    )
+
+
+def _canonicalize_change_for_state(
+    change: ClientUpdateChange,
+    *,
+    channel_id: str | None = None,
+    context: str,
+) -> ClientUpdateChange:
+    """在持久化边界把变化及两端快照统一为 canonical channel。"""
+
+    normalized_channel_id = channel_id or _canonical_channel_id_for_identity(
+        change.region,
+        change.channel_id,
+    )
+    return _align_change_to_channel(
+        change,
+        normalized_channel_id,
+        context,
+        canonicalize=True,
+    )
+
+
+def canonicalize_client_update_change(
+    change: ClientUpdateChange,
+) -> ClientUpdateChange:
+    """把旧 platform-only 变化转换为状态与投递共用的 canonical channel。"""
+
+    if not isinstance(change, ClientUpdateChange):
+        raise TypeError("change 必须是 ClientUpdateChange")
+    return _canonicalize_change_for_state(change, context="change")
+
+
 def _baseline_to_json(baseline: ClientUpdateBaseline) -> dict[str, Any]:
     return {
         "snapshot": _snapshot_to_json(baseline.snapshot),
@@ -816,6 +879,8 @@ def _align_snapshot_to_channel(
                 raise ValueError(f"{context}.channel_id does not match channel")
         elif snapshot.channel_id != channel_id:
             raise ValueError(f"{context}.channel_id does not match channel")
+    elif not canonicalize:
+        raise ValueError(f"{context}.channel_id is required")
     if canonicalize:
         return replace(snapshot, channel_id=channel_id)
     return snapshot
@@ -854,7 +919,7 @@ def _align_change_to_channel(
             platform=channel.platform,
             channel_id=channel_id,
         )
-    if change.channel_id not in (channel_id, channel.platform.value):
+    if change.channel_id != channel_id:
         raise ValueError(f"{context}.channel_id does not match channel")
     return change
 
@@ -903,9 +968,7 @@ def _parse_pending_event(
         raw_change,
         channel_id,
         f"{context}.change",
-        canonicalize=(
-            schema_version != STATE_VERSION or _is_registered_channel_id(identity)
-        ),
+        canonicalize=schema_version != STATE_VERSION,
     )
     if change.previous.patch_version != previous_patch_version:
         raise ValueError(f"{context}.event_key previous patch does not match change")
@@ -963,10 +1026,7 @@ def _parse_event_key(
         raise ValueError(f"{context}.event_key patch range is invalid")
 
     if schema_version == STATE_VERSION and not _is_registered_channel_id(identity):
-        try:
-            ClientPlatform(identity)
-        except ValueError:
-            _resolve_channel(identity)
+        raise ValueError(f"{context}.event_key channel ID is invalid")
     return region, identity, previous_patch_version, current_patch_version
 
 
@@ -1067,6 +1127,7 @@ def _require_mapping(value: object, context: str) -> Mapping[str, object]:
 
 __all__ = [
     "STATE_VERSION",
+    "canonicalize_client_update_change",
     "ClientUpdateBaseline",
     "ClientUpdatePendingEvent",
     "ClientUpdatePendingTarget",

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from ...entry.response import PlainTextResponse
@@ -127,6 +128,7 @@ class ClientUpdateService:
 
         if not isinstance(current, ClientVersionSnapshot):
             raise TypeError("current 必须是 ClientVersionSnapshot")
+        current = _canonicalize_snapshot_channel(current)
 
         baseline = await self.state.get_baseline(
             current.region,
@@ -416,6 +418,31 @@ class ClientUpdateService:
                 _log_query_failure(target, type(error).__name__)
                 failed.append(target)
         return tuple(failed)
+
+
+def _canonicalize_snapshot_channel(
+    snapshot: ClientVersionSnapshot,
+) -> ClientVersionSnapshot:
+    """把旧 transport 的 platform-only 快照转换为固定 channel。"""
+
+    identity = snapshot.channel_id
+    channel_id = (
+        default_channel_id_for_platform(snapshot.platform)
+        if identity is None or identity == snapshot.platform.value
+        else identity
+    )
+    try:
+        channel = resolve_client_update_channel(channel_id)
+    except (TypeError, ValueError) as error:
+        raise ClientUpdateStructureError("observation 的渠道无效") from error
+    if (
+        channel.region is not snapshot.region
+        or channel.platform is not snapshot.platform
+    ):
+        raise ClientUpdateStructureError("observation 的渠道与区服或平台不一致")
+    if snapshot.channel_id == channel.channel_id:
+        return snapshot
+    return replace(snapshot, channel_id=channel.channel_id)
 
 
 def _change_from_baseline(
