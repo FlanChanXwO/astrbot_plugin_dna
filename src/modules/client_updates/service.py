@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
 
-from ...entry.response import PlainTextResponse
+from ...entry.response import CommandResponse, MultiTextResponse, PlainTextResponse
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from ...infrastructure.utils.logger import logger
 from . import messages
@@ -229,7 +229,7 @@ class ClientUpdateService:
                 changes.append(change)
         return tuple(changes)
 
-    async def query(self, request: ClientUpdateRequest) -> PlainTextResponse:
+    async def query(self, request: ClientUpdateRequest) -> CommandResponse:
         """查询所选平台的当前版本；不会推进或覆盖定时观察基线。"""
 
         if request.actor is None:
@@ -281,7 +281,9 @@ class ClientUpdateService:
 
         if not result:
             return PlainTextResponse(messages.CLIENT_UPDATE_UNAVAILABLE)
-        return PlainTextResponse("\n\n".join(result))
+        if len(result) == 1:
+            return PlainTextResponse(result[0])
+        return MultiTextResponse(tuple(result))
 
     async def subscribe(self, request: ClientUpdateRequest) -> PlainTextResponse:
         """创建或更新当前群的客户端更新订阅，并尝试建立缺失基线。"""

@@ -5,14 +5,15 @@ from __future__ import annotations
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from astrbot.api.message_components import Image as AstrImage
 from astrbot.api.message_components import Node as AstrNode
 from astrbot.api.message_components import Nodes as AstrNodes
 from astrbot.api.message_components import Plain as AstrPlain
 
-from ..infrastructure.rendering.temporary import RenderedFileStore
+if TYPE_CHECKING:
+    from ..infrastructure.rendering.temporary import RenderedFileStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,12 +71,28 @@ class MultiImageResponse:
             raise TypeError("多图响应只能包含 ImageResponse")
 
 
+@dataclass(frozen=True, slots=True)
+class MultiTextResponse:
+    """按 channel 顺序承载多条文本的框架无关响应。"""
+
+    texts: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        normalized = tuple(self.texts)
+        if not normalized:
+            raise ValueError("多文本响应至少需要一条文本")
+        if any(not isinstance(text, str) for text in normalized):
+            raise TypeError("多文本响应只能包含字符串")
+        object.__setattr__(self, "texts", normalized)
+
+
 CommandResponse = (
     PlainTextResponse
     | LoginResponse
     | ChainResponse
     | ImageResponse
     | MultiImageResponse
+    | MultiTextResponse
 )
 
 
@@ -102,6 +119,22 @@ def write_temporary_image(
     ) as file:
         file.write(payload)
         return ImageResponse(file.name, temporary=True)
+
+
+_ONEBOT_PLATFORM_NAMES = frozenset(("aiocqhttp", "onebot"))
+
+
+def _is_onebot_event(event: Any) -> bool:
+    """按 AstrBot 平台名或统一消息来源识别 OneBot 事件。"""
+
+    get_platform_name = getattr(event, "get_platform_name", None)
+    if callable(get_platform_name):
+        platform_name = get_platform_name()
+        if isinstance(platform_name, str):
+            return platform_name in _ONEBOT_PLATFORM_NAMES
+
+    origin = getattr(event, "unified_msg_origin", None)
+    return isinstance(origin, str) and origin.split(":", 1)[0] in _ONEBOT_PLATFORM_NAMES
 
 
 class ResponseFactory:
@@ -139,6 +172,25 @@ class ResponseFactory:
 
                 return chain_result([At(qq=str(user_id)), Plain(text)])
         return event.plain_result(text)
+
+    @staticmethod
+    def multi_text(event: Any, texts: tuple[str, ...]) -> Any:
+        """将有序多 channel 文本适配为平台原生消息。"""
+
+        if len(texts) == 1:
+            return ResponseFactory.plain(event, texts[0])
+        if not _is_onebot_event(event):
+            return event.plain_result("\n\n".join(texts))
+
+        nodes = [
+            AstrNode(
+                content=[AstrPlain(text)],
+                name="二重螺旋客户端更新",
+                uin="0",
+            )
+            for text in texts
+        ]
+        return event.chain_result(AstrNodes(nodes))
 
     @staticmethod
     def chain(event: Any, components: Any) -> Any:
@@ -253,6 +305,8 @@ class ResponseFactory:
             return self.image(event, response.image)
         if isinstance(response, MultiImageResponse):
             return self.chain(event, response.images)
+        if isinstance(response, MultiTextResponse):
+            return self.multi_text(event, response.texts)
         raise TypeError(f"未知命令响应类型: {type(response).__name__}")
 
 
@@ -262,6 +316,7 @@ __all__ = [
     "ImageResponse",
     "LoginResponse",
     "MultiImageResponse",
+    "MultiTextResponse",
     "PlainTextResponse",
     "ResponseFactory",
     "write_temporary_image",
