@@ -344,18 +344,6 @@ class SignInSettings(_SettingsModel):
         json_schema_extra={"hint": "是否以图片发送群组报告"},
     )
 
-    @property
-    def enable_all_users(self) -> bool:
-        """兼容旧读取；真正的首登默认值由新字段表达。"""
-
-        return self.default_auto_sign_enabled
-
-    @property
-    def scheduled_enabled(self) -> bool:
-        """兼容旧 scheduler 读取；新的 scheduler 不再由配置开关门控。"""
-
-        return True
-
 
 class ClientUpdatesSettings(_SettingsModel):
     """客户端更新轮询、渠道和投递配置。"""

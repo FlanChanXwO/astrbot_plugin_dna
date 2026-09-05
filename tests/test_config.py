@@ -424,7 +424,7 @@ def test_legacy_nested_and_flat_config_migration():
     assert settings.display.command_prefix == "dna"
     assert settings.notifications.secret_simple_image is True
     assert settings.sign_in.sign_time == "08:00"
-    assert settings.sign_in.enable_all_users is True
+    assert settings.sign_in.default_auto_sign_enabled is True
 
 
 def test_config_migration_rejects_malformed_known_sections():
