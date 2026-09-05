@@ -145,6 +145,26 @@ async def test_run_sign_once_pushes_summary_to_subscribers(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_subscription_load_failure_does_not_skip_auto_sign(tmp_path: Path) -> None:
+    """订阅存储损坏时任务报告失败，但自动签到仍先执行一次。"""
+
+    subscriptions_path = tmp_path / "subscriptions.json"
+    subscriptions_path.write_text("{", encoding="utf-8")
+    checkin = _FakeCheckin()
+    scheduler = SignScheduler(
+        checkin,
+        SubscriptionStore(subscriptions_path),
+        sleep=_noop_sleep,
+    )
+
+    with pytest.raises(RuntimeError, match="订阅文件损坏"):
+        await scheduler.run_sign_once()
+
+    assert checkin.auto_calls == 1
+    assert checkin.requested_group_ids == [frozenset()]
+
+
+@pytest.mark.asyncio
 async def test_run_sign_once_without_push_or_subscribers_is_safe(tmp_path: Path) -> None:
     """无推送函数或订阅者时自动签到仍返回摘要，不抛错。"""
 

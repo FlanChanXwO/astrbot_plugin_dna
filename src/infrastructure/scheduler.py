@@ -340,9 +340,17 @@ class SignScheduler:
     async def run_sign_once(self) -> str:
         """执行一次自动签到，分别推送全局汇总和本群报告。"""
 
-        group_subscribers = await self.subscriptions.get(
-            messages.SIGN_GROUP_REPORT_SUBSCRIBE
-        )
+        try:
+            group_subscribers = await self.subscriptions.get(
+                messages.SIGN_GROUP_REPORT_SUBSCRIBE
+            )
+        except RuntimeError:
+            # 订阅是通知设施；存储异常不能阻止本次核心签到执行。
+            await self.checkin.auto_sign_report(
+                enable_all_users=self.enable_all_users,
+                group_ids=frozenset(),
+            )
+            raise
         target_group_ids = frozenset(
             subscription.group_id
             for subscription in group_subscribers
