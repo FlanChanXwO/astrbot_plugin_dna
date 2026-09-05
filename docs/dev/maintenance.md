@@ -54,10 +54,13 @@ test ! -d "$DATA_DIR/panel_custom" || cp -a -- "$DATA_DIR/panel_custom" "$BACKUP
 备份路径和校验结果，并在受控环境验证副本可读。不要把备份提交 Git、上传到 issue 或粘贴到
 聊天记录。
 
-客户端更新状态在待投递事件接线后使用 `schema_version: 2`，除基线和最近变化外还保存未完成的
-按目标事件；当前版本可读取仅含基线的 schema v1，并在下一次写入时升级。若回滚到只识别 v1 的旧
-代码，必须停写并恢复升级前备份的 `client_update_state.json`，否则旧代码会拒绝 v2；不要手工删除
-`pending_events` 或覆盖其他运行期状态来伪造回滚成功。
+客户端更新状态当前使用 `schema_version: 3`，key 为 `region:channel_id`；`cn:pc` 和 `cn:android`
+等 v1/v2 platform key 会在首次读取时映射为 `cn:pc_cn` 和 `cn:android_astc_cn`，并通过临时文件
+原子写回。迁移前原始字节保留为同目录的 `client_update_state.json.v2.bak`；该备份已存在且内容不
+一致时迁移会显式失败，不会覆盖备份或静默选择另一份状态。坏 JSON、非法结构、未知 channel 或写回
+失败都必须保留原状态并暴露错误。若回滚到只识别旧 schema 的代码，必须停写并同时恢复升级前的
+`client_update_state.json`（必要时也保留 `.v2.bak`），不得手工删除 `pending_events` 或覆盖其他运行期
+状态来伪造回滚成功。状态文件不应包含 token、cookie 或原始上游响应。
 
 ## 破坏性迁移与回滚
 

@@ -123,7 +123,7 @@ async def test_pending_event_persists_fixed_targets_and_reloads(tmp_path: Path) 
 async def test_legacy_baseline_state_is_migrated_without_losing_baselines(
     tmp_path: Path,
 ) -> None:
-    """旧版仅含基线的状态可读入，并在下次写入时升级 schema。"""
+    """旧版仅含基线的状态可读入，并在首次加载时升级 schema。"""
 
     path = tmp_path / "client_update_state.json"
     path.write_text(
@@ -142,7 +142,7 @@ async def test_legacy_baseline_state_is_migrated_without_losing_baselines(
         )
     )
     raw = json.loads(path.read_text(encoding="utf-8"))
-    assert raw["schema_version"] == 2
+    assert raw["schema_version"] == 3
     assert raw["pending_events"] == []
 
 

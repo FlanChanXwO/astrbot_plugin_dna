@@ -85,10 +85,14 @@ Dashboard 管理页的账号列表默认只返回 App 凭据状态；只有已�
 - `subscriptions.json` 中的客户端更新类型为 `订阅DNA客户端更新`；群聊订阅使用空 `uid`，
   `unified_msg_origin` 标识当前会话，`extra_data` 保存规范化的 `{"platforms":["pc","android"]}`
   子集。重复的 type+origin+uid 记录会更新平台筛选，停用记录不会参与投递。
-- `client_update_state.json` 带 `schema_version`，当前按 `cn+pc`、`cn+android` 保存最近成功观察的
-  snapshot、`observed_at` 和可选的 `last_change`，并保存待投递事件的变化快照、固定目标集合及每目标
-  的 `pending`/`delivered` 状态。写入使用临时文件替换；JSON 损坏或结构非法时显式失败，不静默清空状态。
-  schema v1 仅含基线时会在下一次写入升级为当前版本，已完成事件不形成无界历史。
+- `client_update_state.json` 当前为 `schema_version: 3`，状态 key 固定为
+  `region:channel_id`，例如 `cn:pc_cn` 与 `cn:android_astc_cn`；每个 channel 独立保存最近成功观察的
+  snapshot、`observed_at`、可选的 `last_change` 和待投递事件。事件保存变化快照、首次匹配的固定目标
+  集合及每目标的 `pending`/`delivered` 状态，已完成事件不形成无界历史。
+- 读取 schema v1/v2 时会先校验并把 `cn:pc`/`cn:android` 映射为固定 channel，再以临时文件原子写回
+  v3；迁移前原始字节保留在同目录的 `client_update_state.json.v2.bak`，重复加载不会覆盖或重写该备份。
+  JSON 损坏、结构非法、未知 channel 或迁移写回失败都会显式报错，不静默清空状态。状态文件只保存
+  版本与投递 DTO，不保存 token、cookie 或原始上游响应。
 - 客户端更新推送 DTO 只携带目标路由、平台和用户可见文本；OneBot 节点构造留在入口/bootstrap 适配边界，
   不把框架组件或真实凭据写入状态文件。
 
