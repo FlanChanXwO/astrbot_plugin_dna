@@ -23,6 +23,8 @@ from .generation import (
     ResourceLease,
     ResourceSnapshot,
     ResourceSnapshotCoordinator,
+    ResourceStatusSnapshot,
+    ResourceSyncStatus,
 )
 from .git import (
     DEFAULT_RESOURCE_REMOTE,
@@ -47,10 +49,12 @@ from .paths import (
     PLUGIN_NAME,
     RESOURCE_GENERATION_STATE_NAME,
     RESOURCE_GENERATIONS_NAME,
+    RESOURCE_LAST_SYNC_STATE_NAME,
     RESOURCE_REPOSITORY_NAME,
     default_resource_repository_dir,
     resource_generation_state_path,
     resource_generations_dir,
+    resource_last_sync_state_path,
     resource_repository_dir,
 )
 
@@ -61,6 +65,7 @@ __all__ = [
     "PLUGIN_NAME",
     "RESOURCE_GENERATIONS_NAME",
     "RESOURCE_GENERATION_STATE_NAME",
+    "RESOURCE_LAST_SYNC_STATE_NAME",
     "RESOURCE_REPOSITORY_NAME",
     "RUNTIME_RESOURCE_DIRECTORIES",
     "AliasCatalog",
@@ -82,8 +87,10 @@ __all__ = [
     "ResourceRemoteMismatchError",
     "ResourceSnapshot",
     "ResourceSnapshotCoordinator",
+    "ResourceStatusSnapshot",
     "ResourceSyncError",
     "ResourceSyncResult",
+    "ResourceSyncStatus",
     "ResourceSynchronizer",
     "accelerate_github_url",
     "build_git_instead_of_config",
@@ -94,6 +101,7 @@ __all__ = [
     "resolve_github_acceleration_prefix",
     "resource_generation_state_path",
     "resource_generations_dir",
+    "resource_last_sync_state_path",
     "resource_repository_dir",
     "run_git",
 ]

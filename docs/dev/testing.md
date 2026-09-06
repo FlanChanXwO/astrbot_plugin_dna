@@ -21,6 +21,8 @@ ruff check .
   哈希、PIL 图片解码、完整内容摘要、原子 generation 发布、失败保留旧快照、并发 lease、renderer
   绑定与重启孤立物清理。
 - `test_resource_service.py` — 显式资源下载 single-flight、失败可见性和同步任务异常观测。
+- `test_goal6_task25_resource_status_contract.py` — 资源状态五项 metadata、无 current/manifest
+  缺失或损坏、轻量读取禁用 Git/validator/PIL/hash，以及最近同步摘要的安全持久化和失败保留旧指针。
 - `test_goal1_o08_resources.py` — bootstrap 注入资源服务但不在插件启停阶段自动预热。
 - `test_goal1_o09_image_fetcher.py` — 图片下载的瞬态重试、`Retry-After`、非重试状态、PIL 完整
   校验、原子缓存、损坏缓存修复、single-flight、legacy 调用方复用和失败日志脱敏。

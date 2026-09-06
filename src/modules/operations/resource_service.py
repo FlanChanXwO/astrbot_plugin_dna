@@ -15,6 +15,7 @@ from ...infrastructure.resources import (
     ResourceManifest,
     ResourceRemoteMismatchError,
     ResourceSnapshotCoordinator,
+    ResourceStatusSnapshot,
     ResourceSyncError,
     ResourceSyncResult,
 )
@@ -75,23 +76,45 @@ class ResourceUpdateService:
         if error is not None:
             logger.warning(f"[dnaby][resources] 共享资源同步任务失败: {error}")
 
+    def _record_sync_result(self, result: ResourceSyncResult) -> None:
+        """把同步结果交给 generation 协调器持久化为安全摘要。"""
+
+        recorder = getattr(self.resource_snapshots, "record_sync_result", None)
+        if callable(recorder):
+            recorder(result)
+
+    def _record_sync_failure(self, error: BaseException) -> None:
+        """把同步失败交给 generation 协调器持久化为安全摘要。"""
+
+        recorder = getattr(self.resource_snapshots, "record_sync_failure", None)
+        if callable(recorder):
+            recorder(error)
+
     async def sync_resources(self, _request: object):
         """同步全部公共资源（浅克隆或 ff-only 更新）。"""
 
         try:
             result = await self.synchronize_once()
         except ResourceLocalChangesError as error:
+            self._record_sync_failure(error)
             return PlainTextResponse(
                 messages.RESOURCE_LOCAL_CHANGES.format(detail=str(error))
             )
-        except ResourceRemoteMismatchError:
+        except ResourceRemoteMismatchError as error:
+            self._record_sync_failure(error)
             return PlainTextResponse(messages.RESOURCE_REMOTE_MISMATCH)
-        except GitUnavailableError:
+        except GitUnavailableError as error:
+            self._record_sync_failure(error)
             return PlainTextResponse(messages.RESOURCE_GIT_UNAVAILABLE)
         except ResourceSyncError as error:
+            self._record_sync_failure(error)
             return PlainTextResponse(
                 messages.RESOURCE_SYNC_FAILED.format(detail=str(error))
             )
+        except Exception as error:
+            self._record_sync_failure(error)
+            raise
+        self._record_sync_result(result)
         if result.action == "unchanged":
             return PlainTextResponse(
                 messages.RESOURCE_UP_TO_DATE.format(version=result.resource_version),
@@ -115,16 +138,158 @@ class ResourceUpdateService:
         if self.resource_snapshots is None:
             return self._status_response(self.resource_root)
         with self.resource_snapshots.optional_lease() as snapshot:
+            reader = getattr(self.resource_snapshots, "read_status", None)
+            if callable(reader):
+                status = reader(snapshot)
+                return self._status_snapshot_response(status)
             root = snapshot.root if snapshot is not None else self.resource_root
             return self._status_response(root)
 
     @staticmethod
-    def _status_response(resource_root: Path | None) -> PlainTextResponse:
-        if resource_root is None:
-            return PlainTextResponse(messages.RESOURCE_STATUS_EMPTY)
+    def _last_sync_summary(status: ResourceStatusSnapshot) -> str:
+        if status.last_sync_error is not None:
+            return messages.RESOURCE_STATUS_SYNC_UNREADABLE
+        if status.last_sync is None:
+            return messages.RESOURCE_STATUS_UNRECORDED
+        if status.last_sync.status == "success":
+            return messages.RESOURCE_STATUS_SYNC_SUCCESS.format(
+                action=status.last_sync.action or messages.RESOURCE_STATUS_UNKNOWN,
+                version=(
+                    status.last_sync.resource_version
+                    or messages.RESOURCE_STATUS_UNKNOWN
+                ),
+                generation=status.last_sync.commit_sha
+                or messages.RESOURCE_STATUS_UNKNOWN,
+            )
+        return messages.RESOURCE_STATUS_SYNC_FAILED.format(
+            error_type=status.last_sync.error_type or messages.RESOURCE_STATUS_UNKNOWN,
+        )
+
+    @classmethod
+    def _status_snapshot_response(
+        cls,
+        status: ResourceStatusSnapshot,
+    ) -> PlainTextResponse:
         lines = [messages.RESOURCE_STATUS_HEADER]
-        lines.append(messages.resource_status_line("资源仓库目录", str(resource_root)))
-        if not resource_root.is_dir():
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_REPOSITORY_PATH,
+                str(status.repository),
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_GENERATION_ID,
+                status.generation_id or messages.RESOURCE_STATUS_UNPUBLISHED,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_ACTIVE_POINTER,
+                str(status.active_pointer),
+            )
+        )
+        if status.generation_id is None:
+            active_version = messages.RESOURCE_STATUS_UNPUBLISHED
+        elif status.manifest_state == "ready" and status.manifest is not None:
+            active_version = status.manifest.resource_version
+        else:
+            active_version = messages.RESOURCE_STATUS_UNKNOWN
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_RESOURCE_VERSION,
+                active_version,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_LAST_SYNC_RESULT,
+                cls._last_sync_summary(status),
+            )
+        )
+
+        if status.resource_root is None:
+            if status.manifest_state == "missing":
+                lines.append(messages.resource_status_line("manifest", "缺失"))
+            lines.append(messages.RESOURCE_STATUS_EMPTY)
+            return PlainTextResponse("\n".join(lines))
+        if status.manifest_state == "missing":
+            lines.append(messages.resource_status_line("manifest", "缺失"))
+            return PlainTextResponse("\n".join(lines))
+        if status.manifest_state == "corrupt":
+            lines.append(messages.resource_status_line("manifest", "损坏或不可读"))
+            return PlainTextResponse("\n".join(lines))
+        if status.manifest_state == "unavailable":
+            lines.append(
+                messages.resource_status_line(
+                    "manifest",
+                    messages.RESOURCE_STATUS_UNAVAILABLE,
+                )
+            )
+            return PlainTextResponse("\n".join(lines))
+        assert status.manifest is not None
+        lines.append(
+            messages.resource_status_line(
+                "manifest",
+                f"v{status.manifest.format_version}",
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                "资源版本",
+                status.manifest.resource_version,
+            )
+        )
+        present = [
+            directory
+            for directory in status.manifest.required_dirs
+            if (status.resource_root / directory).is_dir()
+        ]
+        lines.append(
+            messages.resource_status_line(
+                "必需目录",
+                f"{len(present)}/{len(status.manifest.required_dirs)} 存在",
+            ),
+        )
+        return PlainTextResponse("\n".join(lines))
+
+    @staticmethod
+    def _status_response(resource_root: Path | None) -> PlainTextResponse:
+        lines = [messages.RESOURCE_STATUS_HEADER]
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_REPOSITORY_PATH,
+                str(resource_root)
+                if resource_root is not None
+                else messages.RESOURCE_STATUS_UNKNOWN,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_GENERATION_ID,
+                messages.RESOURCE_STATUS_UNPUBLISHED,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_ACTIVE_POINTER,
+                messages.RESOURCE_STATUS_UNKNOWN,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_RESOURCE_VERSION,
+                messages.RESOURCE_STATUS_UNPUBLISHED,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_LAST_SYNC_RESULT,
+                messages.RESOURCE_STATUS_UNRECORDED,
+            )
+        )
+
+        if resource_root is None or not resource_root.is_dir():
             lines.append(messages.RESOURCE_STATUS_EMPTY)
             return PlainTextResponse("\n".join(lines))
 
@@ -134,9 +299,13 @@ class ResourceUpdateService:
             return PlainTextResponse("\n".join(lines))
         try:
             manifest = ResourceManifest.load(manifest_path)
-        except Exception:  # noqa: BLE001 - 状态查询只将 manifest 归类为不可读。
+        except (OSError, UnicodeError, ValueError, TypeError):
             lines.append(messages.resource_status_line("manifest", "损坏或不可读"))
             return PlainTextResponse("\n".join(lines))
+        lines[4] = messages.resource_status_line(
+            messages.RESOURCE_STATUS_RESOURCE_VERSION,
+            manifest.resource_version,
+        )
         lines.append(
             messages.resource_status_line("manifest", f"v{manifest.format_version}")
         )

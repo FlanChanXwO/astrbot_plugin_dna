@@ -99,7 +99,9 @@
   资源更新经 `ResourceUpdateService` 调用 `ResourceSnapshotCoordinator`：Git cache 只执行
   `main` 的浅克隆/fetch，候选先由 `git archive FETCH_HEAD` 物化并完整校验，再
   `merge --ff-only FETCH_HEAD`，计算完整文件树 SHA-256，最后原子发布 `resource_generations/<sha>/`
-  和带摘要的当前指针。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
+  和带摘要的当前指针。状态查询额外读取同目录的 `last_sync.json` 安全摘要，展示 repository path、
+  generation id、active pointer、resource_version 和 last sync result，但不触发 Git fetch、完整 validator、
+  PIL 解码或完整 SHA-256。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
   `同步资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
   并发管理员请求共享 single-flight；插件启动不自动预热资源，资源服务不注册生命周期 worker，terminate 不等待资源 Git/to_thread。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。

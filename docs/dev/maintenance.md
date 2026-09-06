@@ -104,7 +104,8 @@ force push 或删除分支；应保留失败版本、备份和回滚记录，便
 `astrbot`。发布或回滚必须固定到可追溯的插件 SHA，并遵循以下边界：
 
 1. 先只读记录当前插件 `HEAD`、`git status --porcelain`、`metadata.yaml` 版本、资源
-   `resource_generations/current.json` 摘要、容器 running/restart count 和日志起点；不读取或输出凭据。
+   `resource_generations/current.json` 与 `last_sync.json` 摘要、容器 running/restart count 和日志起点；
+   不读取或输出凭据。
 2. 通过已认证 Dashboard GET 确认插件 ID 唯一、`activated=true` 且凭据有 `plugin` scope。未认证
    GET 的 `401/403` 只能说明认证保护存在，不能作为插件状态。
 3. 在 clean 的生产仓库中非破坏性 fetch 并验证目标 SHA；容器内用 `python -B` 做入口/registry/schema

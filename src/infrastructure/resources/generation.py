@@ -30,7 +30,8 @@ from .git import (
     ResourceSyncResult,
     run_git,
 )
-from .manifest import ResourceManifest
+from .manifest import ResourceManifest, ResourceManifestError
+from .paths import RESOURCE_GENERATION_STATE_NAME, RESOURCE_LAST_SYNC_STATE_NAME
 
 if TYPE_CHECKING:
     from ..rendering.player import ResourceMap
@@ -56,6 +57,83 @@ class ResourceSnapshot:
         """返回该 generation 的公开资源版本。"""
 
         return self.manifest.resource_version
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceSyncStatus:
+    """可持久化的最近同步安全摘要，不保存仓库路径或异常原文。"""
+
+    status: str
+    action: str = ""
+    resource_version: str = ""
+    commit_sha: str = ""
+    error_type: str = ""
+
+    @classmethod
+    def from_result(cls, result: ResourceSyncResult) -> ResourceSyncStatus:
+        """从同步结果提取不会携带凭据的摘要。"""
+
+        return cls(
+            status="success",
+            action=result.action,
+            resource_version=result.resource_version,
+            commit_sha=result.commit_sha,
+        )
+
+    @classmethod
+    def from_error(cls, error: BaseException) -> ResourceSyncStatus:
+        """只保存异常类型，避免把 Git 或上游错误原文落入运行期状态。"""
+
+        return cls(status="failed", error_type=type(error).__name__)
+
+    def to_dict(self) -> dict[str, str]:
+        """返回稳定的 JSON 状态投影。"""
+
+        return {
+            "status": self.status,
+            "action": self.action,
+            "resource_version": self.resource_version,
+            "commit_sha": self.commit_sha,
+            "error_type": self.error_type,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: object) -> ResourceSyncStatus:
+        """解析并校验最近同步摘要；损坏状态必须显式报告。"""
+
+        if not isinstance(raw, dict):
+            raise ResourceGenerationError("最近资源同步状态格式无效")
+        values: dict[str, str] = {}
+        for field in (
+            "status",
+            "action",
+            "resource_version",
+            "commit_sha",
+            "error_type",
+        ):
+            value = raw.get(field, "")
+            if not isinstance(value, str):
+                raise ResourceGenerationError("最近资源同步状态字段无效")
+            values[field] = value
+        if values["status"] not in {"success", "failed"}:
+            raise ResourceGenerationError("最近资源同步状态结果无效")
+        if values["status"] == "failed" and not values["error_type"]:
+            raise ResourceGenerationError("最近资源同步状态缺少错误类型")
+        return cls(**values)
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceStatusSnapshot:
+    """资源状态命令所需的轻量 metadata，不包含资源索引或完整校验结果。"""
+
+    repository: Path
+    active_pointer: Path
+    generation_id: str | None
+    resource_root: Path | None
+    manifest: ResourceManifest | None
+    manifest_state: str
+    last_sync: ResourceSyncStatus | None
+    last_sync_error: str | None = None
 
 
 class ResourceLease(AbstractContextManager[ResourceSnapshot]):
@@ -430,7 +508,8 @@ class ResourceSnapshotCoordinator:
         # 保留运行期目录的符号链接状态，防止 resolve() 把资源写到边界之外。
         self.repository = Path(repository).expanduser().absolute()
         self.generations_root = Path(generations_root).expanduser().absolute()
-        self.state_path = self.generations_root / "current.json"
+        self.state_path = self.generations_root / RESOURCE_GENERATION_STATE_NAME
+        self.last_sync_path = self.generations_root / RESOURCE_LAST_SYNC_STATE_NAME
         self.remote = remote
         self.acceleration_prefix = acceleration_prefix
         self._runner = runner
@@ -451,6 +530,7 @@ class ResourceSnapshotCoordinator:
         self._lock = threading.RLock()
         self._current: ResourceSnapshot | None = None
         self._expected_content_sha256: str | None = None
+        self._last_sync: ResourceSyncStatus | None = None
         self._leases: dict[str, int] = {}
         self._retired: set[str] = set()
         self._listeners: list[SnapshotListener] = []
@@ -510,6 +590,125 @@ class ResourceSnapshotCoordinator:
 
         generation, _content_sha256 = self._read_generation_pointer()
         return generation
+
+    def _read_last_sync_status(self) -> ResourceSyncStatus | None:
+        """读取最近同步摘要；缺失表示尚未执行过同步。"""
+
+        if self.last_sync_path.is_symlink():
+            raise ResourceGenerationError("最近资源同步状态不允许符号链接")
+        if not self.last_sync_path.exists():
+            return None
+        try:
+            raw = json.loads(self.last_sync_path.read_text(encoding="utf-8"))
+            return ResourceSyncStatus.from_dict(raw)
+        except ResourceGenerationError:
+            raise
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ResourceGenerationError("最近资源同步状态不可读") from exc
+
+    @property
+    def last_sync_status(self) -> ResourceSyncStatus | None:
+        """返回当前进程已知的最近同步安全摘要。"""
+
+        with self._lock:
+            if self._last_sync is None:
+                self._last_sync = self._read_last_sync_status()
+            return self._last_sync
+
+    def _write_last_sync_status(self, status: ResourceSyncStatus) -> None:
+        """以同目录临时文件原子写入最近同步摘要。"""
+
+        self._ensure_storage_roots()
+        self.generations_root.mkdir(parents=True, exist_ok=True)
+        self._ensure_storage_roots()
+        if self.last_sync_path.is_symlink():
+            raise ResourceGenerationError("最近资源同步状态不允许符号链接")
+        temporary = self.generations_root / f".last-sync-{uuid4().hex}.tmp"
+        try:
+            temporary.write_text(
+                json.dumps(status.to_dict(), ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary, self.last_sync_path)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+
+    def record_sync_result(self, result: ResourceSyncResult) -> None:
+        """持久化一次成功或无变化同步的安全摘要。"""
+
+        status = ResourceSyncStatus.from_result(result)
+        with self._lock:
+            if self._last_sync == status:
+                return
+            self._write_last_sync_status(status)
+            self._last_sync = status
+
+    def record_sync_failure(self, error: BaseException) -> None:
+        """持久化同步失败的异常类型，不落盘异常原文。"""
+
+        status = ResourceSyncStatus.from_error(error)
+        with self._lock:
+            if self._last_sync == status:
+                return
+            self._write_last_sync_status(status)
+            self._last_sync = status
+
+    @staticmethod
+    def _read_status_manifest(
+        resource_root: Path | None,
+    ) -> tuple[str, ResourceManifest | None]:
+        """仅读取状态所需 manifest，不检查目录树、图片或文件哈希。"""
+
+        if resource_root is None:
+            return "missing", None
+        if resource_root.is_symlink() or not resource_root.is_dir():
+            return "unavailable", None
+        manifest_path = resource_root / "resource_manifest.json"
+        if not manifest_path.is_file():
+            return "missing", None
+        try:
+            return "ready", ResourceManifest.load(manifest_path)
+        except (ResourceManifestError, UnicodeError):
+            return "corrupt", None
+
+    def read_status(
+        self,
+        snapshot: ResourceSnapshot | None = None,
+    ) -> ResourceStatusSnapshot:
+        """读取资源状态 metadata，不触发 Git、完整校验、图片解码或内容哈希。"""
+
+        with self._lock:
+            self._ensure_storage_roots()
+            if snapshot is not None:
+                generation_id = snapshot.commit_sha
+                resource_root = snapshot.root
+                manifest = snapshot.manifest
+                manifest_state = "ready"
+            else:
+                generation_id, _content_sha256 = self._read_generation_pointer()
+                resource_root = (
+                    self._generation_path(generation_id)
+                    if generation_id is not None
+                    else (self.repository if self.repository.is_dir() else None)
+                )
+                manifest_state, manifest = self._read_status_manifest(resource_root)
+            last_sync_error: str | None = None
+            try:
+                last_sync = self._read_last_sync_status()
+            except ResourceGenerationError as error:
+                last_sync = None
+                last_sync_error = str(error)
+            return ResourceStatusSnapshot(
+                repository=self.repository,
+                active_pointer=self.state_path,
+                generation_id=generation_id,
+                resource_root=resource_root,
+                manifest=manifest,
+                manifest_state=manifest_state,
+                last_sync=last_sync,
+                last_sync_error=last_sync_error,
+            )
 
     def _generation_path(self, commit_sha: str) -> Path:
         if re.fullmatch(r"[0-9a-fA-F]+", commit_sha) is None:
@@ -779,8 +978,8 @@ class ResourceSnapshotCoordinator:
         assert snapshot is not None
         return snapshot, created_final
 
-    def sync_resources(self) -> ResourceSyncResult:
-        """同步 cache、验证 FETCH_HEAD 候选并原子发布新快照。"""
+    def _sync_resources(self) -> ResourceSyncResult:
+        """执行同步流程，外层负责记录成功或失败摘要。"""
 
         with self._lock:
             self._ensure_storage_roots(require_repository=True)
@@ -845,6 +1044,17 @@ class ResourceSnapshotCoordinator:
                 content_sha256=snapshot.content_sha256,
             )
 
+    def sync_resources(self) -> ResourceSyncResult:
+        """同步 cache、验证 FETCH_HEAD 候选并原子发布新快照。"""
+
+        try:
+            result = self._sync_resources()
+        except Exception as error:
+            self.record_sync_failure(error)
+            raise
+        self.record_sync_result(result)
+        return result
+
     def synchronize(self) -> ResourceSyncResult:
         """兼容旧调用方，转发到 ``sync_resources``。"""
 
@@ -861,4 +1071,6 @@ __all__ = [
     "ResourceLease",
     "ResourceSnapshot",
     "ResourceSnapshotCoordinator",
+    "ResourceStatusSnapshot",
+    "ResourceSyncStatus",
 ]

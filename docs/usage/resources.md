@@ -12,6 +12,8 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 - `resources/`：公共资源的 Git 同步缓存。
 - `resource_generations/<commit-sha>/`：通过完整校验后发布的只读资源快照。
 - `resource_generations/current.json`：指向当前资源快照的指针。
+- `resource_generations/last_sync.json`：最近一次同步的安全摘要；只保存动作、版本、
+  commit SHA 或错误类型，不保存仓库路径、凭据或异常原文。
 - `rendered/`：玩家、图鉴和通知响应生成的临时图片。
 - `cache/`：玩家数据、公告和已校验图片的运行期缓存。
 
@@ -57,6 +59,11 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 
 - `资源状态`：查看资源仓库、manifest、当前 generation 和最近一次同步状态。
 - `同步资源`：从规范仓库的 `main` 分支获取候选版本，完成校验后再发布新的资源快照。
+
+`资源状态` 输出固定的 `repository path`、`generation id`、`active pointer`、
+`resource_version` 和 `last sync result`。它只读取 pointer、generation metadata、manifest
+和最近同步摘要，不触发 Git fetch、完整 validator、PIL 解码或完整 SHA-256；同步失败时
+只记录安全错误类型并保留旧 generation。
 
 同步时会检查仓库来源、分支、目录布局、文件摘要、图片是否可解码以及资源索引。Git 不可用、
 网络或 HTTP 状态异常、仓库状态不干净、候选版本不完整或校验失败时，命令会返回明确错误，并
