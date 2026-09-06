@@ -30,6 +30,7 @@ from src.modules.player.commands import (
     player_refresh_admin_role_use_case,
     player_refresh_role_use_case,
 )
+from src.modules.player.contracts import PlayerCommandRequest
 from tests.test_goal1_o10_player_cache import (
     MutableClock,
     _request,
@@ -175,6 +176,132 @@ async def test_refresh_role_returns_notice_and_a_new_card(tmp_path: Path) -> Non
         cached = await service.role_detail(_request(detail=True))
         assert isinstance(cached, ImageResponse)
         assert transport.role_detail_calls == 1
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_info_card_only_refreshes_overview_and_returns_new_card(
+    tmp_path: Path,
+) -> None:
+    """基本信息卡片刷新只请求概览，不应触发角色详情链路。"""
+
+    clock = MutableClock()
+    database, transport, renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        await service.role_overview(_request())
+        transport.overview = transport.overview.model_copy(
+            update={"role_name": "刷新后的基本信息"},
+        )
+
+        response = await service.refresh_info_card(_request())
+
+        assert isinstance(response, ChainResponse)
+        assert isinstance(response.components[0], PlainTextResponse)
+        assert isinstance(response.components[1], ImageResponse)
+        assert response.components[0].text == messages.PLAYER_INFO_CARD_REFRESHED
+        assert transport.overview_calls == 2
+        assert transport.role_detail_calls == 0
+        assert renderer.overview_calls == 2
+        assert renderer.detail_calls == 0
+
+        cached = await service.role_overview(_request())
+        assert isinstance(cached, ImageResponse)
+        assert transport.overview_calls == 2
+        assert renderer.overview_calls == 2
+        with Image.open(cached.image) as image:
+            assert image.info["comment"].decode("utf-8") == "刷新后的基本信息"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_info_card_without_send_card_still_updates_cache(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock()
+    database, transport, renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        service.refresh_send_card = False
+
+        response = await service.refresh_info_card(_request())
+
+        assert isinstance(response, PlainTextResponse)
+        assert response.text == messages.PLAYER_INFO_CARD_REFRESHED
+        assert transport.overview_calls == 1
+        assert transport.role_detail_calls == 0
+        assert renderer.overview_calls == 1
+
+        cached = await service.role_overview(_request())
+        assert isinstance(cached, ImageResponse)
+        assert transport.overview_calls == 1
+        assert renderer.overview_calls == 1
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_info_card_cache_preserves_data_and_role_cards(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock()
+    database, transport, renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        await service.role_overview(_request())
+        await service.role_detail(_request(detail=True))
+
+        response = await service.clear_info_card_cache(_request())
+
+        assert isinstance(response, PlainTextResponse)
+        assert response.text == messages.PLAYER_INFO_CARD_CACHE_CLEARED
+
+        overview = await service.role_overview(_request())
+        detail = await service.role_detail(_request(detail=True))
+        assert isinstance(overview, ImageResponse)
+        assert isinstance(detail, ImageResponse)
+        assert transport.overview_calls == 1
+        assert transport.role_detail_calls == 1
+        assert renderer.overview_calls == 2
+        assert renderer.detail_calls == 1
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_info_card_cache_commands_require_the_callers_current_binding(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock()
+    database, _transport, _renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        request = PlayerCommandRequest(
+            actor=EventActor("unbound-user", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={},
+        )
+
+        refresh = await service.refresh_info_card(request)
+        clear = await service.clear_info_card_cache(request)
+
+        assert isinstance(refresh, PlainTextResponse)
+        assert refresh.text == messages.account_not_bound()
+        assert isinstance(clear, PlainTextResponse)
+        assert clear.text == messages.account_not_bound()
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_info_card_cache_without_existing_cache_succeeds(
+    tmp_path: Path,
+) -> None:
+    clock = MutableClock()
+    database, _transport, _renderer, _cache, service = await _service(tmp_path, clock)
+    try:
+        response = await service.clear_info_card_cache(_request())
+
+        assert isinstance(response, PlainTextResponse)
+        assert response.text == messages.PLAYER_INFO_CARD_CACHE_CLEARED
     finally:
         await database.dispose()
 

@@ -231,6 +231,65 @@ async def test_overview_expired_refresh_failure_does_not_return_old_card(tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_invalidate_overview_card_preserves_overview_data_and_detail_cards(
+    tmp_path: Path,
+) -> None:
+    """基本信息卡片清理不应误伤概览数据、角色详情或其他 UID。"""
+
+    clock = MutableClock()
+    database, _transport, _renderer, cache, _player_service = await _service(tmp_path, clock)
+    try:
+        identity = cache.identity_tag("user-1", "1234567890123")
+        other_identity = cache.identity_tag("user-2", "9876543210987")
+        await cache.manager.put(
+            "player_data",
+            "overview-data",
+            b"{}",
+            tags=("player_data", "overview", identity),
+            now=clock.value,
+        )
+        await cache.manager.put(
+            "player_card",
+            "overview-card",
+            b"overview-card",
+            tags=("player_card", "overview", identity),
+            now=clock.value,
+        )
+        await cache.manager.put(
+            "player_card",
+            "detail-card",
+            b"detail-card",
+            tags=("player_card", "detail", identity),
+            now=clock.value,
+        )
+        await cache.manager.put(
+            "player_card",
+            "other-card",
+            b"other-card",
+            tags=("player_card", "overview", other_identity),
+            now=clock.value,
+        )
+
+        removed = await cache.invalidate_overview_card("user-1", "1234567890123")
+
+        assert removed == 1
+        assert (
+            await cache.manager.get("player_data", "overview-data", now=clock.value)
+        ).status == "fresh"
+        assert (
+            await cache.manager.get("player_card", "overview-card", now=clock.value)
+        ).status == "miss"
+        assert (
+            await cache.manager.get("player_card", "detail-card", now=clock.value)
+        ).status == "fresh"
+        assert (
+            await cache.manager.get("player_card", "other-card", now=clock.value)
+        ).status == "fresh"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_incomplete_card_is_sent_but_never_cached(tmp_path: Path) -> None:
     clock = MutableClock()
     database, _transport, renderer, _cache, service = await _service(tmp_path, clock)

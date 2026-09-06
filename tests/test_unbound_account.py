@@ -14,8 +14,6 @@ from src.modules.checkin.contracts import CheckinCommandRequest
 from src.modules.checkin.service import CheckinService
 from src.modules.encyclopedia.contracts import EncyclopediaRequest
 from src.modules.encyclopedia.service import EncyclopediaService
-from src.modules.notices.contracts import NoticeRequest
-from src.modules.notices.service import NoticesService
 from src.modules.player.contracts import PlayerCommandRequest
 from src.modules.player.service import PlayerService
 from src.modules.privacy import PrivacyService
@@ -48,8 +46,6 @@ def _cases(database: AsyncDatabase) -> tuple[_UnboundCase, ...]:
     )
     checkin = CheckinService(database, object(), privacy, object())
     player = PlayerService(database, object(), privacy, object())
-    notices = NoticesService(database, object(), privacy, object())
-
     async def encyclopedia_case(target_user_id: str | None) -> PlainTextResponse:
         response = await encyclopedia.stamina(
             EncyclopediaRequest(actor=_actor(), target_user_id=target_user_id)
@@ -75,22 +71,10 @@ def _cases(database: AsyncDatabase) -> tuple[_UnboundCase, ...]:
         assert isinstance(response, PlainTextResponse)
         return response
 
-    async def notices_case(target_user_id: str | None) -> PlainTextResponse:
-        response = await notices.mh(
-            NoticeRequest(
-                actor=_actor(),
-                target_user_id=target_user_id,
-                text="密函",
-            )
-        )
-        assert isinstance(response, PlainTextResponse)
-        return response
-
     return (
         _UnboundCase("stamina", encyclopedia_case),
         _UnboundCase("manual_sign", checkin_case),
         _UnboundCase("role_overview", player_case),
-        _UnboundCase("mh", notices_case),
     )
 
 

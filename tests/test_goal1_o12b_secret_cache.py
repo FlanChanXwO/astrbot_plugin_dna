@@ -146,7 +146,7 @@ async def test_mh_before_half_hour_pushes_from_current_hour_snapshot(
     assert len(pushed) == 1
     assert pushed[0][0] == "platform:group:g1"
     assert "角色 : 扼守" in str(pushed[0][1])
-    assert transport.calls == ["get_mh"]
+    assert transport.calls == ["get_mh_any"]
     await database.dispose()
 
 

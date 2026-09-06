@@ -174,6 +174,7 @@ async def test_help_layout_orders_groups_and_computes_height_from_content(
         "密函",
         "信息查询",
         "角色信息",
+        "隐私控制",
     ]
     assert all(section["height"] > 0 for section in sections)
     assert renderer.data["card_height"] != 5059
