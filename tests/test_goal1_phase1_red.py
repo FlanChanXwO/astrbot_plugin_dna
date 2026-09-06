@@ -76,10 +76,7 @@ def test_target_user_uses_the_last_valid_mention() -> None:
 def test_public_registry_uses_only_user_and_admin_permissions() -> None:
     """公开命令权限收敛为 user/admin，不再暴露插件自定义 owner。"""
 
-    assert all(
-        spec.permission in {"user", "admin"}
-        for spec in load_command_registry()
-    )
+    assert all(spec.permission in {"user", "admin"} for spec in load_command_registry())
 
 
 def test_update_log_is_not_a_registered_chat_command() -> None:
@@ -134,10 +131,7 @@ async def test_handler_snapshots_effective_permission_for_the_use_case() -> None
         def plain_result(self, text: str) -> str:
             return text
 
-    result = [
-        item
-        async for item in plugin.handle_permission_snapshot(AdminEvent())
-    ]
+    result = [item async for item in plugin.handle_permission_snapshot(AdminEvent())]
 
     assert result == ["ok"]
     assert seen == ["admin"]
@@ -204,10 +198,7 @@ async def test_handler_passes_last_valid_target_to_use_case() -> None:
                 At(qq="target-last"),
             ]
 
-    result = [
-        item
-        async for item in plugin.handle_target_snapshot(MentionEvent())
-    ]
+    result = [item async for item in plugin.handle_target_snapshot(MentionEvent())]
 
     assert result == ["ok"]
     assert seen == ["target-last"]
@@ -360,26 +351,44 @@ async def test_help_cache_is_keyed_and_invalidated_by_runtime_identity(
     help_renderer.invalidate_help_cache()
     registry = CommandRegistry((_spec("cache_user", "缓存命令", "user"),))
 
-    assert await help_renderer.get_help(
-        prefix="kk", registry=registry, permission="user", version="v1"
-    ) == b"card-1"
-    assert await help_renderer.get_help(
-        prefix="kk", registry=registry, permission="user", version="v1"
-    ) == b"card-1"
-    assert await help_renderer.get_help(
-        prefix="dna", registry=registry, permission="user", version="v1"
-    ) == b"card-2"
-    assert await help_renderer.get_help(
-        prefix="dna", registry=registry, permission="admin", version="v1"
-    ) == b"card-3"
-    assert await help_renderer.get_help(
-        prefix="dna", registry=registry, permission="admin", version="v2"
-    ) == b"card-4"
+    assert (
+        await help_renderer.get_help(
+            prefix="kk", registry=registry, permission="user", version="v1"
+        )
+        == b"card-1"
+    )
+    assert (
+        await help_renderer.get_help(
+            prefix="kk", registry=registry, permission="user", version="v1"
+        )
+        == b"card-1"
+    )
+    assert (
+        await help_renderer.get_help(
+            prefix="dna", registry=registry, permission="user", version="v1"
+        )
+        == b"card-2"
+    )
+    assert (
+        await help_renderer.get_help(
+            prefix="dna", registry=registry, permission="admin", version="v1"
+        )
+        == b"card-3"
+    )
+    assert (
+        await help_renderer.get_help(
+            prefix="dna", registry=registry, permission="admin", version="v2"
+        )
+        == b"card-4"
+    )
 
     help_renderer.invalidate_help_cache()
-    assert await help_renderer.get_help(
-        prefix="dna", registry=registry, permission="admin", version="v2"
-    ) == b"card-5"
+    assert (
+        await help_renderer.get_help(
+            prefix="dna", registry=registry, permission="admin", version="v2"
+        )
+        == b"card-5"
+    )
 
 
 @pytest.mark.asyncio

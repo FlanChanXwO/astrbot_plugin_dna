@@ -36,7 +36,9 @@ def test_panel_management_modules_and_routes_are_removed() -> None:
     assert not (PROJECT_ROOT / "src/modules/operations/service.py").exists()
     assert not (PROJECT_ROOT / "src/modules/admin/panels.py").exists()
     admin_web = (PROJECT_ROOT / "src/entry/admin_web.py").read_text(encoding="utf-8")
-    dashboard = (PROJECT_ROOT / "pages/dashboard/index.html").read_text(encoding="utf-8")
+    dashboard = (PROJECT_ROOT / "pages/dashboard/index.html").read_text(
+        encoding="utf-8"
+    )
     assert "/panels" not in admin_web
     assert 'data-page="panels"' not in dashboard
 

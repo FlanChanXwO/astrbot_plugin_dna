@@ -150,7 +150,9 @@ async def test_help_layout_orders_groups_and_computes_height_from_content(
     class Renderer:
         data: dict[str, object] | None = None
 
-        async def render(self, _template: str, data: dict[str, object], _spec: object) -> bytes:
+        async def render(
+            self, _template: str, data: dict[str, object], _spec: object
+        ) -> bytes:
             self.data = data
             return b"rendered"
 
@@ -274,7 +276,9 @@ async def test_refresh_all_roles_only_returns_summary_without_rendering_cards(
     from tests.test_goal1_o10_player_cache import MutableClock, _request
 
     clock = MutableClock()
-    database, transport, renderer, _cache, service = await player_service_fixture(tmp_path, clock)
+    database, transport, renderer, _cache, service = await player_service_fixture(
+        tmp_path, clock
+    )
     try:
         response = await service.refresh_all_roles(_request())
 
@@ -314,7 +318,9 @@ async def test_refresh_all_roles_summarizes_unexpected_role_failure_with_traceba
     try:
         response = await service.refresh_all_roles(_request())
 
-        assert response.text == "角色面板刷新完成：成功 0 个，失败 1 个\n失败角色：角色甲"
+        assert (
+            response.text == "角色面板刷新完成：成功 0 个，失败 1 个\n失败角色：角色甲"
+        )
         records = [
             record
             for record in caplog.records
@@ -333,7 +339,9 @@ async def test_role_detail_does_not_call_damage_api_or_render_damage_section(
     from tests.test_goal1_o10_player_cache import MutableClock, _request
 
     clock = MutableClock()
-    database, transport, renderer, _cache, service = await player_service_fixture(tmp_path, clock)
+    database, transport, renderer, _cache, service = await player_service_fixture(
+        tmp_path, clock
+    )
     try:
         response = await service.role_detail(_request(detail=True))
 
@@ -345,11 +353,15 @@ async def test_role_detail_does_not_call_damage_api_or_render_damage_section(
 
 
 @pytest.mark.asyncio
-async def test_clear_role_cache_only_removes_selected_role_cache(tmp_path: Path) -> None:
+async def test_clear_role_cache_only_removes_selected_role_cache(
+    tmp_path: Path,
+) -> None:
     from tests.test_goal1_o10_player_cache import MutableClock, _request
 
     clock = MutableClock()
-    database, transport, _renderer, _cache, service = await player_service_fixture(tmp_path, clock)
+    database, transport, _renderer, _cache, service = await player_service_fixture(
+        tmp_path, clock
+    )
     try:
         await service.role_detail(_request(detail=True))
         response = await service.clear_role_cache(
@@ -441,11 +453,11 @@ def test_resource_generation_validator_uses_runtime_alias_files(
         custom_alias_path: str | Path | None = None,
         custom_weapon_alias_path: str | Path | None = None,
     ) -> generation.EncyclopediaResourceStore:
-        captured["char"] = None if custom_alias_path is None else Path(custom_alias_path)
+        captured["char"] = (
+            None if custom_alias_path is None else Path(custom_alias_path)
+        )
         captured["weapon"] = (
-            None
-            if custom_weapon_alias_path is None
-            else Path(custom_weapon_alias_path)
+            None if custom_weapon_alias_path is None else Path(custom_weapon_alias_path)
         )
         return generation.EncyclopediaResourceStore()
 

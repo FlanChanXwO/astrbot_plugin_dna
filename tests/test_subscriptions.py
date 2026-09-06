@@ -46,7 +46,7 @@ def test_subscription_store_init_loads_existing_json(tmp_path: Path):
                     "unified_msg_origin": "origin-1",
                     "uid": "1001",
                     "extra_message": "已加载",
-                    "extra_data": "{\"source\": \"fixture\"}",
+                    "extra_data": '{"source": "fixture"}',
                 }
             ],
             ensure_ascii=False,
@@ -106,7 +106,9 @@ def test_subscription_lifecycle_deduplicates_by_origin_and_persists(tmp_path: Pa
     assert subscriptions[0].bot_self_id == "self-1"
     assert subscriptions[0].extra_message == "替换消息"
     assert subscriptions[0].extra_data == "替换数据"
-    assert json.loads(path.read_text(encoding="utf-8"))[0]["extra_message"] == "替换消息"
+    assert (
+        json.loads(path.read_text(encoding="utf-8"))[0]["extra_message"] == "替换消息"
+    )
 
     _run(store.update_subscribe_message("session", "daily", event, "1001", "更新消息"))
     _run(store.update_subscribe_data("session", "daily", event, "更新数据", "1001"))
@@ -177,7 +179,9 @@ def test_subscription_query_filters_by_target_fields(tmp_path: Path):
             uid="uid-1",
         )
     )
-    assert [subscription.unified_msg_origin for subscription in filtered] == ["origin-1"]
+    assert [subscription.unified_msg_origin for subscription in filtered] == [
+        "origin-1"
+    ]
 
 
 def test_subscription_mutations_serialize_read_modify_write(tmp_path: Path):
@@ -189,7 +193,9 @@ def test_subscription_mutations_serialize_read_modify_write(tmp_path: Path):
             for subscription in await store.get_subscribe("daily")
         ]
 
-    async def run_while_lock_is_held(store: SubscriptionStore, operation, before, after):
+    async def run_while_lock_is_held(
+        store: SubscriptionStore, operation, before, after
+    ):
         # 持锁模拟另一条持久化事务，await 让待测调用进入并发调度点。
         await store._lock.acquire()
         task = asyncio.create_task(operation())
@@ -204,11 +210,15 @@ def test_subscription_mutations_serialize_read_modify_write(tmp_path: Path):
 
     async def scenario():
         add_store = SubscriptionStore(tmp_path / "add.json")
-        add_event = _event(user_id="add-user", bot_id="bot", unified_msg_origin="add-origin")
+        add_event = _event(
+            user_id="add-user", bot_id="bot", unified_msg_origin="add-origin"
+        )
         await add_store.init(add_store.path)
         await run_while_lock_is_held(
             add_store,
-            lambda: add_store.add_subscribe("session", "daily", add_event, uid="add-uid"),
+            lambda: add_store.add_subscribe(
+                "session", "daily", add_event, uid="add-uid"
+            ),
             [],
             [("add-uid", "", "")],
         )

@@ -44,7 +44,10 @@ def test_live_payload_uses_synthetic_identity_and_urls() -> None:
 
     for key, value in _walk(payload):
         if key in IDENTITY_KEYS:
-            assert isinstance(value, str) and value.startswith("synthetic-"), (key, value)
+            assert isinstance(value, str) and value.startswith("synthetic-"), (
+                key,
+                value,
+            )
         if isinstance(value, str) and value.startswith(("http://", "https://")):
             assert urlsplit(value).hostname == "example.invalid", (key, value)
 

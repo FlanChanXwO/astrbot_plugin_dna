@@ -126,7 +126,9 @@ class LocalBareRunner:
         else:
             result = run_git(args, cwd)
         if operation == "clone":
-            _git("remote", "set-url", "origin", DEFAULT_RESOURCE_REMOTE, cwd=self.target)
+            _git(
+                "remote", "set-url", "origin", DEFAULT_RESOURCE_REMOTE, cwd=self.target
+            )
         return result
 
 
@@ -151,7 +153,9 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, LocalBareRunner]:
     return source, target, LocalBareRunner(bare, target)
 
 
-def _coordinator(tmp_path: Path, runner: LocalBareRunner) -> ResourceSnapshotCoordinator:
+def _coordinator(
+    tmp_path: Path, runner: LocalBareRunner
+) -> ResourceSnapshotCoordinator:
     return ResourceSnapshotCoordinator(
         tmp_path / "resources",
         generations_root=tmp_path / "resource_generations",
@@ -183,13 +187,18 @@ def test_sync_archives_fetch_head_and_publishes_only_valid_main_generation(
     assert (snapshot.root / "main").exists() is False
     assert not (snapshot.root / "feature.txt").exists()
     assert (snapshot.root / "resource_manifest.json").is_file()
-    assert _git("remote", "get-url", "origin", cwd=target).strip() == DEFAULT_RESOURCE_REMOTE
+    assert (
+        _git("remote", "get-url", "origin", cwd=target).strip()
+        == DEFAULT_RESOURCE_REMOTE
+    )
     assert _git("branch", "--show-current", cwd=target).strip() == "main"
-    assert _git("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin", cwd=target).splitlines() == [
-        "origin/main"
-    ]
+    assert _git(
+        "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin", cwd=target
+    ).splitlines() == ["origin/main"]
     assert _git("tag", cwd=target).strip() == ""
-    assert any(_operation(call) == "archive" and "FETCH_HEAD" in call for call in runner.calls)
+    assert any(
+        _operation(call) == "archive" and "FETCH_HEAD" in call for call in runner.calls
+    )
     state = json.loads(coordinator.state_path.read_text(encoding="utf-8"))
     assert state["generation"] == result.commit_sha
     assert state["content_sha256"] == result.content_sha256
@@ -278,8 +287,14 @@ def test_invalid_candidate_keeps_last_verified_snapshot_and_cleans_temp_files(
     assert current.commit_sha == first.commit_sha
     assert old.root.is_dir()
     assert _git("rev-parse", "HEAD", cwd=target).strip() == old_checkout
-    assert json.loads(coordinator.state_path.read_text(encoding="utf-8"))["generation"] == first.commit_sha
-    assert not any(path.name.startswith((".candidate-", ".archive-")) for path in coordinator.generations_root.iterdir())
+    assert (
+        json.loads(coordinator.state_path.read_text(encoding="utf-8"))["generation"]
+        == first.commit_sha
+    )
+    assert not any(
+        path.name.startswith((".candidate-", ".archive-"))
+        for path in coordinator.generations_root.iterdir()
+    )
 
 
 def test_git_failure_keeps_last_verified_snapshot(tmp_path: Path) -> None:
@@ -356,18 +371,23 @@ def test_renderer_binding_pins_generation_for_render_duration(tmp_path: Path) ->
     assert not old_root.exists()
 
 
-def test_resource_binding_does_not_mask_consumer_attribute_errors(tmp_path: Path) -> None:
+def test_resource_binding_does_not_mask_consumer_attribute_errors(
+    tmp_path: Path,
+) -> None:
     _source, _target, runner = _fixture(tmp_path)
     coordinator = _coordinator(tmp_path, runner)
     coordinator.synchronize()
 
-    with pytest.raises(AttributeError, match="consumer failure"), coordinator.bind_resource(
-        "player_resources"
+    with (
+        pytest.raises(AttributeError, match="consumer failure"),
+        coordinator.bind_resource("player_resources"),
     ):
         raise AttributeError("consumer failure")
 
 
-def test_validator_rejects_duplicate_alias_under_one_canonical_name(tmp_path: Path) -> None:
+def test_validator_rejects_duplicate_alias_under_one_canonical_name(
+    tmp_path: Path,
+) -> None:
     candidate = tmp_path / "candidate"
     _write_resources(candidate, "v1")
     (candidate / "alias" / "char_alias.json").write_text(
@@ -486,7 +506,10 @@ def test_validator_checks_optional_manifest_file_hashes(tmp_path: Path) -> None:
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     snapshot = ResourceGenerationValidator().validate(candidate, "a" * 40)
-    assert snapshot.manifest.file_hashes["alias/char_alias.json"] == manifest["file_hashes"]["alias/char_alias.json"]
+    assert (
+        snapshot.manifest.file_hashes["alias/char_alias.json"]
+        == manifest["file_hashes"]["alias/char_alias.json"]
+    )
 
     alias_path.write_text('{"角色甲": ["被篡改"]}', encoding="utf-8")
     with pytest.raises(ResourceGenerationError, match="文件哈希不匹配"):
@@ -553,7 +576,9 @@ def test_bootstrap_removes_alias_write_service_and_panel_service(
         player_resources=object(),
         encyclopedia_resources=object(),
     )
-    monkeypatch.setattr(ResourceSnapshotCoordinator, "initialize", lambda self: snapshot)
+    monkeypatch.setattr(
+        ResourceSnapshotCoordinator, "initialize", lambda self: snapshot
+    )
 
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),

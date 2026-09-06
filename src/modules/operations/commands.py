@@ -14,7 +14,9 @@ from . import messages
 from .resource_service import ResourceUpdateService
 
 
-def _resource_service(request: CommandRequest) -> ResourceUpdateService | PlainTextResponse:
+def _resource_service(
+    request: CommandRequest,
+) -> ResourceUpdateService | PlainTextResponse:
     if request.actor is None:
         return PlainTextResponse(messages.OPERATIONS_CONTEXT_UNAVAILABLE)
     service = request.services.get("resource_update_service")

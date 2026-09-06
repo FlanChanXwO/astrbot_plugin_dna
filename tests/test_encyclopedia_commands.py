@@ -36,7 +36,10 @@ def test_encyclopedia_commands_are_explicit_and_legacy_patterns_are_preserved() 
         "alias_all_list",
     }
     assert expected <= specs.keys()
-    assert specs["stamina"].pattern == r"^kk(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert (
+        specs["stamina"].pattern
+        == r"^kk(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    )
     assert specs["weekly_report_current"].pattern == r"^kk(?:本周周报|周报)$"
     assert specs["weekly_report_last"].pattern == r"^kk上周周报$"
     assert specs["calendar"].pattern == r"^kk日历$"
@@ -114,11 +117,12 @@ async def test_encyclopedia_use_case_reports_missing_service() -> None:
 
 def test_alias_command_patterns_do_not_conflict_with_restore_builtin_aliases() -> None:
     import re
-    specs = {spec.id: spec for spec in load_command_registry()}
-    alias_spec = specs['alias_list']
 
-    assert re.match(alias_spec.pattern, 'kk菲娜别名') is not None
-    assert re.match(alias_spec.pattern, 'kk恢复别名') is None
-    assert re.match(alias_spec.pattern, 'kk强制恢复别名') is None
-    assert specs['alias_add_delete'].permission == 'admin'
-    assert specs['alias_recover'].permission == 'admin'
+    specs = {spec.id: spec for spec in load_command_registry()}
+    alias_spec = specs["alias_list"]
+
+    assert re.match(alias_spec.pattern, "kk菲娜别名") is not None
+    assert re.match(alias_spec.pattern, "kk恢复别名") is None
+    assert re.match(alias_spec.pattern, "kk强制恢复别名") is None
+    assert specs["alias_add_delete"].permission == "admin"
+    assert specs["alias_recover"].permission == "admin"

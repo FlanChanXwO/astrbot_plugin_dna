@@ -107,21 +107,29 @@ def test_game_sign_maps_already_signed_code_to_skip() -> None:
 
 def test_game_sign_maps_success_to_done() -> None:
     assert (
-        DnaApiCheckinTransport._game_sign_status(SimpleNamespace(is_success=True, code=0))
+        DnaApiCheckinTransport._game_sign_status(
+            SimpleNamespace(is_success=True, code=0)
+        )
         is SignStatus.DONE
     )
     assert (
-        DnaApiCheckinTransport._game_sign_status(SimpleNamespace(is_success=False, code=500))
+        DnaApiCheckinTransport._game_sign_status(
+            SimpleNamespace(is_success=False, code=500)
+        )
         is SignStatus.FAILED
     )
 
 
 def test_bbs_sign_maps_code_10000_to_done() -> None:
     assert (
-        DnaApiCheckinTransport._bbs_sign_status(SimpleNamespace(is_success=False, code=10000))
+        DnaApiCheckinTransport._bbs_sign_status(
+            SimpleNamespace(is_success=False, code=10000)
+        )
         is SignStatus.DONE
     )
     assert (
-        DnaApiCheckinTransport._bbs_sign_status(SimpleNamespace(is_success=False, code=500))
+        DnaApiCheckinTransport._bbs_sign_status(
+            SimpleNamespace(is_success=False, code=500)
+        )
         is SignStatus.FAILED
     )

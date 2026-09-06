@@ -191,16 +191,12 @@ class CacheManager:
     def _ensure_cache_directory(self, directory: Path) -> None:
         """创建缓存目录，并在写入前确认目录没有越过运行期根目录。"""
 
-        if self.root.is_symlink() or (
-            self.root.exists() and not self.root.is_dir()
-        ):
+        if self.root.is_symlink() or (self.root.exists() and not self.root.is_dir()):
             raise CacheMetadataError("缓存目录路径不安全")
         self.root.mkdir(parents=True, exist_ok=True)
         if self.root.is_symlink() or not self.root.is_dir():
             raise CacheMetadataError("缓存目录路径不安全")
-        if directory.is_symlink() or (
-            directory.exists() and not directory.is_dir()
-        ):
+        if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
             raise CacheMetadataError("缓存目录路径不安全")
         directory.mkdir(parents=True, exist_ok=True)
         if directory.is_symlink() or not directory.is_dir():
@@ -214,7 +210,9 @@ class CacheManager:
         return value.astimezone(timezone.utc)
 
     @staticmethod
-    def _normalize_tags(tags: tuple[str, ...] | list[str] | set[str]) -> tuple[str, ...]:
+    def _normalize_tags(
+        tags: tuple[str, ...] | list[str] | set[str],
+    ) -> tuple[str, ...]:
         if any(not isinstance(tag, str) or not tag for tag in tags):
             raise ValueError("缓存 tags 必须是非空字符串")
         return tuple(dict.fromkeys(tags))
@@ -506,17 +504,21 @@ class CacheManager:
                     continue
                 try:
                     metadata = self._read_metadata(metadata_path)
-                except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+                except (
+                    OSError,
+                    UnicodeError,
+                    json.JSONDecodeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ):
                     # 损坏 sidecar 不能成为成功缓存；保留现场交给后续修复/观测，
                     # 避免清理器在无法确认租约时误删正在使用的内容。
                     continue
                 age_seconds = max(
                     0.0, (normalized_now - metadata.created_at).total_seconds()
                 )
-                if (
-                    age_seconds >= self._ttl_seconds()
-                    and metadata.lease_count == 0
-                ):
+                if age_seconds >= self._ttl_seconds() and metadata.lease_count == 0:
                     if data_path.exists() or data_path.is_symlink():
                         data_path.unlink()
                     if metadata_path.exists() or metadata_path.is_symlink():
@@ -552,9 +554,7 @@ class CacheManager:
         """
 
         normalized_type = (
-            None
-            if cache_type is None
-            else self._validate_cache_type(cache_type)
+            None if cache_type is None else self._validate_cache_type(cache_type)
         )
         key_digest = None if key is None else self.key_digest(key)
         normalized_tags = self._normalize_tags(tags)
@@ -595,7 +595,10 @@ class CacheManager:
                     ValueError,
                 ):
                     continue
-                if normalized_type is not None and metadata.cache_type != normalized_type:
+                if (
+                    normalized_type is not None
+                    and metadata.cache_type != normalized_type
+                ):
                     continue
                 if key_digest is not None and metadata.key != key_digest:
                     continue

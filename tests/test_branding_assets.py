@@ -7,7 +7,9 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_BRANDING_SHA256 = "947a6d4d89bf1edee1ccbab0718bc5d81b62f7009ba789f78cb23da72fb867e9"
+EXPECTED_BRANDING_SHA256 = (
+    "947a6d4d89bf1edee1ccbab0718bc5d81b62f7009ba789f78cb23da72fb867e9"
+)
 
 
 class BrandingAssetsTests(unittest.TestCase):

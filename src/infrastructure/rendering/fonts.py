@@ -6,7 +6,9 @@ from pathlib import Path
 
 from PIL import ImageFont
 
-BUNDLED_FONT_PATH = Path(__file__).resolve().parents[2] / "resources" / "fonts" / "dna_fonts.ttf"
+BUNDLED_FONT_PATH = (
+    Path(__file__).resolve().parents[2] / "resources" / "fonts" / "dna_fonts.ttf"
+)
 
 
 def load_runtime_font(

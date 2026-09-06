@@ -9,7 +9,9 @@ import re
 
 from src.entry.commands import load_command_registry, manifest_records
 
-COMMANDS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "commands.json")
+COMMANDS_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "commands.json"
+)
 
 
 def test_all_commands_nonempty():

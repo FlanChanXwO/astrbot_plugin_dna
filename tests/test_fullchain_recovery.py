@@ -87,9 +87,7 @@ async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) ->
         plugin = GeneratedLoginPlugin()
         object.__setattr__(plugin, "_runtime", runtime)
 
-        result = [
-            item async for item in plugin.handle_account_login(_Event("kk登录"))
-        ]
+        result = [item async for item in plugin.handle_account_login(_Event("kk登录"))]
 
         assert len(result) == 1
         assert result[0].startswith("登录地址：http://localhost:")
@@ -99,7 +97,9 @@ async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) ->
 
 
 @pytest.mark.asyncio
-async def test_local_login_flow_serves_app_routes_and_cleans_completed_session() -> None:
+async def test_local_login_flow_serves_app_routes_and_cleans_completed_session() -> (
+    None
+):
     """本地登录页的 App 短信、提交和通知链路使用同一会话。"""
 
     class AccountTransport:
@@ -263,7 +263,9 @@ async def test_login_flow_unexpected_exception_does_not_log_sensitive_detail(
         ) -> PlainTextResponse:
             raise AssertionError("认证不应在监听异常后执行")
 
-        async def login(self, _actor: EventActor, _attempt: object) -> PlainTextResponse:
+        async def login(
+            self, _actor: EventActor, _attempt: object
+        ) -> PlainTextResponse:
             raise AssertionError("认证不应在监听异常后执行")
 
     flow = LoginFlowCoordinator(
@@ -313,7 +315,9 @@ async def test_login_flow_start_unexpected_exception_returns_stable_message(
         ) -> PlainTextResponse:
             raise AssertionError("启动失败后不应认证")
 
-        async def login(self, _actor: EventActor, _attempt: object) -> PlainTextResponse:
+        async def login(
+            self, _actor: EventActor, _attempt: object
+        ) -> PlainTextResponse:
             raise AssertionError("启动失败后不应认证")
 
     flow = LoginFlowCoordinator(
@@ -374,7 +378,9 @@ async def test_login_flow_sms_unexpected_exception_returns_stable_message(
         ) -> PlainTextResponse:
             raise AssertionError("短信请求失败后不应认证")
 
-        async def login(self, _actor: EventActor, _attempt: object) -> PlainTextResponse:
+        async def login(
+            self, _actor: EventActor, _attempt: object
+        ) -> PlainTextResponse:
             raise AssertionError("短信请求失败后不应认证")
 
     flow = LoginFlowCoordinator(
@@ -505,7 +511,8 @@ def test_credential_migration_drops_web_columns_and_preserves_app_data(
 
     with sqlite3.connect(database_path) as connection:
         columns = {
-            row[1] for row in connection.execute("PRAGMA table_info(credential_records)")
+            row[1]
+            for row in connection.execute("PRAGMA table_info(credential_records)")
         }
         app_record = connection.execute(
             """
@@ -584,7 +591,9 @@ async def test_external_login_flow_notifies_and_cleans_completed_session() -> No
             self.credentials.append(credentials)
             return PlainTextResponse("登录成功")
 
-        async def login(self, _actor: EventActor, _attempt: object) -> PlainTextResponse:
+        async def login(
+            self, _actor: EventActor, _attempt: object
+        ) -> PlainTextResponse:
             return PlainTextResponse("登录成功")
 
     notified: list[str] = []
@@ -645,7 +654,9 @@ async def test_external_login_flow_rejects_unsupported_channel_safely(
         ) -> PlainTextResponse:
             raise AssertionError("不支持的渠道不得进入凭据认证")
 
-        async def login(self, _actor: EventActor, _attempt: object) -> PlainTextResponse:
+        async def login(
+            self, _actor: EventActor, _attempt: object
+        ) -> PlainTextResponse:
             raise AssertionError("不支持的渠道不得进入短信认证")
 
     notified: list[str] = []
@@ -708,7 +719,9 @@ async def test_external_login_flow_deduplicates_concurrent_begin_requests() -> N
         ) -> PlainTextResponse:
             raise AssertionError("取消回执不得进入凭据认证")
 
-        async def login(self, _actor: EventActor, _attempt: object) -> PlainTextResponse:
+        async def login(
+            self, _actor: EventActor, _attempt: object
+        ) -> PlainTextResponse:
             raise AssertionError("取消回执不得进入短信认证")
 
     external = ExternalTransport()
@@ -746,7 +759,9 @@ async def test_login_flow_does_not_remove_replacement_session_during_cleanup() -
         ) -> PlainTextResponse:
             raise AssertionError("local 测试不应走外置凭据认证")
 
-        async def login(self, _actor: EventActor, _attempt: object) -> PlainTextResponse:
+        async def login(
+            self, _actor: EventActor, _attempt: object
+        ) -> PlainTextResponse:
             raise AssertionError("测试不应走短信认证")
 
     flow = LoginFlowCoordinator(
@@ -777,7 +792,9 @@ async def test_login_flow_does_not_remove_replacement_session_during_cleanup() -
 
 
 @pytest.mark.asyncio
-async def test_external_login_cancelled_result_notifies_cancelled_and_cleans_session() -> None:
+async def test_external_login_cancelled_result_notifies_cancelled_and_cleans_session() -> (
+    None
+):
     """外置服务明确返回 cancelled 时应保留取消语义并清理会话。"""
 
     class ExternalTransport:
@@ -795,7 +812,9 @@ async def test_external_login_cancelled_result_notifies_cancelled_and_cleans_ses
         ) -> PlainTextResponse:
             raise AssertionError("取消回执不得进入凭据认证")
 
-        async def login(self, _actor: EventActor, _attempt: object) -> PlainTextResponse:
+        async def login(
+            self, _actor: EventActor, _attempt: object
+        ) -> PlainTextResponse:
             raise AssertionError("取消回执不得进入短信认证")
 
     notified: list[str] = []

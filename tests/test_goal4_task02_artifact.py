@@ -67,7 +67,6 @@ def test_inspector_rejects_empty_html_and_truncated_images(payload: bytes) -> No
         inspect_image(payload, media_type="image/jpeg")
 
 
-
 def test_inspector_does_not_call_pillow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

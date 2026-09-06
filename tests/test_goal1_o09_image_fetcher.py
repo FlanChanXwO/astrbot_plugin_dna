@@ -22,7 +22,12 @@ def _png_bytes() -> bytes:
     return buffer.getvalue()
 
 
-def _response(url: str, content: bytes, status_code: int = 200, headers: dict[str, str] | None = None):
+def _response(
+    url: str,
+    content: bytes,
+    status_code: int = 200,
+    headers: dict[str, str] | None = None,
+):
     return httpx.Response(
         status_code,
         content=content,
@@ -76,7 +81,9 @@ async def test_fetch_retries_transient_errors_with_backoff(tmp_path: Path):
         sleeps.append(delay)
 
     target = tmp_path / "avatar.png"
-    result = await ImageFetcher(client_factory=factory, sleep=fake_sleep).fetch(url, target)
+    result = await ImageFetcher(client_factory=factory, sleep=fake_sleep).fetch(
+        url, target
+    )
 
     assert result == target
     assert factory.client.calls == 3
@@ -139,7 +146,9 @@ async def test_fetch_does_not_retry_http_error_or_write_placeholder(tmp_path: Pa
     target = tmp_path / "missing.png"
 
     with pytest.raises(httpx.HTTPStatusError):
-        await ImageFetcher(client_factory=factory, sleep=lambda _: asyncio.sleep(0)).fetch(
+        await ImageFetcher(
+            client_factory=factory, sleep=lambda _: asyncio.sleep(0)
+        ).fetch(
             url,
             target,
         )
@@ -160,7 +169,9 @@ async def test_fetch_failure_log_does_not_include_signed_url(
     monkeypatch.setattr(image_utils.logger, "warning", messages.append)
 
     with pytest.raises(httpx.HTTPStatusError):
-        await ImageFetcher(client_factory=factory, sleep=lambda _: asyncio.sleep(0)).fetch(
+        await ImageFetcher(
+            client_factory=factory, sleep=lambda _: asyncio.sleep(0)
+        ).fetch(
             url,
             tmp_path / "missing.png",
         )
@@ -183,13 +194,17 @@ async def test_download_rejects_path_escape(tmp_path: Path):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("content", [b"", b"not-an-image"])
-async def test_fetch_rejects_invalid_content_without_cache_file(tmp_path: Path, content: bytes):
+async def test_fetch_rejects_invalid_content_without_cache_file(
+    tmp_path: Path, content: bytes
+):
     url = "https://cdn.example.test/broken.png"
     factory = _ClientFactory([_response(url, content)])
     target = tmp_path / "broken.png"
 
     with pytest.raises(ImageFetchError):
-        await ImageFetcher(client_factory=factory, sleep=lambda _: asyncio.sleep(0)).fetch(
+        await ImageFetcher(
+            client_factory=factory, sleep=lambda _: asyncio.sleep(0)
+        ).fetch(
             url,
             target,
         )
@@ -205,7 +220,9 @@ async def test_fetch_revalidates_existing_corrupt_file_before_reuse(tmp_path: Pa
     target.write_bytes(b"corrupt-cache")
     factory = _ClientFactory([_response(url, _png_bytes())])
 
-    await ImageFetcher(client_factory=factory, sleep=lambda _: asyncio.sleep(0)).fetch(url, target)
+    await ImageFetcher(client_factory=factory, sleep=lambda _: asyncio.sleep(0)).fetch(
+        url, target
+    )
 
     assert factory.client.calls == 1
     with Image.open(target) as image:
@@ -222,7 +239,9 @@ async def test_legacy_image_helper_revalidates_existing_corrupt_file(
     target.write_bytes(b"corrupt-cache")
     calls: list[str] = []
 
-    async def fake_download(download_url: str, path: Path, name: str, tag: str = "") -> Path:
+    async def fake_download(
+        download_url: str, path: Path, name: str, tag: str = ""
+    ) -> Path:
         calls.append(download_url)
         del tag
         downloaded = path / name
@@ -247,7 +266,9 @@ async def test_event_avatar_revalidates_existing_corrupt_file(
     target.write_bytes(b"corrupt-cache")
     calls: list[str] = []
 
-    async def fake_download(download_url: str, path: Path, name: str, tag: str = "") -> Path:
+    async def fake_download(
+        download_url: str, path: Path, name: str, tag: str = ""
+    ) -> Path:
         calls.append(download_url)
         del tag
         downloaded = path / name

@@ -99,7 +99,9 @@ def test_plugin_page_wraps_petite_vue_else_fragment_in_an_element() -> None:
 def test_confirmation_overlay_stacks_above_drawer_overlay() -> None:
     """编辑抽屉打开确认框时，确认层必须接收真实点击。"""
 
-    stylesheet = Path(__file__).parents[1] / "pages" / "dashboard" / "css" / "dashboard.css"
+    stylesheet = (
+        Path(__file__).parents[1] / "pages" / "dashboard" / "css" / "dashboard.css"
+    )
     source = stylesheet.read_text(encoding="utf-8")
 
     assert re.search(

@@ -88,9 +88,12 @@ def _inspect_jpeg(data: bytes) -> ImageInspection:
     width = height = 0
     saw_sof = False
     saw_eoi = False
-    sof_markers = set(range(0xC0, 0xC4)) | set(range(0xC5, 0xC8)) | set(
-        range(0xC9, 0xCC)
-    ) | set(range(0xCD, 0xD0))
+    sof_markers = (
+        set(range(0xC0, 0xC4))
+        | set(range(0xC5, 0xC8))
+        | set(range(0xC9, 0xCC))
+        | set(range(0xCD, 0xD0))
+    )
     while offset < len(data):
         if data[offset] != 0xFF:
             raise ValueError("JPEG marker 无效")

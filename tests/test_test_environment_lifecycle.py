@@ -22,7 +22,9 @@ def test_pytest_environment_uses_session_copy_outside_repository() -> None:
     assert (data_root / "resource" / "alias" / "char_alias.json").is_file()
 
 
-def test_cleanup_is_idempotent_for_missing_session_root(tmp_path: Path, monkeypatch) -> None:
+def test_cleanup_is_idempotent_for_missing_session_root(
+    tmp_path: Path, monkeypatch
+) -> None:
     owned_root = tmp_path / "dnaby-pytest-owned"
     owned_root.mkdir()
     (owned_root / "runtime.txt").write_text("test", encoding="utf-8")

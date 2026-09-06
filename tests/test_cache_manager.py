@@ -242,7 +242,9 @@ async def test_cache_manager_returns_miss_at_unified_ttl_boundary(tmp_path) -> N
 
 
 @pytest.mark.asyncio
-async def test_sidecar_metadata_is_persisted_without_the_raw_cache_key(tmp_path) -> None:
+async def test_sidecar_metadata_is_persisted_without_the_raw_cache_key(
+    tmp_path,
+) -> None:
     manager = CacheManager(tmp_path)
 
     await manager.put(

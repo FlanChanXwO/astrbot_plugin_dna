@@ -36,14 +36,18 @@ async def admin(tmp_path: Path):
         subscriptions,
         announcement_target_service=targets,
     )
-    created = await targets.subscribe(origin="platform:group:g1", group_id="g1", bot_id="b1")
+    created = await targets.subscribe(
+        origin="platform:group:g1", group_id="g1", bot_id="b1"
+    )
     assert created.subscription is not None
     target_id = encode_target_id(created.subscription)
     return api, target_id, subscriptions
 
 
 @pytest.mark.asyncio
-async def test_admin_enable_disable_delete_use_announcement_target_service(admin) -> None:
+async def test_admin_enable_disable_delete_use_announcement_target_service(
+    admin,
+) -> None:
     api, target_id, subscriptions = admin
 
     disabled = await api.disable_target(target_id)

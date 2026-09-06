@@ -176,7 +176,9 @@ def test_semantic_contract_rejects_duplicate_codes_and_reversed_dates() -> None:
         "expires_at": "2026-08-01T00:00:00+08:00",
     }
 
-    errors = _semantic_errors([duplicate, duplicate_with_other_metadata, reversed_dates])
+    errors = _semantic_errors(
+        [duplicate, duplicate_with_other_metadata, reversed_dates]
+    )
     assert "duplicate code: SAME" in errors
     assert "data[2] valid_from must be before expires_at" in errors
 
@@ -189,9 +191,11 @@ def test_migrated_data_matches_the_public_legacy_end_at_snapshot() -> None:
     assert legacy["code"] == 0
     assert [item["code"] for item in legacy["data"]] == list(migrated_by_code)
     for old_entry in legacy["data"]:
-        expected_expiry = datetime.fromtimestamp(
-            old_entry["end_at"], timezone.utc
-        ).astimezone(ZoneInfo("Asia/Shanghai")).isoformat()
+        expected_expiry = (
+            datetime.fromtimestamp(old_entry["end_at"], timezone.utc)
+            .astimezone(ZoneInfo("Asia/Shanghai"))
+            .isoformat()
+        )
         migrated_entry = migrated_by_code[old_entry["code"]]
         assert migrated_entry == {
             "code": old_entry["code"],

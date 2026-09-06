@@ -49,7 +49,9 @@ class AnnStateStore:
             await self.load()
             pending = [post_id for post_id in fresh_ids if post_id not in self._ids]
             if pending or not self._ids:
-                merged = sorted(set(self._ids) | set(fresh_ids), reverse=True)[:_KNOWN_LIMIT]
+                merged = sorted(set(self._ids) | set(fresh_ids), reverse=True)[
+                    :_KNOWN_LIMIT
+                ]
                 self._ids = merged
                 self._save_unlocked()
             return pending

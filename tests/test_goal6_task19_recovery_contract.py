@@ -12,7 +12,12 @@ from src.bootstrap import build_runtime
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.checkin import messages as checkin_messages
-from src.modules.checkin.contracts import DayAward, SignCalendar, SignStatus, TaskProcess
+from src.modules.checkin.contracts import (
+    DayAward,
+    SignCalendar,
+    SignStatus,
+    TaskProcess,
+)
 from src.utils.api.requests import DNAApi
 from src.utils.api import ws_manager as ws_manager_module
 
@@ -53,7 +58,9 @@ class _FakeWebSocketApp:
 def _build_legacy_ws_probe(
     monkeypatch: pytest.MonkeyPatch,
     proxy_url: str,
-) -> tuple[DNAApi, _AppTransportSpy, ws_manager_module.WebSocketManager, _FakeWebSocketApp]:
+) -> tuple[
+    DNAApi, _AppTransportSpy, ws_manager_module.WebSocketManager, _FakeWebSocketApp
+]:
     """从 DNAApi 公共配置入口启动一次 legacy 业务 WS。"""
 
     manager = ws_manager_module.WebSocketManager()
@@ -182,7 +189,9 @@ class _RestartCheckinTransport:
         *,
         credential_user_id: str,
     ) -> TaskProcess:
-        raise AssertionError(f"社区任务不应在空任务配置下调用: {uid}/{credential_user_id}")
+        raise AssertionError(
+            f"社区任务不应在空任务配置下调用: {uid}/{credential_user_id}"
+        )
 
 
 def _restart_runtime_config() -> dict[str, object]:

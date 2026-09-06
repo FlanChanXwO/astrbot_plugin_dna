@@ -39,7 +39,9 @@ def _read_alias_data(alias_path: Path, ensure_file: bool = False) -> dict[str, A
         return {}
 
 
-def _merge_alias_data(builtin: dict[str, list[str]], extra: dict[str, list[str]]) -> dict[str, list[str]]:
+def _merge_alias_data(
+    builtin: dict[str, list[str]], extra: dict[str, list[str]]
+) -> dict[str, list[str]]:
     """内置层在前，data 层（自动+自定义）去重追加"""
     merged = {name: list(aliases) for name, aliases in builtin.items()}
     for name, aliases in extra.items():
@@ -48,7 +50,9 @@ def _merge_alias_data(builtin: dict[str, list[str]], extra: dict[str, list[str]]
     return merged
 
 
-def _fill_auto_alias(metadatas: list[dict[str, Any]], alias_data: dict[str, list[str]]) -> None:
+def _fill_auto_alias(
+    metadatas: list[dict[str, Any]], alias_data: dict[str, list[str]]
+) -> None:
     for meta in metadatas:
         name = meta["name"]
         if name not in alias_data or len(alias_data[name]) == 0:
@@ -57,11 +61,18 @@ def _fill_auto_alias(metadatas: list[dict[str, Any]], alias_data: dict[str, list
 
 async def rebuild_name_convert(role_show: RoleShowForTool, is_force: bool = False):
     """用游戏接口的角色/武器列表重建自动别名层（只写 data 目录，不动内置层）"""
-    char_alias = {} if is_force else await asyncio.to_thread(_read_alias_data, CHAR_ALIAS_PATH)
-    weapon_alias = {} if is_force else await asyncio.to_thread(_read_alias_data, WEAPON_ALIAS_PATH)
+    char_alias = (
+        {} if is_force else await asyncio.to_thread(_read_alias_data, CHAR_ALIAS_PATH)
+    )
+    weapon_alias = (
+        {} if is_force else await asyncio.to_thread(_read_alias_data, WEAPON_ALIAS_PATH)
+    )
 
     role_metadatas = [{"name": i.name, "id": i.charId} for i in role_show.roleChars]
-    weapon_metadatas = [{"name": i.name, "id": i.weaponId} for i in role_show.langRangeWeapons + role_show.closeWeapons]
+    weapon_metadatas = [
+        {"name": i.name, "id": i.weaponId}
+        for i in role_show.langRangeWeapons + role_show.closeWeapons
+    ]
     _fill_auto_alias(role_metadatas, char_alias)
     _fill_auto_alias(weapon_metadatas, weapon_alias)
     id2name = {str(i["id"]): i["name"] for i in role_metadatas + weapon_metadatas}
@@ -107,7 +118,9 @@ def load_alias_data():
 
     builtin_char_alias_data = _read_alias_data(BUILTIN_CHAR_ALIAS_PATH)
     builtin_weapon_alias_data = _read_alias_data(BUILTIN_WEAPON_ALIAS_PATH)
-    char_alias_data = _merge_alias_data(builtin_char_alias_data, _read_alias_data(CHAR_ALIAS_PATH, ensure_file=True))
+    char_alias_data = _merge_alias_data(
+        builtin_char_alias_data, _read_alias_data(CHAR_ALIAS_PATH, ensure_file=True)
+    )
     weapon_alias_data = _merge_alias_data(
         builtin_weapon_alias_data, _read_alias_data(WEAPON_ALIAS_PATH, ensure_file=True)
     )

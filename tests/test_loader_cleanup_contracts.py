@@ -21,7 +21,9 @@ FIXTURE_ASTRBOT_SPEC = "fixture-spec"
 
 
 def _load_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("goal5_loader_cleanup_contracts", CI_SCRIPT)
+    spec = importlib.util.spec_from_file_location(
+        "goal5_loader_cleanup_contracts", CI_SCRIPT
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -52,7 +54,9 @@ class _RuntimeState:
 
 
 class _FakePlugin:
-    def __init__(self, state: _RuntimeState, events: list[str], *, leak_task: bool) -> None:
+    def __init__(
+        self, state: _RuntimeState, events: list[str], *, leak_task: bool
+    ) -> None:
         self.state = state
         self.events = events
         self.leak_task = leak_task
@@ -263,9 +267,7 @@ class LoaderCleanupContractTests(unittest.IsolatedAsyncioTestCase):
         module = _load_module()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            config_path = (
-                root / "data" / "config" / f"{PLUGIN_NAME}_config.json"
-            )
+            config_path = root / "data" / "config" / f"{PLUGIN_NAME}_config.json"
             config_path.parent.mkdir(parents=True)
             config_path.write_text(
                 json.dumps({"login": {"port": 0}}),

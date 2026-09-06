@@ -20,7 +20,9 @@ def test_local_login_server_serves_login_page():
                 async with client.get(f"{server.base_url}/dna/i/{auth}") as response:
                     assert response.status == 200
                     assert "登录" in await response.text()
-                async with client.get(f"{server.base_url}/dna/i/missing-auth") as response:
+                async with client.get(
+                    f"{server.base_url}/dna/i/missing-auth"
+                ) as response:
                     assert response.status == 404
                 async with client.post(
                     f"{server.base_url}/dna/login",

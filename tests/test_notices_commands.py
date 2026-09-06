@@ -75,16 +75,24 @@ async def test_notices_handler_reports_service_missing() -> None:
 
     spec = load_command_registry().get("mh")
 
-    result = await cast(Awaitable, spec.use_case(
-        SimpleNamespace(
-            command_id="mh",
-            text="kk密函",
-            parameters={},
-            actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1", unified_msg_origin="group-1"),
-            services={},
+    result = await cast(
+        Awaitable,
+        spec.use_case(
+            SimpleNamespace(
+                command_id="mh",
+                text="kk密函",
+                parameters={},
+                actor=SimpleNamespace(
+                    user_id="user-1",
+                    bot_id="bot-1",
+                    group_id="group-1",
+                    unified_msg_origin="group-1",
+                ),
+                services={},
+            ),
+            load_command_registry(),
         ),
-        load_command_registry(),
-    ))
+    )
 
     assert result == PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
 
@@ -178,18 +186,40 @@ async def test_generated_mh_subscribe_handler_ats_user_in_group_chat() -> None:
     from astrbot.api.message_components import At, Plain
 
     class FakeNoticesService:
-        async def mh(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def mh_list(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def ann(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+        async def mh(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
+        async def mh_list(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
+        async def ann(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
         async def subscribe_mh(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("成功订阅密函【角色:拆解,武器:拆解,魔之楔:拆解】", need_at=True)
-        async def unsubscribe_mh(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def mh_subscriptions(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def set_mh_push_time(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def toggle_mh_pic(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def toggle_mh_text(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def subscribe_ann(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
-        async def unsubscribe_ann(self, _request: object) -> PlainTextResponse: return PlainTextResponse("")
+            return PlainTextResponse(
+                "成功订阅密函【角色:拆解,武器:拆解,魔之楔:拆解】", need_at=True
+            )
+
+        async def unsubscribe_mh(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
+        async def mh_subscriptions(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
+        async def set_mh_push_time(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
+        async def toggle_mh_pic(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
+        async def toggle_mh_text(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
+        async def subscribe_ann(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
+
+        async def unsubscribe_ann(self, _request: object) -> PlainTextResponse:
+            return PlainTextResponse("")
 
     class GeneratedNoticesPlugin:
         __module__ = "tests.generated_notices_plugin"
@@ -275,12 +305,23 @@ async def test_notices_service_adapts_prefix_for_forbidden_and_time_format():
     from src.entry.commands import CommandRequest
     from src.modules.notices.service import NoticesService
 
-    service = NoticesService(database=SimpleNamespace(), transport=SimpleNamespace(), privacy=SimpleNamespace(), renderer=SimpleNamespace(), subscriptions=SimpleNamespace())
+    service = NoticesService(
+        database=SimpleNamespace(),
+        transport=SimpleNamespace(),
+        privacy=SimpleNamespace(),
+        renderer=SimpleNamespace(),
+        subscriptions=SimpleNamespace(),
+    )
     req_dna = CommandRequest(
         command_id="mh_subscribe_by_name",
         text="dna订阅全部密函",
         parameters={"mh_name": "全部"},
-        actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1", unified_msg_origin="group-1"),
+        actor=SimpleNamespace(
+            user_id="user-1",
+            bot_id="bot-1",
+            group_id="group-1",
+            unified_msg_origin="group-1",
+        ),
         matched_prefix="dna",
     )
     res = await service.subscribe_mh(req_dna)
@@ -290,7 +331,12 @@ async def test_notices_service_adapts_prefix_for_forbidden_and_time_format():
         command_id="mh_subscribe_cycle",
         text="dna订阅密函时间",
         parameters={"start": "invalid", "end": "invalid"},
-        actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1", unified_msg_origin="group-1"),
+        actor=SimpleNamespace(
+            user_id="user-1",
+            bot_id="bot-1",
+            group_id="group-1",
+            unified_msg_origin="group-1",
+        ),
         matched_prefix="dna",
     )
     res_time = await service.set_mh_push_time(req_time)

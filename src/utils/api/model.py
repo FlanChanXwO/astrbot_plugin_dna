@@ -23,7 +23,9 @@ class DNALoginRes(BaseModel):
     userGameList: list[UserGame] = Field(description="userGameList")
     isRegister: int = Field(description="isRegister", default=0)
     status: int | None = Field(description="status", default=0)
-    isComplete: int | None = Field(description="isComplete 是否完成绑定 0: 未绑定, 1: 已绑定", default=0)
+    isComplete: int | None = Field(
+        description="isComplete 是否完成绑定 0: 未绑定, 1: 已绑定", default=0
+    )
     refreshToken: str = Field(exclude=True, description="refreshToken")
 
 
@@ -56,7 +58,9 @@ class DNARoleForToolInstance(BaseModel):
 class DNARoleForToolInstanceInfo(BaseModel):
     instances: list[DNARoleForToolInstance] = Field(description="instances")
 
-    mh_type: Literal["role", "weapon", "mzx"] | None = Field(description="mh_type", default=None)
+    mh_type: Literal["role", "weapon", "mzx"] | None = Field(
+        description="mh_type", default=None
+    )
 
 
 class DraftDoingInfo(BaseModel):
@@ -70,7 +74,9 @@ class DraftDoingInfo(BaseModel):
 
 
 class DraftInfo(BaseModel):
-    draftDoingInfo: list[DraftDoingInfo] | None = Field(description="draftDoingInfo", default=None)
+    draftDoingInfo: list[DraftDoingInfo] | None = Field(
+        description="draftDoingInfo", default=None
+    )
     draftDoingNum: int = Field(description="正在做的锻造")
     draftMaxNum: int = Field(description="最大锻造数量")
 

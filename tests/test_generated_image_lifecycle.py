@@ -82,7 +82,11 @@ async def test_help_image_is_tracked_and_cleaned(tmp_path: Path) -> None:
     assert Path(response.image).parent == rendered_root
     event = CleanupEvent()
     ResponseFactory(temporary_roots=(rendered_root,)).build(event, response)
-    assert event.tracked == [str(response.image), str(response.sidecar), str(response.manifest)]
+    assert event.tracked == [
+        str(response.image),
+        str(response.sidecar),
+        str(response.manifest),
+    ]
     event.cleanup_temporary_local_files()
     assert not Path(response.image).exists()
     assert response.sidecar is not None and not Path(response.sidecar).exists()

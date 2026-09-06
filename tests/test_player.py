@@ -158,12 +158,16 @@ class FixturePlayerTransport:
 
 
 @pytest.mark.asyncio
-async def test_role_detail_does_not_request_damage_for_normal_app_card(tmp_path: Path) -> None:
+async def test_role_detail_does_not_request_damage_for_normal_app_card(
+    tmp_path: Path,
+) -> None:
     """正常角色详情只读取基础资料，不调用伤害计算 API。"""
 
     _preseed_legacy_assets()
     database = await _database_with_binding(tmp_path)
-    transport = FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture())
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
     service = PlayerService(
         database,
         transport,
@@ -311,7 +315,9 @@ def _weapon_fixture() -> WeaponDetail:
         icon="weapon://201",
         weapon_id=201,
         level=80,
-        modes=[Mode(id=4001, icon="weapon-mode://1", quality=3, name="武器楔", level=2)],
+        modes=[
+            Mode(id=4001, icon="weapon-mode://1", quality=3, name="武器楔", level=2)
+        ],
         name="近战甲",
         skill_level=5,
         sum_volume=8,
@@ -351,7 +357,9 @@ def _damage_fixture() -> DamageSnapshot:
             con_weapon_damage="2000",
             ranged_weapon_damage="3000",
         ),
-        final_attribute=AttributeBag.model_validate({"atk": 2345, "hp": 6789, "extra_metric": 1}),
+        final_attribute=AttributeBag.model_validate(
+            {"atk": 2345, "hp": 6789, "extra_metric": 1}
+        ),
         base_attribute=AttributeBag(atk=1234, hp=5678),
     )
 
@@ -376,12 +384,16 @@ async def _database_with_binding(
 
 
 @pytest.mark.asyncio
-async def test_role_overview_returns_runtime_image_and_preserves_all_items(tmp_path: Path) -> None:
+async def test_role_overview_returns_runtime_image_and_preserves_all_items(
+    tmp_path: Path,
+) -> None:
     """概览图是 ImageResponse，合法角色/武器和元数据不能被截断。"""
 
     _preseed_legacy_assets()
     database = await _database_with_binding(tmp_path)
-    transport = FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture())
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
     renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())
     service = PlayerService(
         database,
@@ -417,8 +429,14 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(tmp_p
         "近战武器",
         "远程武器",
     ]
-    assert any(item["kind"] == "role_avatar" and item["status"] == "legacy_download" for item in resources)
-    assert any(item["kind"] == "weapon_icon" and item["status"] == "legacy_download" for item in resources)
+    assert any(
+        item["kind"] == "role_avatar" and item["status"] == "legacy_download"
+        for item in resources
+    )
+    assert any(
+        item["kind"] == "weapon_icon" and item["status"] == "legacy_download"
+        for item in resources
+    )
     await database.dispose()
 
 
@@ -427,7 +445,9 @@ async def test_player_query_uses_target_account_credentials(tmp_path: Path) -> N
     """@ 他人查询时 transport 必须使用目标用户的凭据所有者。"""
 
     _preseed_legacy_assets()
-    database = await _database_with_binding(tmp_path, user_id="target-1", uid=TARGET_UID)
+    database = await _database_with_binding(
+        tmp_path, user_id="target-1", uid=TARGET_UID
+    )
     transport = FixturePlayerTransport(
         _overview_fixture(),
         _detail_fixture(),
@@ -455,13 +475,17 @@ async def test_player_query_uses_target_account_credentials(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
-async def test_role_detail_renders_all_basic_sections_and_original_path(tmp_path: Path) -> None:
+async def test_role_detail_renders_all_basic_sections_and_original_path(
+    tmp_path: Path,
+) -> None:
     """详情图保留基础角色资料、技能、魔之楔和武器字段。"""
 
     original = tmp_path / "original-panel.png"
     Image.new("RGBA", (37, 53), "purple").save(original)
     database = await _database_with_binding(tmp_path)
-    transport = FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture())
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
     renderer = PlayerRenderer(
         tmp_path / "rendered",
         ResourceMap(original_panels={"101": original}),
@@ -500,7 +524,10 @@ async def test_role_detail_renders_all_basic_sections_and_original_path(tmp_path
         "武器",
         "魔之楔",
     ]
-    assert any(item["kind"] == "original_panel" and item["status"] == "provided" for item in resources)
+    assert any(
+        item["kind"] == "original_panel" and item["status"] == "provided"
+        for item in resources
+    )
     original_response = await service.original_image(
         PlayerCommandRequest(
             actor=EventActor("user-1", "bot-1"),
@@ -514,7 +541,9 @@ async def test_role_detail_renders_all_basic_sections_and_original_path(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_concurrent_role_details_keep_their_related_original_paths(tmp_path: Path) -> None:
+async def test_concurrent_role_details_keep_their_related_original_paths(
+    tmp_path: Path,
+) -> None:
     """同一 service 的并发详情响应必须各自关联自己的原始面板。"""
 
     class ConcurrentTransport(FixturePlayerTransport):
@@ -696,11 +725,19 @@ async def test_normal_detail_does_not_expose_or_request_damage_payload(
 
 
 @pytest.mark.asyncio
-async def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_path: Path) -> None:
+async def test_player_renderer_marks_runtime_root_assets_and_missing_values(
+    tmp_path: Path,
+) -> None:
     """玩家图片的资源 metadata 必须区分私有根提供的素材与 placeholder。"""
 
     resource_root = tmp_path / "resources"
-    font_source = Path(__file__).resolve().parents[1] / "src" / "resources" / "fonts" / "dna_fonts.ttf"
+    font_source = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "resources"
+        / "fonts"
+        / "dna_fonts.ttf"
+    )
     font = resource_root / "fonts" / "dna_fonts.ttf"
     avatar = resource_root / "images" / "role_avatar" / "101.png"
     paint = resource_root / "images" / "role_paint" / "101.png"
@@ -710,7 +747,9 @@ async def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_
         Image.new("RGBA", (17, 19), color).save(path)
     font.parent.mkdir(parents=True, exist_ok=True)
     copyfile(font_source, font)
-    renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap.from_root(resource_root))
+    renderer = PlayerRenderer(
+        tmp_path / "rendered", ResourceMap.from_root(resource_root)
+    )
 
     overview = await renderer.render_overview(
         _overview_fixture(),
@@ -730,11 +769,15 @@ async def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_
         for item in overview.resources
     )
     assert any(
-        item["kind"] == "role_avatar" and item["key"] == "101" and item["status"] == "provided"
+        item["kind"] == "role_avatar"
+        and item["key"] == "101"
+        and item["status"] == "provided"
         for item in overview.resources
     )
     assert any(
-        item["kind"] == "role_avatar" and item["key"] == "102" and item["status"] == "placeholder"
+        item["kind"] == "role_avatar"
+        and item["key"] == "102"
+        and item["status"] == "placeholder"
         for item in overview.resources
     )
     assert any(
@@ -778,13 +821,17 @@ async def test_role_detail_exposes_con_weapon_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_original_image_reports_unsupported_without_public_delivery_id(tmp_path: Path) -> None:
+async def test_original_image_reports_unsupported_without_public_delivery_id(
+    tmp_path: Path,
+) -> None:
     """没有发送后消息 ID 时，原图命令必须显式报告未支持。"""
 
     database = await _database_with_binding(tmp_path)
     service = PlayerService(
         database,
-        FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture()),
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
         PrivacyService(database),
         PlayerRenderer(tmp_path / "rendered", ResourceMap()),
     )
@@ -810,7 +857,9 @@ async def test_player_query_errors_are_visible_and_typed(tmp_path: Path) -> None
     await database.create_schema_for_tests()
     service = PlayerService(
         database,
-        FixturePlayerTransport(_overview_fixture(), _detail_fixture(), _weapon_fixture()),
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
         PrivacyService(database),
         PlayerRenderer(tmp_path / "rendered", ResourceMap()),
     )
@@ -827,7 +876,11 @@ async def test_player_query_errors_are_visible_and_typed(tmp_path: Path) -> None
     assert isinstance(original_response, PlainTextResponse)
     assert "引用" in original_response.text
     await database.dispose()
-def test_player_renderer_uses_bundled_chinese_font_without_private_resources(tmp_path: Path) -> None:
+
+
+def test_player_renderer_uses_bundled_chinese_font_without_private_resources(
+    tmp_path: Path,
+) -> None:
     """私有字体缺失时仍须使用随包中文字体，不能退回拉丁默认字体产生方块。"""
 
     renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())

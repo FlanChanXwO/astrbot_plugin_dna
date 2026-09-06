@@ -16,7 +16,9 @@ if TYPE_CHECKING:
     from ...entry.commands import CommandRegistry, PermissionName
 
 HELP_DATA = Path(__file__).parents[2] / "resources" / "help" / "help.json"
-BACKGROUND_PATH = Path(__file__).parents[2] / "resources" / "textures" / "help" / "bg.jpg"
+BACKGROUND_PATH = (
+    Path(__file__).parents[2] / "resources" / "textures" / "help" / "bg.jpg"
+)
 HELP_FONT_PATH = Path(__file__).parents[2] / "resources" / "fonts" / "MiSansVF.woff2"
 ICON_DIR = Path(__file__).parents[2] / "resources" / "help" / "icon_path"
 
@@ -93,7 +95,9 @@ def _find_icon(name: str) -> Path:
     return icon_dir / "通用.png"
 
 
-def _help_sections(plugin_help: dict[str, Any], prefix: str = "kk") -> list[dict[str, Any]]:
+def _help_sections(
+    plugin_help: dict[str, Any], prefix: str = "kk"
+) -> list[dict[str, Any]]:
     """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
     sections: list[dict[str, Any]] = []
     for name in _ordered_group_names(plugin_help):
@@ -103,7 +107,9 @@ def _help_sections(plugin_help: dict[str, Any], prefix: str = "kk") -> list[dict
             item_name = str(command.get("name", ""))
             items.append(
                 {
-                    "example": _format_example(str(command.get("eg", "")), prefix=prefix),
+                    "example": _format_example(
+                        str(command.get("eg", "")), prefix=prefix
+                    ),
                     "icon": image_data_uri(_find_icon(item_name)),
                     "name": item_name,
                 }
@@ -135,7 +141,9 @@ def _registry_help_sections(
     }
     grouped: dict[str, list[dict[str, Any]]] = {}
     configured_prefixes = tuple(
-        sorted((prefix for prefix in registry.prefixes if prefix), key=len, reverse=True),
+        sorted(
+            (prefix for prefix in registry.prefixes if prefix), key=len, reverse=True
+        ),
     )
     for spec in registry.visible_specs(permission):
         examples = []
@@ -184,7 +192,12 @@ def _card_height(sections: list[dict[str, Any]], lines: list[dict[str, Any]]) ->
     else:
         rows = max(1, (len(lines) + 3) // 4)
         content_bottom = 900 + rows * 175
-    return content_bottom + HELP_FOOTER_MARGIN_TOP + HELP_FOOTER_HEIGHT + HELP_FOOTER_MARGIN_BOTTOM
+    return (
+        content_bottom
+        + HELP_FOOTER_MARGIN_TOP
+        + HELP_FOOTER_HEIGHT
+        + HELP_FOOTER_MARGIN_BOTTOM
+    )
 
 
 async def get_help(
@@ -196,7 +209,9 @@ async def get_help(
 ) -> bytes:
     """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
 
-    cache_key = (registry, prefix, permission, version) if registry is not None else None
+    cache_key = (
+        (registry, prefix, permission, version) if registry is not None else None
+    )
     if cache_key is not None and cache_key in _HELP_CACHE:
         return _HELP_CACHE[cache_key]
 
@@ -210,15 +225,27 @@ async def get_help(
     template_data = {
         "background": image_data_uri(BACKGROUND_PATH),
         "banner": image_data_uri(
-            Path(__file__).parents[2] / "resources" / "textures" / "help" / "banner_bg.jpg",
+            Path(__file__).parents[2]
+            / "resources"
+            / "textures"
+            / "help"
+            / "banner_bg.jpg",
         ),
         "cag_background": image_data_uri(
-            Path(__file__).parents[2] / "resources" / "textures" / "help" / "cag_bg.png",
+            Path(__file__).parents[2]
+            / "resources"
+            / "textures"
+            / "help"
+            / "cag_bg.png",
         ),
         "card_height": _card_height(sections, lines),
         "font": font_data_uri(HELP_FONT_PATH),
         "footer": image_data_uri(
-            Path(__file__).parents[2] / "resources" / "textures" / "common" / "footer.png",
+            Path(__file__).parents[2]
+            / "resources"
+            / "textures"
+            / "common"
+            / "footer.png",
         ),
         "icon": image_data_uri(Path(__file__).parents[3] / "ICON.png"),
         "item_background": image_data_uri(

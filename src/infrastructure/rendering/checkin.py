@@ -76,7 +76,9 @@ async def _draw_sign_calendar(
         award = award_dict.get(day)
         icon = None
         if award:
-            icon = pil_image_data_uri(await download_pic_from_url(SIGN_PATH, award.iconUrl, size=(140, 140)))
+            icon = pil_image_data_uri(
+                await download_pic_from_url(SIGN_PATH, award.iconUrl, size=(140, 140))
+            )
         return {
             "amount": award.awardNum if award else 0,
             "current": day == (sign_data.signinTime or 0),
@@ -86,9 +88,19 @@ async def _draw_sign_calendar(
         }
 
     over_days = sign_data.period.overDays if sign_data.period else 30
-    awards = list(await asyncio.gather(*(build_award(day) for day in range(1, over_days + 1))))
+    awards = list(
+        await asyncio.gather(*(build_award(day) for day in range(1, over_days + 1)))
+    )
 
-    height = 30 + 270 + 120 + 100 * 2 + 50 + (60 * len(tasks) + 20 if tasks else 0) + 240 * ((over_days + 6) // 7)
+    height = (
+        30
+        + 270
+        + 120
+        + 100 * 2
+        + 50
+        + (60 * len(tasks) + 20 if tasks else 0)
+        + 240 * ((over_days + 6) // 7)
+    )
 
     return await _RENDERER.render(
         "cards/sign_calendar.html.j2",
@@ -157,7 +169,9 @@ class RenderedCheckinImage:
 class CheckinRenderer:
     """将 typed 快照无损还原为 legacy 模型并绘制原版签到卡。"""
 
-    def __init__(self, output_dir: str | Path, resources: EncyclopediaResourceStore) -> None:
+    def __init__(
+        self, output_dir: str | Path, resources: EncyclopediaResourceStore
+    ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
 
@@ -275,9 +289,7 @@ class CheckinRenderer:
         artifact = RenderedArtifact.from_bytes(
             image_bytes, media_type="image/jpeg", metadata=metadata
         )
-        response = write_rendered_artifact(
-            self.output_dir, artifact, prefix="checkin-"
-        )
+        response = write_rendered_artifact(self.output_dir, artifact, prefix="checkin-")
         return RenderedCheckinImage(
             path=Path(response.image),
             width=artifact.width,

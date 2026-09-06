@@ -18,7 +18,9 @@ def _jpeg_bytes(*, size: tuple[int, int] = (37, 19)) -> bytes:
     return buffer.getvalue()
 
 
-def test_encyclopedia_writer_publishes_original_t2i_jpeg_and_sidecar(tmp_path: Path) -> None:
+def test_encyclopedia_writer_publishes_original_t2i_jpeg_and_sidecar(
+    tmp_path: Path,
+) -> None:
     payload = _jpeg_bytes()
     renderer = EncyclopediaRenderer(
         tmp_path / "rendered",
@@ -28,7 +30,9 @@ def test_encyclopedia_writer_publishes_original_t2i_jpeg_and_sidecar(tmp_path: P
     rendered = renderer._write(
         payload,
         lines=["资料玩家", "UID ***"],
-        resources=[{"kind": "font", "key": "dna_fonts", "status": "placeholder", "source": ""}],
+        resources=[
+            {"kind": "font", "key": "dna_fonts", "status": "placeholder", "source": ""}
+        ],
         sections=[{"name": "便笺", "items": 4}],
     )
 

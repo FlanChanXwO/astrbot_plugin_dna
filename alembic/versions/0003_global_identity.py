@@ -39,7 +39,9 @@ def _create_global_identity_tables() -> None:
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("group_id", sa.Text(), nullable=True),
         sa.Column("uid", sa.Text(), nullable=False),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column(
+            "is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_account_bindings"),
         sa.UniqueConstraint(
             "user_id",
@@ -65,7 +67,9 @@ def _create_global_identity_tables() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("uid", sa.Text(), nullable=False),
-        sa.Column("app_cookie", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "app_cookie", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.Column(
             "app_device_code",
             sa.Text(),
@@ -79,7 +83,9 @@ def _create_global_identity_tables() -> None:
             server_default=sa.text("''"),
             nullable=False,
         ),
-        sa.Column("app_status", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "app_status", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.Column("web_token", sa.Text(), server_default=sa.text("''"), nullable=False),
         sa.Column(
             "web_device_code",
@@ -94,7 +100,9 @@ def _create_global_identity_tables() -> None:
             server_default=sa.text("''"),
             nullable=False,
         ),
-        sa.Column("web_status", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "web_status", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_credential_records"),
         sa.UniqueConstraint(
             "user_id",
@@ -113,8 +121,12 @@ def _create_global_identity_tables() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("group_id", sa.Text(), nullable=True),
-        sa.Column("allow_peek", sa.Boolean(), server_default=sa.text("1"), nullable=False),
-        sa.Column("uid_hidden", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "allow_peek", sa.Boolean(), server_default=sa.text("1"), nullable=False
+        ),
+        sa.Column(
+            "uid_hidden", sa.Boolean(), server_default=sa.text("0"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_privacy_settings"),
         sa.UniqueConstraint(
             "user_id",
@@ -159,7 +171,9 @@ def _create_legacy_identity_tables() -> None:
         sa.Column("bot_id", sa.Text(), nullable=False),
         sa.Column("group_id", sa.Text(), nullable=True),
         sa.Column("uid", sa.Text(), nullable=False),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column(
+            "is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_account_bindings"),
         sa.UniqueConstraint(
             "user_id",
@@ -180,7 +194,9 @@ def _create_legacy_identity_tables() -> None:
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("bot_id", sa.Text(), nullable=False),
         sa.Column("uid", sa.Text(), nullable=False),
-        sa.Column("app_cookie", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "app_cookie", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.Column(
             "app_device_code",
             sa.Text(),
@@ -194,7 +210,9 @@ def _create_legacy_identity_tables() -> None:
             server_default=sa.text("''"),
             nullable=False,
         ),
-        sa.Column("app_status", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "app_status", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.Column("web_token", sa.Text(), server_default=sa.text("''"), nullable=False),
         sa.Column(
             "web_device_code",
@@ -209,7 +227,9 @@ def _create_legacy_identity_tables() -> None:
             server_default=sa.text("''"),
             nullable=False,
         ),
-        sa.Column("web_status", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "web_status", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_credential_records"),
         sa.UniqueConstraint(
             "user_id",
@@ -230,8 +250,12 @@ def _create_legacy_identity_tables() -> None:
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("bot_id", sa.Text(), nullable=False),
         sa.Column("group_id", sa.Text(), nullable=True),
-        sa.Column("allow_peek", sa.Boolean(), server_default=sa.text("1"), nullable=False),
-        sa.Column("uid_hidden", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "allow_peek", sa.Boolean(), server_default=sa.text("1"), nullable=False
+        ),
+        sa.Column(
+            "uid_hidden", sa.Boolean(), server_default=sa.text("0"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_privacy_settings"),
         sa.UniqueConstraint(
             "user_id",

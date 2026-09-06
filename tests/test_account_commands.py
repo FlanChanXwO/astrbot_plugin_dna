@@ -26,6 +26,7 @@ class FakeAccountService:
         self.calls.append(("begin_login", actor, None))
         return PlainTextResponse("登录页已启动")
 
+
 class Event:
     """实现 AstrBot 公开 actor 方法和纯文本响应方法。"""
 
@@ -93,8 +94,11 @@ async def test_account_handler_requires_event_actor() -> None:
         __module__ = "tests.generated_missing_actor_plugin"
 
     registry = CommandRegistry(
-        (registry_spec for registry_spec in load_command_registry()
-         if registry_spec.id == "account_login"),
+        (
+            registry_spec
+            for registry_spec in load_command_registry()
+            if registry_spec.id == "account_login"
+        ),
     )
     install_command_handlers(GeneratedMissingActorPlugin, registry)
     plugin = GeneratedMissingActorPlugin()
@@ -110,9 +114,7 @@ async def test_account_handler_requires_event_actor() -> None:
 
     handler_name = "handle_account_login"
     handler = getattr(plugin, handler_name)
-    result = [
-        item async for item in handler(Event("kk登录", with_actor=False))
-    ]
+    result = [item async for item in handler(Event("kk登录", with_actor=False))]
 
     assert result == ["无法识别当前用户，暂不能执行账号操作！"]
 
@@ -125,8 +127,11 @@ async def test_account_login_without_argument_starts_page_transport() -> None:
         __module__ = "tests.generated_login_plugin"
 
     registry = CommandRegistry(
-        (registry_spec for registry_spec in load_command_registry()
-         if registry_spec.id == "account_login"),
+        (
+            registry_spec
+            for registry_spec in load_command_registry()
+            if registry_spec.id == "account_login"
+        ),
     )
     install_command_handlers(GeneratedLoginPlugin, registry)
     service = FakeAccountService()

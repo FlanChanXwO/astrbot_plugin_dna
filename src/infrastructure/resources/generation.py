@@ -139,7 +139,9 @@ class ResourceStatusSnapshot:
 class ResourceLease(AbstractContextManager[ResourceSnapshot]):
     """持有 generation 引用，直到离开上下文或显式 release。"""
 
-    def __init__(self, coordinator: ResourceSnapshotCoordinator, snapshot: ResourceSnapshot) -> None:
+    def __init__(
+        self, coordinator: ResourceSnapshotCoordinator, snapshot: ResourceSnapshot
+    ) -> None:
         self._coordinator = coordinator
         self.snapshot = snapshot
         self._released = False
@@ -188,7 +190,9 @@ def _read_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ResourceGenerationError(f"资源候选 JSON 不可读: {path.relative_to(path.parents[2])}") from exc
+        raise ResourceGenerationError(
+            f"资源候选 JSON 不可读: {path.relative_to(path.parents[2])}"
+        ) from exc
 
 
 def _validate_alias_file(path: Path) -> None:
@@ -198,13 +202,21 @@ def _validate_alias_file(path: Path) -> None:
     used: dict[str, str] = {}
     terms: list[tuple[str, str]] = []
     for canonical, aliases in raw.items():
-        if not isinstance(canonical, str) or not canonical.strip() or canonical != canonical.strip():
+        if (
+            not isinstance(canonical, str)
+            or not canonical.strip()
+            or canonical != canonical.strip()
+        ):
             raise ResourceGenerationError(f"资源候选别名名称无效: {path.name}")
         if not isinstance(aliases, list) or not aliases:
             raise ResourceGenerationError(f"资源候选别名列表无效: {path.name}")
         terms.append((canonical, canonical))
         for alias in aliases:
-            if not isinstance(alias, str) or not alias.strip() or alias != alias.strip():
+            if (
+                not isinstance(alias, str)
+                or not alias.strip()
+                or alias != alias.strip()
+            ):
                 raise ResourceGenerationError(f"资源候选别名条目无效: {path.name}")
             previous = used.get(alias)
             if previous is not None and previous == canonical:
@@ -231,7 +243,9 @@ def _read_binary_prefix(path: Path, size: int, error_message: str) -> bytes:
 
 def _parse_aware_datetime(value: object, field_name: str) -> datetime:
     if not isinstance(value, str) or not value:
-        raise ResourceGenerationError(f"兑换码 {field_name} 必须是带时区的 ISO 8601 时间")
+        raise ResourceGenerationError(
+            f"兑换码 {field_name} 必须是带时区的 ISO 8601 时间"
+        )
     candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
     try:
         parsed = datetime.fromisoformat(candidate)
@@ -242,8 +256,14 @@ def _parse_aware_datetime(value: object, field_name: str) -> datetime:
     return parsed
 
 
-def _validate_enum_list(value: object, allowed: frozenset[str], field_name: str) -> None:
-    if not isinstance(value, list) or not value or any(item not in allowed for item in value):
+def _validate_enum_list(
+    value: object, allowed: frozenset[str], field_name: str
+) -> None:
+    if (
+        not isinstance(value, list)
+        or not value
+        or any(item not in allowed for item in value)
+    ):
         raise ResourceGenerationError(f"兑换码 {field_name} 枚举值无效")
     if len(set(value)) != len(value):
         raise ResourceGenerationError(f"兑换码 {field_name} 不能重复")
@@ -251,7 +271,11 @@ def _validate_enum_list(value: object, allowed: frozenset[str], field_name: str)
 
 def _validate_redeem_file(path: Path) -> None:
     raw = _read_json(path)
-    if not isinstance(raw, dict) or raw.get("format_version") != 1 or not isinstance(raw.get("data"), list):
+    if (
+        not isinstance(raw, dict)
+        or raw.get("format_version") != 1
+        or not isinstance(raw.get("data"), list)
+    ):
         raise ResourceGenerationError("资源候选兑换码文件格式错误")
     codes: set[str] = set()
     for entry in raw["data"]:
@@ -265,8 +289,16 @@ def _validate_redeem_file(path: Path) -> None:
         codes.add(code)
         if "reward" in entry and not isinstance(entry["reward"], str):
             raise ResourceGenerationError("资源候选兑换码 reward 无效")
-        start = _parse_aware_datetime(entry["valid_from"], "valid_from") if "valid_from" in entry else None
-        end = _parse_aware_datetime(entry["expires_at"], "expires_at") if "expires_at" in entry else None
+        start = (
+            _parse_aware_datetime(entry["valid_from"], "valid_from")
+            if "valid_from" in entry
+            else None
+        )
+        end = (
+            _parse_aware_datetime(entry["expires_at"], "expires_at")
+            if "expires_at" in entry
+            else None
+        )
         if start is not None and end is not None and start >= end:
             raise ResourceGenerationError("资源候选兑换码有效期起止顺序无效")
         if "platforms" in entry:
@@ -416,7 +448,9 @@ class ResourceGenerationValidator:
         try:
             _validate_no_symlinks(root_input)
             root_path = root_input.resolve()
-            manifest = ResourceManifest.load(root_path / "resource_manifest.json").validate_runtime_layout(root_path)
+            manifest = ResourceManifest.load(
+                root_path / "resource_manifest.json"
+            ).validate_runtime_layout(root_path)
             _validate_declared_file_hashes(root_path, manifest)
             for filename in _ALIAS_FILES:
                 _validate_alias_file(root_path / "alias" / filename)
@@ -433,7 +467,9 @@ class ResourceGenerationValidator:
             )
             content_sha256 = _content_sha256(root_path)
         except ResourceGenerationError as exc:
-            raise ResourceGenerationError(f"资源候选 generation 校验失败：{exc}") from exc
+            raise ResourceGenerationError(
+                f"资源候选 generation 校验失败：{exc}"
+            ) from exc
         except (OSError, UnicodeError, ValueError, TypeError) as exc:
             raise ResourceGenerationError("资源候选 generation 校验失败") from exc
         return ResourceSnapshot(
@@ -474,7 +510,9 @@ def _extract_archive(archive_path: Path, destination: Path) -> None:
                     target.mkdir(parents=True, exist_ok=True)
                     continue
                 if not member.isfile() or member.issym() or member.islnk():
-                    raise ResourceGenerationError("资源候选 archive 含有不支持的文件类型")
+                    raise ResourceGenerationError(
+                        "资源候选 archive 含有不支持的文件类型"
+                    )
                 target.parent.mkdir(parents=True, exist_ok=True)
                 source = archive.extractfile(member)
                 if source is None:
@@ -544,7 +582,11 @@ class ResourceSnapshotCoordinator:
             raise ResourceGenerationError("资源 generation 根目录不是目录")
         if self.repository.is_symlink():
             raise ResourceGenerationError("资源仓库目录不允许符号链接")
-        if require_repository and self.repository.exists() and not self.repository.is_dir():
+        if (
+            require_repository
+            and self.repository.exists()
+            and not self.repository.is_dir()
+        ):
             raise ResourceGenerationError("资源仓库目录不是目录")
 
     @property
@@ -575,7 +617,10 @@ class ResourceSnapshotCoordinator:
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise ResourceGenerationError("当前资源 generation 指针不可读") from exc
         generation = raw.get("generation") if isinstance(raw, dict) else None
-        if not isinstance(generation, str) or re.fullmatch(r"[0-9a-fA-F]+", generation) is None:
+        if (
+            not isinstance(generation, str)
+            or re.fullmatch(r"[0-9a-fA-F]+", generation) is None
+        ):
             raise ResourceGenerationError("当前资源 generation 指针无效")
         content_sha256 = raw.get("content_sha256") if isinstance(raw, dict) else None
         if content_sha256 is not None and (
@@ -732,7 +777,11 @@ class ResourceSnapshotCoordinator:
                 elif path.is_file():
                     path.unlink()
                 continue
-            if path.is_dir() and re.fullmatch(r"[0-9a-fA-F]+", path.name) and path.name != active:
+            if (
+                path.is_dir()
+                and re.fullmatch(r"[0-9a-fA-F]+", path.name)
+                and path.name != active
+            ):
                 self._remove_generation(path)
 
     def _load_light_snapshot(self, generation: str) -> ResourceSnapshot:
@@ -754,7 +803,9 @@ class ResourceSnapshotCoordinator:
         except ResourceGenerationError:
             raise
         except (OSError, UnicodeError, ValueError, TypeError) as exc:
-            raise ResourceGenerationError("当前资源 generation metadata 不可读") from exc
+            raise ResourceGenerationError(
+                "当前资源 generation metadata 不可读"
+            ) from exc
         return ResourceSnapshot(
             commit_sha=generation,
             root=root.resolve(),
@@ -963,7 +1014,11 @@ class ResourceSnapshotCoordinator:
 
         cleanup(candidate, generation=True)
         cleanup(archive, generation=False)
-        if created_final and (primary_error is not None or cleanup_errors) and final is not None:
+        if (
+            created_final
+            and (primary_error is not None or cleanup_errors)
+            and final is not None
+        ):
             cleanup(final, generation=True)
 
         if primary_error is not None:
@@ -1025,7 +1080,9 @@ class ResourceSnapshotCoordinator:
             except BaseException as error:
                 cleanup_errors: list[BaseException] = []
                 current = self._current
-                if created_final and (current is None or current.commit_sha != commit_sha):
+                if created_final and (
+                    current is None or current.commit_sha != commit_sha
+                ):
                     try:
                         self._remove_generation(snapshot.root)
                     except BaseException as cleanup_error:  # noqa: BLE001

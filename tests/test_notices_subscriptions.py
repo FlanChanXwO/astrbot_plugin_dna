@@ -102,11 +102,15 @@ def _service(
     )
 
 
-def _actor(*, origin: str = "platform:group:g1", group: str | None = "group-1") -> EventActor:
+def _actor(
+    *, origin: str = "platform:group:g1", group: str | None = "group-1"
+) -> EventActor:
     return EventActor("user-1", "bot-1", group, unified_msg_origin=origin)
 
 
-def _request(text: str, parameters: dict | None = None, actor: EventActor | None = None):
+def _request(
+    text: str, parameters: dict | None = None, actor: EventActor | None = None
+):
     from src.modules.notices.contracts import NoticeRequest
 
     return NoticeRequest(
@@ -142,7 +146,10 @@ async def test_subscribe_mh_adds_names_and_dedupes(tmp_path: Path) -> None:
     assert second.text == "请勿重复订阅密函【拆解】"
     assert isinstance(third, PlainTextResponse)
     assert third.need_at is True
-    assert third.text == f"成功订阅密函【追缉】!当前订阅密函: {",".join(sorted({"角色:拆解", "角色:追缉", "武器:拆解", "武器:追缉", "魔之楔:拆解", "魔之楔:追缉"}))}"
+    assert (
+        third.text
+        == f"成功订阅密函【追缉】!当前订阅密函: {','.join(sorted({'角色:拆解', '角色:追缉', '武器:拆解', '武器:追缉', '魔之楔:拆解', '魔之楔:追缉'}))}"
+    )
     subscriptions = service.subscriptions
     assert subscriptions is not None
     subs = await subscriptions.get(
@@ -151,7 +158,14 @@ async def test_subscribe_mh_adds_names_and_dedupes(tmp_path: Path) -> None:
         bot_id="bot-1",
     )
     assert len(subs) == 1
-    assert set(subs[0].extra_message.split(",")) == {"角色:拆解", "角色:追缉", "武器:拆解", "武器:追缉", "魔之楔:拆解", "魔之楔:追缉"}
+    assert set(subs[0].extra_message.split(",")) == {
+        "角色:拆解",
+        "角色:追缉",
+        "武器:拆解",
+        "武器:追缉",
+        "魔之楔:拆解",
+        "魔之楔:追缉",
+    }
     await database.dispose()
 
 
@@ -185,11 +199,18 @@ async def test_unsubscribe_mh_removes_names(tmp_path: Path) -> None:
 
     assert isinstance(response, PlainTextResponse)
     assert response.need_at is True
-    assert response.text == f"成功取消订阅密函【拆解】!当前订阅密函: {",".join(sorted({"角色:追缉", "武器:追缉", "魔之楔:追缉"}))}"
+    assert (
+        response.text
+        == f"成功取消订阅密函【拆解】!当前订阅密函: {','.join(sorted({'角色:追缉', '武器:追缉', '魔之楔:追缉'}))}"
+    )
     subscriptions = service.subscriptions
     assert subscriptions is not None
     subs = await subscriptions.get(messages.MH_SUBSCRIBE)
-    assert set(subs[0].extra_message.split(",")) == {"角色:追缉", "武器:追缉", "魔之楔:追缉"}
+    assert set(subs[0].extra_message.split(",")) == {
+        "角色:追缉",
+        "武器:追缉",
+        "魔之楔:追缉",
+    }
 
     # 取消订阅最后一项时，返回当前订阅密函为空并清理订阅
     last_unsub = await service.unsubscribe_mh(
@@ -254,8 +275,7 @@ async def test_mh_subscriptions_shows_time_window(tmp_path: Path) -> None:
     assert isinstance(time_set_res, PlainTextResponse)
     assert time_set_res.need_at is True
     assert time_set_res.text == (
-        "当前订阅密函: 角色:拆解,武器:拆解,魔之楔:拆解\n"
-        "推送时间: 17点-23点"
+        "当前订阅密函: 角色:拆解,武器:拆解,魔之楔:拆解\n推送时间: 17点-23点"
     )
 
     response = await service.mh_subscriptions(_request("我的密函"))
@@ -263,8 +283,7 @@ async def test_mh_subscriptions_shows_time_window(tmp_path: Path) -> None:
     assert isinstance(response, PlainTextResponse)
     assert response.need_at is True
     assert response.text == (
-        "当前订阅密函: 角色:拆解,武器:拆解,魔之楔:拆解\n"
-        "推送时间: 17点-23点"
+        "当前订阅密函: 角色:拆解,武器:拆解,魔之楔:拆解\n推送时间: 17点-23点"
     )
     await database.dispose()
 
@@ -296,24 +315,36 @@ async def test_toggle_mh_pic_and_text_are_session_scoped(tmp_path: Path) -> None
 
     pic = await service.toggle_mh_pic(_request("订阅密函图片", actor=actor))
     pic_cancel = await service.toggle_mh_pic(_request("取消订阅密函图片", actor=actor))
-    pic_cancel_empty = await service.toggle_mh_pic(_request("取消订阅密函图片", actor=actor))
+    pic_cancel_empty = await service.toggle_mh_pic(
+        _request("取消订阅密函图片", actor=actor)
+    )
 
     text = await service.toggle_mh_text(_request("订阅密函文本", actor=actor))
-    text_cancel = await service.toggle_mh_text(_request("取消订阅密函文本", actor=actor))
-    text_cancel_empty = await service.toggle_mh_text(_request("取消订阅密函文本", actor=actor))
+    text_cancel = await service.toggle_mh_text(
+        _request("取消订阅密函文本", actor=actor)
+    )
+    text_cancel_empty = await service.toggle_mh_text(
+        _request("取消订阅密函文本", actor=actor)
+    )
 
     assert isinstance(pic, PlainTextResponse) and pic.need_at is True
     assert pic.text == messages.MH_PIC_SUBSCRIBED
     assert isinstance(pic_cancel, PlainTextResponse) and pic_cancel.need_at is True
     assert pic_cancel.text == messages.MH_PIC_UNSUBSCRIBED
-    assert isinstance(pic_cancel_empty, PlainTextResponse) and pic_cancel_empty.need_at is True
+    assert (
+        isinstance(pic_cancel_empty, PlainTextResponse)
+        and pic_cancel_empty.need_at is True
+    )
     assert pic_cancel_empty.text == messages.MH_PIC_NOT_SUBSCRIBED
 
     assert isinstance(text, PlainTextResponse) and text.need_at is True
     assert text.text == messages.MH_TEXT_SUBSCRIBED
     assert isinstance(text_cancel, PlainTextResponse) and text_cancel.need_at is True
     assert text_cancel.text == messages.MH_TEXT_UNSUBSCRIBED
-    assert isinstance(text_cancel_empty, PlainTextResponse) and text_cancel_empty.need_at is True
+    assert (
+        isinstance(text_cancel_empty, PlainTextResponse)
+        and text_cancel_empty.need_at is True
+    )
     assert text_cancel_empty.text == messages.MH_TEXT_NOT_SUBSCRIBED
 
     subscriptions = service.subscriptions
@@ -409,7 +440,9 @@ async def test_push_mh_now_pushes_text_and_pic_to_subscribers(tmp_path: Path) ->
     assert "platform:group:g1" in text_targets
     assert any("角色 : 拆解" in str(payload) for _, payload in pushed)
     assert "platform:group:g2" in image_targets
-    assert all(Path(payload).is_file() for _, payload in pushed if isinstance(payload, Path))
+    assert all(
+        Path(payload).is_file() for _, payload in pushed if isinstance(payload, Path)
+    )
     await database.dispose()
 
 
@@ -457,12 +490,26 @@ async def test_mh_subscription_is_scoped_per_conversation(tmp_path: Path) -> Non
 
     database = await _database_with_binding(tmp_path)
     service = _service(database, FakeNoticesTransport(), tmp_path)
-    await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}, actor=_actor(origin="platform:group:a")))
-    await service.subscribe_mh(_request("订阅追缉密函", {"mh_name": "追缉"}, actor=_actor(origin="platform:group:b")))
+    await service.subscribe_mh(
+        _request(
+            "订阅拆解密函", {"mh_name": "拆解"}, actor=_actor(origin="platform:group:a")
+        )
+    )
+    await service.subscribe_mh(
+        _request(
+            "订阅追缉密函", {"mh_name": "追缉"}, actor=_actor(origin="platform:group:b")
+        )
+    )
 
-    view_b = await service.mh_subscriptions(_request("我的密函", actor=_actor(origin="platform:group:b")))
+    view_b = await service.mh_subscriptions(
+        _request("我的密函", actor=_actor(origin="platform:group:b"))
+    )
     unsub_a = await service.unsubscribe_mh(
-        _request("取消订阅拆解密函", {"mh_name": "拆解"}, actor=_actor(origin="platform:group:a")),
+        _request(
+            "取消订阅拆解密函",
+            {"mh_name": "拆解"},
+            actor=_actor(origin="platform:group:a"),
+        ),
     )
 
     assert "追缉" in view_b.text
@@ -481,7 +528,9 @@ async def test_mh_subscription_is_scoped_per_conversation(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
-async def test_mh_subscription_keeps_two_users_in_same_conversation(tmp_path: Path) -> None:
+async def test_mh_subscription_keeps_two_users_in_same_conversation(
+    tmp_path: Path,
+) -> None:
     """同一会话内两个用户订阅互不覆盖。"""
 
     database = await _database_with_binding(tmp_path)
@@ -492,7 +541,9 @@ async def test_mh_subscription_keeps_two_users_in_same_conversation(tmp_path: Pa
 
         await service.subscribe_mh(
             NoticeRequest(
-                actor=EventActor(user_id, "bot-1", "group-1", unified_msg_origin="platform:group:g1"),
+                actor=EventActor(
+                    user_id, "bot-1", "group-1", unified_msg_origin="platform:group:g1"
+                ),
                 target_user_id=None,
                 text=f"订阅{name}密函",
                 parameters={"mh_name": name},
@@ -511,7 +562,9 @@ async def test_mh_subscription_keeps_two_users_in_same_conversation(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_push_mh_now_filters_by_rotation_and_time_and_text_all(tmp_path: Path) -> None:
+async def test_push_mh_now_filters_by_rotation_and_time_and_text_all(
+    tmp_path: Path,
+) -> None:
     """密函整点推送：按当前轮换与时间段过滤个人订阅，支持全量文本订阅与图片订阅。"""
 
     database = await _database_with_binding(tmp_path)
@@ -531,16 +584,32 @@ async def test_push_mh_now_filters_by_rotation_and_time_and_text_all(tmp_path: P
     service.renderer = _OfflineNoticeRenderer(tmp_path / "rendered")
 
     # 1. 订阅了轮换中存在的密函（拆解在 FakeNoticesTransport 角色轮换中）
-    await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}, actor=_actor(origin="platform:group:g1")))
+    await service.subscribe_mh(
+        _request(
+            "订阅拆解密函",
+            {"mh_name": "拆解"},
+            actor=_actor(origin="platform:group:g1"),
+        )
+    )
 
     # 2. 订阅了轮换中不存在的密函（避险不在 FakeNoticesTransport 中）
-    await service.subscribe_mh(_request("订阅避险密函", {"mh_name": "避险"}, actor=_actor(origin="platform:group:g2")))
+    await service.subscribe_mh(
+        _request(
+            "订阅避险密函",
+            {"mh_name": "避险"},
+            actor=_actor(origin="platform:group:g2"),
+        )
+    )
 
     # 3. 订阅了全量文本密函
-    await service.toggle_mh_text(_request("订阅密函文本", actor=_actor(origin="platform:group:g3")))
+    await service.toggle_mh_text(
+        _request("订阅密函文本", actor=_actor(origin="platform:group:g3"))
+    )
 
     # 4. 订阅了全量图片密函
-    await service.toggle_mh_pic(_request("订阅密函图片", actor=_actor(origin="platform:group:g4")))
+    await service.toggle_mh_pic(
+        _request("订阅密函图片", actor=_actor(origin="platform:group:g4"))
+    )
 
     count = await service.push_mh_now()
 
@@ -553,20 +622,27 @@ async def test_push_mh_now_filters_by_rotation_and_time_and_text_all(tmp_path: P
     assert "platform:group:g4" in origins
 
     # 验证 g3 全量文本格式
-    g3_payload = next(payload for origin, payload in pushed if origin == "platform:group:g3")
+    g3_payload = next(
+        payload for origin, payload in pushed if origin == "platform:group:g3"
+    )
     assert "【密函已刷新】" in str(g3_payload)
     assert "-- 角色 --" in str(g3_payload)
     assert "扼守" in str(g3_payload)
 
     # 验证 g4 图片推送
-    g4_payload = next(payload for origin, payload in pushed if origin == "platform:group:g4")
+    g4_payload = next(
+        payload for origin, payload in pushed if origin == "platform:group:g4"
+    )
     assert isinstance(g4_payload, Path)
     assert g4_payload.is_file()
 
     await database.dispose()
 
+
 @pytest.mark.asyncio
-async def test_push_mh_now_continues_when_one_subscriber_push_fails(tmp_path: Path) -> None:
+async def test_push_mh_now_continues_when_one_subscriber_push_fails(
+    tmp_path: Path,
+) -> None:
     """密函推送中某订阅者失败时，不影响其他订阅者。"""
 
     database = await _database_with_binding(tmp_path)
@@ -612,7 +688,9 @@ async def test_push_mh_now_continues_when_one_subscriber_push_fails(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_poll_ann_now_continues_when_one_subscriber_push_fails(tmp_path: Path) -> None:
+async def test_poll_ann_now_continues_when_one_subscriber_push_fails(
+    tmp_path: Path,
+) -> None:
     """公告推送中某订阅者失败时，不影响其他订阅者。"""
 
     database = await _database_with_binding(tmp_path)
@@ -662,7 +740,9 @@ async def test_poll_ann_now_continues_when_one_subscriber_push_fails(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_push_mh_now_includes_at_user_id_for_group_subscriber(tmp_path: Path) -> None:
+async def test_push_mh_now_includes_at_user_id_for_group_subscriber(
+    tmp_path: Path,
+) -> None:
     """群聊密函订阅在推送时应携带订阅者的 at_user_id。"""
 
     database = await _database_with_binding(tmp_path)
@@ -679,7 +759,12 @@ async def test_push_mh_now_includes_at_user_id_for_group_subscriber(tmp_path: Pa
         subscriptions=subscriptions,
         push=push,
     )
-    actor = EventActor(user_id="308597424", bot_id="bot-1", group_id="g100", unified_msg_origin="platform:group:g100")
+    actor = EventActor(
+        user_id="308597424",
+        bot_id="bot-1",
+        group_id="g100",
+        unified_msg_origin="platform:group:g100",
+    )
     req = _request("订阅拆解密函", {"mh_name": "拆解"}, actor=actor)
     await service.subscribe_mh(req)
 
@@ -695,7 +780,9 @@ async def test_push_mh_now_includes_at_user_id_for_group_subscriber(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_disabled_ann_subscription_is_not_polled_or_pushed(tmp_path: Path) -> None:
+async def test_disabled_ann_subscription_is_not_polled_or_pushed(
+    tmp_path: Path,
+) -> None:
     """停用公告目标不参与观察、投递或推送。"""
     database = await _database_with_binding(tmp_path)
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
@@ -725,7 +812,9 @@ async def test_disabled_ann_subscription_is_not_polled_or_pushed(tmp_path: Path)
 
 
 @pytest.mark.asyncio
-async def test_subscribe_and_unsubscribe_ann_does_not_sync_config(tmp_path: Path) -> None:
+async def test_subscribe_and_unsubscribe_ann_does_not_sync_config(
+    tmp_path: Path,
+) -> None:
     """订阅公告和退订公告只写 subscriptions.json，不修改旧配置。"""
     database = await _database_with_binding(tmp_path)
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
@@ -735,11 +824,13 @@ async def test_subscribe_and_unsubscribe_ann_does_not_sync_config(tmp_path: Path
         def save_config(self):
             saved.append(True)
 
-    config = FakeAstrBotConfig({
-        "notifications": {
-            "announcement_groups": {},
+    config = FakeAstrBotConfig(
+        {
+            "notifications": {
+                "announcement_groups": {},
+            }
         }
-    })
+    )
 
     service = _service(
         database,
@@ -749,7 +840,12 @@ async def test_subscribe_and_unsubscribe_ann_does_not_sync_config(tmp_path: Path
     )
     service.config_store = config
 
-    actor = EventActor(user_id="10001", bot_id="bot-1", group_id="group-999", unified_msg_origin="platform:group:group-999")
+    actor = EventActor(
+        user_id="10001",
+        bot_id="bot-1",
+        group_id="group-999",
+        unified_msg_origin="platform:group:group-999",
+    )
     req = _request("订阅公告", actor=actor)
     sub_res = await service.subscribe_ann(req)
     assert isinstance(sub_res, PlainTextResponse)
@@ -761,14 +857,20 @@ async def test_subscribe_and_unsubscribe_ann_does_not_sync_config(tmp_path: Path
     unsub_req = _request("退订公告", actor=actor)
     unsub_res = await service.unsubscribe_ann(unsub_req)
     assert isinstance(unsub_res, PlainTextResponse)
-    assert "已取消" in unsub_res.text or "退订" in unsub_res.text or "成功" in unsub_res.text
+    assert (
+        "已取消" in unsub_res.text
+        or "退订" in unsub_res.text
+        or "成功" in unsub_res.text
+    )
     assert config["notifications"]["announcement_groups"] == {}
     assert saved == []
     await database.dispose()
 
 
 @pytest.mark.asyncio
-async def test_push_mh_pic_and_text_do_not_at_user_while_name_sub_does(tmp_path: Path) -> None:
+async def test_push_mh_pic_and_text_do_not_at_user_while_name_sub_does(
+    tmp_path: Path,
+) -> None:
     """订阅密函图片和订阅密函文本属于全量广播订阅，不产生 at 行为；只有订阅具体名称密函才在群聊中 at 订阅者。"""
     database = await _database_with_binding(tmp_path)
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
@@ -786,15 +888,32 @@ async def test_push_mh_pic_and_text_do_not_at_user_while_name_sub_does(tmp_path:
     )
 
     # 1. 群 g1 订阅具体名称密函 拆解
-    actor1 = EventActor(user_id="user-1", bot_id="bot-1", group_id="g1", unified_msg_origin="platform:group:g1")
-    await service.subscribe_mh(_request("订阅拆解密函", {"mh_name": "拆解"}, actor=actor1))
+    actor1 = EventActor(
+        user_id="user-1",
+        bot_id="bot-1",
+        group_id="g1",
+        unified_msg_origin="platform:group:g1",
+    )
+    await service.subscribe_mh(
+        _request("订阅拆解密函", {"mh_name": "拆解"}, actor=actor1)
+    )
 
     # 2. 群 g2 订阅密函文本
-    actor2 = EventActor(user_id="user-2", bot_id="bot-1", group_id="g2", unified_msg_origin="platform:group:g2")
+    actor2 = EventActor(
+        user_id="user-2",
+        bot_id="bot-1",
+        group_id="g2",
+        unified_msg_origin="platform:group:g2",
+    )
     await service.toggle_mh_text(_request("订阅全量密函", actor=actor2))
 
     # 3. 群 g3 订阅密函图片
-    actor3 = EventActor(user_id="user-3", bot_id="bot-1", group_id="g3", unified_msg_origin="platform:group:g3")
+    actor3 = EventActor(
+        user_id="user-3",
+        bot_id="bot-1",
+        group_id="g3",
+        unified_msg_origin="platform:group:g3",
+    )
     await service.toggle_mh_pic(_request("订阅密函图片", actor=actor3))
 
     count = await service.push_mh_now()
@@ -819,7 +938,9 @@ async def test_push_mh_pic_and_text_do_not_at_user_while_name_sub_does(tmp_path:
 
 
 @pytest.mark.asyncio
-async def test_push_mh_now_aggregates_multiple_group_subscribers_with_ats_at_end(tmp_path: Path) -> None:
+async def test_push_mh_now_aggregates_multiple_group_subscribers_with_ats_at_end(
+    tmp_path: Path,
+) -> None:
     """同一群聊中多个用户订阅并触发密函刷新时，应聚合成一条推送消息，且所有 at 堆在末尾。"""
     database = await _database_with_binding(tmp_path)
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
@@ -839,7 +960,9 @@ async def test_push_mh_now_aggregates_multiple_group_subscribers_with_ats_at_end
     # 3 个用户在同一个群聊中分别订阅 拆解 密函
     origin = "platform:group:g100"
     for user_id in ("user-1", "user-2", "user-3"):
-        actor = EventActor(user_id=user_id, bot_id="bot-1", group_id="g100", unified_msg_origin=origin)
+        actor = EventActor(
+            user_id=user_id, bot_id="bot-1", group_id="g100", unified_msg_origin=origin
+        )
         req = _request("订阅拆解密函", {"mh_name": "拆解"}, actor=actor)
         await service.subscribe_mh(req)
 

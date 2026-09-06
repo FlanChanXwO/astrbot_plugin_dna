@@ -40,14 +40,18 @@ def test_data_uri_inlines_local_image_and_font(tmp_path: Path) -> None:
 
 
 def test_data_uri_supports_downloaded_bytes_and_pil_preprocessing() -> None:
-    assert to_data_uri(b"remote-image", media_type="image/webp").startswith("data:image/webp;base64,")
+    assert to_data_uri(b"remote-image", media_type="image/webp").startswith(
+        "data:image/webp;base64,"
+    )
 
     image = Image.new("RGB", (2, 1), "red")
     uri = pil_image_data_uri(image)
     assert uri.startswith("data:image/png;base64,")
 
 
-def test_html_font_keeps_requested_family_and_uses_matching_woff2(tmp_path: Path) -> None:
+def test_html_font_keeps_requested_family_and_uses_matching_woff2(
+    tmp_path: Path,
+) -> None:
     requested = tmp_path / "arial-unicode-ms-bold.ttf"
     requested.write_bytes(b"unicode-ttf")
     (tmp_path / "arial-unicode-ms-bold.woff2").write_bytes(b"unicode-woff2")
@@ -145,7 +149,9 @@ def test_shared_layout_macro_resets_margin_and_keeps_css_width() -> None:
     )
 
     html = template.render()
-    assert "html, body { width: 100%; min-height: 100%; margin: 0; padding: 0; }" in html
+    assert (
+        "html, body { width: 100%; min-height: 100%; margin: 0; padding: 0; }" in html
+    )
     assert "width: 800px" in html
     assert "min-height: 320px" in html
     assert "标题" in html and "副标题" in html and "页脚" in html

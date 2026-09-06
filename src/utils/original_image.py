@@ -9,7 +9,9 @@ from .resource.RESOURCE_PATH import CUSTOM_PAINT_PATH
 _ORIGINAL_IMAGE_CACHE: LRUCache[str, Path] = LRUCache(maxsize=256)
 
 
-def cache_original_image(message_ids: list[str] | None, image_path: Path | None) -> None:
+def cache_original_image(
+    message_ids: list[str] | None, image_path: Path | None
+) -> None:
     if message_ids is None or image_path is None:
         return
 

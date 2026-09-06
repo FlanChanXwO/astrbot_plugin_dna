@@ -25,7 +25,9 @@ _LEGACY_PATH = Path(__file__).with_name("check_astrbot_plugin_load.py")
 
 
 def _load_legacy_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("dnaby_plugin_load_harness", _LEGACY_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "dnaby_plugin_load_harness", _LEGACY_PATH
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"无法加载现有 loader harness: {_LEGACY_PATH}")
     module = importlib.util.module_from_spec(spec)
@@ -210,19 +212,17 @@ def _assert_registration_is_observable(added: RuntimeSnapshot) -> None:
         )
 
 
-def _assert_no_runtime_residue(baseline: RuntimeSnapshot, final: RuntimeSnapshot) -> None:
+def _assert_no_runtime_residue(
+    baseline: RuntimeSnapshot, final: RuntimeSnapshot
+) -> None:
     residue = _delta(baseline, final)
     details: list[str] = []
     if residue.handlers:
-        details.append(
-            "handlers=" + _format_items(residue.handlers, _describe_handler)
-        )
+        details.append("handlers=" + _format_items(residue.handlers, _describe_handler))
     if residue.tools:
         details.append("tools=" + _format_items(residue.tools, _describe_tool))
     if residue.web_apis:
-        details.append(
-            "web_apis=" + _format_items(residue.web_apis, _describe_web_api)
-        )
+        details.append("web_apis=" + _format_items(residue.web_apis, _describe_web_api))
     if residue.tasks:
         details.append(
             "tasks=" + ", ".join(_describe_task(task) for task in residue.tasks)
@@ -304,7 +304,9 @@ async def run_loader_check(
             runtime.plugin_manager.load(specified_dir_name=plugin_name),
         )
         if not isinstance(load_result, tuple) or not load_result:
-            raise TypeError("官方 PluginManager.load() 返回值不是 (success, error) 元组")
+            raise TypeError(
+                "官方 PluginManager.load() 返回值不是 (success, error) 元组"
+            )
         if not bool(load_result[0]):
             detail = load_result[1] if len(load_result) > 1 else None
             raise _legacy._official_load_failure(runtime, plugin_name, detail)
@@ -361,7 +363,9 @@ async def run_loader_check(
             # 仍保留旧 harness 的 best-effort terminate，避免覆盖真正的加载错误。
             if report is not None and metadata is not None:
                 try:
-                    terminate = getattr(runtime.plugin_manager, "_terminate_plugin", None)
+                    terminate = getattr(
+                        runtime.plugin_manager, "_terminate_plugin", None
+                    )
                     if not callable(terminate):
                         raise TypeError("官方 PluginManager 缺少 _terminate_plugin()")
                     await _legacy._await_if_needed(terminate(metadata))
@@ -372,12 +376,16 @@ async def run_loader_check(
                 try:
                     module_path = getattr(metadata, "module_path", None)
                     if not isinstance(module_path, str) or not module_path:
-                        raise TypeError("插件 metadata 缺少 module_path，无法执行官方 unbind")
+                        raise TypeError(
+                            "插件 metadata 缺少 module_path，无法执行官方 unbind"
+                        )
                     unbind = getattr(runtime.plugin_manager, "_unbind_plugin", None)
                     if not callable(unbind):
                         raise TypeError("官方 PluginManager 缺少 _unbind_plugin()")
                     await _legacy._await_if_needed(
-                        unbind(getattr(metadata, "name", None) or plugin_name, module_path),
+                        unbind(
+                            getattr(metadata, "name", None) or plugin_name, module_path
+                        ),
                     )
                     unbind_succeeded = True
                 except _CATCHABLE_ERRORS as error:
@@ -392,7 +400,9 @@ async def run_loader_check(
             else:
                 if loaded_plugin is None:
                     try:
-                        loaded_plugin = _legacy._find_loaded_plugin(runtime, plugin_name)
+                        loaded_plugin = _legacy._find_loaded_plugin(
+                            runtime, plugin_name
+                        )
                     except _CATCHABLE_ERRORS as error:
                         cleanup_errors.append(("registration", error))
                 if loaded_plugin is not None:
@@ -452,7 +462,9 @@ def _build_parser() -> argparse.ArgumentParser:
         description="使用官方 AstrBot PluginManager 检查插件完整生命周期",
     )
     parser.add_argument("--astrbot-source", required=True, help="官方 AstrBot 源码目录")
-    parser.add_argument("--astrbot-version", required=True, help="被测 AstrBot 版本或 ref")
+    parser.add_argument(
+        "--astrbot-version", required=True, help="被测 AstrBot 版本或 ref"
+    )
     parser.add_argument("--plugin-dir", required=True, help="当前插件源码目录")
     parser.add_argument("--astrbot-root", required=True, help="临时 ASTRBOT_ROOT")
     parser.add_argument("--plugin-name", required=True, help="插件目录名")

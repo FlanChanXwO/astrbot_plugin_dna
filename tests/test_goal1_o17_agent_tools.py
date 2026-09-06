@@ -103,10 +103,7 @@ def _expected_overview_data(*, image_sent: bool | None = None) -> dict[str, obje
     data: dict[str, object] = {
         "type": "player_overview",
         "role_count": 19,
-        "roles": [
-            {"name": f"真实角色{index}", "level": 80}
-            for index in range(1, 20)
-        ],
+        "roles": [{"name": f"真实角色{index}", "level": 80} for index in range(1, 20)],
         "weapons": {
             "close": [{"name": "近战武器", "level": 60}],
             "ranged": [{"name": "远程武器", "level": 70}],
@@ -274,7 +271,9 @@ def test_query_catalog_contains_all_approved_read_only_queries(
 
 
 @pytest.mark.asyncio
-async def test_default_agent_result_is_json_without_local_image_path(tmp_path: Path) -> None:
+async def test_default_agent_result_is_json_without_local_image_path(
+    tmp_path: Path,
+) -> None:
     image_path = tmp_path / "private-rendered.png"
     image_path.write_bytes(b"not sent in model context")
     event = FakeEvent()
@@ -294,7 +293,9 @@ async def test_default_agent_result_is_json_without_local_image_path(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_send_image_sends_to_current_event_and_preserves_data(tmp_path: Path) -> None:
+async def test_send_image_sends_to_current_event_and_preserves_data(
+    tmp_path: Path,
+) -> None:
     image_path = tmp_path / "private-rendered.png"
     image_path.write_bytes(b"not sent in model context")
     event = FakeEvent()
@@ -338,7 +339,9 @@ async def test_send_image_failure_is_explicit_and_never_success(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
-async def test_missing_image_file_is_not_reported_available_or_sent(tmp_path: Path) -> None:
+async def test_missing_image_file_is_not_reported_available_or_sent(
+    tmp_path: Path,
+) -> None:
     image_path = tmp_path / "missing-rendered.png"
     event = FakeEvent()
     tool = next(
@@ -368,7 +371,9 @@ async def test_missing_image_file_is_not_reported_available_or_sent(tmp_path: Pa
 @pytest.mark.asyncio
 async def test_query_failure_returns_safe_json_instead_of_leaking_exception() -> None:
     async def failing_query(_request: object) -> object:
-        raise RuntimeError("/private/rendered/token.png upstream=https://internal.invalid")
+        raise RuntimeError(
+            "/private/rendered/token.png upstream=https://internal.invalid"
+        )
 
     tool = AgentQueryTool(
         name="dnaby_failing_query",

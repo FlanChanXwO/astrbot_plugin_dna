@@ -30,7 +30,10 @@ def test_checkin_commands_are_registered_with_legacy_semantics() -> None:
     specs = {spec.id: spec for spec in load_command_registry()}
 
     assert CHECKIN_SPEC_IDS <= specs.keys()
-    assert specs["sign"].pattern == r"^kk(?:签到|社区签到|每日任务|社区任务|库街区签到|sign)$"
+    assert (
+        specs["sign"].pattern
+        == r"^kk(?:签到|社区签到|每日任务|社区任务|库街区签到|sign)$"
+    )
     assert specs["sign"].permission == "user"
     assert specs["sign"].group == "签到服务"
     assert specs["sign_calendar"].pattern == r"^kk(?:签到日历|签到记录|签到历史)$"
@@ -64,16 +67,21 @@ async def test_sign_handler_reports_service_missing() -> None:
         def get_group_id(self) -> str:
             return "group-1"
 
-    result = await cast(Awaitable, spec.use_case(
-        SimpleNamespace(
-            command_id="sign",
-            text="kk签到",
-            parameters={},
-            actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
-            services={},
+    result = await cast(
+        Awaitable,
+        spec.use_case(
+            SimpleNamespace(
+                command_id="sign",
+                text="kk签到",
+                parameters={},
+                actor=SimpleNamespace(
+                    user_id="user-1", bot_id="bot-1", group_id="group-1"
+                ),
+                services={},
+            ),
+            load_command_registry(),
         ),
-        load_command_registry(),
-    ))
+    )
 
     assert result == PlainTextResponse(messages.CHECKIN_SERVICE_UNAVAILABLE)
 
@@ -90,7 +98,9 @@ async def test_generated_sign_all_handler_yields_aggregate_result() -> None:
             return PlainTextResponse("unused")
 
         async def sign_all(self, _request: object) -> PlainTextResponse:
-            return PlainTextResponse("全部签到执行完成\n今日成功签到 2 个账号，失败 0 个账号")
+            return PlainTextResponse(
+                "全部签到执行完成\n今日成功签到 2 个账号，失败 0 个账号"
+            )
 
         async def subscribe_sign_result(self, _request: object) -> PlainTextResponse:
             return PlainTextResponse(messages.SIGN_RESULT_SUBSCRIBED)

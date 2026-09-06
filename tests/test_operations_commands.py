@@ -54,16 +54,21 @@ async def test_operations_handler_reports_service_missing() -> None:
 
     spec = load_command_registry().get("resource_status")
 
-    result = await cast(Awaitable, spec.use_case(
-        SimpleNamespace(
-            command_id="resource_status",
-            text="kk资源状态",
-            parameters={},
-            actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
-            services={},
+    result = await cast(
+        Awaitable,
+        spec.use_case(
+            SimpleNamespace(
+                command_id="resource_status",
+                text="kk资源状态",
+                parameters={},
+                actor=SimpleNamespace(
+                    user_id="user-1", bot_id="bot-1", group_id="group-1"
+                ),
+                services={},
+            ),
+            load_command_registry(),
         ),
-        load_command_registry(),
-    ))
+    )
 
     assert result == PlainTextResponse(messages.OPERATIONS_SERVICE_UNAVAILABLE)
 

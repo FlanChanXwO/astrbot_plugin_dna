@@ -281,7 +281,9 @@ async def test_mention_command_stops_later_handlers_after_response() -> None:
 
 
 @pytest.mark.asyncio
-async def test_query_command_handles_onebot_display_text_without_message_chain() -> None:
+async def test_query_command_handles_onebot_display_text_without_message_chain() -> (
+    None
+):
     """OneBot 只回传展示文本时，命令仍应解析目标并执行。"""
 
     async def use_case(

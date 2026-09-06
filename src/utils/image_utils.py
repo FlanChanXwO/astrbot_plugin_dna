@@ -242,7 +242,9 @@ class ImageFetcher:
             content = await self._download_content(url)
             self._write_atomically(target, content)
         except (OSError, httpx.HTTPError) as exc:
-            logger.warning(f"{tag} 下载失败: {target.name} ({_download_error_label(exc)})")
+            logger.warning(
+                f"{tag} 下载失败: {target.name} ({_download_error_label(exc)})"
+            )
             raise
         logger.info(f"{tag} 下载完成: {target.name} ({len(content)}B)")
         return target
@@ -280,7 +282,9 @@ class ImageFetcher:
         async with self._inflight_lock:
             task = self._inflight.get(key)
             if task is None or task.done():
-                task = asyncio.create_task(self._run_shared_fetch(key, url, target, tag))
+                task = asyncio.create_task(
+                    self._run_shared_fetch(key, url, target, tag)
+                )
                 task.add_done_callback(self._observe_task)
                 self._inflight[key] = task
         # 单个调用方取消时不应连带取消仍被其他调用方使用的下载任务。
@@ -323,7 +327,6 @@ async def download(
 
     target = _resolve_download_target(path, name)
     return await _DEFAULT_IMAGE_FETCHER.fetch(url, target, tag=tag)
-
 
 
 async def get_event_avatar(

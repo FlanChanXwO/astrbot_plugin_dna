@@ -45,9 +45,15 @@ def test_o11_commands_are_registered_with_the_declared_permission_boundary() -> 
     assert specs["refresh_admin_role_card"].permission == "admin"
     assert specs["clear_player_cache"].permission == "user"
     assert specs["refresh_role_card"].pattern == rf"^kk{REFRESH_ROLE_PATTERN[1:]}"
-    assert specs["refresh_admin_role_card"].pattern == rf"^kk{REFRESH_ADMIN_ROLE_PATTERN[1:]}"
+    assert (
+        specs["refresh_admin_role_card"].pattern
+        == rf"^kk{REFRESH_ADMIN_ROLE_PATTERN[1:]}"
+    )
     assert registry.match("kk刷新角色甲面板").command.id == "refresh_role_card"
-    assert registry.match("kk刷新123456的角色甲面板").command.id == "refresh_admin_role_card"
+    assert (
+        registry.match("kk刷新123456的角色甲面板").command.id
+        == "refresh_admin_role_card"
+    )
     assert registry.match("kk清理全部角色缓存").command.id == "clear_player_cache"
 
 
@@ -142,7 +148,9 @@ async def test_user_refresh_forces_target_role_and_keeps_other_role_cache(
         assert isinstance(response, ChainResponse)
         assert isinstance(response.components[0], PlainTextResponse)
         assert isinstance(response.components[1], ImageResponse)
-        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
+        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(
+            name="角色甲"
+        )
         assert transport.overview_calls == 2
         assert transport.role_detail_calls == 2
         assert renderer.detail_calls == 2
@@ -168,7 +176,9 @@ async def test_refresh_role_returns_notice_and_a_new_card(tmp_path: Path) -> Non
         assert isinstance(response, ChainResponse)
         assert isinstance(response.components[0], PlainTextResponse)
         assert isinstance(response.components[1], ImageResponse)
-        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
+        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(
+            name="角色甲"
+        )
         assert transport.overview_calls == 1
         assert transport.role_detail_calls == 1
         assert renderer.detail_calls == 1
@@ -223,7 +233,9 @@ async def test_refresh_role_notice_uses_canonical_name_for_fuzzy_input(
 
 
 @pytest.mark.asyncio
-async def test_refresh_role_failure_never_returns_success_notice(tmp_path: Path) -> None:
+async def test_refresh_role_failure_never_returns_success_notice(
+    tmp_path: Path,
+) -> None:
     clock = MutableClock()
     database, transport, _renderer, _cache, service = await _service(tmp_path, clock)
     try:
@@ -239,7 +251,9 @@ async def test_refresh_role_failure_never_returns_success_notice(tmp_path: Path)
 
 
 @pytest.mark.asyncio
-async def test_admin_refresh_role_uses_the_same_success_response(tmp_path: Path) -> None:
+async def test_admin_refresh_role_uses_the_same_success_response(
+    tmp_path: Path,
+) -> None:
     clock = MutableClock()
     database, _transport, _renderer, _cache, service = await _service(tmp_path, clock)
     try:
@@ -251,7 +265,9 @@ async def test_admin_refresh_role_uses_the_same_success_response(tmp_path: Path)
         assert isinstance(response, ChainResponse)
         assert isinstance(response.components[0], PlainTextResponse)
         assert isinstance(response.components[1], ImageResponse)
-        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
+        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(
+            name="角色甲"
+        )
     finally:
         await database.dispose()
 
@@ -342,7 +358,9 @@ async def test_clear_all_role_cache_command_only_clears_current_uid_player_entri
             tags=("player_card", identity),
             now=clock.value,
         )
-        await cache.manager.put("announcement", "keep", b"announcement", now=clock.value)
+        await cache.manager.put(
+            "announcement", "keep", b"announcement", now=clock.value
+        )
         request = CommandRequest(
             command_id="clear_player_cache",
             text="kk清理全部角色缓存",
@@ -359,9 +377,15 @@ async def test_clear_all_role_cache_command_only_clears_current_uid_player_entri
 
         assert isinstance(response, PlainTextResponse)
         assert response.text == messages.PLAYER_ALL_ROLE_CACHE_CLEARED
-        assert (await cache.manager.get("player_data", "player", now=clock.value)).status == "miss"
-        assert (await cache.manager.get("player_card", "card", now=clock.value)).status == "miss"
-        assert (await cache.manager.get("announcement", "keep", now=clock.value)).status == "fresh"
+        assert (
+            await cache.manager.get("player_data", "player", now=clock.value)
+        ).status == "miss"
+        assert (
+            await cache.manager.get("player_card", "card", now=clock.value)
+        ).status == "miss"
+        assert (
+            await cache.manager.get("announcement", "keep", now=clock.value)
+        ).status == "fresh"
     finally:
         await database.dispose()
 

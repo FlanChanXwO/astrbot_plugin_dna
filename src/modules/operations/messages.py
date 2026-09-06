@@ -24,9 +24,7 @@ RESOURCE_STATUS_UNAVAILABLE = get_tip("operations.resource_status_unavailable")
 RESOURCE_STATUS_SYNC_SUCCESS = get_tip_template(
     "operations.resource_status_sync_success"
 )
-RESOURCE_STATUS_SYNC_FAILED = get_tip_template(
-    "operations.resource_status_sync_failed"
-)
+RESOURCE_STATUS_SYNC_FAILED = get_tip_template("operations.resource_status_sync_failed")
 RESOURCE_STATUS_SYNC_UNREADABLE = get_tip("operations.resource_status_sync_unreadable")
 RESOURCE_GIT_UNAVAILABLE = get_tip("operations.resource_git_unavailable")
 RESOURCE_REMOTE_MISMATCH = get_tip("operations.resource_remote_mismatch")
