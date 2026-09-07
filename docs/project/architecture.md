@@ -106,7 +106,9 @@
   并发管理员请求共享 single-flight；插件启动不自动预热或同步资源，但已有 current generation 会在暴露前完整校验。
   校验失败只将 generation 标记为不可用并保留修复入口，管理员可通过状态命令查看错误类型，再用同一远端 commit
   的同步重建快照。
-  资源服务不注册生命周期 worker，terminate 会禁止新的同步并等待正在运行的 Git/to_thread 任务排空。
+  资源服务不注册生命周期 worker，terminate 会禁止新的同步并等待正在运行的 Git/to_thread 任务排空；同 commit
+  修复在替换 `<commit-sha>` 物理目录前阻止新的 lease，并等待已有 lease 释放，避免活跃读取继续跟随旧
+  `Path` 读到被替换后的内容。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
   GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `fetch --no-tags origin main`，可用临时

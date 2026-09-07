@@ -582,6 +582,9 @@ class ResourceSnapshotCoordinator:
         self._last_sync: ResourceSyncStatus | None = None
         self._current_validation_error: str | None = None
         self._leases: dict[str, int] = {}
+        # 同 commit 修复期间禁止新 lease，并在替换物理目录前等待旧 lease 释放。
+        self._lease_condition = threading.Condition(self._state_lock)
+        self._repairing: set[str] = set()
         self._retired: set[str] = set()
         self._listeners: list[SnapshotListener] = []
 
@@ -998,11 +1001,13 @@ class ResourceSnapshotCoordinator:
     def acquire(self) -> ResourceLease:
         """为一次资源读取取得当前已验证 generation lease。"""
 
-        with self._state_lock:
+        with self._lease_condition:
             current = self._current
             if current is None:
                 raise ResourceGenerationError("当前没有可用的已验证资源 generation")
             commit_sha = current.commit_sha
+            if commit_sha in self._repairing:
+                raise ResourceGenerationError("当前资源 generation 正在修复")
             self._leases[commit_sha] = self._leases.get(commit_sha, 0) + 1
             return ResourceLease(self, current)
 
@@ -1010,9 +1015,9 @@ class ResourceSnapshotCoordinator:
     def optional_lease(self) -> Iterator[ResourceSnapshot | None]:
         """为兼容尚未生成 snapshot 的旧缓存提供可选 lease。"""
 
-        with self._state_lock:
+        with self._lease_condition:
             current = self._current
-            if current is not None:
+            if current is not None and current.commit_sha not in self._repairing:
                 commit_sha = current.commit_sha
                 self._leases[commit_sha] = self._leases.get(commit_sha, 0) + 1
                 lease = ResourceLease(self, current)
@@ -1023,6 +1028,32 @@ class ResourceSnapshotCoordinator:
             return
         with lease as snapshot:
             yield snapshot
+
+    def _begin_generation_repair(self, commit_sha: str) -> None:
+        """阻止新 lease，并等待旧 lease 退出后再替换同 commit 目录。
+
+        该等待发生在同步 worker 中；condition 不设固定超时，确保不会在仍有
+        读取者时提前替换 generation，也不会把未完成的读取静默判定为失败。
+        """
+
+        with self._lease_condition:
+            self._repairing.add(commit_sha)
+            current = self._current
+            if current is not None and current.commit_sha == commit_sha:
+                # 即使并发重验恰好重新放回 current，也要在替换同路径前撤回它；
+                # 新请求只能等修复完成后重新取得新 snapshot。
+                self._current = None
+                if self._loaded_snapshot is current:
+                    self._loaded_snapshot = None
+            while self._leases.get(commit_sha, 0):
+                self._lease_condition.wait()
+
+    def _end_generation_repair(self, commit_sha: str) -> None:
+        """解除同 commit 修复期间的新 lease 门禁。"""
+
+        with self._lease_condition:
+            self._repairing.discard(commit_sha)
+            self._lease_condition.notify_all()
 
     @staticmethod
     def _empty_resource_view(resource_attr: str) -> Any:
@@ -1062,7 +1093,7 @@ class ResourceSnapshotCoordinator:
             yield bound
 
     def _release(self, commit_sha: str) -> None:
-        with self._state_lock:
+        with self._lease_condition:
             count = self._leases.get(commit_sha)
             if count is None:
                 return
@@ -1070,6 +1101,7 @@ class ResourceSnapshotCoordinator:
                 del self._leases[commit_sha]
             else:
                 self._leases[commit_sha] = count - 1
+            self._lease_condition.notify_all()
         self._collect_retired()
 
     def _collect_retired(self) -> None:
@@ -1305,43 +1337,57 @@ class ResourceSnapshotCoordinator:
                     content_sha256=validated.content_sha256,
                 )
 
+        repair_generation = False
         if force_rebuild:
-            snapshot, created_final = self._materialize(
-                synchronizer,
-                commit_sha,
-                replace_existing=True,
-            )
-        else:
-            snapshot, created_final = self._materialize(synchronizer, commit_sha)
+            final_path = self._generation_path(commit_sha)
+            repair_generation = final_path.exists() or final_path.is_symlink()
         try:
-            synchronizer.fast_forward_fetch_head()
-            synchronizer.validate()
-            with self._state_lock:
-                current = self._current
-            if current is None or current.commit_sha != commit_sha:
-                self._activate(snapshot)
-        except BaseException as error:
-            cleanup_errors: list[BaseException] = []
-            with self._state_lock:
-                current = self._current
-            if created_final and (current is None or current.commit_sha != commit_sha):
-                try:
-                    self._remove_generation(snapshot.root)
-                except BaseException as cleanup_error:  # noqa: BLE001
-                    cleanup_errors.append(cleanup_error)
-            if cleanup_errors:
-                raise BaseExceptionGroup(
-                    "资源 generation 发布和清理均失败",
-                    [error, *cleanup_errors],
-                ) from error
-            raise
-        return replace(
-            result,
-            resource_version=snapshot.resource_version,
-            commit_sha=commit_sha,
-            generation_root=snapshot.root,
-            content_sha256=snapshot.content_sha256,
-        )
+            if repair_generation:
+                # 先建立门禁再等待旧 lease；否则等待期间仍可能有新 lease 指向旧路径，
+                # 导致替换后继续读取到不稳定的物理目录。
+                self._begin_generation_repair(commit_sha)
+            if force_rebuild:
+                snapshot, created_final = self._materialize(
+                    synchronizer,
+                    commit_sha,
+                    replace_existing=True,
+                )
+            else:
+                snapshot, created_final = self._materialize(synchronizer, commit_sha)
+            try:
+                synchronizer.fast_forward_fetch_head()
+                synchronizer.validate()
+                with self._state_lock:
+                    current = self._current
+                if current is None or current.commit_sha != commit_sha:
+                    self._activate(snapshot)
+            except BaseException as error:
+                cleanup_errors: list[BaseException] = []
+                with self._state_lock:
+                    current = self._current
+                if created_final and (
+                    current is None or current.commit_sha != commit_sha
+                ):
+                    try:
+                        self._remove_generation(snapshot.root)
+                    except BaseException as cleanup_error:  # noqa: BLE001
+                        cleanup_errors.append(cleanup_error)
+                if cleanup_errors:
+                    raise BaseExceptionGroup(
+                        "资源 generation 发布和清理均失败",
+                        [error, *cleanup_errors],
+                    ) from error
+                raise
+            return replace(
+                result,
+                resource_version=snapshot.resource_version,
+                commit_sha=commit_sha,
+                generation_root=snapshot.root,
+                content_sha256=snapshot.content_sha256,
+            )
+        finally:
+            if repair_generation:
+                self._end_generation_repair(commit_sha)
 
     def sync_resources(self) -> ResourceSyncResult:
         """同步 cache、验证 FETCH_HEAD 候选并原子发布新快照。"""

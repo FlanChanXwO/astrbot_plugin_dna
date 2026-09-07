@@ -78,7 +78,9 @@ Git checkout 当作未经验证的业务资源源。资源根目录存在但 man
 
 首次同步可能需要一段时间。插件不会在启动时后台预热或自动同步资源；管理员命令会等待当前同步
 完成，重复触发不会并发启动多次同步。远端 commit 与当前已校验可用的 generation 相同时，命令会快速返回
-“资源已是最新”；若同 commit 的 current generation 已损坏，则会重新物化并校验候选快照。
+“资源已是最新”；若同 commit 的 current generation 已损坏，则会重新物化并校验候选快照。修复同 commit
+的物理目录前会阻止新的 generation lease，并等待已有 lease 释放；等待期间业务继续使用空资源视图，
+不会替换仍被读取的目录。
 
 ## 资源更新与缓存
 
@@ -86,7 +88,8 @@ Git checkout 当作未经验证的业务资源源。资源根目录存在但 man
 旧 generation 会在没有活动读取后回收。重启时会读取 current 指针指向的 generation metadata，并在暴露资源前
 完成完整校验；校验失败时不会阻断插件构造，管理员可用资源状态查看错误类型并通过同步资源重建同一远端 commit
 的 generation。在 current 不可用或完整重验期间，业务请求不会回退到 `resources/` Git checkout，
-而是得到空资源视图；资源状态和同步修复入口仍然可用。资源状态命令仍只读取轻量 metadata，不触发 Git、
+而是得到空资源视图；资源状态和同步修复入口仍然可用。同 commit 修复会在旧 lease 全部释放后才替换
+相同的物理目录，避免已有读取继续跟随路径读到新内容。资源状态命令仍只读取轻量 metadata，不触发 Git、
 完整 validator 或图片解码。同步物化阶段会
 清理 candidate/archive 临时文件。
 

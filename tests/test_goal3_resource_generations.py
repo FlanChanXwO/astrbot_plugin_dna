@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import threading
 from builtins import ExceptionGroup
 from pathlib import Path
 from types import SimpleNamespace
@@ -262,6 +263,72 @@ def test_sync_same_remote_commit_after_restart_validates_current_generation(
     assert repaired.commit_sha == first.commit_sha
     assert restarted.current_snapshot is not None
     assert restarted.current_snapshot.commit_sha == first.commit_sha
+
+
+def test_same_commit_repair_waits_for_active_lease_before_replacing_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同 commit 修复不得在活跃 lease 仍读取旧物理目录时替换它。"""
+
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    assert first.generation_root is not None
+
+    lease = coordinator.acquire()
+    old_root = lease.root
+    alias_path = old_root / "alias" / "char_alias.json"
+    alias_path.write_text('{"角色甲": ["lease 仍在读取"]}', encoding="utf-8")
+
+    repair_started = threading.Event()
+    repair_finished = threading.Event()
+    result: list[object] = []
+    errors: list[BaseException] = []
+    original_begin = coordinator._begin_generation_repair
+
+    def observe_repair_begin(commit_sha: str) -> None:
+        repair_started.set()
+        original_begin(commit_sha)
+
+    monkeypatch.setattr(
+        coordinator,
+        "_begin_generation_repair",
+        observe_repair_begin,
+    )
+
+    def run_repair() -> None:
+        try:
+            result.append(coordinator.synchronize())
+        except BaseException as error:  # noqa: BLE001 - 线程结果必须回传给测试。
+            errors.append(error)
+        finally:
+            repair_finished.set()
+
+    thread = threading.Thread(target=run_repair)
+    thread.start()
+    try:
+        assert repair_started.wait(2)
+        assert thread.is_alive()
+        assert old_root.is_dir()
+        assert (
+            alias_path.read_text(encoding="utf-8") == '{"角色甲": ["lease 仍在读取"]}'
+        )
+        with pytest.raises(ResourceGenerationError):
+            coordinator.acquire()
+        with coordinator.optional_lease() as snapshot:
+            assert snapshot is None
+    finally:
+        lease.release()
+        thread.join(timeout=2)
+    assert repair_finished.is_set()
+    assert not thread.is_alive()
+
+    assert not errors
+    assert result
+    assert result[0].commit_sha == first.commit_sha
+    assert coordinator.current_snapshot is not None
+    assert coordinator.current_snapshot.commit_sha == first.commit_sha
 
 
 def test_sync_reports_validation_and_cleanup_failures_together(

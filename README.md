@@ -140,7 +140,8 @@ GitHub、公共资源 CDN、AstrBot 或第三方攻略接口。WebSocket 两项�
 会显示 repository path、generation id、active pointer、resource_version 和 last sync result，且不会触发 Git、
 完整校验、PIL 或完整 SHA-256。若 current generation 校验失败，状态会保留错误类型；再发送 `kk同步资源` 可
 从同一远端 commit 重建 generation，恢复资源服务。current 不可用期间业务只得到显式空资源视图，不会
-回退读取未经验证的 `resources/` Git checkout。
+回退读取未经验证的 `resources/` Git checkout。同 commit 修复会等待已有资源 lease 释放后再替换物理快照目录，
+避免正在读取的请求跟随路径读到新内容。
 
 ### 缓存 `cache`
 
