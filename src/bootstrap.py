@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -248,23 +249,10 @@ def build_runtime(
         custom_alias_path=custom_alias_path,
         custom_weapon_alias_path=custom_weapon_alias_path,
     )
-    # 先读取 current 指针，再在把资源视图交给 runtime 前完成完整校验；
-    # Git 同步仍只由显式资源同步路径触发，避免启动阶段触碰远端仓库。
-    # current 损坏时保留资源管理/修复入口，不能让整个插件因不可用素材退出。
-    try:
-        initial_resource_snapshot = resource_snapshots.load_current()
-        if initial_resource_snapshot is not None:
-            initial_resource_snapshot = resource_snapshots.validate_current()
-    except ResourceGenerationError as error:
-        resource_snapshots.record_validation_failure(error)
-        from astrbot.api import logger
-
-        logger.warning(
-            "[dnaby][resources] 当前 generation 校验失败，资源暂不可用；"
-            "可执行同步资源修复（%s）",
-            type(error).__name__,
-        )
-        initial_resource_snapshot = None
+    # 构造期只接纳已由外部显式注入的 verified snapshot；重载时的 current
+    # 指针和完整资源校验延后到异步生命周期，避免阻塞 AstrBot 插件加载线程。
+    # 没有已验证快照时使用显式空视图，直到异步校验成功后由监听器刷新。
+    initial_resource_snapshot = resource_snapshots.current_snapshot
     resource_root = (
         initial_resource_snapshot.root
         if initial_resource_snapshot is not None
@@ -731,6 +719,28 @@ def build_runtime(
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources
 
     resource_snapshots.subscribe(_refresh_resource_views)
+
+    async def _initialize_resource_views() -> None:
+        """在异步生命周期中完成完整资源校验，避免阻塞插件构造线程。"""
+
+        try:
+            snapshot = await asyncio.to_thread(resource_snapshots.validate_current)
+        except ResourceGenerationError as error:
+            resource_snapshots.record_validation_failure(error)
+            from astrbot.api import logger
+
+            logger.warning(
+                "[dnaby][resources] 当前 generation 校验失败，资源暂不可用；"
+                "可执行同步资源修复（%s）",
+                type(error).__name__,
+            )
+            return
+        if snapshot is not None:
+            _refresh_resource_views(snapshot)
+
+    async def _stop_resource_views() -> None:
+        """资源校验不持有后台任务，但需要与启动 hook 保持索引对齐。"""
+
     if services is not None:
         resolved_services.update(services)
 
@@ -765,6 +775,7 @@ def build_runtime(
     )
     lifecycle = PluginLifecycle(
         start_hooks=(
+            _initialize_resource_views,
             login_flow.start,
             web.initialize,
             cache_maintenance.start,
@@ -776,6 +787,7 @@ def build_runtime(
         # stop_hooks 与 start_hooks 按阶段对齐；PluginLifecycle 会逆序执行，
         # 先取消 scheduler/监听任务，再运行 transport 和数据库 finalizer。
         stop_hooks=(
+            _stop_resource_views,
             login_flow.stop,
             web.stop,
             cache_maintenance.stop,

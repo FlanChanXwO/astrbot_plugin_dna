@@ -669,6 +669,7 @@ async def test_build_runtime_keeps_resource_recovery_surface_when_generation_is_
         {"login": {"port": 0}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
     )
+    await runtime.initialize()
 
     snapshots = cast(
         ResourceSnapshotCoordinator, runtime.services["resource_snapshots"]

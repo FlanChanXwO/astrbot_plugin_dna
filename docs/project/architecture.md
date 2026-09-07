@@ -103,7 +103,8 @@
   repository path、generation id、active pointer、resource_version 和 last sync result，但不触发 Git fetch、完整 validator、
   PIL 解码或完整 SHA-256。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
   `同步资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
-  并发管理员请求共享 single-flight；插件启动不自动预热或同步资源，但已有 current generation 会在暴露前完整校验。
+  并发管理员请求共享 single-flight；插件启动不自动预热或同步资源，构造阶段不执行完整校验，已有 current generation
+  会在异步 `initialize()` 生命周期的工作线程中校验，成功后才暴露给业务。
   校验失败只将 generation 标记为不可用并保留修复入口，管理员可通过状态命令查看错误类型，再用同一远端 commit
   的同步重建快照。
   资源服务不注册生命周期 worker，terminate 会禁止新的同步并等待正在运行的 Git/to_thread 任务排空；同 commit
@@ -113,8 +114,9 @@
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
   GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `fetch --no-tags origin main`，可用临时
   `url.*.insteadOf` 注入 GitHub 加速前缀。同步前后检查 origin、main checkout、干净 worktree
-  和完整 `resource_manifest.json`；不强制覆盖本地修改。bootstrap 从当前已验证 generation
-  注入玩家的 `ResourceMap` 与 `EncyclopediaResourceStore`，并订阅发布事件刷新 renderer、
+  和完整 `resource_manifest.json`；不强制覆盖本地修改。bootstrap 构造阶段仅注入显式空资源视图，
+  在异步 `initialize()` 中完成 current generation 的完整校验后，再注入玩家的 `ResourceMap` 与
+  `EncyclopediaResourceStore`，并订阅发布事件刷新 renderer、
   别名和资源状态视图。没有已验证 current 时只注入显式空资源视图，绝不把 Git cache 作为业务
   资源源；每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
   回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材

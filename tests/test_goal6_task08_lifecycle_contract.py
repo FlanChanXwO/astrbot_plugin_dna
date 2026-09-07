@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from types import SimpleNamespace
@@ -335,3 +336,39 @@ async def test_lifecycle_runs_finalizers_after_steps() -> None:
     await lifecycle.terminate()
 
     assert events == ["start", "stop", "transport-close", "database-close"]
+
+
+@pytest.mark.asyncio
+async def test_resource_generation_validation_is_deferred_to_async_start(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """完整资源校验不得在同步构造期执行，且启动时应移入工作线程。"""
+
+    calls: list[str] = []
+    from src import bootstrap
+
+    def fake_load(_self: ResourceSnapshotCoordinator):
+        return object()
+
+    def record_validate(_self: ResourceSnapshotCoordinator):
+        calls.append(threading.current_thread().name)
+
+    monkeypatch.setattr(ResourceSnapshotCoordinator, "load_current", fake_load)
+    monkeypatch.setattr(ResourceSnapshotCoordinator, "validate_current", record_validate)
+
+    runtime = bootstrap.build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {"login": {"port": 0}},
+        database=AsyncDatabase(tmp_path / "runtime.sqlite3"),
+    )
+
+    assert calls == []
+
+    try:
+        await runtime.initialize()
+    finally:
+        await runtime.terminate()
+
+    assert len(calls) == 1
+    assert calls[0] != threading.current_thread().name
