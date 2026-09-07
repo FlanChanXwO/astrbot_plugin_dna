@@ -186,7 +186,13 @@ def test_goal6_schema_uses_new_groups_and_hides_legacy_fields() -> None:
         set(client_items["channels"]["options"]),
     )
     assert "client_update_enabled" not in schema["notifications"]["items"]
-    assert "scheduled_enabled" not in schema["sign_in"]["items"]
+    assert schema["sign_in"]["items"]["scheduled_enabled"] == {
+        "type": "bool",
+        "description": "旧版每日自动签到任务兼容开关",
+        "hint": "仅用于升级旧配置；新配置请使用每个 UID 的自动签到选择",
+        "default": True,
+        "invisible": True,
+    }
     assert "enable_all_users" not in schema["sign_in"]["items"]
     assert (
         schema["notifications"]["items"]["secret_retry_interval_seconds"]["invisible"]

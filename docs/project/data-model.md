@@ -79,7 +79,8 @@ Dashboard 管理页的账号列表默认只返回 App 凭据状态；只有已�
   继续按内部固定 24 小时周期清理。
 - `_HELP_CACHE` — 进程内帮助卡片缓存，插件终止时清空；`resource_generations/` 与
   `current.json` 由资源快照协调器按 generation lease 管理，`last_sync.json` 原子保存最近一次
-  同步的安全摘要；密函缓存按当前小时保存已校验快照。
+  同步的安全摘要，`validation.json` 保存 current generation 最近一次校验失败的错误类型；密函缓存按
+  当前小时保存已校验快照。
 
 ### 客户端更新状态与订阅
 

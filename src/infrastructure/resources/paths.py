@@ -9,6 +9,7 @@ RESOURCE_REPOSITORY_NAME = "resources"
 RESOURCE_GENERATIONS_NAME = "resource_generations"
 RESOURCE_GENERATION_STATE_NAME = "current.json"
 RESOURCE_LAST_SYNC_STATE_NAME = "last_sync.json"
+RESOURCE_VALIDATION_STATE_NAME = "validation.json"
 
 
 def resource_repository_dir(data_dir: str | Path) -> Path:
@@ -35,6 +36,12 @@ def resource_last_sync_state_path(data_dir: str | Path) -> Path:
     return resource_generations_dir(data_dir) / RESOURCE_LAST_SYNC_STATE_NAME
 
 
+def resource_validation_state_path(data_dir: str | Path) -> Path:
+    """返回当前 generation 最近一次校验失败摘要的路径。"""
+
+    return resource_generations_dir(data_dir) / RESOURCE_VALIDATION_STATE_NAME
+
+
 def default_resource_repository_dir(plugin_name: str = PLUGIN_NAME) -> Path:
     """使用 AstrBot ``StarTools.get_data_dir`` 解析插件数据目录。"""
 
@@ -49,9 +56,11 @@ __all__ = [
     "RESOURCE_GENERATION_STATE_NAME",
     "RESOURCE_LAST_SYNC_STATE_NAME",
     "RESOURCE_REPOSITORY_NAME",
+    "RESOURCE_VALIDATION_STATE_NAME",
     "default_resource_repository_dir",
     "resource_generation_state_path",
     "resource_generations_dir",
     "resource_last_sync_state_path",
+    "resource_validation_state_path",
     "resource_repository_dir",
 ]

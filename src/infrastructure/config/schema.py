@@ -37,6 +37,19 @@ _GROUPS: tuple[tuple[str, type[BaseModel]], ...] = (
     ("cache", CacheSettings),
 )
 
+# AstrBot 会在插件构造函数之前按 schema 删除未知字段。这个字段不属于
+# 新 typed model，只作为一次版本迁移窗口保留，确保旧 sign_in 配置能到达
+# ``DnabySettings.from_config``。``invisible`` 防止它成为新的正式配置入口。
+_SIGN_IN_COMPATIBILITY_FIELDS: dict[str, dict[str, Any]] = {
+    "scheduled_enabled": {
+        "type": "bool",
+        "description": "旧版每日自动签到任务兼容开关",
+        "hint": "仅用于升级旧配置；新配置请使用每个 UID 的自动签到选择",
+        "default": True,
+        "invisible": True,
+    }
+}
+
 
 def _unwrap_optional(annotation: Any) -> Any:
     origin = get_origin(annotation)
@@ -130,6 +143,13 @@ def generate_astrbot_schema() -> dict[str, dict[str, Any]]:
             if group_name == "client_updates" and field_name == "channels":
                 field_schema["options"] = list(CLIENT_UPDATE_CHANNELS)
             fields[field_name] = field_schema
+        if group_name == "sign_in":
+            fields.update(
+                {
+                    field_name: dict(field_schema)
+                    for field_name, field_schema in _SIGN_IN_COMPATIBILITY_FIELDS.items()
+                }
+            )
         result[group_name] = {
             "description": DnabySettings.model_fields[group_name].description
             or group_name,

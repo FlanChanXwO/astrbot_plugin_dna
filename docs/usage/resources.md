@@ -12,6 +12,7 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 - `resources/`：公共资源的 Git 同步缓存。
 - `resource_generations/<commit-sha>/`：通过完整校验后发布的只读资源快照。
 - `resource_generations/current.json`：指向当前资源快照的指针。
+- `resource_generations/validation.json`：当前 generation 最近一次完整校验失败的错误类型摘要。
 - `resource_generations/last_sync.json`：最近一次同步的安全摘要；只保存动作、版本、
   commit SHA 或错误类型，不保存仓库路径、凭据或异常原文。
 - `rendered/`：玩家、图鉴和通知响应生成的临时图片。
@@ -36,7 +37,8 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 
 显式同步时会检查 required directories 是否存在，并拒绝相对路径逃逸资源仓库根目录的声明。manifest
 中的文件摘要如果存在，也会逐项校验；校验失败时不会替换当前可用快照。插件启动不会执行 Git
-同步，但会在把已有 current generation 交给业务读取前完成完整校验；损坏的快照不会作为可用资源暴露。
+同步，但会在把已有 current generation 交给业务读取前完成完整校验；损坏的快照不会作为可用资源暴露，
+插件仍会继续启动，并通过资源状态命令保留校验失败类型，供管理员执行同步资源修复。
 
 ## 资源内容
 
@@ -74,14 +76,15 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 基础地址。加速地址只改变传输路径，不改变仓库、分支或校验规则。
 
 首次同步可能需要一段时间。插件不会在启动时后台预热或自动同步资源；管理员命令会等待当前同步
-完成，重复触发不会并发启动多次同步。远端 commit 与当前 generation 相同时，命令会快速返回“资源已是最新”，
-不会重新构建候选 generation。
+完成，重复触发不会并发启动多次同步。远端 commit 与当前已校验可用的 generation 相同时，命令会快速返回
+“资源已是最新”；若同 commit 的 current generation 已损坏，则会重新物化并校验候选快照。
 
 ## 资源更新与缓存
 
 资源更新成功后，新请求使用新的 generation；正在生成的图片会继续使用开始读取时的资源版本，
 旧 generation 会在没有活动读取后回收。重启时会读取 current 指针指向的 generation metadata，并在暴露资源前
-完成完整校验；资源状态命令仍只读取轻量 metadata，不触发 Git、完整 validator 或图片解码。同步物化阶段会
+完成完整校验；校验失败时不会阻断插件构造，管理员可用资源状态查看错误类型并通过同步资源重建同一远端 commit
+的 generation。资源状态命令仍只读取轻量 metadata，不触发 Git、完整 validator 或图片解码。同步物化阶段会
 清理 candidate/archive 临时文件。
 
 兑换码从 `data/redeem_codes.json` 读取，只有当前有效条目会由 `兑换码` 命令展示。玩家数据、玩家卡片、

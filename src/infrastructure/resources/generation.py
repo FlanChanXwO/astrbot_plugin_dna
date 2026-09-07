@@ -31,7 +31,11 @@ from .git import (
     run_git,
 )
 from .manifest import ResourceManifest, ResourceManifestError
-from .paths import RESOURCE_GENERATION_STATE_NAME, RESOURCE_LAST_SYNC_STATE_NAME
+from .paths import (
+    RESOURCE_GENERATION_STATE_NAME,
+    RESOURCE_LAST_SYNC_STATE_NAME,
+    RESOURCE_VALIDATION_STATE_NAME,
+)
 
 if TYPE_CHECKING:
     from ..rendering.player import ResourceMap
@@ -134,6 +138,7 @@ class ResourceStatusSnapshot:
     manifest_state: str
     last_sync: ResourceSyncStatus | None
     last_sync_error: str | None = None
+    current_validation_error: str | None = None
 
 
 class ResourceLease(AbstractContextManager[ResourceSnapshot]):
@@ -548,6 +553,7 @@ class ResourceSnapshotCoordinator:
         self.generations_root = Path(generations_root).expanduser().absolute()
         self.state_path = self.generations_root / RESOURCE_GENERATION_STATE_NAME
         self.last_sync_path = self.generations_root / RESOURCE_LAST_SYNC_STATE_NAME
+        self.validation_path = self.generations_root / RESOURCE_VALIDATION_STATE_NAME
         self.remote = remote
         self.acceleration_prefix = acceleration_prefix
         self._runner = runner
@@ -565,12 +571,16 @@ class ResourceSnapshotCoordinator:
             if custom_weapon_alias_path is not None
             else getattr(self._validator, "custom_weapon_alias_path", None)
         )
-        self._lock = threading.RLock()
+        # state lock 只保护内存状态；Git、归档、候选校验和内容哈希不在锁内执行。
+        self._state_lock = threading.RLock()
+        self._sync_lock = threading.Lock()
+        self._validation_lock = threading.Lock()
         # light snapshot 只作为待校验输入保存，current 只允许指向完整校验结果。
         self._loaded_snapshot: ResourceSnapshot | None = None
         self._current: ResourceSnapshot | None = None
         self._expected_content_sha256: str | None = None
         self._last_sync: ResourceSyncStatus | None = None
+        self._current_validation_error: str | None = None
         self._leases: dict[str, int] = {}
         self._retired: set[str] = set()
         self._listeners: list[SnapshotListener] = []
@@ -593,17 +603,17 @@ class ResourceSnapshotCoordinator:
 
     @property
     def current_snapshot(self) -> ResourceSnapshot | None:
-        with self._lock:
+        with self._state_lock:
             return self._current
 
     def subscribe(self, listener: SnapshotListener) -> Callable[[], None]:
         """注册发布后刷新运行期资源视图的监听器。"""
 
-        with self._lock:
+        with self._state_lock:
             self._listeners.append(listener)
 
         def unsubscribe() -> None:
-            with self._lock:
+            with self._state_lock:
                 if listener in self._listeners:
                     self._listeners.remove(listener)
 
@@ -657,7 +667,7 @@ class ResourceSnapshotCoordinator:
     def last_sync_status(self) -> ResourceSyncStatus | None:
         """返回当前进程已知的最近同步安全摘要。"""
 
-        with self._lock:
+        with self._state_lock:
             if self._last_sync is None:
                 self._last_sync = self._read_last_sync_status()
             return self._last_sync
@@ -681,11 +691,66 @@ class ResourceSnapshotCoordinator:
             if temporary.exists():
                 temporary.unlink()
 
+    def _read_validation_error(self) -> str | None:
+        """读取当前 generation 最近一次完整校验失败的安全摘要。"""
+
+        if self.validation_path.is_symlink():
+            raise ResourceGenerationError("当前资源校验状态不允许符号链接")
+        if not self.validation_path.exists():
+            return None
+        try:
+            raw = json.loads(self.validation_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ResourceGenerationError("当前资源校验状态不可读") from exc
+        error_type = raw.get("error_type") if isinstance(raw, dict) else None
+        if not isinstance(error_type, str) or not error_type:
+            raise ResourceGenerationError("当前资源校验状态格式无效")
+        return error_type
+
+    def _write_validation_error(self, error_type: str) -> None:
+        """原子保存当前 generation 的校验失败类型，不保存异常原文。"""
+
+        self._ensure_storage_roots()
+        self.generations_root.mkdir(parents=True, exist_ok=True)
+        self._ensure_storage_roots()
+        if self.validation_path.is_symlink():
+            raise ResourceGenerationError("当前资源校验状态不允许符号链接")
+        temporary = self.generations_root / f".validation-{uuid4().hex}.tmp"
+        try:
+            temporary.write_text(
+                json.dumps({"error_type": error_type}, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary, self.validation_path)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+
+    def record_validation_failure(self, error: BaseException) -> None:
+        """记录 current generation 不可用，但不阻断管理/修复入口。"""
+
+        error_type = type(error).__name__
+        with self._state_lock:
+            if self._current_validation_error == error_type:
+                return
+            self._write_validation_error(error_type)
+            self._current_validation_error = error_type
+
+    def _clear_validation_failure(self) -> None:
+        """在成功发布或验证后清除旧的 current 校验失败摘要。"""
+
+        with self._state_lock:
+            if self.validation_path.is_symlink():
+                raise ResourceGenerationError("当前资源校验状态不允许符号链接")
+            if self.validation_path.exists():
+                self.validation_path.unlink()
+            self._current_validation_error = None
+
     def record_sync_result(self, result: ResourceSyncResult) -> None:
         """持久化一次成功或无变化同步的安全摘要。"""
 
         status = ResourceSyncStatus.from_result(result)
-        with self._lock:
+        with self._state_lock:
             if self._last_sync == status:
                 return
             self._write_last_sync_status(status)
@@ -695,7 +760,7 @@ class ResourceSnapshotCoordinator:
         """持久化同步失败的异常类型，不落盘异常原文。"""
 
         status = ResourceSyncStatus.from_error(error)
-        with self._lock:
+        with self._state_lock:
             if self._last_sync == status:
                 return
             self._write_last_sync_status(status)
@@ -725,37 +790,53 @@ class ResourceSnapshotCoordinator:
     ) -> ResourceStatusSnapshot:
         """读取资源状态 metadata，不触发 Git、完整校验、图片解码或内容哈希。"""
 
-        with self._lock:
-            self._ensure_storage_roots()
-            if snapshot is not None:
-                generation_id = snapshot.commit_sha
-                resource_root = snapshot.root
-                manifest = snapshot.manifest
-                manifest_state = "ready"
-            else:
-                generation_id, _content_sha256 = self._read_generation_pointer()
-                resource_root = (
-                    self._generation_path(generation_id)
-                    if generation_id is not None
-                    else (self.repository if self.repository.is_dir() else None)
-                )
-                manifest_state, manifest = self._read_status_manifest(resource_root)
-            last_sync_error: str | None = None
+        self._ensure_storage_roots()
+        pointer_error: ResourceGenerationError | None = None
+        if snapshot is not None:
+            generation_id = snapshot.commit_sha
+            resource_root = snapshot.root
+            manifest = snapshot.manifest
+            manifest_state = "ready"
+        else:
             try:
-                last_sync = self._read_last_sync_status()
+                generation_id, _content_sha256 = self._read_generation_pointer()
             except ResourceGenerationError as error:
-                last_sync = None
-                last_sync_error = str(error)
-            return ResourceStatusSnapshot(
-                repository=self.repository,
-                active_pointer=self.state_path,
-                generation_id=generation_id,
-                resource_root=resource_root,
-                manifest=manifest,
-                manifest_state=manifest_state,
-                last_sync=last_sync,
-                last_sync_error=last_sync_error,
+                # 状态命令必须能展示损坏 pointer，保留同步修复入口；不把仓库缓存
+                # 冒充为当前 generation，也不在这里触发完整校验。
+                generation_id = None
+                pointer_error = error
+            resource_root = (
+                self._generation_path(generation_id)
+                if generation_id is not None
+                else None
             )
+            manifest_state, manifest = self._read_status_manifest(resource_root)
+        last_sync_error: str | None = None
+        try:
+            last_sync = self._read_last_sync_status()
+        except ResourceGenerationError as error:
+            last_sync = None
+            last_sync_error = str(error)
+        with self._state_lock:
+            current_validation_error = self._current_validation_error
+        if current_validation_error is None and pointer_error is not None:
+            current_validation_error = type(pointer_error).__name__
+        if current_validation_error is None and generation_id is not None:
+            try:
+                current_validation_error = self._read_validation_error()
+            except ResourceGenerationError as error:
+                current_validation_error = type(error).__name__
+        return ResourceStatusSnapshot(
+            repository=self.repository,
+            active_pointer=self.state_path,
+            generation_id=generation_id,
+            resource_root=resource_root,
+            manifest=manifest,
+            manifest_state=manifest_state,
+            last_sync=last_sync,
+            last_sync_error=last_sync_error,
+            current_validation_error=current_validation_error,
+        )
 
     def _generation_path(self, commit_sha: str) -> Path:
         if re.fullmatch(r"[0-9a-fA-F]+", commit_sha) is None:
@@ -819,51 +900,89 @@ class ResourceSnapshotCoordinator:
     def load_current(self) -> ResourceSnapshot | None:
         """只读取 current 指针和 generation metadata，供后续完整校验使用。"""
 
-        with self._lock:
-            self._ensure_storage_roots()
-            generation, expected_content_sha256 = self._read_generation_pointer()
-            if generation is None:
+        self._ensure_storage_roots()
+        generation, expected_content_sha256 = self._read_generation_pointer()
+        if generation is None:
+            with self._state_lock:
                 self._loaded_snapshot = None
                 self._current = None
                 self._expected_content_sha256 = None
-                return None
-            snapshot = self._load_light_snapshot(generation)
+            self._clear_validation_failure()
+            return None
+        # metadata/index 读取不应占用保护运行期 current 的状态锁。
+        snapshot = self._load_light_snapshot(generation)
+        with self._state_lock:
+            # 并发发布了新 generation 时，不允许旧的 load 结果覆盖 current。
+            if (
+                self._current is not None
+                and self._current.commit_sha != snapshot.commit_sha
+            ):
+                return snapshot
             self._loaded_snapshot = snapshot
             # 轻量快照不得通过 current_snapshot/acquire 暴露给业务读取。
             self._current = None
             self._expected_content_sha256 = expected_content_sha256
-            return snapshot
+        return snapshot
 
     def validate_current(self) -> ResourceSnapshot | None:
         """对已加载的 current generation 执行完整校验；无 current 时返回 ``None``。"""
 
-        with self._lock:
-            snapshot = self._current or self._loaded_snapshot
+        with self._validation_lock:
+            with self._state_lock:
+                snapshot = self._current or self._loaded_snapshot
+                expected_content_sha256 = self._expected_content_sha256
+                if snapshot is self._current:
+                    # 重验现有 current 时暂时撤回暴露，避免校验期间继续读取可能已被
+                    # 外部篡改的目录；新远端 generation 的构建不会走这个分支，因此不影响
+                    # 已验证旧 generation 在后台同步期间继续服务。
+                    self._current = None
             if snapshot is None:
                 snapshot = self.load_current()
+                with self._state_lock:
+                    expected_content_sha256 = self._expected_content_sha256
             if snapshot is None:
                 return None
-            expected_content_sha256 = self._expected_content_sha256
-            # 校验期间不保留旧 current，避免文件已被篡改时继续暴露旧视图。
-            self._current = None
-            validated = self._validator.validate(snapshot.root, snapshot.commit_sha)
-            if (
-                expected_content_sha256 is not None
-                and expected_content_sha256.casefold()
-                != validated.content_sha256.casefold()
-            ):
-                raise ResourceGenerationError("当前资源 generation 内容哈希不匹配")
-            if expected_content_sha256 is None:
-                self._write_state(validated)
-            self._loaded_snapshot = validated
-            self._current = validated
-            self._expected_content_sha256 = validated.content_sha256
+
+            try:
+                # 完整 validator、图片解码和 SHA-256 必须在 state lock 外执行。
+                validated = self._validator.validate(snapshot.root, snapshot.commit_sha)
+                if (
+                    expected_content_sha256 is not None
+                    and expected_content_sha256.casefold()
+                    != validated.content_sha256.casefold()
+                ):
+                    raise ResourceGenerationError("当前资源 generation 内容哈希不匹配")
+                if expected_content_sha256 is None:
+                    self._write_state(validated)
+            except Exception as error:
+                with self._state_lock:
+                    if self._current is snapshot:
+                        self._current = None
+                    if self._loaded_snapshot is snapshot:
+                        self._loaded_snapshot = None
+                    owns_failed_state = (
+                        self._current is None and self._loaded_snapshot is None
+                    )
+                    if owns_failed_state:
+                        self._expected_content_sha256 = None
+                if owns_failed_state:
+                    self.record_validation_failure(error)
+                raise
+
+            with self._state_lock:
+                # 如果另一个受控发布已经替换了 current，不能用旧验证结果回写。
+                if self._current is not None and self._current is not snapshot:
+                    return self._current
+                self._loaded_snapshot = validated
+                self._current = validated
+                self._expected_content_sha256 = validated.content_sha256
+            self._clear_validation_failure()
             return validated
 
     def initialize(self) -> ResourceSnapshot | None:
         """兼容旧生命周期调用：完整恢复当前 generation 并清理孤立目录。"""
 
-        with self._lock:
+        with self._sync_lock:
             self._ensure_storage_roots()
             self.generations_root.mkdir(parents=True, exist_ok=True)
             self._ensure_storage_roots()
@@ -879,10 +998,8 @@ class ResourceSnapshotCoordinator:
     def acquire(self) -> ResourceLease:
         """为一次资源读取取得当前已验证 generation lease。"""
 
-        with self._lock:
+        with self._state_lock:
             current = self._current
-            if current is None:
-                current = self.validate_current()
             if current is None:
                 raise ResourceGenerationError("当前没有可用的已验证资源 generation")
             commit_sha = current.commit_sha
@@ -893,10 +1010,18 @@ class ResourceSnapshotCoordinator:
     def optional_lease(self) -> Iterator[ResourceSnapshot | None]:
         """为兼容尚未生成 snapshot 的旧缓存提供可选 lease。"""
 
-        if self.current_snapshot is None:
+        with self._state_lock:
+            current = self._current
+            if current is not None:
+                commit_sha = current.commit_sha
+                self._leases[commit_sha] = self._leases.get(commit_sha, 0) + 1
+                lease = ResourceLease(self, current)
+            else:
+                lease = None
+        if lease is None:
             yield None
             return
-        with self.acquire() as snapshot:
+        with lease as snapshot:
             yield snapshot
 
     @contextmanager
@@ -928,7 +1053,7 @@ class ResourceSnapshotCoordinator:
             yield bound
 
     def _release(self, commit_sha: str) -> None:
-        with self._lock:
+        with self._state_lock:
             count = self._leases.get(commit_sha)
             if count is None:
                 return
@@ -936,16 +1061,26 @@ class ResourceSnapshotCoordinator:
                 del self._leases[commit_sha]
             else:
                 self._leases[commit_sha] = count - 1
-            self._collect_retired()
+        self._collect_retired()
 
     def _collect_retired(self) -> None:
-        for commit_sha in tuple(self._retired):
-            if self._leases.get(commit_sha, 0):
-                continue
+        with self._state_lock:
+            ready = tuple(
+                commit_sha
+                for commit_sha in self._retired
+                if not self._leases.get(commit_sha, 0)
+            )
+            for commit_sha in ready:
+                self._retired.remove(commit_sha)
+        for commit_sha in ready:
             path = self._generation_path(commit_sha)
-            if path.exists():
-                self._remove_generation(path)
-            self._retired.remove(commit_sha)
+            try:
+                if path.exists():
+                    self._remove_generation(path)
+            except BaseException:
+                with self._state_lock:
+                    self._retired.add(commit_sha)
+                raise
 
     def _write_state(self, snapshot: ResourceSnapshot) -> None:
         self._ensure_storage_roots()
@@ -970,19 +1105,27 @@ class ResourceSnapshotCoordinator:
                 temporary.unlink()
 
     def _activate(self, snapshot: ResourceSnapshot) -> None:
-        previous = self._current or self._loaded_snapshot
+        # 指针写入不与 state lock 交叠；调用方已由 sync lock 串行化。
         self._write_state(snapshot)
-        self._loaded_snapshot = snapshot
-        self._current = snapshot
-        self._expected_content_sha256 = snapshot.content_sha256
-        if previous is not None and previous.commit_sha != snapshot.commit_sha:
-            self._retired.add(previous.commit_sha)
-        for listener in tuple(self._listeners):
+        with self._state_lock:
+            previous = self._current or self._loaded_snapshot
+            self._loaded_snapshot = snapshot
+            self._current = snapshot
+            self._expected_content_sha256 = snapshot.content_sha256
+            if previous is not None and previous.commit_sha != snapshot.commit_sha:
+                self._retired.add(previous.commit_sha)
+            listeners = tuple(self._listeners)
+        self._clear_validation_failure()
+        for listener in listeners:
             listener(snapshot)
         self._collect_retired()
 
     def _materialize(
-        self, synchronizer: ResourceSynchronizer, commit_sha: str
+        self,
+        synchronizer: ResourceSynchronizer,
+        commit_sha: str,
+        *,
+        replace_existing: bool = False,
     ) -> tuple[ResourceSnapshot, bool]:
         self._ensure_storage_roots()
         self.generations_root.mkdir(parents=True, exist_ok=True)
@@ -990,6 +1133,8 @@ class ResourceSnapshotCoordinator:
         candidate = self.generations_root / f".candidate-{uuid4().hex}"
         archive = self.generations_root / f".archive-{uuid4().hex}.tar"
         final: Path | None = None
+        replacement_backup: Path | None = None
+        replacement_started = False
         created_final = False
         snapshot: ResourceSnapshot | None = None
         primary_error: BaseException | None = None
@@ -1002,7 +1147,24 @@ class ResourceSnapshotCoordinator:
             if final.exists() or final.is_symlink():
                 if not final.is_dir() or final.is_symlink():
                     raise ResourceGenerationError("资源 generation 目标不是安全目录")
-                snapshot = self._validator.validate(final, commit_sha)
+                should_replace = replace_existing
+                if not should_replace:
+                    try:
+                        snapshot = self._validator.validate(final, commit_sha)
+                    except ResourceGenerationError:
+                        should_replace = True
+                if should_replace:
+                    # 同一远端 commit 的旧目录可能已经损坏；候选已先完成完整校验，
+                    # 通过临时 archive 目录替换旧目录，失败时恢复旧目录和 current 指针。
+                    replacement_backup = (
+                        self.generations_root / f".archive-{uuid4().hex}.replacement"
+                    )
+                    final.rename(replacement_backup)
+                    replacement_started = True
+                    candidate.rename(final)
+                    created_final = True
+                    # rename 后重新建立索引，避免 snapshot.root 仍指向 candidate。
+                    snapshot = self._validator.validate(final, commit_sha)
             else:
                 candidate.rename(final)
                 created_final = True
@@ -1026,6 +1188,24 @@ class ResourceSnapshotCoordinator:
 
         cleanup(candidate, generation=True)
         cleanup(archive, generation=False)
+        if primary_error is not None and replacement_backup is not None:
+            # 替换后的新目录未完成物化/校验时，优先恢复原有目录；清理失败仍需
+            # 追加到原始错误，不能伪装成恢复成功。
+            if (
+                replacement_started
+                and final is not None
+                and (final.exists() or final.is_symlink())
+            ):
+                cleanup(final, generation=True)
+            if replacement_backup.exists() or replacement_backup.is_symlink():
+                try:
+                    replacement_backup.rename(final)
+                except BaseException as error:  # noqa: BLE001
+                    cleanup_errors.append(error)
+            created_final = False
+        elif primary_error is None and replacement_backup is not None:
+            cleanup(replacement_backup, generation=True)
+
         if (
             created_final
             and (primary_error is not None or cleanup_errors)
@@ -1046,40 +1226,48 @@ class ResourceSnapshotCoordinator:
         return snapshot, created_final
 
     def _sync_resources(self) -> ResourceSyncResult:
-        """执行同步流程，外层负责记录成功或失败摘要。"""
+        """执行串行同步，外层负责记录成功或失败摘要。"""
 
-        with self._lock:
-            self._ensure_storage_roots(require_repository=True)
-            if self._current is None:
-                self.load_current()
-            synchronizer = ResourceSynchronizer(
-                self.repository,
-                remote=self.remote,
-                acceleration_prefix=self.acceleration_prefix,
-                runner=self._runner,
+        with self._sync_lock:
+            return self._sync_resources_unlocked()
+
+    def _sync_resources_unlocked(self) -> ResourceSyncResult:
+        """执行 Git/物化工作；不持有运行期 state lock。"""
+
+        self._ensure_storage_roots(require_repository=True)
+        synchronizer = ResourceSynchronizer(
+            self.repository,
+            remote=self.remote,
+            acceleration_prefix=self.acceleration_prefix,
+            runner=self._runner,
+        )
+        if not self.repository.exists():
+            # 首次 clone 只建立受限 cache；候选仍统一来自随后写入的 FETCH_HEAD。
+            result = synchronizer.sync()
+            synchronizer.fetch_main()
+        else:
+            # 先 fetch，候选校验成功后才更新 cache 的工作树，避免坏提交污染旧快照。
+            synchronizer.validate()
+            synchronizer.fetch_main()
+            result = ResourceSyncResult(
+                repository=self.repository,
+                action="updated",
+                resource_version="",
             )
-            if not self.repository.exists():
-                # 首次 clone 只建立受限 cache；候选仍统一来自随后写入的 FETCH_HEAD。
-                result = synchronizer.sync()
-                synchronizer.fetch_main()
-            else:
-                # 先 fetch，候选校验成功后才更新 cache 的工作树，避免坏提交污染旧快照。
-                synchronizer.validate()
-                synchronizer.fetch_main()
-                result = ResourceSyncResult(
-                    repository=self.repository,
-                    action="updated",
-                    resource_version="",
-                )
-            commit_sha = synchronizer.fetch_head_revision()
-            current = self._current or self._loaded_snapshot
-            if current is not None and current.commit_sha == commit_sha:
-                # 即使远端 commit 未变化，也要重新验证磁盘上的 generation。
+        commit_sha = synchronizer.fetch_head_revision()
+
+        with self._state_lock:
+            current = self._current
+            known_validation_error = self._current_validation_error
+        force_rebuild = known_validation_error is not None
+
+        if current is not None and current.commit_sha == commit_sha:
+            try:
                 validated = self.validate_current()
-                if validated is None:
-                    raise ResourceGenerationError(
-                        "当前资源 generation 在同步期间不可用"
-                    )
+            except ResourceGenerationError:
+                validated = None
+                force_rebuild = True
+            if validated is not None:
                 return replace(
                     result,
                     action="unchanged",
@@ -1089,35 +1277,62 @@ class ResourceSnapshotCoordinator:
                     content_sha256=validated.content_sha256,
                 )
 
-            snapshot, created_final = self._materialize(synchronizer, commit_sha)
+        if current is None and known_validation_error is None:
+            # 重载后的 light snapshot 也必须先完整验证；验证失败则继续走
+            # materialize，用同一个远端 commit 重建损坏的 generation。
             try:
-                synchronizer.fast_forward_fetch_head()
-                synchronizer.validate()
-                if self._current is None or self._current.commit_sha != commit_sha:
-                    self._activate(snapshot)
-            except BaseException as error:
-                cleanup_errors: list[BaseException] = []
-                current = self._current
-                if created_final and (
-                    current is None or current.commit_sha != commit_sha
-                ):
-                    try:
-                        self._remove_generation(snapshot.root)
-                    except BaseException as cleanup_error:  # noqa: BLE001
-                        cleanup_errors.append(cleanup_error)
-                if cleanup_errors:
-                    raise BaseExceptionGroup(
-                        "资源 generation 发布和清理均失败",
-                        [error, *cleanup_errors],
-                    ) from error
-                raise
-            return replace(
-                result,
-                resource_version=snapshot.resource_version,
-                commit_sha=commit_sha,
-                generation_root=snapshot.root,
-                content_sha256=snapshot.content_sha256,
+                self.load_current()
+                validated = self.validate_current()
+            except ResourceGenerationError:
+                validated = None
+                force_rebuild = True
+            if validated is not None and validated.commit_sha == commit_sha:
+                return replace(
+                    result,
+                    action="unchanged",
+                    resource_version=validated.resource_version,
+                    commit_sha=commit_sha,
+                    generation_root=validated.root,
+                    content_sha256=validated.content_sha256,
+                )
+
+        if force_rebuild:
+            snapshot, created_final = self._materialize(
+                synchronizer,
+                commit_sha,
+                replace_existing=True,
             )
+        else:
+            snapshot, created_final = self._materialize(synchronizer, commit_sha)
+        try:
+            synchronizer.fast_forward_fetch_head()
+            synchronizer.validate()
+            with self._state_lock:
+                current = self._current
+            if current is None or current.commit_sha != commit_sha:
+                self._activate(snapshot)
+        except BaseException as error:
+            cleanup_errors: list[BaseException] = []
+            with self._state_lock:
+                current = self._current
+            if created_final and (current is None or current.commit_sha != commit_sha):
+                try:
+                    self._remove_generation(snapshot.root)
+                except BaseException as cleanup_error:  # noqa: BLE001
+                    cleanup_errors.append(cleanup_error)
+            if cleanup_errors:
+                raise BaseExceptionGroup(
+                    "资源 generation 发布和清理均失败",
+                    [error, *cleanup_errors],
+                ) from error
+            raise
+        return replace(
+            result,
+            resource_version=snapshot.resource_version,
+            commit_sha=commit_sha,
+            generation_root=snapshot.root,
+            content_sha256=snapshot.content_sha256,
+        )
 
     def sync_resources(self) -> ResourceSyncResult:
         """同步 cache、验证 FETCH_HEAD 候选并原子发布新快照。"""

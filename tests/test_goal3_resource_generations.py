@@ -8,6 +8,7 @@ import subprocess
 from builtins import ExceptionGroup
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from PIL import Image
@@ -24,6 +25,7 @@ from src.infrastructure.resources import (
     run_git,
 )
 from src.infrastructure.resources.manifest import RUNTIME_RESOURCE_DIRECTORIES
+from src.modules.operations.resource_service import ResourceUpdateService
 
 
 def _git(*args: str, cwd: Path | None = None) -> str:
@@ -245,20 +247,19 @@ def test_sync_same_remote_commit_after_restart_validates_current_generation(
     first = coordinator.synchronize()
     assert first.generation_root is not None
 
-    manifest_path = first.generation_root / "resource_manifest.json"
     alias_path = first.generation_root / "alias" / "char_alias.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["file_hashes"] = {
-        "alias/char_alias.json": hashlib.sha256(alias_path.read_bytes()).hexdigest()
-    }
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     alias_path.write_text('{"角色甲": ["已篡改"]}', encoding="utf-8")
 
     restarted = _coordinator(tmp_path, runner)
     assert restarted.load_current() is not None
 
-    with pytest.raises(ResourceGenerationError, match="文件哈希不匹配"):
-        restarted.synchronize()
+    with pytest.raises(ResourceGenerationError, match="内容哈希不匹配"):
+        restarted.validate_current()
+
+    repaired = restarted.synchronize()
+    assert repaired.commit_sha == first.commit_sha
+    assert restarted.current_snapshot is not None
+    assert restarted.current_snapshot.commit_sha == first.commit_sha
 
 
 def test_sync_reports_validation_and_cleanup_failures_together(
@@ -559,6 +560,69 @@ def test_initialize_rejects_tampered_content_hash_pointer(tmp_path: Path) -> Non
     )
     with pytest.raises(ResourceGenerationError, match="内容哈希不匹配"):
         restarted.initialize()
+
+
+@pytest.mark.asyncio
+async def test_build_runtime_keeps_resource_recovery_surface_when_generation_is_corrupt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """current 损坏时插件仍可加载，并可用同步命令重建同一 generation。"""
+
+    source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    assert first.generation_root is not None
+    alias_path = first.generation_root / "alias" / "char_alias.json"
+    manifest_path = first.generation_root / "resource_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["file_hashes"] = {
+        "alias/char_alias.json": hashlib.sha256(alias_path.read_bytes()).hexdigest()
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    alias_path.write_text('{"角色甲": ["被篡改"]}', encoding="utf-8")
+
+    restarted = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+    )
+
+    import src.bootstrap as bootstrap_module
+
+    monkeypatch.setattr(
+        bootstrap_module,
+        "ResourceSnapshotCoordinator",
+        lambda *_args, **_kwargs: restarted,
+    )
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {"login": {"port": 0}},
+        database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
+    )
+
+    snapshots = cast(
+        ResourceSnapshotCoordinator, runtime.services["resource_snapshots"]
+    )
+    assert snapshots.current_snapshot is None
+    persisted_status = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+    ).read_status()
+    assert persisted_status.current_validation_error == "ResourceGenerationError"
+    service = cast(ResourceUpdateService, runtime.services["resource_update_service"])
+    status = await service.status()
+    assert "当前 generation 不可用" in status.text
+
+    response = await service.sync_resources(None)
+    assert "资源已更新完成" in response.text
+    assert snapshots.current_snapshot is not None
+    assert snapshots.current_snapshot.commit_sha == first.commit_sha
+    assert snapshots.current_snapshot.root.is_dir()
+
+    await runtime.terminate()
+    assert source.exists()
 
 
 def test_restart_loads_active_generation_and_removes_orphans_without_touching_panel_custom(

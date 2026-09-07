@@ -189,7 +189,9 @@ class ResourceUpdateService:
                 str(status.active_pointer),
             )
         )
-        if status.generation_id is None:
+        if status.current_validation_error is not None:
+            active_version = messages.RESOURCE_STATUS_UNKNOWN
+        elif status.generation_id is None:
             active_version = messages.RESOURCE_STATUS_UNPUBLISHED
         elif status.manifest_state == "ready" and status.manifest is not None:
             active_version = status.manifest.resource_version
@@ -201,6 +203,12 @@ class ResourceUpdateService:
                 active_version,
             )
         )
+        if status.current_validation_error is not None:
+            lines.append(
+                messages.RESOURCE_STATUS_VALIDATION_FAILED.format(
+                    error_type=status.current_validation_error,
+                )
+            )
         lines.append(
             messages.resource_status_line(
                 messages.RESOURCE_STATUS_LAST_SYNC_RESULT,

@@ -164,6 +164,13 @@
         "description": "图片形式群报告",
         "hint": "是否以图片发送群组报告",
         "default": false
+      },
+      "scheduled_enabled": {
+        "type": "bool",
+        "description": "旧版每日自动签到任务兼容开关",
+        "hint": "仅用于升级旧配置；新配置请使用每个 UID 的自动签到选择",
+        "default": true,
+        "invisible": true
       }
     }
   },

@@ -175,6 +175,7 @@
     "resource_status_sync_success": "成功（动作 {action}，版本 {version}，generation {generation}）",
     "resource_status_sync_failed": "失败（{error_type}）",
     "resource_status_sync_unreadable": "不可读",
+    "resource_status_validation_failed": "当前 generation 不可用（校验错误类型 {error_type}），请执行同步资源修复",
     "resource_git_unavailable": "未找到 git 可执行文件，无法同步公共资源仓库",
     "resource_remote_mismatch": "资源 Git origin 与配置的公共资源仓库不一致",
     "resource_local_changes": "{detail}",

@@ -21,6 +21,9 @@ RESOURCE_STATUS_UNPUBLISHED = get_tip("operations.resource_status_unpublished")
 RESOURCE_STATUS_UNKNOWN = get_tip("operations.resource_status_unknown")
 RESOURCE_STATUS_UNRECORDED = get_tip("operations.resource_status_unrecorded")
 RESOURCE_STATUS_UNAVAILABLE = get_tip("operations.resource_status_unavailable")
+RESOURCE_STATUS_VALIDATION_FAILED = get_tip_template(
+    "operations.resource_status_validation_failed"
+)
 RESOURCE_STATUS_SYNC_SUCCESS = get_tip_template(
     "operations.resource_status_sync_success"
 )
@@ -54,6 +57,7 @@ __all__ = [
     "RESOURCE_STATUS_SYNC_SUCCESS",
     "RESOURCE_STATUS_SYNC_UNREADABLE",
     "RESOURCE_STATUS_UNAVAILABLE",
+    "RESOURCE_STATUS_VALIDATION_FAILED",
     "RESOURCE_STATUS_UNPUBLISHED",
     "RESOURCE_STATUS_UNKNOWN",
     "RESOURCE_STATUS_UNRECORDED",

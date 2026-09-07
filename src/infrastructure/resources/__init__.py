@@ -51,10 +51,12 @@ from .paths import (
     RESOURCE_GENERATIONS_NAME,
     RESOURCE_LAST_SYNC_STATE_NAME,
     RESOURCE_REPOSITORY_NAME,
+    RESOURCE_VALIDATION_STATE_NAME,
     default_resource_repository_dir,
     resource_generation_state_path,
     resource_generations_dir,
     resource_last_sync_state_path,
+    resource_validation_state_path,
     resource_repository_dir,
 )
 
@@ -67,6 +69,7 @@ __all__ = [
     "RESOURCE_GENERATION_STATE_NAME",
     "RESOURCE_LAST_SYNC_STATE_NAME",
     "RESOURCE_REPOSITORY_NAME",
+    "RESOURCE_VALIDATION_STATE_NAME",
     "RUNTIME_RESOURCE_DIRECTORIES",
     "AliasCatalog",
     "EncyclopediaResourceError",
@@ -102,6 +105,7 @@ __all__ = [
     "resource_generation_state_path",
     "resource_generations_dir",
     "resource_last_sync_state_path",
+    "resource_validation_state_path",
     "resource_repository_dir",
     "run_git",
 ]
