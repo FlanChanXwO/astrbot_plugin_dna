@@ -63,9 +63,10 @@ schema 为准。
 自动签到的正式开关属于每个 UID 的用户状态，不再使用全局 `enable_all_users` 配置覆盖已有用户。
 旧配置中的 `SignAllUser` 会迁移为 `default_auto_sign_enabled`。旧配置中的
 `scheduled_enabled` 是旧版配置的兼容字段，schema 会以 invisible 字段保留它，避免 AstrBot
-在插件构造前清理旧值；它不进入新的 typed model，只在升级期间继续承担“是否注册每日自动签到任务”的
-门控语义。缺少该旧字段的新配置默认启用。该兼容门控不改变每个 UID 的 `auto_sign_enabled`，也不影响
-手动“全部签到”。
+在插件构造前清理旧值；它不进入新的 typed model，只在首次启动时迁移为
+`scheduler_state.json` 中 `dnaby_sign_daily` 的暂停状态，并写入一次性迁移标记。迁移完成后，
+每日任务由 scheduler registry 的暂停/恢复状态管理，修改这个旧隐藏字段不会再次覆盖正式状态。
+缺少该旧字段的新配置默认启用。该兼容迁移不改变每个 UID 的 `auto_sign_enabled`，也不影响手动“全部签到”。
 
 ## 通知 `notifications`
 

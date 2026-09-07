@@ -29,7 +29,7 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
   目标投递状态。
 - `client_update_state.json`：客户端更新版本化基线、最近一次变化摘要和未完成的按目标投递事件；
   事件成功或取消/停用清理后不保留完成历史，不保存凭据或原始响应。
-- `scheduler_state.json`：任务永久删除 tombstone。
+- `scheduler_state.json`：任务永久删除 tombstone、可恢复暂停状态和一次性迁移标记。
 - `alias_custom.json`、`weapon_alias_custom.json`：角色与武器自定义别名；`panel_custom/` 仅是
   已移除面板管理后的历史文件目录，插件不再读取。
 
@@ -126,6 +126,11 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 `dnaby_sign_daily`、`dnaby_mh_push`、`dnaby_ann_poll` 可永久删除；
 `dnaby_sign_cleanup` 只能暂停/恢复，不能永久删除。永久删除会把任务 ID 原子写入
 `scheduler_state.json`，重启后隐藏并跳过该任务，管理 API 不提供恢复。
+
+旧配置 `sign_in.scheduled_enabled=false` 只在首次升级启动时迁移为
+`dnaby_sign_daily` 的暂停状态，并由 `migrations` 记录已完成迁移；管理员恢复任务后，
+后续重启只读取 registry 的正式状态，不会再被旧隐藏字段关闭。暂停状态仍可通过管理 API 恢复，
+不要手工删除 `paused_tasks` 或 `migrations` 字段。
 
 若误删且确有删除前备份，停止插件后仅能由部署者审核并恢复备份的
 `scheduler_state.json`，再重启并核对任务；这属于运维回退，会覆盖该文件之后的 tombstone 变更，

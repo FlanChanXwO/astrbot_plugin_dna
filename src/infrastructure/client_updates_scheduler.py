@@ -142,7 +142,11 @@ class ClientUpdatesScheduler:
         await self.registry.initialize()
         if self._started:
             return
-        if self.enabled and not await self.registry.is_deleted(CLIENT_UPDATE_TASK_ID):
+        if (
+            self.enabled
+            and not await self.registry.is_deleted(CLIENT_UPDATE_TASK_ID)
+            and not await self.registry.is_paused(CLIENT_UPDATE_TASK_ID)
+        ):
             await self.registry.activate(CLIENT_UPDATE_TASK_ID)
             self._create_task()
         self._started = True

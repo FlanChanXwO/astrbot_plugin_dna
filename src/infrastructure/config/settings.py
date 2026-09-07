@@ -269,17 +269,17 @@ class AgentToolsSettings(_SettingsModel):
 class SignInSettings(_SettingsModel):
     """游戏签到、社区任务和签到报告配置。"""
 
-    # 仅保留旧版定时任务总开关的运行期兼容状态，不进入 typed schema。
+    # 仅保留旧版定时任务总开关，供 scheduler 首次启动时迁移，不进入 typed schema。
     _legacy_scheduler_enabled: bool = PrivateAttr(default=True)
 
     def _set_legacy_scheduler_enabled(self, enabled: bool) -> None:
-        """设置旧配置迁移得到的定时任务门控。"""
+        """保存旧配置值，交由 scheduler 一次性迁移为 registry 状态。"""
 
         self._legacy_scheduler_enabled = enabled
 
     @property
     def scheduler_enabled_for_runtime(self) -> bool:
-        """返回定时 scheduler 是否应注册自动签到任务。"""
+        """返回旧配置值，供 scheduler 执行一次性迁移。"""
 
         return self._legacy_scheduler_enabled
 
@@ -585,7 +585,7 @@ def _normalize_migrated_value(field: str, value: Any) -> Any:
 
 
 def _read_legacy_scheduled_enabled(raw: Mapping[str, Any] | None) -> bool:
-    """读取旧定时签到总开关，供 scheduler 注册阶段兼容使用。"""
+    """读取旧定时签到总开关，供 scheduler 首次启动迁移使用。"""
 
     if raw is None:
         return True

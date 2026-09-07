@@ -93,10 +93,11 @@ class SignScheduler:
         self.registry = registry or SchedulerRegistry()
         self._tasks: list[asyncio.Task] = []
         self._task_by_id: dict[str, asyncio.Task] = {}
-        # 新配置下签到任务默认启用；旧配置的 scheduled_enabled 只作为迁移期
-        # 注册门控，具体 UID 是否签到仍由 AccountBinding.auto_sign_enabled 决定。
+        # 旧 scheduled_enabled 只在首次启动时迁移为 registry 的暂停状态；
+        # 具体 UID 是否签到仍由 AccountBinding.auto_sign_enabled 决定。
+        self._legacy_scheduler_enabled = sign_task_enabled
         self._enabled_tasks = {
-            _SIGN_TASK_NAME: sign_task_enabled,
+            _SIGN_TASK_NAME: True,
             _CLEANUP_TASK_NAME: True,
         }
         self._task_specs: dict[
@@ -197,9 +198,16 @@ class SignScheduler:
         await self.registry.initialize()
         if self._started:
             return
+        await self.registry.migrate_legacy_sign_scheduler(
+            enabled=self._legacy_scheduler_enabled,
+        )
         # 签到任务始终存在；CheckinService 会按每个 UID 的个人开关筛选候选。
         for task_id, enabled in self._enabled_tasks.items():
-            if not enabled or await self.registry.is_deleted(task_id):
+            if (
+                not enabled
+                or await self.registry.is_deleted(task_id)
+                or await self.registry.is_paused(task_id)
+            ):
                 continue
             await self.registry.activate(task_id)
             self._create_task(task_id)
