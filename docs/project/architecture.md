@@ -113,7 +113,8 @@
   `url.*.insteadOf` 注入 GitHub 加速前缀。同步前后检查 origin、main checkout、干净 worktree
   和完整 `resource_manifest.json`；不强制覆盖本地修改。bootstrap 从当前已验证 generation
   注入玩家的 `ResourceMap` 与 `EncyclopediaResourceStore`，并订阅发布事件刷新 renderer、
-  别名和资源状态视图。每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
+  别名和资源状态视图。没有已验证 current 时只注入显式空资源视图，绝不把 Git cache 作为业务
+  资源源；每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
   回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材
   的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理，并由 `RenderedFileStore` 保护
   活动发送文件、清理过期孤儿。

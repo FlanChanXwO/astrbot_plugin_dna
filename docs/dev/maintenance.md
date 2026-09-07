@@ -163,7 +163,8 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 本身只在 `resources/` 使用 Git 增量缓存，并在 `resource_generations/<commit-sha>/` 生成已验证
 快照；快照保存完整文件树 SHA-256，`resource_generations/current.json` 同时保存 commit 和摘要。
 插件启动不执行资源预热或自动同步；已有 current generation 会在暴露前完成校验，校验失败时插件仍保留资源状态和
-同步修复入口。管理员下载会等待同一显式同步任务，
+同步修复入口。current 不可用或正在重验时，业务只使用显式空资源视图，不会直接消费 `resources/` Git checkout。
+管理员下载会等待同一显式同步任务，
 生命周期不注册资源 worker，但 terminate 会先禁止新的同步并排空正在运行的资源 Git/to_thread 任务。没有摘要的旧
 指针会在校验后补写；启动或下载过程不会删除/迁移面板图、数据库、订阅、公告或客户端更新状态。
 

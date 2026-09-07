@@ -15,6 +15,7 @@ from PIL import Image
 
 from src.bootstrap import build_runtime
 from src.infrastructure.persistence import AsyncDatabase
+from src.infrastructure.rendering.player import ResourceMap
 from src.infrastructure.resources import (
     DEFAULT_RESOURCE_REMOTE,
     GitCommandError,
@@ -24,6 +25,7 @@ from src.infrastructure.resources import (
     ResourceSnapshotCoordinator,
     run_git,
 )
+from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.manifest import RUNTIME_RESOURCE_DIRECTORIES
 from src.modules.operations.resource_service import ResourceUpdateService
 
@@ -605,6 +607,23 @@ async def test_build_runtime_keeps_resource_recovery_surface_when_generation_is_
         ResourceSnapshotCoordinator, runtime.services["resource_snapshots"]
     )
     assert snapshots.current_snapshot is None
+    assert runtime.services["resource_root"] is None
+    runtime_player_resources = cast(
+        ResourceMap,
+        runtime.services["player_resources"],
+    )
+    runtime_encyclopedia_resources = cast(
+        EncyclopediaResourceStore,
+        runtime.services["encyclopedia_resources"],
+    )
+    assert runtime_player_resources.root is None
+    assert runtime_encyclopedia_resources.aliases.all_chars() == ()
+    assert runtime_encyclopedia_resources.wiki_asset("角色甲") is None
+    with snapshots.bind_renderer(
+        SimpleNamespace(resources=runtime_player_resources),
+        "player_resources",
+    ) as bound:
+        assert bound.resources.root is None
     persisted_status = ResourceSnapshotCoordinator(
         tmp_path / "resources",
         generations_root=tmp_path / "resource_generations",

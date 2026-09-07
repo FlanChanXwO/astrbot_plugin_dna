@@ -240,9 +240,10 @@ def build_runtime(
     custom_alias_path = runtime_database.path.parent / "alias_custom.json"
     custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
     resource_cache_root = resource_repository_dir(runtime_database.path.parent)
+    resource_generations_root = resource_generations_dir(runtime_database.path.parent)
     resource_snapshots = ResourceSnapshotCoordinator(
         resource_cache_root,
-        generations_root=resource_generations_dir(runtime_database.path.parent),
+        generations_root=resource_generations_root,
         acceleration_prefix=settings.resources.acceleration_prefix,
         custom_alias_path=custom_alias_path,
         custom_weapon_alias_path=custom_weapon_alias_path,
@@ -267,21 +268,17 @@ def build_runtime(
     resource_root = (
         initial_resource_snapshot.root
         if initial_resource_snapshot is not None
-        else resource_cache_root
+        else None
     )
     player_resources = (
         initial_resource_snapshot.player_resources
         if initial_resource_snapshot is not None
-        else ResourceMap.from_root(resource_root)
+        else ResourceMap()
     )
     encyclopedia_resources = (
         initial_resource_snapshot.encyclopedia_resources
         if initial_resource_snapshot is not None
-        else EncyclopediaResourceStore.from_root(
-            resource_root,
-            custom_alias_path=custom_alias_path,
-            custom_weapon_alias_path=custom_weapon_alias_path,
-        )
+        else EncyclopediaResourceStore()
     )
     rendered_root = runtime_database.path.parent / "rendered"
     cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
@@ -631,7 +628,7 @@ def build_runtime(
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
-        resource_root=resource_root,
+        resource_root=resource_cache_root,
         resource_snapshots=resource_snapshots,
     )
     if services is not None and "resource_update_service" in services:
@@ -644,20 +641,25 @@ def build_runtime(
     def _refresh_alias_views() -> None:
         """别名写入后立即替换当前百科视图，不要求重载插件。"""
 
-        current_root = Path(resolved_services.get("resource_root", resource_root))
-        updated = EncyclopediaResourceStore.from_root(
-            current_root,
-            custom_alias_path=custom_alias_path,
-            custom_weapon_alias_path=custom_weapon_alias_path,
-        )
+        current_root = resolved_services.get("resource_root")
+        if current_root is None:
+            updated = EncyclopediaResourceStore()
+        else:
+            updated = EncyclopediaResourceStore.from_root(
+                Path(current_root),
+                custom_alias_path=custom_alias_path,
+                custom_weapon_alias_path=custom_weapon_alias_path,
+            )
         encyclopedia_service.renderer.resources = updated
         encyclopedia_service.resources = updated
         checkin_renderer.resources = updated
         notices_renderer.resources = updated
         resolved_services["encyclopedia_resources"] = updated
 
+    alias_root = resource_root or resource_generations_root / ".unavailable"
     admin_alias_service = AdminAliasService(
-        resource_root=resource_root,
+        default_alias_path=alias_root / "alias" / "char_alias.json",
+        weapon_alias_path=alias_root / "alias" / "weapon_alias.json",
         custom_path=custom_alias_path,
         weapon_custom_path=custom_weapon_alias_path,
         refresh=_refresh_alias_views,
@@ -718,6 +720,12 @@ def build_runtime(
         encyclopedia_service.resources = new_encyclopedia_resources
         checkin_renderer.resources = new_encyclopedia_resources
         notices_renderer.resources = new_encyclopedia_resources
+        admin_alias_service.default_alias_path = (
+            snapshot.root / "alias" / "char_alias.json"
+        )
+        admin_alias_service.weapon_alias_path = (
+            snapshot.root / "alias" / "weapon_alias.json"
+        )
         resolved_services["resource_root"] = snapshot.root
         resolved_services["player_resources"] = new_player_resources
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources

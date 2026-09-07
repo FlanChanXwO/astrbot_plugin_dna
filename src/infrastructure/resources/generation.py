@@ -1024,13 +1024,25 @@ class ResourceSnapshotCoordinator:
         with lease as snapshot:
             yield snapshot
 
+    @staticmethod
+    def _empty_resource_view(resource_attr: str) -> Any:
+        """返回无已验证 generation 时的显式空资源视图。"""
+
+        if resource_attr == "player_resources":
+            from ..rendering.player import ResourceMap
+
+            return ResourceMap()
+        if resource_attr == "encyclopedia_resources":
+            return EncyclopediaResourceStore()
+        raise ResourceGenerationError(f"资源 generation 视图字段无效: {resource_attr}")
+
     @contextmanager
-    def bind_resource(self, resource_attr: str) -> Iterator[Any | None]:
+    def bind_resource(self, resource_attr: str) -> Iterator[Any]:
         """在 lease 生命周期内返回指定的不可变资源视图。"""
 
         with self.optional_lease() as snapshot:
             if snapshot is None:
-                yield None
+                yield self._empty_resource_view(resource_attr)
                 return
             try:
                 resources = getattr(snapshot, resource_attr)
@@ -1045,9 +1057,6 @@ class ResourceSnapshotCoordinator:
         """复制 renderer 并绑定一个持有 generation lease 的资源视图。"""
 
         with self.bind_resource(resource_attr) as resources:
-            if resources is None:
-                yield renderer
-                return
             bound = copy(renderer)
             bound.resources = resources
             yield bound

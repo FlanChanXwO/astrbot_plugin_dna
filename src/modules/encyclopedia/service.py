@@ -67,7 +67,7 @@ class EncyclopediaService:
         with self.resource_snapshots.bind_resource(
             "encyclopedia_resources"
         ) as resources:
-            yield resources or self.resources
+            yield resources
 
     def _copy_resource_image(self, path: Path) -> ImageResponse:
         return write_temporary_image(

@@ -139,7 +139,8 @@ GitHub、公共资源 CDN、AstrBot 或第三方攻略接口。WebSocket 两项�
 暴露，但不会阻断插件构造。首次使用图鉴、攻略或图片卡片时，管理员可以先发送 `kk资源状态` 查看状态；状态
 会显示 repository path、generation id、active pointer、resource_version 和 last sync result，且不会触发 Git、
 完整校验、PIL 或完整 SHA-256。若 current generation 校验失败，状态会保留错误类型；再发送 `kk同步资源` 可
-从同一远端 commit 重建 generation，恢复资源服务。
+从同一远端 commit 重建 generation，恢复资源服务。current 不可用期间业务只得到显式空资源视图，不会
+回退读取未经验证的 `resources/` Git checkout。
 
 ### 缓存 `cache`
 

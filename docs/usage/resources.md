@@ -51,9 +51,10 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 - `weekly_item/`、`calendar/`：周报和活动日历索引。
 - `data/redeem_codes.json`：兑换码清单，命令只展示当前有效条目。
 
-资源根目录尚未准备好时，插件仍可以启动；需要图片的命令会返回 `placeholder` 或 `fallback`
-状态，图鉴和攻略命令会提示资源未找到。资源根目录存在但 manifest 不完整时，会明确报告
-同步错误，便于管理员修复资源。
+资源根目录尚未准备好时，插件仍可以启动；需要图片的命令只会使用显式的空资源视图，返回
+`placeholder` 或 `fallback` 状态，图鉴和攻略命令会提示资源未找到。插件不会把 `resources/`
+Git checkout 当作未经验证的业务资源源。资源根目录存在但 manifest 不完整时，会明确报告同步错误，
+便于管理员修复资源。
 
 ## 同步资源
 
@@ -84,7 +85,9 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 资源更新成功后，新请求使用新的 generation；正在生成的图片会继续使用开始读取时的资源版本，
 旧 generation 会在没有活动读取后回收。重启时会读取 current 指针指向的 generation metadata，并在暴露资源前
 完成完整校验；校验失败时不会阻断插件构造，管理员可用资源状态查看错误类型并通过同步资源重建同一远端 commit
-的 generation。资源状态命令仍只读取轻量 metadata，不触发 Git、完整 validator 或图片解码。同步物化阶段会
+的 generation。在 current 不可用或完整重验期间，业务请求不会回退到 `resources/` Git checkout，
+而是得到空资源视图；资源状态和同步修复入口仍然可用。资源状态命令仍只读取轻量 metadata，不触发 Git、
+完整 validator 或图片解码。同步物化阶段会
 清理 candidate/archive 临时文件。
 
 兑换码从 `data/redeem_codes.json` 读取，只有当前有效条目会由 `兑换码` 命令展示。玩家数据、玩家卡片、
