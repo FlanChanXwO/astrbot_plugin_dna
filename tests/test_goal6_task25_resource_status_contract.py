@@ -195,8 +195,13 @@ async def test_sync_result_is_safe_and_persistent_across_reload_without_overwrit
         commit_sha="b" * 40,
     )
 
+    def successful_sync() -> ResourceSyncResult:
+        # 真实 bootstrap 将 coordinator.synchronize 作为 canonical owner。
+        coordinator.record_sync_result(success)
+        return success
+
     success_response = await ResourceUpdateService(
-        synchronize=lambda: success,
+        synchronize=successful_sync,
         resource_snapshots=coordinator,
     ).sync_resources(None)
     assert "资源已更新完成，版本 status-v2" in success_response.text
@@ -213,7 +218,10 @@ async def test_sync_result_is_safe_and_persistent_across_reload_without_overwrit
     secret = "Bearer super-secret"
 
     def fail() -> ResourceSyncResult:
-        raise ResourceSyncError(secret)
+        error = ResourceSyncError(secret)
+        # 真实 coordinator 在同步边界记录失败，service 只负责响应映射。
+        coordinator.record_sync_failure(error)
+        raise error
 
     failure_response = await ResourceUpdateService(
         synchronize=fail,

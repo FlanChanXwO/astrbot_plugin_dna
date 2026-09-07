@@ -112,3 +112,45 @@ async def test_concurrent_download_all_uses_one_single_flight(tmp_path: Path) ->
 
     assert calls == 1
     assert all(isinstance(response, PlainTextResponse) for response in responses)
+
+
+@pytest.mark.asyncio
+async def test_stop_drains_inflight_sync_and_rejects_new_work(tmp_path: Path) -> None:
+    """插件终止时必须排空线程同步，并阻止新的同步任务进入。"""
+
+    started = Event()
+    release = Event()
+    calls = 0
+
+    def synchronize() -> ResourceSyncResult:
+        nonlocal calls
+        calls += 1
+        started.set()
+        release.wait()
+        return ResourceSyncResult(
+            repository=tmp_path,
+            action="updated",
+            resource_version="2.0",
+        )
+
+    service = _service(tmp_path, synchronize=synchronize)
+    sync_task = asyncio.create_task(service.synchronize_once())
+    await asyncio.to_thread(started.wait)
+
+    try:
+        stop_task = asyncio.create_task(service.stop())
+        await asyncio.sleep(0)
+        assert not stop_task.done()
+
+        release.set()
+        result = await sync_task
+        await stop_task
+    finally:
+        release.set()
+        if not sync_task.done():
+            await sync_task
+
+    assert result.action == "updated"
+    assert calls == 1
+    with pytest.raises(ResourceSyncError, match="资源同步服务正在停止"):
+        await service.synchronize_once()

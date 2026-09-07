@@ -81,6 +81,7 @@ class SignScheduler:
         now: NowCallable | None = None,
         push: PushCallable | None = None,
         registry: SchedulerRegistry | None = None,
+        sign_task_enabled: bool = True,
     ) -> None:
         self.checkin = checkin
         self.subscriptions = subscriptions
@@ -92,10 +93,10 @@ class SignScheduler:
         self.registry = registry or SchedulerRegistry()
         self._tasks: list[asyncio.Task] = []
         self._task_by_id: dict[str, asyncio.Task] = {}
-        # 任务始终注册；是否执行某个 UID 由 AccountBinding.auto_sign_enabled 决定，
-        # 管理员仍可通过 registry 暂停或删除整个 scheduler 任务。
+        # 新配置下签到任务默认启用；旧配置的 scheduled_enabled 只作为迁移期
+        # 注册门控，具体 UID 是否签到仍由 AccountBinding.auto_sign_enabled 决定。
         self._enabled_tasks = {
-            _SIGN_TASK_NAME: True,
+            _SIGN_TASK_NAME: sign_task_enabled,
             _CLEANUP_TASK_NAME: True,
         }
         self._task_specs: dict[

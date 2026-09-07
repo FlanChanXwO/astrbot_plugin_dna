@@ -114,22 +114,31 @@ def test_build_runtime_does_not_run_full_resource_initialization(
     assert calls == []
 
 
-def test_build_runtime_does_not_register_resource_lifecycle_hook(
+def test_build_runtime_registers_resource_drain_finalizer(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """资源同步服务不应注册启动或停止生命周期 hook。"""
+    """资源同步服务必须注册终止排空 finalizer，而不是后台启动任务。"""
 
-    resource_service = object()
+    class _ResourceServiceSpy:
+        async def stop(self) -> None:
+            return None
+
+    resource_service = _ResourceServiceSpy()
     lifecycle = _build_runtime_for_hook_capture(
         monkeypatch,
         tmp_path,
         services={"resource_update_service": resource_service},
     )
 
-    hooks = (*lifecycle.start_hooks, *lifecycle.stop_hooks, *lifecycle.finalizer_hooks)
     assert not any(
-        getattr(hook, "__self__", None) is resource_service for hook in hooks
+        getattr(hook, "__self__", None) is resource_service
+        for hook in (*lifecycle.start_hooks, *lifecycle.stop_hooks)
+    )
+    assert any(
+        getattr(hook, "__self__", None) is resource_service
+        and getattr(hook, "__name__", None) == "stop"
+        for hook in lifecycle.finalizer_hooks
     )
 
 
@@ -183,15 +192,18 @@ async def test_dna_api_close_releases_rest_and_business_websocket(
 
 
 @pytest.mark.asyncio
-async def test_partial_initialize_cleans_only_completed_steps() -> None:
-    """初始化部分失败时，只逆序释放已成功完成的步骤。"""
+async def test_partial_initialize_cleans_failing_step_resource() -> None:
+    """初始化部分失败时，失败阶段已创建的资源也必须被逆序释放。"""
 
     events: list[str] = []
+    partial_task: asyncio.Task[None] | None = None
 
     async def start_one() -> None:
         events.append("start-one")
 
     async def start_two() -> None:
+        nonlocal partial_task
+        partial_task = asyncio.create_task(asyncio.sleep(3600))
         events.append("start-two")
         raise RuntimeError("start-two failed")
 
@@ -199,6 +211,9 @@ async def test_partial_initialize_cleans_only_completed_steps() -> None:
         events.append("stop-one")
 
     async def stop_two() -> None:
+        assert partial_task is not None
+        partial_task.cancel()
+        await asyncio.gather(partial_task, return_exceptions=True)
         events.append("stop-two")
 
     lifecycle = PluginLifecycle(
@@ -209,7 +224,8 @@ async def test_partial_initialize_cleans_only_completed_steps() -> None:
     with pytest.raises(RuntimeError, match="start-two failed"):
         await lifecycle.initialize()
 
-    assert events == ["start-one", "start-two", "stop-one"]
+    assert events == ["start-one", "start-two", "stop-two", "stop-one"]
+    assert partial_task is not None and partial_task.done()
     assert lifecycle.started is False
 
 

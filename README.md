@@ -135,10 +135,10 @@ GitHub、公共资源 CDN、AstrBot 或第三方攻略接口。WebSocket 两项�
 | `resources.github_acceleration` | `off` | 公共资源同步方式，可选 `off`、`edgeone`、`hk`、`gh_proxy`、`dpik`、`custom`。 |
 | `resources.custom_github_acceleration_url` | 空 | `custom` 模式使用的不含凭据、查询参数和片段的 HTTP(S) 基础地址。 |
 
-资源不会在插件启动时自动同步。首次使用图鉴、攻略或图片卡片时，管理员可以先发送 `kk资源状态` 查看状态；
-状态会显示 repository path、generation id、active pointer、resource_version 和 last sync result，且不会触发
-Git、完整校验、PIL 或完整 SHA-256。再发送 `kk同步资源` 触发一次经过 manifest、摘要和图片解码校验的同步；
-失败时保留原资源快照。
+资源不会在插件启动时自动同步；已有 current generation 会在启动时先完成完整校验，损坏快照不会作为可用资源
+暴露。首次使用图鉴、攻略或图片卡片时，管理员可以先发送 `kk资源状态` 查看状态；状态会显示 repository path、
+generation id、active pointer、resource_version 和 last sync result，且不会触发 Git、完整校验、PIL 或完整
+SHA-256。再发送 `kk同步资源` 触发一次经过 manifest、摘要和图片解码校验的同步；失败时保留原资源快照。
 
 ### 缓存 `cache`
 

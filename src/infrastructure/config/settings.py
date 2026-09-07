@@ -269,6 +269,20 @@ class AgentToolsSettings(_SettingsModel):
 class SignInSettings(_SettingsModel):
     """游戏签到、社区任务和签到报告配置。"""
 
+    # 仅保留旧版定时任务总开关的运行期兼容状态，不进入 typed schema。
+    _legacy_scheduler_enabled: bool = PrivateAttr(default=True)
+
+    def _set_legacy_scheduler_enabled(self, enabled: bool) -> None:
+        """设置旧配置迁移得到的定时任务门控。"""
+
+        self._legacy_scheduler_enabled = enabled
+
+    @property
+    def scheduler_enabled_for_runtime(self) -> bool:
+        """返回定时 scheduler 是否应注册自动签到任务。"""
+
+        return self._legacy_scheduler_enabled
+
     community_tasks: list[
         Literal["bbs_sign", "bbs_detail", "bbs_like", "bbs_share", "bbs_reply"]
     ] = Field(
@@ -568,6 +582,45 @@ def _normalize_migrated_value(field: str, value: Any) -> Any:
     if field == "command_prefixes" and isinstance(value, str):
         return [value]
     return copy.deepcopy(value)
+
+
+def _read_legacy_scheduled_enabled(raw: Mapping[str, Any] | None) -> bool:
+    """读取旧定时签到总开关，供 scheduler 注册阶段兼容使用。"""
+
+    if raw is None:
+        return True
+    if not isinstance(raw, Mapping):
+        raise TypeError("配置必须是对象")
+
+    values: list[tuple[bool, str]] = []
+
+    def collect(value: Any, source: str) -> None:
+        if not isinstance(value, bool):
+            raise TypeError(
+                f"配置字段 sign_in.scheduled_enabled 必须是布尔值（来源 {source}）"
+            )
+        values.append((value, source))
+
+    if "scheduled_enabled" in raw:
+        collect(raw["scheduled_enabled"], "top-level.scheduled_enabled")
+    for section_name in ("DNAUID配置", "DNAUID签到配置", "sign_in"):
+        section = raw.get(section_name)
+        if isinstance(section, Mapping) and "scheduled_enabled" in section:
+            collect(
+                section["scheduled_enabled"],
+                f"{section_name}.scheduled_enabled",
+            )
+
+    if not values:
+        return True
+    first_value, first_source = values[0]
+    for value, source in values[1:]:
+        if value != first_value:
+            raise ValueError(
+                "配置字段 sign_in.scheduled_enabled 存在冲突来源："
+                f"{first_source} 与 {source}"
+            )
+    return first_value
 
 
 def _record_assignment(
@@ -898,8 +951,10 @@ class DnabySettings(_SettingsModel):
     @classmethod
     def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
         """将 AstrBot 的嵌套配置字典转换为 typed settings，且不改写输入。"""
+        legacy_scheduler_enabled = _read_legacy_scheduled_enabled(config)
         migrated = migrate_config_dict(config)
         settings = cls.model_validate(migrated)
+        settings.sign_in._set_legacy_scheduler_enabled(legacy_scheduler_enabled)
         canonical_store = copy.deepcopy(migrated)
 
         if hasattr(DNAConfig, "bind"):

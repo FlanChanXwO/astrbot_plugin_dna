@@ -235,6 +235,32 @@ def test_sync_same_remote_commit_returns_unchanged_without_rebuilding_generation
     assert not any(_operation(call) == "merge" for call in new_calls)
 
 
+def test_sync_same_remote_commit_after_restart_validates_current_generation(
+    tmp_path: Path,
+) -> None:
+    """重启后的同 commit 快路径也必须验证已发布 generation 的完整性。"""
+
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    assert first.generation_root is not None
+
+    manifest_path = first.generation_root / "resource_manifest.json"
+    alias_path = first.generation_root / "alias" / "char_alias.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["file_hashes"] = {
+        "alias/char_alias.json": hashlib.sha256(alias_path.read_bytes()).hexdigest()
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    alias_path.write_text('{"角色甲": ["已篡改"]}', encoding="utf-8")
+
+    restarted = _coordinator(tmp_path, runner)
+    assert restarted.load_current() is not None
+
+    with pytest.raises(ResourceGenerationError, match="文件哈希不匹配"):
+        restarted.synchronize()
+
+
 def test_sync_reports_validation_and_cleanup_failures_together(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

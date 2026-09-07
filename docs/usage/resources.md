@@ -35,8 +35,8 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 ```
 
 显式同步时会检查 required directories 是否存在，并拒绝相对路径逃逸资源仓库根目录的声明。manifest
-中的文件摘要如果存在，也会逐项校验；校验失败时不会替换当前可用快照。插件启动只读取 current
-指针和 generation metadata，不会在启动阶段执行这些完整校验。
+中的文件摘要如果存在，也会逐项校验；校验失败时不会替换当前可用快照。插件启动不会执行 Git
+同步，但会在把已有 current generation 交给业务读取前完成完整校验；损坏的快照不会作为可用资源暴露。
 
 ## 资源内容
 
@@ -80,8 +80,9 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 ## 资源更新与缓存
 
 资源更新成功后，新请求使用新的 generation；正在生成的图片会继续使用开始读取时的资源版本，
-旧 generation 会在没有活动读取后回收。重启时只读取 current 指针指向的 generation metadata，完整校验
-仅在显式同步时执行；同步物化阶段会清理 candidate/archive 临时文件。
+旧 generation 会在没有活动读取后回收。重启时会读取 current 指针指向的 generation metadata，并在暴露资源前
+完成完整校验；资源状态命令仍只读取轻量 metadata，不触发 Git、完整 validator 或图片解码。同步物化阶段会
+清理 candidate/archive 临时文件。
 
 兑换码从 `data/redeem_codes.json` 读取，只有当前有效条目会由 `兑换码` 命令展示。玩家数据、玩家卡片、
 公告列表/详情/源图和密函快照等 `CacheManager` 内容缓存共用 `cache.ttl_hours`：`-1` 表示永久

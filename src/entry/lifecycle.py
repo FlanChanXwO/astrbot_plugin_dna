@@ -90,6 +90,7 @@ class PluginLifecycle:
             timings: dict[str, float] = {}
             labels: dict[str, str] = {}
             completed_start_count = 0
+            started_start_count = 0
             self._fully_started = False
             self._completed_start_count = 0
             try:
@@ -97,6 +98,8 @@ class PluginLifecycle:
                     phase_started_at = perf_counter()
                     phase_key = f"initialize.phase_{index}"
                     labels[phase_key] = _hook_label(hook, index)
+                    # 先记录已进入的阶段，失败阶段可能已创建部分资源，需要纳入回滚。
+                    started_start_count = index + 1
                     try:
                         await hook()
                     finally:
@@ -106,7 +109,8 @@ class PluginLifecycle:
                 self._fully_started = True
                 self._started = True
             except BaseException as start_error:
-                self._completed_start_count = completed_start_count
+                # 失败阶段可能已创建资源；清理计数包含当前正在执行的阶段。
+                self._completed_start_count = started_start_count
                 # 临时标记为已启动，复用 terminate 的逆序清理路径；清理完成后
                 # 会复位状态，确保 AstrBot 不调用 terminate 时也不会遗留任务。
                 self._started = True
@@ -140,8 +144,8 @@ class PluginLifecycle:
         if self._fully_started:
             stop_hooks = self._stop_hooks
         else:
-            # stop_hooks 与 start_hooks 按阶段对齐；失败阶段本身没有成功资源，
-            # 因此只释放已经完成的前缀，避免误调用后续步骤的 stop hook。
+            # stop_hooks 与 start_hooks 按阶段对齐；计数包含失败阶段，
+            # 因此释放所有已进入阶段的前缀，避免遗漏部分创建的资源。
             stop_hooks = self._stop_hooks[: self._completed_start_count]
 
         try:

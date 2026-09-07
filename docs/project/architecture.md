@@ -103,7 +103,8 @@
   generation id、active pointer、resource_version 和 last sync result，但不触发 Git fetch、完整 validator、
   PIL 解码或完整 SHA-256。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
   `同步资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
-  并发管理员请求共享 single-flight；插件启动不自动预热资源，资源服务不注册生命周期 worker，terminate 不等待资源 Git/to_thread。
+  并发管理员请求共享 single-flight；插件启动不自动预热或同步资源，但已有 current generation 会在暴露前完整校验。
+  资源服务不注册生命周期 worker，terminate 会禁止新的同步并等待正在运行的 Git/to_thread 任务排空。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
   GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `fetch --no-tags origin main`，可用临时

@@ -246,9 +246,11 @@ def build_runtime(
         custom_alias_path=custom_alias_path,
         custom_weapon_alias_path=custom_weapon_alias_path,
     )
-    # 启动阶段只读取 current 指针和已发布 generation 的轻量 metadata；
-    # 完整校验和 Git 同步仅允许由显式资源同步路径触发，避免构造 runtime 时做重型 I/O。
+    # 先读取 current 指针，再在把资源视图交给 runtime 前完成完整校验；
+    # Git 同步仍只由显式资源同步路径触发，避免启动阶段触碰远端仓库。
     initial_resource_snapshot = resource_snapshots.load_current()
+    if initial_resource_snapshot is not None:
+        initial_resource_snapshot = resource_snapshots.validate_current()
     resource_root = (
         initial_resource_snapshot.root
         if initial_resource_snapshot is not None
@@ -387,6 +389,7 @@ def build_runtime(
         sign_time=settings.sign_in.sign_time,
         push=_push_sign,
         registry=scheduler_registry,
+        sign_task_enabled=settings.sign_in.scheduler_enabled_for_runtime,
     )
     notices_renderer = NoticesRenderer(
         rendered_root,
@@ -761,6 +764,7 @@ def build_runtime(
             agent_tools_lifecycle.stop,
         ),
         finalizer_hooks=(
+            resource_update_service.stop,
             dna_api.close,
             runtime_database.dispose,
         ),

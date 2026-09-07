@@ -566,6 +566,8 @@ class ResourceSnapshotCoordinator:
             else getattr(self._validator, "custom_weapon_alias_path", None)
         )
         self._lock = threading.RLock()
+        # light snapshot 只作为待校验输入保存，current 只允许指向完整校验结果。
+        self._loaded_snapshot: ResourceSnapshot | None = None
         self._current: ResourceSnapshot | None = None
         self._expected_content_sha256: str | None = None
         self._last_sync: ResourceSyncStatus | None = None
@@ -815,30 +817,35 @@ class ResourceSnapshotCoordinator:
         )
 
     def load_current(self) -> ResourceSnapshot | None:
-        """只读取 current 指针和 generation metadata，供启动阶段使用。"""
+        """只读取 current 指针和 generation metadata，供后续完整校验使用。"""
 
         with self._lock:
             self._ensure_storage_roots()
             generation, expected_content_sha256 = self._read_generation_pointer()
             if generation is None:
+                self._loaded_snapshot = None
                 self._current = None
                 self._expected_content_sha256 = None
                 return None
             snapshot = self._load_light_snapshot(generation)
-            self._current = snapshot
+            self._loaded_snapshot = snapshot
+            # 轻量快照不得通过 current_snapshot/acquire 暴露给业务读取。
+            self._current = None
             self._expected_content_sha256 = expected_content_sha256
             return snapshot
 
     def validate_current(self) -> ResourceSnapshot | None:
-        """对当前 generation 执行完整校验；无 current 时返回 ``None``。"""
+        """对已加载的 current generation 执行完整校验；无 current 时返回 ``None``。"""
 
         with self._lock:
-            snapshot = self._current
+            snapshot = self._current or self._loaded_snapshot
             if snapshot is None:
                 snapshot = self.load_current()
             if snapshot is None:
                 return None
             expected_content_sha256 = self._expected_content_sha256
+            # 校验期间不保留旧 current，避免文件已被篡改时继续暴露旧视图。
+            self._current = None
             validated = self._validator.validate(snapshot.root, snapshot.commit_sha)
             if (
                 expected_content_sha256 is not None
@@ -848,6 +855,7 @@ class ResourceSnapshotCoordinator:
                 raise ResourceGenerationError("当前资源 generation 内容哈希不匹配")
             if expected_content_sha256 is None:
                 self._write_state(validated)
+            self._loaded_snapshot = validated
             self._current = validated
             self._expected_content_sha256 = validated.content_sha256
             return validated
@@ -869,14 +877,17 @@ class ResourceSnapshotCoordinator:
             return validated
 
     def acquire(self) -> ResourceLease:
-        """为一次资源读取取得当前 generation lease。"""
+        """为一次资源读取取得当前已验证 generation lease。"""
 
         with self._lock:
-            if self._current is None:
+            current = self._current
+            if current is None:
+                current = self.validate_current()
+            if current is None:
                 raise ResourceGenerationError("当前没有可用的已验证资源 generation")
-            commit_sha = self._current.commit_sha
+            commit_sha = current.commit_sha
             self._leases[commit_sha] = self._leases.get(commit_sha, 0) + 1
-            return ResourceLease(self, self._current)
+            return ResourceLease(self, current)
 
     @contextmanager
     def optional_lease(self) -> Iterator[ResourceSnapshot | None]:
@@ -959,8 +970,9 @@ class ResourceSnapshotCoordinator:
                 temporary.unlink()
 
     def _activate(self, snapshot: ResourceSnapshot) -> None:
-        previous = self._current
+        previous = self._current or self._loaded_snapshot
         self._write_state(snapshot)
+        self._loaded_snapshot = snapshot
         self._current = snapshot
         self._expected_content_sha256 = snapshot.content_sha256
         if previous is not None and previous.commit_sha != snapshot.commit_sha:
@@ -1060,15 +1072,21 @@ class ResourceSnapshotCoordinator:
                     resource_version="",
                 )
             commit_sha = synchronizer.fetch_head_revision()
-            current = self._current
+            current = self._current or self._loaded_snapshot
             if current is not None and current.commit_sha == commit_sha:
+                # 即使远端 commit 未变化，也要重新验证磁盘上的 generation。
+                validated = self.validate_current()
+                if validated is None:
+                    raise ResourceGenerationError(
+                        "当前资源 generation 在同步期间不可用"
+                    )
                 return replace(
                     result,
                     action="unchanged",
-                    resource_version=current.resource_version,
+                    resource_version=validated.resource_version,
                     commit_sha=commit_sha,
-                    generation_root=current.root,
-                    content_sha256=current.content_sha256,
+                    generation_root=validated.root,
+                    content_sha256=validated.content_sha256,
                 )
 
             snapshot, created_final = self._materialize(synchronizer, commit_sha)

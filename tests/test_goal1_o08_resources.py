@@ -12,12 +12,19 @@ from src.infrastructure.persistence import AsyncDatabase
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_preserves_injected_resource_service_without_lifecycle_calls(
+async def test_bootstrap_preserves_injected_resource_service_and_drains_on_terminate(
     tmp_path: Path,
 ) -> None:
-    """runtime 启停不应触碰注入的资源服务，资源服务仍可供管理命令使用。"""
+    """runtime 保留注入的资源服务，并在终止时排空其后台同步。"""
 
-    resource_service = object()
+    class _ResourceServiceSpy:
+        def __init__(self) -> None:
+            self.stop_calls = 0
+
+        async def stop(self) -> None:
+            self.stop_calls += 1
+
+    resource_service = _ResourceServiceSpy()
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),
         {"login": {"port": 0}},
@@ -29,3 +36,4 @@ async def test_bootstrap_preserves_injected_resource_service_without_lifecycle_c
     await runtime.terminate()
 
     assert runtime.services["resource_update_service"] is resource_service
+    assert resource_service.stop_calls == 1

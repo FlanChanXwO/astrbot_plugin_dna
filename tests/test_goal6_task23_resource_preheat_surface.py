@@ -1,4 +1,4 @@
-"""T23：移除资源启动预热及其生命周期排空面。"""
+"""T23：移除资源启动预热，但保留资源同步的生命周期排空面。"""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 LOADER_SCRIPT = ROOT / "scripts" / "ci" / "check_astrbot_plugin_load.py"
 
 
-def test_resource_service_drops_preheat_lifecycle_surface() -> None:
-    """资源服务不再暴露启动预热、预热错误或生命周期排空入口。"""
+def test_resource_service_drops_preheat_but_keeps_shutdown_surface() -> None:
+    """资源服务不再暴露启动预热，但仍保留终止时排空入口。"""
 
     assert not hasattr(ResourceUpdateService, "start_preheat")
     assert not hasattr(ResourceUpdateService, "preheat_error")
-    assert not hasattr(ResourceUpdateService, "stop")
+    assert hasattr(ResourceUpdateService, "stop")
 
 
 def test_loader_harness_drops_preheat_guard() -> None:

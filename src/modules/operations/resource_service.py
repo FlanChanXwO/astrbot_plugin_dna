@@ -44,11 +44,14 @@ class ResourceUpdateService:
         self.resource_snapshots = resource_snapshots
         self._flight_lock = asyncio.Lock()
         self._inflight: asyncio.Task[ResourceSyncResult] | None = None
+        self._stopping = False
 
     async def synchronize_once(self) -> ResourceSyncResult:
         """取得共享同步任务；取消单个等待者不会取消底层同步。"""
 
         async with self._flight_lock:
+            if self._stopping:
+                raise ResourceSyncError("资源同步服务正在停止")
             task = self._inflight
             if task is None or task.done():
                 task = asyncio.create_task(asyncio.to_thread(self.synchronize))
@@ -63,6 +66,25 @@ class ResourceUpdateService:
                     if self._inflight is task:
                         self._inflight = None
 
+    async def stop(self) -> None:
+        """停止接受新同步，并等待正在运行的线程任务自然完成。"""
+
+        async with self._flight_lock:
+            self._stopping = True
+            task = self._inflight
+            if task is None or task.done():
+                if task is not None and self._inflight is task:
+                    self._inflight = None
+                return
+
+        try:
+            # 线程任务无法安全取消；终止流程必须等待它释放资源后再继续。
+            await asyncio.shield(task)
+        finally:
+            async with self._flight_lock:
+                if self._inflight is task:
+                    self._inflight = None
+
     @staticmethod
     def _observe_sync_task(task: asyncio.Task[ResourceSyncResult]) -> None:
         """观察取消等待者后仍在运行的同步任务，并保留真实失败日志。"""
@@ -76,45 +98,23 @@ class ResourceUpdateService:
         if error is not None:
             logger.warning(f"[dnaby][resources] 共享资源同步任务失败: {error}")
 
-    def _record_sync_result(self, result: ResourceSyncResult) -> None:
-        """把同步结果交给 generation 协调器持久化为安全摘要。"""
-
-        recorder = getattr(self.resource_snapshots, "record_sync_result", None)
-        if callable(recorder):
-            recorder(result)
-
-    def _record_sync_failure(self, error: BaseException) -> None:
-        """把同步失败交给 generation 协调器持久化为安全摘要。"""
-
-        recorder = getattr(self.resource_snapshots, "record_sync_failure", None)
-        if callable(recorder):
-            recorder(error)
-
     async def sync_resources(self, _request: object):
         """同步全部公共资源（浅克隆或 ff-only 更新）。"""
 
         try:
             result = await self.synchronize_once()
         except ResourceLocalChangesError as error:
-            self._record_sync_failure(error)
             return PlainTextResponse(
                 messages.RESOURCE_LOCAL_CHANGES.format(detail=str(error))
             )
-        except ResourceRemoteMismatchError as error:
-            self._record_sync_failure(error)
+        except ResourceRemoteMismatchError:
             return PlainTextResponse(messages.RESOURCE_REMOTE_MISMATCH)
-        except GitUnavailableError as error:
-            self._record_sync_failure(error)
+        except GitUnavailableError:
             return PlainTextResponse(messages.RESOURCE_GIT_UNAVAILABLE)
         except ResourceSyncError as error:
-            self._record_sync_failure(error)
             return PlainTextResponse(
                 messages.RESOURCE_SYNC_FAILED.format(detail=str(error))
             )
-        except Exception as error:
-            self._record_sync_failure(error)
-            raise
-        self._record_sync_result(result)
         if result.action == "unchanged":
             return PlainTextResponse(
                 messages.RESOURCE_UP_TO_DATE.format(version=result.resource_version),
