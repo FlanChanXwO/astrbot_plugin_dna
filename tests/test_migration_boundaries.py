@@ -169,7 +169,7 @@ assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
-assert len(module.COMMAND_REGISTRY) == 63
+assert len(module.COMMAND_REGISTRY) == 64
 """
     result = subprocess.run(
         [sys.executable, "-c", script, str(Path(__file__).resolve().parent.parent)],

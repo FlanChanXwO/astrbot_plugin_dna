@@ -355,7 +355,9 @@ async def test_resource_generation_validation_is_deferred_to_async_start(
         calls.append(threading.current_thread().name)
 
     monkeypatch.setattr(ResourceSnapshotCoordinator, "load_current", fake_load)
-    monkeypatch.setattr(ResourceSnapshotCoordinator, "validate_current", record_validate)
+    monkeypatch.setattr(
+        ResourceSnapshotCoordinator, "validate_current", record_validate
+    )
 
     runtime = bootstrap.build_runtime(
         SimpleNamespace(register_web_api=lambda *_args: None),

@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 
 from ...entry.event import EventActor
-from ..player.contracts import RoleOverview
+from ..player.contracts import RoleHeader
 
 
 class EncyclopediaFailureKind(StrEnum):
@@ -78,7 +78,7 @@ class PlayerShortNote:
     drafts: tuple[DraftSnapshot, ...] = ()
     draft_doing_num: int = 0
     draft_max_num: int = 0
-    role_overview: RoleOverview | None = None
+    role_overview: RoleHeader | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +110,7 @@ class WeeklyReport:
     start_date: str
     end_date: str
     categories: tuple[WeeklyReportCategory, ...] = ()
-    role_overview: RoleOverview | None = None
+    role_overview: RoleHeader | None = None
 
 
 @dataclass(frozen=True, slots=True)

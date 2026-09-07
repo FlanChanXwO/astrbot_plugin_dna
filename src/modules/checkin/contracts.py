@@ -13,7 +13,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 
 from ...entry.event import EventActor
-from ..player.contracts import RoleOverview
+from ..player.contracts import RoleHeader
 
 
 class CheckinFailureKind(StrEnum):
@@ -153,8 +153,12 @@ class CheckinOutcome:
 
     game_status: SignStatus
     bbs_status: SignStatus
+    # 兼容手动签到展示的完整文本投影，不作为群报告的业务数据源。
     detail_lines: tuple[str, ...] = ()
     error: str = ""
+    # 群报告直接消费两类结构化详情，避免从 detail_lines 反向推断业务归属。
+    game_detail_lines: tuple[str, ...] = ()
+    community_detail_lines: tuple[str, ...] = ()
 
     @property
     def success(self) -> bool:
@@ -176,13 +180,33 @@ class CheckinSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class GroupSignReport:
+    """一个群的一类签到报告。"""
+
+    report_type: str
+    success: int
+    failed: int
+    summary_text: str
+    detail_text: str = ""
+    image_bytes: bytes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AutoSignReport:
+    """一次自动签到的全局汇总与按群分组报告。"""
+
+    summary_text: str
+    group_reports: dict[str, tuple[GroupSignReport, ...]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class CheckinCalendarData:
     """签到日历渲染所需的聚合输入。"""
 
     calendar: SignCalendar
     tasks: TaskProcess | None = None
     total_sign_in_days: int = 0
-    role_overview: RoleOverview | None = None
+    role_overview: RoleHeader | None = None
     snapshot: CheckinSnapshot | None = None
 
 
@@ -256,8 +280,8 @@ class CheckinTransport(Protocol):
         uid: str,
         *,
         credential_user_id: str,
-    ) -> RoleOverview:
-        """读取签到日历头部所需的角色总览。"""
+    ) -> RoleHeader:
+        """读取签到日历头部所需的轻量角色信息。"""
         ...
 
     async def get_post_list(
@@ -315,6 +339,7 @@ class CheckinTransport(Protocol):
 
 
 __all__ = [
+    "AutoSignReport",
     "CheckinCalendarData",
     "CheckinCommandRequest",
     "CheckinFailureKind",
@@ -326,6 +351,7 @@ __all__ = [
     "CommunityPost",
     "CommunityTask",
     "DayAward",
+    "GroupSignReport",
     "SignCalendar",
     "SignPeriod",
     "SignRoleInfo",

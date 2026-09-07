@@ -23,7 +23,7 @@ def test_generated_config_and_command_projections_are_current() -> None:
 
     assert commands == manifest_records(load_command_registry())
     assert schema == generate_astrbot_schema()
-    assert len(commands) == 63
+    assert len(commands) == 64
     assert set(schema) == {
         "general",
         "login",
@@ -56,7 +56,7 @@ def test_public_docs_describe_current_config_and_client_update_contract() -> Non
     assert "sign_in.default_auto_sign_enabled" in readme
     assert "client_updates.enabled" in readme
     assert "schema_version: 3" in readme
-    assert "完整的 63 条命令" in readme
+    assert "完整的 64 条命令" in readme
 
     for stale_field in (
         "display.command_prefixes",
@@ -83,7 +83,7 @@ def test_public_docs_describe_current_config_and_client_update_contract() -> Non
     assert "region:channel_id" in data_model
     assert "同步资源" in resources
     assert 'StarTools.get_data_dir("astrbot_plugin_dnaby")' in maintenance
-    assert "当前 registry 为 63 条" in maintenance
+    assert "当前 registry 为 64 条" in maintenance
     assert "notifications.client_update_check_minutes" not in architecture
     assert "client_updates.check_minutes" in architecture
 

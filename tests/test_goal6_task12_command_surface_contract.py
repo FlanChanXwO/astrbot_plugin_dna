@@ -50,10 +50,12 @@ async def test_resource_sync_use_case_calls_canonical_service_method() -> None:
         services={"resource_update_service": Service()},
     )
 
-    response = await resource_download_use_case(request, load_command_registry())
+    generator = resource_download_use_case(request, load_command_registry())
+    response = await anext(generator)
 
-    assert isinstance(response, PlainTextResponse)
-    assert response.text == "同步完成"
+    assert response == PlainTextResponse("开始同步公共资源，请稍候，完成后会发送结果")
+    response = await anext(generator)
+    assert response == PlainTextResponse("同步完成")
     assert calls == [None]
 
 

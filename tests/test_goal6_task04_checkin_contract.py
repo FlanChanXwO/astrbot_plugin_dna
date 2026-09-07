@@ -26,6 +26,7 @@ from src.modules.account.contracts import (
 from src.modules.account.service import AccountService
 from src.modules.checkin import messages as checkin_messages
 from src.modules.checkin.contracts import (
+    AutoSignReport,
     CheckinCommandRequest,
     CheckinOutcome,
     SignStatus,
@@ -327,9 +328,10 @@ class _NoGlobalFlagCheckin:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def auto_sign_all(self) -> str:
+    async def auto_sign_report(self, *, group_ids=None) -> AutoSignReport:
+        del group_ids
         self.calls += 1
-        return "personal-choice-summary"
+        return AutoSignReport(summary_text="personal-choice-summary")
 
     async def clear_sign_records_before(self, _record_date: date) -> int:
         return 0

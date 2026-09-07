@@ -46,8 +46,10 @@ async def resource_download_use_case(
 ):
     service = _resource_service(request)
     if isinstance(service, PlainTextResponse):
-        return service
-    return await service.sync_resources(None)
+        yield service
+        return
+    yield PlainTextResponse(messages.RESOURCE_SYNC_STARTED)
+    yield await service.sync_resources(None)
 
 
 COMMAND_SPECS = (

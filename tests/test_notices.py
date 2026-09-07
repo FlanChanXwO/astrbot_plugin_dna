@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,40 @@ def _ann_snapshot() -> AnnSnapshot:
             AnnPost(post_id="1002", title="活动预告", time="2026-08-02"),
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_mh_renderer_consumes_domain_snapshot_without_legacy_revalidation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """typed 密函渲染直接消费领域快照，不回拼 legacy 分节模型。"""
+
+    from src.infrastructure.rendering import notices as notices_module
+
+    payload = BytesIO()
+    Image.new("RGB", (31, 19), "#123456").save(payload, format="JPEG")
+
+    async def fake_draw(*_args, **_kwargs):
+        return payload.getvalue()
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("typed 密函渲染不应调用 legacy model_validate")
+
+    monkeypatch.setattr(notices_module, "draw_mh_card", fake_draw)
+    monkeypatch.setattr(
+        notices_module.DNARoleForToolInstanceInfo,
+        "model_validate",
+        fail,
+    )
+
+    renderer = NoticesRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
+    rendered = await renderer.render_mh(_mh_snapshot(), simple_image=False)
+
+    assert rendered.path.read_bytes() == payload.getvalue()
 
 
 class FakeNoticesTransport:

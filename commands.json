@@ -578,6 +578,18 @@
     "use_case": "src.modules.checkin.commands.checkin_sign_result_subscribe_use_case"
   },
   {
+    "id": "sign_group_report_subscribe",
+    "pattern": "^kk(订阅|取消订阅)本群签到报告$",
+    "group": "bot主人功能",
+    "name": "订阅本群签到报告",
+    "description": "订阅/取消订阅当前群的独立签到报告",
+    "examples": [
+      "kk订阅本群签到报告"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.checkin.commands.checkin_sign_group_report_subscribe_use_case"
+  },
+  {
     "id": "mh",
     "pattern": "^kk(?:密函|委托密函|mh)$",
     "group": "密函",

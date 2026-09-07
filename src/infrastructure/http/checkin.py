@@ -11,6 +11,7 @@ import asyncio
 from typing import Any
 
 import aiohttp
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from ...entry.event import EventActor
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
@@ -26,7 +27,8 @@ from ...modules.checkin.contracts import (
     SignStatus,
     TaskProcess,
 )
-from ...modules.player.contracts import RoleOverview
+from ...modules.player.contracts import RoleHeader
+from ...utils.constants.sign_bbs_mark import BBSMarkName
 from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
 
@@ -59,6 +61,58 @@ def _response_data(response: Any, *, resource: str) -> Any:
             detail="successful response has no data",
         )
     return data
+
+
+class _CheckinProjection(BaseModel):
+    """签到查询 transport 的消费者专用投影。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+
+class _SignCalendarAwardProjection(_CheckinProjection):
+    id: int
+    periodId: int
+    dayInPeriod: int
+    awardName: str
+    awardNum: int
+    iconUrl: str = ""
+
+
+class _SignCalendarPeriodProjection(_CheckinProjection):
+    id: int
+    name: str
+    overDays: int
+    startDate: int
+    endDate: int
+
+
+class _SignCalendarRoleInfoProjection(_CheckinProjection):
+    roleId: str
+    roleName: str
+    level: int
+    headUrl: str = ""
+
+
+class _SignCalendarProjection(_CheckinProjection):
+    todaySignin: bool | None = None
+    userGoldNum: int | None = None
+    dayAward: list[_SignCalendarAwardProjection]
+    signinTime: int | None = None
+    period: _SignCalendarPeriodProjection
+    roleInfo: object | None = None
+
+
+class _CommunityTaskProjection(_CheckinProjection):
+    remark: str
+    completeTimes: int
+    times: int
+    process: float = 0.0
+    gainExp: int = 0
+    gainGold: int = 0
+
+
+class _TaskProcessProjection(_CheckinProjection):
+    dailyTask: list[_CommunityTaskProjection]
 
 
 class DnaApiCheckinTransport:
@@ -116,11 +170,28 @@ class DnaApiCheckinTransport:
 
     @staticmethod
     def _sign_calendar(data: Any) -> SignCalendar:
-        from ...utils.api.model import DNACalendarSignRes
+        """只校验签到日历自身需要的字段。
 
-        payload = DNACalendarSignRes.model_validate(data)
+        ``roleInfo`` 仅用于旧接口返回的附带信息，日历命令实际使用的是另一个
+        角色头部查询；因此该可选嵌套块不完整时按 ``None`` 处理，而不影响周期
+        和奖励日历的严格校验。
+        """
+
+        payload = _SignCalendarProjection.model_validate(data)
+        role_info = None
+        if payload.roleInfo is not None:
+            try:
+                role = _SignCalendarRoleInfoProjection.model_validate(payload.roleInfo)
+            except ValidationError:
+                role = None
+            if role is not None:
+                role_info = SignRoleInfo(
+                    role_id=role.roleId,
+                    role_name=role.roleName,
+                    level=role.level,
+                    head_url=role.headUrl,
+                )
         period = payload.period
-        role_info = payload.roleInfo
         return SignCalendar(
             today_signed=payload.todaySignin,
             user_gold=payload.userGoldNum,
@@ -136,38 +207,25 @@ class DnaApiCheckinTransport:
                 )
                 for item in payload.dayAward
             ),
-            period=(
-                None
-                if period is None
-                else SignPeriod(
-                    period_id=period.id,
-                    name=period.name,
-                    over_days=period.overDays,
-                    start_date=period.startDate,
-                    end_date=period.endDate,
-                )
+            period=SignPeriod(
+                period_id=period.id,
+                name=period.name,
+                over_days=period.overDays,
+                start_date=period.startDate,
+                end_date=period.endDate,
             ),
-            role_info=(
-                None
-                if role_info is None
-                else SignRoleInfo(
-                    role_id=role_info.roleId,
-                    role_name=role_info.roleName,
-                    level=role_info.level,
-                    head_url=role_info.headUrl,
-                )
-            ),
+            role_info=role_info,
         )
 
     @staticmethod
     def _task_process(data: Any) -> TaskProcess:
-        from ...utils.api.model import DNATaskProcessRes
+        """解析任务实际消费的进度字段，忽略未使用的 ``skipType`` 等字段。"""
 
-        payload = DNATaskProcessRes.model_validate(data)
+        payload = _TaskProcessProjection.model_validate(data)
         return TaskProcess(
             daily_tasks=tuple(
                 CommunityTask(
-                    mark_name=item.markName,
+                    mark_name=BBSMarkName.get_mark_name(item.remark),
                     remark=item.remark,
                     complete_times=item.completeTimes,
                     times=item.times,
@@ -343,7 +401,7 @@ class DnaApiCheckinTransport:
         uid: str,
         *,
         credential_user_id: str,
-    ) -> RoleOverview:
+    ) -> RoleHeader:
         try:
             from ...utils import dna_api
             from .player import DnaApiPlayerTransport
@@ -351,7 +409,7 @@ class DnaApiCheckinTransport:
             response = await dna_api.get_default_role_for_tool(
                 await self._legacy_user(actor, uid, credential_user_id),
             )
-            return DnaApiPlayerTransport._overview(
+            return DnaApiPlayerTransport._role_header(
                 _response_data(response, resource="角色列表信息"),
             )
         except CheckinTransportError:

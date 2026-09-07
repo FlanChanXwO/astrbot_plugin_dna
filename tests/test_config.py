@@ -273,6 +273,8 @@ def test_build_runtime_propagates_all_settings(tmp_path):
             "sign_time": "07:15",
             "concurrency": 4,
             "concurrency_interval_seconds": [2, 6],
+            "group_report": True,
+            "group_report_image": True,
         },
         "notifications": {
             "announcement_enabled": False,
@@ -320,6 +322,8 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     assert checkin_service.community_tasks == ("bbs_sign",)
     assert checkin_service.concurrency == 4
     assert checkin_service.interval_range == (2, 6)
+    assert checkin_service.group_report is True
+    assert checkin_service.group_report_image is True
 
     sign_scheduler = runtime.services["sign_scheduler"]
     assert sign_scheduler.sign_time == (7, 15)

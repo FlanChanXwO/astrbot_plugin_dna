@@ -20,7 +20,6 @@ from src.infrastructure.rendering.player import (
     ResourceMap,
 )
 from src.modules.player.contracts import DamageCalculation
-
 from tests.test_player import (
     UID,
     _damage_fixture,
@@ -55,6 +54,13 @@ async def test_player_renderer_publishes_t2i_jpeg_bytes_without_pillow_decode(
 
     monkeypatch.setattr(player_module, "draw_role_info_card_core", fake_overview)
     monkeypatch.setattr(player_module, "_draw_role_detail_card", fake_detail)
+    monkeypatch.setattr(
+        player_module.RoleShowForTool,
+        "model_validate",
+        lambda *_args, **_kwargs: pytest.fail(
+            "typed 玩家渲染不应回拼完整 legacy RoleShowForTool"
+        ),
+    )
     monkeypatch.setattr(
         player_module.Image,
         "open",

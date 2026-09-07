@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from src.infrastructure.http.checkin import DnaApiCheckinTransport, _response_data
 from src.modules.checkin.contracts import (
@@ -83,6 +84,47 @@ def test_legacy_calendar_payload_allows_missing_today_state() -> None:
     assert calendar.signin_time is None
     assert calendar.user_gold is None
     assert calendar.role_info is None
+
+
+def test_sign_calendar_ignores_empty_or_partial_role_info() -> None:
+    """签到日历不应因非消费者必需的 roleInfo 残缺而失败。"""
+
+    for role_info in ({}, {"roleId": "101", "roleName": "角色甲"}):
+        payload = _legacy_calendar_payload()
+        payload["roleInfo"] = role_info
+
+        calendar = DnaApiCheckinTransport._sign_calendar(payload)
+
+        assert calendar.period is not None
+        assert calendar.role_info is None
+
+
+def test_sign_calendar_keeps_period_as_a_required_projection() -> None:
+    payload = _legacy_calendar_payload()
+    payload.pop("period")
+
+    with pytest.raises(ValidationError):
+        DnaApiCheckinTransport._sign_calendar(payload)
+
+
+def test_task_process_does_not_require_unused_skip_type() -> None:
+    task = DnaApiCheckinTransport._task_process(
+        {
+            "dailyTask": [
+                {
+                    "remark": "签到",
+                    "completeTimes": 1,
+                    "times": 1,
+                    "gainExp": 2,
+                    "process": 1,
+                    "gainGold": 3,
+                    "unused": "ignored",
+                },
+            ],
+        },
+    )
+
+    assert task.daily_tasks[0].mark_name == "bbs_sign"
 
 
 def test_checkin_transport_error_redacts_upstream_text() -> None:

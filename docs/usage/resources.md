@@ -45,7 +45,10 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 
 - `fonts/`：玩家和资料图片使用的字体。
 - `images/`：角色头像、武器、技能、魔之楔和立绘等图片。
-- `panel/`：角色详情使用的面板资源。
+- `panel/`：卡片通用背景图集。角色详情卡（role_detail）上方 hero 区优先使用逐角色
+  `panel/<角色 ID>.<ext>` 原始面板；基本信息卡（role_info）顶部 hero 背景在每次查询时从图集
+  随机取一张通用背景（如 `panel_1.png`、`panel_2.png`…，横版大图、非角色专属）。图集缺失时
+  渲染回退本地素材，不伪造资源也不中断渲染。
 - `alias/`：角色和武器的默认别名。
 - `wiki/role/`、`wiki/weapon/`、`wiki/spirit/`：图鉴图片。
 - `guide/`：角色攻略图片。
@@ -82,6 +85,7 @@ Git checkout 当作未经验证的业务资源源。资源根目录存在但 man
 “资源已是最新”；若同 commit 的 current generation 已损坏，则会重新物化并校验候选快照。修复同 commit
 的物理目录前会阻止新的 generation lease，并等待已有 lease 释放；等待期间业务继续使用空资源视图，
 不会替换仍被读取的目录。
+管理员执行同步命令时会先收到“开始同步公共资源”的提示，命令随后等待当前同步完成并发送最终结果。
 
 ## 资源更新与缓存
 

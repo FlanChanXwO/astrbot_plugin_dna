@@ -21,6 +21,7 @@ from src.infrastructure.scheduler_state import (
     SchedulerTaskState,
 )
 from src.infrastructure.subscriptions import SubscriptionStore
+from src.modules.checkin.contracts import AutoSignReport
 from src.modules.client_updates import ClientUpdateChange
 
 TZ = ZoneInfo("Asia/Shanghai")
@@ -167,7 +168,8 @@ async def test_scheduler_records_daily_next_run_and_error_state(tmp_path: Path) 
     calls: list[float] = []
 
     class _FailingCheckin:
-        async def auto_sign_all(self) -> str:
+        async def auto_sign_report(self, *, group_ids=None) -> AutoSignReport:
+            del group_ids
             checkin_failed.set()
             raise RuntimeError("upstream detail must not enter snapshot")
 

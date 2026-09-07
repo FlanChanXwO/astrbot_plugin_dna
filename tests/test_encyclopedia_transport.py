@@ -91,6 +91,100 @@ def test_legacy_weekly_payload_maps_all_categories_and_items() -> None:
     assert report.role_overview.role_name == "资料玩家"
 
 
+def test_short_note_allows_missing_draft_info_and_empty_slots() -> None:
+    snapshot = DnaApiEncyclopediaTransport._short_note(
+        {
+            "rougeLikeRewardCount": 0,
+            "rougeLikeRewardTotal": 0,
+            "currentTaskProgress": 0,
+            "maxDailyTaskProgress": 6,
+            "hardBossRewardCount": 0,
+            "hardBossRewardTotal": 0,
+            "dungeonReward": 0,
+            "dungeonRewardTotal": 0,
+            "draftInfo": {
+                "draftDoingNum": 1,
+                "draftMaxNum": 2,
+                "draftDoingInfo": [
+                    {
+                        "draftCompleteNum": 0,
+                        "draftDoingNum": 0,
+                        "extra": "ignored",
+                    },
+                ],
+            },
+        },
+    )
+
+    assert snapshot.drafts == ()
+    assert snapshot.draft_doing_num == 1
+    assert snapshot.draft_max_num == 2
+
+
+def test_short_note_allows_omitted_draft_info() -> None:
+    snapshot = DnaApiEncyclopediaTransport._short_note(
+        {
+            "rougeLikeRewardCount": 0,
+            "rougeLikeRewardTotal": 0,
+            "currentTaskProgress": 0,
+            "maxDailyTaskProgress": 0,
+            "hardBossRewardCount": 0,
+            "hardBossRewardTotal": 0,
+            "dungeonReward": 0,
+            "dungeonRewardTotal": 0,
+        },
+    )
+
+    assert snapshot.drafts == ()
+    assert snapshot.draft_doing_num == 0
+    assert snapshot.draft_max_num == 0
+
+
+def test_short_note_allows_null_draft_slots() -> None:
+    snapshot = DnaApiEncyclopediaTransport._short_note(
+        {
+            "rougeLikeRewardCount": 0,
+            "rougeLikeRewardTotal": 0,
+            "currentTaskProgress": 0,
+            "maxDailyTaskProgress": 0,
+            "hardBossRewardCount": 0,
+            "hardBossRewardTotal": 0,
+            "dungeonReward": 0,
+            "dungeonRewardTotal": 0,
+            "draftInfo": {
+                "draftDoingNum": 0,
+                "draftMaxNum": 2,
+                "draftDoingInfo": None,
+            },
+        },
+    )
+
+    assert snapshot.drafts == ()
+    assert snapshot.draft_doing_num == 0
+    assert snapshot.draft_max_num == 2
+
+
+def test_weekly_projection_allows_empty_category_options_and_role_header() -> None:
+    report = DnaApiEncyclopediaTransport._weekly(
+        {
+            "categories": [
+                {"categoryName": "空分类", "items": [], "extra": "ignored"},
+            ],
+            "startDate": "20260803",
+            "endDate": "20260809",
+            "weekType": 1,
+        },
+        {"roleInfo": {"roleShow": {"roleId": "role-1"}}},
+    )
+
+    assert report.categories[0].category_name == "空分类"
+    assert report.categories[0].items == ()
+    assert report.categories[0].is_base is False
+    assert report.categories[0].category_type == 0
+    assert report.role_overview is not None
+    assert report.role_overview.role_id == "role-1"
+
+
 def test_code_provider_maps_all_valid_entries_with_their_own_expiry() -> None:
     """资源仓库 provider 的逐码截止时间必须进入 typed transport 输出。"""
 

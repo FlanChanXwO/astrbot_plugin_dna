@@ -30,6 +30,7 @@
 - [阶段评审记录](porting/review.md)、[版本与领域评审](porting/review-v0.1.md)、[账号与隐私评审](porting/review-v0.2-account.md)、[调试评审](porting/review-v0.2-debug.md)
 - [玩家领域评审](porting/review-v0.3-player.md)、[图鉴领域评审](porting/review-v0.3-encyclopedia.md)、[签到评审](porting/review-v0.4-checkin.md)、[通知评审](porting/review-v0.5-notices.md)、[运维与面板评审](porting/review-v0.6-operations.md)
 - [离线写入契约](porting/offline-write-contracts.md)、[渲染对比记录](porting/render-compare-mh.md)、[Agent Tools 发布清单](porting/agent-tools-release-checklist.md)、[最终报告](porting/final_report.md)
+- [查询接口消费者专用最小数据投影](superpowers/specs/2026-09-05-query-projection-design.md)
 - [原登录问题排查档案](legacy/README.md)
 
 ## 目录结构
@@ -40,6 +41,7 @@ docs/
   usage/           # 普通用户使用说明
   dev/             # 贡献者与维护者文档
   project/         # 当前架构与数据模型
+  superpowers/     # 专项设计与实现边界记录
   porting/         # 历史设计、迁移和审计资料
   legacy/          # 原登录问题排查档案
 ```

@@ -56,9 +56,9 @@ schema 为准。
 | `sign_in.sign_time` | `00:05` | 每日自动签到时间，格式为 `HH:mm`。 |
 | `sign_in.concurrency` | `1` | 自动签到并发数。 |
 | `sign_in.concurrency_interval_seconds` | `[3, 5]` | 自动签到任务之间的随机间隔范围，单位为秒。 |
-| `sign_in.private_report` | `false` | 是否发送私聊签到报告。 |
-| `sign_in.group_report` | `false` | 是否发送群聊签到报告。 |
-| `sign_in.group_report_image` | `false` | 是否使用图片发送群聊签到报告。 |
+| `sign_in.private_report` | `false` | 是否发送私聊签到报告；本轮不改变其既有语义。 |
+| `sign_in.group_report` | `false` | 群组报告总开关；开启后仍需在目标群执行 `订阅本群签到报告`。 |
+| `sign_in.group_report_image` | `false` | 仅控制本群报告格式；`false` 发送文字，`true` 发送图片并保留必要明细文字。 |
 
 自动签到的正式开关属于每个 UID 的用户状态，不再使用全局 `enable_all_users` 配置覆盖已有用户。
 旧配置中的 `SignAllUser` 会迁移为 `default_auto_sign_enabled`。旧配置中的
@@ -67,6 +67,8 @@ schema 为准。
 `scheduler_state.json` 中 `dnaby_sign_daily` 的暂停状态，并写入一次性迁移标记。迁移完成后，
 每日任务由 scheduler registry 的暂停/恢复状态管理，修改这个旧隐藏字段不会再次覆盖正式状态。
 缺少该旧字段的新配置默认启用。该兼容迁移不改变每个 UID 的 `auto_sign_enabled`，也不影响手动“全部签到”。
+`订阅签到结果` 管理所有账号、所有群的全局文字汇总，`订阅本群签到报告` 管理当前群的独立
+报告，两种订阅互不覆盖。游戏签到和社区签到分别发送；私聊绑定只进入全局汇总，不会被路由到群。
 
 ## 通知 `notifications`
 

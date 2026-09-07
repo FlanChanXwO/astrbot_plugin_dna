@@ -17,6 +17,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import aiohttp
+from pydantic import BaseModel, ConfigDict, Field
 
 from ...entry.event import EventActor
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
@@ -34,7 +35,10 @@ from ...modules.encyclopedia.contracts import (
     WeeklyReportCategory,
     WeeklyReportItem,
 )
-from ...modules.player.contracts import RoleOverview
+from ...modules.player.contracts import (
+    RoleAchievement,
+    RoleHeader,
+)
 from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
 
@@ -53,6 +57,75 @@ _CALENDAR_ROTATIONS = (
     ("魔灵", "moling", datetime(2026, 1, 3, 5, 0, tzinfo=SHANGHAI_TZ), 86400 * 3),
     ("周本", "zhouben", datetime(2025, 12, 29, 5, 0, tzinfo=SHANGHAI_TZ), 86400 * 7),
 )
+
+
+class _EncyclopediaProjection(BaseModel):
+    """资料查询 transport 的消费者专用响应投影。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+
+class _RoleHeaderShowProjection(_EncyclopediaProjection):
+    roleId: str
+    roleName: str = ""
+    level: int | None = None
+    params: list[RoleAchievement] = Field(default_factory=list)
+
+
+class _RoleHeaderInfoProjection(_EncyclopediaProjection):
+    roleShow: _RoleHeaderShowProjection
+
+
+class _RoleHeaderResponse(_EncyclopediaProjection):
+    roleInfo: _RoleHeaderInfoProjection
+
+
+class _DraftDoingProjection(_EncyclopediaProjection):
+    draftCompleteNum: int = 0
+    draftDoingNum: int = 0
+    endTime: str | int | float | None = None
+    productName: str | None = None
+    startTime: str | int | float | None = None
+
+
+class _DraftInfoProjection(_EncyclopediaProjection):
+    draftDoingInfo: list[_DraftDoingProjection] | None = None
+    draftDoingNum: int = 0
+    draftMaxNum: int = 0
+
+
+class _ShortNoteProjection(_EncyclopediaProjection):
+    rougeLikeRewardCount: int
+    rougeLikeRewardTotal: int
+    currentTaskProgress: int
+    maxDailyTaskProgress: int
+    hardBossRewardCount: int
+    hardBossRewardTotal: int
+    dungeonReward: int
+    dungeonRewardTotal: int
+    draftInfo: _DraftInfoProjection | None = None
+
+
+class _WeeklyItemProjection(_EncyclopediaProjection):
+    itemId: int
+    itemName: str
+    quality: int = 0
+    totalNum: str | int = "0"
+    icon: str = ""
+
+
+class _WeeklyCategoryProjection(_EncyclopediaProjection):
+    categoryName: str
+    items: list[_WeeklyItemProjection] = Field(default_factory=list)
+    isBase: bool = False
+    type: int = 0
+
+
+class _WeeklyProjection(_EncyclopediaProjection):
+    categories: list[_WeeklyCategoryProjection]
+    startDate: str
+    endDate: str
+    weekType: int
 
 
 class _CodeContractError(ValueError):
@@ -187,31 +260,24 @@ def _rotation_period(
     return period_start, period_start + duration
 
 
-def _role_overview(data: Any) -> RoleOverview:
-    """将角色卡片完整映射为玩家领域共用的 RoleOverview。"""
+def _role_header(data: Any) -> RoleHeader:
+    """将角色查询响应映射为便签、周报所需的最小角色头部。"""
 
-    from ...utils.api.model import DNARoleForToolRes
-
-    payload = DNARoleForToolRes.model_validate(data)
+    payload = _RoleHeaderResponse.model_validate(data)
     role_show = payload.roleInfo.roleShow
-    return RoleOverview.model_validate(
+    return RoleHeader.model_validate(
         {
             "roleId": role_show.roleId,
             "roleName": role_show.roleName or "",
             "level": role_show.level,
             "params": [item.model_dump(by_alias=True) for item in role_show.params],
-            "achievementTotal": role_show.roleAchv.total,
-            "roleChars": [
-                item.model_dump(by_alias=True) for item in role_show.roleChars
-            ],
-            "langRangeWeapons": [
-                item.model_dump(by_alias=True) for item in role_show.langRangeWeapons
-            ],
-            "closeWeapons": [
-                item.model_dump(by_alias=True) for item in role_show.closeWeapons
-            ],
         },
     )
+
+
+# 保留私有旧名称，避免外部脚本导入时突然失效；返回值已收窄为 RoleHeader。
+def _role_overview(data: Any) -> RoleHeader:
+    return _role_header(data)
 
 
 class DnaApiEncyclopediaTransport:
@@ -278,12 +344,10 @@ class DnaApiEncyclopediaTransport:
 
     @staticmethod
     def _short_note(data: Any) -> PlayerShortNote:
-        """映射便签 payload，保留每个合法锻造槽位字段。"""
+        """映射便签实际消费的进度和锻造槽位字段。"""
 
-        from ...utils.api.model import DNARoleShortNoteRes
-
-        payload = DNARoleShortNoteRes.model_validate(data)
-        draft_info = payload.draftInfo
+        payload = _ShortNoteProjection.model_validate(data)
+        draft_info = payload.draftInfo or _DraftInfoProjection()
         drafts = tuple(
             DraftSnapshot(
                 product_name=draft.productName or "",
@@ -293,7 +357,8 @@ class DnaApiEncyclopediaTransport:
                 draft_doing_num=draft.draftDoingNum,
                 draft_complete_num=draft.draftCompleteNum,
             )
-            for draft in (draft_info.draftDoingInfo or [])
+            for draft in draft_info.draftDoingInfo or ()
+            if draft.productName or draft.endTime or draft.startTime
         )
         return PlayerShortNote(
             rouge_like_reward_count=payload.rougeLikeRewardCount,
@@ -311,11 +376,9 @@ class DnaApiEncyclopediaTransport:
 
     @staticmethod
     def _weekly(report_data: Any, role_data: Any) -> WeeklyReport:
-        """映射周报全部分类/资源项并合并角色概览。"""
+        """按周报 renderer 实际读取的字段解析分类、资源项和角色头部。"""
 
-        from ...utils.api.model import DNAItemWeeklyReportRes
-
-        payload = DNAItemWeeklyReportRes.model_validate(report_data)
+        payload = _WeeklyProjection.model_validate(report_data)
         categories = tuple(
             WeeklyReportCategory(
                 category_name=category.categoryName,
@@ -326,7 +389,7 @@ class DnaApiEncyclopediaTransport:
                         item_id=item.itemId,
                         item_name=item.itemName,
                         quality=item.quality,
-                        total_num=item.totalNum,
+                        total_num=str(item.totalNum),
                         icon=item.icon,
                     )
                     for item in category.items
@@ -339,7 +402,7 @@ class DnaApiEncyclopediaTransport:
             start_date=payload.startDate,
             end_date=payload.endDate,
             categories=categories,
-            role_overview=_role_overview(role_data),
+            role_overview=_role_header(role_data),
         )
 
     @staticmethod
@@ -460,7 +523,7 @@ class DnaApiEncyclopediaTransport:
                 resource="角色列表信息",
             )
             snapshot = self._short_note(short_note)
-            return replace(snapshot, role_overview=_role_overview(role_data))
+            return replace(snapshot, role_overview=_role_header(role_data))
         except EncyclopediaTransportError:
             raise
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):

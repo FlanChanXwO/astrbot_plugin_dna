@@ -57,6 +57,7 @@ def test_replanned_command_surface_uses_public_and_admin_boundaries() -> None:
         "sign_calendar",
         "sign_all",
         "sign_result_subscribe",
+        "sign_group_report_subscribe",
         "ann_sub",
         "ann_unsub",
     }
@@ -113,6 +114,7 @@ def test_replanned_command_surface_uses_public_and_admin_boundaries() -> None:
     for command_id in (
         "sign_all",
         "sign_result_subscribe",
+        "sign_group_report_subscribe",
         "alias_add_delete",
         "alias_recover",
     ):

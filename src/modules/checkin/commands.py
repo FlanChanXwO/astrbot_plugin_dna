@@ -11,7 +11,11 @@ from .contracts import CheckinCommandRequest
 from .service import CheckinService
 
 
-def _service(request: CommandRequest) -> CheckinService | PlainTextResponse:
+def _service(
+    request: CommandRequest,
+    *,
+    required_methods: tuple[str, ...] = (),
+) -> CheckinService | PlainTextResponse:
     if request.actor is None:
         return PlainTextResponse(messages.CHECKIN_CONTEXT_UNAVAILABLE)
     service = request.services.get("checkin_service")
@@ -23,6 +27,7 @@ def _service(request: CommandRequest) -> CheckinService | PlainTextResponse:
             "sign_all",
             "subscribe_sign_result",
             "set_auto_sign",
+            *required_methods,
         )
     ):
         return PlainTextResponse(messages.CHECKIN_SERVICE_UNAVAILABLE)
@@ -81,6 +86,17 @@ async def checkin_sign_result_subscribe_use_case(
     if isinstance(service, PlainTextResponse):
         return service
     return await service.subscribe_sign_result(_checkin_request(request))
+
+
+async def checkin_sign_group_report_subscribe_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **_parameters: Any,
+):
+    service = _service(request, required_methods=("subscribe_group_report",))
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.subscribe_group_report(_checkin_request(request))
 
 
 async def checkin_auto_sign_use_case(
@@ -163,6 +179,16 @@ COMMAND_SPECS = (
         permission="admin",
         use_case=cast(Any, checkin_sign_result_subscribe_use_case),
     ),
+    CommandSpec(
+        id="sign_group_report_subscribe",
+        pattern=r"^(订阅|取消订阅)本群签到报告$",
+        group="bot主人功能",
+        name="订阅本群签到报告",
+        description="订阅/取消订阅当前群的独立签到报告",
+        examples=("订阅本群签到报告",),
+        permission="admin",
+        use_case=cast(Any, checkin_sign_group_report_subscribe_use_case),
+    ),
 )
 
 
@@ -171,6 +197,7 @@ __all__ = [
     "checkin_auto_sign_use_case",
     "checkin_sign_all_use_case",
     "checkin_sign_calendar_use_case",
+    "checkin_sign_group_report_subscribe_use_case",
     "checkin_sign_result_subscribe_use_case",
     "checkin_sign_use_case",
 ]
