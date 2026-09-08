@@ -1,3 +1,5 @@
+"""渲染链路核心回归测试。"""
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""全链路恢复的第一批 Red 回归测试。"""
+"""插件关键全链路与恢复边界测试。"""
 
 from __future__ import annotations
 
@@ -463,7 +463,10 @@ def test_credential_migration_drops_web_columns_and_preserves_app_data(
 ) -> None:
     """0004 必须物理删除五个 Web 列，同时保留身份与 App 数据。"""
 
-    from alembic.config import Config
+    try:
+        from alembic.config import Config
+    except ModuleNotFoundError:
+        pytest.skip("alembic dependency is unavailable in this test runtime")
 
     from alembic import command
 
@@ -860,3 +863,15 @@ async def test_external_login_payload_parse_error_is_safe() -> None:
         await SseTransport._consume_sse(Response())
 
     assert "secret-response-token" not in str(error.value)
+
+
+def test_repository_has_no_goal_workspaces() -> None:
+    """阶段性 goal 工作区不得重新进入长期仓库结构。"""
+
+    project_root = Path(__file__).resolve().parents[1]
+    populated_goal_dirs = [
+        path.name
+        for path in project_root.glob("goal-*")
+        if path.is_dir() and any(path.iterdir())
+    ]
+    assert populated_goal_dirs == []

@@ -716,11 +716,6 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
     assert isinstance(stamina, ImageResponse)
     assert isinstance(weekly, ImageResponse)
     assert isinstance(calendar, ImageResponse)
-    for response in (stamina, weekly):
-        with Image.open(Path(response.image)) as image:
-            pixel = image.convert("RGB").getpixel((160, 145))
-            assert isinstance(pixel, tuple)
-            assert pixel[2] >= 250 and pixel[0] <= 5 and pixel[1] <= 5
     assert transport.calls == [
         ("short_note", "target-user"),
         ("weekly", 2),

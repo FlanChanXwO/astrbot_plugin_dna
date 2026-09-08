@@ -1,4 +1,4 @@
-"""v0.1 命令 registry 与 AstrBot handler 生成契约测试。"""
+"""入口命令 registry 与 AstrBot handler 核心契约测试。"""
 
 from __future__ import annotations
 

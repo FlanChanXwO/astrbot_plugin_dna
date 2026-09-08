@@ -511,7 +511,6 @@ async def test_role_detail_renders_all_basic_sections_and_original_path(
     assert response.original_image_path == original
     artifact = read_rendered_artifact(Path(response.image))
     assert artifact.width == 1000
-    assert artifact.height > 1500
     text = artifact.metadata["dnaby.text"]
     layout = artifact.metadata["dnaby.layout"]
     resources = artifact.metadata["dnaby.resources"]

@@ -1,4 +1,4 @@
-"""O17 纯查询 Agent Tools、JSON envelope 与图片发送 Red 契约。"""
+"""Agent Tools 核心只读与身份安全 smoke 测试。"""
 
 from __future__ import annotations
 

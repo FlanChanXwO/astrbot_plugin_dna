@@ -1,4 +1,4 @@
-"""Task 26 公共资源更新的隔离测试。"""
+"""公共资源同步核心回归测试。"""
 
 from __future__ import annotations
 
