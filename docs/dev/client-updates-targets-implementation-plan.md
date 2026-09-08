@@ -8,14 +8,15 @@
 
 ## 目标与约束
 
-在一个 PR 中完成客户端更新子系统的 Target / Source 重构，并修复生产已复现的 VersionList 历史断档故障。最终用户以“区服 × 账号生态 × 平台”的完整 Target 配置、查询和订阅；底层以可复用 Source 获取真实版本并维护 baseline。
+在一个 PR 中完成客户端更新子系统的 Target / Source 重构，并修复生产已复现的 VersionList 历史断档故障。管理员以“区服 × 账号生态 × 平台”的完整 Target 配置检测范围；用户通过严格无参数命令查询或订阅当前配置范围；底层以可复用 Source 获取真实版本并维护 baseline。
 
 - `Target` 是用户侧唯一身份；`Source` 是技术更新源身份。
 - 下载商店若最终进入相同账号生态与相同服务器，不拆 Target。
 - 只有经过验证的合法 Target / Source 才能进入 registry；禁止猜 URL、branch、manifest 或客户端存在性。
 - 多个 Target 可共享 Source；同一个 Source 每轮最多请求一次。
+- 采用一次性垂直重构，不保留 channel/Target 双模型或临时兼容业务路径。
 - 默认配置保持现有行为，只启用 CN 官服 PC / Android。
-- 旧 `channels` 配置、state v3、`platforms` 订阅必须自动迁移。
+- 旧 `channels` 配置不迁移并由 typed settings 明确拒绝；state v1/v2/v3 warning 后按空状态启动且不备份；旧 `platforms` 订阅元数据幂等清理为 `{}`。
 - history gap 是成功观察的降级状态，不是 contract error；不得伪造更新大小。
 - `commands.json` 和 `_conf_schema.json` 继续由脚本生成，不手工维护。
 - 保持精简测试布局：新增最多一个客户端更新专用测试文件，其余断言并入现有配置/命令测试。
@@ -52,7 +53,7 @@
 4. 校验 ID 唯一、`(region, ecosystem, platform)` 唯一、Target 引用 Source 存在且平台一致、display name 非空。
 5. 提供 `resolve_client_update_target()`、`resolve_client_update_source()`、`normalize_client_update_target_ids()`、按 platform 过滤和按 source 分组能力。
 6. 删除业务代码对 `_DEFAULT_CHANNEL_BY_PLATFORM` 的依赖。
-7. `channels.py` 若还需兼容旧 state/config，只保留明确 migration constants；否则删除，避免新代码继续使用“channel”歧义。
+7. 删除新业务代码对 `channels.py` 的依赖；不为旧 state/config 保留迁移映射，避免继续传播“channel”歧义。
 
 测试放在新增的 `tests/test_client_updates.py`。
 
@@ -69,10 +70,10 @@
 工作：
 
 1. 将现有携带 `region/channel_id` 的版本快照改成 Source-neutral 观察对象。
-2. 版本对象至少承载 `source_id`、用户可见 `version_text`、provider 可比较的稳定 `version_key`，以及可选 manifest revision/resource directory。
+2. 版本对象至少承载 `source_id`、用户可见 `version_text`、稳定 `revision_id`、可选 `order_key`，以及 typed provider metadata。
 3. 不把所有 provider 强制塞进整数 `patchVersion`。
 4. manifest provider 继续解析 VersionList / PakFilesInfo / ResDiscreteInfo。
-5. app-store provider 只承诺当前版本可比较；无法可靠获取差分大小时保持 size unknown。
+5. 只有真实 iOS Target 核验成功时才实现 app-store provider；其只承诺当前版本可比较，无法可靠获取差分大小时保持 size unknown。
 6. Transport 公开入口改为 `get_observation(source_id, baseline=...)`。
 
 **提交检查点**：`refactor: make client update observations source-oriented`
@@ -112,16 +113,14 @@
 
 工作：
 
-1. `STATE_VERSION` 从 3 升到 4。
-2. baseline key 改为 `source_id`，不再是 `region:channel_id`。
-3. `cn:pc_cn`、`cn:android_astc_cn` 分别迁到实现期确认的 CN 官服 PC / Android Source。
-4. 保留 snapshot、`observed_at`、`last_change` 等可保留字段。
-5. pending event 固定 `source_id`、事件创建时的 `target_ids`，以及每个投递目标匹配到的 `target_ids`。
-6. 保持 baseline + pending event 原子落盘。
-7. 保存 v3 迁移备份并保证重复 load 幂等。
-8. 未知旧 channel 无法安全映射时明确失败，不静默猜 Source。
+1. schema version 固定为 4，baseline key 改为 `source_id`。
+2. event key 使用 `source_id + previous.revision_id + current.revision_id`。
+3. change 与 pending delivery 保存事件创建时的 `target_ids` 快照。
+4. v1/v2/v3 load 时 warning 后返回空 state，不迁移、不备份旧 baseline 或 pending event。
+5. 首次成功 poll 建立 baseline；query 仍保持只读。
+6. baseline + pending event 保持原子落盘；写失败恢复旧文件。
 
-**提交检查点**：`refactor: migrate client update state to source baselines`
+**提交检查点**：`refactor: reset legacy client update state to source baselines`
 
 ## 6. Service 按 Source 去重、按 Target 展开
 
@@ -159,15 +158,15 @@
 1. `ClientUpdatesSettings.channels` 改成 `targets: list[str]`。
 2. options 从 `CLIENT_UPDATE_TARGETS` 生成。
 3. 默认仅 `cn-official-pc`、`cn-official-android`。
-4. 旧 `pc_cn / android_astc_cn` 自动迁到对应 Target。
-5. 迁移后 schema 不继续暴露旧 `channels`。
+4. 旧 `channels` 不迁移，typed settings 以未知字段明确拒绝。
+5. schema 不继续暴露旧 `channels`。
 6. 保持 `enabled/check_minutes/merge_forward` 不变。
 7. 非法 Target ID 明确 ValidationError。
 8. 运行 `python3 scripts/generate_config_schema.py`。
 
 **提交检查点**：`feat: expose client update targets in config`
 
-## 8. 命令与订阅改为 Target selector
+## 8. 无参数命令与配置驱动订阅
 
 主要文件：
 
@@ -183,29 +182,22 @@
 
 ```text
 客户端更新
-客户端更新 PC
-客户端更新 安卓
-客户端更新 iOS
-客户端更新 国服/官服/PC
-客户端更新 cn-official-pc
-
-订阅客户端更新 ...
+订阅客户端更新
 取消订阅客户端更新
 ```
 
 工作：
 
-1. `ClientUpdateRequest.platforms` 改为 `target_ids`。
-2. selector 只在当前配置已启用 Target 中解析。
-3. `PC / 安卓 / iOS` 是批量筛选快捷方式，不持久化为身份。
-4. 精确 selector 支持稳定 target ID 和 registry 中文路径别名。
-5. 新订阅保存 `{"target_ids":[...]}`。
-6. 旧 `{"platforms":[...]}` 首次读取时按当时 enabled Target 映射并持久化，后续新增 Target 不自动扩大旧订阅范围。
-7. 投递匹配改为 target ID 集合求交；取消订阅行为保持不变。
-8. 消息显示完整 Target 名称；同 Source 多 Target 可合并，但必须列出实际覆盖 Target。
-9. 运行 `python3 scripts/generate_commands_manifest.py`。
+1. 三个命令改为严格无参数；平台名、Target ID 和其它尾随参数均不匹配。
+2. query 始终读取当前配置启用的全部 `target_ids`，且不修改 baseline。
+3. 新订阅 `extra_data` 保存 `{}`，只表达订阅 identity。
+4. 生命周期初始化时将旧 `{"platforms":[...]}` 幂等清理为 `{}`；损坏元数据 warning 后跳过。
+5. 所有有效订阅在 AstrBot 标准插件重载后统一使用当前配置 Target；不增加运行中热配置监听器。
+6. pending event 固定创建时的 Target 集合，配置重载不改变既有事件语义。
+7. 消息显示完整 Target 名称；同 Source 多 Target 可合并，但必须列出实际覆盖 Target。
+8. 运行 `python3 scripts/generate_commands_manifest.py`。
 
-**提交检查点**：`feat: support target-specific client update queries and subscriptions`
+**提交检查点**：`feat: make client update subscriptions config-driven`
 
 ## 9. 帮助、文档与维护入口
 
@@ -217,7 +209,7 @@
 - `docs/dev/maintenance.md`（若保留 Source 检查脚本）
 - `tests/test_help_subscriptions.py`
 
-加入 iOS/精确 Target 示例，解释 Target = 区服 × 账号生态 × 平台，并明确下载入口不等于账号生态。文档不复制完整 Target 表，完整 options 仍以生成 schema 为事实源。
+解释 Target = 区服 × 账号生态 × 平台、配置是唯一 Target 选择入口、三个命令均无参数，并明确下载入口不等于账号生态。文档不复制完整 Target 表，完整 options 仍以生成 schema 为事实源。
 
 **提交检查点**：`docs: document client update targets and recovery`
 
@@ -227,12 +219,12 @@
 
 - `tests/test_client_updates.py`
 
-集中覆盖 registry、transport/provider、service、state migration、subscription migration、history-gap。
+集中覆盖 registry、transport/provider、service、state v4 reset、subscription metadata cleanup、history-gap。
 
 现有文件继续负责：
 
 - `tests/test_config.py`：配置模型和 schema 投影
-- `tests/test_entry_commands.py`：命令匹配/selector 入口
+- `tests/test_entry_commands.py`：严格无参数命令匹配
 - `tests/test_help_subscriptions.py`：帮助中的订阅/取消订阅可发现性
 
 不重新引入 `test_goal*_client_updates_*` 系列。
@@ -262,7 +254,7 @@ python3 -m compileall .
 
 1. 用只读 smoke script 检查全部登记 Source。
 2. 构造当前生产相同的旧 v3 baseline：PC `1410192`、Android `1010184`。
-3. 验证 v3 → v4 自动迁移。
+3. 验证旧 state 被 warning 后忽略，首次成功 poll 建立 v4 baseline。
 4. query 必须返回当前版本；history gap 只能表现为大小未知，不能再返回“客户端更新暂时无法获取”。
 5. poll 第一次可产生 history-gap resync 并推进 baseline；第二次相同版本不得重复通知。
 6. 验证同 Source 多 Target 每轮只产生一次实际 HTTP observation。
@@ -276,10 +268,10 @@ python3 -m compileall .
 2. `refactor: add client update target and source registry`
 3. `refactor: make client update observations source-oriented`
 4. `fix: recover client updates from sparse version history`
-5. `refactor: migrate client update state to source baselines`
+5. `refactor: reset legacy client update state to source baselines`
 6. `refactor: route client update observations through targets`
 7. `feat: expose client update targets in config`
-8. `feat: support target-specific client update queries and subscriptions`
+8. `feat: make client update subscriptions config-driven`
 9. `docs: document client update targets and recovery`
 
 PR #41 只有同时满足以下条件才转 Ready：
@@ -288,11 +280,10 @@ PR #41 只有同时满足以下条件才转 Ready：
 - 配置 options 与 Target registry 一致。
 - CN 官服/B服、全球各独立服务器能够按真实账号生态和平台表达。
 - 同 Source Target 不重复轮询。
-- 查询、订阅、pending delivery 以 Target 为身份。
-- PC / Android / iOS 快捷筛选可用。
+- 查询与订阅命令严格无参数并跟随配置 Target；pending delivery 固定事件创建时的 Target。
 - VersionList 跳号不再失败。
 - baseline 掉出历史窗口时 query 可用、poll 可一次性 resync，且不伪造大小。
-- v0.3.2 现有配置/state/订阅可自动迁移。
+- 旧 `channels` 配置被拒绝；旧 state 被忽略并重建 v4 baseline；旧 `platforms` 元数据清理为 `{}`。
 - 生成投影无漂移。
 - 相关测试、完整 pytest、ruff、compileall、plugin load、plugin lifecycle 全绿。
 - 隔离环境真实上游和生产旧状态复现验证通过。

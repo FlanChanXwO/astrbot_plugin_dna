@@ -32,10 +32,11 @@ Steam、Epic、TapTap、WeGame 等下载入口只要最终进入同一账号生�
 2. 所有当前已验证存在的 Target 都出现在 `client_updates.targets` 配置 options；
    非法组合不能被构造。
 3. 技术更新端点独立建模为 **Source**；多个 Target 可共享一个 Source。
-4. 配置、精确查询、订阅和展示使用 Target；版本观察、补丁大小和 baseline 使用 Source。
-5. 支持 PC / Android / iOS，并允许不同平台使用不同 provider。
+4. 配置和展示使用 Target；查询、订阅命令不接受筛选参数，版本观察、补丁大小和 baseline 使用 Source。
+5. 支持所有已验证平台；iOS 仅在核验到真实 Target 与 App Store 条目后登记，并允许不同平台使用不同 provider。
 6. 修复合法版本号跳跃和 baseline 脱离历史窗口造成的永久失败。
-7. 无损迁移现有 `channels` 配置、v3 state 和 `platforms` 订阅。
+7. 明确拒绝旧 `channels` 配置；旧 v1/v2/v3 state 不迁移；旧 `platforms` 订阅元数据一次性清理为 `{}`。
+8. 采用一次性垂直重构，不保留 channel/Target 双模型或临时兼容业务路径。
 
 非目标：
 
@@ -65,7 +66,7 @@ ClientUpdateTarget
 - `source_id`：该 Target 实际使用的更新检测 Source；
 - `display_name`：稳定的用户可见名称。
 
-Target 是配置、命令精确选择、订阅和展示的唯一用户侧主键。
+Target 是配置和展示的唯一用户侧主键；命令不提供临时 Target 选择能力。
 
 ### Source：技术更新源
 
@@ -77,10 +78,7 @@ ClientUpdateSource
   provider_config: typed provider config
 ```
 
-首版 provider 至少支持：
-
-- `manifest_cdn`：现有 PC / Android 的 `VersionList + manifest` 协议；
-- `app_store`：iOS 等不适合伪装成 manifest 协议的商店版本来源。
+首版必须支持 `manifest_cdn`（现有 PC / Android 的 `VersionList + manifest` 协议）。只有核验到合法 iOS Target 与真实 App Store 条目时才实现并登记 `app_store` provider；不得为了预留能力创建猜测实现。
 
 Source 只负责版本观察、补丁大小和 baseline，不携带账号生态或服务器语义。
 
@@ -210,52 +208,35 @@ client_updates:
 - `_conf_schema.json` options 从 Target registry 生成；
 - 用户直接选择完整合法 Target，不提供三个可自由拼接的筛选框；
 - 默认值仍只有 CN 官服 PC / Android，升级不会自动启用全球服、B服或 iOS；
-- 旧 `channels` 只作为迁移输入，不继续出现在生成 schema 中；
-- 迁移保持其它 `client_updates` 设置不变。
-
-旧配置映射：
-
-```text
-pc_cn           -> cn-official-pc
-android_astc_cn -> cn-official-android
-```
+- 旧 `channels` 不迁移且不继续出现在生成 schema 中；typed settings 必须将其视为未知字段并明确拒绝；
+- 用户升级时必须将配置手工改为 `targets`，其它 `client_updates` 设置语义保持不变。
 
 ## 查询与订阅语义
 
-保留平台快捷方式，但最终都解析成 Target 集合：
+三个命令均为严格无参数命令：
 
 ```text
 客户端更新
-客户端更新 PC
-客户端更新 安卓
-客户端更新 iOS
-客户端更新 <target-selector>
-
 订阅客户端更新
-订阅客户端更新 PC
-订阅客户端更新 安卓
-订阅客户端更新 iOS
-订阅客户端更新 <target-selector>
+取消订阅客户端更新
 ```
 
-- 无参数：选择当前配置启用的全部 Target；
-- 平台参数：在当前启用 Target 中按平台筛选；
-- 精确 Target：解析稳定 `target_id`，可辅以 registry 提供的中文路径别名，例如
-  `国服/官服/PC`；
-- 未启用 Target 不允许通过命令临时绕过配置访问；
+- `客户端更新` 查询当前配置启用的全部 Target；
+- `订阅客户端更新` 只保存当前群的订阅身份，不固化 Target 选择；
+- 所有有效订阅在插件按 AstrBot 标准生命周期重载后统一使用当前 `client_updates.targets`；
+- 不增加运行中配置热更新监听器；
+- 任意平台名、Target ID 或其它尾随参数都不匹配这些命令；
 - `取消订阅客户端更新` 仍取消当前群整条客户端更新订阅。
 
-新订阅 `extra_data`：
+新订阅 `extra_data` 固定为：
 
 ```json
-{"target_ids":["cn-official-pc","cn-official-android"]}
+{}
 ```
 
-旧订阅 `{"platforms": [...]}` 在迁移时按**当时已启用 Target**解析并持久化为
-`target_ids`。迁移后不再动态按 platform 扩展，因此以后管理员新增全球 PC Target
-不会让旧“PC”订阅静默扩大范围。
+旧订阅 `{"platforms": [...]}` 在生命周期初始化时幂等清理为 `{}`，保留订阅 identity 与 enabled 状态。损坏元数据必须 warning 后跳过，不能伪装成清理成功。
 
-投递过滤使用 `target_id` 集合求交，不再使用 `change.platform in platforms`。
+投递使用当前配置 Target；pending event 仍冻结事件创建时的 `target_ids`，避免后续重载改变已落盘事件语义。
 
 ## Source 级观察与 Target 级投递
 
@@ -354,32 +335,16 @@ iOS 不强行套用 PC / Android 的 manifest 协议。首版只要求可靠获�
 
 国服官方、B服和全球服若使用不同商店条目则注册不同 Source；实际共享时复用 Source。
 
-## 状态迁移
+## 状态升级边界
 
-当前 client update state 是 v3，baseline key 形如：
+新 schema 固定为 v4，baseline 以 `source_id` 为 key。旧 v1/v2/v3 state 不迁移、不备份：
 
-```text
-cn:pc_cn
-cn:android_astc_cn
-```
-
-实现 PR 将其迁移到 source-oriented schema（建议 v4）：
-
-```text
-cn:pc_cn           -> <verified cn official pc source_id>
-cn:android_astc_cn -> <verified cn official android source_id>
-```
-
-要求：
-
-- snapshot 版本、`observed_at`、`last_change` 尽量原样保留；
-- v3 snapshot 的 `region/channel_id` 只用于确定旧 Source 映射，迁移后的版本对象不再
-  持有 Target/region 身份；
-- v3 `pc_cn` pending event 明确映射到 `cn-official-pc`，`android_astc_cn` 明确映射到
-  `cn-official-android`；其它旧事件只有在 Target 语义可确定时才迁移，否则安全丢弃并记录日志；
-- 沿用备份和幂等迁移策略；
-- 已脱离 VersionList 窗口的旧 baseline 不删除，而由第一次真实 observation 通过
-  history-gap 流程安全 resync。
+- load 发现旧 schema 时记录明确 warning，并以空 state 启动；
+- 首次成功 poll 以真实 observation 建立新 baseline；
+- 第一次写入即持久化为 v4；
+- 旧 pending events 不保留，禁止猜测其 Source 或 Target 语义；
+- query 始终只读，不因旧 state 或 history gap 建立 baseline；
+- 不删除或改写原文件来伪装迁移成功，只有正常 v4 原子写路径才替换 state。
 
 ## 错误边界
 
@@ -403,17 +368,16 @@ cn:android_astc_cn -> <verified cn official android source_id>
 - Target -> Source 引用有效且平台一致；
 - `_conf_schema.json` options 与 Target registry 一致；
 - 非法 Target 配置被拒绝；
-- 旧 `channels` 正确迁移；
+- 旧 `channels` 被 typed settings 明确拒绝，不做迁移；
 - 默认仅启用 CN 官服 PC / Android。
 
 ### 命令 / 订阅
 
-- 无参数、PC、安卓、iOS 和精确 Target 解析正确；
-- 未启用 Target 不能绕过配置；
-- 新订阅保存 `target_ids`；
-- 旧 `platforms` 订阅一次性迁移并持久化；
-- 同平台不同 ecosystem 可分别订阅；
-- 同 Source 不同 region 可分别订阅。
+- 三个命令只接受严格无参数形式，任何平台或 Target selector 都不匹配；
+- 查询和投递只使用当前配置启用 Target；
+- 新订阅保存 `{}`；
+- 旧 `platforms` 元数据一次性幂等清理为 `{}`；
+- 插件标准重载后，所有有效订阅统一跟随当前配置 Target。
 
 ### Source / 去重 / 投递
 
@@ -437,12 +401,12 @@ cn:android_astc_cn -> <verified cn official android source_id>
 9. poll gap 只产生一次降级事件并推进 baseline；
 10. 下一轮相同版本不重复通知。
 
-### 状态迁移
+### 状态与订阅升级
 
-- v3 baseline -> v4 source baseline；
-- pending event 可迁移语义；
-- 迁移备份和幂等性；
-- 旧订阅数量、enabled 状态和身份不丢失。
+- v4 source baseline round-trip 与原子写；
+- v1/v2/v3 warning 后按空 state 启动，不迁移、不备份；
+- 首次成功 poll 建立 baseline；
+- 旧 `platforms` 元数据清理后，订阅数量、enabled 状态和身份不丢失。
 
 ### 真实上游 smoke
 
@@ -463,7 +427,7 @@ cn:android_astc_cn -> <verified cn official android source_id>
 3. transport source 化和 history-gap 回归修复；
 4. source-level service/state v4 与轮询去重；
 5. Target-level command/subscription/routing；
-6. 配置和订阅迁移，重新生成 schema/commands projection；
+6. 配置严格校验和旧订阅元数据清理，重新生成 schema/commands projection；
 7. 用户消息、帮助和必要文档；
 8. 真实上游 smoke、完整 pytest、ruff、compileall、plugin lifecycle。
 
@@ -477,12 +441,12 @@ PR 可合并前必须满足：
 2. 下载商店不会被误当成独立账号生态；
 3. 不存在的组合不会进入 options；
 4. 同 Source 多 Target 每轮只请求一次；
-5. 查询和订阅能精确区分同平台不同区服/生态；
+5. 查询和订阅命令不接受 selector，并严格跟随配置中的完整 Target 集合；
 6. 消息显示完整 Target；
 7. 现有生产旧 baseline 不再导致“客户端更新暂时无法获取”；
 8. `100 -> [100, 102, 103]` 正常按实际记录计算；
 9. `100 -> [102, 103]` 返回 history-gap，poll 一次性安全 resync；
-10. 现有配置、v3 state 和订阅自动迁移，无需人工删除状态文件；
+10. 旧 `channels` 配置被明确拒绝；v1/v2/v3 state warning 后为空；旧订阅元数据清理为 `{}`；
 11. `generate_commands_manifest.py` 与 `generate_config_schema.py` 生成投影无漂移；
 12. 相关测试、完整 pytest、ruff、compileall 与 AstrBot plugin lifecycle 全部通过；
 13. 服务器隔离验证通过后才进入生产部署。
@@ -494,9 +458,9 @@ PR 可合并前必须满足：
 - **Target**：用户关心的 `服务器 × 账号生态 × 平台`；
 - **Source**：客户端版本和补丁的技术更新来源。
 
-Target 负责配置、查询、订阅和展示；Source 负责 provider、版本观察、补丁大小和
+Target 负责配置、路由和展示；无参数查询/订阅统一使用配置目标；Source 负责 provider、版本观察、补丁大小和
 baseline。该边界既能正确表达国服官服/B服和全球多个数据隔离服务器，也能避免同一
 客户端包重复轮询，并为 iOS 等不同更新协议提供扩展点。
 
 同一个 PR 同时移除 VersionList 连续整数假设并处理 history gap，使客户端更新从
-“平台伪装成渠道”转为可验证、可迁移、可独立测试的 Target/Source 模型。
+“平台伪装成渠道”转为可验证、升级边界明确、可独立测试的 Target/Source 模型。
