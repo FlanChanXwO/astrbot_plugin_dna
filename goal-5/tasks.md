@@ -2,7 +2,7 @@
 
 > 每轮只执行第一个未完成项；普通代码 task 必须按 TDD Red → Green → Refactor；每三个普通 task 后执行一次集中检查-debug。每个 task 单独提交，只暂存本 task 所有文件。初始化前已有修改、其他 goal 文件和私有资源不得混入提交。
 
-## Task 01 — 资源现状、依赖路径与真实包体积基线 `[pending]`
+## Task 01 — 资源现状、依赖路径与真实包体积基线 `[completed]`
 
 **目标**：建立可复核的资源清单、重复字体清单、renderer/旧 utils 路径消费者清单和真实发布包体积基线，不修改业务代码。
 
@@ -10,10 +10,23 @@
 
 **验收**：记录所有大于 100 KiB 的候选文件、重复字体的哈希/路径、直接路径消费者、现有 manifest/generation/lease/listener seam；记录真实打包方式、字节数和 MiB；说明 `tests/.data`/Python/ruff 等环境阻塞。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：
+  - 在隔离 worktree `codex/resource-slimming-design`、提交 `d748fe1` 的干净基线 (`HEAD=0327a0a` 后初始化提交) 上只做只读盘点，没有修改业务代码。
+  - 统计 `git ls-files`：全仓 819 个 tracked files；`src/resources/` 与 `src/utils/fonts/` 共 339 个资源文件、172,537,145 bytes（164.544244 MiB）。其中 `src/resources/` 为 331 个文件、115,990,863 bytes（110.617507 MiB），`src/utils/fonts/` 为 8 个文件、56,546,282 bytes（53.926737 MiB）；纹理 273 个文件、58,801,938 bytes（56.077898 MiB），字体 8 个文件、56,546,282 bytes（53.926737 MiB），帮助素材 48 个文件、640,131 bytes（0.610476 MiB）。
+  - SHA-256 盘点发现 11 个重复 digest 组、可去除的重复副本合计 56,593,269 bytes。7 组是完整字体的 `src/resources/fonts/` 与 `src/utils/fonts/` 双份：`arial-unicode-ms-bold.ttf` 17,942,992 bytes、`MiSansVF.woff2` 11,867,816 bytes、`NotoColorEmoji.ttf` 10,195,752 bytes、`arial-unicode-ms-bold-fallback.woff2` 5,774,400 bytes、`dna_fonts.ttf` 5,632,220 bytes、`dna_fonts.woff2` 2,805,896 bytes、`arial-unicode-ms-bold.woff2` 2,324,528 bytes；其余重复项为 `common/div.png` 与 `stamina/div.png`、两组帮助图标，以及两个相同的 `dna_fonts.py`。
+  - 大于 100 KiB 的首批候选由字体占据前 14 个大文件：最大为双份 `arial-unicode-ms-bold.ttf`（每份 17.111771 MiB）、双份 `MiSansVF.woff2`（每份 11.318031 MiB）、双份 `NotoColorEmoji.ttf`（每份 9.723427 MiB）、双份 fallback WOFF2（每份 5.506897 MiB）、双份 `dna_fonts.ttf`（每份 5.371304 MiB）、双份 `dna_fonts.woff2`（每份 2.675911 MiB）、双份 Unicode WOFF2（每份 2.216843 MiB）；最大非字体纹理为 `src/resources/textures/stamina/bg/bg6.png`，2,463,458 bytes（2.349337 MiB），随后是角色/攻略/日历/签到背景和 frame。
+  - 直接路径消费者已定位：`src/infrastructure/rendering/fonts.py:9` 的 `BUNDLED_FONT_PATH` 与 `load_runtime_font()` fallback；`player.py:62-66` 的 common/detail/role/font 常量及其多处模板 payload；`encyclopedia.py:55-61` 的 common/stamina/weekly/calendar/font 常量；`checkin.py:30-34` 的 common/sign/font 常量；`notices.py:58-63` 的 common/mh/ann/font/unicode 常量；`help.py:20` 的 `MiSansVF.woff2` 及 common/help 纹理；`payloads.py:15` 的 common 纹理；`src/utils/image.py:26,70` 的 legacy `texture2d` 路径；`src/utils/fonts/dna_fonts.py`、`src/resources/fonts/dna_fonts.py` 的三类字体路径；`src/utils/resource/RESOURCE_PATH.py` 与 `src/resources/resource/RESOURCE_PATH.py` 的运行期资源路径；`src/infrastructure/resources/encyclopedia.py:257-258` 的 snapshot 字体路径。`dnaby/` 目录在当前 worktree 不存在，不能把它当作实际消费者。
+  - 现有资源 seam 已核实：`ResourceGenerationValidator` 在 `src/infrastructure/resources/generation.py:313`，`ResourceSnapshotCoordinator` 在 `generation.py:414`，listener 注册为 `subscribe()`（约 463 行），空/可选快照入口为 `optional_lease()`（约 563 行）；`ResourceManifest.validate_runtime_layout()` 在 `src/infrastructure/resources/manifest.py:131`；`EncyclopediaResourceStore`/`from_root()` 在 `src/infrastructure/resources/encyclopedia.py:110/165`；`ResourceMap`/`from_root()` 在 `src/infrastructure/rendering/player.py:548/559`。这些是后续统一解析边界应复用的既有 contract，不新建第二套下载或 snapshot 管理。
+  - 没有发现仓库专用的市场打包脚本。按当前 tracked HEAD 执行 `git archive --format=zip HEAD` 得到可复现的 source-archive baseline：917 entries，压缩包 155,708,550 bytes（148.495245 MiB），ZIP 成员压缩总和 155,555,598 bytes（148.349379 MiB），未压缩总量 177,794,502 bytes（169.558050 MiB）。其中 `src/` 压缩后 154,622,977 bytes（147.459962 MiB），所以这是包含测试/文档/goal 记录的保守上界，不把它误报成市场后端的隐式排除规则；后续仍以真实提交 zip 复测。官方 AstrBot 发布文档 URL 已记录在计划来源中，确认市场以 zip 作为体积门槛。
+- 验证证据：
+  - 只读命令：`git ls-files` + Python SHA-256/字节统计、`git archive --format=zip HEAD` + Python `zipfile` 统计、`rg` 路径消费者检索、LSP 的符号定位/引用扫描。
+  - `tests/.data` 在当前隔离 worktree 缺失；初始化基线 `python3 -m pytest` 在 `conftest.py` 收集阶段因 `tests/.data` 不存在退出码 4（`FileNotFoundError`），不是本 task 引入的回归。系统 Python 为 3.14.4，`pytest`/Pillow/SQLAlchemy/SQLModel 可导入，但 `ruff` 模块缺失；后续按仓库约定优先使用项目 `.venv` 或 runtime 根目录命令。
+  - 盘点生成的完整原始报告保存在本轮临时证据 `/tmp/dnaby-goal5-task01-current/resource-inventory.txt` 与 `/tmp/dnaby-goal5-task01-current/package-baseline.txt`；它们未写入仓库，避免把构建产物或大资源加入提交。
+- 剩余风险：
+  - `git archive` 只是当前仓库可复现的保守 baseline，市场服务是否排除 `tests/`、`docs/` 或 goal 记录尚未由本地发布工具确认；最终必须按实际提交路径重新构建并测量。
+  - 资源仓库 `dna-resource` 不在本机工作区；字体/纹理的最终归属、manifest 哈希和跨仓库可验证 generation 由 Task 02 审计，当前不能安全删除任何大文件。
+  - 目前大量 renderer 仍直接拼接插件目录路径，字体 fallback 仍会把缺失资源转成 `FileNotFoundError`；这正是后续 Red/Green 任务的范围。
+- 下一步建议：Task 02 审计 `dna-resource` 可访问性、manifest `file_hashes`/`resource_version` 和现有 generation validator；在没有跨仓库证据前不删除资源。
 
 ## Task 02 — `dna-resource` 仓库与 manifest 能力审计 `[pending]`
 
