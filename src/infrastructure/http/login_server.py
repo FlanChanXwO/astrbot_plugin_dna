@@ -93,7 +93,7 @@ class LocalLoginServer:
         host: str,
         port: int,
         public_host: str | None = None,
-        base_path: str = "/astrbot_plugin_dnaby",
+        base_path: str = "/astrbot_plugin_dna",
     ) -> None:
         if not host.strip():
             raise ValueError("本地登录服务 host 不能为空")
@@ -163,7 +163,7 @@ class LocalLoginServer:
             plugin_request = PluginRequest(
                 adapter,
                 path_params=dict(request.match_info),
-                plugin_name="astrbot_plugin_dnaby",
+                plugin_name="astrbot_plugin_dna",
             )
             with bind_request_context(plugin_request):
                 result = handler(**dict(request.match_info))

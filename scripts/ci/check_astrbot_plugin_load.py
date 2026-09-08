@@ -667,7 +667,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--astrbot-root", required=True, help="本次检查使用的临时 ASTRBOT_ROOT"
     )
     parser.add_argument(
-        "--plugin-name", required=True, help="插件目录名，例如 astrbot_plugin_dnaby"
+        "--plugin-name", required=True, help="插件目录名，例如 astrbot_plugin_dna"
     )
     return parser
 

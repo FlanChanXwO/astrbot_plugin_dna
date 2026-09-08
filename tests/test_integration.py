@@ -91,7 +91,7 @@ async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) ->
 
         assert len(result) == 1
         assert result[0].startswith("登录地址：http://localhost:")
-        assert "/astrbot_plugin_dnaby/dna/i/" in result[0]
+        assert "/astrbot_plugin_dna/dna/i/" in result[0]
     finally:
         await runtime.terminate()
 

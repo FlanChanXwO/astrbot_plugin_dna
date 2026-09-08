@@ -1,28 +1,32 @@
-<!-- 请描述此项更改的动机、解决的问题和关联 Issue。 -->
+<!--Please describe the motivation for this change: What problem does it solve? (e.g., Fixes XX issue, adds YY feature)-->
+<!--请描述此项更改的动机：它解决了什么问题？（例如：修复了 XX issue，添加了 YY 功能）-->
 
-## 改动点
+### Modifications / 改动点
 
-<!-- 列出核心文件、用户可见行为和兼容性影响。 -->
+<!--Please summarize your changes: What core files were modified? What functionality was implemented?-->
+<!--请总结你的改动：哪些核心文件被修改了？实现了什么功能？-->
 
--
+- [x] This is NOT a breaking change. / 这不是一个破坏性变更。
+<!-- If your change is a breaking change, please uncheck the checkbox above. -->
 
-## 用户影响与兼容性
+### Screenshots or Test Results / 运行截图或测试结果
 
-- [ ] 这是向后兼容的变更，或已在此处说明迁移方式。
-- [ ] 命令、配置、数据库或数据目录行为发生变化时，已同步相关文档。
-- [ ] 未改变不属于本 PR 的生产运行行为。
+<!--Please paste screenshots, GIFs, or test logs here as evidence of executing the "Verification Steps" to prove this change is effective.-->
+<!--请粘贴截图、GIF 或测试日志，作为执行“验证步骤”的证据，证明此改动有效。-->
 
-## 验证结果
+### Checklist / 检查清单
 
-<!-- 粘贴与本次改动相称的测试、检查或运行截图。 -->
+<!--If merged, your code will serve tens of thousands of users! Please double-check the following items before submitting.-->
+<!--如果分支被合并，您的代码将服务于众多用户！在提交前，请核查以下几点内容。-->
 
-- [ ] `python3 -m pytest`
-- [ ] `ruff check .`
-- [ ] 已提供必要的手工验证步骤或截图。
+- [ ] 😊 If there are new features added in the PR, I have discussed them with the authors through issues/emails, etc.
+  / 如果 PR 中有新加入的功能，已经通过 Issue / 邮件等方式和作者讨论过。
 
-## 检查清单
+- [ ] 👀 My changes have been well-tested, **and "Verification Steps" and "Screenshots" have been provided above**.
+  / 我的更改经过了良好的测试，**并已在上方提供了“验证步骤”和“运行截图”**。
 
-- [ ] 没有引入不必要的新依赖；如有新增，已更新 `requirements.txt`。
-- [ ] 没有提交数据库、运行期数据、真实账号信息或其他凭据。
-- [ ] 代码遵循 AstrBot 原生接口约束，没有引入 `gsuid_core` / `gsucore`。
-- [ ] 该 PR 不包含恶意代码，并且失败路径不会伪造成功状态。
+- [ ] 🤓 I have ensured that no new dependencies are introduced, OR if new dependencies are introduced, they have been added to the appropriate locations in `requirements.txt`.
+  / 我确保没有引入新依赖库，或者引入了新依赖库的同时将其添加到 `requirements.txt` 文件相应位置。
+
+- [ ] 😮 My changes do not introduce malicious code.
+  / 我的更改没有引入恶意代码。

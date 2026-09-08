@@ -1,4 +1,4 @@
-# astrbot_plugin_dnaby 文档
+# astrbot_plugin_dna 文档
 
 这里按使用任务组织文档。普通用户从安装和配置开始即可完成插件使用；贡献者与维护者再阅读开发、架构和历史资料。
 

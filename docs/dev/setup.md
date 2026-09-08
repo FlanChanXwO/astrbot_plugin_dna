@@ -6,8 +6,8 @@
 
 - **当前项目根目录**：本文件所在插件仓库，记为 `PLUGIN_DIR`。
 - **AstrBot 根目录**：包含 `data/plugins/` 的运行时目录，记为 `ASTRBOT_ROOT`。
-- **插件目录**：`$ASTRBOT_ROOT/data/plugins/astrbot_plugin_dnaby`。
-- **运行期数据**：由 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 返回，不入 Git。
+- **插件目录**：`$ASTRBOT_ROOT/data/plugins/astrbot_plugin_dna`。
+- **运行期数据**：由 `StarTools.get_data_dir("astrbot_plugin_dna")` 返回，不入 Git。
 
 如果从仓库根目录操作，可以先设置：
 

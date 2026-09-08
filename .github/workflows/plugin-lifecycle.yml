@@ -83,4 +83,4 @@ jobs:
             --astrbot-version "$ASTRBOT_VERSION" \
             --plugin-dir "$GITHUB_WORKSPACE" \
             --astrbot-root "$ASTRBOT_ROOT" \
-            --plugin-name astrbot_plugin_dnaby
+            --plugin-name astrbot_plugin_dna

@@ -1,9 +1,9 @@
 # 公共资源
 
 角色、武器、图鉴、攻略、日历、字体和兑换码等资料由公共资源仓库提供。运行期资源统一位于
-AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 下，不写入插件源码目录。
+AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dna")` 下，不写入插件源码目录。
 
-公共资源仓库：<https://github.com/FlanChanXwO/astrbot_plugin_dna_resources>
+公共资源仓库：<https://github.com/FlanChanXwO/dna-resource>
 
 ## 资源目录
 
@@ -113,7 +113,7 @@ Git checkout 当作未经验证的业务资源源。资源根目录存在但 man
 
 ## 备份与排障
 
-升级插件前，建议备份整个 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 目录，至少确认
+升级插件前，建议备份整个 `StarTools.get_data_dir("astrbot_plugin_dna")` 目录，至少确认
 数据库、订阅记录、公告状态、客户端更新状态、自定义别名、`resources/` 和 `resource_generations/` 可以恢复。
 备份不应提交到 Git、上传到 issue 或粘贴到聊天中。
 

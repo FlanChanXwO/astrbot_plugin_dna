@@ -2,6 +2,12 @@
 
 ## Unreleased — 客户端更新查询与订阅推送
 
+### 公开发布准备
+
+- 插件正式标识由 `astrbot_plugin_dnaby` 更名为 `astrbot_plugin_dna`，同步更新运行期数据目录、Web 路由、CI 与用户文档中的现行引用。
+- 公共资源仓库切换为 `FlanChanXwO/dna-resource`，资源 Git 同步与兑换码 Raw URL 统一使用新仓库地址。
+- README 调整为公开发布版首页，并统一 Issue / Pull Request 模板风格。
+
 ### 新增
 
 - 新增国服 PC/安卓客户端更新查询，以及按群聊目标管理的订阅与取消订阅命令。

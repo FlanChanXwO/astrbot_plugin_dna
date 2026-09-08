@@ -40,7 +40,7 @@ from .transport import TransportError, build_transport
 if TYPE_CHECKING:
     from ...infrastructure.http.login_server import LocalLoginServer
 
-ROUTE_PREFIX = "/astrbot_plugin_dnaby"
+ROUTE_PREFIX = "/astrbot_plugin_dna"
 
 cache = TimedCache(timeout=600, maxsize=10)
 _local_login_server: LocalLoginServer | None = None
@@ -133,7 +133,7 @@ async def send_login(sender: Sender, ctx: EventContext, url: str) -> None:
         # 二维码 helper 保留旧 path 参数；文件名使用摘要，避免外部 user_id 逃出运行期目录。
         qr_name = hashlib.sha256(ctx.user_id.encode("utf-8")).hexdigest()
         path = (
-            Path(StarTools.get_data_dir("astrbot_plugin_dnaby"))
+            Path(StarTools.get_data_dir("astrbot_plugin_dna"))
             / "login_qr"
             / f"{qr_name}.gif"
         )

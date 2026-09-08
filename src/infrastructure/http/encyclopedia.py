@@ -45,7 +45,7 @@ from .concurrency import RequestConcurrencyGate, gated_transport_method
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 DEFAULT_CODE_URL = (
     "https://raw.githubusercontent.com/FlanChanXwO/"
-    "astrbot_plugin_dna_resources/main/data/redeem_codes.json"
+    "dna-resource/main/data/redeem_codes.json"
 )
 CodeProvider = Callable[[EventActor], Awaitable[Any] | Any]
 _CODE_FIELDS = frozenset(

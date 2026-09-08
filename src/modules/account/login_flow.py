@@ -36,7 +36,7 @@ from .contracts import (
 )
 from .transport import LOGIN_TTL_S, LoginTransport, TransportError
 
-ROUTE_PREFIX = "/astrbot_plugin_dnaby"
+ROUTE_PREFIX = "/astrbot_plugin_dna"
 
 
 class LoginFlowAccountService(Protocol):

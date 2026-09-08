@@ -3,14 +3,14 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-# 数据根目录：data/plugin_data/astrbot_plugin_dnaby
+# 数据根目录：data/plugin_data/astrbot_plugin_dna
 # （可用环境变量 DNABY_DATA_DIR 覆盖，测试用）
 if os.environ.get("DNABY_DATA_DIR"):
     MAIN_PATH = Path(os.environ["DNABY_DATA_DIR"])
 else:
     from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-    MAIN_PATH = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_dnaby"
+    MAIN_PATH = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_dna"
 
 # 配置文件（已并入 AstrBotConfig，保留路径定义便于回看）
 CONFIG_PATH = MAIN_PATH / "config.json"
