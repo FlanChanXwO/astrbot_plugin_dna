@@ -14,7 +14,7 @@
   .calendar-card__event-icon { position: absolute; top: 40px; left: 400px; width: 100px; height: 100px; object-fit: contain; }
   .calendar-card__footer { position: absolute; bottom: 20px; left: 70px; width: 1060px; height: 40px; }
 </style>
-<h1 class="calendar-card__title">DNA | 二重螺旋活动列表一栏 | 皎皎角</h1>
+<h1 class="calendar-card__title">狩月终端 | 二重螺旋活动列表一栏 | 皎皎角</h1>
 <img class="calendar-card__banner" src="{{ banner }}" alt="" /><img class="calendar-card__bar" src="{{ bar }}" alt="" />
 {% for event in events %}<article class="calendar-card__event" style="left: {{ 70 + (loop.index0 % 2) * 540 }}px; top: {{ 780 + (loop.index0 // 2) * 170 }}px"><h2>{{ event.title }}</h2><p class="date">{{ event.date_range }}</p><img class="time-icon" src="{{ time_icon }}" alt="" /><p class="status">{{ event.status }}{% if event.left %}: <span class="left" style="color:{{ event.left_color }}">{{ event.left }}</span>{% endif %}</p><div class="calendar-card__track"><div class="calendar-card__value" style="width: {{ event.progress * 100 }}%;background:{{ event.progress_color }}"></div></div>{% if event.icon %}<img class="calendar-card__event-icon" src="{{ event.icon }}" alt="" />{% endif %}</article>{% endfor %}
 <img class="calendar-card__footer" src="{{ footer_image }}" alt="" />
