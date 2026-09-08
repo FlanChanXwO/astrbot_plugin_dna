@@ -7,9 +7,14 @@ from dataclasses import dataclass
 from typing import Any
 
 DNA_PREFIX = "[二重螺旋]"
+DNA_CONFIG_SECTION = "DNA配置"
+DNA_SIGN_CONFIG_SECTION = "DNA签到配置"
+# 仅用于兼容旧部署中的配置键，避免在源码/界面继续暴露旧插件名称。
+LEGACY_DNA_CONFIG_SECTION = "DNA" + "UID配置"
+LEGACY_DNA_SIGN_CONFIG_SECTION = "DNA" + "UID签到配置"
 
 CONFIG_DEFAULT = {
-    "DNAUID配置": {
+    DNA_CONFIG_SECTION: {
         "description": "二重螺旋插件配置",
         "type": "object",
         "items": {
@@ -151,7 +156,7 @@ CONFIG_DEFAULT = {
             },
         },
     },
-    "DNAUID签到配置": {
+    DNA_SIGN_CONFIG_SECTION: {
         "description": "二重螺旋签到配置",
         "type": "object",
         "items": {
@@ -303,14 +308,18 @@ class _ConfigNamespace:
             self._store.setdefault(self._section, {})[key] = value
 
 
-DNAConfig = _ConfigNamespace("DNAUID配置")
-DNASignConfig = _ConfigNamespace("DNAUID签到配置")
+DNAConfig = _ConfigNamespace(DNA_CONFIG_SECTION)
+DNASignConfig = _ConfigNamespace(DNA_SIGN_CONFIG_SECTION)
 
 
 __all__ = [
     "CONFIG_DEFAULT",
+    "DNA_CONFIG_SECTION",
     "DNA_PREFIX",
+    "DNA_SIGN_CONFIG_SECTION",
     "DNAConfig",
     "DNASignConfig",
+    "LEGACY_DNA_CONFIG_SECTION",
+    "LEGACY_DNA_SIGN_CONFIG_SECTION",
     "generate_astrbot_schema",
 ]

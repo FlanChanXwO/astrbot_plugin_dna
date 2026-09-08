@@ -33,7 +33,7 @@ async def help_use_case(
     registry: CommandRegistry,
     **_parameters: Any,
 ) -> ImageResponse:
-    """使用 DNAUID 原版帮助卡片绘制器输出图片。"""
+    """使用 DNA 帮助卡片绘制器输出图片。"""
 
     renderer = request.services.get("help_renderer")
     if renderer is None:

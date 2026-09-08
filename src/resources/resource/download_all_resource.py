@@ -4,6 +4,6 @@ async def download_all_resource():
     await refresh_name_convert()
 
     # await download_all_file(
-    #     "DNAUID",
+    #     "DNA",
     #     {},
     # )

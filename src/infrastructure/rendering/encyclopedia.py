@@ -82,7 +82,7 @@ def _as_role_header(
             level=role.level,
             params=list(role.params),
         )
-    return RoleHeader(role_id=uid or "0", role_name="DNAUID", level=0)
+    return RoleHeader(role_id=uid or "0", role_name="DNA", level=0)
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ async def _draw_stamina_card_view(
             "divider": image_data_uri(STAMINA_TEXT_PATH / "div.png"),
             "foreground": image_data_uri(STAMINA_TEXT_PATH / "fg.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "bar_background": image_data_uri(STAMINA_TEXT_PATH / "bar_bg2.png"),
@@ -300,7 +300,7 @@ async def _draw_stamina_card(
             "divider": image_data_uri(STAMINA_TEXT_PATH / "div.png"),
             "foreground": image_data_uri(STAMINA_TEXT_PATH / "fg.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "bar_background": image_data_uri(STAMINA_TEXT_PATH / "bar_bg2.png"),
@@ -485,7 +485,7 @@ async def _draw_weekly_report_card_view(
             "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
             "categories": categories,
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
@@ -556,7 +556,7 @@ async def _draw_weekly_report_card(
             "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
             "categories": categories,
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
@@ -869,7 +869,7 @@ async def _draw_calendar_card_bytes(
             "time_icon": image_data_uri(CALENDAR_TEXT_PATH / "time_icon.png"),
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "height": height,
             "width": 1200,
         },
@@ -1001,7 +1001,7 @@ async def draw_calendar_img(ctx: EventContext):
             "time_icon": image_data_uri(CALENDAR_TEXT_PATH / "time_icon.png"),
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "height": height,
             "width": 1200,
         },
@@ -1136,7 +1136,7 @@ class EncyclopediaRenderer:
             if role is None:
                 role = RoleOverview(
                     role_id=uid or "0",
-                    role_name="DNAUID",
+                    role_name="DNA",
                     level=0,
                     achievement_total=0,
                 )
@@ -1322,7 +1322,7 @@ class EncyclopediaRenderer:
             if role is None:
                 role = RoleOverview(
                     role_id=uid or "0",
-                    role_name="DNAUID",
+                    role_name="DNA",
                     level=0,
                     achievement_total=0,
                 )

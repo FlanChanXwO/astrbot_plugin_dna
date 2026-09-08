@@ -1,6 +1,6 @@
 """资料查询的 legacy API transport。
 
-此层是 rewrite 与旧 DNAUID 纯 API 的唯一连接点：读取新数据库凭据、构造 legacy
+此层是 rewrite 与旧 DNA 纯 API 的唯一连接点：读取新数据库凭据、构造 legacy
 ``DNAUser``、校验响应并映射为 typed snapshot。异常只保留稳定类别，绝不把响应原文
 或凭据带入用户消息。
 """

@@ -326,8 +326,6 @@ async def _render_login_page(
             server_url=server_url,
             auth=auth,
             userId=login_session.user_id,
-            login_mode=LoginChannel.APP.value,
-            app_login_url=f"{server_url}/dna/i/{auth}",
         )
     )
 

@@ -1,4 +1,4 @@
-"""本地离线双渲染器图像对比（legacy DNAUID vs rewrite）。
+"""本地离线双渲染器图像对比（legacy DNA vs rewrite）。
 
 把同一份密函 fixture 数据分别喂给 legacy ``draw_mh_simple`` 与 rewrite
 ``NoticesRenderer.render_mh``，输出结构化对比表：

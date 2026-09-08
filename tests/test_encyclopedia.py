@@ -362,8 +362,8 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
 
 
 @pytest.mark.asyncio
-async def test_stamina_renderer_uses_legacy_dnauid_canvas(tmp_path: Path) -> None:
-    """便签必须复用原 DNAUID 的 2000x1100 卡片，而不是 rewrite 调试列表。"""
+async def test_stamina_renderer_uses_legacy_dna_canvas(tmp_path: Path) -> None:
+    """便签必须复用原 DNA 的 2000x1100 卡片，而不是 rewrite 调试列表。"""
 
     from src.utils.resource.RESOURCE_PATH import AVATAR_PATH
 
