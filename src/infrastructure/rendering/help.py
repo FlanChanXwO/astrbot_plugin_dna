@@ -26,6 +26,7 @@ from .runtime_assets import (
     AssetResolverLike,
     resolved_font_data_uri,
     resolved_image_data_uri,
+    resource_record,
 )
 from .spec import RenderSpec
 
@@ -124,18 +125,33 @@ def _find_icon(name: str) -> Path:
     return icon_dir / "通用.png"
 
 
-def _help_icon_uri(name: str, asset_resolver: AssetResolverLike | None) -> str:
+def _help_icon_uri(
+    name: str,
+    asset_resolver: AssetResolverLike | None,
+    resource_records: list[dict[str, str]] | None = None,
+) -> str:
     """按帮助命令名称解析图标，resolver 模式下不回读旧资源目录。"""
 
     path = _find_icon(name)
     if asset_resolver is None:
         return image_data_uri(path)
-    return resolved_image_data_uri(
+    key = f"texture.help.icon:{name}"
+    uri, asset = resolved_image_data_uri(
         asset_resolver,
-        f"texture.help.icon:{name}",
+        key,
         legacy_path=None,
         label=name,
-    )[0]
+    )
+    if resource_records is not None:
+        resource_records.append(
+            resource_record(
+                "texture",
+                key,
+                asset,
+                source=f"textures/help/icon/{path.name}",
+            ),
+        )
+    return uri
 
 
 def _help_sections(
@@ -143,6 +159,7 @@ def _help_sections(
     prefix: str = "dna",
     *,
     asset_resolver: AssetResolverLike | None = None,
+    resource_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
     sections: list[dict[str, Any]] = []
@@ -156,7 +173,11 @@ def _help_sections(
                     "example": _format_example(
                         str(command.get("eg", "")), prefix=prefix
                     ),
-                    "icon": _help_icon_uri(item_name, asset_resolver),
+                    "icon": _help_icon_uri(
+                        item_name,
+                        asset_resolver,
+                        resource_records,
+                    ),
                     "name": item_name,
                 }
             )
@@ -179,6 +200,7 @@ def _registry_help_sections(
     plugin_help: dict[str, Any],
     *,
     asset_resolver: AssetResolverLike | None = None,
+    resource_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """以 registry 为命令唯一来源，同时沿用资源文件中的分组说明和图标。"""
 
@@ -205,7 +227,11 @@ def _registry_help_sections(
         grouped.setdefault(spec.group, []).append(
             {
                 "example": _format_example(" / ".join(examples), prefix=prefix),
-                "icon": _help_icon_uri(spec.name, asset_resolver),
+                "icon": _help_icon_uri(
+                    spec.name,
+                    asset_resolver,
+                    resource_records,
+                ),
                 "name": _help_display_name(spec.id, spec.name),
             },
         )
@@ -256,6 +282,7 @@ async def get_help(
     permission: PermissionName = "user",
     version: str = PLUGIN_VERSION,
     asset_resolver: AssetResolverLike | None = None,
+    resource_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
 
@@ -271,6 +298,7 @@ async def get_help(
             plugin_help,
             prefix=prefix,
             asset_resolver=asset_resolver,
+            resource_records=resource_records,
         )
         lines = list(_iter_help_lines(plugin_help, prefix=prefix))
     else:
@@ -280,6 +308,7 @@ async def get_help(
             prefix,
             plugin_help,
             asset_resolver=asset_resolver,
+            resource_records=resource_records,
         )
         lines = []
     if asset_resolver is None:
@@ -291,40 +320,42 @@ async def get_help(
         item_uri = image_data_uri(HELP_ITEM_PATH)
         font_uri = font_data_uri(HELP_FONT_PATH)
     else:
-        background_uri = resolved_image_data_uri(
-            asset_resolver,
+        def image_uri(key: str, path: Path, label: str) -> str:
+            uri, asset = resolved_image_data_uri(
+                asset_resolver,
+                key,
+                legacy_path=None,
+                label=label,
+            )
+            if resource_records is not None:
+                resource_records.append(
+                    resource_record("texture", key, asset, source=path.as_posix()),
+                )
+            return uri
+
+        def font_uri_for(key: str, path: Path) -> str:
+            uri, asset = resolved_font_data_uri(
+                asset_resolver,
+                key,
+                legacy_path=None,
+            )
+            if resource_records is not None:
+                resource_records.append(
+                    resource_record("font", key, asset, source=path.as_posix()),
+                )
+            return uri
+
+        background_uri = image_uri(
             "texture.help.background",
-            label="help-background",
-        )[0]
-        banner_uri = resolved_image_data_uri(
-            asset_resolver,
-            "texture.help.banner",
-            label="help-banner",
-        )[0]
-        cag_uri = resolved_image_data_uri(
-            asset_resolver,
-            "texture.help.cag",
-            label="help-cag",
-        )[0]
-        footer_uri = resolved_image_data_uri(
-            asset_resolver,
-            "texture.common.footer",
-            label="footer",
-        )[0]
-        icon_uri = resolved_image_data_uri(
-            asset_resolver,
-            "texture.help.logo",
-            label="logo",
-        )[0]
-        item_uri = resolved_image_data_uri(
-            asset_resolver,
-            "texture.help.item",
-            label="help-item",
-        )[0]
-        font_uri = resolved_font_data_uri(
-            asset_resolver,
-            "font.help",
-        )[0]
+            HELP_BACKGROUND_PATH,
+            "help-background",
+        )
+        banner_uri = image_uri("texture.help.banner", HELP_BANNER_PATH, "help-banner")
+        cag_uri = image_uri("texture.help.cag", HELP_CAG_PATH, "help-cag")
+        footer_uri = image_uri("texture.common.footer", HELP_FOOTER_PATH, "footer")
+        icon_uri = image_uri("texture.help.logo", PLUGIN_ICON_PATH, "logo")
+        item_uri = image_uri("texture.help.item", HELP_ITEM_PATH, "help-item")
+        font_uri = font_uri_for("font.help", HELP_FONT_PATH)
     template_data = {
         "background": background_uri,
         "banner": banner_uri,

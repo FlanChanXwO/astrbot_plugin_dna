@@ -784,13 +784,15 @@ class NoticesRenderer:
             return resource_record(
                 "font", "font.primary_ttf", asset, source="fonts/dna_fonts.ttf"
             )
+        status = self.resources.font_status
         return {
             "kind": "font",
             "key": "dna_fonts",
-            "status": self.resources.font_status,
+            "status": status,
             "source": "fonts/dna_fonts.ttf"
             if self.resources.font_path is not None
             else "",
+            "incomplete": "false" if status == "provided" else "true",
         }
 
     def _write(

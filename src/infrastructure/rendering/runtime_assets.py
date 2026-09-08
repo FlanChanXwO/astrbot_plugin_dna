@@ -74,10 +74,15 @@ def resource_record(
 def resources_incomplete(resources: Iterable[dict[str, str]]) -> bool:
     """判断一次渲染是否使用了 placeholder 或不完整 fallback。"""
 
-    return any(
-        item.get("status") == "placeholder" or item.get("incomplete") == "true"
-        for item in resources
-    )
+    def is_incomplete(item: dict[str, str]) -> bool:
+        # 新记录显式保存 incomplete；旧 renderer 只有 status 时，fallback/missing
+        # 也必须按降级处理，避免图片已生成却被误写入完整缓存。
+        explicit = item.get("incomplete")
+        if explicit in {"true", "false"}:
+            return explicit == "true"
+        return item.get("status") in {"fallback", "missing", "placeholder"}
+
+    return any(is_incomplete(item) for item in resources)
 
 
 def placeholder_image(size: tuple[int, int], label: str) -> Image.Image:

@@ -195,16 +195,30 @@
 - 剩余风险：当前 `dna-resource` HEAD 尚未提供本 task 所有纹理族及 `file_hashes`/完整 manifest 证据；真实远端 generation 仍需后续资源仓库 task 验证。无 resolver 的 legacy helper 仍保留用于兼容，真实 T2I 服务缺失时相关旧路径测试会失败（已有环境性失败，不代表 resolver 分支回归）。全仓 lint 的 25 个既有问题也仍待集中处理。
 - 下一步建议：执行 Task 09，集中审计 renderer/legacy utils 的所有路径与逻辑 key、缓存 `incomplete`、lease/listener、placeholder 和异常可观测性，再决定资源仓库及删除 task 的准入条件。
 
-## Task 09 — Renderer 接入与 incomplete 语义集中检查 `[pending]`
+## Task 09 — Renderer 接入与 incomplete 语义集中检查 `[completed]`
 
 **类型**：集中检查-debug（Task 07–08）。
 
 **检查**：逐模块审计 Player/百科/签到/公告/帮助/legacy utils 的路径和逻辑 key，验证缓存 incomplete、snapshot lease、listener、占位图/简化渲染、异常可观测性和无新增依赖；必要时追加修复 task。
 
-- 实际检查：待填。
-- 验证证据：待填。
-- 新增修复 task：待填。
-- 剩余风险：待填。
+- 实际检查：
+  - 审计 Player/百科/签到/公告/帮助的 resolver 分支、逻辑 key、placeholder/fallback 状态和缓存行为；帮助卡现在会把 resolver 资源记录写入 artifact sidecar，并以 `ImageResponse.incomplete` 暴露不完整资源，resolver 模式继续绕过旧缓存。
+  - 修复 Player/百科/公告 legacy font fallback 缺少 `incomplete` 字段的问题；`resources_incomplete` 现在优先读取显式字段，并兼容旧的 `fallback`/`missing`/`placeholder` 状态。
+  - 复核 `ResourceSnapshotCoordinator` 的 request-level lease、`bind_renderer` 和 generation listener；既有 lease/listener 契约未发现需要在本 task 改动的问题。
+  - 复核 legacy utils：`src/utils/image.py` 仍会延迟导入 `src/utils/fonts/dna_fonts.py`，而后者在模块导入时 eager 构造字体对象；这仍是后续删除旧字体目录前的明确前置条件。
+  - 复核逻辑 key 与资源仓库契约：当前 `textures` 未进入 runtime manifest/validator 根目录，且若干 dotted texture wildcard 尚未和资源仓库中的实际文件名对齐，因此没有伪造完整 snapshot。
+- 验证证据：
+  - TDD Red：新增 `tests/test_goal5_task09_audit.py` 后首次运行出现 3 个预期失败（fallback incomplete 语义、legacy renderer 字体记录、帮助卡 resolver 资源状态）。
+  - Green/regression：`tests/test_goal5_task09_audit.py tests/test_goal5_asset_resolver.py tests/test_goal5_renderer_resolver_red.py tests/test_goal3_resource_generations.py tests/test_generated_image_lifecycle.py tests/test_html_card_payloads.py`，`50 passed, 1 warning`。
+  - `python3 -m compileall -q src tests/test_goal5_task09_audit.py` 通过。
+  - 变更文件定向 `ruff check` 通过；`git diff --check` 通过。
+  - `requirements.txt` 未变更，无新增依赖。
+- 新增修复 task：
+  - Task 10/11 前置：将 `src/utils/fonts/dna_fonts.py` 的 eager 字体导入迁移到安全的 runtime font resolver，再允许删除旧字体目录。
+  - Task 10/11 共同契约：把 `textures` 纳入 runtime manifest/validator 与解码/hash 测试；按 `dna-resource` 的实际文件名重做 dotted texture key 的精确映射；明确 Help 小资源/logo 的 bootstrap allowlist 或 placeholder 语义。
+- 剩余风险：
+  - `dna-resource` 当前尚无 `textures` 目录和 `file_hashes` 证据，远端资源与 wildcard 映射尚未验证。
+  - 旧 renderer 的完整回归仍有 24 个依赖本机 `http://127.0.0.1:8999/text2img` 的环境失败；本 task 的 focused resolver/audit 回归不受影响。
 
 ## Task 10 — `dna-resource` 补齐字体/大型纹理并更新 manifest `[pending]`
 
