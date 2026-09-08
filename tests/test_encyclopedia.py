@@ -728,7 +728,8 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
 async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
     tmp_path: Path,
 ) -> None:
-    database = await _database_with_binding(tmp_path)
+    database = AsyncDatabase(tmp_path / "encyclopedia.sqlite3")
+    await database.create_schema_for_tests()
     resources = _resources(tmp_path)
     calendar_asset = tmp_path / "calendar-a.png"
     Image.new("RGBA", (64, 64), "orange").save(calendar_asset)

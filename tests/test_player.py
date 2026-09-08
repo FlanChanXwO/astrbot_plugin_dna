@@ -11,11 +11,13 @@ import pytest
 from PIL import Image, ImageFont
 
 from src.entry.event import EventActor
-from src.entry.response import ImageResponse, PlainTextResponse
+from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from src.infrastructure.cache import CacheManager
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap
 from src.infrastructure.rendering.artifact_store import read_rendered_artifact
 from src.modules.player import messages
+from src.modules.player.cache import PlayerCache
 from src.modules.player.contracts import (
     AttributeBag,
     DamageCalculation,
@@ -85,6 +87,8 @@ class FixturePlayerTransport:
         self.expected_uid = expected_uid
         self.fail_con_weapon = fail_con_weapon
         self.damage_calls = 0
+        self.overview_calls = 0
+        self.role_detail_calls = 0
 
     async def get_overview(
         self,
@@ -93,6 +97,7 @@ class FixturePlayerTransport:
         *,
         credential_user_id: str,
     ) -> RoleOverview:
+        self.overview_calls += 1
         assert actor.user_id == "user-1"
         assert uid == self.expected_uid
         assert credential_user_id == self.expected_user_id
@@ -107,6 +112,7 @@ class FixturePlayerTransport:
         *,
         credential_user_id: str,
     ) -> RoleDetail:
+        self.role_detail_calls += 1
         assert actor.user_id == "user-1"
         assert char_id == 101
         assert char_eid == "char-eid-101"
@@ -438,6 +444,91 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(
         item["kind"] == "weapon_icon" and item["status"] == "legacy_download"
         for item in resources
     )
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_info_card_only_fetches_overview(tmp_path: Path) -> None:
+    """基本信息卡片刷新不能误触发角色详情链路。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.refresh_info_card(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        )
+    )
+
+    assert isinstance(response, ChainResponse)
+    assert isinstance(response.components[0], PlainTextResponse)
+    assert response.components[0].text == messages.PLAYER_INFO_CARD_REFRESHED
+    assert isinstance(response.components[1], ImageResponse)
+    assert transport.overview_calls == 1
+    assert transport.role_detail_calls == 0
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_info_card_cache_preserves_overview_data_and_detail_cards(
+    tmp_path: Path,
+) -> None:
+    """清理基本信息卡片只删除 overview card，不误伤数据或角色详情卡片。"""
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    identity = cache.identity_tag("user-1", UID)
+    await manager.put(
+        "player_data",
+        "overview-data",
+        b"{}",
+        tags=("player_data", "overview", identity),
+    )
+    await manager.put(
+        "player_card",
+        "overview-card",
+        b"overview-card",
+        tags=("player_card", "overview", identity),
+    )
+    await manager.put(
+        "player_card",
+        "detail-card",
+        b"detail-card",
+        tags=("player_card", "detail", identity),
+    )
+    service = PlayerService(
+        database,
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        cache=cache,
+    )
+
+    response = await service.clear_info_card_cache(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        )
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.PLAYER_INFO_CARD_CACHE_CLEARED
+    assert (await manager.get("player_data", "overview-data")).status == "fresh"
+    assert (await manager.get("player_card", "overview-card")).status == "miss"
+    assert (await manager.get("player_card", "detail-card")).status == "fresh"
     await database.dispose()
 
 

@@ -12,6 +12,8 @@ PLAYER_ORIGINAL_UNSUPPORTED = get_tip("player.original_unsupported")
 PLAYER_DAMAGE_FAILED = get_tip("player.damage_failed")
 PLAYER_CACHE_STALE = get_tip("player.cache_stale")
 PLAYER_CACHE_REFRESHED = get_tip("player.cache_refreshed")
+PLAYER_INFO_CARD_REFRESHED = get_tip("player.info_card_refreshed")
+PLAYER_INFO_CARD_CACHE_CLEARED = get_tip("player.info_card_cache_cleared")
 PLAYER_CACHE_CLEARED = get_tip("player.cache_cleared")
 PLAYER_ALL_ROLE_CACHE_CLEARED = get_tip("player.all_role_cache_cleared")
 PLAYER_ROLE_CACHE_CLEARED = get_tip_template("player.role_cache_cleared")
@@ -97,6 +99,8 @@ __all__ = [
     "PLAYER_CONTEXT_UNAVAILABLE",
     "PLAYER_DAMAGE_FAILED",
     "PLAYER_DETAIL_NOT_FOUND",
+    "PLAYER_INFO_CARD_CACHE_CLEARED",
+    "PLAYER_INFO_CARD_REFRESHED",
     "PLAYER_ORIGINAL_UNSUPPORTED",
     "PLAYER_OVERVIEW_NOT_FOUND",
     "PLAYER_PEEK_BLOCKED",

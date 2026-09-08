@@ -22,6 +22,8 @@ REFRESH_ROLE_PATTERN = rf"^刷新(?P<char_name>(?!全部角色面板$|\d+的){PA
 REFRESH_ALL_ROLE_PATTERN = r"^刷新全部角色面板$"
 CLEAR_ROLE_PATTERN = rf"^清理(?P<char_name>{PATTERN})面板缓存$"
 CLEAR_ALL_ROLE_PATTERN = r"^清理全部角色缓存$"
+REFRESH_INFO_CARD_PATTERN = r"^刷新(?:基本信息)?卡片缓存$"
+CLEAR_INFO_CARD_PATTERN = r"^(?:清理|删除)(?:基本信息)?卡片缓存$"
 REFRESH_ADMIN_ROLE_PATTERN = rf"^刷新(?P<uid>\d+)的(?P<char_name>{PATTERN})面板$"
 
 
@@ -58,6 +60,44 @@ def _refresh_service(request: CommandRequest) -> PlayerService | PlainTextRespon
     if service is None or not callable(getattr(service, "refresh_role", None)):
         return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
     return cast(PlayerService, service)
+
+
+def _info_card_cache_service(
+    request: CommandRequest,
+) -> PlayerService | PlainTextResponse:
+    """检查基本信息卡片缓存操作入口。"""
+
+    if request.actor is None:
+        return PlainTextResponse(messages.PLAYER_CONTEXT_UNAVAILABLE)
+    service = request.services.get("player_service")
+    if service is None or not all(
+        callable(getattr(service, method, None))
+        for method in ("refresh_info_card", "clear_info_card_cache")
+    ):
+        return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+    return cast(PlayerService, service)
+
+
+async def player_refresh_info_card_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **parameters: Any,
+):
+    service = _info_card_cache_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.refresh_info_card(_player_request(request, parameters))
+
+
+async def player_clear_info_card_cache_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **parameters: Any,
+):
+    service = _info_card_cache_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.clear_info_card_cache(_player_request(request, parameters))
 
 
 async def player_role_overview_use_case(
@@ -175,6 +215,26 @@ COMMAND_SPECS = (
         mention_policy="query",
     ),
     CommandSpec(
+        id="refresh_info_card_cache",
+        pattern=REFRESH_INFO_CARD_PATTERN,
+        group="信息查询",
+        name="刷新基本信息卡片缓存",
+        description="刷新当前 UID 的基本信息卡片，不刷新角色面板",
+        examples=("刷新卡片缓存",),
+        permission="user",
+        use_case=cast(Any, player_refresh_info_card_use_case),
+    ),
+    CommandSpec(
+        id="clear_info_card_cache",
+        pattern=CLEAR_INFO_CARD_PATTERN,
+        group="信息查询",
+        name="清理基本信息卡片缓存",
+        description="清理当前 UID 的基本信息卡片，不影响角色面板缓存",
+        examples=("清理卡片缓存", "删除卡片缓存"),
+        permission="user",
+        use_case=cast(Any, player_clear_info_card_cache_use_case),
+    ),
+    CommandSpec(
         id="refresh_admin_role_card",
         pattern=REFRESH_ADMIN_ROLE_PATTERN,
         group="角色信息",
@@ -251,18 +311,22 @@ COMMAND_SPECS = (
 
 __all__ = [
     "CLEAR_ALL_ROLE_PATTERN",
+    "CLEAR_INFO_CARD_PATTERN",
     "CLEAR_ROLE_PATTERN",
     "COMMAND_SPECS",
     "PATTERN",
     "REFRESH_ADMIN_ROLE_PATTERN",
     "REFRESH_ALL_ROLE_PATTERN",
+    "REFRESH_INFO_CARD_PATTERN",
     "REFRESH_ROLE_PATTERN",
     "ROLE_DETAIL_PATTERN",
     "player_clear_all_cache_use_case",
+    "player_clear_info_card_cache_use_case",
     "player_clear_role_cache_use_case",
     "player_original_image_use_case",
     "player_refresh_admin_role_use_case",
     "player_refresh_all_roles_use_case",
+    "player_refresh_info_card_use_case",
     "player_refresh_role_use_case",
     "player_role_detail_use_case",
     "player_role_overview_use_case",

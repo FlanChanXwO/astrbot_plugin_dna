@@ -264,8 +264,10 @@ async def test_mh_empty_is_visible_not_found(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_mh_uid_invalid_when_unbound(tmp_path: Path) -> None:
-    """无绑定返回显式 UID 提示。"""
+async def test_mh_is_public_and_uses_any_available_credential_when_unbound(
+    tmp_path: Path,
+) -> None:
+    """未绑定调用者也可以查询公共密函，并走系统凭据路径。"""
 
     database = AsyncDatabase(tmp_path / "notices.sqlite3")
     await database.create_schema_for_tests()
@@ -274,9 +276,30 @@ async def test_mh_uid_invalid_when_unbound(tmp_path: Path) -> None:
 
     response = await service.mh(_request())
 
+    assert isinstance(response, ImageResponse)
+    assert transport.calls == ["get_mh_any"]
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_mh_public_credential_failure_has_public_error_message(tmp_path: Path) -> None:
+    """公共密函没有可用凭据时不应误报为调用者未登录。"""
+
+    database = AsyncDatabase(tmp_path / "notices.sqlite3")
+    await database.create_schema_for_tests()
+    transport = FakeNoticesTransport(
+        fail=NoticesTransportError(
+            NoticesFailureKind.CREDENTIAL,
+            resource="密函",
+        )
+    )
+    service = _service(database, transport)
+
+    response = await service.mh(_request())
+
     assert isinstance(response, PlainTextResponse)
-    assert response.text == "当前未绑定账号，请先登录"
-    assert transport.calls == []
+    assert "可用的密函查询凭据" in response.text
+    assert "当前未绑定账号" not in response.text
     await database.dispose()
 
 
