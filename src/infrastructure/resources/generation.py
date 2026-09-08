@@ -656,9 +656,11 @@ class ResourceSnapshotCoordinator:
         self._current = snapshot
         if previous is not None and previous.commit_sha != snapshot.commit_sha:
             self._retired.add(previous.commit_sha)
-        for listener in tuple(self._listeners):
-            listener(snapshot)
-        self._collect_retired()
+        try:
+            for listener in tuple(self._listeners):
+                listener(snapshot)
+        finally:
+            self._collect_retired()
 
     def _materialize(self, synchronizer: ResourceSynchronizer, commit_sha: str) -> ResourceSnapshot:
         self._ensure_storage_roots()

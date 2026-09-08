@@ -269,6 +269,30 @@ def test_lease_keeps_old_generation_until_all_readers_release(tmp_path: Path) ->
     assert not old_root.exists()
 
 
+def test_listener_failure_still_collects_retired_generation(tmp_path: Path) -> None:
+    """监听器失败时已发布 generation 仍需完成旧目录清理。"""
+
+    source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    old_root = first.generation_root
+    assert old_root is not None
+
+    def fail_listener(_snapshot) -> None:
+        raise RuntimeError("listener failed")
+
+    coordinator.subscribe(fail_listener)
+    _git("checkout", "main", cwd=source)
+    _commit_main(source, "v2")
+
+    with pytest.raises(RuntimeError, match="listener failed"):
+        coordinator.synchronize()
+
+    assert coordinator.current_snapshot is not None
+    assert coordinator.current_snapshot.commit_sha != first.commit_sha
+    assert not old_root.exists()
+
+
 def test_renderer_binding_pins_generation_for_render_duration(tmp_path: Path) -> None:
     source, _target, runner = _fixture(tmp_path)
     coordinator = _coordinator(tmp_path, runner)
