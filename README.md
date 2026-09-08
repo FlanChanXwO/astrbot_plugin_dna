@@ -72,7 +72,7 @@ python3 -m pip install -r data/plugins/astrbot_plugin_dna/requirements.txt
 | 资源状态 | `dna资源状态` | 检查公共资源版本与状态 |
 | 同步资源 | `dna同步资源` | 管理员同步公共资源 |
 
-完整命令、参数和权限请查看 [`commands.json`](commands.json) 与 [命令说明](docs/usage/commands.md)。
+完整命令、参数和权限请查看 [`commands.json`](commands.json)；使用边界见 [命令说明](docs/usage/commands.md)。
 
 ## ⚙️ 配置
 
@@ -112,16 +112,20 @@ python3 -m pip install -r data/plugins/astrbot_plugin_dna/requirements.txt
 
 ## 📖 文档导航
 
+`docs/` 只维护当前版本需要的 `usage/` 与 `dev/` 两类文档：
+
 | 文档 | 内容 |
 | --- | --- |
-| [文档首页](docs/README.md) | 用户与维护者文档索引 |
-| [命令说明](docs/usage/commands.md) | 完整命令、参数与权限 |
-| [配置说明](docs/usage/configuration.md) | Dashboard 配置字段与语义 |
-| [公共资源](docs/usage/resources.md) | 资源同步、manifest、缓存与排障 |
+| [命令说明](docs/usage/commands.md) | 命令入口、权限/登录边界与事实源 |
+| [配置说明](docs/usage/configuration.md) | Dashboard 配置分组与维护方式 |
+| [账号登录](docs/usage/login.md) | 登录方式、UID 与排障 |
+| [公共资源](docs/usage/resources.md) | 资源同步、校验与排障 |
+| [Agent Tools](docs/usage/agent-tools.md) | Agent 工具启用与安全边界 |
 | [管理页面](docs/usage/admin-pages.md) | Dashboard 管理能力 |
+| [项目架构](docs/dev/architecture.md) | 当前模块边界与事实源 |
 | [开发环境](docs/dev/setup.md) | 本地开发与运行环境 |
 | [测试说明](docs/dev/testing.md) | 测试范围与验证方式 |
-| [项目架构](docs/project/architecture.md) | 模块边界与架构说明 |
+| [维护约定](docs/dev/maintenance.md) | 生成物、文案与文档维护规则 |
 
 ## 🔐 安全与隐私
 

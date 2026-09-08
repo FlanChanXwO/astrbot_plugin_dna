@@ -1,50 +1,44 @@
-# 开发环境与运行
+# 开发环境
 
-本页面向贡献者和维护者。命令使用占位路径，避免依赖某一台机器的目录结构。
+## 基本要求
 
-## 目录约定
+插件要求的最低 AstrBot 版本以根目录 `metadata.yaml` 为准；当前声明为 AstrBot `>=4.26.0`。Python 依赖以 `requirements.txt` 为准。
 
-- **当前项目根目录**：本文件所在插件仓库，记为 `PLUGIN_DIR`。
-- **AstrBot 根目录**：包含 `data/plugins/` 的运行时目录，记为 `ASTRBOT_ROOT`。
-- **插件目录**：`$ASTRBOT_ROOT/data/plugins/astrbot_plugin_dna`。
-- **运行期数据**：由 `StarTools.get_data_dir("astrbot_plugin_dna")` 返回，不入 Git。
-
-如果从仓库根目录操作，可以先设置：
-
-```bash
-export PLUGIN_DIR="$(pwd)"
-export ASTRBOT_ROOT="/path/to/astrbot"
-```
-
-## 依赖与基础检查
-
-在当前项目根目录执行：
+在仓库根目录安装依赖：
 
 ```bash
 python3 -m pip install -r requirements.txt
+```
+
+如果 AstrBot runtime 已负责同步插件依赖，可以使用 runtime 的依赖管理方式，不需要维护第二份依赖清单。
+
+## 常用检查
+
+从插件仓库根目录执行：
+
+```bash
 python3 -m compileall .
 python3 -m pytest
 ruff check .
 ```
 
-如果 AstrBot runtime 会自动同步插件依赖，可以跳过手动安装。修改命令、配置或渲染代码后，至少
-运行受影响测试和 `ruff check .`。
+只修改单一领域时可以先运行对应测试文件；准备提交前，应至少运行受影响测试和 `ruff check .`。跨入口、配置、持久化、生命周期或公共资源的改动建议运行完整 pytest。
 
-## 启动与重载
+## 生成文件
 
-启动和重载方式取决于 AstrBot runtime 的安装方式。使用 runtime 提供的启动脚本或 Dashboard
-完成操作，不要在插件目录中复制运行期数据库、缓存或登录信息。
+命令或配置模型发生变化时，不要手工编辑对应投影：
 
-重载后先发送当前命令前缀加 `帮助`，再检查 Dashboard 中的插件状态和 AstrBot 日志。
+```bash
+python3 scripts/generate_commands_manifest.py
+python3 scripts/generate_config_schema.py
+```
 
-## HTML/T2I 图片
+生成后检查 `commands.json` / `_conf_schema.json` 的差异，并同步更新相关测试与 `docs/usage/`。
 
-运行时要求 AstrBot 4.26.0 或更高版本，并使用 AstrBot 的全局 HTML/T2I 能力。插件不会启动
-私有渲染服务，也不会覆盖 AstrBot 的全局设置；服务不可用时，图片命令会返回统一失败提示。
+## AstrBot 中运行
 
-## 相关文档
+插件应安装在 AstrBot 的 `data/plugins/astrbot_plugin_dna` 下，并通过 AstrBot 自己的启动、重载或 Dashboard 入口运行。运行期数据库、缓存、登录信息和渲染产物属于 AstrBot 插件数据目录，不应复制回仓库。
 
-- [测试说明](testing.md)
-- [维护说明](maintenance.md)
-- [配置说明](../usage/configuration.md)
-- [公共资源](../usage/resources.md)
+图片能力依赖 AstrBot 的全局 HTML/T2I 能力；涉及图片的修改需要在可用的 AstrBot runtime 中额外做一次实际渲染检查。
+
+进一步阅读：[架构](architecture.md) · [测试](testing.md) · [维护](maintenance.md)。
