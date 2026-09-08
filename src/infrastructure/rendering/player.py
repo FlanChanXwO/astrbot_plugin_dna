@@ -518,6 +518,16 @@ async def _draw_role_detail_card(
     grade_level = getattr(
         role_detail, "gradeLevel", getattr(role_detail, "grade_level", 0)
     )
+    role_attribute = getattr(role_detail, "attribute", None)
+    weapon_masteries = (
+        getattr(
+            role_attribute,
+            "weaponTags",
+            getattr(role_attribute, "weapon_tags", []),
+        )
+        if role_attribute is not None
+        else []
+    )
     grade_total = 7 if grade_level >= 7 else 6
     grades = [
         {
@@ -563,6 +573,9 @@ async def _draw_role_detail_card(
                 else None,
                 "level": role_detail.level,
                 "name": char_name,
+                "weapon_mastery": " / ".join(
+                    str(tag).strip() for tag in weapon_masteries if tag
+                ),
             },
             "role_modes": await _role_modes_payload(getattr(role_detail, "modes", [])),
             "skills": await _skill_payload(role_detail),
@@ -1026,6 +1039,13 @@ class PlayerRenderer:
             f"等级: {_text_value(detail.level)}",
             f"命座/等阶: {_text_value(detail.grade_level)}",
         ]
+        if detail.attribute.weapon_tags:
+            lines.append(
+                "武器精通: "
+                + " / ".join(
+                    str(tag).strip() for tag in detail.attribute.weapon_tags if tag
+                )
+            )
         lines.extend(f"{item.skill_name}: Lv.{item.level}" for item in detail.skills)
         lines.extend(f"溯源: {item.description}" for item in detail.traces)
         lines.extend(f"魔之楔: {item.name}" for item in detail.modes if item.name)
