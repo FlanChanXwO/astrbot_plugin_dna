@@ -1,61 +1,71 @@
 # AGENTS.md
 
-## 沟通语言
-- 与用户沟通默认简体中文；代码标识符、命令、库名可保留英文。
+## 目标
 
-## 项目形态
-`astrbot_plugin_dna`：二重螺旋 Bot 插件，由 GsCore 插件 DNAUID 原生移植为 AstrBot 插件。命令全部为**正则触发**，`commands.json` 是由 `src/entry/commands` registry 生成的清单投影。**不引入 gsuid_core**；仅复用原纯逻辑（请求签名、伤害计算、PIL 渲染、攻略/wiki 素材、姓名别名）。
+本文件只保留 AI 在本仓库工作时需要长期加载的规则。与用户沟通默认使用简体中文；代码标识符、命令、库名和协议名保持原文。
 
-## 主要目录
-- `main.py` — AstrBot 薄入口（Star 子类）：安装 registry handler、bootstrap、`initialize()/terminate()`。不写业务编排。
-- `src/` — 迁移目标架构：`entry/`（命令/事件/响应/生命周期/web）、`modules/`（account、
-  privacy、player、encyclopedia、checkin、notices、operations 各 use case 领域）、
-  `infrastructure/`（config、persistence、http transports、rendering、resources、
-  subscriptions、scheduler、notices_scheduler）。
-- `src/infrastructure/config/` — Pydantic typed settings 与 `_conf_schema.json` 生成器。
-- `src/infrastructure/resources/` — 公共 `dna-resource` Git 仓库的路径、manifest 校验和安全同步接口。
-- `dnaby/` — legacy 内部业务包（保留原 `dna_*` 布局），仅作迁移参考/复用纯逻辑（请求签名、
-  伤害计算、PIL 渲染、攻略/wiki 素材、姓名别名、master char 常量、ann/mh 纯工具）。
-- `commands.json` — 命令清单投影（代码 registry 是唯一事实源）。
-- `_conf_schema.json` — AstrBot WebUI 配置 schema（由 `src/infrastructure/config` 生成）。
-- `docs/` — README 索引 + `porting/`(superpowers 交付物) + `dev/` + `usage/` + `project/` + `legacy/`(原登录排查档案)。
-- `tests/` — pytest（先写测试后实现）。
+`astrbot_plugin_dna` 是《二重螺旋》的原生 AstrBot 插件。`main.py` 保持薄入口，当前功能实现以 `src/` 为主；不要把历史迁移过程当作现行架构。
 
-## 阅读入口
-- 改动前先读 `docs/README.md` 与 `docs/porting/design.md`。
-- 命令/触发 → `commands.json` + `main.py`；核心命令契约见 `tests/test_entry_commands.py`。
-- 配置 → `src/infrastructure/config/` + `_conf_schema.json`；legacy 配置仅作迁移参考。
-- 数据库 → `src/infrastructure/persistence/`（SQLAlchemy 2 async + Alembic；旧 `dnaby/utils/database/` 不迁移）。
-- 登录链路 → `src/modules/account/` 与 `src/infrastructure/http/account.py`。
-- 订阅/推送 → `src/infrastructure/subscriptions/` 与 `scheduler.py`/`notices_scheduler.py`。
+## 事实源
 
-## 硬约束
-- **不 import gsuid_core / gsucore**。所有框架交互走 AstrBot 原生 API（`astrbot.api.*`、`StarTools`、`context`）。
-- 发送回复：handler 是 async generator，`yield event.plain_result/chain_result/image_result`；`@filter.regex` 只是门，组内必须重跑 `re.match`。
-- 运行期数据一律进 `StarTools.get_data_dir(self.name)`（`data/plugin_data/astrbot_plugin_dna/`）；禁止写 `<plugin>/data/`。
-- `commands.json` 与分发表必须一致（有 pytest 断言「清单 ⊆ 分发表」）。
-- 定时任务用 `asyncio` 循环，在 `initialize()` 启动、`terminate()` 取消。
-- 用户可见字符串统一走 `dnaby/utils/msgs/notify.py`（legacy）或 `src/modules/*/messages.py`（rewrite）；不在 handler 里硬编码文案。
-- 运行期数据目录边界：`dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`rendered/`、`panel_custom/`、`resources/` 均位于 `StarTools.get_data_dir` 下，禁止写 `<plugin>/data/`。
-- 新代码使用 `DnabySettings.from_config(...)`；legacy 代码暂保持 `DNAConfig.get_config("Key").data` 语义。
-- 不提交 Cookie、token、SQLite 数据库、日志、Dashboard 密钥；公开仓库只保留可发布源码、文档与不含凭据的静态资源引用。
+遇到文档与代码不一致时，按以下顺序核验并修正文档：
 
-## 文档纪律
-- docs 是改动的一部分。改命令清单、配置、登录链路、数据结构时必须同步 `docs/usage|project/`。
-- `AGENTS.md` + `CLAUDE.md` 互为镜像，仓库级规则变化时同改；两者各 ≤100 行，溢出进 `docs/`。
+1. 实际代码和运行期接口；
+2. 由代码生成的仓库投影；
+3. 对应测试；
+4. `docs/usage/` 与 `docs/dev/` 的解释性文档。
 
-## 测试与检查命令
-从插件目录运行：
+关键事实源：
+
+- 命令：`src/entry/commands/` + `src/modules/index.py`；`commands.json` 是生成投影。
+- 配置：`src/infrastructure/config/settings.py`；`_conf_schema.json` 是生成投影。
+- 入口/生命周期：`main.py`、`src/bootstrap.py`、`src/entry/lifecycle.py`。
+- 数据库：`src/infrastructure/persistence/`、`alembic/versions/`。
+- 公共资源：`src/infrastructure/resources/` + `dna-resource` 当前 manifest。
+- 插件名称、版本、最低 AstrBot 版本：`metadata.yaml`。
+- 用户行为：`docs/usage/`；开发结构与维护：`docs/dev/`。
+
+需要了解模块边界时读 `docs/dev/architecture.md`；不要预先加载所有文档。
+
+## 按任务读取
+
+- 改命令、正则、权限、帮助：读 `src/entry/commands/`、`src/modules/index.py`、`tests/test_entry_commands.py`；用户语义变化再读 `docs/usage/commands.md`。
+- 改配置：读 `src/infrastructure/config/`、`tests/test_config.py`；用户需要知道时读 `docs/usage/configuration.md`。
+- 改登录/账号：读 `src/modules/account/`、相关 HTTP transport、`tests/test_account.py`、`docs/usage/login.md`。
+- 改玩家/图鉴/渲染：读对应 `src/modules/`、`src/infrastructure/rendering/` 与领域测试。
+- 改持久化：读 persistence + Alembic + `tests/test_persistence.py`；先明确升级/回滚边界再动 schema。
+- 改调度/订阅/推送：读对应 scheduler、subscriptions 和领域测试。
+- 改 Dashboard：读 `src/entry/admin_web.py`、`src/entry/web.py`、`pages/dashboard/`、`docs/usage/admin-pages.md`。
+- 改 Agent Tools：读 `src/entry/agent_tools/`、`src/modules/agent_tools/`、`tests/test_agent_tools.py`、`docs/usage/agent-tools.md`。
+- 改公共资源：读 `src/infrastructure/resources/`、`tests/test_resources.py`、`docs/usage/resources.md`。
+
+## 修改流程
+
+1. 找到最接近行为的实现和测试，先确认当前契约。
+2. 做最小、内聚的改动；入口层只做 AstrBot 适配，业务逻辑留在 `src/modules/`，副作用适配留在 `src/infrastructure/`。
+3. 命令变化后运行 `python3 scripts/generate_commands_manifest.py`；配置变化后运行 `python3 scripts/generate_config_schema.py`。
+4. 更新最具体的测试。修 bug 时优先加入能复现问题的回归测试。
+5. 只有用户可见行为或维护方式变化时才更新文档；不要复制可由代码/JSON 直接读取的完整清单、数量或默认值表。
+6. 运行受影响测试和 lint；跨模块改动再跑完整测试。
+
+## 硬边界
+
+- 使用 AstrBot 原生 API；新代码不依赖 `gsuid_core` / `gsucore`。
+- 运行期数据库、缓存、资源快照、订阅状态和渲染产物写入 AstrBot 分配的插件数据目录，不写入源码目录。
+- 不提交或输出真实 Cookie、token、验证码、Dashboard 密钥、SQLite 数据库或带凭据的 URL/日志。
+- `commands.json` 与 `_conf_schema.json` 不手工维护；修改源模型后重新生成。
+- `docs/` 顶层长期只保留 `dev/` 和 `usage/`。迁移计划、阶段报告、一次性 review、机器路径、生产容器名、某次 SHA/测试数量不进入长期文档；版本历史写 `CHANGELOG.md`。
+- 用户可见文案当前以 `i18/zh/tip.json` 和 `src/infrastructure/i18n/` 为事实源；不要为不存在的目录维护规则。
+- `CLAUDE.md` 通过 `@AGENTS.md` 复用本文件，不在两处复制同一规则。
+
+## 验证
+
+仓库根目录常用检查：
+
 ```bash
-python3 -m compileall .
 python3 -m pytest
 ruff check .
-```
-从 runtime 根目录运行：
-```bash
-uv run ruff check data/plugins/astrbot_plugin_dna
+python3 -m compileall .
 ```
 
-## 更新策略
-- 迁移按 superpowers 阶段推进：design.md → plan.md → TDD → subagent → review.md → final_report.md。
-- 每阶段保持 pytest 绿、ruff 干净再进入下一阶段。
+可先跑最小相关测试文件；准备合并涉及入口、配置、持久化、生命周期、公共资源或跨领域行为的改动时，应运行完整 pytest。需要当前测试集合时使用 `python3 -m pytest --collect-only -q`，不要依赖文档中的固定数量。
