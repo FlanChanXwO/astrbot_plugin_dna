@@ -131,7 +131,7 @@ def test_dynamic_plugin_builds_admin_runtime_from_package_namespace():
         register_web_api=lambda *args: registered.append(args),
     )
 
-    runtime = module.build_runtime(context, {})
+    runtime = module.build_runtime(context, {"login": {"port": 0}})
 
     async def lifecycle() -> None:
         await runtime.initialize()
@@ -169,7 +169,7 @@ assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
-assert len(module.COMMAND_REGISTRY) == 63
+assert len(module.COMMAND_REGISTRY) == 64
 """
     result = subprocess.run(
         [sys.executable, "-c", script, str(Path(__file__).resolve().parent.parent)],

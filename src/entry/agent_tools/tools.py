@@ -168,7 +168,10 @@ def _response_components(response: object) -> tuple[list[Any], bool]:
         components = []
         has_image = False
         for item in response.components:
-            if isinstance(item, (PlainTextResponse, ImageResponse, MultiImageResponse, ChainResponse)):
+            if isinstance(
+                item,
+                (PlainTextResponse, ImageResponse, MultiImageResponse, ChainResponse),
+            ):
                 nested, nested_has_image = _response_components(item)
                 components.extend(nested)
                 has_image = has_image or nested_has_image
@@ -303,9 +306,7 @@ class AgentQueryTool(FunctionTool):
             result.data if isinstance(result.data, AgentQueryPresentation) else None
         )
         direct_response = (
-            presentation.direct_response
-            if presentation is not None
-            else result.data
+            presentation.direct_response if presentation is not None else result.data
         )
         event = context.context.event
         sent, error = await _send_image_response(event, direct_response)
@@ -361,8 +362,14 @@ _TOOL_DEFINITIONS = (
         _image_schema(
             {
                 "char_name": {"type": "string", "description": "角色名称"},
-                "weapon_name_1": {"type": "string", "description": "可选近战或远程武器名称"},
-                "weapon_name_2": {"type": "string", "description": "可选另一把武器名称"},
+                "weapon_name_1": {
+                    "type": "string",
+                    "description": "可选近战或远程武器名称",
+                },
+                "weapon_name_2": {
+                    "type": "string",
+                    "description": "可选另一把武器名称",
+                },
             },
             required=("char_name",),
         ),
@@ -468,7 +475,13 @@ _TOOL_DEFINITIONS = (
         "announcement_detail",
         "按公告列表中的 1-based index 查询官方公告详情和全部正文图片。",
         _image_schema(
-            {"index": {"type": "integer", "minimum": 1, "description": "公告列表中的 1-based 序号"}},
+            {
+                "index": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "公告列表中的 1-based 序号",
+                }
+            },
             required=("index",),
         ),
         supports_image=True,

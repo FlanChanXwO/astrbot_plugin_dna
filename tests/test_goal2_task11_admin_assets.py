@@ -64,7 +64,9 @@ async def test_alias_admin_exposes_default_and_custom_without_mutating_defaults(
     assert default_path.read_text(encoding="utf-8") == default_text
 
 
-def test_resource_store_merges_runtime_custom_aliases_after_reload(tmp_path: Path) -> None:
+def test_resource_store_merges_runtime_custom_aliases_after_reload(
+    tmp_path: Path,
+) -> None:
     resource_root = tmp_path / "resources"
     default_path = resource_root / "alias" / "char_alias.json"
     default_path.parent.mkdir(parents=True)
@@ -149,7 +151,9 @@ async def test_alias_admin_atomic_write_failure_preserves_previous_custom_file(
     assert not custom_path.with_name(f".{custom_path.name}.tmp").exists()
 
 
-def test_build_runtime_wires_alias_service_without_panel_service(tmp_path: Path) -> None:
+def test_build_runtime_wires_alias_service_without_panel_service(
+    tmp_path: Path,
+) -> None:
     from src.bootstrap import build_runtime
 
     runtime = build_runtime(
@@ -161,4 +165,7 @@ def test_build_runtime_wires_alias_service_without_panel_service(tmp_path: Path)
     assert isinstance(runtime.services["admin_alias_service"], AdminAliasService)
     assert "admin_panel_service" not in runtime.services
     assert "panel_service" not in runtime.services
-    assert runtime.services["admin_alias_service"].custom_path == tmp_path / "alias_custom.json"  # type: ignore[union-attr]
+    assert (
+        runtime.services["admin_alias_service"].custom_path
+        == tmp_path / "alias_custom.json"
+    )  # type: ignore[union-attr]

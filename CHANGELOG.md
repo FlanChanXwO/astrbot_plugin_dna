@@ -5,14 +5,15 @@
 ### 新增
 
 - 新增国服 PC/安卓客户端更新查询，以及按群聊目标管理的订阅与取消订阅命令。
-- 新增独立客户端更新轮询任务、平台筛选、`client_update_state.json` 基线状态和投递状态。
+- 新增独立客户端更新轮询任务、固定 channel 筛选、`client_update_state.json` 的 State v3 基线和投递状态。
+- 每个 channel 独立记录版本、manifest、大小、baseline 与投递事件；首次无 baseline 时只展示当前版本，不伪造历史版本或可比较大小。
 - 客户端版本变化按目标记录 `pending`/`delivered`，下一轮优先重试未完成目标；取消或停用目标后清理对应状态。
-- OneBot 同轮多平台消息支持合并转发；能力不可用或构造失败时降级为逐平台普通消息。
+- OneBot 同轮多 channel 消息支持合并转发；能力不可用或构造失败时降级为逐 channel 普通消息。
 
 ### 配置
 
-- 新增 `notifications.client_update_enabled`、`client_update_check_minutes` 和
-  `client_update_merge_forward`；客户端更新周期独立于公告轮询周期。
+- 使用 `client_updates.enabled`、`client_updates.check_minutes`、`client_updates.channels` 和
+  `client_updates.merge_forward`；客户端更新周期独立于公告轮询周期，channel 使用固定 ID 配置。
 
 ## [v0.2.0] - 2026-09-02
 

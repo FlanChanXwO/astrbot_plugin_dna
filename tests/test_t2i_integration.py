@@ -35,7 +35,9 @@ def test_global_t2i_renders_representative_cards() -> None:
 
     async def scenario() -> tuple[bytes, bytes]:
         return (
-            await create_sign_info_image("✅[二重螺旋]签到成功！\n字体与消息链路", theme="green"),
+            await create_sign_info_image(
+                "✅[二重螺旋]签到成功！\n字体与消息链路", theme="green"
+            ),
             await render_qr_code("https://localhost/login"),
         )
 

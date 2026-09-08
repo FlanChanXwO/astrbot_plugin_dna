@@ -43,7 +43,9 @@ async def test_legacy_qr_helper_delegates_without_writing_file(
     monkeypatch.setattr(qr_module, "render_qr_code", render)
     legacy_path = tmp_path / "legacy.gif"
 
-    result = await image_utils.get_qrcode_base64("https://localhost/login", legacy_path, "bot")
+    result = await image_utils.get_qrcode_base64(
+        "https://localhost/login", legacy_path, "bot"
+    )
 
     assert result == b"html-qr"
     assert seen == ["https://localhost/login"]

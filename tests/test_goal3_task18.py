@@ -147,7 +147,9 @@ def test_codes_parse_resource_contract_and_filter_status_by_timezone() -> None:
 async def test_code_contract_errors_are_distinct_and_detail_safe(
     payload: dict[str, object],
 ) -> None:
-    transport = DnaApiEncyclopediaTransport(object(), code_provider=lambda _actor: payload)
+    transport = DnaApiEncyclopediaTransport(
+        object(), code_provider=lambda _actor: payload
+    )
 
     with pytest.raises(EncyclopediaTransportError) as raised:
         await transport.get_codes(_actor())
@@ -182,7 +184,9 @@ async def test_code_provider_status_and_network_errors_are_distinct(
 ) -> None:
     status_calls: list[str] = []
     status_session = _FakeSession(_FakeResponse(503, {}), status_calls)
-    monkeypatch.setattr(encyclopedia_http.aiohttp, "ClientSession", lambda: status_session)
+    monkeypatch.setattr(
+        encyclopedia_http.aiohttp, "ClientSession", lambda: status_session
+    )
     transport = DnaApiEncyclopediaTransport(object())
 
     with pytest.raises(EncyclopediaTransportError) as status_error:
@@ -191,7 +195,9 @@ async def test_code_provider_status_and_network_errors_are_distinct(
 
     network_calls: list[str] = []
     network_session = _FakeSession(None, network_calls)
-    monkeypatch.setattr(encyclopedia_http.aiohttp, "ClientSession", lambda: network_session)
+    monkeypatch.setattr(
+        encyclopedia_http.aiohttp, "ClientSession", lambda: network_session
+    )
 
     with pytest.raises(EncyclopediaTransportError) as network_error:
         await transport.get_codes(_actor())
@@ -241,7 +247,9 @@ def test_alias_write_capability_and_all_projections_are_registered() -> None:
     assert {item["id"] for item in manifest} >= {"alias_list", "alias_all_list"}
     assert {item["id"] for item in manifest} >= {"alias_add_delete", "alias_recover"}
 
-    help_data = json.loads((ROOT / "src/resources/help/help.json").read_text(encoding="utf-8"))
+    help_data = json.loads(
+        (ROOT / "src/resources/help/help.json").read_text(encoding="utf-8")
+    )
     help_text = json.dumps(help_data, ensure_ascii=False)
     assert "恢复别名" in help_text
 

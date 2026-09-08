@@ -124,16 +124,46 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
         "test_privacy.py",
         ("test_personal_privacy_defaults_and_group_force_precedence",),
     ),
-    "privacy_enable_peek_admin": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_disable_peek_admin": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_enable_peek_all": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_disable_peek_all": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_cancel_peek_all": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_enable_uid_hidden_admin": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_disable_uid_hidden_admin": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_enable_uid_hidden_all": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_disable_uid_hidden_all": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
-    "privacy_cancel_uid_hidden_all": ("test_privacy_commands.py", ("test_registry_exposes_all_privacy_commands_with_admin_boundary",)),
+    "privacy_enable_peek_admin": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_disable_peek_admin": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_enable_peek_all": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_disable_peek_all": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_cancel_peek_all": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_enable_uid_hidden_admin": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_disable_uid_hidden_admin": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_enable_uid_hidden_all": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_disable_uid_hidden_all": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
+    "privacy_cancel_uid_hidden_all": (
+        "test_privacy_commands.py",
+        ("test_registry_exposes_all_privacy_commands_with_admin_boundary",),
+    ),
     "sign": (
         "test_checkin.py",
         ("test_manual_sign_completes_game_and_community_and_saves_record",),
@@ -155,7 +185,10 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
     "mh_subscribe_by_name": (
         "test_notices_subscriptions.py",
-        ("test_subscribe_mh_adds_names_and_dedupes", "test_unsubscribe_mh_removes_names"),
+        (
+            "test_subscribe_mh_adds_names_and_dedupes",
+            "test_unsubscribe_mh_removes_names",
+        ),
     ),
     "mh_subscribe_cycle": (
         "test_notices_subscriptions.py",
@@ -183,7 +216,10 @@ CONTRACT_COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
     "download_resource": (
         "test_resource_service.py",
-        ("test_download_all_reports_clone_and_update", "test_download_all_failures_are_visible"),
+        (
+            "test_download_all_reports_clone_and_update",
+            "test_download_all_failures_are_visible",
+        ),
     ),
     "refresh_role_card": (
         "test_goal1_o11_refresh_and_cleanup.py",
@@ -216,9 +252,9 @@ def test_every_write_command_has_an_offline_contract_test_file() -> None:
     for command_id, (file_name, test_names) in CONTRACT_COVERAGE.items():
         source = (TESTS_DIR / file_name).read_text(encoding="utf-8")
         for test_name in test_names:
-            assert f"def {test_name}(" in source or f"async def {test_name}(" in source, (
-                f"{command_id} 缺少离线契约用例 {test_name}"
-            )
+            assert (
+                f"def {test_name}(" in source or f"async def {test_name}(" in source
+            ), f"{command_id} 缺少离线契约用例 {test_name}"
 
 
 class FakeAccountTransport:
@@ -242,7 +278,9 @@ class FakeCheckinTransport:
     def __init__(self) -> None:
         self.calls: list[str] = []
 
-    async def get_sign_calendar(self, actor, uid, *, credential_user_id) -> SignCalendar:
+    async def get_sign_calendar(
+        self, actor, uid, *, credential_user_id
+    ) -> SignCalendar:
         self.calls.append("get_sign_calendar")
         return SignCalendar(
             today_signed=False,
@@ -259,7 +297,9 @@ class FakeCheckinTransport:
                 )
                 for index, day in enumerate(range(1, 8))
             ),
-            period=SignPeriod(period_id=9, name="周期甲", over_days=7, start_date=0, end_date=0),
+            period=SignPeriod(
+                period_id=9, name="周期甲", over_days=7, start_date=0, end_date=0
+            ),
             role_info=SignRoleInfo(role_id="101", role_name="角色甲", level=60),
         )
 
@@ -271,7 +311,9 @@ class FakeCheckinTransport:
         self.calls.append("get_task_process")
         return TaskProcess(
             daily_tasks=(
-                CommunityTask(mark_name="bbs_sign", remark="签到", complete_times=0, times=1),
+                CommunityTask(
+                    mark_name="bbs_sign", remark="签到", complete_times=0, times=1
+                ),
             ),
         )
 
@@ -447,7 +489,9 @@ async def _dispatch(command_id: str, services: dict[str, object]) -> list:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("command_id", sorted(WRITE_COMMANDS))
-async def test_every_write_command_dispatches_offline(tmp_path, command_id: str) -> None:
+async def test_every_write_command_dispatches_offline(
+    tmp_path, command_id: str
+) -> None:
     """每条写入型命令都能在 fake transport + 隔离 SQLite + 模拟事件下离线出结果。"""
 
     db = await _database(tmp_path)
@@ -479,8 +523,11 @@ async def test_sign_write_touches_only_injected_transport(tmp_path) -> None:
         service = cast(CheckinService, services["checkin_service"])
         transport = cast(FakeCheckinTransport, service.transport)
         assert len(result) == 1
-        assert {"get_sign_calendar", "game_sign", "get_task_process", "bbs_sign"} <= set(
-            transport.calls
-        )
+        assert {
+            "get_sign_calendar",
+            "game_sign",
+            "get_task_process",
+            "bbs_sign",
+        } <= set(transport.calls)
     finally:
         await db.dispose()

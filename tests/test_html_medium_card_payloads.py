@@ -61,7 +61,9 @@ def test_calendar_payload_preserves_long_title_and_date_state() -> None:
 @pytest.mark.asyncio
 async def test_calendar_banner_matches_legacy_rgba_mask_composition() -> None:
     data_uri = await _load_banner(2580)
-    actual = Image.open(BytesIO(base64.b64decode(data_uri.split(",", 1)[1]))).convert("RGBA")
+    actual = Image.open(BytesIO(base64.b64decode(data_uri.split(",", 1)[1]))).convert(
+        "RGBA"
+    )
 
     expected = _calendar_background(2580).crop((0, 150, 1200, 750))
     with Image.open(TEXT_PATH / "banner_bg.webp") as opened:
@@ -91,7 +93,9 @@ async def test_profile_header_preserves_default_avatar_fallback_and_context(
 
     monkeypatch.setattr(profile_payloads, "get_event_avatar", fail_event_avatar)
     monkeypatch.setattr(profile_payloads, "get_avatar_img", fake_avatar)
-    monkeypatch.setattr(profile_payloads, "pil_image_data_uri", lambda _: "data:image/png;base64,AA==")
+    monkeypatch.setattr(
+        profile_payloads, "pil_image_data_uri", lambda _: "data:image/png;base64,AA=="
+    )
     ctx = EventContext(user_id="sender", at="original")
 
     payload = await profile_payloads.build_profile_header(

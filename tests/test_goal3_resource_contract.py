@@ -23,8 +23,12 @@ def _default_resource_root() -> Path:
     return Path(__file__).resolve().parents[5] / "astrbot_plugin_dna_resources"
 
 
-_DEFAULT_RESOURCE_ROOT = _default_resource_root()
-RESOURCE_ROOT = Path(os.environ.get("DNA_RESOURCE_REPO", _DEFAULT_RESOURCE_ROOT))
+_CONFIGURED_RESOURCE_ROOT = os.environ.get("DNA_RESOURCE_REPO")
+RESOURCE_ROOT = (
+    Path(_CONFIGURED_RESOURCE_ROOT)
+    if _CONFIGURED_RESOURCE_ROOT
+    else _default_resource_root()
+)
 LEGACY_FIXTURE = Path(__file__).parent / "fixtures" / "goal3_legacy_dna_codes.json"
 ALLOWED_PLATFORMS = {"pc", "android", "ios"}
 ALLOWED_SERVERS = {"cn", "global"}
@@ -172,7 +176,9 @@ def test_semantic_contract_rejects_duplicate_codes_and_reversed_dates() -> None:
         "expires_at": "2026-08-01T00:00:00+08:00",
     }
 
-    errors = _semantic_errors([duplicate, duplicate_with_other_metadata, reversed_dates])
+    errors = _semantic_errors(
+        [duplicate, duplicate_with_other_metadata, reversed_dates]
+    )
     assert "duplicate code: SAME" in errors
     assert "data[2] valid_from must be before expires_at" in errors
 
@@ -185,9 +191,11 @@ def test_migrated_data_matches_the_public_legacy_end_at_snapshot() -> None:
     assert legacy["code"] == 0
     assert [item["code"] for item in legacy["data"]] == list(migrated_by_code)
     for old_entry in legacy["data"]:
-        expected_expiry = datetime.fromtimestamp(
-            old_entry["end_at"], timezone.utc
-        ).astimezone(ZoneInfo("Asia/Shanghai")).isoformat()
+        expected_expiry = (
+            datetime.fromtimestamp(old_entry["end_at"], timezone.utc)
+            .astimezone(ZoneInfo("Asia/Shanghai"))
+            .isoformat()
+        )
         migrated_entry = migrated_by_code[old_entry["code"]]
         assert migrated_entry == {
             "code": old_entry["code"],

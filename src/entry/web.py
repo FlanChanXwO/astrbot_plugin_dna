@@ -33,9 +33,12 @@ class WebRegistrar:
         self,
         context: Context,
         routes: Iterable[WebRoute] = (),
+        *,
+        plugin_name: str = "astrbot_plugin_dnaby",
     ) -> None:
         self._context = context
         self._routes = tuple(routes)
+        self._plugin_name = plugin_name
         self._registered = False
 
     @property
@@ -75,16 +78,33 @@ class WebRegistrar:
         ]
 
     async def initialize(self) -> None:
-        """将路由交给 AstrBot；注册失败时保留异常并不伪造成功。"""
+        """将路由交给 AstrBot；失败时回滚本次已注册的路由。"""
 
         if self._registered:
             return
 
-        for route in self._routes:
-            self._context.register_web_api(
-                route.path,
-                route.handler,
-                list(route.methods),
-                route.description,
-            )
+        registered_web_apis = self._registry(self._context)
+        previous_registry = (
+            list(registered_web_apis) if registered_web_apis is not None else None
+        )
+        try:
+            for route in self._routes:
+                self._context.register_web_api(
+                    route.path,
+                    route.handler,
+                    list(route.methods),
+                    route.description,
+                )
+        except BaseException:
+            if registered_web_apis is not None and previous_registry is not None:
+                registered_web_apis[:] = previous_registry
+            raise
         self._registered = True
+
+    async def stop(self) -> None:
+        """撤销本实例注册的路由，并允许同一 runtime 再次初始化。"""
+
+        if not self._registered:
+            return
+        self.unregister_plugin_routes(self._context, self._plugin_name)
+        self._registered = False

@@ -43,5 +43,8 @@ def test_loader_workflow_is_pr_only_read_only_and_stable_master_matrix() -> None
     assert "git ls-remote --tags --refs" in text
     assert "select_latest_stable_version" in text
     assert "scripts/ci/check_astrbot_plugin_load.py" in text
-    assert 'ASTRBOT_VERSION: "${{ matrix.source }}:${{ steps.astrbot-ref.outputs.ref }}"' in text
+    assert (
+        'ASTRBOT_VERSION: "${{ matrix.source }}:${{ steps.astrbot-ref.outputs.ref }}"'
+        in text
+    )
     assert re.search(r"ASTRBOT_ROOT:.*matrix\.source", text)

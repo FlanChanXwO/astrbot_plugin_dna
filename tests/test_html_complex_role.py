@@ -78,7 +78,9 @@ def test_damage_payload_keeps_attributes_weapons_and_derived_skills() -> None:
             SkillResult(
                 id=1,
                 name="主技能",
-                normalSkillAttributes=[SkillAttribute(key="倍率", value="100%", environmentValue="120%")],
+                normalSkillAttributes=[
+                    SkillAttribute(key="倍率", value="100%", environmentValue="120%")
+                ],
             ),
             SkillResult(
                 id=2,
@@ -105,11 +107,15 @@ def test_damage_payload_keeps_attributes_weapons_and_derived_skills() -> None:
 
 
 @pytest.mark.asyncio
-async def test_weapon_and_role_mode_payloads_inline_all_assets(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_weapon_and_role_mode_payloads_inline_all_assets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def fake_weapon(*_: object) -> Image.Image:
         return Image.new("RGBA", (2, 2), "red")
 
-    monkeypatch.setattr("src.infrastructure.rendering.weapon_renderer.get_weapon_img", fake_weapon)
+    monkeypatch.setattr(
+        "src.infrastructure.rendering.weapon_renderer.get_weapon_img", fake_weapon
+    )
     weapon = WeaponDetail(
         attribute=WeaponAttribute(atk=100, crd=0.2, cri=1.5, speed=1.0, trigger=0.3),
         currentVolume=0,
@@ -170,7 +176,13 @@ def test_role_detail_template_preserves_complete_text_and_escapes() -> None:
         "font": "data:font/ttf;base64,AA==",
         "footer_text": "DNAUID",
         "grades": [{"icon": data_uri, "index": 1, "unlocked": True}],
-        "header": {"avatar": data_uri, "name": "玩家", "uid": "1", "level": 60, "stats": []},
+        "header": {
+            "avatar": data_uri,
+            "name": "玩家",
+            "uid": "1",
+            "level": 60,
+            "stats": [],
+        },
         "hero": {"image": data_uri, "kind": "paint"},
         "role": {"grade": 1, "level": 80, "name": "角色<script>"},
         "role_modes": [],
@@ -196,7 +208,9 @@ async def test_role_overview_item_uses_legacy_grade_texture(
     async def fake_asset(*_: object, **__: object) -> Image.Image:
         return Image.new("RGBA", (256, 256), "red")
 
-    role_module = cast(Any, importlib.import_module("src.infrastructure.rendering.player"))
+    role_module = cast(
+        Any, importlib.import_module("src.infrastructure.rendering.player")
+    )
     monkeypatch.setattr(role_module, "get_avatar_img", fake_asset)
     monkeypatch.setattr(role_module, "get_attr_img", fake_asset)
     item = ItemTemp(
@@ -215,6 +229,7 @@ async def test_role_overview_item_uses_legacy_grade_texture(
     assert payload["type"] == "role"
     assert str(payload["grade"]).startswith("data:image/png;base64,")
 
+
 @pytest.mark.asyncio
 async def test_role_overview_item_omits_grade_when_zero_or_locked(
     monkeypatch: pytest.MonkeyPatch,
@@ -222,7 +237,9 @@ async def test_role_overview_item_omits_grade_when_zero_or_locked(
     async def fake_asset(*_: object, **__: object) -> Image.Image:
         return Image.new("RGBA", (256, 256), "red")
 
-    role_module = cast(Any, importlib.import_module("src.infrastructure.rendering.player"))
+    role_module = cast(
+        Any, importlib.import_module("src.infrastructure.rendering.player")
+    )
     monkeypatch.setattr(role_module, "get_avatar_img", fake_asset)
     monkeypatch.setattr(role_module, "get_attr_img", fake_asset)
 

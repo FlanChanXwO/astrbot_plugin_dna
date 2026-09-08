@@ -19,10 +19,19 @@ from src.entry.admin_web import AdminWebAdapter
 from src.modules.admin import AdminApiResponse
 
 
-def test_plugin_main_imports_from_astrbot_namespace() -> None:
+def test_plugin_main_imports_from_astrbot_namespace(tmp_path: Path) -> None:
     """AstrBot 的 data.plugins 命名空间不应依赖插件目录成为 cwd。"""
 
+    plugin_root = Path(__file__).parents[1].resolve()
     runtime_root = Path(__file__).parents[4]
+    runtime_package = runtime_root / "data" / "plugins" / "astrbot_plugin_dnaby"
+    if not runtime_package.is_dir() or runtime_package.resolve() != plugin_root:
+        # 隔离 worktree 不一定位于 AstrBot 的 data/plugins 层级，测试仍模拟该布局。
+        runtime_root = tmp_path
+        runtime_package = runtime_root / "data" / "plugins" / "astrbot_plugin_dnaby"
+        runtime_package.parent.mkdir(parents=True)
+        runtime_package.symlink_to(plugin_root, target_is_directory=True)
+
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
 
@@ -90,7 +99,9 @@ def test_plugin_page_wraps_petite_vue_else_fragment_in_an_element() -> None:
 def test_confirmation_overlay_stacks_above_drawer_overlay() -> None:
     """编辑抽屉打开确认框时，确认层必须接收真实点击。"""
 
-    stylesheet = Path(__file__).parents[1] / "pages" / "dashboard" / "css" / "dashboard.css"
+    stylesheet = (
+        Path(__file__).parents[1] / "pages" / "dashboard" / "css" / "dashboard.css"
+    )
     source = stylesheet.read_text(encoding="utf-8")
 
     assert re.search(

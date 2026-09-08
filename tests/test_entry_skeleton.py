@@ -51,7 +51,7 @@ async def test_plugin_can_initialize_and_terminate_with_admin_web_registrations(
 
     monkeypatch.setattr(ResourceSnapshotCoordinator, "synchronize", fake_synchronize)
     context = FakeContext()
-    plugin = DnabyPlugin(context)
+    plugin = DnabyPlugin(context, {"login": {"port": 0}})
 
     assert isinstance(plugin, Star)
 
@@ -225,10 +225,10 @@ async def test_plugin_lifecycle_reports_cleanup_errors_after_start_failure():
 
     async def stop_one() -> None:
         calls.append("stop-one")
+        raise ValueError("stop-one failed")
 
     async def stop_two() -> None:
         calls.append("stop-two")
-        raise ValueError("stop-two failed")
 
     lifecycle = PluginLifecycle(
         start_hooks=(start_one, start_two),
@@ -242,7 +242,7 @@ async def test_plugin_lifecycle_reports_cleanup_errors_after_start_failure():
     assert lifecycle.started is False
     assert {str(error) for error in error_info.value.exceptions} == {
         "start-two failed",
-        "stop-two failed",
+        "stop-one failed",
     }
 
 

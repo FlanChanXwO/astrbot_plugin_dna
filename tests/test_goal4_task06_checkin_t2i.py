@@ -29,7 +29,9 @@ def _jpeg_bytes() -> bytes:
     return buffer.getvalue()
 
 
-def test_checkin_renderer_publishes_original_t2i_jpeg(monkeypatch, tmp_path: Path) -> None:
+def test_checkin_renderer_publishes_original_t2i_jpeg(
+    monkeypatch, tmp_path: Path
+) -> None:
     payload = _jpeg_bytes()
 
     async def fake_draw(*_args, **_kwargs) -> bytes:

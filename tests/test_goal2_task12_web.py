@@ -319,7 +319,7 @@ async def test_build_runtime_wires_admin_web_services_and_registers_once(
     monkeypatch.setattr(ResourceSnapshotCoordinator, "synchronize", fake_synchronize)
     runtime = build_runtime(
         context,
-        {},
+        {"login": {"port": 0}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
     )
 

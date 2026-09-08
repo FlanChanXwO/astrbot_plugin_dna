@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -47,8 +46,12 @@ def test_requested_command_surface_and_help_contract() -> None:
         "privacy_disable_uid_hidden_all",
         "privacy_cancel_uid_hidden_all",
     }
-    assert all(specs[command_id]["group"] == "隐私管理" for command_id in privacy_commands)
-    assert all(specs[command_id]["permission"] == "admin" for command_id in privacy_commands)
+    assert all(
+        specs[command_id]["group"] == "隐私管理" for command_id in privacy_commands
+    )
+    assert all(
+        specs[command_id]["permission"] == "admin" for command_id in privacy_commands
+    )
     assert specs["ann_sub"]["group"] == "公告管理"
     assert specs["ann_unsub"]["group"] == "公告管理"
     assert specs["ann_sub"]["permission"] == "admin"
@@ -74,7 +77,7 @@ def test_requested_command_surface_and_help_contract() -> None:
     assert "绑定UID" not in _help_names(help_data, "账号管理")
     assert "token登录" in _help_names(help_data, "账号管理")
     assert _help_names(help_data, "公告管理") == ["订阅公告", "取消订阅公告"]
-    assert _help_names(help_data, "资源管理") == ["资源状态", "下载全部资源"]
+    assert _help_names(help_data, "资源管理") == ["资源状态", "同步资源"]
 
     order_source = (PROJECT_ROOT / "src/entry/commands/__init__.py").read_text(
         encoding="utf-8",

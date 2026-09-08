@@ -9,7 +9,7 @@
 
 ## Agent Tools 热重载
 
-Agent Tools 只由 `agent_tools.enabled` 控制。启用后由插件生命周期在初始化时注册、终止时
+Agent Tools 只由 `ai.agent_tools_enabled` 控制。启用后由插件生命周期在初始化时注册、终止时
 解除注册，不要在 Dashboard 或聊天命令中手工重复注册；关闭开关后应确认 Context 中没有
 DNABY 工具。若注销某个工具失败，生命周期会保留失败项，下一次终止或启动先重试残留并继续
 暴露错误，维护时应查看 AstrBot 日志中的工具名和错误类型，不要用重启容器掩盖问题。
@@ -29,7 +29,7 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
   目标投递状态。
 - `client_update_state.json`：客户端更新版本化基线、最近一次变化摘要和未完成的按目标投递事件；
   事件成功或取消/停用清理后不保留完成历史，不保存凭据或原始响应。
-- `scheduler_state.json`：任务永久删除 tombstone。
+- `scheduler_state.json`：任务永久删除 tombstone、可恢复暂停状态和一次性迁移标记。
 - `alias_custom.json`、`weapon_alias_custom.json`：角色与武器自定义别名；`panel_custom/` 仅是
   已移除面板管理后的历史文件目录，插件不再读取。
 
@@ -54,10 +54,13 @@ test ! -d "$DATA_DIR/panel_custom" || cp -a -- "$DATA_DIR/panel_custom" "$BACKUP
 备份路径和校验结果，并在受控环境验证副本可读。不要把备份提交 Git、上传到 issue 或粘贴到
 聊天记录。
 
-客户端更新状态在待投递事件接线后使用 `schema_version: 2`，除基线和最近变化外还保存未完成的
-按目标事件；当前版本可读取仅含基线的 schema v1，并在下一次写入时升级。若回滚到只识别 v1 的旧
-代码，必须停写并恢复升级前备份的 `client_update_state.json`，否则旧代码会拒绝 v2；不要手工删除
-`pending_events` 或覆盖其他运行期状态来伪造回滚成功。
+客户端更新状态当前使用 `schema_version: 3`，key 为 `region:channel_id`；`cn:pc` 和 `cn:android`
+等 v1/v2 platform key 会在首次读取时映射为 `cn:pc_cn` 和 `cn:android_astc_cn`，并通过临时文件
+原子写回。迁移前原始字节保留为同目录的 `client_update_state.json.v2.bak`；该备份已存在且内容不
+一致时迁移会显式失败，不会覆盖备份或静默选择另一份状态。坏 JSON、非法结构、未知 channel 或写回
+失败都必须保留原状态并暴露错误。若回滚到只识别旧 schema 的代码，必须停写并同时恢复升级前的
+`client_update_state.json`（必要时也保留 `.v2.bak`），不得手工删除 `pending_events` 或覆盖其他运行期
+状态来伪造回滚成功。状态文件不应包含 token、cookie 或原始上游响应。
 
 ## 破坏性迁移与回滚
 
@@ -101,7 +104,8 @@ force push 或删除分支；应保留失败版本、备份和回滚记录，便
 `astrbot`。发布或回滚必须固定到可追溯的插件 SHA，并遵循以下边界：
 
 1. 先只读记录当前插件 `HEAD`、`git status --porcelain`、`metadata.yaml` 版本、资源
-   `resource_generations/current.json` 摘要、容器 running/restart count 和日志起点；不读取或输出凭据。
+   `resource_generations/current.json` 与 `last_sync.json` 摘要、容器 running/restart count 和日志起点；
+   不读取或输出凭据。
 2. 通过已认证 Dashboard GET 确认插件 ID 唯一、`activated=true` 且凭据有 `plugin` scope。未认证
    GET 的 `401/403` 只能说明认证保护存在，不能作为插件状态。
 3. 在 clean 的生产仓库中非破坏性 fetch 并验证目标 SHA；容器内用 `python -B` 做入口/registry/schema
@@ -113,8 +117,8 @@ force push 或删除分支；应保留失败版本、备份和回滚记录，便
    reload endpoint，再重复状态和最小 smoke。代码回滚不等于数据库回滚，破坏性 schema 必须按上文备份恢复。
 
 O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c0cbbbc59a8549c9`、
-`v0.2.0`、detached/clean；命令 registry 60 条；资源 generation/content SHA 与
-[资源说明](../usage/resources.md)一致；`agent_tools.enabled=false`；容器运行、restart count 为 0，
+`v0.2.0`、detached/clean；当时命令 registry 60 条；当前 registry 为 64 条；上述 60 条仅是 O24 当日快照。资源 generation/content SHA 与
+[资源说明](../usage/resources.md)一致；`ai.agent_tools_enabled=false`；容器运行、restart count 为 0，
 容器内 import/schema smoke 通过。O24 未调用 reload、未切换 SHA、未修改生产配置或运行期数据。
 
 ## 任务 tombstone 恢复边界
@@ -122,6 +126,11 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 `dnaby_sign_daily`、`dnaby_mh_push`、`dnaby_ann_poll` 可永久删除；
 `dnaby_sign_cleanup` 只能暂停/恢复，不能永久删除。永久删除会把任务 ID 原子写入
 `scheduler_state.json`，重启后隐藏并跳过该任务，管理 API 不提供恢复。
+
+旧配置 `sign_in.scheduled_enabled=false` 只在首次升级启动时迁移为
+`dnaby_sign_daily` 的暂停状态，并由 `migrations` 记录已完成迁移；管理员恢复任务后，
+后续重启只读取 registry 的正式状态，不会再被旧隐藏字段关闭。暂停状态仍可通过管理 API 恢复，
+不要手工删除 `paused_tasks` 或 `migrations` 字段。
 
 若误删且确有删除前备份，停止插件后仅能由部署者审核并恢复备份的
 `scheduler_state.json`，再重启并核对任务；这属于运维回退，会覆盖该文件之后的 tombstone 变更，
@@ -158,7 +167,12 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 和 `panel_custom/` 可恢复。资源更新
 本身只在 `resources/` 使用 Git 增量缓存，并在 `resource_generations/<commit-sha>/` 生成已验证
 快照；快照保存完整文件树 SHA-256，`resource_generations/current.json` 同时保存 commit 和摘要。
-启动预热不阻塞插件初始化，管理员下载会等待同一同步任务；终止时会排空该任务。没有摘要的旧
+插件启动不执行资源预热或自动同步；构造阶段不执行完整校验，已有 current generation 会在异步 `initialize()`
+生命周期的工作线程中校验，成功后才暴露给业务；校验失败时插件仍保留资源状态和同步修复入口。current 不可用或
+正在重验时，业务只使用显式空资源视图，不会直接消费 `resources/` Git checkout。
+管理员下载会等待同一显式同步任务；同 commit 修复不会设置固定超时，而是在同步 worker 中等待活跃 generation
+lease 释放后才替换物理目录，等待期间新业务请求保持空资源视图，
+生命周期不注册资源 worker，但 terminate 会先禁止新的同步并排空正在运行的资源 Git/to_thread 任务。没有摘要的旧
 指针会在校验后补写；启动或下载过程不会删除/迁移面板图、数据库、订阅、公告或客户端更新状态。
 
 ### 共享下载器旧缓存的一次性清理
@@ -186,7 +200,7 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 
 对错误资源在资源仓库创建 `git revert` PR，等待 Check 通过后合并；不 force-push、不删除坏
 commit、不把镜像内容直接提升为发布源。插件候选校验失败时继续提供上一份已验证 generation，
-成功回滚后再执行 admin `下载全部资源`。
+成功回滚后再执行 admin `同步资源`。
 
 ### 编辑器 Worker
 

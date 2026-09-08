@@ -103,7 +103,9 @@ class CountingRenderer:
 
     async def render_detail(self, role_detail, *_args, **kwargs):
         self.detail_calls += 1
-        self.last_detail_damage = _args[1] if len(_args) > 1 else kwargs.get("damage_calc")
+        self.last_detail_damage = (
+            _args[1] if len(_args) > 1 else kwargs.get("damage_calc")
+        )
         return self._write("detail", role_detail.char_name)
 
 
@@ -184,7 +186,9 @@ async def test_overview_fresh_cache_reuses_data_and_card(tmp_path: Path) -> None
 
 
 @pytest.mark.asyncio
-async def test_overview_expired_data_refreshes_and_replaces_card(tmp_path: Path) -> None:
+async def test_overview_expired_data_refreshes_and_replaces_card(
+    tmp_path: Path,
+) -> None:
     clock = MutableClock()
     database, transport, renderer, _cache, service = await _service(
         tmp_path,
@@ -193,7 +197,9 @@ async def test_overview_expired_data_refreshes_and_replaces_card(tmp_path: Path)
     )
     try:
         await service.role_overview(_request())
-        transport.overview = transport.overview.model_copy(update={"role_name": "刷新后的玩家"})
+        transport.overview = transport.overview.model_copy(
+            update={"role_name": "刷新后的玩家"}
+        )
         clock.value += timedelta(hours=1)
 
         response = await service.role_overview(_request())
@@ -208,7 +214,9 @@ async def test_overview_expired_data_refreshes_and_replaces_card(tmp_path: Path)
 
 
 @pytest.mark.asyncio
-async def test_overview_expired_refresh_failure_does_not_return_old_card(tmp_path: Path) -> None:
+async def test_overview_expired_refresh_failure_does_not_return_old_card(
+    tmp_path: Path,
+) -> None:
     clock = MutableClock()
     database, transport, renderer, _cache, service = await _service(
         tmp_path,
@@ -273,7 +281,9 @@ async def test_detail_fresh_cache_reuses_full_bundle_and_card(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
-async def test_detail_expired_refresh_failure_does_not_return_old_card(tmp_path: Path) -> None:
+async def test_detail_expired_refresh_failure_does_not_return_old_card(
+    tmp_path: Path,
+) -> None:
     clock = MutableClock()
     database, transport, renderer, _cache, service = await _service(
         tmp_path,
@@ -352,11 +362,14 @@ async def test_cache_invalidate_matches_all_filters_without_touching_other_entri
         now=now,
     )
 
-    assert await manager.invalidate(
-        "player_card",
-        tags=("identity:a", "role:101"),
-        resource_version="v1",
-    ) == 1
+    assert (
+        await manager.invalidate(
+            "player_card",
+            tags=("identity:a", "role:101"),
+            resource_version="v1",
+        )
+        == 1
+    )
     assert (await manager.get("player_card", "a", now=now)).status == "miss"
     assert (await manager.get("player_card", "b", now=now)).status == "fresh"
     assert (await manager.get("player_card", "c", now=now)).status == "fresh"

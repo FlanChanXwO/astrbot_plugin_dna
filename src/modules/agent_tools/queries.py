@@ -169,7 +169,9 @@ async def player_overview_query(
     )
 
 
-async def player_role_detail_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
+async def player_role_detail_query(
+    service: Any, request: AgentQueryRequest
+) -> CommandResponse:
     """复用玩家角色详情 service。"""
 
     return await service.role_detail(_player_request(request))
@@ -188,11 +190,15 @@ async def weekly_report_query(
     )
 
 
-async def weekly_report_current_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
+async def weekly_report_current_query(
+    service: Any, request: AgentQueryRequest
+) -> CommandResponse:
     return await weekly_report_query(service, request, week_type=1)
 
 
-async def weekly_report_last_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
+async def weekly_report_last_query(
+    service: Any, request: AgentQueryRequest
+) -> CommandResponse:
     return await weekly_report_query(service, request, week_type=2)
 
 
@@ -212,8 +218,12 @@ async def codes_query(service: Any, request: AgentQueryRequest) -> CommandRespon
     return await service.codes(_encyclopedia_request(request))
 
 
-async def role_directory_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
-    directory_type = str(request.parameters.get("directory_type", "characters")).strip().lower()
+async def role_directory_query(
+    service: Any, request: AgentQueryRequest
+) -> CommandResponse:
+    directory_type = (
+        str(request.parameters.get("directory_type", "characters")).strip().lower()
+    )
     if directory_type not in {"characters", "weapons"}:
         raise ValueError("directory_type 只支持 characters 或 weapons")
     text = "武器列表" if directory_type == "weapons" else "角色列表"
@@ -228,15 +238,21 @@ async def mh_list_query(service: Any, request: AgentQueryRequest) -> CommandResp
     return await service.mh_list(_notice_request(request))
 
 
-async def mh_subscriptions_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
+async def mh_subscriptions_query(
+    service: Any, request: AgentQueryRequest
+) -> CommandResponse:
     return await service.mh_subscriptions(_notice_request(request))
 
 
-async def announcement_list_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
+async def announcement_list_query(
+    service: Any, request: AgentQueryRequest
+) -> CommandResponse:
     return await service.ann(_notice_request(request, parameters={}))
 
 
-async def announcement_detail_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
+async def announcement_detail_query(
+    service: Any, request: AgentQueryRequest
+) -> CommandResponse:
     index = str(request.parameters.get("index", "")).strip()
     if not index:
         raise ValueError("公告详情必须提供 index")
@@ -245,7 +261,9 @@ async def announcement_detail_query(service: Any, request: AgentQueryRequest) ->
     )
 
 
-async def sign_calendar_query(service: Any, request: AgentQueryRequest) -> CommandResponse:
+async def sign_calendar_query(
+    service: Any, request: AgentQueryRequest
+) -> CommandResponse:
     return await service.sign_calendar(_checkin_request(request))
 
 
@@ -280,6 +298,7 @@ def build_query_catalog(
             }
         )
     if encyclopedia_service is not None:
+
         async def query_stamina(request: AgentQueryRequest) -> CommandResponse:
             return await stamina_query(encyclopedia_service, request)
 

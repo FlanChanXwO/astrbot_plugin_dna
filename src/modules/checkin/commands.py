@@ -112,8 +112,7 @@ async def checkin_auto_sign_use_case(
         enabled=(
             bool(parameters["enabled"])
             if "enabled" in parameters
-            else request.command_id == "sign_auto_enable"
-            or "开启" in request.text
+            else request.command_id == "sign_auto_enable" or "开启" in request.text
         ),
     )
 

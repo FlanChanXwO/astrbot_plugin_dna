@@ -53,7 +53,6 @@ class SchedulableCheckin(Protocol):
     async def auto_sign_report(
         self,
         *,
-        enable_all_users: bool = False,
         group_ids: Collection[str] | None = None,
     ) -> AutoSignReport: ...
     async def clear_sign_records_before(self, record_date: date) -> int: ...
@@ -95,27 +94,27 @@ class SignScheduler:
         *,
         sign_time: str | tuple[int, int] = "00:05",
         cleanup_time: tuple[int, int] = (0, 5),
-        scheduled_enabled: bool = True,
-        enable_all_users: bool = False,
         sleep: SleepCallable = asyncio.sleep,
         now: NowCallable | None = None,
         push: PushCallable | None = None,
         registry: SchedulerRegistry | None = None,
+        sign_task_enabled: bool = True,
     ) -> None:
         self.checkin = checkin
         self.subscriptions = subscriptions
         self.sign_time = _parse_hhmm(sign_time)
         self.cleanup_time = _parse_hhmm(cleanup_time)
-        self.scheduled_enabled = scheduled_enabled
-        self.enable_all_users = enable_all_users
         self._sleep = sleep
         self._now = now if now is not None else lambda: datetime.now(TZ)
         self._push = push
         self.registry = registry or SchedulerRegistry()
         self._tasks: list[asyncio.Task] = []
         self._task_by_id: dict[str, asyncio.Task] = {}
+        # 旧 scheduled_enabled 只在首次启动时迁移为 registry 的暂停状态；
+        # 具体 UID 是否签到仍由 AccountBinding.auto_sign_enabled 决定。
+        self._legacy_scheduler_enabled = sign_task_enabled
         self._enabled_tasks = {
-            _SIGN_TASK_NAME: self.scheduled_enabled,
+            _SIGN_TASK_NAME: True,
             _CLEANUP_TASK_NAME: True,
         }
         self._task_specs: dict[
@@ -219,9 +218,16 @@ class SignScheduler:
         await self.registry.initialize()
         if self._started:
             return
-        # 定时签到由总开关控制；是否忽略每个 UID 的开关交给 CheckinService。
+        await self.registry.migrate_legacy_sign_scheduler(
+            enabled=self._legacy_scheduler_enabled,
+        )
+        # 签到任务始终存在；CheckinService 会按每个 UID 的个人开关筛选候选。
         for task_id, enabled in self._enabled_tasks.items():
-            if not enabled or await self.registry.is_deleted(task_id):
+            if (
+                not enabled
+                or await self.registry.is_deleted(task_id)
+                or await self.registry.is_paused(task_id)
+            ):
                 continue
             await self.registry.activate(task_id)
             self._create_task(task_id)
@@ -346,10 +352,7 @@ class SignScheduler:
             )
         except RuntimeError:
             # 订阅是通知设施；存储异常不能阻止本次核心签到执行。
-            await self.checkin.auto_sign_report(
-                enable_all_users=self.enable_all_users,
-                group_ids=frozenset(),
-            )
+            await self.checkin.auto_sign_report(group_ids=frozenset())
             raise
         target_group_ids = frozenset(
             subscription.group_id
@@ -357,7 +360,6 @@ class SignScheduler:
             if subscription.group_id
         )
         report = await self.checkin.auto_sign_report(
-            enable_all_users=self.enable_all_users,
             group_ids=target_group_ids,
         )
         global_payload = SignPushPayload(text=report.summary_text)

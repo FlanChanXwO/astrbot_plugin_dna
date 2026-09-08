@@ -20,8 +20,10 @@ ruff check .
 - `test_goal3_resource_generations.py` — Task 17/O08 的 `FETCH_HEAD` archive 候选、manifest 文件
   哈希、PIL 图片解码、完整内容摘要、原子 generation 发布、失败保留旧快照、并发 lease、renderer
   绑定与重启孤立物清理。
-- `test_resource_service.py`、`test_goal1_o08_resources.py` — 资源预热与管理员下载 single-flight、
-  终止排空和 bootstrap 生命周期注入。
+- `test_resource_service.py` — 显式资源下载 single-flight、失败可见性和同步任务异常观测。
+- `test_goal6_task25_resource_status_contract.py` — 资源状态五项 metadata、无 current/manifest
+  缺失或损坏、轻量读取禁用 Git/validator/PIL/hash，以及最近同步摘要的安全持久化和失败保留旧指针。
+- `test_goal1_o08_resources.py` — bootstrap 注入资源服务，且 terminate 会排空资源同步任务而不启动预热。
 - `test_goal1_o09_image_fetcher.py` — 图片下载的瞬态重试、`Retry-After`、非重试状态、PIL 完整
   校验、原子缓存、损坏缓存修复、single-flight、legacy 调用方复用和失败日志脱敏。
 - `test_goal1_d03_review.py` — O07–O09 的符号链接路径边界、取消后后台同步失败可观测性，以及
@@ -61,8 +63,9 @@ ruff check .
 - `test_checkin_commands.py` — 签到命令归属、正则、权限和生成 handler 的纯文本结果。
 - `test_checkin_transport.py` — legacy 签到 payload 映射、code 711/10000 语义和错误脱敏。
 - `test_subscription_store.py` — 订阅 JSON 持久化、type+会话去重、显式删除和损坏文件可见失败。
-- `test_scheduler.py` — 计划任务幂等 start/stop、定时任务门控只保留清理任务、自动签到推送订阅者和
-  2 天前记录清理。
+- `test_scheduler.py` — 计划任务幂等 start/stop、自动签到推送订阅者和 2 天前记录清理。
+- `test_goal6_review_scheduler_migration.py` — 旧 `scheduled_enabled` 一次性迁移为暂停状态、管理员恢复
+  后跨重启保持运行。
 - `test_write_contracts.py` — 写入型命令权限审计、每条写入命令离线分发契约和
   “只调用注入 transport”边界（离线验证 ≠ 真实行为已验证，见
   [offline-write-contracts](../porting/offline-write-contracts.md)）。

@@ -68,16 +68,19 @@ def _relative_markdown_links(text: str) -> list[str]:
 def test_latest_stable_version_ignores_prereleases_and_selects_highest_tag() -> None:
     module = _load_module(CI_SCRIPT, "goal5_loader_contracts")
 
-    assert module.select_latest_stable_version(
-        [
-            "v4.27.9",
-            "v4.27.10",
-            "v4.28.0-beta.1",
-            "v4.29.0-alpha.2",
-            "v4.30.0-rc.1",
-            "not-a-version",
-        ],
-    ) == "v4.27.10"
+    assert (
+        module.select_latest_stable_version(
+            [
+                "v4.27.9",
+                "v4.27.10",
+                "v4.28.0-beta.1",
+                "v4.29.0-alpha.2",
+                "v4.30.0-rc.1",
+                "not-a-version",
+            ],
+        )
+        == "v4.27.10"
+    )
 
 
 def test_latest_stable_version_fails_when_no_formal_release_exists() -> None:
@@ -97,15 +100,19 @@ def test_stage_plugin_copies_source_but_excludes_runtime_and_repository_data(
     astrbot_root = tmp_path / "astrbot-root"
 
     (plugin_dir / ".git").mkdir(parents=True)
-    (plugin_dir / ".git" / "config").write_text("credential=must-not-copy", encoding="utf-8")
+    (plugin_dir / ".git" / "config").write_text(
+        "credential=must-not-copy", encoding="utf-8"
+    )
     (plugin_dir / "data").mkdir()
     (plugin_dir / "data" / "dnaby.sqlite3").write_bytes(b"runtime database")
     (plugin_dir / "__pycache__").mkdir()
     (plugin_dir / "__pycache__" / "main.pyc").write_bytes(b"bytecode")
     (plugin_dir / ".env").write_text("TOKEN=secret", encoding="utf-8")
-    (plugin_dir / "cookies.json").write_text("{\"cookie\": \"secret\"}", encoding="utf-8")
+    (plugin_dir / "cookies.json").write_text('{"cookie": "secret"}', encoding="utf-8")
     (plugin_dir / "main.py").write_text("PLUGIN_SENTINEL = True\n", encoding="utf-8")
-    (plugin_dir / "metadata.yaml").write_text("name: astrbot_plugin_dnaby\n", encoding="utf-8")
+    (plugin_dir / "metadata.yaml").write_text(
+        "name: astrbot_plugin_dnaby\n", encoding="utf-8"
+    )
 
     staged = module.stage_plugin(
         plugin_dir=plugin_dir,
@@ -114,7 +121,9 @@ def test_stage_plugin_copies_source_but_excludes_runtime_and_repository_data(
     )
 
     assert staged == astrbot_root / "data" / "plugins" / "astrbot_plugin_dnaby"
-    assert (staged / "main.py").read_text(encoding="utf-8") == "PLUGIN_SENTINEL = True\n"
+    assert (staged / "main.py").read_text(
+        encoding="utf-8"
+    ) == "PLUGIN_SENTINEL = True\n"
     assert (staged / "metadata.yaml").is_file()
     assert not (staged / ".git").exists()
     assert not (staged / "data").exists()
@@ -190,7 +199,9 @@ def test_loader_failure_reports_phase_traceback_identity_and_cleans_root(
     assert not astrbot_root.exists()
 
 
-def test_changelog_parser_returns_only_requested_release_and_rejects_invalid_input() -> None:
+def test_changelog_parser_returns_only_requested_release_and_rejects_invalid_input() -> (
+    None
+):
     module = _load_module(RELEASE_NOTES_SCRIPT, "goal5_release_notes_contracts")
     changelog = """# 更新日志
 
@@ -225,7 +236,9 @@ def test_changelog_parser_returns_only_requested_release_and_rejects_invalid_inp
             module.parse_changelog(invalid, version="v0.2.0")
 
 
-def test_plugin_lifecycle_workflow_is_pr_only_read_only_and_uses_latest_stable() -> None:
+def test_plugin_lifecycle_workflow_is_pr_only_read_only_and_uses_latest_stable() -> (
+    None
+):
     text = _read_required_file(PLUGIN_LIFECYCLE_WORKFLOW)
     workflow = yaml.safe_load(text)
     assert isinstance(workflow, dict)
@@ -364,7 +377,9 @@ def test_public_ci_release_docs_have_no_rsshub_or_internal_private_residue() -> 
     assert not residue, f"公开治理/发布/用户文档仍有内部或敏感残留：{residue}"
 
 
-def test_changelog_version_matches_metadata_and_does_not_publish_porting_history() -> None:
+def test_changelog_version_matches_metadata_and_does_not_publish_porting_history() -> (
+    None
+):
     changelog = _read_required_file(CHANGELOG)
     metadata = yaml.safe_load(_read_required_file(METADATA))
     assert isinstance(metadata, dict)

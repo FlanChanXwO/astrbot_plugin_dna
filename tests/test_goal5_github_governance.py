@@ -48,11 +48,7 @@ def _trigger(workflow: dict) -> dict:
 
 
 def test_github_governance_file_set_is_complete_and_single_plugin_oriented() -> None:
-    actual = {
-        path.relative_to(GITHUB)
-        for path in GITHUB.rglob("*")
-        if path.is_file()
-    }
+    actual = {path.relative_to(GITHUB) for path in GITHUB.rglob("*") if path.is_file()}
     assert actual == EXPECTED_FILES
 
     public_text = "\n".join(
@@ -137,7 +133,9 @@ def test_auto_assign_and_release_drafter_keep_dnaby_automation_contract() -> Non
     }
 
 
-def test_pr_automation_uses_trusted_workflow_target_and_minimal_write_permissions() -> None:
+def test_pr_automation_uses_trusted_workflow_target_and_minimal_write_permissions() -> (
+    None
+):
     auto_assign = _load_yaml("workflows/auto-assign.yml")
     assert set(_trigger(auto_assign)) == {"pull_request_target"}
     assert set(_trigger(auto_assign)["pull_request_target"]["types"]) == {

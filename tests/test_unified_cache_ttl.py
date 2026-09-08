@@ -56,11 +56,10 @@ def test_legacy_cache_fields_are_discarded_but_refresh_send_card_is_preserved(
 
     assert settings.cache.ttl_hours == 24
     assert settings.cache.refresh_send_card is False
-    assert not set(config["cache"]) & {
-        "fresh_ttl_minutes",
-        "retention_ttl_hours",
-        "announcement_ttl_hours",
-    }
+    # 迁移不能回写调用方配置；废弃字段只在 canonical 快照中丢弃。
+    assert config["cache"]["fresh_ttl_minutes"] == 5
+    assert config["cache"]["retention_ttl_hours"] == 2
+    assert config["cache"]["announcement_ttl_hours"] == 3
     assert config["cache"]["refresh_send_card"] is False
     assert "丢弃已移除的缓存配置" in caplog.text
     for field in (
@@ -84,7 +83,9 @@ def test_cache_schema_exposes_ttl_and_refresh_send_card() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("cache_type", ["player_data", "player_card", "announcement", "mh"])
+@pytest.mark.parametrize(
+    "cache_type", ["player_data", "player_card", "announcement", "mh"]
+)
 async def test_positive_ttl_expiration_is_a_miss_for_every_cache_type(
     tmp_path: Path,
     cache_type: str,
@@ -92,8 +93,12 @@ async def test_positive_ttl_expiration_is_a_miss_for_every_cache_type(
     manager = CacheManager(tmp_path, CacheSettings(ttl_hours=1))
     await manager.put(cache_type, "same-key", b"payload", now=UTC_NOW)
 
-    fresh = await manager.get(cache_type, "same-key", now=UTC_NOW + timedelta(minutes=59))
-    expired = await manager.get(cache_type, "same-key", now=UTC_NOW + timedelta(hours=1))
+    fresh = await manager.get(
+        cache_type, "same-key", now=UTC_NOW + timedelta(minutes=59)
+    )
+    expired = await manager.get(
+        cache_type, "same-key", now=UTC_NOW + timedelta(hours=1)
+    )
 
     assert fresh.status == "fresh"
     assert fresh.entry is not None
@@ -103,7 +108,9 @@ async def test_positive_ttl_expiration_is_a_miss_for_every_cache_type(
 
 
 @pytest.mark.asyncio
-async def test_zero_ttl_validates_put_but_never_reads_or_writes_disk(tmp_path: Path) -> None:
+async def test_zero_ttl_validates_put_but_never_reads_or_writes_disk(
+    tmp_path: Path,
+) -> None:
     manager = CacheManager(tmp_path / "cache", CacheSettings(ttl_hours=0))
 
     metadata = await manager.put("player_data", "memory-only", b"payload")
@@ -139,7 +146,9 @@ async def test_zero_ttl_cleanup_removes_existing_unleased_entries_but_keeps_acti
 
 
 @pytest.mark.asyncio
-async def test_negative_ttl_is_permanent_for_get_cleanup_and_invalidate(tmp_path: Path) -> None:
+async def test_negative_ttl_is_permanent_for_get_cleanup_and_invalidate(
+    tmp_path: Path,
+) -> None:
     manager = CacheManager(tmp_path, CacheSettings(ttl_hours=-1))
     await manager.put("mh", "permanent", b"payload", now=UTC_NOW)
 
@@ -152,10 +161,16 @@ async def test_negative_ttl_is_permanent_for_get_cleanup_and_invalidate(tmp_path
     assert (await manager.get("mh", "permanent", now=UTC_NOW)).reason == "not_found"
 
 
-def test_runtime_keeps_rendered_cleanup_independent_from_content_ttl(tmp_path: Path) -> None:
+def test_runtime_keeps_rendered_cleanup_independent_from_content_ttl(
+    tmp_path: Path,
+) -> None:
     from src.bootstrap import build_runtime
 
-    for ttl_hours, expected_interval in ((0, 24 * 60 * 60), (-1, 24 * 60 * 60), (2, 2 * 60 * 60)):
+    for ttl_hours, expected_interval in (
+        (0, 24 * 60 * 60),
+        (-1, 24 * 60 * 60),
+        (2, 2 * 60 * 60),
+    ):
         runtime = build_runtime(
             SimpleNamespace(register_web_api=lambda *args: None),
             {"cache": {"ttl_hours": ttl_hours}},
@@ -168,7 +183,9 @@ def test_runtime_keeps_rendered_cleanup_independent_from_content_ttl(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_player_cache_disabled_fetches_and_renders_every_time(tmp_path: Path) -> None:
+async def test_player_cache_disabled_fetches_and_renders_every_time(
+    tmp_path: Path,
+) -> None:
     from tests.test_goal1_o10_player_cache import MutableClock
 
     clock = MutableClock()
@@ -189,7 +206,9 @@ async def test_player_cache_disabled_fetches_and_renders_every_time(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_manual_role_refresh_returns_notice_and_a_new_card(tmp_path: Path) -> None:
+async def test_manual_role_refresh_returns_notice_and_a_new_card(
+    tmp_path: Path,
+) -> None:
     from tests.test_goal1_o10_player_cache import MutableClock
 
     clock = MutableClock()
@@ -199,7 +218,9 @@ async def test_manual_role_refresh_returns_notice_and_a_new_card(tmp_path: Path)
         assert isinstance(response, ChainResponse)
         assert isinstance(response.components[0], PlainTextResponse)
         assert isinstance(response.components[1], ImageResponse)
-        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
+        assert response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(
+            name="角色甲"
+        )
         assert response.components[1].incomplete is False
     finally:
         await database.dispose()

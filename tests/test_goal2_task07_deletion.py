@@ -219,11 +219,32 @@ async def test_delete_user_requires_exact_confirmation_and_removes_global_scope(
             )
             is None
         )
-        assert await GroupPrivacySettingRepository.get(session, group_id="group-1") is not None
-        assert await AccountBindingRepository.get(session, user_id="user-2", uid="1002") is not None
-        assert await SignRecordRepository.get(session, uid="1001", record_date=date(2026, 8, 1)) is None
-        assert await SignRecordRepository.get(session, uid="1002", record_date=date(2026, 8, 1)) is None
-        assert await SignRecordRepository.get(session, uid="2001", record_date=date(2026, 8, 1)) is not None
+        assert (
+            await GroupPrivacySettingRepository.get(session, group_id="group-1")
+            is not None
+        )
+        assert (
+            await AccountBindingRepository.get(session, user_id="user-2", uid="1002")
+            is not None
+        )
+        assert (
+            await SignRecordRepository.get(
+                session, uid="1001", record_date=date(2026, 8, 1)
+            )
+            is None
+        )
+        assert (
+            await SignRecordRepository.get(
+                session, uid="1002", record_date=date(2026, 8, 1)
+            )
+            is None
+        )
+        assert (
+            await SignRecordRepository.get(
+                session, uid="2001", record_date=date(2026, 8, 1)
+            )
+            is not None
+        )
 
     remaining = await subscriptions.list_all()
     assert not any(
@@ -262,7 +283,9 @@ async def test_delete_uid_forces_shared_sign_history_but_preserves_user_scope(
     await _seed_database(database)
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     await _seed_subscriptions(subscriptions)
-    preview_response = await AdminAccountService(database).preview_delete_uid("user-1", "1002")
+    preview_response = await AdminAccountService(database).preview_delete_uid(
+        "user-1", "1002"
+    )
     assert preview_response.ok is True
     assert preview_response.data is not None
 
@@ -275,13 +298,35 @@ async def test_delete_uid_forces_shared_sign_history_but_preserves_user_scope(
     assert response.data is not None
     assert response.data.status == "completed"
     async with database.session() as session:
-        assert await AccountBindingRepository.get(session, user_id="user-1", uid="1002") is None
-        assert await CredentialRepository.get(session, user_id="user-1", uid="1002") is None
-        assert await AccountBindingRepository.get(session, user_id="user-1", uid="1001") is not None
+        assert (
+            await AccountBindingRepository.get(session, user_id="user-1", uid="1002")
+            is None
+        )
+        assert (
+            await CredentialRepository.get(session, user_id="user-1", uid="1002")
+            is None
+        )
+        assert (
+            await AccountBindingRepository.get(session, user_id="user-1", uid="1001")
+            is not None
+        )
         assert await PrivacySettingRepository.get(session, user_id="user-1") is not None
-        assert await SignRecordRepository.get(session, uid="1002", record_date=date(2026, 8, 1)) is None
-        assert await SignRecordRepository.get(session, uid="1001", record_date=date(2026, 8, 1)) is not None
-        assert await AccountBindingRepository.get(session, user_id="user-2", uid="1002") is not None
+        assert (
+            await SignRecordRepository.get(
+                session, uid="1002", record_date=date(2026, 8, 1)
+            )
+            is None
+        )
+        assert (
+            await SignRecordRepository.get(
+                session, uid="1001", record_date=date(2026, 8, 1)
+            )
+            is not None
+        )
+        assert (
+            await AccountBindingRepository.get(session, user_id="user-2", uid="1002")
+            is not None
+        )
 
     remaining = await subscriptions.list_all()
     assert any(
@@ -372,7 +417,10 @@ async def test_database_failure_rolls_back_and_does_not_touch_json(
     assert failed.data is not None
     assert failed.data.step("account_bindings").status == "failed"
     async with database.session() as session:
-        assert await AccountBindingRepository.get(session, user_id="user-1", uid="1001") is not None
+        assert (
+            await AccountBindingRepository.get(session, user_id="user-1", uid="1001")
+            is not None
+        )
     assert any(
         sub.user_id == "user-1" and sub.type == notices_messages.MH_SUBSCRIBE
         for sub in await subscriptions.list_all()

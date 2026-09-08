@@ -235,7 +235,10 @@ def test_coerce_result_validates_container_without_pillow_decode(
         raise AssertionError("常规 T2I 校验不应调用 Image.open")
 
     monkeypatch.setattr(Image, "open", fail_open)
-    assert renderer_module.HtmlRenderer._coerce_result(
-        payload,
-        RenderSpec(width=1, image_format="jpeg"),
-    ) == payload
+    assert (
+        renderer_module.HtmlRenderer._coerce_result(
+            payload,
+            RenderSpec(width=1, image_format="jpeg"),
+        )
+        == payload
+    )

@@ -45,7 +45,10 @@ _data = {
 
 
 MH_LIST = list(
-    dict.fromkeys(item["name"].split("/")[0] for item in _data["role"] + _data["weapon"] + _data["mzx"])
+    dict.fromkeys(
+        item["name"].split("/")[0]
+        for item in _data["role"] + _data["weapon"] + _data["mzx"]
+    )
 )
 
 

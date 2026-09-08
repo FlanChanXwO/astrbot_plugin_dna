@@ -108,11 +108,14 @@ async def test_global_repositories_share_identity_and_keep_users_isolated(databa
     assert other_user == []
 
     async with database.transaction() as session:
-        assert await AccountBindingRepository.set_active(
-            session,
-            user_id="user-1",
-            uid="1001",
-        ) is True
+        assert (
+            await AccountBindingRepository.set_active(
+                session,
+                user_id="user-1",
+                uid="1001",
+            )
+            is True
+        )
 
     async with database.session() as session:
         current = await AccountBindingRepository.current(

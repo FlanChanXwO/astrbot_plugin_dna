@@ -58,6 +58,7 @@ async def test_notices_scheduler_task_names_and_config() -> None:
     assert scheduler.push_time == (0, 0)
     assert scheduler.poll_minutes == 5
 
+
 @pytest.mark.asyncio
 async def test_notices_scheduler_respects_announcement_disabled() -> None:
     """关闭公告推送时只创建密函推送任务。"""

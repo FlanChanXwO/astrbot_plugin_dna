@@ -123,7 +123,9 @@ async def test_announcement_delivery_does_not_backfill_target_added_after_first_
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     legacy = AnnStateStore(tmp_path / "ann_state.json")
     await legacy.merge([1000, 1002])
-    await subscriptions.add(messages.ANN_SUBSCRIBE, provenance="chat_command", origin="platform:group:first")
+    await subscriptions.add(
+        messages.ANN_SUBSCRIBE, provenance="chat_command", origin="platform:group:first"
+    )
     failed = True
     pushed: list[str] = []
 
@@ -144,7 +146,9 @@ async def test_announcement_delivery_does_not_backfill_target_added_after_first_
     service.renderer = _AnnouncementRenderer(tmp_path / "rendered")
 
     assert await service.poll_ann_now() == 0
-    await subscriptions.add(messages.ANN_SUBSCRIBE, provenance="chat_command", origin="platform:group:late")
+    await subscriptions.add(
+        messages.ANN_SUBSCRIBE, provenance="chat_command", origin="platform:group:late"
+    )
     failed = False
 
     assert await service.poll_ann_now() == 1
@@ -160,7 +164,9 @@ async def test_announcement_detail_failure_skips_round_and_retries_without_title
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     legacy = AnnStateStore(tmp_path / "ann_state.json")
     await legacy.merge([1000, 1002])
-    await subscriptions.add(messages.ANN_SUBSCRIBE, provenance="chat_command", origin="platform:group:g1")
+    await subscriptions.add(
+        messages.ANN_SUBSCRIBE, provenance="chat_command", origin="platform:group:g1"
+    )
     transport = _AnnouncementTransport(detail_error=RuntimeError("bad detail"))
     pushed: list[object] = []
 
@@ -440,7 +446,9 @@ async def test_login_start_logs_and_errors_do_not_include_auth_or_response_body(
 
     logs: list[str] = []
     monkeypatch.setattr(transport_module.httpx, "AsyncClient", Client)
-    monkeypatch.setattr(transport_module.logger, "debug", lambda message: logs.append(message))
+    monkeypatch.setattr(
+        transport_module.logger, "debug", lambda message: logs.append(message)
+    )
     await transport_module._Base("https://login.example").start(
         auth="secret-auth",
         user_id="user-1",

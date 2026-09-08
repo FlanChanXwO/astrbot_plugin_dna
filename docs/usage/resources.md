@@ -12,6 +12,9 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 - `resources/`：公共资源的 Git 同步缓存。
 - `resource_generations/<commit-sha>/`：通过完整校验后发布的只读资源快照。
 - `resource_generations/current.json`：指向当前资源快照的指针。
+- `resource_generations/validation.json`：当前 generation 最近一次完整校验失败的错误类型摘要。
+- `resource_generations/last_sync.json`：最近一次同步的安全摘要；只保存动作、版本、
+  commit SHA 或错误类型，不保存仓库路径、凭据或异常原文。
 - `rendered/`：玩家、图鉴和通知响应生成的临时图片。
 - `cache/`：玩家数据、公告和已校验图片的运行期缓存。
 
@@ -32,8 +35,11 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 }
 ```
 
-插件会检查 required directories 是否存在，并拒绝相对路径逃逸资源仓库根目录的声明。manifest
-中的文件摘要如果存在，也会逐项校验；校验失败时不会替换当前可用快照。
+显式同步时会检查 required directories 是否存在，并拒绝相对路径逃逸资源仓库根目录的声明。manifest
+中的文件摘要如果存在，也会逐项校验；校验失败时不会替换当前可用快照。插件启动不会执行 Git
+同步；构造阶段不执行完整 validator，已有 current generation 会在异步 `initialize()` 生命周期中移入工作线程
+完成校验，成功后才交给业务读取。损坏的快照不会作为可用资源暴露，插件仍会继续启动，并通过资源状态命令保留
+校验失败类型，供管理员执行同步资源修复。
 
 ## 资源内容
 
@@ -49,16 +55,22 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 - `weekly_item/`、`calendar/`：周报和活动日历索引。
 - `data/redeem_codes.json`：兑换码清单，命令只展示当前有效条目。
 
-资源根目录尚未准备好时，插件仍可以启动；需要图片的命令会返回 `placeholder` 或 `fallback`
-状态，图鉴和攻略命令会提示资源未找到。资源根目录存在但 manifest 不完整时，会明确报告
-同步错误，便于管理员修复资源。
+资源根目录尚未准备好时，插件仍可以启动；需要图片的命令只会使用显式的空资源视图，返回
+`placeholder` 或 `fallback` 状态，图鉴和攻略命令会提示资源未找到。插件不会把 `resources/`
+Git checkout 当作未经验证的业务资源源。资源根目录存在但 manifest 不完整时，会明确报告同步错误，
+便于管理员修复资源。
 
 ## 同步资源
 
 管理员可以使用以下命令：
 
 - `资源状态`：查看资源仓库、manifest、当前 generation 和最近一次同步状态。
-- `下载全部资源`：从规范仓库的 `main` 分支获取候选版本，完成校验后再发布新的资源快照。
+- `同步资源`：从规范仓库的 `main` 分支获取候选版本，完成校验后再发布新的资源快照。
+
+`资源状态` 输出固定的 `repository path`、`generation id`、`active pointer`、
+`resource_version` 和 `last sync result`。它只读取 pointer、generation metadata、manifest
+和最近同步摘要，不触发 Git fetch、完整 validator、PIL 解码或完整 SHA-256；同步失败时
+只记录安全错误类型并保留旧 generation。
 
 同步时会检查仓库来源、分支、目录布局、文件摘要、图片是否可解码以及资源索引。Git 不可用、
 网络或 HTTP 状态异常、仓库状态不干净、候选版本不完整或校验失败时，命令会返回明确错误，并
@@ -68,15 +80,23 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 `gh_proxy`、`dpik` 或 `custom`。使用 `custom` 时，只填写不含凭据、查询参数和片段的 HTTP(S)
 基础地址。加速地址只改变传输路径，不改变仓库、分支或校验规则。
 
-首次同步可能需要一段时间。插件启动时会在后台准备资源，不会把未完成的同步当作成功；管理员
-执行下载命令时会先收到“开始同步公共资源”的提示，命令随后等待当前同步完成并发送最终结果；
-重复触发不会并发启动多次同步。
+首次同步可能需要一段时间。插件不会在启动时后台预热或自动同步资源；管理员命令会等待当前同步
+完成，重复触发不会并发启动多次同步。远端 commit 与当前已校验可用的 generation 相同时，命令会快速返回
+“资源已是最新”；若同 commit 的 current generation 已损坏，则会重新物化并校验候选快照。修复同 commit
+的物理目录前会阻止新的 generation lease，并等待已有 lease 释放；等待期间业务继续使用空资源视图，
+不会替换仍被读取的目录。
+管理员执行同步命令时会先收到“开始同步公共资源”的提示，命令随后等待当前同步完成并发送最终结果。
 
 ## 资源更新与缓存
 
 资源更新成功后，新请求使用新的 generation；正在生成的图片会继续使用开始读取时的资源版本，
-旧 generation 会在没有活动读取后回收。重启时只恢复 current 指针指向的已校验快照，并清理资源
-同步产生的临时文件。
+旧 generation 会在没有活动读取后回收。重启时会读取 current 指针指向的 generation metadata，并在暴露资源前
+完成完整校验；校验失败时不会阻断插件构造，管理员可用资源状态查看错误类型并通过同步资源重建同一远端 commit
+的 generation。在 current 不可用或完整重验期间，业务请求不会回退到 `resources/` Git checkout，
+而是得到空资源视图；资源状态和同步修复入口仍然可用。同 commit 修复会在旧 lease 全部释放后才替换
+相同的物理目录，避免已有读取继续跟随路径读到新内容。资源状态命令仍只读取轻量 metadata，不触发 Git、
+完整 validator 或图片解码。同步物化阶段会
+清理 candidate/archive 临时文件。
 
 兑换码从 `data/redeem_codes.json` 读取，只有当前有效条目会由 `兑换码` 命令展示。玩家数据、玩家卡片、
 公告列表/详情/源图和密函快照等 `CacheManager` 内容缓存共用 `cache.ttl_hours`：`-1` 表示永久
@@ -101,7 +121,7 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 
 1. 先执行 `资源状态`，确认当前 generation 和错误类别。
 2. 检查 `resources.github_acceleration` 与网络连接；使用自定义加速时确认地址格式正确。
-3. 修复后执行 `下载全部资源`，确认新的 generation 已完成校验。
+3. 修复后执行 `同步资源`，确认新的 generation 已完成校验。
 4. 若同步仍失败，保留现有资源并查看 AstrBot 日志，不要手工修改资源仓库来源。
 
 资源反馈请附上资源版本、manifest 错误类别和已脱敏日志，不要上传账号数据或整个插件数据目录。

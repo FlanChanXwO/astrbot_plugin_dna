@@ -14,7 +14,9 @@ def environment() -> Environment:
     )
 
 
-def test_medium_card_templates_keep_dynamic_content_and_escape(environment: Environment) -> None:
+def test_medium_card_templates_keep_dynamic_content_and_escape(
+    environment: Environment,
+) -> None:
     """中等卡片模板应保留空数据、长文本和动态条目，不拼接不可信 HTML。"""
 
     base = {
@@ -30,7 +32,9 @@ def test_medium_card_templates_keep_dynamic_content_and_escape(environment: Envi
         },
     }
     rendered = {
-        "cards/mh_simple.html.j2": environment.get_template("cards/mh_simple.html.j2").render(
+        "cards/mh_simple.html.j2": environment.get_template(
+            "cards/mh_simple.html.j2"
+        ).render(
             **base,
             width=1040,
             entries=[
@@ -42,7 +46,9 @@ def test_medium_card_templates_keep_dynamic_content_and_escape(environment: Envi
             ],
             refresh_text="59分钟59秒后刷新",
         ),
-        "cards/mh_card.html.j2": environment.get_template("cards/mh_card.html.j2").render(
+        "cards/mh_card.html.j2": environment.get_template(
+            "cards/mh_card.html.j2"
+        ).render(
             **base,
             width=1700,
             height=900,
@@ -55,7 +61,9 @@ def test_medium_card_templates_keep_dynamic_content_and_escape(environment: Envi
             ],
             refresh_text="5分钟后刷新",
         ),
-        "cards/stamina.html.j2": environment.get_template("cards/stamina.html.j2").render(
+        "cards/stamina.html.j2": environment.get_template(
+            "cards/stamina.html.j2"
+        ).render(
             **base,
             width=2000,
             height=1100,
@@ -70,7 +78,9 @@ def test_medium_card_templates_keep_dynamic_content_and_escape(environment: Envi
             ],
             drafts=[],
         ),
-        "cards/calendar.html.j2": environment.get_template("cards/calendar.html.j2").render(
+        "cards/calendar.html.j2": environment.get_template(
+            "cards/calendar.html.j2"
+        ).render(
             **base,
             width=1200,
             banner="data:image/png;base64,AA==",
@@ -85,7 +95,9 @@ def test_medium_card_templates_keep_dynamic_content_and_escape(environment: Envi
                 }
             ],
         ),
-        "cards/sign_calendar.html.j2": environment.get_template("cards/sign_calendar.html.j2").render(
+        "cards/sign_calendar.html.j2": environment.get_template(
+            "cards/sign_calendar.html.j2"
+        ).render(
             **base,
             width=1300,
             achievements=[{"label": "皎皎积分", "value": "0"}],
@@ -100,7 +112,9 @@ def test_medium_card_templates_keep_dynamic_content_and_escape(environment: Envi
                 }
             ],
         ),
-        "cards/role_info.html.j2": environment.get_template("cards/role_info.html.j2").render(
+        "cards/role_info.html.j2": environment.get_template(
+            "cards/role_info.html.j2"
+        ).render(
             **base,
             width=1200,
             achievements=[{"label": "角色数量", "value": "0"}],
@@ -111,7 +125,9 @@ def test_medium_card_templates_keep_dynamic_content_and_escape(environment: Envi
                 }
             ],
         ),
-        "cards/weekly_report.html.j2": environment.get_template("cards/weekly_report.html.j2").render(
+        "cards/weekly_report.html.j2": environment.get_template(
+            "cards/weekly_report.html.j2"
+        ).render(
             **base,
             width=1200,
             height=820,
@@ -173,7 +189,13 @@ def test_stamina_template_keeps_all_drafts_and_legacy_upward_positions(
         drafts=drafts,
         font="data:font/woff2;base64,AA==",
         foreground="data:image/png;base64,AA==",
-        header={"avatar": "data:image/png;base64,AA==", "level": None, "name": "玩家", "stats": [], "uid": None},
+        header={
+            "avatar": "data:image/png;base64,AA==",
+            "level": None,
+            "name": "玩家",
+            "stats": [],
+            "uid": None,
+        },
         header_background="data:image/png;base64,AA==",
         height=1100,
         notes=[],

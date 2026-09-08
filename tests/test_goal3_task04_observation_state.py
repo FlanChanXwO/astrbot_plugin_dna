@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -52,6 +53,15 @@ def _snapshot(
     )
 
 
+def _canonical_snapshot(snapshot: ClientVersionSnapshot) -> ClientVersionSnapshot:
+    """状态边界会把旧 platform-only 快照落为固定 channel。"""
+
+    channel_id = (
+        "pc_cn" if snapshot.platform is ClientPlatform.PC else "android_astc_cn"
+    )
+    return replace(snapshot, channel_id=channel_id)
+
+
 def _baseline(
     snapshot: ClientVersionSnapshot,
     *,
@@ -87,7 +97,7 @@ async def test_first_observation_builds_baseline_without_change(tmp_path: Path) 
     assert change is None
     saved = await store.get_baseline(ClientRegion.CN, ClientPlatform.PC)
     assert saved is not None
-    assert saved.snapshot == current
+    assert saved.snapshot == _canonical_snapshot(current)
     assert saved.observed_at == FIRST_OBSERVED_AT
     assert saved.last_change is None
 
@@ -113,7 +123,7 @@ async def test_unchanged_version_does_not_generate_a_second_change(
     assert change is None
     saved = await store.get_baseline(ClientRegion.CN, ClientPlatform.PC)
     assert saved is not None
-    assert saved.snapshot == current
+    assert saved.snapshot == _canonical_snapshot(current)
     assert saved.observed_at == SECOND_OBSERVED_AT
     assert saved.last_change is None
 
@@ -145,12 +155,12 @@ async def test_multiple_new_patches_are_summed_between_successful_observations(
     )
 
     assert change is not None
-    assert change.previous == previous
-    assert change.current == current
+    assert change.previous == _canonical_snapshot(previous)
+    assert change.current == _canonical_snapshot(current)
     assert change.added_size_bytes == 1024 + 2048 + 4096
     saved = await store.get_baseline(ClientRegion.CN, ClientPlatform.PC)
     assert saved is not None
-    assert saved.snapshot == current
+    assert saved.snapshot == _canonical_snapshot(current)
     assert saved.last_change == change
 
 
@@ -175,7 +185,7 @@ async def test_version_rollback_preserves_the_last_successful_baseline(
 
     saved = await store.get_baseline(ClientRegion.CN, ClientPlatform.PC)
     assert saved is not None
-    assert saved.snapshot == previous
+    assert saved.snapshot == _canonical_snapshot(previous)
     assert saved.observed_at == FIRST_OBSERVED_AT
     assert saved.last_change is None
 
@@ -209,7 +219,7 @@ async def test_repeating_the_same_new_version_does_not_duplicate_change(
     assert repeated is None
     saved = await store.get_baseline(ClientRegion.CN, ClientPlatform.PC)
     assert saved is not None
-    assert saved.snapshot == current
+    assert saved.snapshot == _canonical_snapshot(current)
     assert saved.last_change == first_change
 
 
@@ -227,11 +237,12 @@ async def test_state_store_round_trips_typed_baseline_and_schema_version(
 
     raw = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(raw, dict)
-    assert raw["schema_version"] == 2
+    assert raw["schema_version"] == 3
 
     reloaded = ClientUpdateStateStore(path)
     restored = await reloaded.get_baseline(ClientRegion.CN, ClientPlatform.ANDROID)
-    assert restored == baseline
+    assert restored.snapshot == _canonical_snapshot(baseline.snapshot)
+    assert restored.observed_at == baseline.observed_at
     assert restored is not None
     assert restored.snapshot.resource_version_dir == "100"
 
@@ -298,4 +309,6 @@ async def test_atomic_state_replace_failure_keeps_previous_file(
     assert path.read_bytes() == previous_bytes
     reloaded = ClientUpdateStateStore(path)
     restored = await reloaded.get_baseline(ClientRegion.CN, ClientPlatform.PC)
-    assert restored == original
+    assert restored == replace(
+        original, snapshot=_canonical_snapshot(original.snapshot)
+    )

@@ -58,6 +58,15 @@ def _git_bytes(*args: str, cwd: Path | None = None) -> bytes:
 
 
 def _resource_repo_root() -> Path:
+    configured = os.environ.get("DNA_RESOURCE_REPO")
+    if configured:
+        candidate = Path(configured).expanduser()
+        if (candidate / "resource_manifest.json").is_file():
+            return candidate
+        raise AssertionError(
+            f"DNA_RESOURCE_REPO 不是有效的 astrbot_plugin_dna_resources checkout: {candidate}"
+        )
+
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "astrbot_plugin_dna_resources"
         if (candidate / "resource_manifest.json").is_file():
@@ -157,6 +166,15 @@ class LocalBareRunner:
 
 
 def _editor_root() -> Path:
+    configured = os.environ.get("DNA_RESOURCE_EDITOR")
+    if configured:
+        candidate = Path(configured).expanduser()
+        if (candidate / "package.json").is_file():
+            return candidate
+        raise AssertionError(
+            f"DNA_RESOURCE_EDITOR 不是有效的 dna-resource-editor checkout: {candidate}"
+        )
+
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "dna-resource-editor"
         if (candidate / "package.json").is_file():
@@ -206,7 +224,9 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, dict[str, object], LocalBareRu
     _git("checkout", "main", cwd=source)
     _git("checkout", "-b", "candidate-editor-code", cwd=source)
     (source / "worker").mkdir()
-    (source / "worker" / "index.ts").write_text("export const not_a_resource = true;\n", encoding="utf-8")
+    (source / "worker" / "index.ts").write_text(
+        "export const not_a_resource = true;\n", encoding="utf-8"
+    )
     editor_sha = _commit(source, "editor code must stay out of resources")
     _git("push", "fixture", "HEAD:candidate-editor-code", cwd=source)
     _git("checkout", "main", cwd=source)
@@ -281,9 +301,12 @@ def test_worker_check_and_plugin_generation_consume_one_contract_snapshot(
 
     assert snapshot is not None
     assert result.commit_sha == fixture["legal"]["headSha"]
-    assert result.resource_version == json.loads(
-        (snapshot.root / "resource_manifest.json").read_text(encoding="utf-8"),
-    )["resource_version"]
+    assert (
+        result.resource_version
+        == json.loads(
+            (snapshot.root / "resource_manifest.json").read_text(encoding="utf-8"),
+        )["resource_version"]
+    )
     assert snapshot.root == generations_root / result.commit_sha
     assert not (snapshot.root / "worker").exists()
     assert not (cache_root / "worker").exists()
@@ -291,7 +314,10 @@ def test_worker_check_and_plugin_generation_consume_one_contract_snapshot(
         path.name.startswith((".candidate-", ".archive-"))
         for path in generations_root.iterdir()
     )
-    assert _git("remote", "get-url", "origin", cwd=cache_root).strip() == DEFAULT_RESOURCE_REMOTE
+    assert (
+        _git("remote", "get-url", "origin", cwd=cache_root).strip()
+        == DEFAULT_RESOURCE_REMOTE
+    )
     assert _git("branch", "--show-current", cwd=cache_root).strip() == "main"
     assert _git(
         "for-each-ref",
@@ -301,7 +327,9 @@ def test_worker_check_and_plugin_generation_consume_one_contract_snapshot(
     ).splitlines() == ["origin/main"]
     assert (panel_custom / "keep.webp").read_bytes() == b"custom-panel"
     assert (data_dir / "dnaby.sqlite3").read_bytes() == b"legacy-database"
-    assert (data_dir / "subscriptions.json").read_text(encoding="utf-8") == '{"legacy": true}\n'
+    assert (data_dir / "subscriptions.json").read_text(
+        encoding="utf-8"
+    ) == '{"legacy": true}\n'
 
     restarted = ResourceSnapshotCoordinator(
         cache_root,
@@ -313,7 +341,9 @@ def test_worker_check_and_plugin_generation_consume_one_contract_snapshot(
     assert restored.commit_sha == result.commit_sha
     assert (panel_custom / "keep.webp").read_bytes() == b"custom-panel"
 
-    raw_payload = json.loads((snapshot.root / "data" / "redeem_codes.json").read_text(encoding="utf-8"))
+    raw_payload = json.loads(
+        (snapshot.root / "data" / "redeem_codes.json").read_text(encoding="utf-8")
+    )
     transport = DnaApiEncyclopediaTransport(
         object(),
         code_provider=lambda _actor: raw_payload,

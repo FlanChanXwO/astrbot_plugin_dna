@@ -65,7 +65,9 @@ async def test_ann_detail_transport_unwraps_payload_and_keeps_image_urls(
     from src.utils import dna_api
 
     monkeypatch.setattr(dna_api, "get_post_detail", get_detail)
-    detail = await DnaApiNoticesTransport.__new__(DnaApiNoticesTransport).get_ann_detail("42")
+    detail = await DnaApiNoticesTransport.__new__(
+        DnaApiNoticesTransport
+    ).get_ann_detail("42")
 
     assert detail.title == "完整公告"
     assert [block.kind for block in detail.blocks] == ["text", "image", "image"]
@@ -92,7 +94,9 @@ async def test_ann_detail_transport_rejects_missing_post_content(
     monkeypatch.setattr(dna_api, "get_post_detail", get_detail)
 
     with pytest.raises(NoticesTransportError):
-        await DnaApiNoticesTransport.__new__(DnaApiNoticesTransport).get_ann_detail("42")
+        await DnaApiNoticesTransport.__new__(DnaApiNoticesTransport).get_ann_detail(
+            "42"
+        )
 
 
 @pytest.mark.asyncio
@@ -107,7 +111,9 @@ async def test_ann_list_transport_fetches_all_pages_without_process_cache(
         calls.append((page_index, page_size))
         posts = [
             {"postId": str(index), "postTitle": f"公告 {index}"}
-            for index in range((page_index - 1) * page_size + 1, page_index * page_size + 1)
+            for index in range(
+                (page_index - 1) * page_size + 1, page_index * page_size + 1
+            )
         ]
         if page_index == 2:
             posts = posts[:1]
@@ -116,7 +122,9 @@ async def test_ann_list_transport_fetches_all_pages_without_process_cache(
     from src.utils import dna_api
 
     monkeypatch.setattr(dna_api, "get_ann_list_page", get_page)
-    snapshot = await DnaApiNoticesTransport.__new__(DnaApiNoticesTransport).get_ann_list()
+    snapshot = await DnaApiNoticesTransport.__new__(
+        DnaApiNoticesTransport
+    ).get_ann_list()
 
     assert len(snapshot.posts) == 21
     assert snapshot.posts[-1].post_id == "21"
@@ -131,8 +139,7 @@ async def test_ann_list_transport_treats_repeated_full_page_as_end(
 
     calls: list[tuple[int, int]] = []
     page_posts = [
-        {"postId": str(index), "postTitle": f"公告 {index}"}
-        for index in range(1, 21)
+        {"postId": str(index), "postTitle": f"公告 {index}"} for index in range(1, 21)
     ]
 
     async def get_page(*, page_index: int, page_size: int) -> SimpleNamespace:
@@ -146,7 +153,9 @@ async def test_ann_list_transport_treats_repeated_full_page_as_end(
     from src.utils import dna_api
 
     monkeypatch.setattr(dna_api, "get_ann_list_page", get_page)
-    snapshot = await DnaApiNoticesTransport.__new__(DnaApiNoticesTransport).get_ann_list()
+    snapshot = await DnaApiNoticesTransport.__new__(
+        DnaApiNoticesTransport
+    ).get_ann_list()
 
     assert len(snapshot.posts) == 20
     assert snapshot.posts[0].post_id == "1"
@@ -241,7 +250,9 @@ async def test_ann_service_returns_all_detail_pages_in_one_response(
             )
 
     class Renderer:
-        async def render_ann_detail(self, _detail: AnnDetail) -> tuple[SimpleNamespace, ...]:
+        async def render_ann_detail(
+            self, _detail: AnnDetail
+        ) -> tuple[SimpleNamespace, ...]:
             return (
                 SimpleNamespace(path=tmp_path / "detail-1.png"),
                 SimpleNamespace(path=tmp_path / "detail-2.png"),

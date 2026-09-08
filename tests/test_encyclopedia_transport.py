@@ -69,16 +69,20 @@ def test_legacy_weekly_payload_maps_all_categories_and_items() -> None:
             "endDate": "20260809",
             "weekType": 2,
         },
-        {"roleInfo": {"roleShow": {
-            "roleChars": [],
-            "langRangeWeapons": [],
-            "closeWeapons": [],
-            "level": 55,
-            "params": [{"paramKey": "额外统计", "paramValue": "完整"}],
-            "roleId": "role-1",
-            "roleName": "资料玩家",
-            "roleAchv": {"total": 21},
-        }}},
+        {
+            "roleInfo": {
+                "roleShow": {
+                    "roleChars": [],
+                    "langRangeWeapons": [],
+                    "closeWeapons": [],
+                    "level": 55,
+                    "params": [{"paramKey": "额外统计", "paramValue": "完整"}],
+                    "roleId": "role-1",
+                    "roleName": "资料玩家",
+                    "roleAchv": {"total": 21},
+                }
+            }
+        },
     )
 
     assert report.week_type == 2
@@ -282,4 +286,6 @@ def test_base_calendar_events_do_not_import_legacy_renderer(monkeypatch) -> None
     )
 
     assert [event.title for event in events] == ["魔灵", "周本"]
-    assert all(event.start_at is not None and event.end_at is not None for event in events)
+    assert all(
+        event.start_at is not None and event.end_at is not None for event in events
+    )

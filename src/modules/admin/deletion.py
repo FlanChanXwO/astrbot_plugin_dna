@@ -194,7 +194,9 @@ class AccountDeletionCoordinator:
             # 不把数据库异常原文带入管理响应；事务上下文已负责回滚。
             return _DatabaseDeletion(
                 committed=False,
-                steps=tuple(_failed_step(resource) for resource in _UID_DATABASE_RESOURCES),
+                steps=tuple(
+                    _failed_step(resource) for resource in _UID_DATABASE_RESOURCES
+                ),
             )
         return _DatabaseDeletion(
             committed=True,
@@ -231,7 +233,9 @@ class AccountDeletionCoordinator:
             # 不把数据库异常原文带入管理响应；事务上下文已负责回滚。
             return _DatabaseDeletion(
                 committed=False,
-                steps=tuple(_failed_step(resource) for resource in _USER_DATABASE_RESOURCES),
+                steps=tuple(
+                    _failed_step(resource) for resource in _USER_DATABASE_RESOURCES
+                ),
             )
         return _DatabaseDeletion(
             committed=True,
@@ -333,7 +337,9 @@ class AccountDeletionCoordinator:
                 _preserved_step("personal_subscriptions"),
             )
         )
-        steps.extend(_preserved_step(resource) for resource in _GROUP_PRESERVED_RESOURCES)
+        steps.extend(
+            _preserved_step(resource) for resource in _GROUP_PRESERVED_RESOURCES
+        )
         status = (
             DeletionExecutionStatus.COMPLETED
             if database_result.committed
@@ -363,7 +369,9 @@ class AccountDeletionCoordinator:
             database_committed=database_result.committed,
         )
         steps.append(subscription_step)
-        steps.extend(_preserved_step(resource) for resource in _GROUP_PRESERVED_RESOURCES)
+        steps.extend(
+            _preserved_step(resource) for resource in _GROUP_PRESERVED_RESOURCES
+        )
         if not database_result.committed:
             status = DeletionExecutionStatus.FAILED
         elif subscription_step.status in (

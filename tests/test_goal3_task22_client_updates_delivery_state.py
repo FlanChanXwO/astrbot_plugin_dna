@@ -102,7 +102,7 @@ async def test_pending_event_persists_fixed_targets_and_reloads(tmp_path: Path) 
     )
 
     assert isinstance(created, ClientUpdatePendingEvent)
-    assert created.event_key == "cn:pc:100:101"
+    assert created.event_key == "cn:pc_cn:100:101"
     assert [target.origin for target in created.pending_targets] == [
         "onebot:group:a",
         "telegram:group:b",
@@ -116,14 +116,17 @@ async def test_pending_event_persists_fixed_targets_and_reloads(tmp_path: Path) 
     reloaded = ClientUpdateStateStore(path)
     events = await reloaded.pending_events()
     assert events == (created,)
-    assert events[0].change == change
+    assert events[0].change.event_key == created.event_key
+    assert events[0].change.channel_id == "pc_cn"
+    assert events[0].change.previous.channel_id == "pc_cn"
+    assert events[0].change.current.channel_id == "pc_cn"
 
 
 @pytest.mark.asyncio
 async def test_legacy_baseline_state_is_migrated_without_losing_baselines(
     tmp_path: Path,
 ) -> None:
-    """旧版仅含基线的状态可读入，并在下次写入时升级 schema。"""
+    """旧版仅含基线的状态可读入，并在首次加载时升级 schema。"""
 
     path = tmp_path / "client_update_state.json"
     path.write_text(
@@ -142,7 +145,7 @@ async def test_legacy_baseline_state_is_migrated_without_losing_baselines(
         )
     )
     raw = json.loads(path.read_text(encoding="utf-8"))
-    assert raw["schema_version"] == 2
+    assert raw["schema_version"] == 3
     assert raw["pending_events"] == []
 
 

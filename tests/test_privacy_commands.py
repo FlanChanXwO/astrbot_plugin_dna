@@ -65,15 +65,15 @@ def test_registry_exposes_all_privacy_commands_with_admin_boundary() -> None:
     privacy = [spec for spec in registry if spec.id.startswith("privacy_")]
 
     assert len(privacy) == 14
-    assert {
-        spec.id for spec in privacy if spec.permission == "user"
-    } == {
+    assert {spec.id for spec in privacy if spec.permission == "user"} == {
         "privacy_enable_peek_personal",
         "privacy_disable_peek_personal",
         "privacy_enable_uid_hidden",
         "privacy_disable_uid_hidden",
     }
-    assert all(spec.permission == "admin" for spec in privacy if spec.permission != "user")
+    assert all(
+        spec.permission == "admin" for spec in privacy if spec.permission != "user"
+    )
 
 
 def test_generated_admin_privacy_handler_uses_astrbot_admin_filter() -> None:
@@ -83,9 +83,7 @@ def test_generated_admin_privacy_handler_uses_astrbot_admin_filter() -> None:
         __module__ = "tests.generated_admin_privacy_plugin"
 
     spec = next(
-        spec
-        for spec in load_command_registry()
-        if spec.id == "privacy_enable_peek_all"
+        spec for spec in load_command_registry() if spec.id == "privacy_enable_peek_all"
     )
     registry = CommandRegistry((spec,))
     install_command_handlers(GeneratedAdminPrivacyPlugin, registry)
@@ -95,7 +93,9 @@ def test_generated_admin_privacy_handler_uses_astrbot_admin_filter() -> None:
 
     assert metadata is not None
     permission_filters = [
-        item for item in metadata.event_filters if isinstance(item, PermissionTypeFilter)
+        item
+        for item in metadata.event_filters
+        if isinstance(item, PermissionTypeFilter)
     ]
     assert len(permission_filters) == 1
     assert permission_filters[0].permission_type.name == "ADMIN"
@@ -112,14 +112,20 @@ def test_target_extraction_skips_bot_and_at_all() -> None:
 
 
 @pytest.mark.asyncio
-async def test_generated_privacy_handler_extracts_at_target_from_public_event_api() -> None:
+async def test_generated_privacy_handler_extracts_at_target_from_public_event_api() -> (
+    None
+):
     """管理员命令从 AstrBot 消息链的 At 组件提取目标，不读取 legacy ctx.at。"""
 
     class GeneratedPrivacyPlugin:
         __module__ = "tests.generated_privacy_plugin"
 
     registry = CommandRegistry(
-        (spec for spec in load_command_registry() if spec.id == "privacy_enable_peek_admin"),
+        (
+            spec
+            for spec in load_command_registry()
+            if spec.id == "privacy_enable_peek_admin"
+        ),
     )
     install_command_handlers(GeneratedPrivacyPlugin, registry)
     service = FakePrivacyService()
@@ -151,7 +157,11 @@ async def test_generated_privacy_handler_passes_missing_target_explicitly() -> N
         __module__ = "tests.generated_missing_target_plugin"
 
     registry = CommandRegistry(
-        (spec for spec in load_command_registry() if spec.id == "privacy_enable_peek_admin"),
+        (
+            spec
+            for spec in load_command_registry()
+            if spec.id == "privacy_enable_peek_admin"
+        ),
     )
     install_command_handlers(GeneratedMissingTargetPlugin, registry)
     service = FakePrivacyService()

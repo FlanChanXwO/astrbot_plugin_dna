@@ -14,7 +14,9 @@ from . import messages
 from .resource_service import ResourceUpdateService
 
 
-def _resource_service(request: CommandRequest) -> ResourceUpdateService | PlainTextResponse:
+def _resource_service(
+    request: CommandRequest,
+) -> ResourceUpdateService | PlainTextResponse:
     if request.actor is None:
         return PlainTextResponse(messages.OPERATIONS_CONTEXT_UNAVAILABLE)
     service = request.services.get("resource_update_service")
@@ -47,7 +49,7 @@ async def resource_download_use_case(
         yield service
         return
     yield PlainTextResponse(messages.RESOURCE_SYNC_STARTED)
-    yield await service.download_all(None)
+    yield await service.sync_resources(None)
 
 
 COMMAND_SPECS = (
@@ -63,11 +65,11 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="download_resource",
-        pattern=r"^下载全部资源$",
+        pattern=r"^同步资源$",
         group="资源管理",
-        name="下载全部资源",
-        description="下载全部公共资源",
-        examples=("下载全部资源",),
+        name="同步资源",
+        description="同步全部公共资源",
+        examples=("同步资源",),
         permission="admin",
         use_case=cast(Any, resource_download_use_case),
     ),

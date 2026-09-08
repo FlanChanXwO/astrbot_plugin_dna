@@ -26,10 +26,16 @@ class MutableAnnouncementTransport:
         return self.ids
 
     async def get_ann_list(self) -> AnnSnapshot:
-        return AnnSnapshot(tuple(AnnPost(post_id=item, title=f"公告 {item}") for item in self.ids))
+        return AnnSnapshot(
+            tuple(AnnPost(post_id=item, title=f"公告 {item}") for item in self.ids)
+        )
 
     async def get_ann_detail(self, post_id: str) -> AnnDetail:
-        return AnnDetail(post_id=post_id, title=f"公告 {post_id}", blocks=(AnnBlock(kind="text", text="正文"),))
+        return AnnDetail(
+            post_id=post_id,
+            title=f"公告 {post_id}",
+            blocks=(AnnBlock(kind="text", text="正文"),),
+        )
 
 
 class Renderer:
@@ -53,7 +59,9 @@ def build_runtime(database, tmp_path: Path, transport, pushed, *, fail=()):
             raise ConnectionError("temporary failure")
         pushed.append(origin)
 
-    notices = _service(database, transport, tmp_path, subscriptions=subscriptions, push=push)
+    notices = _service(
+        database, transport, tmp_path, subscriptions=subscriptions, push=push
+    )
     notices.ann_delivery_state = delivery
     notices.ann_state = AnnStateStore(tmp_path / "ann_state.json")
     notices.renderer = Renderer(tmp_path / "rendered")
@@ -62,12 +70,16 @@ def build_runtime(database, tmp_path: Path, transport, pushed, *, fail=()):
 
 
 @pytest.mark.asyncio
-async def test_disable_enable_delete_survive_restart_without_backfill(tmp_path: Path) -> None:
+async def test_disable_enable_delete_survive_restart_without_backfill(
+    tmp_path: Path,
+) -> None:
     database = await _database_with_binding(tmp_path)
     transport = MutableAnnouncementTransport(("1001",))
     pushed: list[str] = []
     _store, targets, _notices = build_runtime(database, tmp_path, transport, pushed)
-    created = await targets.subscribe(origin="platform:group:g1", group_id="g1", bot_id="b1")
+    created = await targets.subscribe(
+        origin="platform:group:g1", group_id="g1", bot_id="b1"
+    )
     assert created.subscription is not None
     target_id = encode_target_id(created.subscription)
 

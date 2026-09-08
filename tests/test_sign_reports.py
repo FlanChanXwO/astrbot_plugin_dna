@@ -133,7 +133,10 @@ async def test_sign_scheduler_routes_global_and_group_reports_independently(
     assert [(origin, payload.text) for origin, payload in pushed] == [
         ("platform:group:global", "全局汇总：游戏 3，社区 2"),
         ("platform:group:both", "全局汇总：游戏 3，社区 2"),
-        ("platform:group:group-a", "群 A 游戏签到：成功 1，失败 0\nA-UID: 游戏签到成功"),
+        (
+            "platform:group:group-a",
+            "群 A 游戏签到：成功 1，失败 0\nA-UID: 游戏签到成功",
+        ),
         (
             "platform:group:group-a",
             "群 A 社区签到：成功 1，失败 1\nA-UID: 社区签到成功\nA2-UID: 社区签到失败",
@@ -143,7 +146,10 @@ async def test_sign_scheduler_routes_global_and_group_reports_independently(
             "platform:group:both",
             "群 A 社区签到：成功 1，失败 1\nA-UID: 社区签到成功\nA2-UID: 社区签到失败",
         ),
-        ("platform:group:group-b", "群 B 游戏签到：成功 2，失败 0\nB-UID: 游戏签到成功"),
+        (
+            "platform:group:group-b",
+            "群 B 游戏签到：成功 2，失败 0\nB-UID: 游戏签到成功",
+        ),
     ]
 
 
@@ -162,16 +168,24 @@ async def test_group_report_never_contains_another_group_detail(tmp_path: Path) 
 
     await scheduler.run_sign_once()
 
-    group_a_payloads = [payload.text for origin, payload in pushed if origin.endswith(":group-a")]
-    group_b_payloads = [payload.text for origin, payload in pushed if origin.endswith(":group-b")]
+    group_a_payloads = [
+        payload.text for origin, payload in pushed if origin.endswith(":group-a")
+    ]
+    group_b_payloads = [
+        payload.text for origin, payload in pushed if origin.endswith(":group-b")
+    ]
     assert group_a_payloads
     assert group_b_payloads
     assert all("B-UID" not in text for text in group_a_payloads)
-    assert all("A-UID" not in text and "A2-UID" not in text for text in group_b_payloads)
+    assert all(
+        "A-UID" not in text and "A2-UID" not in text for text in group_b_payloads
+    )
 
 
 @pytest.mark.asyncio
-async def test_sign_scheduler_continues_after_one_report_push_fails(tmp_path: Path) -> None:
+async def test_sign_scheduler_continues_after_one_report_push_fails(
+    tmp_path: Path,
+) -> None:
     pushed: list[str] = []
 
     async def push(origin: str, payload: SignPushPayload) -> None:
@@ -190,8 +204,11 @@ async def test_sign_scheduler_continues_after_one_report_push_fails(tmp_path: Pa
     assert any(item.startswith("platform:group:global:") for item in pushed)
     assert any(item.startswith("platform:group:group-b:") for item in pushed)
 
+
 @pytest.mark.asyncio
-async def test_bootstrap_sign_push_adapts_image_bytes_and_detail_text(tmp_path: Path) -> None:
+async def test_bootstrap_sign_push_adapts_image_bytes_and_detail_text(
+    tmp_path: Path,
+) -> None:
     """bootstrap 推送适配器使用 AstrBot 原生图片组件承载 bytes。"""
 
     from astrbot.api.message_components import Plain

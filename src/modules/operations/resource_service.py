@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
 
 from astrbot.api import logger
 
@@ -16,42 +15,13 @@ from ...infrastructure.resources import (
     ResourceManifest,
     ResourceRemoteMismatchError,
     ResourceSnapshotCoordinator,
+    ResourceStatusSnapshot,
     ResourceSyncError,
     ResourceSyncResult,
 )
 from . import messages
 
 SynchronizeFn = Callable[[], ResourceSyncResult]
-_TaskValue = TypeVar("_TaskValue")
-
-
-async def _drain_task(
-    task: asyncio.Task[_TaskValue],
-) -> tuple[_TaskValue | None, Exception | None, asyncio.CancelledError | None]:
-    """在保留取消语义的同时等待任务结束，不用固定超时截断同步线程。"""
-
-    interruption: asyncio.CancelledError | None = None
-    while not task.done():
-        try:
-            result = await asyncio.shield(task)
-        except asyncio.CancelledError as error:
-            if task.done():
-                break
-            if interruption is None:
-                interruption = error
-        except Exception as error:  # noqa: BLE001 - 排空边界必须观察注入任务的任意失败。
-            return None, error, interruption
-        else:
-            return result, None, interruption
-
-    if task.cancelled():
-        return None, None, interruption
-    try:
-        return task.result(), None, interruption
-    except asyncio.CancelledError:
-        return None, None, interruption
-    except Exception as error:  # noqa: BLE001 - 读取任务结果以避免未观察异常。
-        return None, error, interruption
 
 
 class ResourceUpdateService:
@@ -74,19 +44,14 @@ class ResourceUpdateService:
         self.resource_snapshots = resource_snapshots
         self._flight_lock = asyncio.Lock()
         self._inflight: asyncio.Task[ResourceSyncResult] | None = None
-        self._preheat_task: asyncio.Task[None] | None = None
-        self._preheat_error: Exception | None = None
-
-    @property
-    def preheat_error(self) -> Exception | None:
-        """返回最近一次后台预热的真实异常，供状态页和测试观察。"""
-
-        return self._preheat_error
+        self._stopping = False
 
     async def synchronize_once(self) -> ResourceSyncResult:
         """取得共享同步任务；取消单个等待者不会取消底层同步。"""
 
         async with self._flight_lock:
+            if self._stopping:
+                raise ResourceSyncError("资源同步服务正在停止")
             task = self._inflight
             if task is None or task.done():
                 task = asyncio.create_task(asyncio.to_thread(self.synchronize))
@@ -101,6 +66,25 @@ class ResourceUpdateService:
                     if self._inflight is task:
                         self._inflight = None
 
+    async def stop(self) -> None:
+        """停止接受新同步，并等待正在运行的线程任务自然完成。"""
+
+        async with self._flight_lock:
+            self._stopping = True
+            task = self._inflight
+            if task is None or task.done():
+                if task is not None and self._inflight is task:
+                    self._inflight = None
+                return
+
+        try:
+            # 线程任务无法安全取消；终止流程必须等待它释放资源后再继续。
+            await asyncio.shield(task)
+        finally:
+            async with self._flight_lock:
+                if self._inflight is task:
+                    self._inflight = None
+
     @staticmethod
     def _observe_sync_task(task: asyncio.Task[ResourceSyncResult]) -> None:
         """观察取消等待者后仍在运行的同步任务，并保留真实失败日志。"""
@@ -114,73 +98,39 @@ class ResourceUpdateService:
         if error is not None:
             logger.warning(f"[dnaby][resources] 共享资源同步任务失败: {error}")
 
-    async def start_preheat(self) -> None:
-        """启动非阻塞资源预热；已有预热或同步任务时不重复发起。"""
-
-        async with self._flight_lock:
-            if self._preheat_task is not None and not self._preheat_task.done():
-                return
-            self._preheat_error = None
-            self._preheat_task = asyncio.create_task(self._run_preheat())
-
-    async def _run_preheat(self) -> None:
-        try:
-            await self.synchronize_once()
-        except asyncio.CancelledError:
-            raise
-        except Exception as error:  # noqa: BLE001 - 预热失败需记录真实异常。
-            self._preheat_error = error
-            logger.warning(f"[dnaby][resources] 后台预热失败: {error}")
-
-    async def stop(self) -> None:
-        """取消预热并排空共享同步，确保线程不会在 runtime 销毁后继续写资源。"""
-
-        async with self._flight_lock:
-            preheat_task = self._preheat_task
-        if preheat_task is not None and not preheat_task.done():
-            preheat_task.cancel()
-
-        interruption: asyncio.CancelledError | None = None
-        if preheat_task is not None:
-            _, preheat_error, preheat_interruption = await _drain_task(preheat_task)
-            interruption = preheat_interruption
-            if preheat_error is not None:
-                self._preheat_error = preheat_error
-                logger.warning(f"[dnaby][resources] 后台预热失败: {preheat_error}")
-
-        async with self._flight_lock:
-            inflight = self._inflight
-        if inflight is not None:
-            _, sync_error, sync_interruption = await _drain_task(inflight)
-            if interruption is None:
-                interruption = sync_interruption
-            if sync_error is not None:
-                self._preheat_error = sync_error
-                logger.warning(f"[dnaby][resources] 资源同步结束但失败: {sync_error}")
-
-        async with self._flight_lock:
-            if self._preheat_task is preheat_task:
-                self._preheat_task = None
-            if self._inflight is inflight:
-                self._inflight = None
-        if interruption is not None:
-            raise interruption
-
-    async def download_all(self, _request: object):
-        """下载全部公共资源（浅克隆或 ff-only 更新）。"""
+    async def sync_resources(self, _request: object):
+        """同步全部公共资源（浅克隆或 ff-only 更新）。"""
 
         try:
             result = await self.synchronize_once()
         except ResourceLocalChangesError as error:
-            return PlainTextResponse(messages.RESOURCE_LOCAL_CHANGES.format(detail=str(error)))
+            return PlainTextResponse(
+                messages.RESOURCE_LOCAL_CHANGES.format(detail=str(error))
+            )
         except ResourceRemoteMismatchError:
             return PlainTextResponse(messages.RESOURCE_REMOTE_MISMATCH)
         except GitUnavailableError:
             return PlainTextResponse(messages.RESOURCE_GIT_UNAVAILABLE)
         except ResourceSyncError as error:
-            return PlainTextResponse(messages.RESOURCE_SYNC_FAILED.format(detail=str(error)))
+            return PlainTextResponse(
+                messages.RESOURCE_SYNC_FAILED.format(detail=str(error))
+            )
+        if result.action == "unchanged":
+            return PlainTextResponse(
+                messages.RESOURCE_UP_TO_DATE.format(version=result.resource_version),
+            )
         action = "已克隆" if result.action == "cloned" else "已更新"
-        return PlainTextResponse(messages.RESOURCE_DOWNLOADED.format(action=action, version=result.resource_version))
+        return PlainTextResponse(
+            messages.RESOURCE_DOWNLOADED.format(
+                action=action,
+                version=result.resource_version,
+            ),
+        )
+
+    async def download_all(self, _request: object):
+        """兼容旧命令入口，转发到 ``sync_resources``。"""
+
+        return await self.sync_resources(_request)
 
     async def status(self):
         """展示公共资源状态；不读取已移除的自定义面板目录。"""
@@ -188,16 +138,166 @@ class ResourceUpdateService:
         if self.resource_snapshots is None:
             return self._status_response(self.resource_root)
         with self.resource_snapshots.optional_lease() as snapshot:
+            reader = getattr(self.resource_snapshots, "read_status", None)
+            if callable(reader):
+                status = reader(snapshot)
+                return self._status_snapshot_response(status)
             root = snapshot.root if snapshot is not None else self.resource_root
             return self._status_response(root)
 
     @staticmethod
-    def _status_response(resource_root: Path | None) -> PlainTextResponse:
-        if resource_root is None:
-            return PlainTextResponse(messages.RESOURCE_STATUS_EMPTY)
+    def _last_sync_summary(status: ResourceStatusSnapshot) -> str:
+        if status.last_sync_error is not None:
+            return messages.RESOURCE_STATUS_SYNC_UNREADABLE
+        if status.last_sync is None:
+            return messages.RESOURCE_STATUS_UNRECORDED
+        if status.last_sync.status == "success":
+            return messages.RESOURCE_STATUS_SYNC_SUCCESS.format(
+                action=status.last_sync.action or messages.RESOURCE_STATUS_UNKNOWN,
+                version=(
+                    status.last_sync.resource_version
+                    or messages.RESOURCE_STATUS_UNKNOWN
+                ),
+                generation=status.last_sync.commit_sha
+                or messages.RESOURCE_STATUS_UNKNOWN,
+            )
+        return messages.RESOURCE_STATUS_SYNC_FAILED.format(
+            error_type=status.last_sync.error_type or messages.RESOURCE_STATUS_UNKNOWN,
+        )
+
+    @classmethod
+    def _status_snapshot_response(
+        cls,
+        status: ResourceStatusSnapshot,
+    ) -> PlainTextResponse:
         lines = [messages.RESOURCE_STATUS_HEADER]
-        lines.append(messages.resource_status_line("资源仓库目录", str(resource_root)))
-        if not resource_root.is_dir():
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_REPOSITORY_PATH,
+                str(status.repository),
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_GENERATION_ID,
+                status.generation_id or messages.RESOURCE_STATUS_UNPUBLISHED,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_ACTIVE_POINTER,
+                str(status.active_pointer),
+            )
+        )
+        if status.current_validation_error is not None:
+            active_version = messages.RESOURCE_STATUS_UNKNOWN
+        elif status.generation_id is None:
+            active_version = messages.RESOURCE_STATUS_UNPUBLISHED
+        elif status.manifest_state == "ready" and status.manifest is not None:
+            active_version = status.manifest.resource_version
+        else:
+            active_version = messages.RESOURCE_STATUS_UNKNOWN
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_RESOURCE_VERSION,
+                active_version,
+            )
+        )
+        if status.current_validation_error is not None:
+            lines.append(
+                messages.RESOURCE_STATUS_VALIDATION_FAILED.format(
+                    error_type=status.current_validation_error,
+                )
+            )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_LAST_SYNC_RESULT,
+                cls._last_sync_summary(status),
+            )
+        )
+
+        if status.resource_root is None:
+            if status.manifest_state == "missing":
+                lines.append(messages.resource_status_line("manifest", "缺失"))
+            lines.append(messages.RESOURCE_STATUS_EMPTY)
+            return PlainTextResponse("\n".join(lines))
+        if status.manifest_state == "missing":
+            lines.append(messages.resource_status_line("manifest", "缺失"))
+            return PlainTextResponse("\n".join(lines))
+        if status.manifest_state == "corrupt":
+            lines.append(messages.resource_status_line("manifest", "损坏或不可读"))
+            return PlainTextResponse("\n".join(lines))
+        if status.manifest_state == "unavailable":
+            lines.append(
+                messages.resource_status_line(
+                    "manifest",
+                    messages.RESOURCE_STATUS_UNAVAILABLE,
+                )
+            )
+            return PlainTextResponse("\n".join(lines))
+        assert status.manifest is not None
+        lines.append(
+            messages.resource_status_line(
+                "manifest",
+                f"v{status.manifest.format_version}",
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                "资源版本",
+                status.manifest.resource_version,
+            )
+        )
+        present = [
+            directory
+            for directory in status.manifest.required_dirs
+            if (status.resource_root / directory).is_dir()
+        ]
+        lines.append(
+            messages.resource_status_line(
+                "必需目录",
+                f"{len(present)}/{len(status.manifest.required_dirs)} 存在",
+            ),
+        )
+        return PlainTextResponse("\n".join(lines))
+
+    @staticmethod
+    def _status_response(resource_root: Path | None) -> PlainTextResponse:
+        lines = [messages.RESOURCE_STATUS_HEADER]
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_REPOSITORY_PATH,
+                str(resource_root)
+                if resource_root is not None
+                else messages.RESOURCE_STATUS_UNKNOWN,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_GENERATION_ID,
+                messages.RESOURCE_STATUS_UNPUBLISHED,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_ACTIVE_POINTER,
+                messages.RESOURCE_STATUS_UNKNOWN,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_RESOURCE_VERSION,
+                messages.RESOURCE_STATUS_UNPUBLISHED,
+            )
+        )
+        lines.append(
+            messages.resource_status_line(
+                messages.RESOURCE_STATUS_LAST_SYNC_RESULT,
+                messages.RESOURCE_STATUS_UNRECORDED,
+            )
+        )
+
+        if resource_root is None or not resource_root.is_dir():
             lines.append(messages.RESOURCE_STATUS_EMPTY)
             return PlainTextResponse("\n".join(lines))
 
@@ -207,11 +307,19 @@ class ResourceUpdateService:
             return PlainTextResponse("\n".join(lines))
         try:
             manifest = ResourceManifest.load(manifest_path)
-        except Exception:  # noqa: BLE001 - 状态查询只将 manifest 归类为不可读。
+        except (OSError, UnicodeError, ValueError, TypeError):
             lines.append(messages.resource_status_line("manifest", "损坏或不可读"))
             return PlainTextResponse("\n".join(lines))
-        lines.append(messages.resource_status_line("manifest", f"v{manifest.format_version}"))
-        lines.append(messages.resource_status_line("资源版本", manifest.resource_version))
+        lines[4] = messages.resource_status_line(
+            messages.RESOURCE_STATUS_RESOURCE_VERSION,
+            manifest.resource_version,
+        )
+        lines.append(
+            messages.resource_status_line("manifest", f"v{manifest.format_version}")
+        )
+        lines.append(
+            messages.resource_status_line("资源版本", manifest.resource_version)
+        )
         present = [
             directory
             for directory in manifest.required_dirs
@@ -224,5 +332,6 @@ class ResourceUpdateService:
             ),
         )
         return PlainTextResponse("\n".join(lines))
+
 
 __all__ = ["ResourceUpdateService"]

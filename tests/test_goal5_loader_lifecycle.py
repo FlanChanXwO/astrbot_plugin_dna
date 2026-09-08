@@ -213,12 +213,14 @@ async def test_official_load_failure_record_preserves_initialize_traceback(
     root = tmp_path / "astrbot-root"
     official_traceback = (
         "Traceback (most recent call last):\n"
-        "  File \\\"plugin/main.py\\\", line 7, in initialize\\n"
-        "    raise RuntimeError(\\\"official initialize sentinel\\\")\\n"
+        '  File \\"plugin/main.py\\", line 7, in initialize\\n'
+        '    raise RuntimeError(\\"official initialize sentinel\\")\\n'
         "RuntimeError: official initialize sentinel\\n"
     )
 
-    with pytest.raises(module.LoaderCheckError, match="official initialize sentinel") as caught:
+    with pytest.raises(
+        module.LoaderCheckError, match="official initialize sentinel"
+    ) as caught:
         await module.run_loader_check(
             astrbot_source=tmp_path / "astrbot-source",
             astrbot_version=FIXTURE_ASTRBOT_VERSION,
@@ -290,7 +292,9 @@ async def test_loader_rejects_success_without_registered_plugin(
     def missing_registration_factory(*_args: object, **_kwargs: object):
         return runtime
 
-    with pytest.raises(module.LoaderCheckError, match="registered|registration") as caught:
+    with pytest.raises(
+        module.LoaderCheckError, match="registered|registration"
+    ) as caught:
         await module.run_loader_check(
             astrbot_source=tmp_path / "astrbot-source",
             astrbot_version=FIXTURE_ASTRBOT_VERSION,

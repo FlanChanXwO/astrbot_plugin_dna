@@ -74,14 +74,32 @@ async def test_add_dedupes_by_uid_within_same_origin(tmp_path: Path) -> None:
     """同会话内不同 uid 的个人订阅互不覆盖。"""
 
     store = SubscriptionStore(tmp_path / "subscriptions.json")
-    await store.add("mh", origin="origin-1", user_id="user-1", uid="user-1", extra_message="角色:拆解")
-    await store.add("mh", origin="origin-1", user_id="user-2", uid="user-2", extra_message="角色:追缉")
+    await store.add(
+        "mh",
+        origin="origin-1",
+        user_id="user-1",
+        uid="user-1",
+        extra_message="角色:拆解",
+    )
+    await store.add(
+        "mh",
+        origin="origin-1",
+        user_id="user-2",
+        uid="user-2",
+        extra_message="角色:追缉",
+    )
 
     subs = await store.get("mh")
     assert len(subs) == 2
     assert {sub.uid for sub in subs} == {"user-1", "user-2"}
 
-    await store.add("mh", origin="origin-1", user_id="user-1", uid="user-1", extra_message="角色:勘探")
+    await store.add(
+        "mh",
+        origin="origin-1",
+        user_id="user-1",
+        uid="user-1",
+        extra_message="角色:勘探",
+    )
     subs = await store.get("mh")
     assert len(subs) == 2
     assert {sub.uid for sub in subs} == {"user-1", "user-2"}

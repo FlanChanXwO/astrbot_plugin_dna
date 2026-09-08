@@ -122,9 +122,7 @@ def sign_intent_from_text(
     direct_terms: set[str] = set(_SIGN_TERMS)
     direct_terms.update(_ENGLISH_SIGN_PHRASES)
     direct_terms.update(
-        prefix + term
-        for prefix in _AFFIRMATIVE_PREFIXES
-        for term in _SIGN_TERMS
+        prefix + term for prefix in _AFFIRMATIVE_PREFIXES for term in _SIGN_TERMS
     )
     for prefix in prefixes:
         if isinstance(prefix, str) and prefix.strip():

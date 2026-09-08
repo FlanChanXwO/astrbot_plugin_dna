@@ -123,9 +123,13 @@ async def test_ann_list_deduplicates_post_ids_across_pages(
     from src.utils import dna_api
 
     monkeypatch.setattr(dna_api, "get_ann_list_page", get_page)
-    snapshot = await DnaApiNoticesTransport.__new__(DnaApiNoticesTransport).get_ann_list()
+    snapshot = await DnaApiNoticesTransport.__new__(
+        DnaApiNoticesTransport
+    ).get_ann_list()
 
-    assert [post.post_id for post in snapshot.posts] == [str(index) for index in range(1, 22)]
+    assert [post.post_id for post in snapshot.posts] == [
+        str(index) for index in range(1, 22)
+    ]
     assert snapshot.posts[19].title == "公告 20"
 
 

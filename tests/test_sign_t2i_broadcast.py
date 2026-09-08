@@ -14,7 +14,9 @@ class _SignConfig:
 
 
 @pytest.mark.asyncio
-async def test_sign_report_html_bytes_enter_group_broadcast(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_sign_report_html_bytes_enter_group_broadcast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     themes: list[str] = []
 
     async def render_report(_: str, theme: str = "blue") -> bytes:
@@ -45,7 +47,9 @@ async def test_sign_report_html_bytes_enter_group_broadcast(monkeypatch: pytest.
 
 
 @pytest.mark.asyncio
-async def test_auto_sign_pushes_game_and_community_html_reports(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_auto_sign_pushes_game_and_community_html_reports(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sent: list[dict] = []
 
     class _DNAUser:
@@ -110,11 +114,15 @@ async def test_auto_sign_pushes_game_and_community_html_reports(monkeypatch: pyt
     game_image = sent[0]["group_msg_dict"]["group-1"]["messages"][0]
     community_image = sent[1]["group_msg_dict"]["group-1"]["messages"][0]
     assert isinstance(game_image, ImageSegment) and game_image.value == b"blue"
-    assert isinstance(community_image, ImageSegment) and community_image.value == b"yellow"
+    assert (
+        isinstance(community_image, ImageSegment) and community_image.value == b"yellow"
+    )
 
 
 @pytest.mark.asyncio
-async def test_sign_report_render_error_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_sign_report_render_error_is_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def fail_render(_: str, theme: str = "blue") -> bytes:
         raise T2IRenderError(f"T2I unavailable: {theme}")
 

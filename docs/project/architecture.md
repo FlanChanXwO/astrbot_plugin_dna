@@ -72,7 +72,7 @@
 - 客户端更新：`src/modules/client_updates/` 提供国服 PC/安卓查询、群聊管理员订阅、平台筛选、
   成功观察基线和框架无关的推送 DTO；手动查询不写基线，首次订阅/首次成功检查只建立缺失基线。
   `ClientUpdatesScheduler` 独立注册 `dnaby_client_update_poll`，周期为
-  `interval@{notifications.client_update_check_minutes}m`，不与公告任务共用周期。`ClientUpdateDeliveryService`
+  `interval@{client_updates.check_minutes}m`，不与公告任务共用周期。`ClientUpdateDeliveryService`
   按 `Subscription.extra_data.platforms` 筛选目标，`ClientUpdatePushAdapter` 仅在 OneBot 且开关开启时
   尝试合并同轮平台消息，能力不可用或失败则降级为逐平台普通消息并记录安全原因；bootstrap 已绑定
   `Context.send_message`，普通消息使用 `MessageChain`，OneBot 合并转发使用原生 `Nodes`。状态 store 持久化
@@ -93,22 +93,32 @@
   配置的每小时分钟触发并在当前小时快照有效时只推送一次；详情、
   渲染或目标发送失败时保留待重试目标，不发送标题 fallback。推送经注入闭包绑定
   `Context.send_message`，只有发送成功才落成功状态；文本/图片载荷分别映射为 Plain/Image 组件。
-- 资源状态：`src/modules/operations/` 只提供公共资源状态/下载；`panel_custom/` 是已移除
+- 资源状态：`src/modules/operations/` 只提供公共资源状态/同步；`panel_custom/` 是已移除
   面板管理能力后的遗留目录，插件不读取、统计或删除其中内容。别名维护由
   `src/modules/admin/aliases.py` 提供角色和武器两类独立 custom 文件。
   资源更新经 `ResourceUpdateService` 调用 `ResourceSnapshotCoordinator`：Git cache 只执行
   `main` 的浅克隆/fetch，候选先由 `git archive FETCH_HEAD` 物化并完整校验，再
   `merge --ff-only FETCH_HEAD`，计算完整文件树 SHA-256，最后原子发布 `resource_generations/<sha>/`
-  和带摘要的当前指针。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
-  `下载全部资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
-  启动预热与该命令共享 single-flight，同步终止前会排空后台任务。
+  和带摘要的当前指针。状态查询额外读取同目录的 `last_sync.json` 同步摘要和 `validation.json` 校验摘要，展示
+  repository path、generation id、active pointer、resource_version 和 last sync result，但不触发 Git fetch、完整 validator、
+  PIL 解码或完整 SHA-256。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
+  `同步资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
+  并发管理员请求共享 single-flight；插件启动不自动预热或同步资源，构造阶段不执行完整校验，已有 current generation
+  会在异步 `initialize()` 生命周期的工作线程中校验，成功后才暴露给业务。
+  校验失败只将 generation 标记为不可用并保留修复入口，管理员可通过状态命令查看错误类型，再用同一远端 commit
+  的同步重建快照。
+  资源服务不注册生命周期 worker，terminate 会禁止新的同步并等待正在运行的 Git/to_thread 任务排空；同 commit
+  修复在替换 `<commit-sha>` 物理目录前阻止新的 lease，并等待已有 lease 释放，避免活跃读取继续跟随旧
+  `Path` 读到被替换后的内容。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
   GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `fetch --no-tags origin main`，可用临时
   `url.*.insteadOf` 注入 GitHub 加速前缀。同步前后检查 origin、main checkout、干净 worktree
-  和完整 `resource_manifest.json`；不强制覆盖本地修改。bootstrap 从当前已验证 generation
-  注入玩家的 `ResourceMap` 与 `EncyclopediaResourceStore`，并订阅发布事件刷新 renderer、
-  别名和资源状态视图。每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
+  和完整 `resource_manifest.json`；不强制覆盖本地修改。bootstrap 构造阶段仅注入显式空资源视图，
+  在异步 `initialize()` 中完成 current generation 的完整校验后，再注入玩家的 `ResourceMap` 与
+  `EncyclopediaResourceStore`，并订阅发布事件刷新 renderer、
+  别名和资源状态视图。没有已验证 current 时只注入显式空资源视图，绝不把 Git cache 作为业务
+  资源源；每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
   回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材
   的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理，并由 `RenderedFileStore` 保护
   活动发送文件、清理过期孤儿。

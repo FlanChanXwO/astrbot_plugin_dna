@@ -142,7 +142,9 @@ async def test_account_detail_and_update_expose_app_credentials_only_when_reques
     assert updated.data.group_id == "group-2"
     assert updated.data.is_active is False
     assert updated.data.credentials is not None
-    assert updated.data.credentials.to_plaintext_dict() == replacement.to_plaintext_dict()
+    assert (
+        updated.data.credentials.to_plaintext_dict() == replacement.to_plaintext_dict()
+    )
 
     async with database.session() as session:
         binding = await AccountBindingRepository.get(
@@ -167,7 +169,9 @@ async def test_duplicate_update_is_idempotent_and_does_not_create_rows(
 ) -> None:
     await _seed_account(database, payload=_payload())
     service = AdminAccountService(database)
-    update = AdminAccountUpdate(group_id="group-1", is_active=True, credentials=_payload())
+    update = AdminAccountUpdate(
+        group_id="group-1", is_active=True, credentials=_payload()
+    )
 
     first = await service.update_account("user-1", "1001", update)
     second = await service.update_account("user-1", "1001", update)
@@ -251,16 +255,22 @@ async def test_identity_mutation_and_unknown_credential_edit_are_rejected(
     assert unknown.ok is False
     assert unknown.error is not None and unknown.error.code == "not_found"
     async with database.session() as session:
-        assert await AccountBindingRepository.get(
-            session,
-            user_id="user-2",
-            uid="2001",
-        ) is None
-        assert await CredentialRepository.get(
-            session,
-            user_id="user-2",
-            uid="2001",
-        ) is None
+        assert (
+            await AccountBindingRepository.get(
+                session,
+                user_id="user-2",
+                uid="2001",
+            )
+            is None
+        )
+        assert (
+            await CredentialRepository.get(
+                session,
+                user_id="user-2",
+                uid="2001",
+            )
+            is None
+        )
 
 
 @pytest.mark.asyncio

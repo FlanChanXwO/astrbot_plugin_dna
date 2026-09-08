@@ -29,7 +29,9 @@ class FakeNoticeListTransport:
 
 
 @pytest.mark.asyncio
-async def test_subscribe_creates_enabled_target_and_unsubscribe_removes_it(tmp_path: Path) -> None:
+async def test_subscribe_creates_enabled_target_and_unsubscribe_removes_it(
+    tmp_path: Path,
+) -> None:
     store = SubscriptionStore(tmp_path / "subscriptions.json")
     delivery = AnnDeliveryStateStore(tmp_path / "ann_delivery_state.json")
     service = AnnouncementTargetService(store, delivery, FakeNoticeListTransport())
@@ -56,7 +58,9 @@ async def test_disable_then_enable_baselines_current_ids_only(tmp_path: Path) ->
     delivery = AnnDeliveryStateStore(tmp_path / "ann_delivery_state.json")
     transport = FakeNoticeListTransport()
     service = AnnouncementTargetService(store, delivery, transport)
-    created = await service.subscribe(origin="platform:group:g1", group_id="g1", bot_id="b1")
+    created = await service.subscribe(
+        origin="platform:group:g1", group_id="g1", bot_id="b1"
+    )
     assert created.subscription is not None
     target_id = encode_target_id(created.subscription)
 
@@ -82,7 +86,9 @@ async def test_enable_failure_keeps_target_disabled(tmp_path: Path) -> None:
     delivery = AnnDeliveryStateStore(tmp_path / "ann_delivery_state.json")
     transport = FakeNoticeListTransport()
     service = AnnouncementTargetService(store, delivery, transport)
-    created = await service.subscribe(origin="platform:group:g1", group_id="g1", bot_id="b1")
+    created = await service.subscribe(
+        origin="platform:group:g1", group_id="g1", bot_id="b1"
+    )
     assert created.subscription is not None
     target_id = encode_target_id(created.subscription)
     await service.disable(target_id)
@@ -94,17 +100,23 @@ async def test_enable_failure_keeps_target_disabled(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_removes_target_even_when_delivery_cleanup_fails(tmp_path: Path) -> None:
+async def test_delete_removes_target_even_when_delivery_cleanup_fails(
+    tmp_path: Path,
+) -> None:
     store = SubscriptionStore(tmp_path / "subscriptions.json")
     delivery = AnnDeliveryStateStore(tmp_path / "ann_delivery_state.json")
     service = AnnouncementTargetService(store, delivery, FakeNoticeListTransport())
-    created = await service.subscribe(origin="platform:group:g1", group_id="g1", bot_id="b1")
+    created = await service.subscribe(
+        origin="platform:group:g1", group_id="g1", bot_id="b1"
+    )
     assert created.subscription is not None
     target_id = encode_target_id(created.subscription)
 
     original = delivery.remove_target
+
     async def fail_cleanup(_target: str) -> None:
         raise RuntimeError("cleanup failed")
+
     delivery.remove_target = fail_cleanup  # type: ignore[method-assign]
 
     result = await service.delete(target_id)

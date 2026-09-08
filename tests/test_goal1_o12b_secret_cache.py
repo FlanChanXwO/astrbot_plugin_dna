@@ -92,7 +92,8 @@ def _service(
         transport,
         PrivacyService(database, allow_mention_query=True),
         _FakeRenderer(tmp_path),
-        subscriptions=subscriptions or SubscriptionStore(tmp_path / "subscriptions.json"),
+        subscriptions=subscriptions
+        or SubscriptionStore(tmp_path / "subscriptions.json"),
         push=push,
         cache_manager=cache,
         clock=lambda: now[0],
@@ -215,9 +216,7 @@ async def test_mh_failed_or_empty_snapshot_retries_until_valid_and_then_caches(
     pushed: list[tuple[str, object]] = []
     transport = FakeNoticesTransport(
         mh=MhSnapshot(
-            sections=(
-                MhSection(mh_type="role", type_name="角色", instances=()),
-            ),
+            sections=(MhSection(mh_type="role", type_name="角色", instances=()),),
         ),
     )
     retry_delays: list[float] = []
@@ -310,7 +309,9 @@ async def test_mh_subscription_window_filters_name_text_and_picture_targets(
 
 
 @pytest.mark.asyncio
-async def test_mh_malformed_typed_section_is_not_cached_or_pushed(tmp_path: Path) -> None:
+async def test_mh_malformed_typed_section_is_not_cached_or_pushed(
+    tmp_path: Path,
+) -> None:
     """异常 typed 分区必须失败关闭，不能把结构异常写入缓存。"""
 
     database = await _database_with_binding(tmp_path)
@@ -319,6 +320,7 @@ async def test_mh_malformed_typed_section_is_not_cached_or_pushed(tmp_path: Path
     transport = FakeNoticesTransport(
         mh=MhSnapshot(sections=(object(),)),  # type: ignore[arg-type]
     )
+
     async def cancel_retry(_seconds: float) -> None:
         raise asyncio.CancelledError
 
@@ -353,7 +355,9 @@ def test_mh_cache_rejects_snapshot_fetched_after_the_hour_window() -> None:
         )
 
 
-def test_removed_global_mh_config_is_discarded_and_logged(caplog: pytest.LogCaptureFixture) -> None:
+def test_removed_global_mh_config_is_discarded_and_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """旧全局推送时间/缓存开关不再进入 typed 配置或生成 schema。"""
 
     from src.infrastructure.config import (
@@ -383,8 +387,9 @@ def test_removed_global_mh_config_is_discarded_and_logged(caplog: pytest.LogCapt
     assert "secret_cache" not in typed_schema["notifications"]["items"]
     assert "MHPushSubscribe" not in legacy_schema["DNAUID配置"]["items"]
     assert "MHCache" not in legacy_schema["DNAUID配置"]["items"]
-    assert "secret_push_time" not in config.get("notifications", {})
-    assert "secret_cache" not in config.get("notifications", {})
+    # 迁移只生成 canonical 快照，不回写 AstrBot 传入的配置对象。
+    assert config["notifications"]["secret_push_time"] == "05:06"
+    assert config["notifications"]["secret_cache"] is False
     assert "丢弃已移除的全局密函配置" in caplog.text
 
 

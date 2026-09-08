@@ -53,7 +53,14 @@ def test_dnabind_supports_multiple_uid_lifecycle(initialized_db: Path):
     user_id = "user-1"
     bot_id = "bot-1"
 
-    assert _run(DNABind.insert_uid(user_id, bot_id, "1001", group_id="group-1", lenth_limit=4)) == 0
+    assert (
+        _run(
+            DNABind.insert_uid(
+                user_id, bot_id, "1001", group_id="group-1", lenth_limit=4
+            )
+        )
+        == 0
+    )
     assert _run(DNABind.get_uid_list_by_game(user_id, bot_id)) == ["1001"]
     assert _run(DNABind.get_uid_by_game(user_id, bot_id)) == "1001"
 
@@ -103,11 +110,16 @@ def test_dnauser_crud_and_cookie_queries(initialized_db: Path):
     assert _run(DNAUser.select_data_by_cookie("cookie-a")).uid == uid
     assert _run(DNAUser.select_data_by_cookie_and_uid("cookie-a", uid)).uid == uid
 
-    assert _run(DNAUser.update_data_by_uid(uid, bot_id, cookie="cookie-b", status="有效")) == 0
+    assert (
+        _run(DNAUser.update_data_by_uid(uid, bot_id, cookie="cookie-b", status="有效"))
+        == 0
+    )
     updated = _run(DNAUser.select_data_by_cookie_and_uid("cookie-b", uid))
     assert updated is not None
     assert updated.status == "有效"
-    assert _run(DNAUser.select_data_list(user_id=user_id, bot_id=bot_id, status="有效")) == [updated]
+    assert _run(
+        DNAUser.select_data_list(user_id=user_id, bot_id=bot_id, status="有效")
+    ) == [updated]
     assert _run(DNAUser.update_data_by_uid("9999", bot_id, status="无效")) == -1
 
     assert _run(DNAUser.delete_cookie(user_id, bot_id, uid)) == 1

@@ -79,7 +79,9 @@ class _PlayerRenderer:
 
 
 @pytest.mark.asyncio
-async def test_player_service_reads_global_binding_from_another_bot(tmp_path: Path) -> None:
+async def test_player_service_reads_global_binding_from_another_bot(
+    tmp_path: Path,
+) -> None:
     """玩家命令从第二个 Bot 触发时仍读取同一全局绑定。"""
 
     database = await _database(tmp_path)
@@ -123,7 +125,9 @@ class _EncyclopediaRenderer:
 
 
 @pytest.mark.asyncio
-async def test_encyclopedia_service_reads_global_binding_from_another_bot(tmp_path: Path) -> None:
+async def test_encyclopedia_service_reads_global_binding_from_another_bot(
+    tmp_path: Path,
+) -> None:
     """百科命令从第二个 Bot 触发时仍读取同一全局绑定。"""
 
     database = await _database(tmp_path)
@@ -160,7 +164,9 @@ class _CheckinTransport:
 
 
 @pytest.mark.asyncio
-async def test_checkin_service_reads_global_binding_from_another_bot(tmp_path: Path) -> None:
+async def test_checkin_service_reads_global_binding_from_another_bot(
+    tmp_path: Path,
+) -> None:
     """签到命令从第二个 Bot 触发时仍使用全局账号凭据。"""
 
     database = await _database(tmp_path)
@@ -273,7 +279,9 @@ def _legacy_mh_payload() -> dict[str, object]:
 
 
 @pytest.mark.asyncio
-async def test_notices_get_mh_any_falls_back_across_global_bindings(tmp_path: Path, monkeypatch) -> None:
+async def test_notices_get_mh_any_falls_back_across_global_bindings(
+    tmp_path: Path, monkeypatch
+) -> None:
     """计划任务的密函读取遍历全局凭据，不依赖已删除的 binding.bot_id。"""
 
     database = await _database(tmp_path)

@@ -46,4 +46,6 @@ def test_legacy_announcement_groups_are_not_imported_into_typed_settings() -> No
 
     assert not hasattr(settings.notifications, "announcement_groups")
     assert raw["notifications"]["announcement_groups"] == {"secret-group": True}
-    assert "announcement_groups" not in generate_astrbot_schema()["notifications"]["items"]
+    assert (
+        "announcement_groups" not in generate_astrbot_schema()["notifications"]["items"]
+    )

@@ -119,16 +119,18 @@ def test_client_update_settings_have_independent_defaults_and_positive_interval(
 
 
 def test_generated_schema_declares_client_update_configuration() -> None:
-    """typed schema 必须生成三项客户端更新配置及其产品默认值。"""
+    """typed schema 必须在独立分组生成客户端更新配置及其产品默认值。"""
 
-    items = generate_astrbot_schema()["notifications"]["items"]
+    items = generate_astrbot_schema()["client_updates"]["items"]
 
-    assert items["client_update_enabled"]["type"] == "bool"
-    assert items["client_update_enabled"]["default"] is True
-    assert items["client_update_check_minutes"]["type"] == "int"
-    assert items["client_update_check_minutes"]["default"] == 60
-    assert items["client_update_merge_forward"]["type"] == "bool"
-    assert items["client_update_merge_forward"]["default"] is True
+    assert items["enabled"]["type"] == "bool"
+    assert items["enabled"]["default"] is True
+    assert items["check_minutes"]["type"] == "int"
+    assert items["check_minutes"]["default"] == 60
+    assert items["channels"]["type"] == "list"
+    assert set(items["channels"]["options"]) >= {"pc_cn", "android_astc_cn"}
+    assert items["merge_forward"]["type"] == "bool"
+    assert items["merge_forward"]["default"] is True
 
 
 @pytest.mark.asyncio

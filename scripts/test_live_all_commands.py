@@ -34,7 +34,9 @@ class MockContext:
         self.sent_messages.append((args, kwargs))
 
 
-def _save_reports(output_dir: Path, report_data: dict[str, object], markdown_text: str) -> tuple[Path, Path]:
+def _save_reports(
+    output_dir: Path, report_data: dict[str, object], markdown_text: str
+) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     report_json_path = output_dir / "live_test_report.json"
     report_md_path = output_dir / "live_test_report.md"
@@ -98,11 +100,13 @@ async def _execute_single_command(
             if isinstance(r, PlainTextResponse):
                 text_sample = r.text.replace("\n", " ")
                 print(f"   [{i}] PlainText(need_at={r.need_at}): {text_sample[:150]}")
-                resp_summary.append({
-                    "type": "PlainText",
-                    "need_at": r.need_at,
-                    "text": r.text,
-                })
+                resp_summary.append(
+                    {
+                        "type": "PlainText",
+                        "need_at": r.need_at,
+                        "text": r.text,
+                    }
+                )
             elif isinstance(r, ImageResponse):
                 img_path = r.image
                 img_info: dict[str, object] = {"type": "Image"}
@@ -112,16 +116,28 @@ async def _execute_single_command(
                         with Image.open(str(img_path)) as im:
                             w, h = im.size
                             fmt = im.format
-                            print(f"   [{i}] Image: path={img_path}, size={size_bytes:,}B, res={w}x{h}, fmt={fmt}")
-                            img_info.update({
+                            print(
+                                f"   [{i}] Image: path={img_path}, size={size_bytes:,}B, res={w}x{h}, fmt={fmt}"
+                            )
+                            img_info.update(
+                                {
+                                    "path": str(img_path),
+                                    "size_bytes": size_bytes,
+                                    "resolution": f"{w}x{h}",
+                                    "format": fmt,
+                                }
+                            )
+                    except (OSError, ValueError) as e:
+                        print(
+                            f"   [{i}] Image: path={img_path}, size={size_bytes:,}B, error: {e}"
+                        )
+                        img_info.update(
+                            {
                                 "path": str(img_path),
                                 "size_bytes": size_bytes,
-                                "resolution": f"{w}x{h}",
-                                "format": fmt,
-                            })
-                    except (OSError, ValueError) as e:
-                        print(f"   [{i}] Image: path={img_path}, size={size_bytes:,}B, error: {e}")
-                        img_info.update({"path": str(img_path), "size_bytes": size_bytes, "error": str(e)})
+                                "error": str(e),
+                            }
+                        )
                 elif isinstance(img_path, bytes):
                     print(f"   [{i}] Image: raw_bytes, size={len(img_path):,}B")
                     img_info.update({"size_bytes": len(img_path), "raw": True})
@@ -131,16 +147,20 @@ async def _execute_single_command(
                 resp_summary.append(img_info)
             elif isinstance(r, ChainResponse):
                 print(f"   [{i}] ChainResponse: {r.components}")
-                resp_summary.append({
-                    "type": "ChainResponse",
-                    "components": str(r.components),
-                })
+                resp_summary.append(
+                    {
+                        "type": "ChainResponse",
+                        "components": str(r.components),
+                    }
+                )
             else:
                 print(f"   [{i}] Other response: {type(r).__name__} -> {r}")
-                resp_summary.append({
-                    "type": type(r).__name__,
-                    "value": str(r),
-                })
+                resp_summary.append(
+                    {
+                        "type": type(r).__name__,
+                        "value": str(r),
+                    }
+                )
         gc.collect()
         return {
             "test_id": test_id,
@@ -198,7 +218,6 @@ async def run() -> None:
     test_commands = [
         # 0. 帮助
         ("kk帮助", "kk帮助", "帮助菜单卡片渲染"),
-
         # 1. 账号与隐私控制
         ("kk登录", "kk登录", "生成登录二维码/URL会话"),
         ("kk查看UID", "kk查看UID", "查看绑定UID"),
@@ -219,14 +238,12 @@ async def run() -> None:
         ("kk全体开偷窥", "kk全体开偷窥", "管理员全体开偷窥"),
         ("kk全体防偷窥", "kk全体防偷窥", "管理员全体防偷窥"),
         ("kk取消全体偷窥", "kk取消全体偷窥", "管理员取消全体偷窥"),
-
         # 2. 玩家卡片与详情
         ("kk卡片", "kk卡片", "玩家总览卡片T2I渲染"),
         ("kk菲娜详情", "kk菲娜详情", "角色属性与武器详情卡T2I渲染"),
         ("kk菲娜详情+暗月+暗月", "kk菲娜详情+暗月+暗月", "角色与自定义武器面板详情"),
         ("kk原图", "kk原图", "角色原图查询（提示暂不支持）"),
         ("kk原图删除", "kk原图删除", "删除角色原图"),
-
         # 3. 百科、周报与便签模块
         ("kk便签", "kk便签", "实时便签与体力卡片T2I渲染"),
         ("kk周报", "kk周报", "本周周报数据统计T2I渲染"),
@@ -239,13 +256,11 @@ async def run() -> None:
         ("kk武器列表", "kk武器列表", "全武器清单查询"),
         ("kk菲娜图鉴", "kk菲娜图鉴", "角色图鉴查询"),
         ("kk菲娜攻略", "kk菲娜攻略", "角色攻略查询"),
-
         # 4. 签到模块
         ("kk签到", "kk签到", "手动执行签到任务"),
         ("kk签到日历", "kk签到日历", "当月签到记录日历T2I渲染"),
         ("kk订阅签到结果", "kk订阅签到结果", "订阅签到广播"),
         ("kk取消订阅签到结果", "kk取消订阅签到结果", "取消订阅签到广播"),
-
         # 5. 密函模块
         ("kk密函", "kk密函", "密函卡片T2I渲染"),
         ("kk密函列表", "kk密函列表", "可订阅密函类型列表"),
@@ -258,13 +273,11 @@ async def run() -> None:
         ("kk取消订阅密函文本", "kk取消订阅密函文本", "关闭密函文本推送"),
         ("kk密函测试", "kk密函测试", "密函推送测试"),
         ("kk取消订阅扼守密函", "kk取消订阅扼守密函", "取消订阅指定密函"),
-
         # 6. 公告模块
         ("kk公告", "kk公告", "最新公告列表T2I渲染"),
         ("kk公告 1", "kk公告 1", "指定序号公告详情查询"),
         ("kk订阅公告", "kk订阅公告", "群聊订阅游戏公告"),
         ("kk取消订阅公告", "kk取消订阅公告", "群聊退订游戏公告"),
-
         # 7. 运维与资源模块
         ("kk资源状态", "kk资源状态", "公共资源目录健康检查"),
         ("kk菲娜面板图列表", "kk菲娜面板图列表", "查询自定义面板图"),
@@ -339,15 +352,23 @@ async def run() -> None:
                 if isinstance(r, dict):
                     t = r.get("type")
                     if t == "PlainText":
-                        summary_parts.append(f"文本: `{str(r.get('text', '')).replace(chr(10), ' ')[:60]}`")
+                        summary_parts.append(
+                            f"文本: `{str(r.get('text', '')).replace(chr(10), ' ')[:60]}`"
+                        )
                     elif t == "Image":
                         res = r.get("resolution", "N/A")
                         sz = r.get("size_bytes", 0)
                         summary_parts.append(f"图片: `{res}` ({sz:,}B)")
                     else:
                         summary_parts.append(f"{t}")
-        summary_str = "<br>".join(summary_parts) if summary_parts else (str(item.get("error", "无返回"))[:60])
-        md_lines.append(f"| {i} | `{item['command']}` | {item['description']} | {status_badge} | {summary_str} |\n")
+        summary_str = (
+            "<br>".join(summary_parts)
+            if summary_parts
+            else (str(item.get("error", "无返回"))[:60])
+        )
+        md_lines.append(
+            f"| {i} | `{item['command']}` | {item['description']} | {status_badge} | {summary_str} |\n"
+        )
 
     report_json_path, report_md_path = _save_reports(
         output_dir,

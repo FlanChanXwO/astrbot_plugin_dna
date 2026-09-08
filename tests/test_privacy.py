@@ -60,7 +60,9 @@ async def test_personal_privacy_defaults_and_group_force_precedence(database):
 
 
 @pytest.mark.asyncio
-async def test_personal_write_is_rejected_by_group_force_without_mutating_record(database):
+async def test_personal_write_is_rejected_by_group_force_without_mutating_record(
+    database,
+):
     """群强制设置存在时，个人修改返回可见原因且不产生个人写入。"""
     service = PrivacyService(database)
     await service.set_group_peek(_actor(), True)
@@ -139,7 +141,9 @@ async def test_query_resolution_preserves_self_query_and_group_override(database
 
 
 @pytest.mark.asyncio
-async def test_uid_and_peek_group_settings_are_shared_by_bot_and_scoped_by_group(database):
+async def test_uid_and_peek_group_settings_are_shared_by_bot_and_scoped_by_group(
+    database,
+):
     """群强制设置跨 Bot 共享，但不会串到另一个群组。"""
     service = PrivacyService(database)
     await service.set_group_peek(_actor(), False)
@@ -162,10 +166,14 @@ async def test_concurrent_personal_upserts_keep_one_global_record(database):
         *(service.set_personal_peek(actor, index % 2 == 0) for index in range(16)),
     )
 
-    assert all(response.text in {
-        "已允许他人查看你的游戏信息~",
-        "已禁止他人查看你的游戏信息~",
-    } for response in responses)
+    assert all(
+        response.text
+        in {
+            "已允许他人查看你的游戏信息~",
+            "已禁止他人查看你的游戏信息~",
+        }
+        for response in responses
+    )
     async with database.session() as session:
         records = list(
             (

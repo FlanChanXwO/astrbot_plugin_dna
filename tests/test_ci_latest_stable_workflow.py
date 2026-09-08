@@ -11,7 +11,9 @@ LIFECYCLE_WORKFLOW = WORKFLOWS / "plugin-lifecycle.yml"
 
 
 class LifecycleWorkflowContractTests(unittest.TestCase):
-    def test_workflow_uses_lifecycle_name_and_latest_stable_as_runtime_target(self) -> None:
+    def test_workflow_uses_lifecycle_name_and_latest_stable_as_runtime_target(
+        self,
+    ) -> None:
         self.assertTrue(
             LIFECYCLE_WORKFLOW.is_file(),
             "生命周期 CI 应使用 .github/workflows/plugin-lifecycle.yml",

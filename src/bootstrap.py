@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -53,7 +54,7 @@ from .infrastructure.rendering import (
 )
 from .infrastructure.resources import (
     EncyclopediaResourceStore,
-    ResourceManifest,
+    ResourceGenerationError,
     ResourceSnapshot,
     ResourceSnapshotCoordinator,
 )
@@ -160,6 +161,14 @@ def build_runtime(
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()
     settings = DnabySettings.from_config(config)
+    from .utils import dna_api
+
+    dna_api.configure_network(
+        api_base_url=settings.network.api_base_url,
+        proxy_url=settings.network.proxy_url,
+        websocket_continue_seconds=settings.network.websocket_continue_seconds,
+        websocket_wait_seconds=settings.network.websocket_wait_seconds,
+    )
     request_gate = RequestConcurrencyGate(settings.network.max_concurrent_requests)
     runtime_database = database
     if runtime_database is None:
@@ -173,6 +182,7 @@ def build_runtime(
         runtime_database,
         resolved_account_transport,
         max_bind_count=settings.login.max_bind_count,
+        default_auto_sign_enabled=settings.sign_in.default_auto_sign_enabled,
     )
     if services is not None and "account_service" in services:
         account_service = cast(AccountService, services["account_service"])
@@ -231,37 +241,32 @@ def build_runtime(
     custom_alias_path = runtime_database.path.parent / "alias_custom.json"
     custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
     resource_cache_root = resource_repository_dir(runtime_database.path.parent)
+    resource_generations_root = resource_generations_dir(runtime_database.path.parent)
     resource_snapshots = ResourceSnapshotCoordinator(
         resource_cache_root,
-        generations_root=resource_generations_dir(runtime_database.path.parent),
+        generations_root=resource_generations_root,
         acceleration_prefix=settings.resources.acceleration_prefix,
         custom_alias_path=custom_alias_path,
         custom_weapon_alias_path=custom_weapon_alias_path,
     )
-    initial_resource_snapshot = resource_snapshots.initialize()
+    # 构造期只接纳已由外部显式注入的 verified snapshot；重载时的 current
+    # 指针和完整资源校验延后到异步生命周期，避免阻塞 AstrBot 插件加载线程。
+    # 没有已验证快照时使用显式空视图，直到异步校验成功后由监听器刷新。
+    initial_resource_snapshot = resource_snapshots.current_snapshot
     resource_root = (
         initial_resource_snapshot.root
         if initial_resource_snapshot is not None
-        else resource_cache_root
+        else None
     )
-    manifest_path = resource_root / "resource_manifest.json"
-    if manifest_path.exists():
-        ResourceManifest.load(
-            manifest_path,
-        ).validate_runtime_layout(resource_root)
     player_resources = (
         initial_resource_snapshot.player_resources
         if initial_resource_snapshot is not None
-        else ResourceMap.from_root(resource_root)
+        else ResourceMap()
     )
     encyclopedia_resources = (
         initial_resource_snapshot.encyclopedia_resources
         if initial_resource_snapshot is not None
-        else EncyclopediaResourceStore.from_root(
-            resource_root,
-            custom_alias_path=custom_alias_path,
-            custom_weapon_alias_path=custom_weapon_alias_path,
-        )
+        else EncyclopediaResourceStore()
     )
     rendered_root = runtime_database.path.parent / "rendered"
     cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
@@ -389,10 +394,9 @@ def build_runtime(
         checkin_service,
         subscriptions,
         sign_time=settings.sign_in.sign_time,
-        scheduled_enabled=settings.sign_in.scheduled_enabled,
-        enable_all_users=settings.sign_in.enable_all_users,
         push=_push_sign,
         registry=scheduler_registry,
+        sign_task_enabled=settings.sign_in.scheduler_enabled_for_runtime,
     )
     notices_renderer = NoticesRenderer(
         rendered_root,
@@ -561,6 +565,7 @@ def build_runtime(
         client_update_state,
         transport=resolved_client_updates_transport,
         subscriptions=subscriptions,
+        channels=tuple(settings.client_updates.channels),
     )
     if services is not None and "client_update_service" in services:
         client_update_service = cast(
@@ -570,7 +575,7 @@ def build_runtime(
     client_update_push_adapter = ClientUpdatePushAdapter(
         send_text=_send_client_update_text,
         send_forward=_send_client_update_forward,
-        merge_forward=settings.notifications.client_update_merge_forward,
+        merge_forward=settings.client_updates.merge_forward,
     )
     if services is not None and "client_update_push_adapter" in services:
         client_update_push_adapter = cast(
@@ -590,8 +595,8 @@ def build_runtime(
     client_updates_scheduler = ClientUpdatesScheduler(
         client_update_service,
         client_update_delivery,
-        enabled=settings.notifications.client_update_enabled,
-        check_minutes=settings.notifications.client_update_check_minutes,
+        enabled=settings.client_updates.enabled,
+        check_minutes=settings.client_updates.check_minutes,
         registry=scheduler_registry,
     )
     if services is not None and "client_updates_scheduler" in services:
@@ -620,7 +625,7 @@ def build_runtime(
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
-        resource_root=resource_root,
+        resource_root=resource_cache_root,
         resource_snapshots=resource_snapshots,
     )
     if services is not None and "resource_update_service" in services:
@@ -633,20 +638,25 @@ def build_runtime(
     def _refresh_alias_views() -> None:
         """别名写入后立即替换当前百科视图，不要求重载插件。"""
 
-        current_root = Path(resolved_services.get("resource_root", resource_root))
-        updated = EncyclopediaResourceStore.from_root(
-            current_root,
-            custom_alias_path=custom_alias_path,
-            custom_weapon_alias_path=custom_weapon_alias_path,
-        )
+        current_root = resolved_services.get("resource_root")
+        if current_root is None:
+            updated = EncyclopediaResourceStore()
+        else:
+            updated = EncyclopediaResourceStore.from_root(
+                Path(current_root),
+                custom_alias_path=custom_alias_path,
+                custom_weapon_alias_path=custom_weapon_alias_path,
+            )
         encyclopedia_service.renderer.resources = updated
         encyclopedia_service.resources = updated
         checkin_renderer.resources = updated
         notices_renderer.resources = updated
         resolved_services["encyclopedia_resources"] = updated
 
+    alias_root = resource_root or resource_generations_root / ".unavailable"
     admin_alias_service = AdminAliasService(
-        resource_root=resource_root,
+        default_alias_path=alias_root / "alias" / "char_alias.json",
+        weapon_alias_path=alias_root / "alias" / "weapon_alias.json",
         custom_path=custom_alias_path,
         weapon_custom_path=custom_weapon_alias_path,
         refresh=_refresh_alias_views,
@@ -707,11 +717,39 @@ def build_runtime(
         encyclopedia_service.resources = new_encyclopedia_resources
         checkin_renderer.resources = new_encyclopedia_resources
         notices_renderer.resources = new_encyclopedia_resources
+        admin_alias_service.default_alias_path = (
+            snapshot.root / "alias" / "char_alias.json"
+        )
+        admin_alias_service.weapon_alias_path = (
+            snapshot.root / "alias" / "weapon_alias.json"
+        )
         resolved_services["resource_root"] = snapshot.root
         resolved_services["player_resources"] = new_player_resources
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources
 
     resource_snapshots.subscribe(_refresh_resource_views)
+
+    async def _initialize_resource_views() -> None:
+        """在异步生命周期中完成完整资源校验，避免阻塞插件构造线程。"""
+
+        try:
+            snapshot = await asyncio.to_thread(resource_snapshots.validate_current)
+        except ResourceGenerationError as error:
+            resource_snapshots.record_validation_failure(error)
+            from astrbot.api import logger
+
+            logger.warning(
+                "[dnaby][resources] 当前 generation 校验失败，资源暂不可用；"
+                "可执行同步资源修复（%s）",
+                type(error).__name__,
+            )
+            return
+        if snapshot is not None:
+            _refresh_resource_views(snapshot)
+
+    async def _stop_resource_views() -> None:
+        """资源校验不持有后台任务，但需要与启动 hook 保持索引对齐。"""
+
     if services is not None:
         resolved_services.update(services)
 
@@ -739,28 +777,38 @@ def build_runtime(
 
     _warn_deprecated_announcement_config()
 
-    web = WebRegistrar(context, build_admin_web_routes(resolved_services))
+    web = WebRegistrar(
+        context,
+        build_admin_web_routes(resolved_services),
+        plugin_name=PLUGIN_NAME,
+    )
     lifecycle = PluginLifecycle(
         start_hooks=(
+            _initialize_resource_views,
             login_flow.start,
             web.initialize,
             cache_maintenance.start,
-            resource_update_service.start_preheat,
             sign_scheduler.start,
             notices_scheduler.start,
             client_updates_scheduler.start,
             agent_tools_lifecycle.start,
         ),
-        # PluginLifecycle 会逆序执行 stop_hooks；先停 scheduler、资源线程，再释放数据库。
+        # stop_hooks 与 start_hooks 按阶段对齐；PluginLifecycle 会逆序执行，
+        # 先取消 scheduler/监听任务，再运行 transport 和数据库 finalizer。
         stop_hooks=(
-            runtime_database.dispose,
+            _stop_resource_views,
+            login_flow.stop,
+            web.stop,
             cache_maintenance.stop,
-            resource_update_service.stop,
             sign_scheduler.stop,
             notices_scheduler.stop,
             client_updates_scheduler.stop,
             agent_tools_lifecycle.stop,
-            login_flow.stop,
+        ),
+        finalizer_hooks=(
+            resource_update_service.stop,
+            dna_api.close,
+            runtime_database.dispose,
         ),
     )
     return PluginRuntime(

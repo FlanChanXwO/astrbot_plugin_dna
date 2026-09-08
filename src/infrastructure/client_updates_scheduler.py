@@ -89,10 +89,6 @@ class ClientUpdatesScheduler:
 
     async def _run_periodic(self) -> None:
         while True:
-            now = self._now()
-            next_run = now + timedelta(minutes=self.check_minutes)
-            await self.registry.set_next_run(CLIENT_UPDATE_TASK_ID, next_run)
-            await self._sleep(self.check_minutes * 60)
             snapshot = await self.registry.get_snapshot(CLIENT_UPDATE_TASK_ID)
             if snapshot is None or snapshot.state is SchedulerTaskState.PAUSED:
                 return
@@ -107,6 +103,15 @@ class ClientUpdatesScheduler:
                 logger.warning(f"[dnaby][{CLIENT_UPDATE_TASK_ID}] 定时任务异常")
             else:
                 await self.registry.mark_running(CLIENT_UPDATE_TASK_ID)
+
+            now = self._now()
+            next_run = now + timedelta(minutes=self.check_minutes)
+            await self.registry.set_next_run(CLIENT_UPDATE_TASK_ID, next_run)
+            await self._sleep(self.check_minutes * 60)
+            # 测试或宿主注入的 sleep 可能提前返回；提前返回不代表周期已到，
+            # 不能因此重复 poll，必须继续等待到 next_run。
+            while self._now() < next_run:
+                await self._sleep(self.check_minutes * 60)
 
     def _create_task(self) -> asyncio.Task:
         existing = self._task_by_id.get(CLIENT_UPDATE_TASK_ID)
@@ -137,7 +142,11 @@ class ClientUpdatesScheduler:
         await self.registry.initialize()
         if self._started:
             return
-        if self.enabled and not await self.registry.is_deleted(CLIENT_UPDATE_TASK_ID):
+        if (
+            self.enabled
+            and not await self.registry.is_deleted(CLIENT_UPDATE_TASK_ID)
+            and not await self.registry.is_paused(CLIENT_UPDATE_TASK_ID)
+        ):
             await self.registry.activate(CLIENT_UPDATE_TASK_ID)
             self._create_task()
         self._started = True

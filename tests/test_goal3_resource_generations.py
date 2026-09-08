@@ -5,14 +5,18 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import threading
+from builtins import ExceptionGroup
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from PIL import Image
 
 from src.bootstrap import build_runtime
 from src.infrastructure.persistence import AsyncDatabase
+from src.infrastructure.rendering.player import ResourceMap
 from src.infrastructure.resources import (
     DEFAULT_RESOURCE_REMOTE,
     GitCommandError,
@@ -22,7 +26,9 @@ from src.infrastructure.resources import (
     ResourceSnapshotCoordinator,
     run_git,
 )
+from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.manifest import RUNTIME_RESOURCE_DIRECTORIES
+from src.modules.operations.resource_service import ResourceUpdateService
 
 
 def _git(*args: str, cwd: Path | None = None) -> str:
@@ -125,7 +131,9 @@ class LocalBareRunner:
         else:
             result = run_git(args, cwd)
         if operation == "clone":
-            _git("remote", "set-url", "origin", DEFAULT_RESOURCE_REMOTE, cwd=self.target)
+            _git(
+                "remote", "set-url", "origin", DEFAULT_RESOURCE_REMOTE, cwd=self.target
+            )
         return result
 
 
@@ -150,7 +158,9 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, LocalBareRunner]:
     return source, target, LocalBareRunner(bare, target)
 
 
-def _coordinator(tmp_path: Path, runner: LocalBareRunner) -> ResourceSnapshotCoordinator:
+def _coordinator(
+    tmp_path: Path, runner: LocalBareRunner
+) -> ResourceSnapshotCoordinator:
     return ResourceSnapshotCoordinator(
         tmp_path / "resources",
         generations_root=tmp_path / "resource_generations",
@@ -182,18 +192,174 @@ def test_sync_archives_fetch_head_and_publishes_only_valid_main_generation(
     assert (snapshot.root / "main").exists() is False
     assert not (snapshot.root / "feature.txt").exists()
     assert (snapshot.root / "resource_manifest.json").is_file()
-    assert _git("remote", "get-url", "origin", cwd=target).strip() == DEFAULT_RESOURCE_REMOTE
+    assert (
+        _git("remote", "get-url", "origin", cwd=target).strip()
+        == DEFAULT_RESOURCE_REMOTE
+    )
     assert _git("branch", "--show-current", cwd=target).strip() == "main"
-    assert _git("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin", cwd=target).splitlines() == [
-        "origin/main"
-    ]
+    assert _git(
+        "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin", cwd=target
+    ).splitlines() == ["origin/main"]
     assert _git("tag", cwd=target).strip() == ""
-    assert any(_operation(call) == "archive" and "FETCH_HEAD" in call for call in runner.calls)
+    assert any(
+        _operation(call) == "archive" and "FETCH_HEAD" in call for call in runner.calls
+    )
     state = json.loads(coordinator.state_path.read_text(encoding="utf-8"))
     assert state["generation"] == result.commit_sha
     assert state["content_sha256"] == result.content_sha256
     assert [item.commit_sha for item in published] == [result.commit_sha]
     assert source.exists()
+
+
+def test_sync_resources_is_canonical_sync_entrypoint(tmp_path: Path) -> None:
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+
+    result = coordinator.sync_resources()
+
+    assert result.commit_sha
+    assert coordinator.current_snapshot is not None
+    assert coordinator.current_snapshot.commit_sha == result.commit_sha
+
+
+def test_sync_same_remote_commit_returns_unchanged_without_rebuilding_generation(
+    tmp_path: Path,
+) -> None:
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    calls_before = len(runner.calls)
+
+    second = coordinator.synchronize()
+    new_calls = runner.calls[calls_before:]
+
+    assert second.action == "unchanged"
+    assert second.commit_sha == first.commit_sha
+    assert second.generation_root == first.generation_root
+    assert not any(_operation(call) == "archive" for call in new_calls)
+    assert not any(_operation(call) == "merge" for call in new_calls)
+
+
+def test_sync_same_remote_commit_after_restart_validates_current_generation(
+    tmp_path: Path,
+) -> None:
+    """重启后的同 commit 快路径也必须验证已发布 generation 的完整性。"""
+
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    assert first.generation_root is not None
+
+    alias_path = first.generation_root / "alias" / "char_alias.json"
+    alias_path.write_text('{"角色甲": ["已篡改"]}', encoding="utf-8")
+
+    restarted = _coordinator(tmp_path, runner)
+    assert restarted.load_current() is not None
+
+    with pytest.raises(ResourceGenerationError, match="内容哈希不匹配"):
+        restarted.validate_current()
+
+    repaired = restarted.synchronize()
+    assert repaired.commit_sha == first.commit_sha
+    assert restarted.current_snapshot is not None
+    assert restarted.current_snapshot.commit_sha == first.commit_sha
+
+
+def test_same_commit_repair_waits_for_active_lease_before_replacing_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同 commit 修复不得在活跃 lease 仍读取旧物理目录时替换它。"""
+
+    _source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    assert first.generation_root is not None
+
+    lease = coordinator.acquire()
+    old_root = lease.root
+    alias_path = old_root / "alias" / "char_alias.json"
+    alias_path.write_text('{"角色甲": ["lease 仍在读取"]}', encoding="utf-8")
+
+    repair_started = threading.Event()
+    repair_finished = threading.Event()
+    result: list[object] = []
+    errors: list[BaseException] = []
+    original_begin = coordinator._begin_generation_repair
+
+    def observe_repair_begin(commit_sha: str) -> None:
+        repair_started.set()
+        original_begin(commit_sha)
+
+    monkeypatch.setattr(
+        coordinator,
+        "_begin_generation_repair",
+        observe_repair_begin,
+    )
+
+    def run_repair() -> None:
+        try:
+            result.append(coordinator.synchronize())
+        except BaseException as error:  # noqa: BLE001 - 线程结果必须回传给测试。
+            errors.append(error)
+        finally:
+            repair_finished.set()
+
+    thread = threading.Thread(target=run_repair)
+    thread.start()
+    try:
+        assert repair_started.wait(2)
+        assert thread.is_alive()
+        assert old_root.is_dir()
+        assert (
+            alias_path.read_text(encoding="utf-8") == '{"角色甲": ["lease 仍在读取"]}'
+        )
+        with pytest.raises(ResourceGenerationError):
+            coordinator.acquire()
+        with coordinator.optional_lease() as snapshot:
+            assert snapshot is None
+    finally:
+        lease.release()
+        thread.join(timeout=2)
+    assert repair_finished.is_set()
+    assert not thread.is_alive()
+
+    assert not errors
+    assert result
+    assert result[0].commit_sha == first.commit_sha
+    assert coordinator.current_snapshot is not None
+    assert coordinator.current_snapshot.commit_sha == first.commit_sha
+
+
+def test_sync_reports_validation_and_cleanup_failures_together(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _source, _target, runner = _fixture(tmp_path)
+
+    class FailingValidator:
+        def validate(self, root: Path, commit_sha: str):
+            del root, commit_sha
+            raise ResourceGenerationError("candidate invalid")
+
+    coordinator = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+        validator=FailingValidator(),
+    )
+
+    def fail_cleanup(_path: Path) -> None:
+        raise OSError("cleanup failed")
+
+    monkeypatch.setattr(coordinator, "_remove_generation", fail_cleanup)
+
+    with pytest.raises(ExceptionGroup) as caught:
+        coordinator.synchronize()
+
+    messages = {str(error) for error in caught.value.exceptions}
+    assert "candidate invalid" in messages
+    assert "cleanup failed" in messages
 
 
 def test_invalid_candidate_keeps_last_verified_snapshot_and_cleans_temp_files(
@@ -217,8 +383,14 @@ def test_invalid_candidate_keeps_last_verified_snapshot_and_cleans_temp_files(
     assert current.commit_sha == first.commit_sha
     assert old.root.is_dir()
     assert _git("rev-parse", "HEAD", cwd=target).strip() == old_checkout
-    assert json.loads(coordinator.state_path.read_text(encoding="utf-8"))["generation"] == first.commit_sha
-    assert not any(path.name.startswith((".candidate-", ".archive-")) for path in coordinator.generations_root.iterdir())
+    assert (
+        json.loads(coordinator.state_path.read_text(encoding="utf-8"))["generation"]
+        == first.commit_sha
+    )
+    assert not any(
+        path.name.startswith((".candidate-", ".archive-"))
+        for path in coordinator.generations_root.iterdir()
+    )
 
 
 def test_git_failure_keeps_last_verified_snapshot(tmp_path: Path) -> None:
@@ -295,18 +467,23 @@ def test_renderer_binding_pins_generation_for_render_duration(tmp_path: Path) ->
     assert not old_root.exists()
 
 
-def test_resource_binding_does_not_mask_consumer_attribute_errors(tmp_path: Path) -> None:
+def test_resource_binding_does_not_mask_consumer_attribute_errors(
+    tmp_path: Path,
+) -> None:
     _source, _target, runner = _fixture(tmp_path)
     coordinator = _coordinator(tmp_path, runner)
     coordinator.synchronize()
 
-    with pytest.raises(AttributeError, match="consumer failure"), coordinator.bind_resource(
-        "player_resources"
+    with (
+        pytest.raises(AttributeError, match="consumer failure"),
+        coordinator.bind_resource("player_resources"),
     ):
         raise AttributeError("consumer failure")
 
 
-def test_validator_rejects_duplicate_alias_under_one_canonical_name(tmp_path: Path) -> None:
+def test_validator_rejects_duplicate_alias_under_one_canonical_name(
+    tmp_path: Path,
+) -> None:
     candidate = tmp_path / "candidate"
     _write_resources(candidate, "v1")
     (candidate / "alias" / "char_alias.json").write_text(
@@ -425,7 +602,10 @@ def test_validator_checks_optional_manifest_file_hashes(tmp_path: Path) -> None:
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     snapshot = ResourceGenerationValidator().validate(candidate, "a" * 40)
-    assert snapshot.manifest.file_hashes["alias/char_alias.json"] == manifest["file_hashes"]["alias/char_alias.json"]
+    assert (
+        snapshot.manifest.file_hashes["alias/char_alias.json"]
+        == manifest["file_hashes"]["alias/char_alias.json"]
+    )
 
     alias_path.write_text('{"角色甲": ["被篡改"]}', encoding="utf-8")
     with pytest.raises(ResourceGenerationError, match="文件哈希不匹配"):
@@ -449,6 +629,87 @@ def test_initialize_rejects_tampered_content_hash_pointer(tmp_path: Path) -> Non
     )
     with pytest.raises(ResourceGenerationError, match="内容哈希不匹配"):
         restarted.initialize()
+
+
+@pytest.mark.asyncio
+async def test_build_runtime_keeps_resource_recovery_surface_when_generation_is_corrupt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """current 损坏时插件仍可加载，并可用同步命令重建同一 generation。"""
+
+    source, _target, runner = _fixture(tmp_path)
+    coordinator = _coordinator(tmp_path, runner)
+    first = coordinator.synchronize()
+    assert first.generation_root is not None
+    alias_path = first.generation_root / "alias" / "char_alias.json"
+    manifest_path = first.generation_root / "resource_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["file_hashes"] = {
+        "alias/char_alias.json": hashlib.sha256(alias_path.read_bytes()).hexdigest()
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    alias_path.write_text('{"角色甲": ["被篡改"]}', encoding="utf-8")
+
+    restarted = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+    )
+
+    import src.bootstrap as bootstrap_module
+
+    monkeypatch.setattr(
+        bootstrap_module,
+        "ResourceSnapshotCoordinator",
+        lambda *_args, **_kwargs: restarted,
+    )
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {"login": {"port": 0}},
+        database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
+    )
+    await runtime.initialize()
+
+    snapshots = cast(
+        ResourceSnapshotCoordinator, runtime.services["resource_snapshots"]
+    )
+    assert snapshots.current_snapshot is None
+    assert runtime.services["resource_root"] is None
+    runtime_player_resources = cast(
+        ResourceMap,
+        runtime.services["player_resources"],
+    )
+    runtime_encyclopedia_resources = cast(
+        EncyclopediaResourceStore,
+        runtime.services["encyclopedia_resources"],
+    )
+    assert runtime_player_resources.root is None
+    assert runtime_encyclopedia_resources.aliases.all_chars() == ()
+    assert runtime_encyclopedia_resources.wiki_asset("角色甲") is None
+    with snapshots.bind_renderer(
+        SimpleNamespace(resources=runtime_player_resources),
+        "player_resources",
+    ) as bound:
+        assert bound.resources.root is None
+    persisted_status = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource_generations",
+        runner=runner,
+    ).read_status()
+    assert persisted_status.current_validation_error == "ResourceGenerationError"
+    service = cast(ResourceUpdateService, runtime.services["resource_update_service"])
+    status = await service.status()
+    assert "当前 generation 不可用" in status.text
+
+    response = await service.sync_resources(None)
+    assert "资源已更新完成" in response.text
+    assert snapshots.current_snapshot is not None
+    assert snapshots.current_snapshot.commit_sha == first.commit_sha
+    assert snapshots.current_snapshot.root.is_dir()
+
+    await runtime.terminate()
+    assert source.exists()
 
 
 def test_restart_loads_active_generation_and_removes_orphans_without_touching_panel_custom(
@@ -492,7 +753,9 @@ def test_bootstrap_removes_alias_write_service_and_panel_service(
         player_resources=object(),
         encyclopedia_resources=object(),
     )
-    monkeypatch.setattr(ResourceSnapshotCoordinator, "initialize", lambda self: snapshot)
+    monkeypatch.setattr(
+        ResourceSnapshotCoordinator, "initialize", lambda self: snapshot
+    )
 
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),

@@ -55,7 +55,9 @@ class _Credential(_ProtocolModel):
 class _StatusModel(_ProtocolModel):
     status: str = Field(description="pending / success / failed / expired / heartbeat")
     msg: str = Field(default="", description="给用户看的展示文案")
-    credential: _Credential | None = Field(default=None, description="终态为 success 时的凭据")
+    credential: _Credential | None = Field(
+        default=None, description="终态为 success 时的凭据"
+    )
 
 
 def _parse_status_payload(raw: str) -> _StatusModel:
@@ -86,7 +88,9 @@ def _sign(parts: list[str], shared_secret: str = "") -> str:
     secret = shared_secret.strip()
     if not secret:
         return ""
-    return hmac.new(secret.encode(), "|".join(parts).encode(), hashlib.sha256).hexdigest()
+    return hmac.new(
+        secret.encode(), "|".join(parts).encode(), hashlib.sha256
+    ).hexdigest()
 
 
 def _to_result(payload: _StatusModel) -> TransportResult | None:
@@ -145,7 +149,9 @@ class _Base:
         url = f"{self.base_url}/dna/start"
         logger.debug("[DNA登录] 外置登录服务 start 请求")
         try:
-            async with httpx.AsyncClient(timeout=START_TIMEOUT_S, trust_env=False) as client:
+            async with httpx.AsyncClient(
+                timeout=START_TIMEOUT_S, trust_env=False
+            ) as client:
                 resp = await client.post(url, json=body)
         except httpx.HTTPError as err:
             raise TransportError("外置登录服务网络错误") from err
@@ -160,7 +166,9 @@ class HttpPollTransport(_Base):
     async def listen(self, auth: str) -> TransportResult | None:
         waited_s = 0.0
         last_network_error: httpx.HTTPError | None = None
-        async with httpx.AsyncClient(timeout=START_TIMEOUT_S, trust_env=False) as client:
+        async with httpx.AsyncClient(
+            timeout=START_TIMEOUT_S, trust_env=False
+        ) as client:
             while waited_s < LOGIN_TTL_S:
                 ts = int(time.time())
                 params = {
@@ -168,7 +176,9 @@ class HttpPollTransport(_Base):
                     "sig": _sign(["listen", auth, str(ts)], self.shared_secret),
                 }
                 try:
-                    resp = await client.get(f"{self.base_url}/dna/status/{auth}", params=params)
+                    resp = await client.get(
+                        f"{self.base_url}/dna/status/{auth}", params=params
+                    )
                 except httpx.HTTPError as err:
                     logger.debug(
                         f"[DNA登录] poll 网络错误，将重试: {type(err).__name__}",
@@ -188,7 +198,9 @@ class HttpPollTransport(_Base):
                 await asyncio.sleep(POLL_INTERVAL_S)
                 waited_s += POLL_INTERVAL_S
         if last_network_error is not None:
-            raise TransportError("poll 网络错误，登录状态无法确认") from last_network_error
+            raise TransportError(
+                "poll 网络错误，登录状态无法确认"
+            ) from last_network_error
         return None
 
 
@@ -203,10 +215,14 @@ class SseTransport(_Base):
         timeout = httpx.Timeout(LOGIN_TTL_S, connect=START_TIMEOUT_S)
         try:
             async with asyncio.timeout(LOGIN_TTL_S):
-                async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+                async with httpx.AsyncClient(
+                    timeout=timeout, trust_env=False
+                ) as client:
                     async with client.stream("GET", url, params=params) as response:
                         if response.status_code != 200:
-                            raise TransportError(f"SSE 握手失败 HTTP {response.status_code}")
+                            raise TransportError(
+                                f"SSE 握手失败 HTTP {response.status_code}"
+                            )
                         return await self._consume_sse(response)
         except TimeoutError:
             return None
@@ -242,7 +258,9 @@ class WsTransport(_Base):
             raise TransportError("ws 模式需要安装 `websockets` 库") from err
 
         ts = int(time.time())
-        ws_base = self.base_url.replace("https://", "wss://", 1).replace("http://", "ws://", 1)
+        ws_base = self.base_url.replace("https://", "wss://", 1).replace(
+            "http://", "ws://", 1
+        )
         url = (
             f"{ws_base}/dna/ws/{auth}?ts={ts}&sig="
             f"{_sign(['listen', auth, str(ts)], self.shared_secret)}"
@@ -280,5 +298,7 @@ def build_transport(
     name = transport.strip()
     factory = _TRANSPORTS.get(name)
     if factory is None:
-        raise TransportError(f"未知 transport：{name}（可选：{', '.join(_TRANSPORTS)}）")
+        raise TransportError(
+            f"未知 transport：{name}（可选：{', '.join(_TRANSPORTS)}）"
+        )
     return factory(base_url, shared_secret)

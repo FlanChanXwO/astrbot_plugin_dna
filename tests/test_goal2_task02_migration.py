@@ -245,10 +245,7 @@ async def test_global_identity_migration_enforces_identity_and_scope_constraints
         for table_name, columns, values in duplicate_cases:
             with pytest.raises(IntegrityError), sync_engine.begin() as connection:
                 connection.execute(
-                    text(
-                        f"INSERT INTO {table_name} {columns} "
-                        f"VALUES {values}"
-                    )
+                    text(f"INSERT INTO {table_name} {columns} VALUES {values}")
                 )
     finally:
         sync_engine.dispose()

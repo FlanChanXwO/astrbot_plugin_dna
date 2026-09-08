@@ -71,9 +71,7 @@ class FakeMembershipProbe:
 
     def __init__(
         self,
-        statuses: dict[str, MembershipStatus]
-        | list[MembershipStatus]
-        | None = None,
+        statuses: dict[str, MembershipStatus] | list[MembershipStatus] | None = None,
         *,
         capability: MembershipCapability | None = None,
     ) -> None:
@@ -131,7 +129,9 @@ def _platform(name: str, client: object) -> object:
 
 
 @pytest.mark.asyncio
-async def test_aiocqhttp_probe_uses_raw_group_member_list_and_returns_three_states() -> None:
+async def test_aiocqhttp_probe_uses_raw_group_member_list_and_returns_three_states() -> (
+    None
+):
     client = FakeRawClient(response=[{"user_id": "user-1", "role": "member"}])
     probe = AiocqhttpMembershipProbe(client)
 
@@ -230,7 +230,9 @@ async def test_scan_user_collects_binding_and_personal_mh_groups(
         }
     )
 
-    response = await MembershipService(database, subscriptions, probe).scan_user("user-1")
+    response = await MembershipService(database, subscriptions, probe).scan_user(
+        "user-1"
+    )
 
     assert response.ok is True
     assert response.data is not None
@@ -471,7 +473,9 @@ async def test_global_delete_rescans_before_delegating_and_rejects_stale_absent_
     )
 
     initial = await service.scan_user("user-1")
-    response = await service.delete_user(plan, plan.confirmation_payload, scan=initial.data)
+    response = await service.delete_user(
+        plan, plan.confirmation_payload, scan=initial.data
+    )
 
     assert initial.ok is True
     assert response.ok is False

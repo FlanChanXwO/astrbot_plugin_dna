@@ -20,6 +20,8 @@ from src.infrastructure.resources import (
     ResourceLocalChangesError,
     ResourceManifest,
     ResourceManifestError,
+    ResourceSnapshot,
+    ResourceSnapshotCoordinator,
     ResourceSynchronizer,
 )
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
@@ -53,14 +55,16 @@ def test_generated_schema_is_astrbot_compatible(tmp_path: Path) -> None:
     schema = generate_astrbot_schema()
     assert json.loads(Path("_conf_schema.json").read_text(encoding="utf-8")) == schema
     assert set(schema) == {
+        "general",
         "login",
-        "network",
+        "ai",
         "sign_in",
         "notifications",
+        "client_updates",
         "display",
+        "network",
         "resources",
         "cache",
-        "agent_tools",
     }
     assert schema["login"]["type"] == "object"
     assert schema["login"]["items"]["transport"]["options"] == [
@@ -207,8 +211,11 @@ def test_resource_sync_rejects_manifest_missing_runtime_layout(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) -> None:
-    """完整 manifest 下，两个查询模块必须读取同一个运行期资源根。"""
+async def test_bootstrap_injects_validated_generation_resource_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """只有已验证 generation 才能成为两个查询模块的运行期资源根。"""
 
     data_dir = tmp_path / "plugin-data"
     resource_root = data_dir / "resources"
@@ -242,6 +249,33 @@ async def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) 
     (resource_root / "alias" / "weapon_alias.json").write_text(
         json.dumps({"武器甲": ["大剑"]}, ensure_ascii=False),
         encoding="utf-8",
+    )
+
+    snapshot = ResourceSnapshot(
+        commit_sha="a" * 40,
+        root=resource_root,
+        manifest=ResourceManifest.load(resource_root / "resource_manifest.json"),
+        player_resources=ResourceMap.from_root(resource_root),
+        encyclopedia_resources=EncyclopediaResourceStore.from_root(resource_root),
+    )
+
+    class _ValidatedCoordinator(ResourceSnapshotCoordinator):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)
+            self._current = snapshot
+
+        def load_current(self) -> ResourceSnapshot:
+            return snapshot
+
+        def validate_current(self) -> ResourceSnapshot:
+            return snapshot
+
+    import src.bootstrap as bootstrap_module
+
+    monkeypatch.setattr(
+        bootstrap_module,
+        "ResourceSnapshotCoordinator",
+        _ValidatedCoordinator,
     )
 
     runtime = build_runtime(

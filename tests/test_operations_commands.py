@@ -55,16 +55,21 @@ async def test_operations_handler_reports_service_missing() -> None:
 
     spec = load_command_registry().get("resource_status")
 
-    result = await cast(Awaitable, spec.use_case(
-        SimpleNamespace(
-            command_id="resource_status",
-            text="kk资源状态",
-            parameters={},
-            actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
-            services={},
+    result = await cast(
+        Awaitable,
+        spec.use_case(
+            SimpleNamespace(
+                command_id="resource_status",
+                text="kk资源状态",
+                parameters={},
+                actor=SimpleNamespace(
+                    user_id="user-1", bot_id="bot-1", group_id="group-1"
+                ),
+                services={},
+            ),
+            load_command_registry(),
         ),
-        load_command_registry(),
-    ))
+    )
 
     assert result == PlainTextResponse(messages.OPERATIONS_SERVICE_UNAVAILABLE)
 
@@ -127,7 +132,7 @@ async def test_download_resource_yields_started_before_sync_result() -> None:
     release = asyncio.Event()
 
     class FakeResourceService:
-        async def download_all(self, _request: object) -> PlainTextResponse:
+        async def sync_resources(self, _request: object) -> PlainTextResponse:
             started.set()
             await release.wait()
             return PlainTextResponse("资源已更新完成，版本 2.0")
@@ -135,7 +140,7 @@ async def test_download_resource_yields_started_before_sync_result() -> None:
     spec = load_command_registry().get("download_resource")
     request = SimpleNamespace(
         command_id="download_resource",
-        text="kk下载全部资源",
+        text="kk同步资源",
         parameters={},
         actor=SimpleNamespace(user_id="user-1", bot_id="bot-1", group_id="group-1"),
         services={"resource_update_service": FakeResourceService()},

@@ -1,4 +1,4 @@
-"""Goal 1 O08：资源预热与管理员下载的生命周期契约。"""
+"""Goal 1 O08：资源服务与管理员下载的生命周期契约。"""
 
 from __future__ import annotations
 
@@ -11,29 +11,23 @@ from src.bootstrap import build_runtime
 from src.infrastructure.persistence import AsyncDatabase
 
 
-class FakeResourceUpdateService:
-    """只记录生命周期调用，避免 bootstrap 契约测试访问真实资源仓库。"""
-
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    async def start_preheat(self) -> None:
-        self.calls.append("start")
-
-    async def stop(self) -> None:
-        self.calls.append("stop")
-
-
 @pytest.mark.asyncio
-async def test_bootstrap_starts_and_stops_injected_resource_preheat_service(
+async def test_bootstrap_preserves_injected_resource_service_and_drains_on_terminate(
     tmp_path: Path,
 ) -> None:
-    """runtime 生命周期应驱动资源预热服务，并允许测试注入隔离实现。"""
+    """runtime 保留注入的资源服务，并在终止时排空其后台同步。"""
 
-    resource_service = FakeResourceUpdateService()
+    class _ResourceServiceSpy:
+        def __init__(self) -> None:
+            self.stop_calls = 0
+
+        async def stop(self) -> None:
+            self.stop_calls += 1
+
+    resource_service = _ResourceServiceSpy()
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),
-        {},
+        {"login": {"port": 0}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
         services={"resource_update_service": resource_service},
     )
@@ -42,4 +36,4 @@ async def test_bootstrap_starts_and_stops_injected_resource_preheat_service(
     await runtime.terminate()
 
     assert runtime.services["resource_update_service"] is resource_service
-    assert resource_service.calls == ["start", "stop"]
+    assert resource_service.stop_calls == 1

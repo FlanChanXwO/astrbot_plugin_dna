@@ -210,7 +210,9 @@ def test_generated_admin_handler_uses_public_admin_permission_filter():
 
     assert metadata is not None
     permission_filters = [
-        item for item in metadata.event_filters if isinstance(item, PermissionTypeFilter)
+        item
+        for item in metadata.event_filters
+        if isinstance(item, PermissionTypeFilter)
     ]
     assert len(permission_filters) == 1
     assert permission_filters[0].permission_type == filter.PermissionType.ADMIN
@@ -434,10 +436,16 @@ def test_load_command_registry_supports_custom_prefix():
     dna_registry = load_command_registry(prefix="dna")
     assert dna_registry.get("role_info_card").pattern.startswith("^dna")
     assert dna_registry.get("role_info_card").examples[0].startswith("dna")
-    assert dna_registry.get("stamina").pattern == "^dna(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert (
+        dna_registry.get("stamina").pattern
+        == "^dna(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    )
 
     empty_prefix_registry = load_command_registry(prefix="")
-    assert empty_prefix_registry.get("stamina").pattern == "^(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert (
+        empty_prefix_registry.get("stamina").pattern
+        == "^(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    )
     assert empty_prefix_registry.get("stamina").examples == ("日常",)
 
 
@@ -460,7 +468,9 @@ async def test_plugin_handles_custom_prefix_dynamically():
             return ("plain", text)
 
     plugin = DnabyPlugin(SimpleNamespace(), {"display": {"command_prefix": "dna"}})
-    res_dna = [item async for item in plugin.handle_resource_status(Event("dna资源状态"))]
+    res_dna = [
+        item async for item in plugin.handle_resource_status(Event("dna资源状态"))
+    ]
     assert len(res_dna) == 1
     assert "资源状态" in res_dna[0][1]
 
@@ -472,7 +482,10 @@ def test_load_command_registry_supports_multiple_prefixes():
     """支持多前缀列表，例如 ['kk', 'dna'] 或包含空前缀。"""
     multi_registry = load_command_registry(prefixes=["kk", "dna"])
     stamina_spec = multi_registry.get("stamina")
-    assert stamina_spec.pattern == "^(?:dna|kk)(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert (
+        stamina_spec.pattern
+        == "^(?:dna|kk)(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    )
     assert stamina_spec.examples[0].startswith("kk")
 
     matched_kk = multi_registry.match("kk体力")
@@ -485,7 +498,10 @@ def test_load_command_registry_supports_multiple_prefixes():
 
     # 包含空字符串时支持无前缀
     multi_empty = load_command_registry(prefixes=["kk", ""])
-    assert multi_empty.get("stamina").pattern == "^(?:kk)?(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    assert (
+        multi_empty.get("stamina").pattern
+        == "^(?:kk)?(?:每日|mr|实时便笺|便笺|便签|体力|日常|日常便签)$"
+    )
     assert multi_empty.match("体力") is not None
     assert multi_empty.match("kk体力") is not None
 
@@ -493,6 +509,7 @@ def test_load_command_registry_supports_multiple_prefixes():
 @pytest.mark.asyncio
 async def test_plugin_handles_multiple_prefixes_dynamically():
     """插件配置多前缀列表时，各前缀均能正确触发。"""
+
     class Event:
         def __init__(self, message: str) -> None:
             self.message = message
@@ -509,8 +526,12 @@ async def test_plugin_handles_multiple_prefixes_dynamically():
         def plain_result(self, text: str) -> tuple[str, str]:
             return ("plain", text)
 
-    plugin = DnabyPlugin(SimpleNamespace(), {"display": {"command_prefixes": ["kk", "dna"]}})
-    res_dna = [item async for item in plugin.handle_resource_status(Event("dna资源状态"))]
+    plugin = DnabyPlugin(
+        SimpleNamespace(), {"display": {"command_prefixes": ["kk", "dna"]}}
+    )
+    res_dna = [
+        item async for item in plugin.handle_resource_status(Event("dna资源状态"))
+    ]
     assert len(res_dna) == 1
     assert "资源状态" in res_dna[0][1]
 

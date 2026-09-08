@@ -20,13 +20,17 @@ class RendererSpy:
     def __init__(self) -> None:
         self.calls: list[RenderCall] = []
 
-    async def render(self, template_name: str, data: dict[str, Any], spec: Any) -> bytes:
+    async def render(
+        self, template_name: str, data: dict[str, Any], spec: Any
+    ) -> bytes:
         self.calls.append(RenderCall(template_name, data, spec))
         return b"png"
 
 
 @pytest.mark.asyncio
-async def test_help_card_keeps_groups_and_examples(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_help_card_keeps_groups_and_examples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = importlib.import_module("src.infrastructure.rendering.help")
     renderer = RendererSpy()
     font_paths: list[Path] = []
@@ -36,7 +40,9 @@ async def test_help_card_keeps_groups_and_examples(monkeypatch: pytest.MonkeyPat
         "font_data_uri",
         lambda path: font_paths.append(path) or "data:font/woff2;base64,AA==",
     )
-    monkeypatch.setattr(module, "image_data_uri", lambda _: "data:image/jpeg;base64,AA==")
+    monkeypatch.setattr(
+        module, "image_data_uri", lambda _: "data:image/jpeg;base64,AA=="
+    )
     monkeypatch.setattr(
         module,
         "_load_help_data",
@@ -66,7 +72,9 @@ def test_help_ambiguous_icons_match_gscore_selection() -> None:
 
 
 @pytest.mark.asyncio
-async def test_announcement_list_embeds_previews_and_keeps_indexes(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_announcement_list_embeds_previews_and_keeps_indexes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = importlib.import_module("src.infrastructure.rendering.notices")
     renderer = RendererSpy()
     monkeypatch.setattr(module, "_RENDERER", renderer)
@@ -75,17 +83,28 @@ async def test_announcement_list_embeds_previews_and_keeps_indexes(monkeypatch: 
         "unicode_font_data_uris",
         lambda _source, _text: ("data:font/woff2;base64,AA==", None),
     )
-    monkeypatch.setattr(module, "image_data_uri", lambda _: "data:image/jpeg;base64,AA==")
+    monkeypatch.setattr(
+        module, "image_data_uri", lambda _: "data:image/jpeg;base64,AA=="
+    )
     monkeypatch.setattr(
         module,
         "optimized_image_data_uri",
         lambda *_args, **_kwargs: "data:image/jpeg;base64,AA==",
     )
-    monkeypatch.setattr(module, "pil_image_data_uri", lambda _: "data:image/png;base64,AA==")
+    monkeypatch.setattr(
+        module, "pil_image_data_uri", lambda _: "data:image/png;base64,AA=="
+    )
 
     async def _fetch_ann_list(*, prefer_cache: bool) -> list[dict[str, str]]:
         assert prefer_cache is True
-        return [{"postId": "1", "postTitle": "公告标题", "postTime": "2026-08-16", "cover": "https://x"}]
+        return [
+            {
+                "postId": "1",
+                "postTitle": "公告标题",
+                "postTime": "2026-08-16",
+                "cover": "https://x",
+            }
+        ]
 
     async def _load_preview(*_: object, **__: object) -> None:
         return None
@@ -104,16 +123,27 @@ async def test_announcement_list_embeds_previews_and_keeps_indexes(monkeypatch: 
 
 
 @pytest.mark.asyncio
-async def test_sign_report_keeps_fixed_canvas_and_message_lines(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_sign_report_keeps_fixed_canvas_and_message_lines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = importlib.import_module("src.infrastructure.rendering.checkin")
     renderer = RendererSpy()
     monkeypatch.setattr(module, "_RENDERER", renderer)
     monkeypatch.setattr(module, "font_data_uri", lambda _: "data:font/ttf;base64,AA==")
 
-    assert await module.create_sign_info_image("✅标题\n成功 2 人\n失败 1 人", theme="green") == b"png"
+    assert (
+        await module.create_sign_info_image(
+            "✅标题\n成功 2 人\n失败 1 人", theme="green"
+        )
+        == b"png"
+    )
     call = renderer.calls[0]
     assert call.template_name == "cards/sign_report.html.j2"
-    assert call.spec.width == 600 and call.spec.height == 250 and call.spec.full_page is False
+    assert (
+        call.spec.width == 600
+        and call.spec.height == 250
+        and call.spec.full_page is False
+    )
     assert call.data["lines"] == ["标题", "成功 2 人", "失败 1 人"]
     assert call.data["theme_color"] == "#e6ffe6"
 
@@ -133,7 +163,9 @@ def test_simple_card_templates_keep_key_text_and_css_width() -> None:
         width=2020,
         lines=[{"is_group": False, "name": "<命令>", "example": "示例"}],
     )
-    announcement_html = environment.get_template("cards/announcement_list.html.j2").render(
+    announcement_html = environment.get_template(
+        "cards/announcement_list.html.j2"
+    ).render(
         **base,
         width=1080,
         prefix="#",
@@ -161,7 +193,9 @@ def test_help_template_uses_legacy_group_and_item_coordinates() -> None:
         "name": "分组",
         "description": "说明",
         "height": 315,
-        "items": [{"name": "命令", "example": "示例", "icon": "data:image/png;base64,AA=="}],
+        "items": [
+            {"name": "命令", "example": "示例", "icon": "data:image/png;base64,AA=="}
+        ],
     }
     rendered = environment.get_template("cards/help.html.j2").render(
         card_height=1700,
