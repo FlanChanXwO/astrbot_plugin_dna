@@ -337,63 +337,50 @@ class ClientUpdateTransport(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdateChange:
-    """一次已确认的客户端版本变化及其新增字节数。"""
+    """一次 Source 版本变化及事件创建时的 Target 快照。"""
 
-    previous: ClientVersionSnapshot
-    current: ClientVersionSnapshot
-    added_size_bytes: int
-    region: ClientRegion = ClientRegion.CN
-    platform: ClientPlatform = ClientPlatform.PC
-    channel_id: str | None = None
+    previous: ClientSourceVersion
+    current: ClientSourceVersion
+    history_complete: bool
+    added_size_bytes: int | None
+    target_ids: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        """校验变化两端属于同一渠道且确实向前推进。"""
+        if not isinstance(self.previous, ClientSourceVersion):
+            raise TypeError("previous 必须是 ClientSourceVersion")
+        if not isinstance(self.current, ClientSourceVersion):
+            raise TypeError("current 必须是 ClientSourceVersion")
+        if self.previous.source_id != self.current.source_id:
+            raise ValueError("变化两端必须属于同一 Source")
+        if self.previous.revision_id == self.current.revision_id:
+            raise ValueError("变化两端的 revision_id 必须不同")
+        if type(self.history_complete) is not bool:
+            raise TypeError("history_complete 必须是布尔值")
+        if self.added_size_bytes is not None and (
+            type(self.added_size_bytes) is not int or self.added_size_bytes < 0
+        ):
+            raise ValueError("added_size_bytes 必须是非负整数或 None")
+        normalized_target_ids = tuple(self.target_ids)
+        if not normalized_target_ids or any(
+            not isinstance(target_id, str) or not target_id.strip()
+            for target_id in normalized_target_ids
+        ):
+            raise ValueError("target_ids 必须包含非空 Target ID")
+        if len(normalized_target_ids) != len(set(normalized_target_ids)):
+            raise ValueError("target_ids 不能重复")
+        object.__setattr__(self, "target_ids", normalized_target_ids)
 
-        object.__setattr__(self, "region", ClientRegion(self.region))
-        object.__setattr__(self, "platform", ClientPlatform(self.platform))
-        if not isinstance(self.previous, ClientVersionSnapshot):
-            raise TypeError("previous 必须是 ClientVersionSnapshot")
-        if not isinstance(self.current, ClientVersionSnapshot):
-            raise TypeError("current 必须是 ClientVersionSnapshot")
-        channel_ids = {
-            snapshot.channel_id
-            for snapshot in (self.previous, self.current)
-            if snapshot.channel_id is not None
-        }
-        if self.channel_id is None:
-            if len(channel_ids) > 1:
-                raise ValueError("变化快照的渠道必须一致")
-            normalized_channel_id = next(iter(channel_ids), self.platform.value)
-        else:
-            if not isinstance(self.channel_id, str) or not self.channel_id.strip():
-                raise ValueError("channel_id 必须是非空字符串或 None")
-            normalized_channel_id = self.channel_id
-        if channel_ids and channel_ids != {normalized_channel_id}:
-            raise ValueError("变化快照的渠道必须与 channel_id 一致")
-        object.__setattr__(self, "channel_id", normalized_channel_id)
-        if (
-            self.previous.region is not self.region
-            or self.current.region is not self.region
-        ):
-            raise ValueError("变化快照的区服必须一致")
-        if (
-            self.previous.platform is not self.platform
-            or self.current.platform is not self.platform
-        ):
-            raise ValueError("变化快照的平台必须一致")
-        if self.current.patch_version <= self.previous.patch_version:
-            raise ValueError("变化快照必须向前推进")
-        if type(self.added_size_bytes) is not int or self.added_size_bytes < 0:
-            raise ValueError("added_size_bytes 必须是非负整数")
+    @property
+    def source_id(self) -> str:
+        """返回变化所属 Source。"""
+
+        return self.current.source_id
 
     @property
     def event_key(self) -> str:
-        """返回供投递去重使用的稳定变化键。"""
+        """返回由 Source 和两端 revision 组成的稳定事件键。"""
 
-        return (
-            f"{self.region.value}:{self.channel_id}:"
-            f"{self.previous.patch_version}:{self.current.patch_version}"
-        )
+        return f"{self.source_id}:{self.previous.revision_id}:{self.current.revision_id}"
 
 
 def parse_channel_version_list_entries(
