@@ -5,6 +5,7 @@ import os
 os.environ.setdefault("DNABY_DATA_DIR", "/tmp/dnaby-test-data")
 
 import pytest
+from pydantic import ValidationError
 
 from src.infrastructure.config import generate_legacy_schema as generate_astrbot_schema
 from src.infrastructure.config.legacy import (
@@ -17,6 +18,7 @@ from src.infrastructure.config.schema import (
     generate_astrbot_schema as generate_typed_schema,
 )
 from src.infrastructure.config.settings import (
+    ClientUpdatesSettings,
     DnabySettings,
     DNAConfig,
     DNASignConfig,
@@ -38,6 +40,39 @@ def test_schema_generation():
     assert default_items["MHSubscribe"]["type"] == "list"
     assert "DNAAnnGroups" not in default_items
     assert "DNASignin" not in schema[DNA_SIGN_CONFIG_SECTION]["items"]
+
+
+def test_client_update_targets_config_defaults_validation_and_schema():
+    """客户端更新 Target 必须由 registry 驱动并拒绝旧 channels 字段。"""
+    from src.modules.client_updates import (
+        CLIENT_UPDATE_TARGETS,
+        DEFAULT_CLIENT_UPDATE_TARGET_IDS,
+    )
+
+    assert ClientUpdatesSettings().targets == list(DEFAULT_CLIENT_UPDATE_TARGET_IDS)
+    assert ClientUpdatesSettings(
+        targets=[
+            "cn-official-ios",
+            "cn-official-pc",
+            "cn-official-ios",
+        ]
+    ).targets == ["cn-official-ios", "cn-official-pc"]
+
+    with pytest.raises(ValidationError, match="已注册的 Target ID"):
+        ClientUpdatesSettings(targets=["global-official-pc"])
+
+    with pytest.raises(
+        ValidationError,
+        match=r"client_updates\.channels 已移除，请改用 client_updates\.targets",
+    ):
+        DnabySettings.from_config(
+            {"client_updates": {"channels": ["pc_cn"]}},
+        )
+
+    fields = generate_typed_schema()["client_updates"]["items"]
+    assert "channels" not in fields
+    assert fields["targets"]["default"] == list(DEFAULT_CLIENT_UPDATE_TARGET_IDS)
+    assert fields["targets"]["options"] == list(CLIENT_UPDATE_TARGETS)
 
 
 def test_typed_sign_in_config_has_no_feature_enable_switches():
@@ -282,6 +317,13 @@ def test_build_runtime_propagates_all_settings(tmp_path):
             "group_report": True,
             "group_report_image": True,
         },
+        "client_updates": {
+            "targets": [
+                "cn-official-ios",
+                "cn-official-pc",
+                "cn-official-ios",
+            ],
+        },
         "notifications": {
             "announcement_enabled": False,
             "announcement_check_minutes": 20,
@@ -309,6 +351,10 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     assert runtime.settings.notifications.secret_simple_image is True
     assert runtime.settings.notifications.secret_push_minute == 17
     assert runtime.settings.notifications.secret_retry_interval_seconds == 2
+    assert runtime.settings.client_updates.targets == [
+        "cn-official-ios",
+        "cn-official-pc",
+    ]
 
     # 2. 验证下发到各个具体 service / scheduler
     account_service = runtime.services["account_service"]
@@ -333,6 +379,12 @@ def test_build_runtime_propagates_all_settings(tmp_path):
 
     sign_scheduler = runtime.services["sign_scheduler"]
     assert sign_scheduler.sign_time == (7, 15)
+
+    client_update_service = runtime.services["client_update_service"]
+    assert client_update_service.target_ids == (
+        "cn-official-ios",
+        "cn-official-pc",
+    )
 
     notices_scheduler = runtime.services["notices_scheduler"]
     assert notices_scheduler.announcement_enabled is False

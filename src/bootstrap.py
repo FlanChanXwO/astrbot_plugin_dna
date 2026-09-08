@@ -565,7 +565,7 @@ def build_runtime(
         client_update_state,
         transport=resolved_client_updates_transport,
         subscriptions=subscriptions,
-        channels=tuple(settings.client_updates.channels),
+        target_ids=tuple(settings.client_updates.targets),
     )
     if services is not None and "client_update_service" in services:
         client_update_service = cast(
