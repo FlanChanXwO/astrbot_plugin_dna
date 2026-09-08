@@ -256,7 +256,7 @@ async def _draw_role_overview_card(
             "achievements": achievements,
             "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),

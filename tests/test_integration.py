@@ -155,6 +155,9 @@ async def test_local_login_flow_serves_app_routes_and_cleans_completed_session()
                 assert response.status == 200
                 page = await response.text()
             assert "Web 登录" not in page
+            assert "login-mode-switch" not in page
+            assert "App 登录" not in page
+            assert "<h1>登录 DNA</h1>" in page
 
             async with client.post(
                 f"{flow.local_server.base_url}/dna/getSmsCode",

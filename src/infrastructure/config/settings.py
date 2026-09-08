@@ -31,7 +31,16 @@ from ..resources.acceleration import (
     normalize_http_base_url,
     resolve_github_acceleration_prefix,
 )
-from .legacy import _LEGACY_MAP, DNA_PREFIX, DNAConfig, DNASignConfig
+from .legacy import (
+    _LEGACY_MAP,
+    DNA_CONFIG_SECTION,
+    DNA_PREFIX,
+    DNA_SIGN_CONFIG_SECTION,
+    DNAConfig,
+    DNASignConfig,
+    LEGACY_DNA_CONFIG_SECTION,
+    LEGACY_DNA_SIGN_CONFIG_SECTION,
+)
 
 logger = logging.getLogger(__name__)
 _REMOVED_MH_LEGACY_KEYS = frozenset(("MHPushSubscribe", "MHCache"))
@@ -603,7 +612,13 @@ def _read_legacy_scheduled_enabled(raw: Mapping[str, Any] | None) -> bool:
 
     if "scheduled_enabled" in raw:
         collect(raw["scheduled_enabled"], "top-level.scheduled_enabled")
-    for section_name in ("DNAUID配置", "DNAUID签到配置", "sign_in"):
+    for section_name in (
+        DNA_CONFIG_SECTION,
+        DNA_SIGN_CONFIG_SECTION,
+        LEGACY_DNA_CONFIG_SECTION,
+        LEGACY_DNA_SIGN_CONFIG_SECTION,
+        "sign_in",
+    ):
         section = raw.get(section_name)
         if isinstance(section, Mapping) and "scheduled_enabled" in section:
             collect(
@@ -850,8 +865,10 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
     # 深拷贝只用于迁移快照；调用方传入的 AstrBot 配置永远不原地改写。
     raw_dict = copy.deepcopy(dict(raw))
     known_sections = (
-        "DNAUID配置",
-        "DNAUID签到配置",
+        DNA_CONFIG_SECTION,
+        DNA_SIGN_CONFIG_SECTION,
+        LEGACY_DNA_CONFIG_SECTION,
+        LEGACY_DNA_SIGN_CONFIG_SECTION,
         *_TARGET_CONFIG_GROUPS,
         "agent_tools",
     )
@@ -865,7 +882,12 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
     assignments: dict[tuple[str, str], tuple[Any, str]] = {}
     proxy_components: dict[str, tuple[Any, str]] = {}
 
-    for section_name in ("DNAUID配置", "DNAUID签到配置"):
+    for section_name in (
+        DNA_CONFIG_SECTION,
+        DNA_SIGN_CONFIG_SECTION,
+        LEGACY_DNA_CONFIG_SECTION,
+        LEGACY_DNA_SIGN_CONFIG_SECTION,
+    ):
         section_data = raw_dict.get(section_name)
         if isinstance(section_data, Mapping):
             for key, value in section_data.items():
@@ -971,7 +993,12 @@ def _log_discarded_mh_config(raw: Mapping[str, Any]) -> None:
     for key in _REMOVED_MH_LEGACY_KEYS:
         if key in raw:
             locations.append(("top-level", key))
-    for section_name in ("DNAUID配置", "DNAUID签到配置"):
+    for section_name in (
+        DNA_CONFIG_SECTION,
+        DNA_SIGN_CONFIG_SECTION,
+        LEGACY_DNA_CONFIG_SECTION,
+        LEGACY_DNA_SIGN_CONFIG_SECTION,
+    ):
         section = raw.get(section_name)
         if isinstance(section, Mapping):
             for key in _REMOVED_MH_LEGACY_KEYS:

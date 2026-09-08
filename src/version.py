@@ -22,7 +22,7 @@ def get_plugin_version() -> str:
 
 PLUGIN_VERSION = get_plugin_version()
 # legacy 纯逻辑仍使用不带 v 的版本名；值由 metadata 派生，不能单独修改。
-DNAUID_version = PLUGIN_VERSION.removeprefix("v")
+DNA_version = PLUGIN_VERSION.removeprefix("v")
 
 
-__all__ = ["PLUGIN_VERSION", "DNAUID_version", "get_plugin_version"]
+__all__ = ["PLUGIN_VERSION", "DNA_version", "get_plugin_version"]
