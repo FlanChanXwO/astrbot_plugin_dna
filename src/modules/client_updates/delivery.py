@@ -1,8 +1,8 @@
-"""客户端更新的框架无关推送 DTO 与注入式投递适配器。
+"""客户端更新的框架无关 Source 推送 DTO 与注入式投递适配器。
 
-领域层只负责按照订阅筛选平台消息，并把消息交给最小化的推送端口。OneBot
-节点的具体构造留在注入的 ``send_forward`` 回调中；这里不导入 AstrBot 消息
-组件，避免客户端更新 use case 与宿主框架耦合。
+领域层只负责把事件创建时固定的 Target 消息交给最小化推送端口。OneBot 节点
+的具体构造留在注入的 ``send_forward`` 回调中；这里不导入 AstrBot 消息组件，
+避免客户端更新 use case 与宿主框架耦合。
 """
 
 from __future__ import annotations
@@ -14,7 +14,8 @@ from typing import Protocol
 
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from . import messages
-from .contracts import ClientPlatform, ClientUpdateChange
+from .contracts import ClientUpdateChange
+from .registry import CLIENT_UPDATE_REGISTRY, resolve_client_update_target
 from .routing import active_subscriptions as _active_subscriptions
 from .state import (
     ClientUpdatePendingEvent,
@@ -25,9 +26,9 @@ from .state import (
 
 logger = logging.getLogger(__name__)
 
-_CLIENT_PLATFORM_ORDER = {
-    ClientPlatform.PC: 0,
-    ClientPlatform.ANDROID: 1,
+_CLIENT_SOURCE_ORDER = {
+    source.source_id: index
+    for index, source in enumerate(CLIENT_UPDATE_REGISTRY.sources)
 }
 _ONEBOT_PLATFORM_NAMES = frozenset(("aiocqhttp", "onebot"))
 
@@ -46,15 +47,27 @@ class ClientUpdatePushTarget:
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdatePushMessage:
-    """一个平台对应的一条用户可见更新消息。"""
+    """一个 Source 变化及其固定 Target 集合对应的用户可见消息。"""
 
-    platform: ClientPlatform
+    source_id: str
+    target_ids: tuple[str, ...]
     text: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "platform", ClientPlatform(self.platform))
+        if not isinstance(self.source_id, str) or not self.source_id.strip():
+            raise ValueError("source_id 必须是非空字符串")
+        normalized_target_ids = tuple(self.target_ids)
+        if not normalized_target_ids:
+            raise ValueError("target_ids 必须至少包含一个 Target ID")
+        if len(normalized_target_ids) != len(set(normalized_target_ids)):
+            raise ValueError("target_ids 不能重复")
+        for target_id in normalized_target_ids:
+            target = resolve_client_update_target(target_id)
+            if target.source_id != self.source_id:
+                raise ValueError("消息 Target 与 Source 不一致")
         if not isinstance(self.text, str):
             raise TypeError("text 必须是字符串")
+        object.__setattr__(self, "target_ids", normalized_target_ids)
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,7 +97,7 @@ class ClientUpdatePushPort(Protocol):
 
 
 class ClientUpdateDeliveryService:
-    """按订阅筛选平台消息，并隔离每个目标的投递失败。
+    """按有效订阅投递 Source 消息，并隔离每个目标的投递失败。
 
     未注入 ``state`` 时，``deliver`` 保留框架无关 DTO seam 的即时投递语义，
     供单元测试和其他调用方构造消息。bootstrap 会注入状态 store，此时每轮
@@ -122,20 +135,15 @@ class ClientUpdateDeliveryService:
         delivered = 0
         subscriptions = await self._subscriptions()
         active = _active_subscriptions(subscriptions)
-        for subscription, platforms in active.values():
-            if platforms is None:
-                continue
-            selected_changes = tuple(
-                change for change in ordered_changes if change.platform in platforms
-            )
-            if not selected_changes:
+        for subscription, routable in active.values():
+            if not routable:
                 continue
             push = _build_push(
                 ClientUpdatePushTarget(
                     origin=subscription.unified_msg_origin,
                     bot_id=subscription.bot_id,
                 ),
-                selected_changes,
+                ordered_changes,
             )
             if await self._send_push(push):
                 delivered += 1
@@ -151,10 +159,7 @@ class ClientUpdateDeliveryService:
         if state is None:
             raise RuntimeError("client update delivery state unavailable")
 
-        ordered_changes = tuple(
-            canonicalize_client_update_change(change)
-            for change in _order_changes(changes)
-        )
+        ordered_changes = _order_changes(changes)
         pending_keys_before = {
             event.event_key for event in await state.pending_events()
         }
@@ -176,9 +181,10 @@ class ClientUpdateDeliveryService:
                     origin=subscription.unified_msg_origin,
                     uid=subscription.uid,
                     bot_id=subscription.bot_id,
+                    target_ids=change.target_ids,
                 )
-                for subscription, platforms in active.values()
-                if platforms is not None and change.platform in platforms
+                for subscription, routable in active.values()
+                if routable
             )
             event = await state.ensure_pending_event(change, targets)
             if event is not None and event.event_key not in new_event_keys:
@@ -207,12 +213,8 @@ class ClientUpdateDeliveryService:
                 if active_entry is None:
                     await state.remove_event_target(event.event_key, target)
                     continue
-                subscription, platforms = active_entry
-                if (
-                    platforms is None
-                    or not subscription.enabled
-                    or event.change.platform not in platforms
-                ):
+                _subscription, routable = active_entry
+                if not routable:
                     await state.remove_event_target(event.event_key, target)
                     continue
                 group_key = (target.origin, target.uid, target.bot_id)
@@ -281,7 +283,7 @@ class ClientUpdatePushAdapter:
         self.merge_forward = bool(merge_forward)
 
     async def send(self, push: ClientUpdatePush) -> bool:
-        """按目标平台与配置选择合并转发，失败时降级为普通消息。"""
+        """按目标适配器与配置选择合并转发，失败时降级为普通消息。"""
 
         if not push.messages:
             return True
@@ -347,7 +349,8 @@ def _build_push(
         target=target,
         messages=tuple(
             ClientUpdatePushMessage(
-                platform=change.platform,
+                source_id=change.source_id,
+                target_ids=change.target_ids,
                 text=messages.format_change(change),
             )
             for change in changes
@@ -383,13 +386,13 @@ def _is_onebot_target(target: ClientUpdatePushTarget) -> bool:
 def _order_changes(
     changes: Sequence[ClientUpdateChange],
 ) -> tuple[ClientUpdateChange, ...]:
-    normalized = tuple(changes)
-    if any(not isinstance(change, ClientUpdateChange) for change in normalized):
-        raise TypeError("changes 必须全部是 ClientUpdateChange")
+    normalized = tuple(
+        canonicalize_client_update_change(change) for change in tuple(changes)
+    )
     return tuple(
         sorted(
             normalized,
-            key=lambda change: _CLIENT_PLATFORM_ORDER[change.platform],
+            key=lambda change: _CLIENT_SOURCE_ORDER[change.source_id],
         )
     )
 
