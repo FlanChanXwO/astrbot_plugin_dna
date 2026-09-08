@@ -39,7 +39,7 @@ from ..version import get_plugin_version
 from .event import EventActor
 from .web import WebHandler, WebRoute
 
-ADMIN_WEB_PREFIX = "/astrbot_plugin_dnaby/admin"
+ADMIN_WEB_PREFIX = "/astrbot_plugin_dna/admin"
 
 _ADMIN_HEADERS = {
     "Cache-Control": "no-store",

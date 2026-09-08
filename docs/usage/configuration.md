@@ -175,10 +175,10 @@ HTTP(S) 基础地址；镜像请求失败会明确报告，不会把失败伪装
 插件运行期数据统一保存在 AstrBot 的插件数据目录：
 
 ```text
-data/plugin_data/astrbot_plugin_dnaby/
+data/plugin_data/astrbot_plugin_dna/
 ```
 
-目录由 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 提供，不写入插件源码目录。账号绑定、订阅、缓存、图片和公共资源都在这里管理；升级前请备份该目录，不要把其中的数据库、登录信息或订阅记录上传到公开位置。
+目录由 `StarTools.get_data_dir("astrbot_plugin_dna")` 提供，不写入插件源码目录。账号绑定、订阅、缓存、图片和公共资源都在这里管理；升级前请备份该目录，不要把其中的数据库、登录信息或订阅记录上传到公开位置。
 
 图片卡片使用 AstrBot 4.26.0 及以上版本提供的全局 HTML/T2I 能力，不新增插件私有渲染服务配置。未启用该能力或服务返回无效图片时，需要图片的命令会返回统一失败提示，文字查询仍可继续使用。
 

@@ -188,11 +188,11 @@ async def run() -> None:
     print("Initializing Plugin Runtime with live DB")
     print("========================================")
 
-    prod_data_dir = Path("/AstrBot/data/plugin_data/astrbot_plugin_dnaby")
+    prod_data_dir = Path("/AstrBot/data/plugin_data/astrbot_plugin_dna")
     if (prod_data_dir / "dnaby.sqlite3").exists():
         data_dir = prod_data_dir
     else:
-        data_dir = Path(StarTools.get_data_dir("astrbot_plugin_dnaby"))
+        data_dir = Path(StarTools.get_data_dir("astrbot_plugin_dna"))
 
     db = AsyncDatabase.from_data_dir(data_dir)
     await db.create_schema_for_tests()

@@ -22,7 +22,7 @@ DNABY 工具。若注销某个工具失败，生命周期会保留失败项，�
 ## 运行期数据与备份
 
 插件运行期数据必须位于
-`StarTools.get_data_dir("astrbot_plugin_dnaby")`，重点文件包括：
+`StarTools.get_data_dir("astrbot_plugin_dna")`，重点文件包括：
 
 - `dnaby.sqlite3`：账号绑定、凭据、隐私和签到记录；其中凭据是明文敏感数据。
 - `subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`：订阅、公告兼容 ID 列表与按
@@ -100,7 +100,7 @@ force push 或删除分支；应保留失败版本、备份和回滚记录，便
 
 ## 生产插件发布、只读核验与回滚
 
-生产目标为 `atri`，插件目录为 `/srv/AstrBot/data/plugins/astrbot_plugin_dnaby`，运行容器为
+生产目标为 `atri`，插件目录为 `/srv/AstrBot/data/plugins/astrbot_plugin_dna`，运行容器为
 `astrbot`。发布或回滚必须固定到可追溯的插件 SHA，并遵循以下边界：
 
 1. 先只读记录当前插件 `HEAD`、`git status --porcelain`、`metadata.yaml` 版本、资源
@@ -111,7 +111,7 @@ force push 或删除分支；应保留失败版本、备份和回滚记录，便
 3. 在 clean 的生产仓库中非破坏性 fetch 并验证目标 SHA；容器内用 `python -B` 做入口/registry/schema
    只读 smoke。任何失败都停止，不覆盖生产现场改动。
 4. 只有在得到该版本的部署授权后，才调用
-   `POST http://127.0.0.1:6185/api/v1/plugins/astrbot_plugin_dnaby/reload`；必须同时核对 HTTP、
+   `POST http://127.0.0.1:6185/api/v1/plugins/astrbot_plugin_dna/reload`；必须同时核对 HTTP、
    业务响应、插件状态、日志和容器 restart count。不得用容器重启替代定向 reload。
 5. 若失败，停止继续验收，保留失败版本与日志；在 clean 前提下检出已记录的上一稳定 SHA，调用同一
    reload endpoint，再重复状态和最小 smoke。代码回滚不等于数据库回滚，破坏性 schema 必须按上文备份恢复。
@@ -162,7 +162,7 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 
 ## 资源升级与迁移
 
-升级插件前备份整个 `data/plugin_data/astrbot_plugin_dnaby/`，至少确认
+升级插件前备份整个 `data/plugin_data/astrbot_plugin_dna/`，至少确认
 `dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`ann_delivery_state.json`、`client_update_state.json`
 和 `panel_custom/` 可恢复。资源更新
 本身只在 `resources/` 使用 Git 增量缓存，并在 `resource_generations/<commit-sha>/` 生成已验证
@@ -179,11 +179,11 @@ lease 释放后才替换物理目录，等待期间新业务请求保持空资�
 
 从旧共享下载器迁移到 `ImageFetcher` 时，部署者可在停写、完成备份并核对目录归属后，人工清理
 以下两个旧图片缓存范围。typed 公告 renderer 的当前缓存位于
-`data/plugin_data/astrbot_plugin_dnaby/cache/announcement/`，由 `CacheManager` 按统一
+`data/plugin_data/astrbot_plugin_dna/cache/announcement/`，由 `CacheManager` 按统一
 `cache.ttl_hours` 和租约管理，不属于下面这次 legacy 清理范围：
 
-- `data/plugin_data/astrbot_plugin_dnaby/resource/`
-- `data/plugin_data/astrbot_plugin_dnaby/other/ann_card/`
+- `data/plugin_data/astrbot_plugin_dna/resource/`
+- `data/plugin_data/astrbot_plugin_dna/other/ann_card/`
 
 清理只针对上述公告/资源图片缓存；不得递归删除整个插件数据目录，也不得删除
 `dnaby.sqlite3`、`subscriptions.json`、`ann_state.json`、`scheduler_state.json`、账号凭据、

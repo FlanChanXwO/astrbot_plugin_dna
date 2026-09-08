@@ -53,7 +53,7 @@ Agent Tools 是独立的结构化工具，不属于聊天命令，不使用命�
 - `刷新<游戏UID>的<角色名>面板`：管理员按指定游戏 UID 刷新角色面板。
 
 玩家图片由 AstrBot 的公共图片响应发送，生成文件写入
-`StarTools.get_data_dir("astrbot_plugin_dnaby")/rendered/`。缺少图片资源时会返回明确的缺失状态，不会把插件源码目录当作运行期写入位置。
+`StarTools.get_data_dir("astrbot_plugin_dna")/rendered/`。缺少图片资源时会返回明确的缺失状态，不会把插件源码目录当作运行期写入位置。
 
 ## 资料、图鉴与攻略
 

@@ -53,7 +53,7 @@ if str(ROOT) not in sys.path:
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 REAL_DIR = Path(
-    "/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/data/plugins/astrbot_plugin_dnaby/output/real"
+    "/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/data/plugins/astrbot_plugin_dna/output/real"
 )
 ASTRBOT_DIR = REAL_DIR / "astrbot"
 GSCORE_DIR = REAL_DIR / "gscore"

@@ -15,7 +15,7 @@
   生成，帮助 use case 读取同一 registry。未迁移命令不会注册，也不会出现在帮助中。
 - 生命周期：`src/entry/lifecycle.py` 按声明顺序启动、逆序停止扩展点；登录页 listener 在
   scheduler 之前启动，终止时先取消登录等待并释放 listener，再释放数据库；异常向上暴露，不伪造成功。
-- Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；`src/entry/admin_web.py` 提供统一认证、请求解析、错误/HTTP 状态映射和 no-store JSON，管理路由仅通过 Dashboard extension dispatcher 注册在 `/astrbot_plugin_dnaby/admin/*`，不建立独立未认证入口。
+- Web 边界：`src/entry/web.py` 将 `WebRoute` 转换为 `Context.register_web_api`；`src/entry/admin_web.py` 提供统一认证、请求解析、错误/HTTP 状态映射和 no-store JSON，管理路由仅通过 Dashboard extension dispatcher 注册在 `/astrbot_plugin_dna/admin/*`，不建立独立未认证入口。
 - 管理页：`pages/dashboard/` 是由 AstrBot Dashboard 承载的 PetiteVue 静态页，只通过上述已认证
   dispatcher 访问任务/探测、账号/预览和角色别名三个功能区；写操作在服务端确认并
   成功后重新读取状态，不提供账号/任务创建或帮助命令管理。

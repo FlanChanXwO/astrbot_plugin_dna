@@ -495,7 +495,7 @@ class _DynamicRegexFilter(RegexFilter):
 
         message = command_text_from_event(event)
         for star_meta in star_map.values():
-            if star_meta.name == "astrbot_plugin_dnaby" and star_meta.star_cls:
+            if star_meta.name == "astrbot_plugin_dna" and star_meta.star_cls:
                 runtime = getattr(star_meta.star_cls, "_runtime", None)
                 if runtime is not None and hasattr(runtime, "commands"):
                     spec = runtime.commands.get(self.command_id)
