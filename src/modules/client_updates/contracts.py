@@ -62,19 +62,13 @@ def normalize_client_update_platforms(
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdateRequest:
-    """客户端更新命令的框架无关输入。"""
+    """不携带 Target selector 的客户端更新命令输入。"""
 
     actor: EventActor | None
-    platforms: tuple[ClientPlatform, ...] = _CLIENT_UPDATE_PLATFORM_ORDER
 
     def __post_init__(self) -> None:
         if self.actor is not None and not isinstance(self.actor, EventActor):
             raise TypeError("actor 必须是 EventActor 或 None")
-        object.__setattr__(
-            self,
-            "platforms",
-            normalize_client_update_platforms(self.platforms),
-        )
 
 
 class ClientUpdateStructureError(ValueError):
@@ -251,7 +245,9 @@ class ClientSourceVersion:
 
         order_key = self.order_key
         if order_key is not None:
-            if isinstance(order_key, bool) or not isinstance(order_key, (int, str, tuple)):
+            if isinstance(order_key, bool) or not isinstance(
+                order_key, (int, str, tuple)
+            ):
                 raise TypeError("order_key 必须是整数、字符串、整数元组或 None")
             if isinstance(order_key, int) and order_key < 0:
                 raise ValueError("order_key 整数必须非负")
@@ -259,7 +255,10 @@ class ClientSourceVersion:
                 raise ValueError("order_key 字符串必须非空")
             if isinstance(order_key, tuple) and (
                 not order_key
-                or any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in order_key)
+                or any(
+                    isinstance(item, bool) or not isinstance(item, int) or item < 0
+                    for item in order_key
+                )
             ):
                 raise ValueError("order_key 元组必须由非负整数组成")
 
@@ -380,7 +379,9 @@ class ClientUpdateChange:
     def event_key(self) -> str:
         """返回由 Source 和两端 revision 组成的稳定事件键。"""
 
-        return f"{self.source_id}:{self.previous.revision_id}:{self.current.revision_id}"
+        return (
+            f"{self.source_id}:{self.previous.revision_id}:{self.current.revision_id}"
+        )
 
 
 def parse_channel_version_list_entries(

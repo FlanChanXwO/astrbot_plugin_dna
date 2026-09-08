@@ -786,6 +786,7 @@ def build_runtime(
         start_hooks=(
             _initialize_resource_views,
             login_flow.start,
+            client_update_service.initialize,
             web.initialize,
             cache_maintenance.start,
             sign_scheduler.start,
@@ -798,6 +799,7 @@ def build_runtime(
         stop_hooks=(
             _stop_resource_views,
             login_flow.stop,
+            client_update_service.terminate,
             web.stop,
             cache_maintenance.stop,
             sign_scheduler.stop,

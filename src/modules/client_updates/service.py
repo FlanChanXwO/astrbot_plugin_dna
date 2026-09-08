@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from ...entry.response import CommandResponse, MultiTextResponse, PlainTextResponse
@@ -61,10 +62,39 @@ class ClientUpdateService:
         self.subscriptions = subscriptions
         self.registry = registry
         self._poll_lock = asyncio.Lock()
+        self._subscription_mutation_lock = asyncio.Lock()
         self.target_ids = registry.normalize_target_ids(
             DEFAULT_CLIENT_UPDATE_TARGET_IDS if target_ids is None else target_ids
         )
-        self._target_ids_by_source = registry.group_target_ids_by_source(self.target_ids)
+        self._target_ids_by_source = registry.group_target_ids_by_source(
+            self.target_ids
+        )
+
+    async def initialize(self) -> None:
+        """在 scheduler 启动前清理旧平台筛选元数据。"""
+
+        subscriptions = self.subscriptions
+        if subscriptions is None:
+            return
+        async with self._subscription_mutation_lock:
+            stored = await subscriptions.get(messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE)
+            cleaned: set[tuple[str, str]] = set()
+            for subscription in stored:
+                key = (subscription.unified_msg_origin, subscription.uid)
+                if key in cleaned:
+                    continue
+                cleaned.add(key)
+                if not _has_legacy_platform_metadata(subscription):
+                    continue
+                await subscriptions.replace_target(
+                    messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                    subscription.unified_msg_origin,
+                    subscription.uid,
+                    replace(subscription, extra_data="{}"),
+                )
+
+    async def terminate(self) -> None:
+        """生命周期对齐钩子；本服务没有独立后台资源。"""
 
     async def poll_now(self) -> tuple[ClientUpdateChange, ...]:
         """串行执行轮询，避免并发观察以旧 baseline 覆盖新结果。"""
@@ -190,7 +220,7 @@ class ClientUpdateService:
         return MultiTextResponse(tuple(result))
 
     async def subscribe(self, request: ClientUpdateRequest) -> PlainTextResponse:
-        """创建或更新群订阅，并尝试建立缺失 Source 基线。"""
+        """串行创建或更新群订阅，并尝试建立缺失 Source 基线。"""
 
         actor = request.actor
         if actor is None:
@@ -205,39 +235,41 @@ class ClientUpdateService:
                 messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
                 need_at=True,
             )
-        if self.subscriptions is None:
+        subscriptions = self.subscriptions
+        if subscriptions is None:
             return PlainTextResponse(
                 messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE,
                 need_at=True,
             )
 
-        existing = await self._subscription_for_origin(actor.unified_msg_origin)
-        await self.subscriptions.add(
-            messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-            origin=actor.unified_msg_origin,
-            user_id=actor.user_id,
-            group_id=actor.group_id,
-            bot_id=actor.bot_id,
-            user_type="group",
-            uid="",
-            extra_data=_serialize_platforms(request),
-            provenance="chat_command",
-        )
-        failed_sources = await self._initialize_missing_baselines()
-        if existing is not None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED,
-                need_at=True,
+        async with self._subscription_mutation_lock:
+            existing = await self._subscription_for_origin(actor.unified_msg_origin)
+            await subscriptions.add(
+                messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                origin=actor.unified_msg_origin,
+                user_id=actor.user_id,
+                group_id=actor.group_id,
+                bot_id=actor.bot_id,
+                user_type="group",
+                uid="",
+                extra_data="{}",
+                provenance="chat_command",
             )
-        if failed_sources:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_SUBSCRIBED_RETRY,
-                need_at=True,
-            )
-        return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED, need_at=True)
+            failed_sources = await self._initialize_missing_baselines()
+            if existing is not None:
+                return PlainTextResponse(
+                    messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED,
+                    need_at=True,
+                )
+            if failed_sources:
+                return PlainTextResponse(
+                    messages.CLIENT_UPDATE_SUBSCRIBED_RETRY,
+                    need_at=True,
+                )
+            return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED, need_at=True)
 
     async def unsubscribe(self, request: ClientUpdateRequest) -> PlainTextResponse:
-        """取消当前群的客户端更新订阅。"""
+        """串行取消当前群订阅，并同步移除该目标的 pending。"""
 
         actor = request.actor
         if actor is None:
@@ -255,24 +287,26 @@ class ClientUpdateService:
                 messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
                 need_at=True,
             )
-        if self.subscriptions is None:
+        subscriptions = self.subscriptions
+        if subscriptions is None:
             return PlainTextResponse(
                 messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE,
                 need_at=True,
             )
 
-        deleted = await self.subscriptions.delete(
-            messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-            actor.unified_msg_origin,
-            uid="",
-        )
-        await self.state.remove_target(actor.unified_msg_origin, uid="")
-        if not deleted:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
-                need_at=True,
+        async with self._subscription_mutation_lock:
+            deleted = await subscriptions.delete(
+                messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                actor.unified_msg_origin,
+                uid="",
             )
-        return PlainTextResponse(messages.CLIENT_UPDATE_UNSUBSCRIBED, need_at=True)
+            await self.state.remove_target(actor.unified_msg_origin, uid="")
+            if not deleted:
+                return PlainTextResponse(
+                    messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
+                    need_at=True,
+                )
+            return PlainTextResponse(messages.CLIENT_UPDATE_UNSUBSCRIBED, need_at=True)
 
     async def _subscription_for_origin(self, origin: str) -> Subscription | None:
         subscriptions = self.subscriptions
@@ -355,7 +389,9 @@ def _is_rollback(previous: ClientSourceVersion, current: ClientSourceVersion) ->
     try:
         return current.order_key < previous.order_key
     except TypeError as error:
-        raise ClientUpdateStructureError("Source order_key types do not match") from error
+        raise ClientUpdateStructureError(
+            "Source order_key types do not match"
+        ) from error
 
 
 def _validate_observation(
@@ -368,14 +404,26 @@ def _validate_observation(
         raise ClientUpdateStructureError("observation 与请求 Source 不一致")
 
 
-def _serialize_platforms(request: ClientUpdateRequest) -> str:
-    """T10 清理前保留旧订阅写入形状，避免在本 task 混入命令迁移。"""
+def _has_legacy_platform_metadata(subscription: Subscription) -> bool:
+    """识别可安全清理的旧平台列表；损坏或未知形状保持原样。"""
 
-    return json.dumps(
-        {"platforms": [platform.value for platform in request.platforms]},
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
+    try:
+        payload = json.loads(subscription.extra_data)
+        if payload == {}:
+            return False
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != {"platforms"}
+            or not isinstance(payload["platforms"], list)
+        ):
+            raise TypeError("客户端更新订阅元数据不是受支持的旧形状")
+    except (TypeError, json.JSONDecodeError) as error:
+        logger.warning(
+            "客户端更新订阅元数据无效，跳过清理（错误类型：%s）",
+            type(error).__name__,
+        )
+        return False
+    return True
 
 
 def _log_transport_failure(
