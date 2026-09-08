@@ -1168,9 +1168,11 @@ class ResourceSnapshotCoordinator:
                 self._retired.add(previous.commit_sha)
             listeners = tuple(self._listeners)
         self._clear_validation_failure()
-        for listener in listeners:
-            listener(snapshot)
-        self._collect_retired()
+        try:
+            for listener in listeners:
+                listener(snapshot)
+        finally:
+            self._collect_retired()
 
     def _materialize(
         self,

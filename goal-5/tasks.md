@@ -132,16 +132,26 @@
 
 - 下一步建议：执行 Task 06，集中检查 resolver 深度、路径安全、`incomplete` 状态、lease 与 listener 并发边界。
 
-## Task 06 — 解析边界集中检查 `[pending]`
+## Task 06 — 解析边界集中检查 `[completed]`
 
 **类型**：集中检查-debug（Task 04–05）。
 
 **检查**：复查 resolver API 深度、来源优先级、路径安全、None/placeholder/incomplete 语义、快照租约和 listener 并发边界；运行资源/generation/现有 renderer 回归，发现问题就在 tasks.md 末尾追加修复 task。
 
-- 实际检查：待填。
-- 验证证据：待填。
-- 新增修复 task：待填。
-- 剩余风险：待填。
+- 实际检查：
+  - 复查 `RuntimeAssetResolver.resolve()` 与 `ResourceSnapshotCoordinator.bind_resolver()`：解析器只有一个只读 `resolve(logical_key)` seam，请求级 binding 复用现有 generation `optional_lease()`；实现没有扫描目录、读取 Git cache/candidate、下载或网络副作用。
+  - 核对来源优先级为 verified snapshot → 显式 bootstrap allowlist → `none/missing/incomplete`；无 snapshot 时 bootstrap 数字纹理仍可用，未同步的完整资源不会被误认为已提供。`placeholder` source/status 由后续 renderer 的程序化降级负责，当前 resolver 的 `none/missing` 是明确的占位入口。
+  - 补充路径安全回归：拒绝绝对路径、`..`、反斜杠映射，以及 generation 根/资源文件符号链接和越界文件；保留候选/Git cache 不可读取的测试。
+  - 复查 lease 发布顺序、旧 generation 回收和 listener 快照遍历，发现 `_activate()` 在 listener 抛错时会跳过 `_collect_retired()`，导致无 lease 的旧 generation 残留；按 TDD 增加失败测试并用 `try/finally` 修复，仍保留 listener 原异常和已发布 snapshot 语义。
+  - 静态审计确认主要 renderer 和 legacy utils 仍直接消费插件 `src/resources` 物理路径；这是 Task 07–09 的既定迁移范围，本 task 未提前扩大。
+- 验证证据：
+  - Red：新增 `test_listener_failure_still_collects_retired_generation` 后实际失败，旧 generation 目录仍存在（断言失败）；修复后该测试 `1 passed`。
+  - 资源/generation/config/operations/renderer 相关回归：`50 passed`，命令为 `PYTHONPATH=. /Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m pytest --confcutdir=tests tests/test_goal5_asset_resolver.py tests/test_goal3_resource_generations.py tests/test_config_resources.py tests/test_operations.py tests/test_rendering_assets.py -q`。
+  - 首轮包含 `tests/test_player.py` 的扩展回归为 `59 passed, 2 failed`；两个失败均来自本机 T2I 渲染返回 `Client Closed Request`，失败位置为 `tests/test_player.py::test_role_detail_renders_all_basic_sections_and_original_path` 与 `tests/test_player.py::test_concurrent_role_details_keep_their_related_original_paths`，不是资源/generation 断言。测试 fixture 将端点固定为 `http://127.0.0.1:8999/text2img`，当前环境该路径返回 404/关闭请求，作为环境阻塞记录，不改业务逻辑。
+  - 变更文件 LSP diagnostics 为空；目标 Ruff、相关 compileall、`git diff --check` 均通过。测试仅产生既有 `audioop` deprecation warning。
+- 新增修复 task：无；listener 清理问题已在本 task 内修复并纳入提交。
+- 剩余风险：主要 renderer 尚未消费 logical key/resolver；动态角色/武器/面板 key 的 snapshot 映射、实际 placeholder bytes、`incomplete` 在用户响应中的传递仍由 Task 07–09 完成。完整字体/大型纹理删除前仍需资源仓库 manifest/SHA 与发布包证据。
+- 下一步建议：执行 Task 07，先为 Player、百科、签到、公告和 Help 的 resolver 接入与降级路径建立 Red 测试。
 
 ## Task 07 — Player/Encyclopedia/Checkin/Notices/Help 字体与纹理接入 Red `[pending]`
 

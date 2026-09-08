@@ -171,6 +171,43 @@ def test_snapshot_file_missing_falls_back_to_bootstrap_not_candidate(
     assert resolved.incomplete is True
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    ["/outside/font.ttf", "../outside/font.ttf", "fonts\\\\font.ttf"],
+)
+def test_snapshot_asset_mapping_rejects_unsafe_paths(
+    relative_path: str,
+) -> None:
+    """snapshot 映射只能声明 generation 内的 POSIX 相对路径。"""
+
+    with pytest.raises(ValueError, match="snapshot 资源路径"):
+        _resolver(snapshot_assets={"font.primary_ttf": relative_path})
+
+
+def test_snapshot_resolver_rejects_symlink_root_and_asset(tmp_path: Path) -> None:
+    """解析器不能跟随 generation 根或文件符号链接读取外部内容。"""
+
+    real_root = tmp_path / "real-generation"
+    snapshot_asset = _write(real_root / "fonts" / "dna_fonts.ttf", b"font")
+    outside = _write(tmp_path / "outside.ttf", b"outside")
+    snapshot_asset.unlink()
+    snapshot_asset.symlink_to(outside)
+    snapshot_root_link = tmp_path / "snapshot-link"
+    snapshot_root_link.symlink_to(real_root, target_is_directory=True)
+
+    root_resolver = _resolver(
+        snapshot_root=snapshot_root_link,
+        snapshot_assets={"font.primary_ttf": "fonts/dna_fonts.ttf"},
+    )
+    assert root_resolver.resolve("font.primary_ttf").path is None
+
+    asset_resolver = _resolver(
+        snapshot_root=real_root,
+        snapshot_assets={"font.primary_ttf": "fonts/dna_fonts.ttf"},
+    )
+    assert asset_resolver.resolve("font.primary_ttf").path is None
+
+
 def test_unresolved_asset_exposes_none_state_for_renderer_placeholder(
     tmp_path: Path,
 ) -> None:
