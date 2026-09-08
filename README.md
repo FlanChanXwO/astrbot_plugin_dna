@@ -1,8 +1,10 @@
 <div align="center">
 
-<img src="./ICON.png" alt="astrbot_plugin_dna Logo" width="180" />
+<img src="./ICON.png" alt="狩月终端 Logo" width="180" />
 
-# astrbot_plugin_dna
+# 狩月终端
+
+`astrbot_plugin_dna`
 
 **🎮 面向 AstrBot 的《二重螺旋》游戏助手插件**
 
@@ -20,7 +22,7 @@
 
 ## ✨ 项目简介
 
-`astrbot_plugin_dna` 是面向 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 的《二重螺旋》游戏助手插件。
+**狩月终端**（`astrbot_plugin_dna`）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 的《二重螺旋》游戏助手插件。
 
 插件围绕账号、角色与公共游戏资料提供一套原生 AstrBot 使用体验：既可以在聊天中查询角色、图鉴、攻略、签到与公告，也提供面向管理员的资源同步、订阅与管理能力。
 
