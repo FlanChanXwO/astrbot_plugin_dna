@@ -50,16 +50,38 @@
 - 剩余风险：资源仓库当前 HEAD（2026 年 9 月 3 日）尚未包含规格要求的全部字体变体和本地大型卡片/日历/背景纹理；manifest 尚未声明关键文件哈希；本 task 只做审计，没有向公共仓库写入或发布任何资源。
 - 下一步建议：执行 Task 03，冻结 verified snapshot/bootstrap/placeholder 的解析边界和 `incomplete` 语义；在此之前不删除插件内字体或大型纹理。
 
-## Task 03 — 统一解析边界与 fallback 契约集中检查 `[pending]`
+## Task 03 — 统一解析边界与 fallback 契约集中检查 `[completed]`
 
 **类型**：集中检查-debug（Task 01–02 后提前检查；此处冻结设计，避免在缺少资源仓库证据时删除文件）。
 
 **检查**：核对规格目标/非目标、当前 `ResourceSnapshotCoordinator` 的真实语义、空 snapshot 行为、renderer 消费点、资源仓库依赖和可回滚点；确定 `RuntimeAssetResolver` 是新增边界还是扩展现有 `ResourceMap`/`EncyclopediaResourceStore`，并写出逻辑 key/来源/incomplete 规则。
 
-- 实际检查：待填。
-- 验证证据：待填。
-- 新增修复 task：待填（如无则写“无”）。
-- 剩余风险：待填。
+- 实际检查：
+  - 规格目标冻结为：完整字体、大型纹理、角色/武器/面板等静态资源只从已验证 snapshot 提供；插件未同步时仍能启动，视觉命令走 bootstrap/placeholder/简化渲染；不新增自动同步、不把缺资源变成普通命令拒绝、不读取未验证 candidate 或 Git cache。失败同步继续保留旧 snapshot，资源版本刷新只影响新请求。
+  - 已核对 `ResourceSnapshotCoordinator` 的真实语义：`ResourceSnapshot` 只由 `ResourceGenerationValidator` 校验后构造（`src/infrastructure/resources/generation.py:42-58,313-367`）；无 `current.json` 时 `initialize()` 返回 `None`（`generation.py:527-550`），严格 `acquire()` 抛 `ResourceGenerationError`（`552-560`），`optional_lease()`/`bind_resource()` 返回 `None`（`562-586`），`bind_renderer()` 在空 snapshot 时原样返回 renderer（`588-598`）。有 snapshot 时 lease 固定当前 generation，旧目录等待最后一个 lease 释放后回收；因此 resolver 必须是请求期视图，不能把 `Path`/resolver 长期缓存到下一次 generation。
+  - 冻结架构决策：新增一个**薄的、只读、请求期** `RuntimeAssetResolver` 边界，但不新增 downloader、Git/cache、第二套 generation 或资源存储。它组合/适配现有 `ResourceMap` 与 `EncyclopediaResourceStore`（后两者继续作为 snapshot 内的领域索引和兼容 API），由 coordinator 的 lease/bind seam 提供；verified snapshot 内可增加 resolver 视图字段，bootstrap 则使用独立的显式 allowlist resolver。renderer 只消费逻辑 key/解析结果，不再拼接资源物理目录。
+  - 冻结逐 key 来源优先级：
+    1. `verified_snapshot`：仅读取当前 `ResourceSnapshot.root` 及其已校验索引；路径必须是 generation 内普通文件，不能回退到 `repository`、`.candidate-*`、Git checkout/cache 或网络下载。
+    2. `bootstrap`：仅读取代码包中登记的固定 allowlist；allowlist 是逐逻辑 key 的显式映射，不是递归读取整个 `src/resources`。当前 `bootstrap.py:242-265` 在无 snapshot 时把 `resource_cache_root` 当作 `resource_root`，这是待 Task 05 修正的已确认越界路径。
+    3. `placeholder` 或 `None`：缺失视觉素材时在内存生成简化结果，或对严格素材返回 `None`/既有用户可见“未找到”语义；resolver 不下载、不写入缓存、不伪造成功。
+  - 冻结逻辑 key（key 不暴露绝对路径；资源仓库物理目录由映射表决定）：
+    | 类别 | 最小 key 形态 | verified snapshot 典型路径 | 缺失处理 |
+    | --- | --- | --- | --- |
+    | 字体 | `font:dna_fonts`、`font:unicode_bold`、`font:emoji` | `fonts/<filename>` | bootstrap 字体若被明确保留则可用，否则字体 fallback/简化渲染并标记降级 |
+    | 角色/武器 | `image:role_avatar:<id>`、`image:role_paint:<id>`、`image:weapon:<id>` | `images/role_avatar`、`images/role_paint`、`images/weapon` | 卡片内存占位或删去可选图片；不触发网络下载 |
+    | 面板 | `panel:original:<char_id>` | `panel/<char_id>.png` | 简化面板/占位；详情仍遵循已有严格失败语义边界 |
+    | 公共纹理 | `texture:<family>:<name>`（`common`、`detail`、`role`、`calendar`、`stamina`、`weekly_report`、`ann`、`sign`、`help` 等） | 由 manifest/资源映射表决定，不能由调用方拼接插件路径 | 允许简化渲染或 placeholder；纹理缺失不使插件启动失败 |
+    | 资料素材 | `wiki:<kind>:<name>`、`guide:<name>:<provider>`、`weekly_item:<id>`、`calendar:<basename>` | `wiki/*`、`guide/*`、`weekly_item/*`、`calendar/*` | wiki/guide 等严格图片命令返回既有 not-found；周报/日历卡片可降级并记录来源 |
+  - 冻结解析结果元数据：`source` 只允许 `verified_snapshot`、`bootstrap`、`placeholder`、`none`；对应 `status` 分别为 `provided`、`fallback`、`placeholder`、`missing`。外置 key 只要实际来源不是 `verified_snapshot`（bootstrap、placeholder、none）就属于本次视觉降级，渲染结果必须聚合为 `incomplete=True`，且不得覆盖完整卡片缓存；保留在插件中的 bootstrap-only logo/help 小资源不因正常使用自动标记不完整。metadata 的 `source` 使用稳定逻辑相对路径/来源标签，不暴露绝对路径。
+  - 冻结生命周期与错误边界：resolver 只在 `bind_renderer`/等价 resolver context 内读取，新的 snapshot 只影响新请求；需要在 lease 结束后继续发送的 snapshot 素材先复制到受控 `rendered/`。缺失文件只走明确的 placeholder/`None` 分支；manifest、generation、transport、调用方和 I/O 的非预期异常继续显式暴露，不用 broad catch 或“默认成功”吞掉。严格公告详情等既有完整链路不得改成占位图。
+  - 已确认的 renderer 消费缺口：`PlayerRenderer._item_payload()` 仍直接调用 legacy `get_avatar_img/get_weapon_img`（`player.py:85-109`）；百科周报的 metadata 读取 `weekly_assets`，但 `render_weekly_report()` 没把它传给 `_draw_weekly_report_card()`（`encyclopedia.py:237-267,891-984`），实际路径会继续走 legacy cache/网络/placeholder；日历 `_event_image()` 仍访问 legacy `CALENDAR_PATH`/网络（`encyclopedia.py:530-537`）；百科、公告、签到仍直接使用 bundled `FONT_ORIGIN_PATH`。`RenderedEncyclopediaImage` 目前也没有 `incomplete` 字段（`encyclopedia.py:686-696`），后续 renderer Red/Green 必须补齐“实际 bytes 来源”和缓存语义，而不能只改 metadata。
+  - listener/刷新边界：现有 `subscribe()` 不回放当前 snapshot；`_activate()` 在 coordinator lock 内同步调用 listener，listener 异常可能阻断 retired cleanup。此次不另起 listener 机制；Task 06/后续回归要验证异常、重入、重复订阅和刷新期间的 lease 行为，resolver 不得绕过 coordinator。
+- 验证证据：
+  - 使用 Python LSP 对 `ResourceSnapshotCoordinator`、`ResourceMap`、`EncyclopediaResourceStore`、`PlayerRenderer`、`EncyclopediaRenderer` 与四个 service 的符号/引用做语义检查；关键定义与调用点见上列 `file:line`，确认当前没有现成 `RuntimeAssetResolver`。
+  - 静态检索确认 legacy 资源入口仍存在：`src/infrastructure/rendering/{player,encyclopedia,checkin,notices}.py` 的 `RESOURCES_DIR`/`FONT_ORIGIN_PATH`，`src/utils/image.py` 的网络/legacy cache loader，以及 bootstrap 无 snapshot 读取 `resource_cache_root`；这为 Task 04/07 的 Red 契约提供真实失败点。
+  - 测试覆盖审计确认 generation 正常发布、失败保留旧 snapshot、lease pinning、manifest/path 校验已有覆盖；空 snapshot 四种 context API、listener 异常、最终渲染 bytes 来源、统一 fallback/incomplete 尚无完整契约测试。Task 03 只做集中审计，未伪造测试通过。
+- 新增修复 task：无；已将空 snapshot/resolver 优先级纳入 Task 04–05，将最终 renderer bytes/incomplete 纳入 Task 07–08，将 listener/lease 并发与异常纳入 Task 06/09。
+- 剩余风险：当前 bootstrap 仍可能把未验证 Git cache 当资源视图；主要 renderer 仍混用 generation metadata 与 legacy path/network；周报 metadata 与最终 bytes、日历 metadata 与实际 lookup 可能不一致；listener 异常清理和 encyclopedia 的 `incomplete` 传递尚未实现。上述风险均有后续 task 承接，故本检查完成但不代表资源已迁移。
 
 ## Task 04 — 统一资源解析与降级路径 Red 契约 `[pending]`
 
