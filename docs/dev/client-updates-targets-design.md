@@ -84,6 +84,27 @@ ClientUpdateSource
 
 Source 只负责版本观察、补丁大小和 baseline，不携带账号生态或服务器语义。
 
+现有 `ClientVersionSnapshot` 不能继续把 `region/channel_id` 当成版本身份，因为一个
+Source 可能同时服务多个区服 Target。实现时应把版本快照改成 source-neutral：
+
+```text
+ClientSourceVersion
+  source_id: str
+  version_text: str
+  revision_id: str
+  order_key: int | tuple[int, ...] | None
+  provider_metadata: typed provider metadata
+```
+
+- `revision_id` 用于稳定判断“是否同一版本”；
+- `order_key` 只在 provider 能可靠比较前后顺序时使用；
+- manifest provider 可以继续把 patch/build 信息保存在 typed metadata 中；
+- App Store 等 provider 不需要伪造整数 `patchVersion`。
+
+`ClientUpdateChange` 同样改成 source-level change：携带 `source_id`、previous/current
+source version 和可选更新大小；Target 集合由 service 在 Source -> Target 映射阶段附加，
+不再把 `region` 或 `channel_id` 塞回版本对象。
+
 如果全球五个服务器共用同一个官方 PC 客户端，则：
 
 ```text
@@ -276,7 +297,9 @@ range(previous_patch_version + 1, latest.patch_version + 1)
 1. 解析 `VersionList` 实际存在的全部记录；
 2. 按协议稳定顺序排序；
 3. 若 baseline 条目仍在窗口中，只读取其后实际存在记录的 manifest；
-4. 不因为整数编号缺失而报错。
+4. 不因为整数编号缺失而报错；
+5. service 层汇总更新大小时也必须直接汇总 transport 返回的实际版本记录，不能再用
+   `_sum_new_patch_sizes()` 一类 `range(previous + 1, current + 1)` 逻辑重建连续整数区间。
 
 示例：
 
@@ -324,8 +347,10 @@ provider config 负责 primary/fallback URL、branch、manifest key、User-Agent
 
 ### `app_store`
 
-iOS 不强行套用 PC / Android 的 manifest 协议。首版只要求可靠获取当前版本；若不能
-可靠获得差分包大小，则 `added_size_bytes` 为 `None`，但查询和更新通知仍正常。
+iOS 不强行套用 PC / Android 的 manifest 协议。首版只要求可靠获取当前版本和稳定
+`revision_id`；如果商店能够提供可比较 build/version key，则填充 `order_key`，否则只做
+相等/不等判断，不执行伪造的 rollback 推断。若不能可靠获得差分包大小，则
+`added_size_bytes` 为 `None`，但查询和更新通知仍正常。
 
 国服官方、B服和全球服若使用不同商店条目则注册不同 Source；实际共享时复用 Source。
 
@@ -348,7 +373,10 @@ cn:android_astc_cn -> <verified cn official android source_id>
 要求：
 
 - snapshot 版本、`observed_at`、`last_change` 尽量原样保留；
-- pending event 在语义可确定时迁移；
+- v3 snapshot 的 `region/channel_id` 只用于确定旧 Source 映射，迁移后的版本对象不再
+  持有 Target/region 身份；
+- v3 `pc_cn` pending event 明确映射到 `cn-official-pc`，`android_astc_cn` 明确映射到
+  `cn-official-android`；其它旧事件只有在 Target 语义可确定时才迁移，否则安全丢弃并记录日志；
 - 沿用备份和幂等迁移策略；
 - 已脱离 VersionList 窗口的旧 baseline 不删除，而由第一次真实 observation 通过
   history-gap 流程安全 resync。
