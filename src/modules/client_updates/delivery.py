@@ -49,11 +49,14 @@ class ClientUpdatePushTarget:
 class ClientUpdatePushMessage:
     """一个 Source 变化及其固定 Target 集合对应的用户可见消息。"""
 
+    event_key: str
     source_id: str
     target_ids: tuple[str, ...]
     text: str
 
     def __post_init__(self) -> None:
+        if not isinstance(self.event_key, str) or not self.event_key.strip():
+            raise ValueError("event_key 必须是非空字符串")
         if not isinstance(self.source_id, str) or not self.source_id.strip():
             raise ValueError("source_id 必须是非空字符串")
         normalized_target_ids = tuple(self.target_ids)
@@ -85,14 +88,35 @@ class ClientUpdatePush:
             not isinstance(message, ClientUpdatePushMessage) for message in normalized
         ):
             raise TypeError("messages 必须全部是 ClientUpdatePushMessage")
+        event_keys = tuple(message.event_key for message in normalized)
+        if len(event_keys) != len(set(event_keys)):
+            raise ValueError("messages 的 event_key 不能重复")
         object.__setattr__(self, "messages", normalized)
+
+
+@dataclass(frozen=True, slots=True)
+class ClientUpdatePushResult:
+    """一轮推送中真实发送成功的事件键。"""
+
+    succeeded_event_keys: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        normalized = tuple(self.succeeded_event_keys)
+        if any(
+            not isinstance(event_key, str) or not event_key.strip()
+            for event_key in normalized
+        ):
+            raise ValueError("succeeded_event_keys 必须全部是非空字符串")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("succeeded_event_keys 不能重复")
+        object.__setattr__(self, "succeeded_event_keys", normalized)
 
 
 class ClientUpdatePushPort(Protocol):
     """客户端更新投递所需的最小端口。"""
 
-    async def send(self, push: ClientUpdatePush) -> SenderResult:
-        """向一个目标发送一轮消息；显式返回 False 表示失败。"""
+    async def send(self, push: ClientUpdatePush) -> ClientUpdatePushResult:
+        """向一个目标发送一轮消息，并返回真实成功的事件键。"""
         ...
 
 
@@ -147,7 +171,10 @@ class ClientUpdateDeliveryService:
                 ),
                 ordered_changes,
             )
-            if await self._send_push(push):
+            succeeded_event_keys = await self._send_push(push)
+            if succeeded_event_keys == frozenset(
+                message.event_key for message in push.messages
+            ):
                 delivered += 1
         return delivered
 
@@ -245,17 +272,20 @@ class ClientUpdateDeliveryService:
                 ClientUpdatePushTarget(origin=target.origin, bot_id=target.bot_id),
                 tuple(event.change for event in pending_events),
             )
-            if not await self._send_push(push):
-                continue
-            delivered += 1
+            succeeded_event_keys = await self._send_push(push)
             for event in pending_events:
-                await state.mark_delivered(event.event_key, target)
+                if event.event_key in succeeded_event_keys:
+                    await state.mark_delivered(event.event_key, target)
+            if succeeded_event_keys == frozenset(
+                event.event_key for event in pending_events
+            ):
+                delivered += 1
         return delivered
 
     async def _subscriptions(self) -> tuple[Subscription, ...]:
         return await self.subscriptions.get(messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE)
 
-    async def _send_push(self, push: ClientUpdatePush) -> bool:
+    async def _send_push(self, push: ClientUpdatePush) -> frozenset[str]:
         try:
             result = await self.push_port.send(push)
         except Exception as error:  # noqa: BLE001
@@ -263,11 +293,17 @@ class ClientUpdateDeliveryService:
                 "[dnaby][client_update] 订阅目标投递失败（错误类型：%s）",
                 type(error).__name__,
             )
-            return False
-        if result is False:
-            logger.warning("[dnaby][client_update] 订阅目标投递返回失败")
-            return False
-        return True
+            return frozenset()
+        if not isinstance(result, ClientUpdatePushResult):
+            logger.warning("[dnaby][client_update] 订阅目标投递返回无效结果类型")
+            return frozenset()
+
+        expected_event_keys = frozenset(message.event_key for message in push.messages)
+        succeeded_event_keys = frozenset(result.succeeded_event_keys)
+        if not succeeded_event_keys.issubset(expected_event_keys):
+            logger.warning("[dnaby][client_update] 订阅目标投递返回未知事件键")
+            return frozenset()
+        return succeeded_event_keys
 
 
 class ClientUpdatePushAdapter:
@@ -284,11 +320,11 @@ class ClientUpdatePushAdapter:
         self._send_forward = send_forward
         self.merge_forward = bool(merge_forward)
 
-    async def send(self, push: ClientUpdatePush) -> bool:
+    async def send(self, push: ClientUpdatePush) -> ClientUpdatePushResult:
         """按目标适配器与配置选择合并转发，失败时降级为普通消息。"""
 
         if not push.messages:
-            return True
+            return ClientUpdatePushResult(succeeded_event_keys=())
 
         if (
             _is_onebot_target(push.target)
@@ -296,7 +332,11 @@ class ClientUpdatePushAdapter:
             and len(push.messages) > 1
             and await self._try_send_forward(push)
         ):
-            return True
+            return ClientUpdatePushResult(
+                succeeded_event_keys=tuple(
+                    message.event_key for message in push.messages
+                )
+            )
         return await self._send_independent_text(push)
 
     async def _try_send_forward(self, push: ClientUpdatePush) -> bool:
@@ -325,8 +365,11 @@ class ClientUpdatePushAdapter:
             return False
         return True
 
-    async def _send_independent_text(self, push: ClientUpdatePush) -> bool:
-        success = True
+    async def _send_independent_text(
+        self,
+        push: ClientUpdatePush,
+    ) -> ClientUpdatePushResult:
+        succeeded_event_keys: list[str] = []
         for message in push.messages:
             try:
                 result = await self._send_text(push.target.origin, message.text)
@@ -335,12 +378,12 @@ class ClientUpdatePushAdapter:
                     "[dnaby][client_update] 普通消息投递失败，错误类型：%s",
                     type(error).__name__,
                 )
-                success = False
                 continue
             if result is False:
                 logger.warning("[dnaby][client_update] 普通消息投递返回失败")
-                success = False
-        return success
+                continue
+            succeeded_event_keys.append(message.event_key)
+        return ClientUpdatePushResult(succeeded_event_keys=tuple(succeeded_event_keys))
 
 
 def _build_push(
@@ -351,6 +394,7 @@ def _build_push(
         target=target,
         messages=tuple(
             ClientUpdatePushMessage(
+                event_key=change.event_key,
                 source_id=change.source_id,
                 target_ids=change.target_ids,
                 text=messages.format_change(change),
@@ -405,6 +449,7 @@ __all__ = [
     "ClientUpdatePushAdapter",
     "ClientUpdatePushMessage",
     "ClientUpdatePushPort",
+    "ClientUpdatePushResult",
     "ClientUpdatePushTarget",
     "ForwardSender",
     "SenderResult",

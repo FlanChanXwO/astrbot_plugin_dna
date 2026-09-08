@@ -41,6 +41,7 @@ from .delivery import (
     ClientUpdatePushAdapter,
     ClientUpdatePushMessage,
     ClientUpdatePushPort,
+    ClientUpdatePushResult,
     ClientUpdatePushTarget,
 )
 from .registry import (
@@ -105,6 +106,7 @@ __all__ = [
     "ClientUpdatePushAdapter",
     "ClientUpdatePushMessage",
     "ClientUpdatePushPort",
+    "ClientUpdatePushResult",
     "ClientUpdatePushTarget",
     "ClientUpdateRegistry",
     "ClientUpdateRequest",

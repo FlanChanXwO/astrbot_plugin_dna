@@ -16,6 +16,7 @@ from src.modules.client_updates import (
     ClientUpdatePush,
     ClientUpdatePushAdapter,
     ClientUpdatePushMessage,
+    ClientUpdatePushResult,
     ClientUpdatePushTarget,
     ClientUpdateRequest,
     ClientUpdateService,
@@ -73,12 +74,15 @@ class _RecordingPushPort:
     results_by_origin: dict[str, list[bool]] = field(default_factory=dict)
     pushes: list[ClientUpdatePush] = field(default_factory=list)
 
-    async def send(self, push: ClientUpdatePush) -> bool:
+    async def send(self, push: ClientUpdatePush) -> ClientUpdatePushResult:
         self.pushes.append(push)
         results = self.results_by_origin.get(push.target.origin)
-        if results:
-            return results.pop(0)
-        return True
+        succeeded = results.pop(0) if results else True
+        return ClientUpdatePushResult(
+            succeeded_event_keys=tuple(
+                message.event_key for message in push.messages if succeeded
+            )
+        )
 
 
 async def _add_subscription(
@@ -296,11 +300,13 @@ async def test_onebot_merge_failure_falls_back_to_independent_source_messages() 
         target=ClientUpdatePushTarget(origin="onebot:group:1", bot_id="onebot"),
         messages=(
             ClientUpdatePushMessage(
+                event_key="cn-official-pc-manifest:100:101",
                 source_id="cn-official-pc-manifest",
                 target_ids=("cn-official-pc",),
                 text="PC update",
             ),
             ClientUpdatePushMessage(
+                event_key="cn-official-ios-app-store:1:2",
                 source_id="cn-official-ios-app-store",
                 target_ids=("cn-official-ios",),
                 text="iOS update",
@@ -308,7 +314,10 @@ async def test_onebot_merge_failure_falls_back_to_independent_source_messages() 
         ),
     )
 
-    assert await adapter.send(push) is True
+    result = await adapter.send(push)
+    assert result.succeeded_event_keys == tuple(
+        message.event_key for message in push.messages
+    )
     assert forward_calls == [
         ("onebot:group:1", ("PC update", "iOS update")),
     ]
@@ -339,12 +348,16 @@ async def test_concurrent_deliveries_do_not_send_the_same_pending_event_twice(
     class BlockingPushPort:
         pushes: list[ClientUpdatePush] = field(default_factory=list)
 
-        async def send(self, push: ClientUpdatePush) -> bool:
+        async def send(self, push: ClientUpdatePush) -> ClientUpdatePushResult:
             self.pushes.append(push)
             if len(self.pushes) == 1:
                 started.set()
                 await release.wait()
-            return True
+            return ClientUpdatePushResult(
+                succeeded_event_keys=tuple(
+                    message.event_key for message in push.messages
+                )
+            )
 
     port = BlockingPushPort()
     delivery = ClientUpdateDeliveryService(subscriptions, port, state=state)
@@ -382,10 +395,14 @@ async def test_unsubscribe_waits_for_grouped_delivery_before_returning(
     class OrderedPushPort:
         pushes: list[ClientUpdatePush] = field(default_factory=list)
 
-        async def send(self, push: ClientUpdatePush) -> bool:
+        async def send(self, push: ClientUpdatePush) -> ClientUpdatePushResult:
             self.pushes.append(push)
             order.append("send")
-            return True
+            return ClientUpdatePushResult(
+                succeeded_event_keys=tuple(
+                    message.event_key for message in push.messages
+                )
+            )
 
     port = OrderedPushPort()
     delivery = ClientUpdateDeliveryService(subscriptions, port, state=state)
@@ -421,3 +438,124 @@ async def test_unsubscribe_waits_for_grouped_delivery_before_returning(
     assert len(port.pushes) == 1
     assert await state.pending_events() == ()
     assert await delivery.deliver(()) == 0
+
+
+@pytest.mark.asyncio
+async def test_partial_text_success_marks_only_successful_event_and_retries_failure(
+    tmp_path,
+) -> None:
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    await _add_subscription(subscriptions, "group:1")
+    send_results = [True, False, True]
+    sent_texts: list[str] = []
+
+    async def send_text(_origin: str, text: str) -> bool:
+        sent_texts.append(text)
+        return send_results.pop(0)
+
+    delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        ClientUpdatePushAdapter(send_text=send_text, merge_forward=False),
+        state=state,
+    )
+
+    assert await delivery.deliver((_pc_change(), _ios_change())) == 0
+    pending = await state.pending_events()
+    assert tuple(event.change.source_id for event in pending) == (
+        "cn-official-ios-app-store",
+    )
+
+    assert await delivery.deliver(()) == 1
+    assert await state.pending_events() == ()
+    assert len(sent_texts) == 3
+    assert "国服官服 PC" in sent_texts[0]
+    assert "国服官服 iOS" in sent_texts[1]
+    assert "国服官服 iOS" in sent_texts[2]
+
+
+@pytest.mark.asyncio
+async def test_onebot_forward_success_confirms_every_event_without_text_fallback() -> (
+    None
+):
+    forward_calls: list[tuple[str, tuple[str, ...]]] = []
+    text_calls: list[tuple[str, str]] = []
+
+    async def send_forward(origin: str, texts: tuple[str, ...]) -> bool:
+        forward_calls.append((origin, texts))
+        return True
+
+    async def send_text(origin: str, text: str) -> bool:
+        text_calls.append((origin, text))
+        return True
+
+    adapter = ClientUpdatePushAdapter(
+        send_text=send_text,
+        send_forward=send_forward,
+        merge_forward=True,
+    )
+    push = ClientUpdatePush(
+        target=ClientUpdatePushTarget(origin="onebot:group:1", bot_id="onebot"),
+        messages=(
+            ClientUpdatePushMessage(
+                event_key="cn-official-pc-manifest:100:101",
+                source_id="cn-official-pc-manifest",
+                target_ids=("cn-official-pc",),
+                text="PC update",
+            ),
+            ClientUpdatePushMessage(
+                event_key="cn-official-ios-app-store:1:2",
+                source_id="cn-official-ios-app-store",
+                target_ids=("cn-official-ios",),
+                text="iOS update",
+            ),
+        ),
+    )
+
+    result = await adapter.send(push)
+
+    assert result.succeeded_event_keys == tuple(
+        message.event_key for message in push.messages
+    )
+    assert forward_calls == [
+        ("onebot:group:1", ("PC update", "iOS update")),
+    ]
+    assert text_calls == []
+
+
+@pytest.mark.asyncio
+async def test_onebot_forward_exception_reports_each_text_result() -> None:
+    text_results = [True, False]
+
+    async def send_forward(_origin: str, _texts: tuple[str, ...]) -> bool:
+        raise RuntimeError("forward unavailable")
+
+    async def send_text(_origin: str, _text: str) -> bool:
+        return text_results.pop(0)
+
+    adapter = ClientUpdatePushAdapter(
+        send_text=send_text,
+        send_forward=send_forward,
+        merge_forward=True,
+    )
+    push = ClientUpdatePush(
+        target=ClientUpdatePushTarget(origin="onebot:group:1", bot_id="onebot"),
+        messages=(
+            ClientUpdatePushMessage(
+                event_key="cn-official-pc-manifest:100:101",
+                source_id="cn-official-pc-manifest",
+                target_ids=("cn-official-pc",),
+                text="PC update",
+            ),
+            ClientUpdatePushMessage(
+                event_key="cn-official-ios-app-store:1:2",
+                source_id="cn-official-ios-app-store",
+                target_ids=("cn-official-ios",),
+                text="iOS update",
+            ),
+        ),
+    )
+
+    result = await adapter.send(push)
+
+    assert result.succeeded_event_keys == ("cn-official-pc-manifest:100:101",)
