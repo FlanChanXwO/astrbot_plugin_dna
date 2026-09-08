@@ -1,6 +1,6 @@
 name: astrbot_plugin_dna
 display_name: 狩月终端
-desc: 狩月终端——面向《二重螺旋》的 AstrBot 游戏助手，集账号管理、角色面板、图鉴攻略、签到、公告订阅、隐私控制与公共资源同步于一体。
+desc: 狩月终端——面向《二重螺旋》的 AstrBot 游戏助手，支持账号管理、角色面板、图鉴攻略、签到、日常查询与公告订阅。
 version: v0.2.0
 author: FlanChanXwO
 repo: https://github.com/FlanChanXwO/astrbot_plugin_dna
