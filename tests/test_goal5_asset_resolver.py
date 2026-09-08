@@ -1,4 +1,4 @@
-"""Goal 5 Task 04：统一运行期资源解析与降级契约（Red）。"""
+"""Goal 5 Task 04-05：统一运行期资源解析与降级契约。"""
 
 from __future__ import annotations
 

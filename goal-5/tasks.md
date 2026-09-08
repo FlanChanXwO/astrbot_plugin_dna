@@ -104,7 +104,7 @@
 - 剩余风险：当前测试在 import 阶段即失败，因此空 snapshot 的新增断言尚未实际执行；placeholder 的最终图片 bytes、renderer 缓存禁止覆盖、真实 snapshot lease/listener 刷新仍需 Task 05/06/07 覆盖。测试构造使用显式 logical-to-relative 映射，Task 05 必须保持路径安全并接入真实 `ResourceSnapshot`，不能只实现测试专用 fake。
 - 下一步建议：执行 Task 05，实现最小 `RuntimeAssetResolver` 并接入现有 verified snapshot、bootstrap allowlist、空资源视图和 listener 刷新，使本 task 转 Green。
 
-## Task 05 — 统一资源解析 Green 与现有 snapshot 接入 `[pending]`
+## Task 05 — 统一资源解析 Green 与现有 snapshot 接入 `[completed]`
 
 **目标**：实现最小统一资源解析边界，接入现有 verified snapshot、bootstrap allowlist、空资源视图和 listener 刷新，不新增下载器或第二套 cache。
 
@@ -112,10 +112,25 @@
 
 **验收**：Task 04 Red 转 Green；renderer 不需要知道资源物理目录；只读 verified snapshot；candidate/Git cache 不可直接消费；空 snapshot 能返回明确降级状态；snapshot 发布后新的请求拿到新视图。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：
+  - 新增 `ResolvedAsset` 与 `RuntimeAssetResolver`，固定 verified snapshot → 显式 bootstrap allowlist → `none/missing/incomplete` 优先级；snapshot 路径只接受 generation 内 POSIX 相对路径，拒绝绝对路径、`..`、反斜杠、符号链接和越界文件，不扫描 candidate/Git cache。
+  - 在 `ResourceSnapshotCoordinator` 增加 `bind_resolver()`，复用现有 `optional_lease()`，使解析器按请求绑定当前 generation；从资源包稳定导出公共类型。
+  - bootstrap 拆开 `resource_repository_root` 与 verified `resource_root`；无 verified snapshot 时使用空 `ResourceMap`/`EncyclopediaResourceStore`，不再从 repository cache 构造业务资源视图；保留资源更新服务对 repository root 的维护边界。
+  - 注册 `bind_resource_resolver` request seam，登记字体 snapshot logical key 和小型数字纹理 bootstrap allowlist；保留现有 listener 刷新 legacy 资源视图，并在 generation 发布后刷新别名默认路径。
+  - 将既有完整资源 bootstrap 测试改为显式 verified snapshot fixture，并补充无 snapshot、bootstrap 命中和 resolver binding 契约测试。
+  - 实现提交：`0b43a47 feat(goal-5): add runtime asset resolver`。
+
+- 验证证据：
+  - Red：新增 binding/空资源视图测试后，目标测试先因缺少 `src.infrastructure.resources.resolver` 收集失败；实现后 `PYTHONPATH=. .venv/bin/python -m pytest --confcutdir=tests tests/test_goal5_asset_resolver.py tests/test_config_resources.py::test_bootstrap_injects_complete_runtime_resource_root -q` 通过，9 passed。
+  - 资源/generation/config/operations 相关回归：42 passed；另有 `tests/test_entry_skeleton.py::test_plugin_can_initialize_and_terminate_with_admin_web_registrations` 因本机 `127.0.0.1:6189` 已被占用失败，属于环境端口冲突，非本次变更断言失败。
+  - 变更文件 Python LSP diagnostics 均为空；目标文件 `ruff check`、`compileall`、`git diff --check` 通过。提交 hook 的 ruff check 也通过；全仓手动 ruff 仍报告既有 scripts/其他测试文件问题，未扩大范围修复。
+
+- 剩余风险：
+  - 主要 renderer 尚未消费 logical key/resolver，仍由 Task 07-09 迁移；当前 `bind_resource_resolver` 是公共 request seam，尚未替换 legacy 图片/字体读取。
+  - bootstrap 只登记了现有小型数字纹理；完整字体和角色/武器/面板等映射等待资源仓库补齐与 renderer 迁移。`font.help` 的完整 bootstrap 语义保留在 resolver contract 中，但当前插件未登记字体子集路径。
+  - `_activate()` listener 异常与 lease 并发清理仍按计划留给 Task 06/09；旧百科资源对象在 legacy listener 路径中的 generation 生命周期需后续集中复查。
+
+- 下一步建议：执行 Task 06，集中检查 resolver 深度、路径安全、`incomplete` 状态、lease 与 listener 并发边界。
 
 ## Task 06 — 解析边界集中检查 `[pending]`
 
