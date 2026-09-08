@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -55,8 +56,10 @@ from .infrastructure.rendering import (
 from .infrastructure.resources import (
     EncyclopediaResourceStore,
     ResourceGenerationError,
+    ResourceManifest,
     ResourceSnapshot,
     ResourceSnapshotCoordinator,
+    RuntimeAssetResolver,
 )
 from .infrastructure.resources.paths import (
     PLUGIN_NAME,
@@ -102,6 +105,26 @@ from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
+
+
+_SNAPSHOT_ASSET_PATHS = {
+    "font.primary_ttf": "fonts/dna_fonts.ttf",
+    "font.primary_woff2": "fonts/dna_fonts.woff2",
+    "font.unicode_ttf": "fonts/arial-unicode-ms-bold.ttf",
+    "font.unicode_woff2": "fonts/arial-unicode-ms-bold.woff2",
+    "font.unicode_fallback_woff2": "fonts/arial-unicode-ms-bold-fallback.woff2",
+    "font.emoji_ttf": "fonts/NotoColorEmoji.ttf",
+    "font.help": "fonts/MiSansVF.woff2",
+}
+_BOOTSTRAP_ALLOWLIST = {
+    f"texture.common.number.{digit}": Path(__file__).parent
+    / "resources"
+    / "textures"
+    / "common"
+    / "number"
+    / f"{digit}.png"
+    for digit in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+}
 
 
 def _cache_maintenance_interval(settings: DnabySettings) -> float:
@@ -258,6 +281,10 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else None
     )
+    if resource_root is not None:
+        manifest_path = resource_root / "resource_manifest.json"
+        if manifest_path.exists():
+            ResourceManifest.load(manifest_path).validate_runtime_layout(resource_root)
     player_resources = (
         initial_resource_snapshot.player_resources
         if initial_resource_snapshot is not None
@@ -268,6 +295,18 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else EncyclopediaResourceStore()
     )
+
+    def _new_resource_resolver(snapshot: ResourceSnapshot | None) -> RuntimeAssetResolver:
+        return RuntimeAssetResolver(
+            snapshot_root=None if snapshot is None else snapshot.root,
+            snapshot_assets=_SNAPSHOT_ASSET_PATHS,
+            bootstrap_allowlist=_BOOTSTRAP_ALLOWLIST,
+        )
+
+    @contextmanager
+    def _bind_resource_resolver() -> Iterator[RuntimeAssetResolver]:
+        with resource_snapshots.bind_resolver(_new_resource_resolver) as resolver:
+            yield resolver
     rendered_root = runtime_database.path.parent / "rendered"
     cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
     player_cache = PlayerCache(
@@ -641,22 +680,22 @@ def build_runtime(
         )
 
     def _refresh_alias_views() -> None:
-        """别名写入后立即替换当前百科视图，不要求重载插件。"""
+        """别名写入后在当前 verified snapshot 内替换百科视图。"""
 
-        current_root = resolved_services.get("resource_root")
-        if current_root is None:
-            updated = EncyclopediaResourceStore()
-        else:
+        with resource_snapshots.optional_lease() as snapshot:
+            if snapshot is None:
+                # 未同步时保持空资源视图，避免从 repository cache 读取默认别名。
+                return
             updated = EncyclopediaResourceStore.from_root(
-                Path(current_root),
+                snapshot.root,
                 custom_alias_path=custom_alias_path,
                 custom_weapon_alias_path=custom_weapon_alias_path,
             )
-        encyclopedia_service.renderer.resources = updated
-        encyclopedia_service.resources = updated
-        checkin_renderer.resources = updated
-        notices_renderer.resources = updated
-        resolved_services["encyclopedia_resources"] = updated
+            encyclopedia_service.renderer.resources = updated
+            encyclopedia_service.resources = updated
+            checkin_renderer.resources = updated
+            notices_renderer.resources = updated
+            resolved_services["encyclopedia_resources"] = updated
 
     alias_root = resource_root or resource_generations_root / ".unavailable"
     admin_alias_service = AdminAliasService(
@@ -681,6 +720,7 @@ def build_runtime(
         "player_cache": player_cache,
         "player_service": player_service,
         "resource_root": resource_root,
+        "bind_resource_resolver": _bind_resource_resolver,
         "rendered_root": rendered_root,
         "rendered_store": rendered_store,
         "request_gate": request_gate,
