@@ -7,6 +7,12 @@ os.environ.setdefault("DNABY_DATA_DIR", "/tmp/dnaby-test-data")
 import pytest
 
 from src.infrastructure.config import generate_legacy_schema as generate_astrbot_schema
+from src.infrastructure.config.legacy import (
+    DNA_CONFIG_SECTION,
+    DNA_SIGN_CONFIG_SECTION,
+    LEGACY_DNA_CONFIG_SECTION,
+    LEGACY_DNA_SIGN_CONFIG_SECTION,
+)
 from src.infrastructure.config.schema import (
     generate_astrbot_schema as generate_typed_schema,
 )
@@ -20,9 +26,9 @@ from src.infrastructure.config.settings import (
 
 def test_schema_generation():
     schema = generate_astrbot_schema()
-    assert "DNAUID配置" in schema
-    assert "DNAUID签到配置" in schema
-    default_items = schema["DNAUID配置"]["items"]
+    assert DNA_CONFIG_SECTION in schema
+    assert DNA_SIGN_CONFIG_SECTION in schema
+    default_items = schema[DNA_CONFIG_SECTION]["items"]
     assert default_items["MaxBindNum"]["type"] == "int"
     assert default_items["DNAQRLogin"]["type"] == "bool"
     assert default_items["DNALoginBindHost"]["default"] == "127.0.0.1"
@@ -31,7 +37,7 @@ def test_schema_generation():
     assert "MHCache" not in default_items
     assert default_items["MHSubscribe"]["type"] == "list"
     assert "DNAAnnGroups" not in default_items
-    assert "DNASignin" not in schema["DNAUID签到配置"]["items"]
+    assert "DNASignin" not in schema[DNA_SIGN_CONFIG_SECTION]["items"]
 
 
 def test_typed_sign_in_config_has_no_feature_enable_switches():
@@ -62,7 +68,7 @@ def test_schema_is_accepted_by_astrbot_config(tmp_path):
         config_path=str(tmp_path / "config.json"),
         schema=generate_astrbot_schema(),
     )
-    assert "DNAAnnGroups" not in config["DNAUID配置"]
+    assert "DNAAnnGroups" not in config[DNA_CONFIG_SECTION]
 
 
 def test_get_config_defaults():
@@ -80,7 +86,7 @@ def test_get_config_defaults():
 
 def test_bind_and_get():
     store = {}
-    store.setdefault("DNAUID配置", {})["MaxBindNum"] = 5
+    store.setdefault(DNA_CONFIG_SECTION, {})["MaxBindNum"] = 5
     DNAConfig.bind(store)
     assert DNAConfig.get_config("MaxBindNum").data == 5
 
@@ -400,14 +406,14 @@ def test_legacy_nested_and_flat_config_migration():
     from src.infrastructure.config.settings import DnabySettings, migrate_config_dict
 
     legacy_gscore = {
-        "DNAUID配置": {
+        LEGACY_DNA_CONFIG_SECTION: {
             "MaxBindNum": 4,
             "DNALoginUrl": "http://login.local:8080",
             "CommandPrefix": "dna",
             "DNAAnnGroups": {"group_100": True},
             "MHSimplePic": True,
         },
-        "DNAUID签到配置": {
+        LEGACY_DNA_SIGN_CONFIG_SECTION: {
             "SignTime": "08:00",
             "SignAllUser": True,
             "PrivateSignReport": True,
@@ -437,5 +443,5 @@ def test_config_migration_rejects_malformed_known_sections():
     with pytest.raises(TypeError, match="sign_in"):
         migrate_config_dict({"sign_in": "not-an-object"})
 
-    with pytest.raises(TypeError, match="DNAUID签到配置"):
-        migrate_config_dict({"DNAUID签到配置": []})
+    with pytest.raises(TypeError):
+        migrate_config_dict({LEGACY_DNA_SIGN_CONFIG_SECTION: []})

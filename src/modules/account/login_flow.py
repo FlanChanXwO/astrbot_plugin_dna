@@ -404,14 +404,11 @@ class LoginFlowCoordinator:
             return self._not_found_page()
         template = DNA_TEMPLATES.get_template("index.html.j2")
         base_url = self.public_url
-        page_url = f"{base_url}/dna/i/{auth}"
         return HTMLResponse(
             template.render(
                 server_url=base_url,
                 auth=auth,
                 userId=session.actor.user_id,
-                login_mode="app",
-                app_login_url=page_url,
             )
         )
 

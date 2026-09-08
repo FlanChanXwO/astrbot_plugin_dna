@@ -524,7 +524,7 @@ def build_runtime(
     ) -> bool:
         """使用 AstrBot 原生 Nodes 组件尝试 OneBot 合并转发。"""
 
-        nodes = [Node(content=[Plain(text)], name="DNAUID", uin="0") for text in texts]
+        nodes = [Node(content=[Plain(text)], name="DNA", uin="0") for text in texts]
         try:
             result = context.send_message(
                 origin,
