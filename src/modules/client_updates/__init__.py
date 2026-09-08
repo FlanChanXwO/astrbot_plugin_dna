@@ -1,18 +1,8 @@
 """客户端更新查询与定时推送领域。"""
 
-from .channels import (
-    CHANNEL_REGISTRY,
-    CLIENT_UPDATE_CHANNELS,
-    ClientUpdateChannel,
-    default_channel_id_for_platform,
-    normalize_client_update_channel_ids,
-    resolve_client_update_channel,
-    select_enabled_channels,
-)
 from .contracts import (
     AppStoreVersionMetadata,
     ClientPlatform,
-    ClientRegion,
     ClientSourceObservation,
     ClientSourceProviderMetadata,
     ClientSourceVersion,
@@ -27,11 +17,8 @@ from .contracts import (
     ClientVersionSnapshot,
     ManifestCdnVersionMetadata,
     normalize_client_update_platforms,
-    parse_channel_version_list,
-    parse_channel_version_list_entries,
     parse_version_list,
     parse_version_list_entries,
-    sum_channel_patch_file_sizes,
     sum_manifest_patch_file_sizes,
     sum_patch_file_sizes,
 )
@@ -77,8 +64,6 @@ from .state import (
 )
 
 __all__ = [
-    "CHANNEL_REGISTRY",
-    "CLIENT_UPDATE_CHANNELS",
     "CLIENT_UPDATE_REGISTRY",
     "CLIENT_UPDATE_SOURCES",
     "CLIENT_UPDATE_TARGETS",
@@ -87,13 +72,11 @@ __all__ = [
     "AppStoreProviderConfig",
     "AppStoreVersionMetadata",
     "ClientPlatform",
-    "ClientRegion",
     "ClientSourceObservation",
     "ClientSourceProviderMetadata",
     "ClientSourceVersion",
     "ClientUpdateBaseline",
     "ClientUpdateChange",
-    "ClientUpdateChannel",
     "ClientUpdateDeliveryService",
     "ClientUpdateFailureKind",
     "ClientUpdateObservation",
@@ -123,21 +106,14 @@ __all__ = [
     "ClientVersionSnapshot",
     "ManifestCdnProviderConfig",
     "ManifestCdnVersionMetadata",
-    "default_channel_id_for_platform",
     "group_client_update_target_ids_by_source",
-    "normalize_client_update_channel_ids",
     "normalize_client_update_platforms",
     "normalize_client_update_target_ids",
-    "parse_channel_version_list",
-    "parse_channel_version_list_entries",
     "parse_version_list",
     "parse_version_list_entries",
-    "resolve_client_update_channel",
     "resolve_client_update_source",
     "resolve_client_update_target",
     "select_client_update_target_ids_by_platform",
-    "select_enabled_channels",
-    "sum_channel_patch_file_sizes",
     "sum_manifest_patch_file_sizes",
     "sum_patch_file_sizes",
 ]

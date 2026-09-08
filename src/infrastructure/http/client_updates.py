@@ -100,25 +100,6 @@ else:
     _NETWORK_ERRORS = (httpx.HTTPError, OSError, asyncio.TimeoutError)
 
 
-_PC_CONFIG = resolve_client_update_source("cn-official-pc-manifest").provider_config
-_ANDROID_CONFIG = resolve_client_update_source(
-    "cn-official-android-astc-manifest"
-).provider_config
-if not isinstance(_PC_CONFIG, ManifestCdnProviderConfig) or not isinstance(
-    _ANDROID_CONFIG, ManifestCdnProviderConfig
-):
-    raise TypeError("内置 manifest Source 配置类型无效")
-
-# 保留旧常量导出，值唯一来自 Source registry，不再维护第二份 channel 配置。
-PC_PRIMARY_BASE_URL = _PC_CONFIG.primary_base_url
-PC_FALLBACK_BASE_URL = _PC_CONFIG.fallback_base_url
-ANDROID_PRIMARY_BASE_URL = _ANDROID_CONFIG.primary_base_url
-ANDROID_FALLBACK_BASE_URL = _ANDROID_CONFIG.fallback_base_url
-PC_BRANCH = _PC_CONFIG.branch
-ANDROID_BRANCH = _ANDROID_CONFIG.branch
-PC_USER_AGENT = _PC_CONFIG.user_agent
-ANDROID_USER_AGENT = _ANDROID_CONFIG.user_agent
-
 _APP_STORE_USER_AGENT = "AstrBot-DNA-Client-Update/1"
 SessionFactory = Callable[[], Any]
 
@@ -536,13 +517,5 @@ def _server_error(resource: str, detail: str) -> ClientUpdateTransportError:
 
 
 __all__ = [
-    "ANDROID_BRANCH",
-    "ANDROID_FALLBACK_BASE_URL",
-    "ANDROID_PRIMARY_BASE_URL",
-    "ANDROID_USER_AGENT",
-    "PC_BRANCH",
-    "PC_FALLBACK_BASE_URL",
-    "PC_PRIMARY_BASE_URL",
-    "PC_USER_AGENT",
     "ClientUpdateTransport",
 ]

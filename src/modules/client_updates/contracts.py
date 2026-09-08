@@ -27,12 +27,6 @@ class ClientPlatform(StrEnum):
     IOS = "ios"
 
 
-class ClientRegion(StrEnum):
-    """首版固定支持的游戏区服。"""
-
-    CN = "cn"
-
-
 _CLIENT_UPDATE_PLATFORM_ORDER = (ClientPlatform.PC, ClientPlatform.ANDROID)
 
 
@@ -126,9 +120,8 @@ class ClientUpdateTransportError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class ClientVersionSnapshot:
-    """VersionList 中一个已归一化的最新版本快照。"""
+    """VersionList 中一条仅含 manifest provider 所需字段的记录。"""
 
-    platform: ClientPlatform
     version_key: int
     patch_version: int
     resource_version_dir: str | None
@@ -136,18 +129,10 @@ class ClientVersionSnapshot:
     minor: int
     revamp: int
     patch_key: int
-    region: ClientRegion = ClientRegion.CN
-    channel_id: str | None = None
 
     def __post_init__(self) -> None:
-        """固定枚举和值对象字段，避免状态层保存歧义类型。"""
+        """校验 manifest provider 所需的数值与目录字段。"""
 
-        object.__setattr__(self, "platform", ClientPlatform(self.platform))
-        object.__setattr__(self, "region", ClientRegion(self.region))
-        if self.channel_id is not None and (
-            not isinstance(self.channel_id, str) or not self.channel_id.strip()
-        ):
-            raise ValueError("channel_id 必须是非空字符串或 None")
         for field_name in (
             "version_key",
             "patch_version",
@@ -384,35 +369,15 @@ class ClientUpdateChange:
         )
 
 
-def parse_channel_version_list_entries(
-    payload: object,
-    *,
-    channel_id: str,
-) -> tuple[ClientVersionSnapshot, ...]:
-    """按固定渠道解析 VersionList，并保留渠道身份。"""
-
-    channel = _resolve_channel(channel_id)
-    return _parse_version_list_entries(
-        payload,
-        platform=channel.platform,
-        region=channel.region,
-        channel_id=channel.channel_id,
-    )
-
-
 def parse_version_list_entries(
     payload: object,
     platform: ClientPlatform | str,
 ) -> tuple[ClientVersionSnapshot, ...]:
-    """兼容旧 platform API；传入 channel ID 时保留新的渠道身份。"""
+    """按 manifest Source 平台解析 VersionList 的全部实际记录。"""
 
-    if isinstance(platform, str) and _is_registered_channel_id(platform):
-        return parse_channel_version_list_entries(payload, channel_id=platform)
     return _parse_version_list_entries(
         payload,
         platform=_coerce_platform(platform),
-        region=ClientRegion.CN,
-        channel_id=None,
     )
 
 
@@ -420,8 +385,6 @@ def _parse_version_list_entries(
     payload: object,
     *,
     platform: ClientPlatform,
-    region: ClientRegion,
-    channel_id: str | None,
 ) -> tuple[ClientVersionSnapshot, ...]:
     """严格解析 VersionList 中的全部版本条目。"""
 
@@ -442,9 +405,6 @@ def _parse_version_list_entries(
         version_key = int(raw_key)
         versions.append(
             ClientVersionSnapshot(
-                platform=platform,
-                region=region,
-                channel_id=channel_id,
                 version_key=version_key,
                 patch_version=_require_non_negative_int(
                     entry,
@@ -480,19 +440,6 @@ def _parse_version_list_entries(
     return tuple(versions)
 
 
-def parse_channel_version_list(
-    payload: object,
-    *,
-    channel_id: str,
-) -> ClientVersionSnapshot:
-    """按固定渠道校验并选择 VersionList 中数值上最新的记录。"""
-
-    versions = parse_channel_version_list_entries(payload, channel_id=channel_id)
-    return max(
-        versions, key=lambda version: (version.version_key, version.patch_version)
-    )
-
-
 def parse_version_list(
     payload: object,
     platform: ClientPlatform | str,
@@ -502,22 +449,6 @@ def parse_version_list(
     versions = parse_version_list_entries(payload, platform)
     return max(
         versions, key=lambda version: (version.version_key, version.patch_version)
-    )
-
-
-def sum_channel_patch_file_sizes(
-    channel_id: str,
-    pak_files_info: object,
-    res_discrete_info: object,
-) -> int:
-    """按固定渠道的 manifest key 计算去重后的补丁清单大小。"""
-
-    channel = _resolve_channel(channel_id)
-    return sum_manifest_patch_file_sizes(
-        channel.manifest_key,
-        channel.manifest_key,
-        pak_files_info,
-        res_discrete_info,
     )
 
 
@@ -584,18 +515,6 @@ def sum_manifest_patch_file_sizes(
     return sum(sizes_by_name.values())
 
 
-def _is_registered_channel_id(value: str) -> bool:
-    from .channels import CLIENT_UPDATE_CHANNELS
-
-    return value in CLIENT_UPDATE_CHANNELS
-
-
-def _resolve_channel(channel_id: str):
-    from .channels import resolve_client_update_channel
-
-    return resolve_client_update_channel(channel_id)
-
-
 def _coerce_platform(platform: ClientPlatform | str) -> ClientPlatform:
     try:
         return ClientPlatform(platform)
@@ -656,7 +575,6 @@ def _manifest_entries(
 __all__ = [
     "AppStoreVersionMetadata",
     "ClientPlatform",
-    "ClientRegion",
     "ClientSourceObservation",
     "ClientSourceProviderMetadata",
     "ClientSourceVersion",
@@ -672,11 +590,8 @@ __all__ = [
     "ClientVersionSnapshot",
     "ManifestCdnVersionMetadata",
     "normalize_client_update_platforms",
-    "parse_channel_version_list",
-    "parse_channel_version_list_entries",
     "parse_version_list",
     "parse_version_list_entries",
-    "sum_channel_patch_file_sizes",
     "sum_manifest_patch_file_sizes",
     "sum_patch_file_sizes",
 ]

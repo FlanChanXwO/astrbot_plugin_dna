@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+from pathlib import Path
 from typing import Any, Self
 
 import pytest
 
+import src.modules.client_updates as client_updates_public
 from src.infrastructure.http import client_updates as client_updates_module
 from src.infrastructure.http.client_updates import ClientUpdateTransport
 from src.modules.client_updates import (
@@ -25,6 +27,7 @@ from src.modules.client_updates import (
     ClientUpdateSource,
     ClientUpdateTarget,
     ClientUpdateTransportError,
+    ClientVersionSnapshot,
     ManifestCdnProviderConfig,
     ManifestCdnVersionMetadata,
     group_client_update_target_ids_by_source,
@@ -33,6 +36,49 @@ from src.modules.client_updates import (
     resolve_client_update_source,
     resolve_client_update_target,
 )
+
+
+def test_public_contract_has_no_legacy_channel_model() -> None:
+    package_dir = Path(client_updates_public.__file__).parent
+    assert not (package_dir / "channels.py").exists()
+    forbidden_exports = (
+        "CHANNEL_REGISTRY",
+        "CLIENT_UPDATE_CHANNELS",
+        "ClientUpdateChannel",
+        "ClientRegion",
+        "default_channel_id_for_platform",
+        "normalize_client_update_channel_ids",
+        "resolve_client_update_channel",
+        "select_enabled_channels",
+        "parse_channel_version_list",
+        "parse_channel_version_list_entries",
+        "sum_channel_patch_file_sizes",
+    )
+    assert all(not hasattr(client_updates_public, name) for name in forbidden_exports)
+    assert all(
+        not hasattr(client_updates_module, name)
+        for name in (
+            "PC_PRIMARY_BASE_URL",
+            "PC_FALLBACK_BASE_URL",
+            "ANDROID_PRIMARY_BASE_URL",
+            "ANDROID_FALLBACK_BASE_URL",
+            "PC_BRANCH",
+            "ANDROID_BRANCH",
+            "PC_USER_AGENT",
+            "ANDROID_USER_AGENT",
+        )
+    )
+    assert tuple(field.name for field in fields(ClientVersionSnapshot)) == (
+        "version_key",
+        "patch_version",
+        "resource_version_dir",
+        "major",
+        "minor",
+        "revamp",
+        "patch_key",
+    )
+    with pytest.raises(ValueError, match="不支持"):
+        client_updates_public.parse_version_list_entries({}, "pc_cn")
 
 
 def test_verified_registry_contains_only_investigated_cn_targets() -> None:
