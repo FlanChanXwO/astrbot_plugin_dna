@@ -21,6 +21,8 @@
 - `commands.json` 和 `_conf_schema.json` 继续由脚本生成，不手工维护。
 - 保持精简测试布局：新增最多一个客户端更新专用测试文件，其余断言并入现有配置/命令测试。
 
+> 2026-09-08 的只读核验结论与本轮实际登记范围见 `docs/dev/client-update-source-investigation.md`。
+
 ## 1. 建立真实 Target / Source 清单
 
 先确认事实，再写 registry。

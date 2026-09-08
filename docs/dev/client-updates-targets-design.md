@@ -115,6 +115,8 @@ global-hmt-official-pc      ┘
 
 这样用户仍按真实服务器配置和订阅，但底层只轮询一次客户端版本源。
 
+> 2026-09-08 的只读核验结论与本轮实际登记范围见 `docs/dev/client-update-source-investigation.md`。
+
 ## Target 候选目录
 
 实现 PR 必须先核验当前发行事实和真实 Source 映射，再登记最终 Target。
