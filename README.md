@@ -4,9 +4,8 @@
 
 # 狩月终端
 
-`astrbot_plugin_dna`
 
-**🎮 面向 AstrBot 的《二重螺旋》游戏助手插件**
+**面向 AstrBot 的《二重螺旋》游戏助手插件**
 
 <img src="https://count.getloli.com/@astrbot_plugin_dna?name=astrbot_plugin_dna&theme=rule34&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" alt="Moe Counter" />
 
@@ -14,7 +13,7 @@
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.26.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Resource](https://img.shields.io/badge/Resource-dna--resource-orange.svg)](https://github.com/FlanChanXwO/dna-resource)
 
-账号管理 · 角色面板 · 图鉴攻略 · 签到服务 · 密函公告 · 隐私控制 · 管理工具
+角色面板 · 图鉴攻略 · 签到服务 · 密函公告
 
 </div>
 
