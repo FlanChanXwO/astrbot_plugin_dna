@@ -247,7 +247,7 @@ async def get_help(
             / "common"
             / "footer.png",
         ),
-        "icon": image_data_uri(Path(__file__).parents[3] / "ICON.png"),
+        "icon": image_data_uri(Path(__file__).parents[3] / "logo.png"),
         "item_background": image_data_uri(
             Path(__file__).parents[2] / "resources" / "textures" / "help" / "item.png",
         ),

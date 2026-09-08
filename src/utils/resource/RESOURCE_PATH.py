@@ -1,3 +1,4 @@
+import base64
 import os
 from pathlib import Path
 
@@ -72,6 +73,11 @@ init_dir()
 
 # 设置 Jinja2 环境
 TEMP_PATH = Path(__file__).parents[1].parent / "templates"
+PLUGIN_LOGO_PATH = Path(__file__).parents[3] / "logo.png"
+PLUGIN_LOGO_DATA_URI = (
+    "data:image/png;base64,"
+    + base64.b64encode(PLUGIN_LOGO_PATH.read_bytes()).decode("ascii")
+)
 DNA_TEMPLATES = Environment(
     loader=FileSystemLoader(
         [
@@ -79,3 +85,4 @@ DNA_TEMPLATES = Environment(
         ]
     )
 )
+DNA_TEMPLATES.globals["plugin_logo"] = PLUGIN_LOGO_DATA_URI

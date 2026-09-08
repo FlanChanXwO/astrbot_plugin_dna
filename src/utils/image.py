@@ -23,7 +23,7 @@ from .resource.RESOURCE_PATH import (
 )
 from .session import EventContext
 
-ICON = Path(__file__).parent.parent.parent / "ICON.png"
+ICON = Path(__file__).parent.parent.parent / "logo.png"
 TEXT_PATH = Path(__file__).parent / "texture2d"
 
 

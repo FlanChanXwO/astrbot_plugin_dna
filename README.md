@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./ICON.png" alt="狩月终端 Logo" width="180" />
+<img src="./logo.png" alt="狩月终端 Logo" width="180" />
 
 # 狩月终端
 
