@@ -199,15 +199,20 @@ class ResponseFactory:
         if isinstance(components, (list, tuple)):
             converted: list[Any] = []
             changed = False
+            previous_plain_response = False
             for component in components:
                 if isinstance(component, PlainTextResponse):
-                    converted.append(AstrPlain(component.text))
+                    text = ("\n" if previous_plain_response else "") + component.text
+                    converted.append(AstrPlain(text))
                     changed = True
+                    previous_plain_response = True
                 elif isinstance(component, ImageResponse):
                     converted.append(AstrImage.fromFileSystem(str(component.image)))
                     changed = True
+                    previous_plain_response = False
                 else:
                     converted.append(component)
+                    previous_plain_response = False
             if changed:
                 components = converted
         return event.chain_result(components)
