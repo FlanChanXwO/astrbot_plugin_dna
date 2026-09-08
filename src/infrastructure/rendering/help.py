@@ -70,6 +70,27 @@ def _format_example(eg: str, prefix: str = "dna") -> str:
     return " / ".join(formatted)
 
 
+def _with_unsubscribe_example(examples: list[str], description: str) -> list[str]:
+    """为已实现双向订阅命令补出帮助卡中的取消订阅示例。"""
+
+    if "订阅/取消订阅" not in description or any(
+        example.startswith("取消订阅") for example in examples
+    ):
+        return examples
+    for example in examples:
+        if example.startswith("订阅"):
+            return [*examples, f"取消{example}"]
+    return examples
+
+
+def _help_display_name(command_id: str, name: str) -> str:
+    """避免把密函推送时间窗口设置误解成独立订阅。"""
+
+    if command_id == "mh_subscribe_cycle":
+        return "设置密函推送时间"
+    return name
+
+
 def _iter_help_lines(plugin_help: dict[str, Any], prefix: str = "dna"):
     """生成保持旧分组和示例语义的帮助条目 payload。"""
     for group_name, group_data in plugin_help.items():
@@ -153,11 +174,12 @@ def _registry_help_sections(
                     example = example[len(configured_prefix) :]
                     break
             examples.append(example)
+        examples = _with_unsubscribe_example(examples, spec.description)
         grouped.setdefault(spec.group, []).append(
             {
                 "example": _format_example(" / ".join(examples), prefix=prefix),
                 "icon": image_data_uri(_find_icon(spec.name)),
-                "name": spec.name,
+                "name": _help_display_name(spec.id, spec.name),
             },
         )
     sections = [
