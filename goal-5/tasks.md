@@ -28,7 +28,7 @@
   - 目前大量 renderer 仍直接拼接插件目录路径，字体 fallback 仍会把缺失资源转成 `FileNotFoundError`；这正是后续 Red/Green 任务的范围。
 - 下一步建议：Task 02 审计 `dna-resource` 可访问性、manifest `file_hashes`/`resource_version` 和现有 generation validator；在没有跨仓库证据前不删除资源。
 
-## Task 02 — `dna-resource` 仓库与 manifest 能力审计 `[pending]`
+## Task 02 — `dna-resource` 仓库与 manifest 能力审计 `[completed]`
 
 **目标**：确认完整字体/纹理应该落在哪个资源仓库、现有 manifest 结构和 validator 能力，列出必须补齐的文件与哈希；若仓库不可访问，形成明确阻塞记录。
 
@@ -36,10 +36,19 @@
 
 **验收**：得到资源仓库路径/分支/版本、目标文件列表、`resource_version` 更新点、`file_hashes` 约束和验证命令；未授权或不可访问时只记录事实并标记阻塞，不把假设当完成。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：
+  - 通过插件现有配置确认资源仓库为 `https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git`，公开 `main` 可访问；审计用浅克隆位于 `/tmp/dna-resource-audit-goal5`，工作树干净。
+  - 当前资源版本固定事实为 commit `5b1c4600d9be71480690811d4439ff8ffb65264a`（`2026-09-03T02:07:59+08:00`，`docs: describe panel/ as generic card backgrounds`）。资源仓库 README 明确要求先在 `main` 合并并记录 commit SHA/`resource_version`，再跑插件 generation validator，最后由插件只取 `main`；错误发布用普通 revert，不 force-push。
+  - 当前 `resource_manifest.json` 为 `format_version=1`，`resource_version=redeem-code-v1-migration-2026-08-28`，声明 `fonts`、`images`、`panel`、`alias`、`data`、`schemas`、`wiki/role`、`wiki/weapon`、`wiki/spirit`、`guide`、`weekly_item`、`calendar`；`calendar/` 目前只有占位文件，尚无真实日历素材。
+  - 资源仓库当前 327 个 tracked files、142,369,614 bytes（约 135.774 MiB）；已有 `role_avatar`、`role_paint`、`weapon`、`panel`、`wiki`、`guide`、`weekly_item` 等资源目录。当前本地仍有 `textures/calendar`、`common`、`detail`、`role`、`stamina`、`weekly_report` 等分类，不能在本 task 中假设它们已被外部仓库接管。
+  - 字体目标清单与现状：已存在 `fonts/dna_fonts.ttf`、`fonts/arial-unicode-ms-bold.ttf`、`fonts/NotoColorEmoji.ttf`；仍缺 `fonts/dna_fonts.woff2`、`fonts/arial-unicode-ms-bold.woff2`、`fonts/arial-unicode-ms-bold-fallback.woff2`、`fonts/MiSansVF.woff2`。规格要求外置的角色/武器/面板、guide/wiki、字体与大型卡片/日历/背景纹理，后续必须以真实资源提交逐项补齐，不能由插件本地路径或未验证 candidate 代替。
+  - `ResourceManifest` 的 `file_hashes` 是可选的相对路径到 SHA-256 映射；路径禁止绝对路径、反斜杠、`.`/`..`，摘要必须匹配 64 位十六进制 SHA-256。当前 manifest 未声明 `file_hashes`（解析后数量为 0），后续补入大字体/关键纹理时应在同一 manifest 中记录并由 generation validator 校验。`resource_version` 的唯一更新点是资源仓库根目录的 `resource_manifest.json`，插件 snapshot 同时保存该值。
+- 验证证据：
+  - `git ls-remote --heads --tags https://github.com/FlanChanXwO/astrbot_plugin_dna_resources.git` 成功返回 `main` 的 `5b1c4600d9be71480690811d4439ff8ffb65264a`；未发现需要伪造的本地资源仓库变更。
+  - 使用项目 venv 执行 `PYTHONPATH=. /Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python`，加载 `ResourceManifest` 并执行 `ResourceManifest.load(root / "resource_manifest.json").validate_runtime_layout(root)`：`manifest_runtime_layout=PASS`。
+  - 对同一克隆执行 `ResourceGenerationValidator().validate(root, "5b1c4600d9be71480690811d4439ff8ffb65264a")`：`generation_validation=PASS`；snapshot 的 `resource_version=redeem-code-v1-migration-2026-08-28`，`content_sha256=ab4fd52ff78fe133e81d278875c936e79a7423d13a4de78ac40131c2c2fd8dfc`，player/encyclopedia 的字体解析均指向 snapshot 下的 `fonts/dna_fonts.ttf`。
+- 剩余风险：资源仓库当前 HEAD（2026 年 9 月 3 日）尚未包含规格要求的全部字体变体和本地大型卡片/日历/背景纹理；manifest 尚未声明关键文件哈希；本 task 只做审计，没有向公共仓库写入或发布任何资源。
+- 下一步建议：执行 Task 03，冻结 verified snapshot/bootstrap/placeholder 的解析边界和 `incomplete` 语义；在此之前不删除插件内字体或大型纹理。
 
 ## Task 03 — 统一解析边界与 fallback 契约集中检查 `[pending]`
 
