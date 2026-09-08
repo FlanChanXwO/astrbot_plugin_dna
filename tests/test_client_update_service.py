@@ -12,11 +12,13 @@ import pytest
 from src.entry.event import EventActor
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.client_updates import (
+    AppStoreVersionMetadata,
     AppStoreProviderConfig,
     ClientPlatform,
     ClientSourceObservation,
     ClientSourceVersion,
     ClientUpdateBaseline,
+    ClientUpdateChange,
     ClientUpdateFailureKind,
     ClientUpdateProviderKind,
     ClientUpdateRegistry,
@@ -35,12 +37,14 @@ def _source_version(
     revision_id: str,
     *,
     order_key: int | tuple[int, ...] | None = None,
+    provider_metadata: AppStoreVersionMetadata | None = None,
 ) -> ClientSourceVersion:
     return ClientSourceVersion(
         source_id=source_id,
         version_text=f"version-{revision_id}",
         revision_id=revision_id,
         order_key=order_key,
+        provider_metadata=provider_metadata,
     )
 
 
@@ -326,6 +330,91 @@ async def test_poll_history_gap_advances_atomically_and_does_not_repeat(
 
 
 @pytest.mark.asyncio
+async def test_poll_same_revision_refreshes_app_store_metadata_and_last_change(
+    tmp_path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source_id = "cn-official-ios-app-store"
+    target_ids = ("cn-official-ios",)
+    previous = _source_version(
+        source_id,
+        "6470771372:1.5.0",
+        order_key="1.5.0",
+        provider_metadata=AppStoreVersionMetadata(
+            track_id=6470771372,
+            country="cn",
+            release_date="2026-08-01T00:00:00Z",
+        ),
+    )
+    baseline_version = _source_version(
+        source_id,
+        "6470771372:1.6.0",
+        order_key="1.6.0",
+        provider_metadata=AppStoreVersionMetadata(
+            track_id=6470771372,
+            country="cn",
+            release_date=None,
+        ),
+    )
+    last_change = ClientUpdateChange(
+        previous=previous,
+        current=baseline_version,
+        history_complete=True,
+        added_size_bytes=0,
+        target_ids=target_ids,
+    )
+    refreshed_version = _source_version(
+        source_id,
+        "6470771372:1.6.0",
+        order_key="1.6.0",
+        provider_metadata=AppStoreVersionMetadata(
+            track_id=6470771372,
+            country="cn",
+            release_date="2026-09-08T00:00:00Z",
+        ),
+    )
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    await state.save_baseline(
+        ClientUpdateBaseline(
+            version=baseline_version,
+            observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+            last_change=last_change,
+        )
+    )
+    transport = _Transport(
+        {
+            source_id: ClientSourceObservation(
+                current=refreshed_version,
+                observed_versions=(refreshed_version,),
+                history_complete=True,
+                added_size_bytes=None,
+            )
+        }
+    )
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        target_ids=target_ids,
+    )
+
+    with caplog.at_level("WARNING"):
+        assert await service.poll_now() == ()
+
+    refreshed_baseline = await state.get_baseline(source_id)
+    assert refreshed_baseline is not None
+    assert refreshed_baseline.version == refreshed_version
+    assert refreshed_baseline.last_change == ClientUpdateChange(
+        previous=previous,
+        current=refreshed_version,
+        history_complete=True,
+        added_size_bytes=0,
+        target_ids=target_ids,
+    )
+    assert await state.pending_events() == ()
+    assert "category=ValueError" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_poll_isolates_one_source_failure_and_keeps_other_change() -> None:
     pc_source = "cn-official-pc-manifest"
     android_source = "cn-official-android-astc-manifest"
@@ -603,6 +692,66 @@ async def test_initialize_cleans_legacy_platform_metadata_idempotently_and_warns
     )
     assert path.read_text(encoding="utf-8") == first_payload
     assert caplog.text.count("客户端更新订阅元数据无效，跳过清理") == 6
+
+
+@pytest.mark.asyncio
+async def test_initialize_cleans_every_duplicate_identity_legacy_record(
+    tmp_path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    path = tmp_path / "subscriptions.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                    "unified_msg_origin": "group:duplicate",
+                    "extra_data": "{}",
+                },
+                {
+                    "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                    "unified_msg_origin": "group:duplicate",
+                    "extra_data": '{"platforms":["pc"]}',
+                },
+                {
+                    "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                    "unified_msg_origin": "group:duplicate",
+                    "extra_data": '{"targets":["cn-official-pc"]}',
+                },
+                {
+                    "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                    "unified_msg_origin": "group:duplicate",
+                    "extra_data": '{"platforms":["ios"]}',
+                },
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    subscriptions = SubscriptionStore(path)
+    service = ClientUpdateService(
+        ClientUpdateStateStore(tmp_path / "client_updates.json"),
+        subscriptions=subscriptions,
+    )
+
+    with caplog.at_level("WARNING"):
+        await service.initialize()
+        first_payload = path.read_text(encoding="utf-8")
+        await service.initialize()
+
+    assert tuple(
+        subscription.extra_data
+        for subscription in await subscriptions.get(
+            messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE
+        )
+    ) == (
+        "{}",
+        "{}",
+        '{"targets":["cn-official-pc"]}',
+        "{}",
+    )
+    assert path.read_text(encoding="utf-8") == first_payload
+    assert caplog.text.count("客户端更新订阅元数据无效，跳过清理") == 2
 
 
 @pytest.mark.asyncio

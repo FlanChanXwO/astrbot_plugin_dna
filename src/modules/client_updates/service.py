@@ -77,21 +77,10 @@ class ClientUpdateService:
         if subscriptions is None:
             return
         async with self._subscription_mutation_lock:
-            stored = await subscriptions.get(messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE)
-            cleaned: set[tuple[str, str]] = set()
-            for subscription in stored:
-                key = (subscription.unified_msg_origin, subscription.uid)
-                if key in cleaned:
-                    continue
-                cleaned.add(key)
-                if not _has_legacy_platform_metadata(subscription):
-                    continue
-                await subscriptions.replace_target(
-                    messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-                    subscription.unified_msg_origin,
-                    subscription.uid,
-                    replace(subscription, extra_data="{}"),
-                )
+            await subscriptions.transform_type(
+                messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                _clean_legacy_platform_metadata,
+            )
 
     async def terminate(self) -> None:
         """生命周期对齐钩子；本服务没有独立后台资源。"""
@@ -128,11 +117,16 @@ class ClientUpdateService:
                     )
                     continue
                 if change is None:
+                    last_change = (
+                        replace(baseline.last_change, current=observation.current)
+                        if baseline.last_change is not None
+                        else None
+                    )
                     await self.state.save_baseline(
                         ClientUpdateBaseline(
                             version=observation.current,
                             observed_at=observed_at,
-                            last_change=baseline.last_change,
+                            last_change=last_change,
                         )
                     )
                     continue
@@ -430,6 +424,14 @@ def _has_legacy_platform_metadata(subscription: Subscription) -> bool:
         )
         return False
     return True
+
+
+def _clean_legacy_platform_metadata(subscription: Subscription) -> Subscription:
+    """只改写可识别旧形状；损坏或未知元数据由识别函数告警并保留。"""
+
+    if not _has_legacy_platform_metadata(subscription):
+        return subscription
+    return replace(subscription, extra_data="{}")
 
 
 def _log_transport_failure(
