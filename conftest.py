@@ -5,6 +5,7 @@
 """
 
 import atexit
+import io
 import os
 import shutil
 import sys
@@ -58,25 +59,36 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def local_t2i_renderer() -> Iterator[None]:
-    """把未显式注入 renderer 的旧测试定向到本地 T2I 容器。
-
-    生产代码仍读取 AstrBot 自身配置；这里只在 pytest 进程内覆盖全局策略，
-    避免测试因为远程端点、Cloudflare 错误页或官方端点轮换而产生非确定性失败。
-    """
+    """为未显式注入 renderer 的领域测试提供确定性的内存 T2I。"""
 
     import astrbot.core
+    from PIL import Image
 
-    strategy = astrbot.core.html_renderer.network_strategy
-    old_base_url = strategy.BASE_RENDER_URL
-    old_endpoints = list(strategy.endpoints)
-    endpoint = os.environ.get(
-        "DNABY_TEST_T2I_ENDPOINT",
-        "http://127.0.0.1:8999/text2img",
-    ).rstrip("/")
-    strategy.BASE_RENDER_URL = endpoint
-    strategy.endpoints = [endpoint]
+    renderer = astrbot.core.html_renderer
+    original = renderer.render_custom_template
+
+    async def _render_custom_template(
+        *,
+        tmpl_str: str,
+        tmpl_data: dict,
+        return_url: bool = True,
+        options: dict | None = None,
+    ):
+        del tmpl_str, tmpl_data
+        if return_url:
+            return "https://example.invalid/dnaby-test-render"
+
+        render_options = options or {}
+        image_format = str(render_options.get("type", "jpeg")).lower()
+        pillow_format = "PNG" if image_format == "png" else "JPEG"
+        width = int(render_options.get("viewport_width", 8))
+        height = int(render_options.get("viewport_height", 8))
+        buffer = io.BytesIO()
+        Image.new("RGB", (width, height), "white").save(buffer, format=pillow_format)
+        return buffer.getvalue()
+
+    renderer.render_custom_template = _render_custom_template
     try:
         yield
     finally:
-        strategy.BASE_RENDER_URL = old_base_url
-        strategy.endpoints = old_endpoints
+        renderer.render_custom_template = original

@@ -23,7 +23,7 @@
 
 ## 阅读入口
 - 改动前先读 `docs/README.md` 与 `docs/porting/design.md`。
-- 命令/触发 → `commands.json` + `main.py`；命令归属审计见 `tests/test_write_contracts.py`。
+- 命令/触发 → `commands.json` + `main.py`；核心命令契约见 `tests/test_entry_commands.py`。
 - 配置 → `src/infrastructure/config/` + `_conf_schema.json`；legacy 配置仅作迁移参考。
 - 数据库 → `src/infrastructure/persistence/`（SQLAlchemy 2 async + Alembic；旧 `dnaby/utils/database/` 不迁移）。
 - 登录链路 → `src/modules/account/` 与 `src/infrastructure/http/account.py`。
