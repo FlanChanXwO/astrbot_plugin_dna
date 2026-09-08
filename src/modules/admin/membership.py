@@ -15,8 +15,10 @@ from .contracts import (
     AdminApiResponse,
     AdminError,
     AdminErrorCode,
+    AdminPagination,
     DeletionExecution,
     DeletionPreview,
+    paginate_items,
 )
 from .deletion import AccountDeletionCoordinator
 
@@ -101,6 +103,58 @@ class MembershipScanResult:
         """返回全局删除安全门禁是否通过。"""
 
         return self.all_absent and not self.has_unsupported and not self.has_unknown
+
+
+@dataclass(frozen=True, slots=True)
+class MembershipScanPage:
+    """成员探测分页视图；安全判定始终来自完整扫描结果。"""
+
+    user_id: str
+    results: tuple[MembershipProbeResult, ...]
+    capability: MembershipCapability
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+    all_absent: bool
+    has_present: bool
+    has_unknown: bool
+    has_unsupported: bool
+    can_delete_user: bool
+
+    @classmethod
+    def from_scan(
+        cls,
+        scan: MembershipScanResult,
+        pagination: AdminPagination,
+    ) -> MembershipScanPage:
+        page = paginate_items(scan.results, pagination)
+        return cls(
+            user_id=scan.user_id,
+            results=page.items,
+            capability=scan.capability,
+            page=page.page,
+            page_size=page.page_size,
+            total=page.total,
+            total_pages=page.total_pages,
+            all_absent=scan.all_absent,
+            has_present=scan.has_present,
+            has_unknown=scan.has_unknown,
+            has_unsupported=scan.has_unsupported,
+            can_delete_user=scan.can_delete_user,
+        )
+
+    @property
+    def items(self) -> tuple[MembershipProbeResult, ...]:
+        """统一分页 DTO 的当前页条目。"""
+
+        return self.results
+
+    @property
+    def groups(self) -> tuple[MembershipProbeResult, ...]:
+        """与完整扫描 DTO 一致的群结果别名。"""
+
+        return self.results
 
 
 @dataclass(frozen=True, slots=True)

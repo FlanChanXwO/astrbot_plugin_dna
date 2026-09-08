@@ -19,12 +19,13 @@ def _factory(bridge: str) -> str:
     )[0]
 
 
-def test_account_page_has_global_collapsed_list_and_plaintext_editor_contract() -> None:
+def test_account_page_has_compact_uid_table_and_plaintext_editor_contract() -> None:
     html, store, bridge = _page_files()
 
-    assert 'data-page="accounts"' in html
+    assert ":data-page=\"item.id\"" in html
     assert "账号与预览" in html
-    assert "accountGroups" in html or "accountGroups" in store
+    assert 'class="data-table account-list"' in html
+    assert "accountPage" in html or "accountPage" in store
     assert "accountsLoading" in html
     assert "include_credentials" in bridge
     assert "credentials" in html
@@ -45,6 +46,8 @@ def test_account_page_has_global_collapsed_list_and_plaintext_editor_contract() 
     assert "clearAccountSecrets" in store
     assert "closeAccountEditor" in store
     assert "includeCredentials: false" in store
+    assert "setAccountPage" in store
+    assert "setAccountPageSize" in store
 
 
 def test_account_bridge_and_store_cover_preview_and_two_phase_deletion() -> None:
@@ -77,9 +80,7 @@ def test_account_bridge_and_store_cover_preview_and_two_phase_deletion() -> None
     assert "await this.reloadAccountState()" in store
 
 
-def test_preview_overlay_is_memory_only_and_clears_secrets_and_image_references() -> (
-    None
-):
+def test_preview_modal_is_memory_only_and_clears_secrets_and_image_references() -> None:
     html, store, bridge = _page_files()
 
     assert "accountPreview" in html
@@ -88,7 +89,8 @@ def test_preview_overlay_is_memory_only_and_clears_secrets_and_image_references(
     assert "clearPreviewState" in store
     assert "clearAccountSecrets" in store
     assert "selectedAccount = null" in store
-    assert "closeDrawer" in store
+    assert "closeModal" in store
+    assert "class=\"preview-figure\"" in html
     assert "previewCharName" in html
     assert "previewWeaponNames" in html
     assert "localStorage" not in html
@@ -97,13 +99,17 @@ def test_preview_overlay_is_memory_only_and_clears_secrets_and_image_references(
     assert "sessionStorage" not in store
     assert "localStorage" not in bridge
     assert "sessionStorage" not in bridge
+    assert "drawer" not in html
+    assert "drawer" not in store
 
 
 def test_alias_page_separates_readonly_defaults_from_multiple_custom_values() -> None:
     html, store, bridge = _page_files()
     factory = _factory(bridge)
 
-    assert 'data-page="aliases"' in html
+    assert ":data-page=\"item.id\"" in html
+    assert 'class="data-table alias-list"' in html
+    assert "aliasPage" in html or "aliasPage" in store
     for field in (
         "aliasRoles",
         "default_aliases",
@@ -129,6 +135,7 @@ def test_alias_page_separates_readonly_defaults_from_multiple_custom_values() ->
     assert "自定义别名" in html
     assert "默认别名" in html
     assert "恢复默认" in html
+    assert "编辑完整列表" in html
     assert "weapon_alias" not in html
     assert "武器别名" not in html
 
@@ -158,14 +165,14 @@ def test_alias_markup_only_offers_delete_for_custom_aliases() -> None:
         html,
     )
     assert "role.default_aliases" in html
-    assert "alias-tags--readonly" in html
+    assert "alias-modal-section" in html
+    assert "value-list" in html
 
 
-def test_dashboard_review_keeps_summary_focus_visible_and_serializes_alias_writes() -> (
-    None
-):
+def test_dashboard_review_keeps_summary_focus_visible_and_serializes_alias_writes() -> None:
     html, _store, _bridge = _page_files()
     css = (PAGE_ROOT / "css" / "dashboard.css").read_text(encoding="utf-8")
 
-    assert ".account-group-summary:focus-visible" in css
+    assert ".data-table tbody tr:hover" in css
+    assert ":focus-visible" in css
     assert html.count("aliasActionBusy !== ''") >= 3

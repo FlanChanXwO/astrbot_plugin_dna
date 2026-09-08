@@ -22,7 +22,11 @@ from src.modules.admin import AdminApiResponse
 def test_plugin_main_imports_from_astrbot_namespace() -> None:
     """AstrBot 的 data.plugins 命名空间不应依赖插件目录成为 cwd。"""
 
-    runtime_root = Path(__file__).parents[4]
+    runtime_root = next(
+        parent
+        for parent in Path(__file__).resolve().parents
+        if (parent / "data" / "plugins").is_dir()
+    )
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
 
@@ -87,14 +91,11 @@ def test_plugin_page_wraps_petite_vue_else_fragment_in_an_element() -> None:
     assert '<div v-else class="page-content">' in source
 
 
-def test_confirmation_overlay_stacks_above_drawer_overlay() -> None:
-    """编辑抽屉打开确认框时，确认层必须接收真实点击。"""
+def test_confirmation_modal_stacks_above_the_page() -> None:
+    """确认对话框和编辑模态框都应位于页面内容之上。"""
 
     stylesheet = Path(__file__).parents[1] / "pages" / "dashboard" / "css" / "dashboard.css"
     source = stylesheet.read_text(encoding="utf-8")
 
-    assert re.search(
-        r"\.overlay:not\(\.overlay--drawer\)\s*\{[^}]*z-index:\s*30;",
-        source,
-        re.DOTALL,
-    )
+    assert re.search(r"\.overlay\s*\{[^}]*z-index:\s*50;", source, re.DOTALL)
+    assert re.search(r"\.sidebar\s*\{[^}]*z-index:\s*20;", source, re.DOTALL)

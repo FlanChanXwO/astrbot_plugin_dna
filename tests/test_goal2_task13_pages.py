@@ -13,20 +13,17 @@ def test_dashboard_shell_has_required_navigation_and_runtime_assets() -> None:
     assert '<html lang="zh-cn">' in lowered
     assert 'name="viewport"' in lowered
     assert 'content="width=device-width, initial-scale=1"' in lowered
-    assert "<title>dnaby 管理面板</title>" in lowered
+    assert "DNAUID（二重螺旋）管理面板" in html
+    assert "./logo.png" in html
     assert "./lib/petite-vue.iife.js" in html
     assert "./app.js" in html
     assert "./css/dashboard.css" in html
     assert 'id="app"' in html
     assert "v-cloak" in html
 
-    for page_id, label in (
-        ("tasks", "任务与探测"),
-        ("accounts", "账号与预览"),
-        ("aliases", "角色别名"),
-    ):
-        assert f'data-page="{page_id}"' in html
+    for label in ("任务与探测", "账号与预览", "角色别名"):
         assert label in html
+    assert ':data-page="item.id"' in html
     assert 'data-page="panels"' not in html
     assert "面板图" not in html
 
@@ -37,9 +34,10 @@ def test_dashboard_shell_has_required_navigation_and_runtime_assets() -> None:
     assert "帮助命令" not in html
     assert "localStorage" not in html
     assert "sessionStorage" not in html
+    assert "DNABY 管理面板" not in html
 
 
-def test_dashboard_shell_exposes_accessible_overlay_and_mobile_navigation() -> None:
+def test_dashboard_shell_exposes_accessible_modal_and_mobile_navigation() -> None:
     html = (PAGE_ROOT / "index.html").read_text(encoding="utf-8")
     css = (PAGE_ROOT / "css" / "dashboard.css").read_text(encoding="utf-8")
 
@@ -49,9 +47,11 @@ def test_dashboard_shell_exposes_accessible_overlay_and_mobile_navigation() -> N
     assert 'aria-live="polite"' in html
     assert 'role="dialog"' in html
     assert 'aria-modal="true"' in html
-    assert 'class="drawer"' in html
+    assert 'class="modal"' in html
+    assert 'class="overlay overlay--modal"' in html
+    assert "drawer" not in html
     assert ':aria-expanded="mobileNavOpen"' in html
-    assert ":class=\"{ 'is-open': mobileNavOpen }\"" in html
+    assert ':class="{ \'is-open\': mobileNavOpen }"' in html
     assert ".sidebar.is-open" in css
     assert "@media (max-width: 767px)" in css
     assert ":focus-visible" in css
@@ -68,13 +68,13 @@ def test_dashboard_bridge_requires_native_astrbot_plugin_page_bridge() -> None:
     assert "export async function apiGet" in bridge
     assert "export async function apiPost" in bridge
     assert "export async function apiDelete" in bridge
+    assert "getContext" in bridge
+    assert "displayName" in bridge
     assert "localStorage" not in bridge
     assert "sessionStorage" not in bridge
 
 
-def test_dashboard_app_and_store_mount_petite_vue_without_business_implementation() -> (
-    None
-):
+def test_dashboard_app_and_store_mount_petite_vue_without_business_implementation() -> None:
     app = (PAGE_ROOT / "app.js").read_text(encoding="utf-8")
     store = (PAGE_ROOT / "js" / "store.js").read_text(encoding="utf-8")
 
@@ -86,7 +86,8 @@ def test_dashboard_app_and_store_mount_petite_vue_without_business_implementatio
     assert "activePage" in store
     assert "pluginVersion" in store
     assert "openDialog" in store
-    assert "openDrawer" in store
+    assert "openModal" in store
+    assert "closeModal" in store
     assert "showToast" in store
     assert "Chart.js" not in app
     assert "Chart.js" not in store

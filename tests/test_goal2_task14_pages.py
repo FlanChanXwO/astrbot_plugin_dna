@@ -42,17 +42,21 @@ def test_panel_management_is_removed_from_dashboard() -> None:
         assert re.search(rf"^\s*{method}(?::\s*{method})?,?\s*$", factory, re.MULTILINE)
 
 
-def test_task_page_shows_schedule_next_run_targets_and_safe_actions() -> None:
+def test_task_page_shows_compact_tables_schedule_and_safe_actions() -> None:
     html = (PAGE_ROOT / "index.html").read_text(encoding="utf-8")
     store = (PAGE_ROOT / "js" / "store.js").read_text(encoding="utf-8")
     bridge = (PAGE_ROOT / "js" / "bridge.js").read_text(encoding="utf-8")
 
-    assert 'data-page="tasks"' in html
+    assert ":data-page=\"item.id\"" in html
     assert "任务与探测" in html
     assert "tasksLoading" in html
     assert "task.schedule" in html
     assert "next_run_at" in html
-    assert "task.targets" in html
+    assert 'class="data-table task-list"' in html
+    assert 'class="data-table target-list"' in html
+    assert "pagination-bar" in html
+    assert "targetSearchInput" in html
+    assert "setTargetPage" in html
     assert "pauseTask" in html
     assert "resumeTask" in html
     assert "deleteTask" in html
@@ -66,9 +70,7 @@ def test_task_page_shows_schedule_next_run_targets_and_safe_actions() -> None:
     assert "createTask" not in bridge
 
 
-def test_membership_page_disables_unsupported_platform_and_requires_confirmed_cleanup() -> (
-    None
-):
+def test_membership_page_disables_unsupported_platform_and_requires_confirmed_cleanup() -> None:
     html = (PAGE_ROOT / "index.html").read_text(encoding="utf-8")
     store = (PAGE_ROOT / "js" / "store.js").read_text(encoding="utf-8")
     bridge = (PAGE_ROOT / "js" / "bridge.js").read_text(encoding="utf-8")
@@ -102,9 +104,7 @@ def test_task14_writes_enter_confirmation_before_mutating_state() -> None:
     assert "scanMembers(true)" in store
 
 
-def test_task14_actions_reload_server_state_after_success_and_are_mobile_ready() -> (
-    None
-):
+def test_task14_actions_reload_server_state_after_success_and_are_mobile_ready() -> None:
     html = (PAGE_ROOT / "index.html").read_text(encoding="utf-8")
     store = (PAGE_ROOT / "js" / "store.js").read_text(encoding="utf-8")
     css = (PAGE_ROOT / "css" / "dashboard.css").read_text(encoding="utf-8")
@@ -117,5 +117,6 @@ def test_task14_actions_reload_server_state_after_success_and_are_mobile_ready()
     assert "task-list" in html
     assert "membership-results" in html
     assert "@media (max-width: 767px)" in css
-    assert "grid-template-columns: 1fr" in css
+    assert "grid-template-columns: minmax(6rem, 34%) minmax(0, 1fr)" in css
+    assert "data-label" in html
     assert not re.search(r"\bcreate\s+task\b", html, flags=re.IGNORECASE)

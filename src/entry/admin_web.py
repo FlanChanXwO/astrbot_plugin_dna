@@ -24,6 +24,8 @@ from ..modules.admin import (
     AdminApiResponse,
     AdminError,
     AdminErrorCode,
+    AdminPage,
+    AdminPagination,
     AdminPreviewRequest,
     CredentialPayload,
     DeletionExecution,
@@ -32,6 +34,7 @@ from ..modules.admin import (
     GroupCleanupResult,
     MembershipCapability,
     MembershipProbeResult,
+    MembershipScanPage,
     MembershipScanResult,
     TaskTargetUpdate,
 )
@@ -115,6 +118,17 @@ def _serialize_value(value: object, *, include_credentials: bool = False) -> obj
         return value.isoformat()
     if isinstance(value, AdminAccount):
         return value.to_dict(include_credentials=include_credentials)
+    if isinstance(value, AdminPage):
+        return {
+            "items": [
+                _serialize_value(item, include_credentials=include_credentials)
+                for item in value.items
+            ],
+            "page": value.page,
+            "page_size": value.page_size,
+            "total": value.total,
+            "total_pages": value.total_pages,
+        }
     if isinstance(value, DeletionPreview):
         return {
             "user_id": value.user_id,
@@ -147,6 +161,27 @@ def _serialize_value(value: object, *, include_credentials: bool = False) -> obj
                 _serialize_value(item, include_credentials=include_credentials)
                 for item in value.groups
             ],
+            "capability": _serialize_value(
+                value.capability,
+                include_credentials=include_credentials,
+            ),
+            "all_absent": value.all_absent,
+            "has_present": value.has_present,
+            "has_unknown": value.has_unknown,
+            "has_unsupported": value.has_unsupported,
+            "can_delete_user": value.can_delete_user,
+        }
+    if isinstance(value, MembershipScanPage):
+        return {
+            "user_id": value.user_id,
+            "items": [
+                _serialize_value(item, include_credentials=include_credentials)
+                for item in value.items
+            ],
+            "page": value.page,
+            "page_size": value.page_size,
+            "total": value.total,
+            "total_pages": value.total_pages,
             "capability": _serialize_value(
                 value.capability,
                 include_credentials=include_credentials,
@@ -329,6 +364,22 @@ def _query_bool(key: str, *, default: bool) -> bool:
     if normalized in {"0", "false", "no"}:
         return False
     raise _RequestValidation
+
+
+def _pagination_from_query() -> AdminPagination | None:
+    """解析列表查询；未携带分页参数时保留旧全量 service 兼容路径。"""
+
+    page_value = _query_string("page")
+    page_size_value = _query_string("page_size")
+    search = _query_string("search")
+    if page_value is None and page_size_value is None and search is None:
+        return None
+    try:
+        page = 1 if page_value is None else int(page_value.strip())
+        page_size = 20 if page_size_value is None else int(page_size_value.strip())
+        return AdminPagination(page=page, page_size=page_size, search=search or "")
+    except (AttributeError, TypeError, ValueError) as error:
+        raise _RequestValidation from error
 
 
 async def _json_object() -> Mapping[str, object]:
@@ -523,11 +574,20 @@ class AdminWebAdapter:
     @_admin_handler
     async def list_accounts(self) -> Any:
         include_credentials = _query_bool("include_credentials", default=False)
-        result = await self._call(
-            "admin_account_service",
-            "list_accounts",
-            include_credentials=include_credentials,
-        )
+        pagination = _pagination_from_query()
+        if pagination is None:
+            result = await self._call(
+                "admin_account_service",
+                "list_accounts",
+                include_credentials=include_credentials,
+            )
+        else:
+            result = await self._call(
+                "admin_account_service",
+                "list_accounts_page",
+                pagination,
+                include_credentials=include_credentials,
+            )
         return _response(result, include_credentials=include_credentials)
 
     @_admin_handler
@@ -694,13 +754,18 @@ class AdminWebAdapter:
 
     @_admin_handler
     async def list_targets(self) -> Any:
-        return _response(
-            await self._call(
+        task_id = _query_string("task_id")
+        pagination = _pagination_from_query()
+        if pagination is None:
+            result = await self._call("admin_api_service", "list_targets", task_id)
+        else:
+            result = await self._call(
                 "admin_api_service",
-                "list_targets",
-                _query_string("task_id"),
+                "list_targets_page",
+                task_id,
+                pagination,
             )
-        )
+        return _response(result)
 
     @_admin_handler
     async def update_target(self, target_id: str) -> Any:
@@ -737,7 +802,17 @@ class AdminWebAdapter:
 
     @_admin_handler
     async def scan_members(self, user_id: str) -> Any:
-        return _response(await self._call("admin_api_service", "scan_members", user_id))
+        pagination = _pagination_from_query()
+        if pagination is None:
+            result = await self._call("admin_api_service", "scan_members", user_id)
+        else:
+            result = await self._call(
+                "admin_api_service",
+                "scan_members",
+                user_id,
+                pagination,
+            )
+        return _response(result)
 
     @_admin_handler
     async def cleanup_member_group(self, user_id: str, group_id: str) -> Any:
@@ -768,7 +843,16 @@ class AdminWebAdapter:
 
     @_admin_handler
     async def list_aliases(self) -> Any:
-        return _response(await self._call("admin_alias_service", "list_aliases"))
+        pagination = _pagination_from_query()
+        if pagination is None:
+            result = await self._call("admin_alias_service", "list_aliases")
+        else:
+            result = await self._call(
+                "admin_alias_service",
+                "list_role_aliases_page",
+                pagination,
+            )
+        return _response(result)
 
     @_admin_handler
     async def add_alias(self, role_name: str) -> Any:

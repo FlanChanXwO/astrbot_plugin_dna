@@ -12,7 +12,7 @@ EXPECTED_BRANDING_SHA256 = "947a6d4d89bf1edee1ccbab0718bc5d81b62f7009ba789f78cb2
 
 class BrandingAssetsTests(unittest.TestCase):
     def test_logo_and_help_avatar_are_the_new_256px_rgba_asset(self) -> None:
-        assets = (ROOT / "ICON.png", ROOT / "logo.png")
+        assets = (ROOT / "ICON.png", ROOT / "logo.png", ROOT / "pages" / "dashboard" / "logo.png")
 
         for asset in assets:
             self.assertTrue(asset.is_file(), asset)
@@ -26,6 +26,7 @@ class BrandingAssetsTests(unittest.TestCase):
                 self.assertEqual(image.mode, "RGBA", asset)
 
         self.assertEqual(assets[0].read_bytes(), assets[1].read_bytes())
+        self.assertEqual(assets[1].read_bytes(), assets[2].read_bytes())
 
     def test_help_avatar_uses_a_fixed_layout_box(self) -> None:
         template = (ROOT / "src" / "templates" / "cards" / "help.html.j2").read_text(
