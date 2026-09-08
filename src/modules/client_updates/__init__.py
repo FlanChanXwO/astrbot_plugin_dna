@@ -32,6 +32,7 @@ from .contracts import (
     parse_version_list,
     parse_version_list_entries,
     sum_channel_patch_file_sizes,
+    sum_manifest_patch_file_sizes,
     sum_patch_file_sizes,
 )
 from .delivery import (
@@ -133,5 +134,6 @@ __all__ = [
     "select_client_update_target_ids_by_platform",
     "select_enabled_channels",
     "sum_channel_patch_file_sizes",
+    "sum_manifest_patch_file_sizes",
     "sum_patch_file_sizes",
 ]

@@ -323,15 +323,15 @@ class ClientUpdateObservation:
 
 
 class ClientUpdateTransport(Protocol):
-    """客户端更新 use case 所需的最小读取 transport。"""
+    """客户端更新 use case 所需的 Source-neutral 读取 transport。"""
 
     async def get_observation(
         self,
-        platform: ClientPlatform | str,
+        source_id: str,
         *,
-        previous_patch_version: int | None = None,
-    ) -> ClientUpdateObservation:
-        """读取一个平台的最新版本和指定历史区间的补丁大小。"""
+        baseline: ClientSourceVersion | None = None,
+    ) -> ClientSourceObservation:
+        """读取一个已登记 Source 的当前版本和可见历史。"""
         ...
 
 
@@ -525,7 +525,8 @@ def sum_channel_patch_file_sizes(
     """按固定渠道的 manifest key 计算去重后的补丁清单大小。"""
 
     channel = _resolve_channel(channel_id)
-    return _sum_manifest_file_sizes(
+    return sum_manifest_patch_file_sizes(
+        channel.manifest_key,
         channel.manifest_key,
         pak_files_info,
         res_discrete_info,
@@ -540,24 +541,34 @@ def sum_patch_file_sizes(
     """兼容旧 platform API，按平台默认 manifest key 计算补丁清单大小。"""
 
     normalized_platform = _coerce_platform(platform)
-    return _sum_manifest_file_sizes(
-        _manifest_platform_key(normalized_platform),
+    manifest_key = _manifest_platform_key(normalized_platform)
+    return sum_manifest_patch_file_sizes(
+        manifest_key,
+        manifest_key,
         pak_files_info,
         res_discrete_info,
     )
 
 
-def _sum_manifest_file_sizes(
-    manifest_key: str,
+def sum_manifest_patch_file_sizes(
+    pak_manifest_key: str,
+    res_manifest_key: str,
     pak_files_info: object,
     res_discrete_info: object,
 ) -> int:
-    """按一个已解析的 manifest key 严格合并两份补丁清单。"""
+    """按两份 manifest 各自的 key 严格合并补丁清单。"""
+
+    for field_name, value in (
+        ("pak_manifest_key", pak_manifest_key),
+        ("res_manifest_key", res_manifest_key),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field_name} 必须是非空字符串")
 
     sizes_by_name: dict[str, int] = {}
-    for resource_name, payload in (
-        ("PakFilesInfo", pak_files_info),
-        ("ResDiscreteInfo", res_discrete_info),
+    for resource_name, manifest_key, payload in (
+        ("PakFilesInfo", pak_manifest_key, pak_files_info),
+        ("ResDiscreteInfo", res_manifest_key, res_discrete_info),
     ):
         entries = _manifest_entries(payload, manifest_key, resource_name)
         for index, raw_entry in enumerate(entries):
@@ -678,5 +689,6 @@ __all__ = [
     "parse_version_list",
     "parse_version_list_entries",
     "sum_channel_patch_file_sizes",
+    "sum_manifest_patch_file_sizes",
     "sum_patch_file_sizes",
 ]
