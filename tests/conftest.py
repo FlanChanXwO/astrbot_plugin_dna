@@ -25,7 +25,11 @@ def _prepare_test_environment() -> tuple[Path, Path]:
     session_root = Path(tempfile.mkdtemp(prefix="dna-pytest-"))
     astrbot_root = session_root / "astrbot"
     data_root = session_root / "plugin-data"
-    shutil.copytree(TESTS_DIR / ".data", data_root)
+    fixture_root = TESTS_DIR / ".data"
+    if fixture_root.is_dir():
+        shutil.copytree(fixture_root, data_root)
+    else:
+        data_root.mkdir(parents=True)
     astrbot_root.mkdir()
     (astrbot_root / "temp").mkdir(parents=True, exist_ok=True)
     Path("data/temp").mkdir(parents=True, exist_ok=True)
@@ -62,8 +66,9 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 def local_t2i_renderer() -> Iterator[None]:
     """为未显式注入 renderer 的领域测试提供确定性的内存 T2I。"""
 
-    import astrbot.core
     from PIL import Image
+
+    import astrbot.core
 
     renderer = astrbot.core.html_renderer
     original = renderer.render_custom_template

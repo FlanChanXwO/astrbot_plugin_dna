@@ -8,8 +8,8 @@ from pathlib import Path
 from shutil import copyfile
 
 import pytest
+import src.infrastructure.rendering.player as player_module
 from PIL import Image, ImageFont
-
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from src.infrastructure.cache import CacheManager
@@ -41,6 +41,7 @@ from src.modules.player.contracts import (
 )
 from src.modules.player.service import PlayerService
 from src.modules.privacy import PrivacyService
+from src.utils.session import EventContext
 
 UID = "1234567890123"
 TARGET_UID = "9876543210987"
@@ -311,6 +312,51 @@ def _detail_fixture() -> RoleDetail:
         con_weapon_eid="weapon-eid-con",
         con_weapon_id=203,
     )
+
+
+@pytest.mark.asyncio
+async def test_role_detail_card_keeps_all_weapon_masteries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """角色详情卡必须完整展示 API 返回的全部武器精通，而不是忽略或截断列表。"""
+
+    captured: dict[str, object] = {}
+
+    class CaptureRenderer:
+        async def render(self, _template, data, _spec):
+            captured.update(data)
+            return b"rendered"
+
+    async def fake_hero_payload(*_args, **_kwargs):
+        return None, {"image": "data:image/png;base64,", "kind": "paint"}
+
+    async def fake_profile_header(*_args, **_kwargs):
+        return {}
+
+    async def fake_attr_img(*_args, **_kwargs):
+        return Image.new("RGBA", (1, 1))
+
+    async def fake_list_payload(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(player_module, "_RENDERER", CaptureRenderer())
+    monkeypatch.setattr(player_module, "_hero_payload", fake_hero_payload)
+    monkeypatch.setattr(player_module, "build_profile_header", fake_profile_header)
+    monkeypatch.setattr(player_module, "get_attr_img", fake_attr_img)
+    monkeypatch.setattr(player_module, "_skill_payload", fake_list_payload)
+    monkeypatch.setattr(player_module, "_role_modes_payload", fake_list_payload)
+
+    await player_module._draw_role_detail_card(
+        EventContext(user_id="user-1"),
+        "101",
+        "角色甲",
+        _overview_fixture(),
+        _detail_fixture(),
+    )
+
+    role_payload = captured["role"]
+    assert isinstance(role_payload, dict)
+    assert role_payload["weapon_mastery"] == "近战 / 测试标签"
 
 
 def _weapon_fixture() -> WeaponDetail:
