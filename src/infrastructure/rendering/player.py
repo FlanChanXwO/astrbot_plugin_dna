@@ -55,17 +55,25 @@ from .assets import font_data_uri, image_data_uri, pil_image_data_uri
 from .damage_renderer import draw_role_damage_section
 from .fonts import load_runtime_font
 from .image_inspector import inspect_image
+from .legacy_assets import (
+    COMMON_PATH,
+    DETAIL_TEXT_PATH,
+    FONT_ORIGIN_PATH,
+    ROLE_TEXT_PATH,
+)
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
+from .runtime_assets import (
+    AssetResolverLike,
+    render_runtime_card,
+    resolve_runtime_asset,
+    resource_record,
+    resources_incomplete,
+)
 from .spec import RenderSpec
 from .weapon_renderer import draw_weapon_detail_section
 
 _RENDERER = HtmlRenderer()
-RESOURCES_DIR = Path(__file__).parents[2] / "resources"
-COMMON_PATH = RESOURCES_DIR / "textures" / "common"
-DETAIL_TEXT_PATH = RESOURCES_DIR / "textures" / "detail"
-ROLE_TEXT_PATH = RESOURCES_DIR / "textures" / "role"
-FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
 
 
 # ---------------------------------------------------------------------------
@@ -771,16 +779,27 @@ class PlayerRenderer:
     """生成角色总览与详情卡片的运行期 T2I 图片。"""
 
     def __init__(
-        self, output_dir: str | Path, resources: EncyclopediaResourceStore | ResourceMap
+        self,
+        output_dir: str | Path,
+        resources: EncyclopediaResourceStore | ResourceMap,
+        *,
+        resolver_factory: Any | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
+        self.resolver_factory = resolver_factory
+        self.asset_resolver: AssetResolverLike | None = None
 
     def _font(self, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         font_path = getattr(self.resources, "font_path", None)
         return load_runtime_font(font_path, size)
 
     def _font_resource(self) -> dict[str, str]:
+        if self.asset_resolver is not None:
+            asset = resolve_runtime_asset(self.asset_resolver, "font.primary_ttf")
+            return resource_record(
+                "font", "font.primary_ttf", asset, source="fonts/dna_fonts.ttf"
+            )
         if isinstance(self.resources, ResourceMap):
             return {
                 "kind": "font",
@@ -830,9 +849,7 @@ class PlayerRenderer:
             sections=tuple(sections),
             temporary=True,
             original_image_path=original_image_path,
-            incomplete=any(
-                resource.get("status") == "placeholder" for resource in resources
-            ),
+            incomplete=resources_incomplete(resources),
             sidecar=Path(response.sidecar) if response.sidecar is not None else None,
             manifest=Path(response.manifest) if response.manifest is not None else None,
             media_type=artifact.media_type,
@@ -861,18 +878,71 @@ class PlayerRenderer:
         )
         hero_background = (
             self.resources.random_panel_background()
-            if isinstance(self.resources, ResourceMap)
+            if self.asset_resolver is None and isinstance(self.resources, ResourceMap)
             else None
         )
-        image_bytes = await draw_role_info_card_core(
-            overview,
-            uid_hidden=uid_hidden,
-            show_none=show_unowned,
-            ev_stub=ev_stub,
-            avatar_user_id=target_user_id
-            or (actor.user_id if actor is not None else uid),
-            hero_background_path=hero_background,
+        font_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            "font.primary_ttf",
+            legacy_path=getattr(self.resources, "font_path", None),
         )
+        role_assets = [
+            (
+                f"role-{item.char_id}",
+                resolve_runtime_asset(
+                    self.asset_resolver,
+                    f"image:role_avatar:{item.char_id}",
+                    legacy_path=(
+                        self.resources.role_avatar(item.char_id)
+                        if self.asset_resolver is None
+                        and isinstance(self.resources, ResourceMap)
+                        else None
+                    ),
+                ),
+            )
+            for item in overview.role_chars
+        ]
+        weapon_items = list(overview.close_weapons) + list(overview.ranged_weapons)
+        weapon_assets = [
+            (
+                f"weapon-{item.weapon_id}",
+                resolve_runtime_asset(
+                    self.asset_resolver,
+                    f"image:weapon:{item.weapon_id}",
+                    legacy_path=None,
+                ),
+            )
+            for item in weapon_items
+        ]
+        resolver_assets_incomplete = self.asset_resolver is not None and (
+            font_asset.incomplete
+            or any(asset.incomplete for _, asset in role_assets)
+            or any(asset.incomplete for _, asset in weapon_assets)
+        )
+        if resolver_assets_incomplete:
+            image_bytes = render_runtime_card(
+                overview.role_name,
+                (
+                    f"UID {'***' if uid_hidden else uid}",
+                    f"等级: {_text_value(overview.level)}",
+                    *(
+                        f"{item.param_key}: {item.param_value}"
+                        for item in overview.params
+                    ),
+                ),
+                font_asset=font_asset,
+                image_assets=(*role_assets, *weapon_assets),
+            )
+        else:
+            image_bytes = await draw_role_info_card_core(
+                overview,
+                uid_hidden=uid_hidden,
+                show_none=show_unowned,
+                ev_stub=ev_stub,
+                avatar_user_id=target_user_id
+                or (actor.user_id if actor is not None else uid),
+                hero_background_path=hero_background,
+            )
         lines = [
             overview.role_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -886,45 +956,73 @@ class PlayerRenderer:
             {"name": "近战武器", "items": len(overview.close_weapons)},
             {"name": "远程武器", "items": len(overview.ranged_weapons)},
         ]
-        resources = [self._font_resource()]
-        if isinstance(self.resources, ResourceMap):
-            # panel 是可回退的装饰性 hero 背景：图集缺失时渲染仍完整（回退本地
-            # title_bg），因此用 fallback 而非 placeholder，不使整卡被判 incomplete。
-            resources.append(
-                {
-                    "kind": "panel_background",
-                    "status": (
-                        "provided" if hero_background is not None else "fallback"
-                    ),
-                    "source": (
-                        f"panel/{hero_background.name}"
-                        if hero_background is not None
-                        else "panel/"
-                    ),
-                }
+        if self.asset_resolver is not None:
+            resources = [
+                resource_record(
+                    "font",
+                    "font.primary_ttf",
+                    font_asset,
+                    source="fonts/dna_fonts.ttf",
+                )
+            ]
+            resources.extend(
+                resource_record(
+                    "role_avatar",
+                    str(item.char_id),
+                    asset,
+                    source=f"images/role_avatar/{item.char_id}.png",
+                )
+                for item, (_, asset) in zip(overview.role_chars, role_assets)
             )
-            for role in overview.role_chars:
-                if self.resources.root is not None:
-                    status = self.resources.get_avatar_status(role.char_id)
-                else:
-                    status = "legacy_download"
+            resources.extend(
+                resource_record(
+                    "weapon_icon",
+                    str(item.weapon_id),
+                    asset,
+                    source=f"images/weapon/{item.weapon_id}.png",
+                )
+                for item, (_, asset) in zip(weapon_items, weapon_assets)
+            )
+        else:
+            resources = [self._font_resource()]
+            if isinstance(self.resources, ResourceMap):
+                # panel 是可回退的装饰性 hero 背景：图集缺失时渲染仍完整（回退本地
+                # title_bg），因此用 fallback 而非 placeholder，不使整卡被判 incomplete。
                 resources.append(
                     {
-                        "kind": "role_avatar",
-                        "key": str(role.char_id),
-                        "status": status,
-                        "source": f"images/role_avatar/{role.char_id}.png",
+                        "kind": "panel_background",
+                        "status": (
+                            "provided" if hero_background is not None else "fallback"
+                        ),
+                        "source": (
+                            f"panel/{hero_background.name}"
+                            if hero_background is not None
+                            else "panel/"
+                        ),
                     }
                 )
-            for weapon in list(overview.close_weapons) + list(overview.ranged_weapons):
-                resources.append(
-                    {
-                        "kind": "weapon_icon",
-                        "key": str(weapon.weapon_id),
-                        "status": "legacy_download",
-                        "source": f"images/weapon/{weapon.weapon_id}.png",
-                    }
-                )
+                for role in overview.role_chars:
+                    if self.resources.root is not None:
+                        status = self.resources.get_avatar_status(role.char_id)
+                    else:
+                        status = "legacy_download"
+                    resources.append(
+                        {
+                            "kind": "role_avatar",
+                            "key": str(role.char_id),
+                            "status": status,
+                            "source": f"images/role_avatar/{role.char_id}.png",
+                        }
+                    )
+                for weapon in weapon_items:
+                    resources.append(
+                        {
+                            "kind": "weapon_icon",
+                            "key": str(weapon.weapon_id),
+                            "status": "legacy_download",
+                            "source": f"images/weapon/{weapon.weapon_id}.png",
+                        }
+                    )
         return self._write(
             image_bytes, lines=lines, resources=resources, sections=sections
         )
@@ -1011,22 +1109,62 @@ class PlayerRenderer:
         )
 
         custom_panel = None
-        if isinstance(self.resources, ResourceMap):
+        if self.asset_resolver is None and isinstance(self.resources, ResourceMap):
             custom_panel = self.resources.original_panel(detail.char_id)
 
-        card_bytes, original_path = await _draw_role_detail_card(
-            ctx,
-            char_id,
-            char_name,
-            role_show,
-            detail,
-            con_weapon=con_weapon,
-            close_weapon=close_weapon,
-            ranged_weapon=ranged_weapon,
-            damage_calc_response=damage_response,
-            uid_hidden=uid_hidden,
-            custom_panel=custom_panel,
+        font_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            "font.primary_ttf",
+            legacy_path=getattr(self.resources, "font_path", None),
         )
+        paint_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            f"image:role_paint:{detail.char_id}",
+            legacy_path=(
+                self.resources.role_paint(detail.char_id)
+                if self.asset_resolver is None and isinstance(self.resources, ResourceMap)
+                else None
+            ),
+        )
+        panel_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            f"panel:original:{detail.char_id}",
+            legacy_path=custom_panel if self.asset_resolver is None else None,
+        )
+        resolver_assets_incomplete = self.asset_resolver is not None and (
+            font_asset.incomplete
+            or paint_asset.incomplete
+            or panel_asset.incomplete
+        )
+        if resolver_assets_incomplete:
+            card_bytes = render_runtime_card(
+                char_name,
+                (
+                    f"UID {'***' if uid_hidden else uid}",
+                    f"等级: {_text_value(detail.level)}",
+                    f"命座/等阶: {_text_value(detail.grade_level)}",
+                ),
+                font_asset=font_asset,
+                image_assets=(
+                    (f"paint-{detail.char_id}", paint_asset),
+                    (f"panel-{detail.char_id}", panel_asset),
+                ),
+            )
+            original_path = panel_asset.path
+        else:
+            card_bytes, original_path = await _draw_role_detail_card(
+                ctx,
+                char_id,
+                char_name,
+                role_show,
+                detail,
+                con_weapon=con_weapon,
+                close_weapon=close_weapon,
+                ranged_weapon=ranged_weapon,
+                damage_calc_response=damage_response,
+                uid_hidden=uid_hidden,
+                custom_panel=custom_panel,
+            )
         lines = [
             detail.char_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -1064,26 +1202,48 @@ class PlayerRenderer:
         if damage_data is not None:
             sections.append({"name": "伤害", "items": len(damage_data.skills)})
 
-        resources = [self._font_resource()]
-        if isinstance(self.resources, ResourceMap):
-            resources.append(
-                {
-                    "kind": "role_paint",
-                    "key": str(detail.char_id),
-                    "status": self.resources.get_paint_status(detail.char_id),
-                    "source": f"images/role_paint/{detail.char_id}.png",
-                }
-            )
-            resources.append(
-                {
-                    "kind": "original_panel",
-                    "key": str(detail.char_id),
-                    "status": self.resources.get_panel_status(detail.char_id),
-                    "source": f"panel/{detail.char_id}.png",
-                }
-            )
-            if original_path is None:
-                original_path = custom_panel
+        if self.asset_resolver is not None:
+            resources = [
+                resource_record(
+                    "font",
+                    "font.primary_ttf",
+                    font_asset,
+                    source="fonts/dna_fonts.ttf",
+                ),
+                resource_record(
+                    "role_paint",
+                    str(detail.char_id),
+                    paint_asset,
+                    source=f"images/role_paint/{detail.char_id}.png",
+                ),
+                resource_record(
+                    "original_panel",
+                    str(detail.char_id),
+                    panel_asset,
+                    source=f"panel/{detail.char_id}.png",
+                ),
+            ]
+        else:
+            resources = [self._font_resource()]
+            if isinstance(self.resources, ResourceMap):
+                resources.append(
+                    {
+                        "kind": "role_paint",
+                        "key": str(detail.char_id),
+                        "status": self.resources.get_paint_status(detail.char_id),
+                        "source": f"images/role_paint/{detail.char_id}.png",
+                    }
+                )
+                resources.append(
+                    {
+                        "kind": "original_panel",
+                        "key": str(detail.char_id),
+                        "status": self.resources.get_panel_status(detail.char_id),
+                        "source": f"panel/{detail.char_id}.png",
+                    }
+                )
+                if original_path is None:
+                    original_path = custom_panel
 
         return self._write(
             card_bytes,

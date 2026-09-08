@@ -172,7 +172,7 @@
 - 剩余风险：生产 renderer 和旧 utils 仍未迁移到统一 resolver；除 Player 外的渲染结果尚未有明确 `incomplete` 字段；完整 snapshot 的真实素材读取、placeholder bytes、缓存和 listener 刷新仍需 Green/集中审计验证。本 task 测试按设计保持 Red。
 - 下一步建议：执行 Task 08，实现最小请求级 resolver 接入、字体安全回退、纹理/角色/武器/panel 缺失简化渲染和各 renderer 的 `incomplete` 传递，再将本 task 转 Green。
 
-## Task 08 — 主要 renderer 与 legacy 路径 Green 迁移 `[pending]`
+## Task 08 — 主要 renderer 与 legacy 路径 Green 迁移 `[completed]`
 
 **目标**：将主要渲染链路切到统一逻辑 key，消除插件目录硬编码资源依赖，同时保持完整 snapshot 与降级路径行为。
 
@@ -180,10 +180,20 @@
 
 **验收**：Task 07 转 Green；静态检索确认主要 renderer 不再拼接待外置资源的插件路径；不资源同步时无 `FileNotFoundError`，完整 snapshot 时能读取远端资源；listener 后无需重启刷新。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：
+  - 新增 `src/infrastructure/rendering/runtime_assets.py`，统一封装 resolver 结果、可见 placeholder、PIL 简化卡片、字体/图片 data URI 和 `incomplete` 记录；resolver 注入后不再回读 legacy 路径。新增 `legacy_assets.py` 只集中兼容路径常量，不改变资源删除边界。
+  - 扩展 `RuntimeAssetResolver` 的显式 wildcard 映射，补齐角色头像/立绘、武器、panel、周报、日历及主要 renderer 纹理 key；bootstrap 只登记映射，不扫描目录。`ResourceSnapshotCoordinator.bind_renderer()` 在既有 generation lease 内复制 renderer 并创建请求级 resolver，保留同步后新请求读取新 generation、旧请求 pin 旧 generation 的语义。
+  - Player、Encyclopedia、Checkin、Notices（含密函、公告列表、公告详情）在 resolver 模式下统一读取逻辑 key，缺失资源生成确定性简化 JPEG 并标记 `incomplete=True`；完整 snapshot fixture 能读取同一远端素材并保持 `incomplete=False`。Help 通过 `bind_resource_resolver` 注入 resolver，并在 resolver 模式绕过旧缓存，避免跨 generation 复用模板素材。
+  - `load_runtime_font()` 在显式字体和 bundled 字体不可用/损坏时回退 Pillow 内置字体；独立签到广播卡的字体 URI 也改为安全 fallback。`payloads.py`、`weapon_renderer.py` 的兼容常量统一收口，未删除任何资源文件。
+- 验证证据：
+  - TDD Red：新增公告详情 resolver 与签到广播缺失字体契约后，分别实际运行并确认旧实现失败（详情调用 legacy 绘制、缺失字体抛 `AssetRenderError`）；实现后同一测试转绿。
+  - 目标回归：`PYTHONPATH=. /Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m pytest --confcutdir=tests tests/test_goal5_asset_resolver.py tests/test_goal5_renderer_resolver_red.py tests/test_goal3_resource_generations.py -q --tb=short`，`39 passed, 1 warning`。
+  - 相关 HTML/renderer 回归：`tests/test_html_card_payloads.py`、Player/Encyclopedia/Notices 资源状态测试共 `9 passed, 1 warning`。
+  - 完整 snapshot fixture 冒烟覆盖 Player 总览/详情、百科周报/日历、签到、密函、公告列表/详情共 8 个结果：均生成非空图片、`incomplete=False`，实际记录 25 个 resolver key；该 fixture 使用临时已验证图片模拟 snapshot，不冒充资源仓库完整素材验证。
+  - `python3 -m compileall -q src tests/test_goal5_renderer_resolver_red.py`、变更文件范围 `ruff check`、`git diff --check` 通过。全仓 `ruff check .` 仍报告既有脚本/旧测试等 25 个 lint 问题，未归因于本 task，未对无关文件做格式化。
+  - 静态检索主要 renderer 已无插件目录资源路径拼接；仅保留 `fonts.py` 的安全 bundled-font 探测、`ResourceMap` 对已绑定 snapshot root 的相对路径访问，以及 sidecar 历史来源字符串。未删除 `src/resources/`，因此后续 Task 10–12 仍需资源仓库证据和包体积验证。
+- 剩余风险：当前 `dna-resource` HEAD 尚未提供本 task 所有纹理族及 `file_hashes`/完整 manifest 证据；真实远端 generation 仍需后续资源仓库 task 验证。无 resolver 的 legacy helper 仍保留用于兼容，真实 T2I 服务缺失时相关旧路径测试会失败（已有环境性失败，不代表 resolver 分支回归）。全仓 lint 的 25 个既有问题也仍待集中处理。
+- 下一步建议：执行 Task 09，集中审计 renderer/legacy utils 的所有路径与逻辑 key、缓存 `incomplete`、lease/listener、placeholder 和异常可观测性，再决定资源仓库及删除 task 的准入条件。
 
 ## Task 09 — Renderer 接入与 incomplete 语义集中检查 `[pending]`
 

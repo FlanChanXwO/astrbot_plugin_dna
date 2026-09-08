@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, cast
 
@@ -39,12 +40,18 @@ async def help_use_case(
     if renderer is None:
         from ..infrastructure.rendering.help import get_help
 
-        payload = await get_help(
-            prefix=request.matched_prefix,
-            registry=registry,
-            permission=request.permission,
-            version=PLUGIN_VERSION,
+        bind_resolver = request.services.get("bind_resource_resolver")
+        resolver_context = (
+            bind_resolver() if callable(bind_resolver) else nullcontext(None)
         )
+        with resolver_context as asset_resolver:
+            payload = await get_help(
+                prefix=request.matched_prefix,
+                registry=registry,
+                permission=request.permission,
+                version=PLUGIN_VERSION,
+                asset_resolver=asset_resolver,
+            )
     else:
         payload = await _help_renderer(request)(request.matched_prefix)
     rendered_root = request.services.get("rendered_root")

@@ -115,6 +115,24 @@ _SNAPSHOT_ASSET_PATHS = {
     "font.unicode_fallback_woff2": "fonts/arial-unicode-ms-bold-fallback.woff2",
     "font.emoji_ttf": "fonts/NotoColorEmoji.ttf",
     "font.help": "fonts/MiSansVF.woff2",
+    "image:role_avatar:*": "images/role_avatar/*.png",
+    "image:role_paint:*": "images/role_paint/*.png",
+    "image:weapon:*": "images/weapon/*.png",
+    "panel:original:*": "panel/*.png",
+    "weekly:item:*": "weekly_item/item_*.png",
+    "calendar:*": "calendar/*",
+    "texture:sign:*": "textures/sign/*",
+    "texture:ann:*": "textures/ann/*",
+    "texture:mh:*": "textures/mh/*",
+    "texture:help:*": "textures/help/*",
+    "texture:common:*": "textures/common/*",
+    "texture:stamina:*": "textures/stamina/*",
+    "texture.sign.*": "textures/sign/*",
+    "texture.ann.*": "textures/ann/*",
+    "texture.mh.*": "textures/mh/*",
+    "texture.help.*": "textures/help/*",
+    "texture.common.*": "textures/common/*",
+    "texture.stamina.*": "textures/stamina/*",
 }
 _BOOTSTRAP_ALLOWLIST = {
     f"texture.common.number.{digit}": Path(__file__).parent
@@ -358,7 +376,11 @@ def build_runtime(
         player_transport
         or DnaApiPlayerTransport(runtime_database, request_gate=request_gate),
         privacy_service,
-        PlayerRenderer(rendered_root, player_resources),
+        PlayerRenderer(
+            rendered_root,
+            player_resources,
+            resolver_factory=_new_resource_resolver,
+        ),
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,
@@ -373,7 +395,11 @@ def build_runtime(
             request_gate=request_gate,
         ),
         privacy_service,
-        EncyclopediaRenderer(rendered_root, encyclopedia_resources),
+        EncyclopediaRenderer(
+            rendered_root,
+            encyclopedia_resources,
+            resolver_factory=_new_resource_resolver,
+        ),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
         resource_snapshots=resource_snapshots,
@@ -395,6 +421,7 @@ def build_runtime(
     checkin_renderer = CheckinRenderer(
         rendered_root,
         encyclopedia_resources,
+        resolver_factory=_new_resource_resolver,
     )
     checkin_service = CheckinService(
         runtime_database,
@@ -445,6 +472,7 @@ def build_runtime(
     notices_renderer = NoticesRenderer(
         rendered_root,
         encyclopedia_resources,
+        resolver_factory=_new_resource_resolver,
         simple_image=settings.notifications.secret_simple_image,
         cache_manager=cache_manager,
         request_gate=request_gate,

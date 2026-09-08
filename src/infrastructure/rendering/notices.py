@@ -49,20 +49,28 @@ from .assets import (
     unicode_font_data_uris,
 )
 from .image_inspector import MediaType, inspect_image
+from .legacy_assets import (
+    COMMON_PATH,
+    FONT_ORIGIN_PATH,
+    MH_TEXT_PATH,
+    OFFICIAL_AVATAR_PATH,
+    UNICODE_ORIGIN_PATH,
+)
 from .renderer import HtmlRenderer
+from .runtime_assets import (
+    AssetResolverLike,
+    render_runtime_card,
+    resolve_runtime_asset,
+    resource_record,
+    resources_incomplete,
+)
 from .spec import RenderSpec
 
 if TYPE_CHECKING:
     from ...infrastructure.cache import CacheManager
 
 _RENDERER = HtmlRenderer()
-RESOURCES_DIR = Path(__file__).parents[2] / "resources"
-MH_TEXT_PATH = RESOURCES_DIR / "textures" / "mh"
-ANN_TEXT_PATH = RESOURCES_DIR / "textures" / "ann"
-COMMON_PATH = RESOURCES_DIR / "textures" / "common"
-FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
-UNICODE_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "arial-unicode-ms-bold.ttf"
-_OFFICIAL_AVATAR = ANN_TEXT_PATH / "dna_official_avatar.jpeg"
+_OFFICIAL_AVATAR = OFFICIAL_AVATAR_PATH
 
 QR_CACHE_PATH = ANN_CARD_PATH / "qr"
 PREVIEW_CACHE_PATH = ANN_CARD_PATH / "preview"
@@ -650,6 +658,7 @@ class RenderedNoticesImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
+    incomplete: bool = False
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
@@ -666,12 +675,15 @@ class NoticesRenderer:
         simple_image: bool = False,
         cache_manager: CacheManager | None = None,
         request_gate: RequestConcurrencyGate | None = None,
+        resolver_factory: Any | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
         self.simple_image = simple_image
         self.cache_manager = cache_manager
         self.request_gate = request_gate
+        self.resolver_factory = resolver_factory
+        self.asset_resolver: AssetResolverLike | None = None
 
     @staticmethod
     def list_cache_key(snapshot: AnnSnapshot) -> str:
@@ -767,6 +779,11 @@ class NoticesRenderer:
         return pages
 
     def _font_resource(self) -> dict[str, str]:
+        if self.asset_resolver is not None:
+            asset = resolve_runtime_asset(self.asset_resolver, "font.primary_ttf")
+            return resource_record(
+                "font", "font.primary_ttf", asset, source="fonts/dna_fonts.ttf"
+            )
         return {
             "kind": "font",
             "key": "dna_fonts",
@@ -820,6 +837,7 @@ class NoticesRenderer:
             text_lines=tuple(lines),
             resources=tuple(resources),
             sections=tuple(sections),
+            incomplete=resources_incomplete(resources),
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
@@ -840,25 +858,46 @@ class NoticesRenderer:
             hours=1
         )
         remaining_seconds = int((next_refresh - now).total_seconds())
-        if is_simple:
-            image_bytes = await draw_mh_simple(
-                snapshot.sections,
-                remaining_seconds,
-                subscribe_list=subscribe_list,
-            )
-        else:
-            image_bytes = await draw_mh_card(
-                snapshot.sections,
-                remaining_seconds,
-                subscribe_list=subscribe_list,
-            )
         lines = ["二重螺旋 · 密函"]
         for section in snapshot.sections:
             lines.append(f"{section.type_name}:")
             lines.extend(
                 f"{item.name} (id={item.instance_id})" for item in section.instances
             )
-        resources: list[dict[str, str]] = [self._font_resource()]
+
+        if self.asset_resolver is not None:
+            font_asset = resolve_runtime_asset(
+                self.asset_resolver, "font.primary_ttf"
+            )
+            texture_key = "texture.mh.simple" if is_simple else "texture.mh.card"
+            texture_asset = resolve_runtime_asset(self.asset_resolver, texture_key)
+            image_bytes = render_runtime_card(
+                "二重螺旋 · 密函",
+                lines,
+                font_asset=font_asset,
+                image_assets=((texture_key, texture_asset),),
+            )
+            resources: list[dict[str, str]] = [
+                resource_record(
+                    "font", "font.primary_ttf", font_asset, source="fonts/dna_fonts.ttf"
+                ),
+                resource_record("texture", texture_key, texture_asset),
+            ]
+        elif is_simple:
+            image_bytes = await draw_mh_simple(
+                snapshot.sections,
+                remaining_seconds,
+                subscribe_list=subscribe_list,
+            )
+            resources = [self._font_resource()]
+        else:
+            image_bytes = await draw_mh_card(
+                snapshot.sections,
+                remaining_seconds,
+                subscribe_list=subscribe_list,
+            )
+            resources = [self._font_resource()]
+
         sections: list[dict[str, Any]] = []
         for section in snapshot.sections:
             sections.append(
@@ -891,6 +930,30 @@ class NoticesRenderer:
         sections: list[dict[str, Any]] = [
             {"name": "公告", "items": len(snapshot.posts)}
         ]
+        if self.asset_resolver is not None:
+            texture_asset = resolve_runtime_asset(
+                self.asset_resolver, "texture.ann.list"
+            )
+            resources.append(
+                resource_record(
+                    "texture",
+                    "texture.ann.list",
+                    texture_asset,
+                    source="textures/ann/list.png",
+                )
+            )
+            image_bytes = render_runtime_card(
+                "二重螺旋 · 公告列表",
+                lines,
+                font_asset=resolve_runtime_asset(
+                    self.asset_resolver, "font.primary_ttf"
+                ),
+                image_assets=(("texture.ann.list", texture_asset),),
+            )
+            return self._write(
+                image_bytes, lines=lines, resources=resources, sections=sections
+            )
+
         cache_key = self.list_cache_key(snapshot)
         cached = await self._cached_image(cache_key)
         if cached is not None:
@@ -964,6 +1027,30 @@ class NoticesRenderer:
         sections: list[dict[str, Any]] = [
             {"name": "详情正文", "items": len(detail.blocks)}
         ]
+        if self.asset_resolver is not None:
+            texture_asset = resolve_runtime_asset(
+                self.asset_resolver, "texture.ann.detail"
+            )
+            resources.append(
+                resource_record(
+                    "texture",
+                    "texture.ann.detail",
+                    texture_asset,
+                    source="textures/ann/detail.png",
+                )
+            )
+            image_bytes = render_runtime_card(
+                "二重螺旋 · 公告详情",
+                lines,
+                font_asset=resolve_runtime_asset(
+                    self.asset_resolver, "font.primary_ttf"
+                ),
+                image_assets=(("texture.ann.detail", texture_asset),),
+            )
+            return self._write(
+                image_bytes, lines=lines, resources=resources, sections=sections
+            )
+
         fingerprint = announcement_fingerprint(detail)
         cached_pages = await self._cached_detail_pages(detail)
         if cached_pages is not None:

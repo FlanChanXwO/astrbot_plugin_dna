@@ -41,7 +41,7 @@ from src.modules.encyclopedia.contracts import (
     WeeklyReportCategory,
     WeeklyReportItem,
 )
-from src.modules.notices.contracts import AnnPost, AnnSnapshot
+from src.modules.notices.contracts import AnnBlock, AnnDetail, AnnPost, AnnSnapshot
 from src.modules.player.contracts import (
     RoleAttribute,
     RoleDetail,
@@ -287,6 +287,23 @@ async def test_checkin_missing_textures_are_placeholder_and_incomplete(
 
 
 @pytest.mark.asyncio
+async def test_sign_report_missing_font_uses_css_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """独立签到广播卡缺少字体时也不能因本地路径读取失败。"""
+
+    async def fake_render(*_: object, **__: object) -> bytes:
+        return _jpeg_bytes()
+
+    monkeypatch.setattr(checkin_module, "FONT_ORIGIN_PATH", tmp_path / "missing.ttf")
+    monkeypatch.setattr(checkin_module._RENDERER, "render", fake_render)
+
+    rendered = await checkin_module.create_sign_info_image("✅标题", theme="green")
+
+    assert rendered == _jpeg_bytes()
+
+
+@pytest.mark.asyncio
 async def test_notices_missing_font_and_textures_are_incomplete(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -304,6 +321,35 @@ async def test_notices_missing_font_and_textures_are_incomplete(
         AnnSnapshot(posts=(AnnPost(post_id="1001", title="公告甲"),)),
     )
 
+    _assert_missing_keys(resolver, ("font.",), ("texture.ann",))
+    assert rendered.incomplete is True
+
+
+@pytest.mark.asyncio
+async def test_notices_detail_uses_resolver_without_legacy_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """公告详情在 resolver 模式下不得回到旧的 HTML/T2I 资源路径。"""
+
+    async def fail_legacy(*_: object, **__: object) -> bytes:
+        raise AssertionError("resolver 模式不应调用 legacy 公告详情绘制")
+
+    monkeypatch.setattr(notices_module, "draw_ann_detail_card", fail_legacy)
+    resolver = RecordingResolver()
+    renderer = NoticesRenderer(tmp_path / "rendered", EncyclopediaResourceStore())
+    _attach_resolver(renderer, resolver)
+    detail = AnnDetail(
+        post_id="1001",
+        title="公告甲",
+        blocks=(
+            AnnBlock(kind="text", text="正文"),
+            AnnBlock(kind="image", image_url="https://example.invalid/image.png"),
+        ),
+    )
+
+    rendered = await renderer.render_ann_detail(detail)
+
+    assert not isinstance(rendered, tuple)
     _assert_missing_keys(resolver, ("font.",), ("texture.ann",))
     assert rendered.incomplete is True
 

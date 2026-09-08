@@ -25,16 +25,26 @@ from ..resources.encyclopedia import EncyclopediaResourceStore
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
+from .legacy_assets import (
+    BACKGROUND_PATH,
+    COMMON_PATH,
+    FONT_ORIGIN_PATH,
+    SIGN_TEXT_PATH,
+)
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
+from .runtime_assets import (
+    AssetResolverLike,
+    render_runtime_card,
+    resolve_runtime_asset,
+    resolved_font_data_uri,
+    resource_record,
+    resources_incomplete,
+)
 from .spec import RenderSpec
 
 _RENDERER = HtmlRenderer()
-RESOURCES_DIR = Path(__file__).parents[2] / "resources"
-BACKGROUND_PATH = RESOURCES_DIR / "textures" / "common" / "bg1.jpg"
-TEXT_PATH = RESOURCES_DIR / "textures" / "sign"
-COMMON_PATH = RESOURCES_DIR / "textures" / "common"
-FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
+TEXT_PATH = SIGN_TEXT_PATH
 
 
 async def _draw_sign_calendar_view(
@@ -260,10 +270,15 @@ async def create_sign_info_image(text: str, theme: str = "blue") -> bytes:
         "pink": "#ffe6e6",
         "green": "#e6ffe6",
     }
+    font_uri, _ = resolved_font_data_uri(
+        None,
+        "font.primary_ttf",
+        legacy_path=FONT_ORIGIN_PATH,
+    )
     return await _RENDERER.render(
         "cards/sign_report.html.j2",
         {
-            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "font": font_uri,
             "lines": text[1:].split("\n"),
             "theme_color": colors.get(theme, colors["blue"]),
             "width": 600,
@@ -280,6 +295,7 @@ class RenderedCheckinImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, object], ...]
+    incomplete: bool = False
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
@@ -289,10 +305,16 @@ class CheckinRenderer:
     """用最小领域投影绘制签到卡，并保留 legacy 绘制入口兼容性。"""
 
     def __init__(
-        self, output_dir: str | Path, resources: EncyclopediaResourceStore
+        self,
+        output_dir: str | Path,
+        resources: EncyclopediaResourceStore,
+        *,
+        resolver_factory: object | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
+        self.resolver_factory = resolver_factory
+        self.asset_resolver: AssetResolverLike | None = None
 
     async def render_calendar(
         self,
@@ -323,20 +345,62 @@ class CheckinRenderer:
             at=target_user_id,
             unified_msg_origin=actor.unified_msg_origin or "",
         )
-        image_bytes = await _draw_sign_calendar(
-            ctx,
-            role_header,
-            data.calendar,
-            data.tasks,
-            data.total_sign_in_days,
-            uid_hidden,
-        )
         lines = (
             role_header.role_name,
             f"社区累计签到: {data.total_sign_in_days}",
             f"游戏累计签到: {data.calendar.signin_time or 0}",
         )
-        resources = ({"kind": "sign_calendar", "status": "legacy"},)
+        font_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            "font.primary_ttf",
+            legacy_path=getattr(self.resources, "font_path", None),
+        )
+        sign_assets = [
+            (
+                name,
+                resolve_runtime_asset(
+                    self.asset_resolver,
+                    f"texture.sign.{name}",
+                    legacy_path=None,
+                ),
+            )
+            for name in ("background", "bar", "item_BG", "green", "red", "line")
+        ]
+        if self.asset_resolver is not None:
+            # resolver 模式不回读已瘦身的源码资源目录，缺失资源由运行期卡片明确降级。
+            image_bytes = render_runtime_card(
+                "签到日历",
+                lines,
+                font_asset=font_asset,
+                image_assets=sign_assets,
+            )
+            resources = (
+                resource_record(
+                    "font",
+                    "font.primary_ttf",
+                    font_asset,
+                    source="fonts/dna_fonts.ttf",
+                ),
+                *(
+                    resource_record(
+                        "texture",
+                        f"texture.sign.{name}",
+                        asset,
+                        source=f"textures/sign/{name}",
+                    )
+                    for name, asset in sign_assets
+                ),
+            )
+        else:
+            image_bytes = await _draw_sign_calendar(
+                ctx,
+                role_header,
+                data.calendar,
+                data.tasks,
+                data.total_sign_in_days,
+                uid_hidden,
+            )
+            resources = ({"kind": "sign_calendar", "status": "legacy"},)
         sections = (
             {
                 "name": "社区任务",
@@ -374,6 +438,7 @@ class CheckinRenderer:
             text_lines=lines,
             resources=resources,
             sections=sections,
+            incomplete=resources_incomplete(resources),
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
