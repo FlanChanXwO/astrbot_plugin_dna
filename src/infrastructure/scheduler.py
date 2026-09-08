@@ -39,6 +39,7 @@ class SignPushPayload:
     text: str
     image_bytes: bytes | None = None
     detail_text: str = ""
+    mention_details: tuple[tuple[str, str], ...] = ()
 
 
 PushCallable = Callable[[str, SignPushPayload], Awaitable[Any]]
@@ -334,13 +335,11 @@ class SignScheduler:
     def _group_payload(report: GroupSignReport) -> SignPushPayload:
         """把一类群报告转换为推送层 payload。"""
 
-        text = "\n".join(
-            part for part in (report.summary_text, report.detail_text) if part
-        )
         return SignPushPayload(
-            text=text,
+            text=report.summary_text,
             image_bytes=report.image_bytes,
             detail_text=report.detail_text,
+            mention_details=report.mention_details,
         )
 
     async def run_sign_once(self) -> str:

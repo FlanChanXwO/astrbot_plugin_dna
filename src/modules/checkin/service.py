@@ -20,6 +20,7 @@ from ...entry.response import ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
+    CredentialRepository,
     SignRecordRepository,
 )
 from ...infrastructure.rendering import CheckinRenderer
@@ -33,6 +34,7 @@ from .contracts import (
     AutoSignReport,
     CheckinCalendarData,
     CheckinCommandRequest,
+    CheckinFailureKind,
     CheckinOutcome,
     CheckinSnapshot,
     CheckinSummary,
@@ -174,6 +176,18 @@ class CheckinService:
                 bbs_share=snapshot.bbs_share,
                 bbs_reply=snapshot.bbs_reply,
             )
+
+    async def _mark_credential_invalid(self, user_id: str, uid: str) -> None:
+        """Persist an upstream-confirmed credential failure for future runs."""
+
+        async with self.database.transaction() as session:
+            changed = await CredentialRepository.mark_app_invalid(
+                session,
+                user_id=user_id,
+                uid=uid,
+            )
+        if changed:
+            logger.warning("已标记签到凭据失效 user=%s", user_id)
 
     def _game_complete(self, snapshot: CheckinSnapshot) -> bool:
         return snapshot.game_sign >= GAME_SIGN_TARGET
@@ -420,6 +434,8 @@ class CheckinService:
         try:
             outcome = await self._sign_one(request.actor, uid, target_user_id)
         except CheckinTransportError as error:
+            if error.kind is CheckinFailureKind.CREDENTIAL:
+                await self._mark_credential_invalid(target_user_id, uid)
             return self._transport_response(
                 error, target=target_user_id != request.actor.user_id
             )
@@ -454,6 +470,8 @@ class CheckinService:
                 credential_user_id=target_user_id,
             )
         except CheckinTransportError as error:
+            if error.kind is CheckinFailureKind.CREDENTIAL:
+                await self._mark_credential_invalid(target_user_id, uid)
             return self._transport_response(
                 error, target=target_user_id != request.actor.user_id
             )
@@ -490,9 +508,10 @@ class CheckinService:
         """为目标绑定执行签到，同时保留按群路由所需的结果。"""
 
         async with self.database.session() as session:
-            bindings = await AccountBindingRepository.list_all(session)
-        if respect_auto_sign:
-            bindings = [binding for binding in bindings if binding.auto_sign_enabled]
+            if respect_auto_sign:
+                bindings = await AccountBindingRepository.list_auto_sign_candidates(session)
+            else:
+                bindings = await AccountBindingRepository.list_all(session)
         if not bindings:
             return _CheckinBatchResult(CheckinSummary(), {})
 
@@ -522,6 +541,17 @@ class CheckinService:
             tasks = [process(binding) for binding in batch_bindings]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for binding, result in zip(batch_bindings, results):
+                if (
+                    isinstance(result, CheckinTransportError)
+                    and result.kind is CheckinFailureKind.CREDENTIAL
+                ):
+                    await self._mark_credential_invalid(binding.user_id, binding.uid)
+                    logger.warning(
+                        "自动签到跳过失效凭据 user=%s resource=%s",
+                        binding.user_id,
+                        result.resource,
+                    )
+                    continue
                 if isinstance(result, CheckinOutcome):
                     outcome = result
                     if result.success:
@@ -538,7 +568,7 @@ class CheckinService:
 
                 if binding.group_id:
                     grouped.setdefault(binding.group_id, []).append(
-                        (binding.uid, outcome)
+                        (binding.user_id, outcome)
                     )
             if self.interval_range[1] > 0:
                 await asyncio.sleep(random.uniform(*self.interval_range))
@@ -569,7 +599,6 @@ class CheckinService:
 
     @staticmethod
     def _group_detail_lines(
-        uid: str,
         outcome: CheckinOutcome,
         report_type: str,
     ) -> tuple[str, ...]:
@@ -581,9 +610,11 @@ class CheckinService:
             status = outcome.bbs_status
             if outcome.error:
                 lines = (*lines, messages.sign_detail_error(outcome.error))
+        if status in (SignStatus.DONE, SignStatus.SKIP):
+            return ()
         if not lines:
             lines = (messages.sign_detail_status(status),)
-        return tuple(messages.group_detail(uid, line) for line in lines)
+        return tuple(lines)
 
     async def _build_group_report(
         self,
@@ -593,13 +624,13 @@ class CheckinService:
         status_attr = "game_status" if report_type == "game" else "bbs_status"
         success = sum(
             getattr(outcome, status_attr) in (SignStatus.DONE, SignStatus.SKIP)
-            for _uid, outcome in results
+            for _user_id, outcome in results
         )
         failed = len(results) - success
-        detail_lines = tuple(
-            line
-            for uid, outcome in results
-            for line in self._group_detail_lines(uid, outcome, report_type)
+        mention_details = tuple(
+            (user_id, "\n".join(lines))
+            for user_id, outcome in results
+            if (lines := self._group_detail_lines(outcome, report_type))
         )
         summary_text = messages.group_summary(report_type, success, failed)
         image_bytes = None
@@ -613,7 +644,8 @@ class CheckinService:
             success=success,
             failed=failed,
             summary_text=summary_text,
-            detail_text="\n".join(detail_lines),
+            detail_text="",
+            mention_details=mention_details,
             image_bytes=image_bytes,
         )
 

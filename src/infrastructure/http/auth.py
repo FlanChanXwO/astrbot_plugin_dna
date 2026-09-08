@@ -23,6 +23,8 @@ _AUTH_FAILURE_MARKERS = (
     "tokenexpired",
     "unauthorized",
     "authenticationfailed",
+    "用户身份校验失败",
+    "身份校验失败",
 )
 
 
