@@ -34,7 +34,7 @@ class WebRegistrar:
         context: Context,
         routes: Iterable[WebRoute] = (),
         *,
-        plugin_name: str = "astrbot_plugin_dnaby",
+        plugin_name: str = "astrbot_plugin_dna",
     ) -> None:
         self._context = context
         self._routes = tuple(routes)
