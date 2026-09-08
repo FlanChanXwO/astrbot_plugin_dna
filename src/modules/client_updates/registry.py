@@ -252,7 +252,7 @@ class ClientUpdateRegistry:
         )
 
 
-_CLIENT_UPDATE_REGISTRY = ClientUpdateRegistry(
+CLIENT_UPDATE_REGISTRY = ClientUpdateRegistry(
     sources=(
         ClientUpdateSource(
             source_id="cn-official-pc-manifest",
@@ -320,8 +320,8 @@ _CLIENT_UPDATE_REGISTRY = ClientUpdateRegistry(
     ),
 )
 
-CLIENT_UPDATE_SOURCES = _CLIENT_UPDATE_REGISTRY.sources_by_id
-CLIENT_UPDATE_TARGETS = _CLIENT_UPDATE_REGISTRY.targets_by_id
+CLIENT_UPDATE_SOURCES = CLIENT_UPDATE_REGISTRY.sources_by_id
+CLIENT_UPDATE_TARGETS = CLIENT_UPDATE_REGISTRY.targets_by_id
 DEFAULT_CLIENT_UPDATE_TARGET_IDS = (
     "cn-official-pc",
     "cn-official-android",
@@ -331,33 +331,34 @@ DEFAULT_CLIENT_UPDATE_TARGET_IDS = (
 def resolve_client_update_source(
     source_id: str | ClientUpdateSource,
 ) -> ClientUpdateSource:
-    return _CLIENT_UPDATE_REGISTRY.resolve_source(source_id)
+    return CLIENT_UPDATE_REGISTRY.resolve_source(source_id)
 
 
 def resolve_client_update_target(
     target_id: str | ClientUpdateTarget,
 ) -> ClientUpdateTarget:
-    return _CLIENT_UPDATE_REGISTRY.resolve_target(target_id)
+    return CLIENT_UPDATE_REGISTRY.resolve_target(target_id)
 
 
 def normalize_client_update_target_ids(target_ids: object) -> tuple[str, ...]:
-    return _CLIENT_UPDATE_REGISTRY.normalize_target_ids(target_ids)
+    return CLIENT_UPDATE_REGISTRY.normalize_target_ids(target_ids)
 
 
 def group_client_update_target_ids_by_source(
     target_ids: object,
 ) -> Mapping[str, tuple[str, ...]]:
-    return _CLIENT_UPDATE_REGISTRY.group_target_ids_by_source(target_ids)
+    return CLIENT_UPDATE_REGISTRY.group_target_ids_by_source(target_ids)
 
 
 def select_client_update_target_ids_by_platform(
     target_ids: object,
     platform: ClientPlatform | str,
 ) -> tuple[str, ...]:
-    return _CLIENT_UPDATE_REGISTRY.select_target_ids_by_platform(target_ids, platform)
+    return CLIENT_UPDATE_REGISTRY.select_target_ids_by_platform(target_ids, platform)
 
 
 __all__ = [
+    "CLIENT_UPDATE_REGISTRY",
     "CLIENT_UPDATE_SOURCES",
     "CLIENT_UPDATE_TARGETS",
     "DEFAULT_CLIENT_UPDATE_TARGET_IDS",

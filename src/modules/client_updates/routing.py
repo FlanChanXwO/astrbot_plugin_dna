@@ -42,20 +42,44 @@ def pending_targets_for_change(
     change: ClientUpdateChange,
     subscriptions: Sequence[Subscription],
 ) -> tuple[ClientUpdatePendingTarget, ...]:
-    """返回变化首次生成时应固定下来的启用订阅目标。"""
+    """固定变化创建时所有有效启用订阅及其 Target 快照。"""
 
     if not isinstance(change, ClientUpdateChange):
         raise TypeError("change 必须是 ClientUpdateChange")
-    active = active_subscriptions(subscriptions)
-    return tuple(
-        ClientUpdatePendingTarget(
-            origin=subscription.unified_msg_origin,
-            uid=subscription.uid,
-            bot_id=subscription.bot_id,
+
+    latest = {
+        (subscription.unified_msg_origin, subscription.uid): subscription
+        for subscription in subscriptions
+    }
+    pending: list[ClientUpdatePendingTarget] = []
+    for subscription in latest.values():
+        if not subscription.enabled or not _has_valid_metadata(subscription):
+            continue
+        pending.append(
+            ClientUpdatePendingTarget(
+                origin=subscription.unified_msg_origin,
+                uid=subscription.uid,
+                bot_id=subscription.bot_id,
+                target_ids=change.target_ids,
+            )
         )
-        for subscription, platforms in active.values()
-        if platforms is not None and change.platform in platforms
-    )
+    return tuple(pending)
+
+
+def _has_valid_metadata(subscription: Subscription) -> bool:
+    """新旧订阅元数据只要仍是 JSON 对象，就可在 T10 清理前参与投递。"""
+
+    try:
+        payload = json.loads(subscription.extra_data)
+        if not isinstance(payload, dict):
+            raise TypeError("订阅元数据必须是对象")
+    except (TypeError, json.JSONDecodeError) as error:
+        logger.warning(
+            "[dnaby][client_update] 订阅元数据无效，跳过投递（错误类型：%s）",
+            type(error).__name__,
+        )
+        return False
+    return True
 
 
 def subscription_platforms(

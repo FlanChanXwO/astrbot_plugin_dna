@@ -777,10 +777,10 @@ def _require_mapping(value: object, context: str) -> Mapping[str, object]:
 
 __all__ = [
     "STATE_VERSION",
-    "canonicalize_client_update_change",
     "ClientUpdateBaseline",
     "ClientUpdatePendingEvent",
     "ClientUpdatePendingTarget",
     "ClientUpdateStateError",
     "ClientUpdateStateStore",
+    "canonicalize_client_update_change",
 ]

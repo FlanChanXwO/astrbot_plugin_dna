@@ -44,6 +44,7 @@ from .delivery import (
     ClientUpdatePushTarget,
 )
 from .registry import (
+    CLIENT_UPDATE_REGISTRY,
     CLIENT_UPDATE_SOURCES,
     CLIENT_UPDATE_TARGETS,
     DEFAULT_CLIENT_UPDATE_TARGET_IDS,
@@ -77,6 +78,7 @@ from .state import (
 __all__ = [
     "CHANNEL_REGISTRY",
     "CLIENT_UPDATE_CHANNELS",
+    "CLIENT_UPDATE_REGISTRY",
     "CLIENT_UPDATE_SOURCES",
     "CLIENT_UPDATE_TARGETS",
     "DEFAULT_CLIENT_UPDATE_TARGET_IDS",
