@@ -12,7 +12,7 @@ schema 为准。
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
-| `general.command_prefixes` | `['kk']` | 命令触发前缀列表；列表中包含空字符串时允许无前缀触发。 |
+| `general.command_prefixes` | `['dna']` | 命令触发前缀列表；列表中包含空字符串时允许无前缀触发。 |
 | `general.allow_mention_query` | `true` | 是否允许通过 @ 查询其他用户的角色信息。 |
 
 修改命令前缀后，发送命令时请使用新前缀；重载插件后生效。

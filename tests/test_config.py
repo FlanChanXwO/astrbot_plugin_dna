@@ -102,8 +102,8 @@ def test_display_settings_supports_configurable_command_prefix():
     assert multi_settings.display.command_prefix == "kk"
 
     default_settings = DnabySettings.from_config({})
-    assert default_settings.display.command_prefix == "kk"
-    assert default_settings.display.command_prefixes == ["kk"]
+    assert default_settings.display.command_prefix == "dna"
+    assert default_settings.display.command_prefixes == ["dna"]
 
 
 def test_display_settings_rejects_invalid_prefix_values():

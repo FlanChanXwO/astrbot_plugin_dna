@@ -111,10 +111,10 @@ class GeneralSettings(_SettingsModel):
     """命令触发和跨功能查询行为配置。"""
 
     command_prefixes: list[str] = Field(
-        default_factory=lambda: ["kk"],
+        default_factory=lambda: ["dna"],
         description="命令触发前缀列表",
         json_schema_extra={
-            "hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发"
+            "hint": "插件支持的命令触发前缀列表，如 ['dna']；列表含空字符串时允许无前缀触发"
         },
     )
     allow_mention_query: bool = Field(
@@ -126,7 +126,7 @@ class GeneralSettings(_SettingsModel):
     @field_validator("command_prefixes", mode="before")
     @classmethod
     def _validate_prefixes(cls, value: Any) -> list[str]:
-        # 前缀错误若回落为 kk 会改变命令触发面，必须让配置边界显式失败。
+        # 前缀错误若回落为 dna 会改变命令触发面，必须让配置边界显式失败。
         if isinstance(value, str):
             return [value]
         if isinstance(value, (list, tuple, set)):
@@ -499,7 +499,7 @@ class NotificationSettings(_SettingsModel):
 class DisplaySettings(_SettingsModel):
     """角色展示和攻略来源配置。"""
 
-    _compat_command_prefixes: list[str] = PrivateAttr(default_factory=lambda: ["kk"])
+    _compat_command_prefixes: list[str] = PrivateAttr(default_factory=lambda: ["dna"])
     _compat_allow_mention_query: bool = PrivateAttr(default=True)
 
     guide_providers: list[Literal["all", "狩月庭攻略组", "猫冬"]] = Field(
@@ -532,7 +532,7 @@ class DisplaySettings(_SettingsModel):
         """保持向前兼容的单前缀访问属性。"""
 
         return (
-            self._compat_command_prefixes[0] if self._compat_command_prefixes else "kk"
+            self._compat_command_prefixes[0] if self._compat_command_prefixes else "dna"
         )
 
     @property

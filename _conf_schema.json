@@ -6,9 +6,9 @@
       "command_prefixes": {
         "type": "list",
         "description": "命令触发前缀列表",
-        "hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发",
+        "hint": "插件支持的命令触发前缀列表，如 ['dna']；列表含空字符串时允许无前缀触发",
         "default": [
-          "kk"
+          "dna"
         ]
       },
       "allow_mention_query": {

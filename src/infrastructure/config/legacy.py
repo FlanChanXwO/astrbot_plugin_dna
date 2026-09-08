@@ -66,7 +66,7 @@ CONFIG_DEFAULT = {
             "CommandPrefix": {
                 "description": "插件指令前缀",
                 "type": "string",
-                "default": "kk",
+                "default": "dna",
             },
             "DNAPaint": {
                 "description": "角色立绘作者",
@@ -275,7 +275,7 @@ class _ConfigNamespace:
                     if hasattr(val, "get_secret_value"):
                         val = val.get_secret_value()
                     if key == "CommandPrefix" and isinstance(val, (list, tuple)):
-                        return ConfigEntry(data=val[0] if val else "kk")
+                        return ConfigEntry(data=val[0] if val else "dna")
                     return ConfigEntry(data=val)
 
             # 2. 尝试从 legacy section 读取

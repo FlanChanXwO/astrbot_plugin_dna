@@ -111,7 +111,7 @@ def _notice_request(
         target_user_id=request.target_user_id,
         parameters=dict(request.parameters if parameters is None else parameters),
         text=request.text,
-        matched_prefix="kk",
+        matched_prefix="dna",
     )
 
 

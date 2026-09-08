@@ -44,7 +44,7 @@ CommandUseCase = Callable[
 ]
 
 _PERMISSIONS = {"user", "admin"}
-COMMAND_PREFIX = "kk"
+COMMAND_PREFIX = "dna"
 COMMAND_EXECUTION_FAILED = "命令执行失败，请稍后重试；管理员可查看日志了解详情。"
 # WakePro 的通用监听器使用 priority=99999，并会拦截“@别人”的非唤醒消息；
 # 带目标的查询命令必须先执行，才能把明确的命令响应保留下来。
@@ -118,7 +118,7 @@ class CommandRequest:
     target_user_id: str | None = None
     reply_id: str | None = None
     images: tuple[str, ...] = ()
-    matched_prefix: str = "kk"
+    matched_prefix: str = "dna"
 
     def __post_init__(self) -> None:
         """校验入口已经快照的调用者权限，避免 use case 接收未知角色。"""
@@ -541,17 +541,17 @@ def _make_handler(
             parameters = dict(match.groupdict())
             parameters.update(provided_parameters)
             actor = actor_from_event(event)
-            configured_prefixes: list[str] = ["kk"]
+            configured_prefixes: list[str] = ["dna"]
             if runtime is not None and hasattr(runtime, "settings"):
                 display_settings = getattr(runtime.settings, "display", None)
                 if display_settings is not None:
                     configured_prefixes = getattr(
                         display_settings,
                         "command_prefixes",
-                        [getattr(display_settings, "command_prefix", "kk")],
+                        [getattr(display_settings, "command_prefix", "dna")],
                     )
 
-            matched_prefix = configured_prefixes[0] if configured_prefixes else "kk"
+            matched_prefix = configured_prefixes[0] if configured_prefixes else "dna"
             sorted_prefixes = sorted(
                 [p for p in configured_prefixes if p],
                 key=len,
