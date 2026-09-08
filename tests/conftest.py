@@ -1,7 +1,7 @@
-"""pytest 根配置：确保插件根目录可导入 ``dnaby``，且 AstrBot 不写插件目录。
+"""pytest 测试配置：隔离运行期数据，并为渲染测试提供确定性实现。
 
 - ``DNABY_DATA_DIR``：让 RESOURCE_PATH 指向临时数据目录。
-- ``ASTRBOT_ROOT``：让 astrbot 的 get_astrbot_data_path() 指向临时根，避免在插件目录生成 data/。
+- ``ASTRBOT_ROOT``：让 AstrBot 数据目录指向临时根，避免测试写入真实运行期数据。
 """
 
 import atexit
@@ -15,16 +15,17 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).parent
+TESTS_DIR = Path(__file__).parent
+ROOT = TESTS_DIR.parent
 
 
 def _prepare_test_environment() -> tuple[Path, Path]:
     """复制只读 fixture 到本次运行专属临时根，避免共享目录累积状态。"""
 
-    session_root = Path(tempfile.mkdtemp(prefix="dnaby-pytest-"))
+    session_root = Path(tempfile.mkdtemp(prefix="dna-pytest-"))
     astrbot_root = session_root / "astrbot"
     data_root = session_root / "plugin-data"
-    shutil.copytree(ROOT / "tests" / ".data", data_root)
+    shutil.copytree(TESTS_DIR / ".data", data_root)
     astrbot_root.mkdir()
     (astrbot_root / "temp").mkdir(parents=True, exist_ok=True)
     Path("data/temp").mkdir(parents=True, exist_ok=True)
@@ -76,7 +77,7 @@ def local_t2i_renderer() -> Iterator[None]:
     ):
         del tmpl_str, tmpl_data
         if return_url:
-            return "https://example.invalid/dnaby-test-render"
+            return "https://example.invalid/dna-test-render"
 
         render_options = options or {}
         image_format = str(render_options.get("type", "jpeg")).lower()
