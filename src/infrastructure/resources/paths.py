@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-PLUGIN_NAME = "astrbot_plugin_dnaby"
+PLUGIN_NAME = "astrbot_plugin_dna"
 RESOURCE_REPOSITORY_NAME = "resources"
 RESOURCE_GENERATIONS_NAME = "resource_generations"
 RESOURCE_GENERATION_STATE_NAME = "current.json"
