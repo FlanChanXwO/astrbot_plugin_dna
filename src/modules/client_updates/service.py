@@ -295,18 +295,24 @@ class ClientUpdateService:
             )
 
         async with self._subscription_mutation_lock:
-            deleted = await subscriptions.delete(
-                messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-                actor.unified_msg_origin,
-                uid="",
-            )
-            await self.state.remove_target(actor.unified_msg_origin, uid="")
-            if not deleted:
+            # 消息发送是不可回滚的外部副作用；取消与 delivery 共用 state 协调锁，
+            # 因而取消返回后不会再开始发送已取消目标的旧 pending 事件。
+            async with self.state.delivery_coordination_lock:
+                deleted = await subscriptions.delete(
+                    messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                    actor.unified_msg_origin,
+                    uid="",
+                )
+                await self.state.remove_target(actor.unified_msg_origin, uid="")
+                if not deleted:
+                    return PlainTextResponse(
+                        messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
+                        need_at=True,
+                    )
                 return PlainTextResponse(
-                    messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
+                    messages.CLIENT_UPDATE_UNSUBSCRIBED,
                     need_at=True,
                 )
-            return PlainTextResponse(messages.CLIENT_UPDATE_UNSUBSCRIBED, need_at=True)
 
     async def _subscription_for_origin(self, origin: str) -> Subscription | None:
         subscriptions = self.subscriptions

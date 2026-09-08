@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 
 import pytest
@@ -315,3 +316,108 @@ async def test_onebot_merge_failure_falls_back_to_independent_source_messages() 
         ("onebot:group:1", "PC update"),
         ("onebot:group:1", "iOS update"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_deliveries_do_not_send_the_same_pending_event_twice(
+    tmp_path,
+) -> None:
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    await _add_subscription(subscriptions, "group:1")
+    seed_delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        _RecordingPushPort({"group:1": [False]}),
+        state=state,
+    )
+    assert await seed_delivery.deliver((_pc_change(),)) == 0
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    @dataclass
+    class BlockingPushPort:
+        pushes: list[ClientUpdatePush] = field(default_factory=list)
+
+        async def send(self, push: ClientUpdatePush) -> bool:
+            self.pushes.append(push)
+            if len(self.pushes) == 1:
+                started.set()
+                await release.wait()
+            return True
+
+    port = BlockingPushPort()
+    delivery = ClientUpdateDeliveryService(subscriptions, port, state=state)
+    first = asyncio.create_task(delivery.deliver(()))
+    await started.wait()
+    second = asyncio.create_task(delivery.deliver(()))
+    await asyncio.sleep(0)
+
+    assert len(port.pushes) == 1
+
+    release.set()
+    assert await asyncio.gather(first, second) == [1, 0]
+    assert len(port.pushes) == 1
+    assert await state.pending_events() == ()
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_waits_for_grouped_delivery_before_returning(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    await _add_subscription(subscriptions, "group:1")
+    seed_delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        _RecordingPushPort({"group:1": [False]}),
+        state=state,
+    )
+    assert await seed_delivery.deliver((_pc_change(),)) == 0
+
+    order: list[str] = []
+
+    @dataclass
+    class OrderedPushPort:
+        pushes: list[ClientUpdatePush] = field(default_factory=list)
+
+        async def send(self, push: ClientUpdatePush) -> bool:
+            self.pushes.append(push)
+            order.append("send")
+            return True
+
+    port = OrderedPushPort()
+    delivery = ClientUpdateDeliveryService(subscriptions, port, state=state)
+    service = ClientUpdateService(state, subscriptions=subscriptions)
+    grouped = asyncio.Event()
+    release = asyncio.Event()
+    original_deliver_groups = delivery._deliver_event_groups
+
+    async def paused_delivery(groups):
+        grouped.set()
+        await release.wait()
+        return await original_deliver_groups(groups)
+
+    monkeypatch.setattr(delivery, "_deliver_event_groups", paused_delivery)
+    delivery_task = asyncio.create_task(delivery.deliver(()))
+    await grouped.wait()
+
+    async def unsubscribe():
+        response = await service.unsubscribe(ClientUpdateRequest(actor=_group_actor()))
+        order.append("unsubscribe")
+        return response
+
+    unsubscribe_task = asyncio.create_task(unsubscribe())
+    await asyncio.sleep(0)
+    assert not unsubscribe_task.done()
+
+    release.set()
+    delivered, response = await asyncio.gather(delivery_task, unsubscribe_task)
+
+    assert delivered == 1
+    assert response.text == messages.CLIENT_UPDATE_UNSUBSCRIBED
+    assert order == ["send", "unsubscribe"]
+    assert len(port.pushes) == 1
+    assert await state.pending_events() == ()
+    assert await delivery.deliver(()) == 0

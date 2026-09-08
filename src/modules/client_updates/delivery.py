@@ -116,11 +116,13 @@ class ClientUpdateDeliveryService:
         self.state = state
 
     async def deliver(self, changes: Sequence[ClientUpdateChange]) -> int:
-        """投递变化；有状态运行时先重试 pending 事件。"""
+        """投递变化；有状态运行时串行完成 pending 的发送与确认。"""
 
-        if self.state is None:
+        state = self.state
+        if state is None:
             return await self._deliver_without_state(changes)
-        return await self._deliver_with_state(changes)
+        async with state.delivery_coordination_lock:
+            return await self._deliver_with_state(changes)
 
     async def _deliver_without_state(
         self,

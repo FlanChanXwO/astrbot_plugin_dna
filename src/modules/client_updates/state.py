@@ -153,7 +153,16 @@ class ClientUpdateStateStore:
         self._baselines: dict[str, ClientUpdateBaseline] = {}
         self._pending_events: dict[str, ClientUpdatePendingEvent] = {}
         self._lock = asyncio.Lock()
+        # 外部消息发送无法由 state 文件事务回滚；投递与取消必须共享这把进程内锁，
+        # 保证“读取 pending → 发送 → 确认”和取消清理之间具有明确先后顺序。
+        self._delivery_coordination_lock = asyncio.Lock()
         self._loaded = False
+
+    @property
+    def delivery_coordination_lock(self) -> asyncio.Lock:
+        """返回投递与取消订阅共享的进程内协调锁。"""
+
+        return self._delivery_coordination_lock
 
     async def load(self) -> None:
         """幂等加载；缺失文件或已识别旧 schema 均视为空状态。"""
