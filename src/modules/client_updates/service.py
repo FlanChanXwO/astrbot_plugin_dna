@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Sequence
 from datetime import datetime, timezone
@@ -59,12 +60,19 @@ class ClientUpdateService:
         self.transport = transport
         self.subscriptions = subscriptions
         self.registry = registry
+        self._poll_lock = asyncio.Lock()
         self.target_ids = registry.normalize_target_ids(
             DEFAULT_CLIENT_UPDATE_TARGET_IDS if target_ids is None else target_ids
         )
         self._target_ids_by_source = registry.group_target_ids_by_source(self.target_ids)
 
     async def poll_now(self) -> tuple[ClientUpdateChange, ...]:
+        """串行执行轮询，避免并发观察以旧 baseline 覆盖新结果。"""
+
+        async with self._poll_lock:
+            return await self._poll_now_unlocked()
+
+    async def _poll_now_unlocked(self) -> tuple[ClientUpdateChange, ...]:
         """每个 Source 读取一次，并原子保存基线与首次 pending 事件。"""
 
         if self.transport is None:

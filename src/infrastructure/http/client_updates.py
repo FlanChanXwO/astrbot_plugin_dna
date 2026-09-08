@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Self, cast
 
 import httpx
+from astrbot.api import logger
 
 from ...modules.client_updates.contracts import (
     AppStoreVersionMetadata,
@@ -106,7 +107,7 @@ _ANDROID_CONFIG = resolve_client_update_source(
 if not isinstance(_PC_CONFIG, ManifestCdnProviderConfig) or not isinstance(
     _ANDROID_CONFIG, ManifestCdnProviderConfig
 ):
-    raise RuntimeError("内置 manifest Source 配置类型无效")
+    raise TypeError("内置 manifest Source 配置类型无效")
 
 # 保留旧常量导出，值唯一来自 Source registry，不再维护第二份 channel 配置。
 PC_PRIMARY_BASE_URL = _PC_CONFIG.primary_base_url
@@ -325,6 +326,13 @@ class ClientUpdateTransport:
         except ClientUpdateTransportError as error:
             if not _can_fallback(error):
                 raise
+            logger.warning(
+                "客户端更新主端点失败，尝试备用端点 "
+                "resource=%s kind=%s status=%s",
+                error.resource,
+                error.kind.value,
+                error.status_code,
+            )
             return (
                 await self._get_json(
                     session,

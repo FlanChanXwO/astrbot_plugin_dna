@@ -8,6 +8,7 @@ from typing import Any, Self
 
 import pytest
 
+from src.infrastructure.http import client_updates as client_updates_module
 from src.infrastructure.http.client_updates import ClientUpdateTransport
 from src.modules.client_updates import (
     CLIENT_UPDATE_SOURCES,
@@ -22,8 +23,8 @@ from src.modules.client_updates import (
     ClientUpdateProviderKind,
     ClientUpdateRegistry,
     ClientUpdateSource,
-    ClientUpdateTransportError,
     ClientUpdateTarget,
+    ClientUpdateTransportError,
     ManifestCdnProviderConfig,
     ManifestCdnVersionMetadata,
     group_client_update_target_ids_by_source,
@@ -672,6 +673,50 @@ async def test_manifest_transport_falls_back_only_for_retryable_failures(
 
     assert observation.current.revision_id == "100"
     assert [request.url for request in session.requests] == [primary_url, fallback_url]
+
+
+@pytest.mark.asyncio
+async def test_manifest_transport_logs_safe_primary_failure_before_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = resolve_client_update_source("cn-official-pc-manifest")
+    config = source.provider_config
+    assert isinstance(config, ManifestCdnProviderConfig)
+    primary_url = f"{config.primary_base_url}/{config.branch}/VersionList.json"
+    fallback_url = f"{config.fallback_base_url}/{config.branch}/VersionList.json"
+    session = _FakeSession(
+        {
+            primary_url: OSError("primary body contains secret-token"),
+            fallback_url: _FakeResponse(503, {}),
+        }
+    )
+
+    class RecordingLogger:
+        def __init__(self) -> None:
+            self.calls: list[tuple[object, tuple[object, ...]]] = []
+
+        def warning(self, message: object, *args: object) -> None:
+            self.calls.append((message, args))
+
+    logger = RecordingLogger()
+    monkeypatch.setattr(client_updates_module, "logger", logger)
+
+    with pytest.raises(ClientUpdateTransportError) as caught:
+        await ClientUpdateTransport(session_factory=lambda: session).get_observation(
+            source.source_id
+        )
+
+    assert caught.value.kind is ClientUpdateFailureKind.STATUS
+    assert caught.value.status_code == 503
+    assert logger.calls == [
+        (
+            "客户端更新主端点失败，尝试备用端点 resource=%s kind=%s status=%s",
+            ("VersionList", "network", None),
+        )
+    ]
+    assert primary_url not in repr(logger.calls)
+    assert fallback_url not in repr(logger.calls)
+    assert "secret-token" not in repr(logger.calls)
 
 
 @pytest.mark.asyncio

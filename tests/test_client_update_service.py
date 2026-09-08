@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -372,6 +373,77 @@ async def test_poll_isolates_one_source_failure_and_keeps_other_change() -> None
     assert tuple(change.source_id for change in changes) == (android_source,)
     assert changes[0].added_size_bytes == 4096
     assert state.writes == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_polls_are_serialized_before_reading_source_baseline(
+    tmp_path,
+) -> None:
+    source_id = "cn-official-pc-manifest"
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    await state.save_baseline(
+        ClientUpdateBaseline(
+            version=_source_version(source_id, "100", order_key=(100, 100)),
+            observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+        )
+    )
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+
+    class ConcurrentTransport:
+        def __init__(self) -> None:
+            self.baselines: list[str] = []
+            self.active = 0
+            self.max_active = 0
+
+        async def get_observation(
+            self,
+            _source_id: str,
+            *,
+            baseline: ClientSourceVersion | None = None,
+        ) -> ClientSourceObservation:
+            assert baseline is not None
+            self.baselines.append(baseline.revision_id)
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            if len(self.baselines) == 1:
+                first_started.set()
+                await release_first.wait()
+            next_revision = str(int(baseline.revision_id) + 2)
+            current = _source_version(
+                source_id,
+                next_revision,
+                order_key=(int(next_revision), int(next_revision)),
+            )
+            self.active -= 1
+            return ClientSourceObservation(
+                current=current,
+                observed_versions=(baseline, current),
+                history_complete=True,
+                added_size_bytes=1024,
+            )
+
+    transport = ConcurrentTransport()
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        target_ids=("cn-official-pc",),
+    )
+
+    first_poll = asyncio.create_task(service.poll_now())
+    await first_started.wait()
+    second_poll = asyncio.create_task(service.poll_now())
+    await asyncio.sleep(0)
+    release_first.set()
+    first_changes, second_changes = await asyncio.gather(first_poll, second_poll)
+
+    assert transport.max_active == 1
+    assert transport.baselines == ["100", "102"]
+    assert tuple(change.current.revision_id for change in first_changes) == ("102",)
+    assert tuple(change.current.revision_id for change in second_changes) == ("104",)
+    baseline = await state.get_baseline(source_id)
+    assert baseline is not None
+    assert baseline.version.revision_id == "104"
 
 
 @pytest.mark.asyncio
