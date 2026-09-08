@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from ...utils.api.model import Mode, WeaponDetail
 from ...utils.image import get_mod_img, get_weapon_img
 from .assets import image_data_uri, pil_image_data_uri
+from .legacy_assets import DETAIL_TEXT_PATH
 
-TEXT_PATH = Path(__file__).parents[2] / "resources" / "textures" / "detail"
+TEXT_PATH = DETAIL_TEXT_PATH
 
 
 def _mode_quality(mode: Mode) -> int:

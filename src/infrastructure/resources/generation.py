@@ -598,14 +598,24 @@ class ResourceSnapshotCoordinator:
 
     @contextmanager
     def bind_renderer(self, renderer: Any, resource_attr: str) -> Iterator[Any]:
-        """复制 renderer 并绑定一个持有 generation lease 的资源视图。"""
+        """复制 renderer 并绑定持有 generation lease 的资源与 resolver。"""
 
-        with self.bind_resource(resource_attr) as resources:
-            if resources is None:
+        with self.optional_lease() as snapshot:
+            resolver_factory = getattr(renderer, "resolver_factory", None)
+            if snapshot is None and not callable(resolver_factory):
                 yield renderer
                 return
+
             bound = copy(renderer)
-            bound.resources = resources
+            if snapshot is not None:
+                try:
+                    bound.resources = getattr(snapshot, resource_attr)
+                except AttributeError as exc:
+                    raise ResourceGenerationError(
+                        f"资源 generation 视图字段无效: {resource_attr}"
+                    ) from exc
+            if callable(resolver_factory):
+                bound.asset_resolver = resolver_factory(snapshot)
             yield bound
 
     def _release(self, commit_sha: str) -> None:

@@ -111,11 +111,29 @@ class RuntimeAssetResolver:
             return None
         return path
 
+    @staticmethod
+    def _mapping_value(mapping: Mapping[str, str], logical_key: str) -> str | None:
+        """查找 exact key 或登记过的单段 wildcard key。"""
+
+        exact = mapping.get(logical_key)
+        if exact is not None:
+            return exact
+        for pattern, value in sorted(mapping.items(), key=lambda item: -len(item[0])):
+            if not pattern.endswith("*"):
+                continue
+            prefix = pattern[:-1]
+            if logical_key.startswith(prefix) and len(logical_key) > len(prefix):
+                suffix = logical_key[len(prefix) :]
+                return value.replace("*", suffix)
+        return None
+
     def resolve(self, logical_key: str) -> ResolvedAsset:
         """解析一个逻辑资源 key，不命中时返回显式 missing 状态。"""
 
         logical_key = self._validate_logical_key(logical_key)
-        relative_path = self._snapshot_assets.get(logical_key)
+        relative_path = self._mapping_value(self._snapshot_assets, logical_key)
+        if relative_path is not None:
+            relative_path = self._validate_snapshot_path(relative_path)
         if self._snapshot_root is not None and relative_path is not None:
             snapshot_path = self._verified_file(self._snapshot_root, relative_path)
             if snapshot_path is not None:

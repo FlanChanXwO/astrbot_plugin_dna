@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import httpx
 
 from ...utils.image import get_avatar_img
@@ -11,8 +9,9 @@ from ...utils.image_utils import get_event_avatar
 from ...utils.resource.RESOURCE_PATH import AVATAR_PATH
 from ...utils.session import EventContext
 from .assets import image_data_uri, pil_image_data_uri
+from .legacy_assets import COMMON_PATH
 
-TEXTURE_PATH = Path(__file__).parents[2] / "resources" / "textures" / "common"
+TEXTURE_PATH = COMMON_PATH
 
 
 async def build_profile_header(

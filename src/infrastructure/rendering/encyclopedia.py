@@ -47,18 +47,24 @@ from ..resources.encyclopedia import EncyclopediaResourceStore
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
+from .legacy_assets import (
+    CALENDAR_TEXT_PATH,
+    COMMON_PATH,
+    FONT_ORIGIN_PATH,
+    STAMINA_TEXT_PATH,
+    WEEKLY_TEXT_PATH,
+)
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
+from .runtime_assets import (
+    render_runtime_card,
+    resolve_runtime_asset,
+    resource_record,
+    resources_incomplete,
+)
 from .spec import RenderSpec
 
 _RENDERER = HtmlRenderer()
-RESOURCES_DIR = Path(__file__).parents[2] / "resources"
-COMMON_PATH = RESOURCES_DIR / "textures" / "common"
-STAMINA_TEXT_PATH = RESOURCES_DIR / "textures" / "stamina"
-WEEKLY_TEXT_PATH = RESOURCES_DIR / "textures" / "weekly_report"
-CALENDAR_TEXT_PATH = RESOURCES_DIR / "textures" / "calendar"
-TEXT_PATH = CALENDAR_TEXT_PATH
-FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 
 
@@ -691,6 +697,7 @@ class RenderedEncyclopediaImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
+    incomplete: bool = False
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
@@ -714,11 +721,27 @@ def _legacy_role_payload(role: RoleOverview) -> dict[str, Any]:
 class EncyclopediaRenderer:
     """生成百科/便签/周报/日历卡片的运行期 PNG。"""
 
-    def __init__(self, output_dir: str | Path, resources: EncyclopediaResourceStore) -> None:
+    def __init__(
+        self,
+        output_dir: str | Path,
+        resources: EncyclopediaResourceStore,
+        *,
+        resolver_factory: Any | None = None,
+    ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
+        self.asset_resolver: Any | None = None
+        self.resolver_factory = resolver_factory
 
     def _font_resource(self) -> dict[str, str]:
+        if self.asset_resolver is not None:
+            asset = resolve_runtime_asset(self.asset_resolver, "font.primary_ttf")
+            return resource_record(
+                "font",
+                "font.primary_ttf",
+                asset,
+                source="fonts/dna_fonts.ttf",
+            )
         return {
             "kind": "font",
             "key": "dna_fonts",
@@ -772,6 +795,7 @@ class EncyclopediaRenderer:
             text_lines=tuple(lines),
             resources=tuple(resources),
             sections=tuple(sections),
+            incomplete=resources_incomplete(resources),
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
@@ -842,11 +866,15 @@ class EncyclopediaRenderer:
             at=avatar_user_id,
             unified_msg_origin="" if actor is None or actor.unified_msg_origin is None else actor.unified_msg_origin,
         )
-        image_bytes = await _draw_stamina_card(
-            ctx,
-            role_show,
-            short_note,
-            uid_hidden=uid_hidden,
+        font_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            "font.primary_ttf",
+            legacy_path=self.resources.font_path,
+        )
+        stamina_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            "texture:stamina:bg",
+            legacy_path=None,
         )
 
         rougelike_count = getattr(snapshot, "rouge_like_reward_count", getattr(snapshot, "rougelike_reward_count", 0))
@@ -873,15 +901,33 @@ class EncyclopediaRenderer:
             lines.extend(f"生产: {item.name}" for item in snapshot.draft_info.doing_items if item.name)
             lines.extend(f"已完成: {item.name}" for item in snapshot.draft_info.finish_items if item.name)
 
-        resources = [
-            self._font_resource(),
-            {
-                "kind": "texture_dir",
-                "key": "stamina_textures",
-                "status": "legacy",
-                "source": "resources/textures/stamina",
-            },
-        ]
+        if self.asset_resolver is not None:
+            image_bytes = render_runtime_card(
+                "体力便签",
+                lines,
+                font_asset=font_asset,
+                image_assets=(("stamina", stamina_asset),),
+            )
+            resources = [
+                resource_record("font", "font.primary_ttf", font_asset, source="fonts/dna_fonts.ttf"),
+                resource_record("texture", "texture:stamina:bg", stamina_asset, source="textures/stamina/bg"),
+            ]
+        else:
+            image_bytes = await _draw_stamina_card(
+                ctx,
+                role_show,
+                short_note,
+                uid_hidden=uid_hidden,
+            )
+            resources = [
+                self._font_resource(),
+                {
+                    "kind": "texture_dir",
+                    "key": "stamina_textures",
+                    "status": "legacy",
+                    "source": "resources/textures/stamina",
+                },
+            ]
         sections = [
             {"name": "日常便签", "items": 4},
             {"name": "图纸生产", "items": len(getattr(snapshot, "drafts", ())) if drafts is not None else (0 if getattr(snapshot, "draft_info", None) is None else snapshot.draft_info.draft_doing_num)},
@@ -948,13 +994,23 @@ class EncyclopediaRenderer:
             at=avatar_user_id,
             unified_msg_origin="" if actor is None or actor.unified_msg_origin is None else actor.unified_msg_origin,
         )
-        image_bytes = await _draw_weekly_report_card(
-            ctx,
-            role_show,
-            report,
-            week_type=snapshot.week_type,
-            uid_hidden=uid_hidden,
+        font_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            "font.primary_ttf",
+            legacy_path=self.resources.font_path,
         )
+        weekly_assets = [
+            (
+                f"weekly-{item.item_id}",
+                resolve_runtime_asset(
+                    self.asset_resolver,
+                    f"weekly:item:{item.item_id}",
+                    legacy_path=None,
+                ),
+            )
+            for category in snapshot.categories
+            for item in category.items
+        ]
 
         lines = [
             role.role_name,
@@ -969,18 +1025,48 @@ class EncyclopediaRenderer:
                 lines.append(item.item_name)
 
         sections = [{"name": category.category_name, "items": len(category.items)} for category in snapshot.categories]
-        resources = [self._font_resource()]
-        for category in snapshot.categories:
-            for item in category.items:
-                status = "provided" if self.resources.weekly_asset(item.item_id) is not None else "placeholder"
-                resources.append(
-                    {
-                        "kind": "weekly_item",
-                        "key": str(item.item_id),
-                        "status": status,
-                        "source": f"resources/weekly_item/item_{item.item_id}.png",
-                    }
-                )
+        if self.asset_resolver is not None:
+            image_bytes = render_runtime_card(
+                "每周报告",
+                lines,
+                font_asset=font_asset,
+                image_assets=weekly_assets,
+            )
+            resources = [
+                resource_record("font", "font.primary_ttf", font_asset, source="fonts/dna_fonts.ttf"),
+                *[
+                    resource_record(
+                        "weekly_item",
+                        str(item.item_id),
+                        asset,
+                        source=f"weekly_item/item_{item.item_id}.png",
+                    )
+                    for item, (_, asset) in zip(
+                        [item for category in snapshot.categories for item in category.items],
+                        weekly_assets,
+                    )
+                ],
+            ]
+        else:
+            image_bytes = await _draw_weekly_report_card(
+                ctx,
+                role_show,
+                report,
+                week_type=snapshot.week_type,
+                uid_hidden=uid_hidden,
+            )
+            resources = [self._font_resource()]
+            for category in snapshot.categories:
+                for item in category.items:
+                    status = "provided" if self.resources.weekly_asset(item.item_id) is not None else "placeholder"
+                    resources.append(
+                        {
+                            "kind": "weekly_item",
+                            "key": str(item.item_id),
+                            "status": status,
+                            "source": f"resources/weekly_item/item_{item.item_id}.png",
+                        }
+                    )
         return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
 
     async def render_calendar(
@@ -999,23 +1085,62 @@ class EncyclopediaRenderer:
             )
             for event in snapshot.events
         ]
-        image_bytes = await _draw_calendar_card_bytes(contents, calendar_assets=self.resources.calendar_assets)
+        font_asset = resolve_runtime_asset(
+            self.asset_resolver,
+            "font.primary_ttf",
+            legacy_path=self.resources.font_path,
+        )
+        calendar_assets = [
+            (
+                event.title,
+                resolve_runtime_asset(
+                    self.asset_resolver,
+                    f"calendar:{event.pic or event.title}",
+                    legacy_path=None,
+                ),
+            )
+            for event in snapshot.events
+        ]
         lines = ["二重螺旋 · 活动日历"]
         for event in snapshot.events:
             lines.append(f"{event.title}: {_value(event.start_at) if event.start_at else ''} ~ {_value(event.end_at) if event.end_at else ''}")
             lines.append(event.title)
-        resources = [self._font_resource()]
-        for event in snapshot.events:
-            asset = self.resources.calendar_asset(event.pic) or self.resources.calendar_asset(event.title)
-            status = "provided" if asset is not None else "placeholder"
-            resources.append(
-                {
-                    "kind": "calendar",
-                    "key": event.title,
-                    "status": status,
-                    "source": f"resources/calendar/{event.pic}",
-                }
+        if self.asset_resolver is not None:
+            image_bytes = render_runtime_card(
+                "活动日历",
+                lines,
+                font_asset=font_asset,
+                image_assets=calendar_assets,
             )
+            resources = [
+                resource_record("font", "font.primary_ttf", font_asset, source="fonts/dna_fonts.ttf"),
+                *[
+                    resource_record(
+                        "calendar",
+                        event.title,
+                        asset,
+                        source=f"calendar/{event.pic}",
+                    )
+                    for event, (_, asset) in zip(snapshot.events, calendar_assets)
+                ],
+            ]
+        else:
+            image_bytes = await _draw_calendar_card_bytes(
+                contents,
+                calendar_assets=self.resources.calendar_assets,
+            )
+            resources = [self._font_resource()]
+            for event in snapshot.events:
+                asset = self.resources.calendar_asset(event.pic) or self.resources.calendar_asset(event.title)
+                status = "provided" if asset is not None else "placeholder"
+                resources.append(
+                    {
+                        "kind": "calendar",
+                        "key": event.title,
+                        "status": status,
+                        "source": f"resources/calendar/{event.pic}",
+                    }
+                )
         sections = [{"name": "活动日历", "items": len(snapshot.events)}]
         return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
 

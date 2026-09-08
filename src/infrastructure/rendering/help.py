@@ -9,16 +9,27 @@ from typing import TYPE_CHECKING, Any
 from ...entry.commands import COMMAND_GROUP_ORDER
 from ...version import PLUGIN_VERSION
 from .assets import font_data_uri, image_data_uri
+from .legacy_assets import (
+    HELP_BACKGROUND_PATH,
+    HELP_BANNER_PATH,
+    HELP_CAG_PATH,
+    HELP_DATA,
+    HELP_DATA_FALLBACK,
+    HELP_FONT_PATH,
+    HELP_FOOTER_PATH,
+    HELP_ICON_DIR,
+    HELP_ITEM_PATH,
+    PLUGIN_ICON_PATH,
+)
 from .renderer import HtmlRenderer
+from .runtime_assets import resolved_font_data_uri, resolved_image_data_uri
 from .spec import RenderSpec
 
 if TYPE_CHECKING:
     from ...entry.commands import CommandRegistry, PermissionName
 
-HELP_DATA = Path(__file__).parents[2] / "resources" / "help" / "help.json"
-BACKGROUND_PATH = Path(__file__).parents[2] / "resources" / "textures" / "help" / "bg.jpg"
-HELP_FONT_PATH = Path(__file__).parents[2] / "resources" / "fonts" / "MiSansVF.woff2"
-ICON_DIR = Path(__file__).parents[2] / "resources" / "help" / "icon_path"
+BACKGROUND_PATH = HELP_BACKGROUND_PATH
+ICON_DIR = HELP_ICON_DIR
 
 CARD_W = 2020
 HELP_TOP = 766
@@ -41,11 +52,9 @@ def invalidate_help_cache() -> None:
 
 
 def _load_help_data() -> dict[str, Any]:
-    if not HELP_DATA.exists():
-        fallback = Path(__file__).parents[2] / "resources" / "help.json"
-        if fallback.exists():
-            with fallback.open("r", encoding="utf-8") as file:
-                return json.load(file)
+    if not HELP_DATA.exists() and HELP_DATA_FALLBACK.exists():
+        with HELP_DATA_FALLBACK.open("r", encoding="utf-8") as file:
+            return json.load(file)
     with HELP_DATA.open("r", encoding="utf-8") as file:
         return json.load(file)
 
@@ -93,7 +102,27 @@ def _find_icon(name: str) -> Path:
     return icon_dir / "通用.png"
 
 
-def _help_sections(plugin_help: dict[str, Any], prefix: str = "kk") -> list[dict[str, Any]]:
+def _help_icon_uri(
+    name: str,
+    asset_resolver: Any | None,
+) -> str:
+    path = _find_icon(name)
+    if asset_resolver is None:
+        return image_data_uri(path)
+    return resolved_image_data_uri(
+        asset_resolver,
+        f"texture.help.icon:{name}",
+        legacy_path=path,
+        label=name,
+    )[0]
+
+
+def _help_sections(
+    plugin_help: dict[str, Any],
+    prefix: str = "kk",
+    *,
+    asset_resolver: Any | None = None,
+) -> list[dict[str, Any]]:
     """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
     sections: list[dict[str, Any]] = []
     for name in _ordered_group_names(plugin_help):
@@ -104,7 +133,7 @@ def _help_sections(plugin_help: dict[str, Any], prefix: str = "kk") -> list[dict
             items.append(
                 {
                     "example": _format_example(str(command.get("eg", "")), prefix=prefix),
-                    "icon": image_data_uri(_find_icon(item_name)),
+                    "icon": _help_icon_uri(item_name, asset_resolver),
                     "name": item_name,
                 }
             )
@@ -125,6 +154,8 @@ def _registry_help_sections(
     permission: PermissionName,
     prefix: str,
     plugin_help: dict[str, Any],
+    *,
+    asset_resolver: Any | None = None,
 ) -> list[dict[str, Any]]:
     """以 registry 为命令唯一来源，同时沿用资源文件中的分组说明和图标。"""
 
@@ -148,7 +179,7 @@ def _registry_help_sections(
         grouped.setdefault(spec.group, []).append(
             {
                 "example": _format_example(" / ".join(examples), prefix=prefix),
-                "icon": image_data_uri(_find_icon(spec.name)),
+                "icon": _help_icon_uri(spec.name, asset_resolver),
                 "name": spec.name,
             },
         )
@@ -193,37 +224,115 @@ async def get_help(
     registry: CommandRegistry | None = None,
     permission: PermissionName = "user",
     version: str = PLUGIN_VERSION,
+    asset_resolver: Any | None = None,
 ) -> bytes:
     """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
 
     cache_key = (registry, prefix, permission, version) if registry is not None else None
-    if cache_key is not None and cache_key in _HELP_CACHE:
+    if asset_resolver is None and cache_key is not None and cache_key in _HELP_CACHE:
         return _HELP_CACHE[cache_key]
 
     plugin_help = _load_help_data()
     if registry is None:
-        sections = _help_sections(plugin_help, prefix=prefix)
+        sections = _help_sections(
+            plugin_help,
+            prefix=prefix,
+            asset_resolver=asset_resolver,
+        )
         lines = list(_iter_help_lines(plugin_help, prefix=prefix))
     else:
-        sections = _registry_help_sections(registry, permission, prefix, plugin_help)
+        sections = _registry_help_sections(
+            registry,
+            permission,
+            prefix,
+            plugin_help,
+            asset_resolver=asset_resolver,
+        )
         lines = []
+    background_uri = (
+        image_data_uri(BACKGROUND_PATH)
+        if asset_resolver is None
+        else resolved_image_data_uri(
+            asset_resolver,
+            "texture.help.background",
+            legacy_path=BACKGROUND_PATH,
+            label="help-background",
+        )[0]
+    )
+    banner_uri = (
+        image_data_uri(
+            HELP_BANNER_PATH,
+        )
+        if asset_resolver is None
+        else resolved_image_data_uri(
+            asset_resolver,
+            "texture.help.banner",
+            legacy_path=HELP_BANNER_PATH,
+            label="help-banner",
+        )[0]
+    )
+    cag_uri = (
+        image_data_uri(
+            HELP_CAG_PATH,
+        )
+        if asset_resolver is None
+        else resolved_image_data_uri(
+            asset_resolver,
+            "texture.help.cag",
+            legacy_path=HELP_CAG_PATH,
+            label="help-cag",
+        )[0]
+    )
+    footer_uri = (
+        image_data_uri(HELP_FOOTER_PATH)
+        if asset_resolver is None
+        else resolved_image_data_uri(
+            asset_resolver,
+            "texture.common.footer",
+            legacy_path=HELP_FOOTER_PATH,
+            label="footer",
+        )[0]
+    )
+    icon_uri = (
+        image_data_uri(PLUGIN_ICON_PATH)
+        if asset_resolver is None
+        else resolved_image_data_uri(
+            asset_resolver,
+            "texture.help.logo",
+            legacy_path=PLUGIN_ICON_PATH,
+            label="logo",
+        )[0]
+    )
+    item_uri = (
+        image_data_uri(
+            HELP_ITEM_PATH,
+        )
+        if asset_resolver is None
+        else resolved_image_data_uri(
+            asset_resolver,
+            "texture.help.item",
+            legacy_path=HELP_ITEM_PATH,
+            label="help-item",
+        )[0]
+    )
+    font_uri = (
+        font_data_uri(HELP_FONT_PATH)
+        if asset_resolver is None
+        else resolved_font_data_uri(
+            asset_resolver,
+            "font.help",
+            legacy_path=HELP_FONT_PATH,
+        )[0]
+    )
     template_data = {
-        "background": image_data_uri(BACKGROUND_PATH),
-        "banner": image_data_uri(
-            Path(__file__).parents[2] / "resources" / "textures" / "help" / "banner_bg.jpg",
-        ),
-        "cag_background": image_data_uri(
-            Path(__file__).parents[2] / "resources" / "textures" / "help" / "cag_bg.png",
-        ),
+        "background": background_uri,
+        "banner": banner_uri,
+        "cag_background": cag_uri,
         "card_height": _card_height(sections, lines),
-        "font": font_data_uri(HELP_FONT_PATH),
-        "footer": image_data_uri(
-            Path(__file__).parents[2] / "resources" / "textures" / "common" / "footer.png",
-        ),
-        "icon": image_data_uri(Path(__file__).parents[3] / "ICON.png"),
-        "item_background": image_data_uri(
-            Path(__file__).parents[2] / "resources" / "textures" / "help" / "item.png",
-        ),
+        "font": font_uri,
+        "footer": footer_uri,
+        "icon": icon_uri,
+        "item_background": item_uri,
         "lines": lines,
         "sections": sections,
         "subtitle": "穿过寒夜，去往有你的春天。",
@@ -237,7 +346,7 @@ async def get_help(
         quality=85,
     )
     payload = await _RENDERER.render("cards/help.html.j2", template_data, spec)
-    if cache_key is not None:
+    if asset_resolver is None and cache_key is not None:
         _HELP_CACHE[cache_key] = payload
     return payload
 
