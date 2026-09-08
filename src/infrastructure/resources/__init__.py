@@ -53,6 +53,7 @@ from .paths import (
     resource_generations_dir,
     resource_repository_dir,
 )
+from .resolver import ResolvedAsset, RuntimeAssetResolver
 
 __all__ = [
     "BUILTIN_GITHUB_ACCELERATION_PREFIXES",
@@ -71,6 +72,7 @@ __all__ = [
     "GitUnavailableError",
     "GithubAccelerationMode",
     "GuideAsset",
+    "ResolvedAsset",
     "ResourceBranchMismatchError",
     "ResourceGenerationError",
     "ResourceGenerationManager",
@@ -85,6 +87,7 @@ __all__ = [
     "ResourceSyncError",
     "ResourceSyncResult",
     "ResourceSynchronizer",
+    "RuntimeAssetResolver",
     "accelerate_github_url",
     "build_git_instead_of_config",
     "default_resource_repository_dir",

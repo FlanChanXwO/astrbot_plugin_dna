@@ -15,7 +15,7 @@ from copy import copy
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
 from PIL import Image
@@ -409,6 +409,7 @@ def _extract_archive(archive_path: Path, destination: Path) -> None:
 
 
 SnapshotListener = Callable[[ResourceSnapshot], None]
+_ResolverBinding = TypeVar("_ResolverBinding")
 
 
 class ResourceSnapshotCoordinator:
@@ -584,6 +585,16 @@ class ResourceSnapshotCoordinator:
                     f"资源 generation 视图字段无效: {resource_attr}"
                 ) from exc
             yield resources
+
+    @contextmanager
+    def bind_resolver(
+        self,
+        factory: Callable[[ResourceSnapshot | None], _ResolverBinding],
+    ) -> Iterator[_ResolverBinding]:
+        """在当前 generation lease 内创建请求级资源解析器。"""
+
+        with self.optional_lease() as snapshot:
+            yield factory(snapshot)
 
     @contextmanager
     def bind_renderer(self, renderer: Any, resource_attr: str) -> Iterator[Any]:

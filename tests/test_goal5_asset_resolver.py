@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from src.infrastructure.resources import ResourceGenerationError, ResourceSnapshotCoordinator
+from src.infrastructure.resources import (
+    ResourceGenerationError,
+    ResourceSnapshotCoordinator,
+)
 from src.infrastructure.resources.resolver import RuntimeAssetResolver
 
 
@@ -199,3 +203,51 @@ def test_empty_snapshot_keeps_existing_coordinator_context_contract(
     renderer = object()
     with coordinator.bind_renderer(renderer, "player_resources") as bound:
         assert bound is renderer
+
+
+def test_bind_resolver_uses_the_current_snapshot_lease(tmp_path: Path) -> None:
+    coordinator = ResourceSnapshotCoordinator(
+        tmp_path / "resources",
+        generations_root=tmp_path / "resource-generations",
+    )
+    assert coordinator.initialize() is None
+
+    with coordinator.bind_resolver(
+        lambda snapshot: _resolver(
+            snapshot_root=None if snapshot is None else snapshot.root,
+        )
+    ) as resolver:
+        resolved = resolver.resolve("font.primary_ttf")
+
+    assert resolved.path is None
+    assert resolved.source == "none"
+    assert resolved.status == "missing"
+    assert resolved.incomplete is True
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_uses_empty_resource_views_without_verified_snapshot(
+    tmp_path: Path,
+) -> None:
+    resource_root = tmp_path / "resources"
+    _write(resource_root / "fonts" / "dna_fonts.ttf", b"unverified-cache-font")
+
+    from src.bootstrap import build_runtime
+    from src.infrastructure.persistence import AsyncDatabase
+
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *args: None),
+        {},
+        database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
+    )
+
+    player_resources = runtime.services["player_resources"]
+    encyclopedia_resources = runtime.services["encyclopedia_resources"]
+    assert player_resources.root is None
+    assert encyclopedia_resources.font_path is None
+
+    with runtime.services["bind_resource_resolver"]() as resolver:
+        bootstrap = resolver.resolve("texture.common.number.0")
+    assert bootstrap.source == "bootstrap"
+    assert bootstrap.status == "fallback"
+    assert bootstrap.incomplete is True

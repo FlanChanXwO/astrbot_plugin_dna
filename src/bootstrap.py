@@ -7,7 +7,8 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -56,6 +57,7 @@ from .infrastructure.resources import (
     ResourceManifest,
     ResourceSnapshot,
     ResourceSnapshotCoordinator,
+    RuntimeAssetResolver,
 )
 from .infrastructure.resources.paths import (
     PLUGIN_NAME,
@@ -101,6 +103,26 @@ from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
+
+
+_SNAPSHOT_ASSET_PATHS = {
+    "font.primary_ttf": "fonts/dna_fonts.ttf",
+    "font.primary_woff2": "fonts/dna_fonts.woff2",
+    "font.unicode_ttf": "fonts/arial-unicode-ms-bold.ttf",
+    "font.unicode_woff2": "fonts/arial-unicode-ms-bold.woff2",
+    "font.unicode_fallback_woff2": "fonts/arial-unicode-ms-bold-fallback.woff2",
+    "font.emoji_ttf": "fonts/NotoColorEmoji.ttf",
+    "font.help": "fonts/MiSansVF.woff2",
+}
+_BOOTSTRAP_ALLOWLIST = {
+    f"texture.common.number.{digit}": Path(__file__).parent
+    / "resources"
+    / "textures"
+    / "common"
+    / "number"
+    / f"{digit}.png"
+    for digit in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+}
 
 
 def _cache_maintenance_interval(settings: DnabySettings) -> float:
@@ -230,9 +252,9 @@ def build_runtime(
     )
     custom_alias_path = runtime_database.path.parent / "alias_custom.json"
     custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
-    resource_cache_root = resource_repository_dir(runtime_database.path.parent)
+    resource_repository_root = resource_repository_dir(runtime_database.path.parent)
     resource_snapshots = ResourceSnapshotCoordinator(
-        resource_cache_root,
+        resource_repository_root,
         generations_root=resource_generations_dir(runtime_database.path.parent),
         acceleration_prefix=settings.resources.acceleration_prefix,
         custom_alias_path=custom_alias_path,
@@ -242,26 +264,47 @@ def build_runtime(
     resource_root = (
         initial_resource_snapshot.root
         if initial_resource_snapshot is not None
-        else resource_cache_root
+        else None
     )
-    manifest_path = resource_root / "resource_manifest.json"
-    if manifest_path.exists():
-        ResourceManifest.load(
-            manifest_path,
-        ).validate_runtime_layout(resource_root)
+    if resource_root is not None:
+        manifest_path = resource_root / "resource_manifest.json"
+        if manifest_path.exists():
+            ResourceManifest.load(
+                manifest_path,
+            ).validate_runtime_layout(resource_root)
     player_resources = (
         initial_resource_snapshot.player_resources
         if initial_resource_snapshot is not None
-        else ResourceMap.from_root(resource_root)
+        else ResourceMap()
     )
     encyclopedia_resources = (
         initial_resource_snapshot.encyclopedia_resources
         if initial_resource_snapshot is not None
-        else EncyclopediaResourceStore.from_root(
-            resource_root,
-            custom_alias_path=custom_alias_path,
-            custom_weapon_alias_path=custom_weapon_alias_path,
+        else EncyclopediaResourceStore()
+    )
+
+    def _new_resource_resolver(snapshot: ResourceSnapshot | None) -> RuntimeAssetResolver:
+        return RuntimeAssetResolver(
+            snapshot_root=None if snapshot is None else snapshot.root,
+            snapshot_assets=_SNAPSHOT_ASSET_PATHS,
+            bootstrap_allowlist=_BOOTSTRAP_ALLOWLIST,
         )
+
+    @contextmanager
+    def _bind_resource_resolver() -> Iterator[RuntimeAssetResolver]:
+        with resource_snapshots.bind_resolver(_new_resource_resolver) as resolver:
+            yield resolver
+
+    bootstrap_alias_root = Path(__file__).parent / "resources" / "alias"
+    default_alias_path = (
+        resource_root / "alias" / "char_alias.json"
+        if resource_root is not None
+        else bootstrap_alias_root / "char_alias.json"
+    )
+    default_weapon_alias_path = (
+        resource_root / "alias" / "weapon_alias.json"
+        if resource_root is not None
+        else bootstrap_alias_root / "weapon_alias.json"
     )
     rendered_root = runtime_database.path.parent / "rendered"
     cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
@@ -611,7 +654,7 @@ def build_runtime(
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
-        resource_root=resource_root,
+        resource_root=resource_repository_root,
         resource_snapshots=resource_snapshots,
     )
     if services is not None and "resource_update_service" in services:
@@ -622,23 +665,27 @@ def build_runtime(
         )
 
     def _refresh_alias_views() -> None:
-        """别名写入后立即替换当前百科视图，不要求重载插件。"""
+        """别名写入后在当前 verified snapshot 内替换百科视图。"""
 
-        current_root = Path(resolved_services.get("resource_root", resource_root))
-        updated = EncyclopediaResourceStore.from_root(
-            current_root,
-            custom_alias_path=custom_alias_path,
-            custom_weapon_alias_path=custom_weapon_alias_path,
-        )
-        encyclopedia_service.renderer.resources = updated
-        encyclopedia_service.resources = updated
-        checkin_renderer.resources = updated
-        notices_renderer.resources = updated
-        resolved_services["encyclopedia_resources"] = updated
+        with resource_snapshots.optional_lease() as snapshot:
+            if snapshot is None:
+                # 未同步时保持空资源视图，避免从 repository cache 读取默认别名。
+                return
+            updated = EncyclopediaResourceStore.from_root(
+                snapshot.root,
+                custom_alias_path=custom_alias_path,
+                custom_weapon_alias_path=custom_weapon_alias_path,
+            )
+            encyclopedia_service.renderer.resources = updated
+            encyclopedia_service.resources = updated
+            checkin_renderer.resources = updated
+            notices_renderer.resources = updated
+            resolved_services["encyclopedia_resources"] = updated
 
     admin_alias_service = AdminAliasService(
-        resource_root=resource_root,
+        default_alias_path=default_alias_path,
         custom_path=custom_alias_path,
+        weapon_alias_path=default_weapon_alias_path,
         weapon_custom_path=custom_weapon_alias_path,
         refresh=_refresh_alias_views,
     )
@@ -657,6 +704,8 @@ def build_runtime(
         "player_cache": player_cache,
         "player_service": player_service,
         "resource_root": resource_root,
+        "resource_repository_root": resource_repository_root,
+        "bind_resource_resolver": _bind_resource_resolver,
         "rendered_root": rendered_root,
         "rendered_store": rendered_store,
         "request_gate": request_gate,
@@ -698,6 +747,8 @@ def build_runtime(
         encyclopedia_service.resources = new_encyclopedia_resources
         checkin_renderer.resources = new_encyclopedia_resources
         notices_renderer.resources = new_encyclopedia_resources
+        admin_alias_service.default_alias_path = snapshot.root / "alias" / "char_alias.json"
+        admin_alias_service.weapon_alias_path = snapshot.root / "alias" / "weapon_alias.json"
         resolved_services["resource_root"] = snapshot.root
         resolved_services["player_resources"] = new_player_resources
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources

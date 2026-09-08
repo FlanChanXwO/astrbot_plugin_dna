@@ -20,6 +20,7 @@ from src.infrastructure.resources import (
     ResourceLocalChangesError,
     ResourceManifest,
     ResourceManifestError,
+    ResourceSnapshotCoordinator,
     ResourceSynchronizer,
 )
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
@@ -207,8 +208,11 @@ def test_resource_sync_rejects_manifest_missing_runtime_layout(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) -> None:
-    """完整 manifest 下，两个查询模块必须读取同一个运行期资源根。"""
+async def test_bootstrap_injects_complete_runtime_resource_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """完整 verified snapshot 下，两个查询模块必须读取同一个资源根。"""
 
     data_dir = tmp_path / "plugin-data"
     resource_root = data_dir / "resources"
@@ -242,6 +246,25 @@ async def test_bootstrap_injects_complete_runtime_resource_root(tmp_path: Path) 
     (resource_root / "alias" / "weapon_alias.json").write_text(
         json.dumps({"武器甲": ["大剑"]}, ensure_ascii=False),
         encoding="utf-8",
+    )
+    snapshot = SimpleNamespace(
+        commit_sha="a" * 40,
+        root=resource_root,
+        player_resources=ResourceMap.from_root(resource_root),
+        encyclopedia_resources=EncyclopediaResourceStore.from_root(
+            resource_root,
+            custom_alias_path=data_dir / "alias_custom.json",
+            custom_weapon_alias_path=data_dir / "weapon_alias_custom.json",
+        ),
+    )
+    def initialize_verified(self: ResourceSnapshotCoordinator):
+        self._current = snapshot
+        return snapshot
+
+    monkeypatch.setattr(
+        ResourceSnapshotCoordinator,
+        "initialize",
+        initialize_verified,
     )
 
     runtime = build_runtime(
