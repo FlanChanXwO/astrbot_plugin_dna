@@ -20,10 +20,11 @@ _DECIMAL_KEY = re.compile(r"^[0-9]+$")
 
 
 class ClientPlatform(StrEnum):
-    """首版支持的国服客户端平台。"""
+    """已验证客户端更新源使用的平台。"""
 
     PC = "pc"
     ANDROID = "android"
+    IOS = "ios"
 
 
 class ClientRegion(StrEnum):
@@ -32,7 +33,12 @@ class ClientRegion(StrEnum):
     CN = "cn"
 
 
-_CLIENT_UPDATE_PLATFORM_ORDER = (ClientPlatform.PC, ClientPlatform.ANDROID)
+_CLIENT_UPDATE_PLATFORM_ORDER = (
+    ClientPlatform.PC,
+    ClientPlatform.ANDROID,
+    ClientPlatform.IOS,
+)
+_DEFAULT_CLIENT_UPDATE_PLATFORMS = (ClientPlatform.PC, ClientPlatform.ANDROID)
 
 
 def normalize_client_update_platforms(
@@ -61,7 +67,7 @@ class ClientUpdateRequest:
     """客户端更新命令的框架无关输入。"""
 
     actor: EventActor | None
-    platforms: tuple[ClientPlatform, ...] = _CLIENT_UPDATE_PLATFORM_ORDER
+    platforms: tuple[ClientPlatform, ...] = _DEFAULT_CLIENT_UPDATE_PLATFORMS
 
     def __post_init__(self) -> None:
         if self.actor is not None and not isinstance(self.actor, EventActor):
@@ -176,6 +182,124 @@ class ClientVersionSnapshot:
 
 # 后续状态/服务代码使用更短的领域名时，保留一个语义明确的别名。
 ClientVersion = ClientVersionSnapshot
+
+
+ClientVersionOrderKey = int | str | tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ManifestCdnVersionMetadata:
+    """manifest CDN 版本记录的 provider 专属元数据。"""
+
+    version_key: int
+    patch_version: int
+    resource_version_dir: str | None
+
+    def __post_init__(self) -> None:
+        for field_name in ("version_key", "patch_version"):
+            value = getattr(self, field_name)
+            if type(value) is not int or value < 0:
+                raise ValueError(f"{field_name} 必须是非负整数")
+        if self.resource_version_dir is not None and (
+            not isinstance(self.resource_version_dir, str)
+            or not self.resource_version_dir.strip()
+        ):
+            raise ValueError("resource_version_dir 必须是非空字符串或 None")
+
+
+@dataclass(frozen=True, slots=True)
+class AppStoreVersionMetadata:
+    """App Store 当前版本的 provider 专属元数据。"""
+
+    track_id: int
+    country: str
+    release_date: str | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.track_id) is not int or self.track_id <= 0:
+            raise ValueError("track_id 必须是正整数")
+        if (
+            not isinstance(self.country, str)
+            or len(self.country) != 2
+            or not self.country.isascii()
+            or not self.country.isalpha()
+        ):
+            raise ValueError("country 必须是两个 ASCII 字母")
+        object.__setattr__(self, "country", self.country.lower())
+        if self.release_date is not None and (
+            not isinstance(self.release_date, str) or not self.release_date.strip()
+        ):
+            raise ValueError("release_date 必须是非空字符串或 None")
+
+
+ClientSourceProviderMetadata = ManifestCdnVersionMetadata | AppStoreVersionMetadata
+
+
+@dataclass(frozen=True, slots=True)
+class ClientSourceVersion:
+    """一个不携带 Target、区服或账号生态的 Source 版本。"""
+
+    source_id: str
+    version_text: str
+    revision_id: str
+    order_key: ClientVersionOrderKey | None = None
+    provider_metadata: ClientSourceProviderMetadata | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("source_id", "version_text", "revision_id"):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} 必须是非空字符串")
+
+        order_key = self.order_key
+        if order_key is not None:
+            if isinstance(order_key, bool) or not isinstance(order_key, (int, str, tuple)):
+                raise TypeError("order_key 必须是整数、字符串、整数元组或 None")
+            if isinstance(order_key, int) and order_key < 0:
+                raise ValueError("order_key 整数必须非负")
+            if isinstance(order_key, str) and not order_key.strip():
+                raise ValueError("order_key 字符串必须非空")
+            if isinstance(order_key, tuple) and (
+                not order_key
+                or any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in order_key)
+            ):
+                raise ValueError("order_key 元组必须由非负整数组成")
+
+        if self.provider_metadata is not None and not isinstance(
+            self.provider_metadata,
+            (ManifestCdnVersionMetadata, AppStoreVersionMetadata),
+        ):
+            raise TypeError("provider_metadata 必须是 typed provider metadata 或 None")
+
+
+@dataclass(frozen=True, slots=True)
+class ClientSourceObservation:
+    """一次 Source 读取结果及其可见历史完整性。"""
+
+    current: ClientSourceVersion
+    observed_versions: tuple[ClientSourceVersion, ...]
+    history_complete: bool
+    added_size_bytes: int | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.current, ClientSourceVersion):
+            raise TypeError("current 必须是 ClientSourceVersion")
+        versions = tuple(self.observed_versions)
+        if not versions or any(
+            not isinstance(version, ClientSourceVersion) for version in versions
+        ):
+            raise ValueError("observed_versions 必须包含 ClientSourceVersion")
+        if any(version.source_id != self.current.source_id for version in versions):
+            raise ValueError("observation 中的版本必须属于同一 Source")
+        if versions[-1] != self.current:
+            raise ValueError("current 必须是 observed_versions 的最后一个版本")
+        if type(self.history_complete) is not bool:
+            raise TypeError("history_complete 必须是布尔值")
+        if self.added_size_bytes is not None and (
+            type(self.added_size_bytes) is not int or self.added_size_bytes < 0
+        ):
+            raise ValueError("added_size_bytes 必须是非负整数或 None")
+        object.__setattr__(self, "observed_versions", versions)
 
 
 @dataclass(frozen=True, slots=True)
@@ -533,8 +657,12 @@ def _manifest_entries(
 
 
 __all__ = [
+    "AppStoreVersionMetadata",
     "ClientPlatform",
     "ClientRegion",
+    "ClientSourceObservation",
+    "ClientSourceProviderMetadata",
+    "ClientSourceVersion",
     "ClientUpdateChange",
     "ClientUpdateFailureKind",
     "ClientUpdateObservation",
@@ -543,7 +671,9 @@ __all__ = [
     "ClientUpdateTransport",
     "ClientUpdateTransportError",
     "ClientVersion",
+    "ClientVersionOrderKey",
     "ClientVersionSnapshot",
+    "ManifestCdnVersionMetadata",
     "normalize_client_update_platforms",
     "parse_channel_version_list",
     "parse_channel_version_list_entries",
