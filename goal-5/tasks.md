@@ -153,7 +153,7 @@
 - 剩余风险：主要 renderer 尚未消费 logical key/resolver；动态角色/武器/面板 key 的 snapshot 映射、实际 placeholder bytes、`incomplete` 在用户响应中的传递仍由 Task 07–09 完成。完整字体/大型纹理删除前仍需资源仓库 manifest/SHA 与发布包证据。
 - 下一步建议：执行 Task 07，先为 Player、百科、签到、公告和 Help 的 resolver 接入与降级路径建立 Red 测试。
 
-## Task 07 — Player/Encyclopedia/Checkin/Notices/Help 字体与纹理接入 Red `[pending]`
+## Task 07 — Player/Encyclopedia/Checkin/Notices/Help 字体与纹理接入 Red `[completed]`
 
 **目标**：测试先行锁定主要 renderer 使用统一 resolver、无本地完整字体时不启动失败、缺失资源能简化渲染并标记 `incomplete`。
 
@@ -161,10 +161,16 @@
 
 **验收**：Red 测试实际失败；覆盖 Player、Encyclopedia、Checkin、Notices、Help 代表路径，至少覆盖启动加载、字体回退、纹理缺失、角色/武器/面板来源和 snapshot 刷新。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：
+  - 新增 `tests/test_goal5_renderer_resolver_red.py`，使用不触碰网络/T2I 的 `RecordingResolver` 与最小 JPEG fake，冻结 renderer 的请求级 resolver 注入和缺失资源语义。
+  - 覆盖 `load_runtime_font()` 在完整本地字体不存在时仍返回可用字体；覆盖 Player 总览的角色头像/武器 key、详情的立绘/panel key、缺失资源 `incomplete` 以及 generation 切换后的重新解析。
+  - 覆盖 Encyclopedia 周报/活动日历、Checkin 签到日历、Notices 公告列表的字体/纹理缺失与 `incomplete`；覆盖 Help 接受 resolver 并解析帮助字体/纹理。
+- 验证证据：
+  - Red 阶段实际执行：`PYTHONPATH=. /Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m pytest --confcutdir=tests tests/test_goal5_renderer_resolver_red.py -q --tb=short`，退出码 `1`，结果为 `7 failed, 1 warning`。
+  - 失败均对应当前生产缺口：字体回退仍抛 `OSError: cannot open resource`；Player/Encyclopedia/Checkin/Notices 未调用 resolver（实际请求为空）；Help 尚不接受 `asset_resolver` 参数并抛 `TypeError`。未把 Red 失败伪装成跳过或成功。
+  - `/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/ruff check tests/test_goal5_renderer_resolver_red.py`、`python3 -m compileall -q tests/test_goal5_renderer_resolver_red.py`、`git diff --check` 通过；Python LSP 对新增测试文件无诊断。
+- 剩余风险：生产 renderer 和旧 utils 仍未迁移到统一 resolver；除 Player 外的渲染结果尚未有明确 `incomplete` 字段；完整 snapshot 的真实素材读取、placeholder bytes、缓存和 listener 刷新仍需 Green/集中审计验证。本 task 测试按设计保持 Red。
+- 下一步建议：执行 Task 08，实现最小请求级 resolver 接入、字体安全回退、纹理/角色/武器/panel 缺失简化渲染和各 renderer 的 `incomplete` 传递，再将本 task 转 Green。
 
 ## Task 08 — 主要 renderer 与 legacy 路径 Green 迁移 `[pending]`
 
