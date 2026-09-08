@@ -83,7 +83,7 @@
 - 新增修复 task：无；已将空 snapshot/resolver 优先级纳入 Task 04–05，将最终 renderer bytes/incomplete 纳入 Task 07–08，将 listener/lease 并发与异常纳入 Task 06/09。
 - 剩余风险：当前 bootstrap 仍可能把未验证 Git cache 当资源视图；主要 renderer 仍混用 generation metadata 与 legacy path/network；周报 metadata 与最终 bytes、日历 metadata 与实际 lookup 可能不一致；listener 异常清理和 encyclopedia 的 `incomplete` 传递尚未实现。上述风险均有后续 task 承接，故本检查完成但不代表资源已迁移。
 
-## Task 04 — 统一资源解析与降级路径 Red 契约 `[pending]`
+## Task 04 — 统一资源解析与降级路径 Red 契约 `[completed]`
 
 **目标**：测试先行固定 verified snapshot → bootstrap allowlist → placeholder/`None` 的优先级、逻辑 key、不可读取 candidate 和缺失资源的 `incomplete` 语义。
 
@@ -91,10 +91,18 @@
 
 **验收**：实际运行目标测试并确认因缺少/不完整解析 seam 失败；覆盖字体、纹理、角色/武器/panel 至少各一类、空 snapshot、bootstrap 命中、文件缺失、candidate 未验证、来源元数据和 `incomplete`。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：
+  - 新增 `tests/test_goal5_asset_resolver.py`，只定义公共行为契约，没有修改生产代码。
+  - 覆盖已验证 snapshot 优先于 bootstrap（`font.primary_ttf`、`texture.common.card`）、角色头像/立绘、武器和 panel 逻辑 key；断言 `source=verified_snapshot`、`status=provided`、`incomplete=False` 及实际路径。
+  - 覆盖无 snapshot 时仅命中显式 bootstrap allowlist；未列入 allowlist 的 legacy cache 不得被递归读取，bootstrap 资源标记 `source=bootstrap/status=fallback`。
+  - 覆盖 snapshot 文件缺失时回退 bootstrap、明确创建的 `.candidate-unverified` 与 `resources-cache` 不被读取；覆盖完全缺失资源返回 `source=none/status=missing/incomplete=True`，供 renderer 进入 placeholder/简化渲染。
+  - 覆盖现有空 snapshot coordinator 契约：`initialize() is None`、`acquire()` 抛错、`optional_lease()`/`bind_resource()` 返回 `None`、`bind_renderer()` 原样返回 renderer。
+- 验证证据：
+  - Red 阶段实际执行：`PYTHONPATH=. /Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/.venv/bin/python -m pytest --confcutdir=tests tests/test_goal5_asset_resolver.py -q`。
+  - 结果为收集失败（退出码 2）：`ModuleNotFoundError: No module named 'src.infrastructure.resources.resolver'`，失败原因正是当前尚未实现统一 resolver seam；未把失败伪装成跳过或成功。
+  - `ruff check tests/test_goal5_asset_resolver.py`、`git diff --check` 通过；Python LSP 对新增测试文件无诊断。提交：`ccb0ccc test(goal-5): define asset resolver red contract`。
+- 剩余风险：当前测试在 import 阶段即失败，因此空 snapshot 的新增断言尚未实际执行；placeholder 的最终图片 bytes、renderer 缓存禁止覆盖、真实 snapshot lease/listener 刷新仍需 Task 05/06/07 覆盖。测试构造使用显式 logical-to-relative 映射，Task 05 必须保持路径安全并接入真实 `ResourceSnapshot`，不能只实现测试专用 fake。
+- 下一步建议：执行 Task 05，实现最小 `RuntimeAssetResolver` 并接入现有 verified snapshot、bootstrap allowlist、空资源视图和 listener 刷新，使本 task 转 Green。
 
 ## Task 05 — 统一资源解析 Green 与现有 snapshot 接入 `[pending]`
 
