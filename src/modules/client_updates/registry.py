@@ -155,18 +155,22 @@ class ClientUpdateRegistry:
 
         targets_by_id: dict[str, ClientUpdateTarget] = {}
         identities: set[tuple[str, str, ClientPlatform]] = set()
+        display_names: set[str] = set()
         for target in targets:
             if target.target_id in targets_by_id:
                 raise ValueError(f"Target ID 重复: {target.target_id}")
             identity = (target.region_id, target.ecosystem_id, target.platform)
             if identity in identities:
                 raise ValueError("Target 组合重复")
+            if target.display_name in display_names:
+                raise ValueError("Target 展示名重复")
             source = sources_by_id.get(target.source_id)
             if source is None:
                 raise ValueError(f"Target 引用了不存在的 Source: {target.source_id}")
             if source.platform is not target.platform:
                 raise ValueError("Target 与 Source 平台不一致")
             identities.add(identity)
+            display_names.add(target.display_name)
             targets_by_id[target.target_id] = target
 
         object.__setattr__(self, "sources", sources)
@@ -183,24 +187,30 @@ class ClientUpdateRegistry:
         return self._targets_by_id
 
     def resolve_source(self, source_id: str | ClientUpdateSource) -> ClientUpdateSource:
-        if isinstance(source_id, ClientUpdateSource):
-            return source_id
-        if not isinstance(source_id, str):
+        candidate = source_id if isinstance(source_id, ClientUpdateSource) else None
+        lookup_id = candidate.source_id if candidate is not None else source_id
+        if not isinstance(lookup_id, str):
             raise TypeError("客户端更新 Source ID 必须是字符串")
         try:
-            return self._sources_by_id[source_id]
+            registered = self._sources_by_id[lookup_id]
         except KeyError as error:
             raise ValueError("不支持的客户端更新 Source") from error
+        if candidate is not None and candidate != registered:
+            raise ValueError("客户端更新 Source 与 registry 登记不一致")
+        return registered
 
     def resolve_target(self, target_id: str | ClientUpdateTarget) -> ClientUpdateTarget:
-        if isinstance(target_id, ClientUpdateTarget):
-            return target_id
-        if not isinstance(target_id, str):
+        candidate = target_id if isinstance(target_id, ClientUpdateTarget) else None
+        lookup_id = candidate.target_id if candidate is not None else target_id
+        if not isinstance(lookup_id, str):
             raise TypeError("客户端更新 Target ID 必须是字符串")
         try:
-            return self._targets_by_id[target_id]
+            registered = self._targets_by_id[lookup_id]
         except KeyError as error:
             raise ValueError("不支持的客户端更新 Target") from error
+        if candidate is not None and candidate != registered:
+            raise ValueError("客户端更新 Target 与 registry 登记不一致")
+        return registered
 
     def normalize_target_ids(self, target_ids: object) -> tuple[str, ...]:
         if isinstance(target_ids, str):

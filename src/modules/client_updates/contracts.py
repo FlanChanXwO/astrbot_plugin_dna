@@ -33,12 +33,7 @@ class ClientRegion(StrEnum):
     CN = "cn"
 
 
-_CLIENT_UPDATE_PLATFORM_ORDER = (
-    ClientPlatform.PC,
-    ClientPlatform.ANDROID,
-    ClientPlatform.IOS,
-)
-_DEFAULT_CLIENT_UPDATE_PLATFORMS = (ClientPlatform.PC, ClientPlatform.ANDROID)
+_CLIENT_UPDATE_PLATFORM_ORDER = (ClientPlatform.PC, ClientPlatform.ANDROID)
 
 
 def normalize_client_update_platforms(
@@ -57,6 +52,9 @@ def normalize_client_update_platforms(
         raise ValueError("客户端更新至少需要选择一个平台")
 
     selected = {ClientPlatform(platform) for platform in candidates}
+    unsupported = selected.difference(_CLIENT_UPDATE_PLATFORM_ORDER)
+    if unsupported:
+        raise ValueError("旧客户端更新请求不支持该平台")
     return tuple(
         platform for platform in _CLIENT_UPDATE_PLATFORM_ORDER if platform in selected
     )
@@ -67,7 +65,7 @@ class ClientUpdateRequest:
     """客户端更新命令的框架无关输入。"""
 
     actor: EventActor | None
-    platforms: tuple[ClientPlatform, ...] = _DEFAULT_CLIENT_UPDATE_PLATFORMS
+    platforms: tuple[ClientPlatform, ...] = _CLIENT_UPDATE_PLATFORM_ORDER
 
     def __post_init__(self) -> None:
         if self.actor is not None and not isinstance(self.actor, EventActor):

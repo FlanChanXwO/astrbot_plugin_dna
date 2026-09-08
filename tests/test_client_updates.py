@@ -41,14 +41,61 @@ def test_verified_registry_contains_only_investigated_cn_targets() -> None:
         "cn-official-pc",
         "cn-official-android",
     )
-    assert normalize_client_update_platforms([ClientPlatform.IOS]) == (
-        ClientPlatform.IOS,
+    with pytest.raises(ValueError, match="不支持"):
+        normalize_client_update_platforms([ClientPlatform.IOS])
+
+    assert tuple(
+        (
+            target.target_id,
+            target.region_id,
+            target.ecosystem_id,
+            target.platform,
+            target.source_id,
+        )
+        for target in CLIENT_UPDATE_TARGETS.values()
+    ) == (
+        (
+            "cn-official-pc",
+            "cn",
+            "official",
+            ClientPlatform.PC,
+            "cn-official-pc-manifest",
+        ),
+        (
+            "cn-official-android",
+            "cn",
+            "official",
+            ClientPlatform.ANDROID,
+            "cn-official-android-astc-manifest",
+        ),
+        (
+            "cn-official-ios",
+            "cn",
+            "official",
+            ClientPlatform.IOS,
+            "cn-official-ios-app-store",
+        ),
     )
+
+    pc = resolve_client_update_source("cn-official-pc-manifest")
+    assert isinstance(pc.provider_config, ManifestCdnProviderConfig)
+    assert pc.provider_config.primary_base_url == "http://pan01-1-eo.shyxhy.com"
+    assert pc.provider_config.fallback_base_url == "http://pan01-1-hs.shyxhy.com"
+    assert pc.provider_config.branch == (
+        "Patches/FinalPatch/CN/Default/WindowsNoEditor/PC_OBT_CN_Pub"
+    )
+    assert pc.provider_config.pak_manifest_key == "WindowsNoEditor"
+    assert pc.provider_config.res_manifest_key == "WindowsNoEditor"
 
     android = resolve_client_update_source("cn-official-android-astc-manifest")
     assert android.platform is ClientPlatform.ANDROID
     assert android.provider_kind is ClientUpdateProviderKind.MANIFEST_CDN
     assert isinstance(android.provider_config, ManifestCdnProviderConfig)
+    assert android.provider_config.primary_base_url == "https://pan01-1-hs.shyxhy.com"
+    assert android.provider_config.fallback_base_url == "http://pan01-1-eo.shyxhy.com"
+    assert android.provider_config.branch == (
+        "Patches/FinalPatch/CN/Default/Android_ASTC/Android_OBT_CN_Pub"
+    )
     assert android.provider_config.pak_manifest_key == "Android_ASTC"
     assert android.provider_config.res_manifest_key == "WindowsNoEditor"
 
@@ -72,6 +119,21 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
             user_agent="test-agent",
         ),
     )
+    with pytest.raises(TypeError, match="不匹配"):
+        ClientUpdateSource(
+            source_id="bad-config",
+            platform=ClientPlatform.PC,
+            provider_kind=ClientUpdateProviderKind.MANIFEST_CDN,
+            provider_config=AppStoreProviderConfig(track_id=1, country="cn"),
+        )
+    with pytest.raises(ValueError, match="iOS"):
+        ClientUpdateSource(
+            source_id="bad-platform",
+            platform=ClientPlatform.PC,
+            provider_kind=ClientUpdateProviderKind.APP_STORE,
+            provider_config=AppStoreProviderConfig(track_id=1, country="cn"),
+        )
+
     target = ClientUpdateTarget(
         target_id="cn-official-pc",
         region_id="cn",
@@ -94,6 +156,17 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
     )
     with pytest.raises(ValueError, match="Target 组合"):
         ClientUpdateRegistry((source,), (target, duplicate_identity))
+
+    ambiguous_name = ClientUpdateTarget(
+        target_id="cn-other-pc",
+        region_id="cn",
+        ecosystem_id="other",
+        platform=ClientPlatform.PC,
+        source_id=source.source_id,
+        display_name=target.display_name,
+    )
+    with pytest.raises(ValueError, match="展示名"):
+        ClientUpdateRegistry((source,), (target, ambiguous_name))
 
     with pytest.raises(ValueError, match="Target ID"):
         ClientUpdateRegistry((source,), (target, target))
@@ -119,6 +192,26 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
     )
     with pytest.raises(ValueError, match="平台"):
         ClientUpdateRegistry((source,), (mismatched_target,))
+
+    registry = ClientUpdateRegistry((source,), (target,))
+    foreign_source = ClientUpdateSource(
+        source_id="foreign-source",
+        platform=ClientPlatform.PC,
+        provider_kind=ClientUpdateProviderKind.MANIFEST_CDN,
+        provider_config=source.provider_config,
+    )
+    foreign_target = ClientUpdateTarget(
+        target_id="foreign-target",
+        region_id="cn",
+        ecosystem_id="foreign",
+        platform=ClientPlatform.PC,
+        source_id=source.source_id,
+        display_name="未登记目标",
+    )
+    with pytest.raises(ValueError, match="Source"):
+        registry.resolve_source(foreign_source)
+    with pytest.raises(ValueError, match="Target"):
+        registry.resolve_target(foreign_target)
 
 
 def test_registry_normalizes_and_groups_targets_by_source() -> None:
