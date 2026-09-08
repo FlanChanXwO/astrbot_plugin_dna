@@ -5,6 +5,7 @@
 ### 公开发布准备
 
 - 插件正式标识由 `astrbot_plugin_dnaby` 更名为 `astrbot_plugin_dna`，同步更新运行期数据目录、Web 路由、CI 与用户文档中的现行引用。
+- 默认命令前缀由 `kk` 调整为 `dna`，同步更新命令清单、帮助示例、用户文档与测试。
 - 公共资源仓库切换为 `FlanChanXwO/dna-resource`，资源 Git 同步与兑换码 Raw URL 统一使用新仓库地址。
 - README 调整为公开发布版首页，并统一 Issue / Pull Request 模板风格。
 
@@ -43,7 +44,7 @@
 
 - 支持 AstrBot 4.26.0 及以上版本，并复用 AstrBot 的全局 HTML/T2I 服务。
 - 修复登录展示配置未作用于当前登录入口的问题：二维码、腾讯文档链接和合并转发模式现在
-  会按配置作用于 `kk登录` 命令。
+  会按配置作用于 `dna登录` 命令。
 
 ### 工程质量
 

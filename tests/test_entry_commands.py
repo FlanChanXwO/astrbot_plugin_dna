@@ -421,7 +421,7 @@ async def test_help_shows_implemented_commands_only(monkeypatch: pytest.MonkeyPa
 
     class Event:
         def get_message_str(self) -> str:
-            return "kk帮助"
+            return "dna帮助"
 
         def plain_result(self, text: str) -> str:
             return text
@@ -556,4 +556,4 @@ async def test_help_card_examples_adapt_to_matched_prefix():
 
     sections_empty = _help_sections(plugin_help, prefix="")
     first_item_empty = sections_empty[0]["items"][0]
-    assert not first_item_empty["example"].startswith("kk")
+    assert not first_item_empty["example"].startswith("dna")

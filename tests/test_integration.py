@@ -68,7 +68,7 @@ class _Event:
 
 @pytest.mark.asyncio
 async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) -> None:
-    """默认 local runtime 的 kk登录 必须立即返回可打开的登录链接。"""
+    """默认 local runtime 的 dna登录 必须立即返回可打开的登录链接。"""
 
     database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
     await database.create_schema_for_tests()
@@ -87,7 +87,7 @@ async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) ->
         plugin = GeneratedLoginPlugin()
         object.__setattr__(plugin, "_runtime", runtime)
 
-        result = [item async for item in plugin.handle_account_login(_Event("kk登录"))]
+        result = [item async for item in plugin.handle_account_login(_Event("dna登录"))]
 
         assert len(result) == 1
         assert result[0].startswith("登录地址：http://localhost:")

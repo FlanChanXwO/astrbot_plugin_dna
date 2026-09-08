@@ -52,7 +52,7 @@ def _load_help_data() -> dict[str, Any]:
         return json.load(file)
 
 
-def _format_example(eg: str, prefix: str = "kk") -> str:
+def _format_example(eg: str, prefix: str = "dna") -> str:
     if not eg:
         return ""
     if not prefix:
@@ -70,7 +70,7 @@ def _format_example(eg: str, prefix: str = "kk") -> str:
     return " / ".join(formatted)
 
 
-def _iter_help_lines(plugin_help: dict[str, Any], prefix: str = "kk"):
+def _iter_help_lines(plugin_help: dict[str, Any], prefix: str = "dna"):
     """生成保持旧分组和示例语义的帮助条目 payload。"""
     for group_name, group_data in plugin_help.items():
         yield {"is_group": True, "name": group_name, "example": ""}
@@ -96,7 +96,7 @@ def _find_icon(name: str) -> Path:
 
 
 def _help_sections(
-    plugin_help: dict[str, Any], prefix: str = "kk"
+    plugin_help: dict[str, Any], prefix: str = "dna"
 ) -> list[dict[str, Any]]:
     """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
     sections: list[dict[str, Any]] = []
@@ -201,7 +201,7 @@ def _card_height(sections: list[dict[str, Any]], lines: list[dict[str, Any]]) ->
 
 
 async def get_help(
-    prefix: str = "kk",
+    prefix: str = "dna",
     *,
     registry: CommandRegistry | None = None,
     permission: PermissionName = "user",

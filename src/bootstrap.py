@@ -822,7 +822,7 @@ def build_runtime(
         ),
         commands=(
             load_command_registry(prefixes=settings.display.command_prefixes)
-            if command_registry is None or settings.display.command_prefixes != ["kk"]
+            if command_registry is None or settings.display.command_prefixes != ["dna"]
             else command_registry
         ),
         settings=settings,
