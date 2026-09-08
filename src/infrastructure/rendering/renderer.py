@@ -133,13 +133,13 @@ class HtmlRenderer:
                     f"T2I 返回路径不可读: {result!s}", cause=exc
                 ) from exc
         else:
-            raise RenderResultError(
-                f"T2I 返回了不支持的类型: {type(result).__name__}"
-            )
+            raise RenderResultError(f"T2I 返回了不支持的类型: {type(result).__name__}")
 
         # 网络渲染失败时服务可能返回可读的 HTML 错误页，必须在消息发送前显式拒绝。
         # 这里只检查 JPEG/PNG 容器结构，不解码像素，也不经过 Pillow 重编码。
-        expected_media_type = "image/png" if spec.image_format == "png" else "image/jpeg"
+        expected_media_type = (
+            "image/png" if spec.image_format == "png" else "image/jpeg"
+        )
         expected_name = "PNG" if spec.image_format == "png" else "JPEG"
         try:
             inspect_image(data, media_type=expected_media_type)
@@ -151,7 +151,10 @@ class HtmlRenderer:
                 if data.startswith(b"\x89PNG\r\n\x1a\n")
                 else None
             )
-            if actual_media_type is not None and actual_media_type != expected_media_type:
+            if (
+                actual_media_type is not None
+                and actual_media_type != expected_media_type
+            ):
                 actual_name = "JPEG" if actual_media_type == "image/jpeg" else "PNG"
                 raise RenderResultError(
                     f"T2I 返回格式不匹配，期望 {expected_name}，实际为 {actual_name}",

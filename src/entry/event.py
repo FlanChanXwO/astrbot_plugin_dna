@@ -66,12 +66,8 @@ def actor_from_event(event: Any) -> EventActor | None:
 
 
 _INLINE_MENTION_RE = re.compile(r"<@!?([^>\s]+)>")
-_ONEBOT_DISPLAY_MENTION_RE = re.compile(
-    r"\s*@(?P<name>[^\r\n]*?)\s*\((?P<qq>\d+)\)\s*"
-)
-_ONEBOT_BARE_MENTION_SUFFIX_RE = re.compile(
-    r"\s*@(?P<name>(?!\d+\s*$)[^\r\n]+?)\s*$"
-)
+_ONEBOT_DISPLAY_MENTION_RE = re.compile(r"\s*@(?P<name>[^\r\n]*?)\s*\((?P<qq>\d+)\)\s*")
+_ONEBOT_BARE_MENTION_SUFFIX_RE = re.compile(r"\s*@(?P<name>(?!\d+\s*$)[^\r\n]+?)\s*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,7 +223,9 @@ def mention_target_from_event(
             text = getattr(component, "text", "") or ""
             inline_targets = _inline_mention_targets(text)
             display_targets = _onebot_display_mention_targets(text)
-            has_unresolved_display_mention = _has_unresolved_onebot_display_mention(text)
+            has_unresolved_display_mention = _has_unresolved_onebot_display_mention(
+                text
+            )
             if inline_targets or display_targets or has_unresolved_display_mention:
                 has_inline_mention = True
             for candidate in (*inline_targets, *display_targets):
@@ -241,7 +239,9 @@ def mention_target_from_event(
             text = get_message_str()
             inline_targets = _inline_mention_targets(text)
             display_targets = _onebot_display_mention_targets(text)
-            has_unresolved_display_mention = _has_unresolved_onebot_display_mention(text)
+            has_unresolved_display_mention = _has_unresolved_onebot_display_mention(
+                text
+            )
             for candidate in (*inline_targets, *display_targets):
                 record_target(candidate)
             if has_unresolved_display_mention:

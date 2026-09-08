@@ -22,7 +22,9 @@ def rsa_encrypt(data: str, public_key_base64: str) -> str:
         from Crypto.Cipher import PKCS1_v1_5
         from Crypto.PublicKey import RSA
     except ImportError:
-        raise RuntimeError("[DNA] 缺少依赖: 需要 pycryptodome 执行 RSA 加密。请安装: uv add pycryptodome")
+        raise RuntimeError(
+            "[DNA] 缺少依赖: 需要 pycryptodome 执行 RSA 加密。请安装: uv add pycryptodome"
+        )
     try:
         key = RSA.importKey(base64.b64decode(public_key_base64))
         cipher = PKCS1_v1_5.new(key)
@@ -43,7 +45,9 @@ def xor_encode(text: str, key: str) -> str:
     """自定义 XOR 编码（字节值相加，非异或）"""
     tb = text.encode("utf-8")
     kb = key.encode("utf-8")
-    return "".join(f"@{(tb[i] & 255) + (kb[i % len(kb)] & 255)}" for i in range(len(tb)))
+    return "".join(
+        f"@{(tb[i] & 255) + (kb[i % len(kb)] & 255)}" for i in range(len(tb))
+    )
 
 
 def shuffle_md5(md5_hex: str) -> str:
@@ -58,7 +62,11 @@ def shuffle_md5(md5_hex: str) -> str:
 
 def sign_shuffled(params: dict[str, Any], app_key: str) -> str:
     """按 key 排序拼接参数 → MD5 → shuffle"""
-    pairs = [f"{k}={params[k]}" for k in sorted(params) if params[k] is not None and str(params[k]) != ""]
+    pairs = [
+        f"{k}={params[k]}"
+        for k in sorted(params)
+        if params[k] is not None and str(params[k]) != ""
+    ]
     pairs.append(app_key)
     md5_hash = hashlib.md5("&".join(pairs).encode("utf-8")).hexdigest().upper()
     return shuffle_md5(md5_hash)

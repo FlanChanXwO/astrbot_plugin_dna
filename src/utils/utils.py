@@ -229,7 +229,9 @@ async def get_using_id(ev: EventContext) -> str:
 
     # 检查群是否有强制隐私设置（优先级最高）
     if ev.group_id:
-        group_privacy = await DNAGroupPrivacy.check_group_force_privacy(ev.group_id, ev.bot_id)
+        group_privacy = await DNAGroupPrivacy.check_group_force_privacy(
+            ev.group_id, ev.bot_id
+        )
         if group_privacy is not None:
             # 群有强制设置
             if not group_privacy:

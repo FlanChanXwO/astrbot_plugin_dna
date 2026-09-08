@@ -53,7 +53,9 @@ class AnnDeliveryStateStore:
             if not isinstance(raw, dict):
                 raise TypeError("delivery state must be an object")
             if raw.get("version") != STATE_VERSION:
-                raise ValueError(f"unsupported delivery state version: {raw.get('version')!r}")
+                raise ValueError(
+                    f"unsupported delivery state version: {raw.get('version')!r}"
+                )
             raw_records = raw.get("announcements")
             if not isinstance(raw_records, dict):
                 raise TypeError("announcements must be an object")
@@ -153,8 +155,13 @@ class AnnDeliveryStateStore:
                 for post_id, record in tuple(self._records.items()):
                     observed = record.observed_targets - {target}
                     delivered = record.delivered_targets - {target}
-                    if observed != record.observed_targets or delivered != record.delivered_targets:
-                        self._records[post_id] = AnnDeliveryRecord(observed, delivered, record.legacy_processed)
+                    if (
+                        observed != record.observed_targets
+                        or delivered != record.delivered_targets
+                    ):
+                        self._records[post_id] = AnnDeliveryRecord(
+                            observed, delivered, record.legacy_processed
+                        )
                         changed = True
                 if changed:
                     self._save_unlocked()
@@ -199,7 +206,11 @@ class AnnDeliveryStateStore:
         async with self._lock:
             await self.load()
             record = self._records.get(key)
-            if record is None or record.legacy_processed or target not in record.observed_targets:
+            if (
+                record is None
+                or record.legacy_processed
+                or target not in record.observed_targets
+            ):
                 return False
             if target in record.delivered_targets:
                 return True

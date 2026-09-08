@@ -486,13 +486,12 @@ class CheckinService:
         self,
         *,
         respect_auto_sign: bool = False,
-        enable_all_users: bool = False,
     ) -> _CheckinBatchResult:
         """为目标绑定执行签到，同时保留按群路由所需的结果。"""
 
         async with self.database.session() as session:
             bindings = await AccountBindingRepository.list_all(session)
-        if respect_auto_sign and not enable_all_users:
+        if respect_auto_sign:
             bindings = [binding for binding in bindings if binding.auto_sign_enabled]
         if not bindings:
             return _CheckinBatchResult(CheckinSummary(), {})
@@ -552,8 +551,7 @@ class CheckinService:
                 bbs_success=bbs_success,
             ),
             group_results={
-                group_id: tuple(results)
-                for group_id, results in grouped.items()
+                group_id: tuple(results) for group_id, results in grouped.items()
             },
         )
 
@@ -561,13 +559,11 @@ class CheckinService:
         self,
         *,
         respect_auto_sign: bool = False,
-        enable_all_users: bool = False,
     ) -> CheckinSummary:
         """为目标绑定执行签到并返回全局聚合结果。"""
 
         result = await self._run_all_signs_with_results(
             respect_auto_sign=respect_auto_sign,
-            enable_all_users=enable_all_users,
         )
         return result.summary
 
@@ -657,10 +653,9 @@ class CheckinService:
         群集合（包括空集合）后，服务只构建这些群的报告，避免未订阅群的图片渲染。
         """
 
-        result = await self._run_all_signs_with_results(
-            respect_auto_sign=True,
-            enable_all_users=enable_all_users,
-        )
+        # 保留旧调用参数以兼容外部调用方，但不允许全局参数覆盖 UID 的选择。
+        del enable_all_users
+        result = await self._run_all_signs_with_results(respect_auto_sign=True)
         summary_text = self._auto_summary_text(result.summary)
         if not self.group_report:
             return AutoSignReport(summary_text=summary_text)
@@ -679,13 +674,10 @@ class CheckinService:
             group_reports=group_reports,
         )
 
-    async def auto_sign_all(self, *, enable_all_users: bool = False) -> str:
+    async def auto_sign_all(self) -> str:
         """供计划任务调用的全账号自动签到，返回可推送摘要。"""
 
-        summary = await self._run_all_signs(
-            respect_auto_sign=True,
-            enable_all_users=enable_all_users,
-        )
+        summary = await self._run_all_signs(respect_auto_sign=True)
         return self._auto_summary_text(summary)
 
     async def set_auto_sign(

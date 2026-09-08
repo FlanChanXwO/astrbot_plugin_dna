@@ -790,12 +790,12 @@
   },
   {
     "id": "download_resource",
-    "pattern": "^kk下载全部资源$",
+    "pattern": "^kk同步资源$",
     "group": "资源管理",
-    "name": "下载全部资源",
-    "description": "下载全部公共资源",
+    "name": "同步资源",
+    "description": "同步全部公共资源",
     "examples": [
-      "kk下载全部资源"
+      "kk同步资源"
     ],
     "permission": "admin",
     "use_case": "src.modules.operations.commands.resource_download_use_case"

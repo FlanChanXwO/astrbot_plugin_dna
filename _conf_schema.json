@@ -1,4 +1,24 @@
 {
+  "general": {
+    "description": "通用设置",
+    "type": "object",
+    "items": {
+      "command_prefixes": {
+        "type": "list",
+        "description": "命令触发前缀列表",
+        "hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发",
+        "default": [
+          "kk"
+        ]
+      },
+      "allow_mention_query": {
+        "type": "bool",
+        "description": "允许 AT 查询他人",
+        "hint": "是否允许通过 @ 查询他人的角色信息",
+        "default": true
+      }
+    }
+  },
   "login": {
     "description": "登录设置",
     "type": "object",
@@ -65,56 +85,15 @@
       }
     }
   },
-  "network": {
-    "description": "网络设置",
+  "ai": {
+    "description": "AI 设置",
     "type": "object",
     "items": {
-      "max_concurrent_requests": {
-        "type": "int",
-        "description": "短请求最大并发数",
-        "hint": "限制 API、图片等短生命周期网络请求；WebSocket/SSE 不长期占用",
-        "default": 4
-      },
-      "api_proxy_url": {
-        "type": "string",
-        "description": "API 代理地址",
-        "hint": "二重螺旋 API 代理地址",
-        "default": ""
-      },
-      "local_proxy_url": {
-        "type": "string",
-        "description": "本地代理地址",
-        "hint": "本地代理地址",
-        "default": ""
-      },
-      "proxy_functions": {
-        "type": "list",
-        "description": "指定走代理的函数",
-        "hint": "需要使用代理的函数；空列表表示不额外指定",
-        "default": [],
-        "options": [
-          "all",
-          "get_sms_code",
-          "login"
-        ]
-      },
-      "no_proxy_functions": {
-        "type": "list",
-        "description": "强制直连的函数",
-        "hint": "强制不使用代理的函数，优先级高于 proxy_functions",
-        "default": []
-      },
-      "websocket_continue_seconds": {
-        "type": "int",
-        "description": "WebSocket 保活时间",
-        "hint": "WebSocket 保活持续时间（秒）",
-        "default": 300
-      },
-      "websocket_wait_seconds": {
-        "type": "int",
-        "description": "WebSocket 连接等待时间",
-        "hint": "等待 WebSocket 建立连接的时间（秒）",
-        "default": 5
+      "agent_tools_enabled": {
+        "type": "bool",
+        "description": "Agent Tools 总开关",
+        "hint": "是否注册二重螺旋 Agent Tools",
+        "default": false
       }
     }
   },
@@ -141,17 +120,11 @@
           "bbs_reply"
         ]
       },
-      "enable_all_users": {
+      "default_auto_sign_enabled": {
         "type": "bool",
-        "description": "全员自动签到",
-        "hint": "是否为所有已登录用户自动执行签到",
-        "default": false
-      },
-      "scheduled_enabled": {
-        "type": "bool",
-        "description": "定时签到开关",
-        "hint": "是否启用定时签到",
-        "default": false
+        "description": "首登自动签到",
+        "hint": "新 UID 首次绑定时是否默认开启自动签到；用户之后可自行关闭",
+        "default": true
       },
       "sign_time": {
         "type": "string",
@@ -191,6 +164,13 @@
         "description": "图片形式群报告",
         "hint": "是否以图片发送群组报告",
         "default": false
+      },
+      "scheduled_enabled": {
+        "type": "bool",
+        "description": "旧版每日自动签到任务一次性迁移字段",
+        "hint": "仅用于首次升级迁移；新配置请使用每个 UID 的自动签到选择",
+        "default": true,
+        "invisible": true
       }
     }
   },
@@ -204,47 +184,11 @@
         "hint": "是否启用公告推送",
         "default": true
       },
-      "announcement_ids": {
-        "type": "list",
-        "description": "已推送公告ID",
-        "hint": "已经推送过的公告 ID 列表",
-        "default": []
-      },
       "announcement_check_minutes": {
         "type": "int",
         "description": "公告检查间隔",
         "hint": "公告推送检查间隔（分钟）",
         "default": 10
-      },
-      "client_update_enabled": {
-        "type": "bool",
-        "description": "客户端更新推送开关",
-        "hint": "是否启用独立的客户端更新定时检查与推送",
-        "default": true
-      },
-      "client_update_check_minutes": {
-        "type": "int",
-        "description": "客户端更新检查间隔",
-        "hint": "客户端更新定时检查间隔（分钟），必须为正整数",
-        "default": 60
-      },
-      "client_update_merge_forward": {
-        "type": "bool",
-        "description": "客户端更新合并转发",
-        "hint": "OneBot 平台是否将同轮客户端更新合并为转发消息",
-        "default": true
-      },
-      "secret_subscriptions": {
-        "type": "list",
-        "description": "密函订阅作用域",
-        "hint": "密函订阅作用域 (private/group)",
-        "default": [
-          "group"
-        ],
-        "options": [
-          "private",
-          "group"
-        ]
       },
       "secret_simple_image": {
         "type": "bool",
@@ -262,7 +206,45 @@
         "type": "float",
         "description": "密函数据重试间隔",
         "hint": "当前小时密函未准备好或校验失败时的重试间隔（秒）",
+        "invisible": true,
         "default": 1
+      }
+    }
+  },
+  "client_updates": {
+    "description": "客户端更新设置",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "description": "客户端更新推送开关",
+        "hint": "是否启用客户端更新定时检查与推送",
+        "default": true
+      },
+      "check_minutes": {
+        "type": "int",
+        "description": "客户端更新检查间隔",
+        "hint": "客户端更新定时检查间隔（分钟），必须为正整数",
+        "default": 60
+      },
+      "channels": {
+        "type": "list",
+        "description": "客户端更新渠道",
+        "hint": "只能选择代码 registry 中的固定渠道 ID，不填写 URL、branch 或 manifest key",
+        "default": [
+          "pc_cn",
+          "android_astc_cn"
+        ],
+        "options": [
+          "pc_cn",
+          "android_astc_cn"
+        ]
+      },
+      "merge_forward": {
+        "type": "bool",
+        "description": "客户端更新合并转发",
+        "hint": "OneBot 平台是否将同轮多渠道更新合并为转发消息",
+        "default": true
       }
     }
   },
@@ -270,14 +252,6 @@
     "description": "显示设置",
     "type": "object",
     "items": {
-      "command_prefixes": {
-        "type": "list",
-        "description": "命令触发前缀列表",
-        "hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发",
-        "default": [
-          "kk"
-        ]
-      },
       "guide_providers": {
         "type": "list",
         "description": "角色攻略提供方",
@@ -296,12 +270,42 @@
         "description": "显示未拥有角色",
         "hint": "是否在角色信息卡片中显示未拥有的角色和武器",
         "default": true
+      }
+    }
+  },
+  "network": {
+    "description": "网络设置",
+    "type": "object",
+    "items": {
+      "max_concurrent_requests": {
+        "type": "int",
+        "description": "短请求最大并发数",
+        "hint": "限制 API、图片等短生命周期网络请求；WebSocket/SSE 不长期占用",
+        "default": 4
       },
-      "allow_mention_query": {
-        "type": "bool",
-        "description": "允许AT查询他人",
-        "hint": "是否允许通过 @ 查询他人的角色信息",
-        "default": true
+      "api_base_url": {
+        "type": "string",
+        "description": "API 服务地址",
+        "hint": "留空使用官方 API；仅在使用兼容 API 反代服务时填写",
+        "default": ""
+      },
+      "proxy_url": {
+        "type": "string",
+        "description": "App API 代理地址",
+        "hint": "仅代理二重螺旋 App REST API 与官方业务 WebSocket；留空直连，不影响 GitHub、CDN、AstrBot、OneBot 或外置登录",
+        "default": ""
+      },
+      "websocket_continue_seconds": {
+        "type": "int",
+        "description": "API WebSocket 保活时间",
+        "hint": "API WebSocket 保活持续时间（秒），不作用于 OneBot 或外置 dna-login WebSocket",
+        "default": 300
+      },
+      "websocket_wait_seconds": {
+        "type": "int",
+        "description": "API WebSocket 连接等待时间",
+        "hint": "等待 API WebSocket 建立连接的时间（秒），不作用于 OneBot 或外置 dna-login WebSocket",
+        "default": 5
       }
     }
   },
@@ -346,18 +350,6 @@
         "description": "刷新后发送角色面板",
         "hint": "主动刷新单个角色后是否发送新的角色面板图片",
         "default": true
-      }
-    }
-  },
-  "agent_tools": {
-    "description": "Agent Tools 设置",
-    "type": "object",
-    "items": {
-      "enabled": {
-        "type": "bool",
-        "description": "Agent Tools 总开关",
-        "hint": "是否注册二重螺旋 Agent Tools",
-        "default": false
       }
     }
   }

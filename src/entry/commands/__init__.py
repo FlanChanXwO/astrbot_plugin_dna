@@ -533,9 +533,7 @@ def _make_handler(
             message = command_text_from_event(event)
             active_registry = getattr(runtime, "commands", None)
             active_spec = (
-                active_registry.get(spec.id)
-                if active_registry is not None
-                else spec
+                active_registry.get(spec.id) if active_registry is not None else spec
             )
             match = re.match(active_spec.pattern, message)
             if match is None:

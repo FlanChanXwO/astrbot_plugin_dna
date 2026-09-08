@@ -32,8 +32,8 @@
 降级只会创建空的旧 Web 列，不可能恢复已经删除的值，也不能替代迁移前备份。
 
 `0005_auto_sign_enabled` 为每条绑定增加 `auto_sign_enabled`，已有记录默认为 `true`。
-该字段按 `(user_id, uid)` 绑定保存；切换 UID 不共享开关，定时签到默认尊重该字段，
-`sign_in.enable_all_users` 可强制执行，手动“全部签到”忽略该字段。
+该字段按 `(user_id, uid)` 绑定保存；切换 UID 不共享开关，定时签到始终按该字段筛选，
+不再存在覆盖个人选择的全局强制开关；手动“全部签到”忽略该字段。
 
 `src/infrastructure/persistence/repositories.py` 的方法必须接收调用方提供的
 `AsyncSession`；提交和回滚由 `AsyncDatabase.transaction()` 统一负责。生产 schema
@@ -78,17 +78,23 @@ Dashboard 管理页的账号列表默认只返回 App 凭据状态；只有已�
   显式刷新、清理和 `invalidate` 仍可主动删除条目。`rendered/` 临时文件不受该 TTL 影响，
   继续按内部固定 24 小时周期清理。
 - `_HELP_CACHE` — 进程内帮助卡片缓存，插件终止时清空；`resource_generations/` 与
-  `current.json` 由资源快照协调器按 generation lease 管理；密函缓存按当前小时保存已校验快照。
+  `current.json` 由资源快照协调器按 generation lease 管理，`last_sync.json` 原子保存最近一次
+  同步的安全摘要，`validation.json` 保存 current generation 最近一次校验失败的错误类型；密函缓存按
+  当前小时保存已校验快照。
 
 ### 客户端更新状态与订阅
 
 - `subscriptions.json` 中的客户端更新类型为 `订阅DNA客户端更新`；群聊订阅使用空 `uid`，
   `unified_msg_origin` 标识当前会话，`extra_data` 保存规范化的 `{"platforms":["pc","android"]}`
   子集。重复的 type+origin+uid 记录会更新平台筛选，停用记录不会参与投递。
-- `client_update_state.json` 带 `schema_version`，当前按 `cn+pc`、`cn+android` 保存最近成功观察的
-  snapshot、`observed_at` 和可选的 `last_change`，并保存待投递事件的变化快照、固定目标集合及每目标
-  的 `pending`/`delivered` 状态。写入使用临时文件替换；JSON 损坏或结构非法时显式失败，不静默清空状态。
-  schema v1 仅含基线时会在下一次写入升级为当前版本，已完成事件不形成无界历史。
+- `client_update_state.json` 当前为 `schema_version: 3`，状态 key 固定为
+  `region:channel_id`，例如 `cn:pc_cn` 与 `cn:android_astc_cn`；每个 channel 独立保存最近成功观察的
+  snapshot、`observed_at`、可选的 `last_change` 和待投递事件。事件保存变化快照、首次匹配的固定目标
+  集合及每目标的 `pending`/`delivered` 状态，已完成事件不形成无界历史。
+- 读取 schema v1/v2 时会先校验并把 `cn:pc`/`cn:android` 映射为固定 channel，再以临时文件原子写回
+  v3；迁移前原始字节保留在同目录的 `client_update_state.json.v2.bak`，重复加载不会覆盖或重写该备份。
+  JSON 损坏、结构非法、未知 channel 或迁移写回失败都会显式报错，不静默清空状态。状态文件只保存
+  版本与投递 DTO，不保存 token、cookie 或原始上游响应。
 - 客户端更新推送 DTO 只携带目标路由、平台和用户可见文本；OneBot 节点构造留在入口/bootstrap 适配边界，
   不把框架组件或真实凭据写入状态文件。
 
@@ -123,7 +129,7 @@ SQLite、JSON 和文件目录之间不存在同一物理事务。账号删除协
   仍支持可选 group_id 作用域，读取群组作用域时回退到全局个人值。
 - `GroupPrivacySetting` 按裸 group_id 保存两个可独立清除的强制字段。查询 UID 隐藏
   和偷窥权限时，群强制字段优先；对应字段清除后恢复个人值。
-- `display.allow_mention_query` 关闭时，@ 他人的查询解析回调用者；查询自己不受该开关和
+- `general.allow_mention_query` 关闭时，@ 他人的查询解析回调用者；查询自己不受该开关和
   目标个人防偷窥设置影响。群强制防偷窥或目标个人 `allow_peek=False` 时同样解析回调用者。
 - 指定隐私写入只检查目标是否存在任意 user UID 绑定，不向响应或异常暴露目标 UID。
 

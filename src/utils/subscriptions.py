@@ -49,7 +49,9 @@ class Subscription:
         from astrbot.core.message.message_event_result import MessageChain
 
         if _push_func is None:
-            logger.warning(f"[订阅] 未绑定推送函数，跳过 {self.type} -> {self.unified_msg_origin}")
+            logger.warning(
+                f"[订阅] 未绑定推送函数，跳过 {self.type} -> {self.unified_msg_origin}"
+            )
             return
         sender = Sender(EventContext())
         sender.send(msg)

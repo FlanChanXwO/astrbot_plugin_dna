@@ -23,7 +23,9 @@ def upgrade() -> None:
         sa.Column("bot_id", sa.Text(), nullable=False),
         sa.Column("group_id", sa.Text(), nullable=True),
         sa.Column("uid", sa.Text(), nullable=False),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column(
+            "is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_account_bindings"),
         sa.UniqueConstraint(
             "user_id",
@@ -44,16 +46,30 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("bot_id", sa.Text(), nullable=False),
         sa.Column("uid", sa.Text(), nullable=False),
-        sa.Column("app_cookie", sa.Text(), server_default=sa.text("''"), nullable=False),
-        sa.Column("app_device_code", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "app_cookie", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
+        sa.Column(
+            "app_device_code", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.Column("app_d_num", sa.Text(), server_default=sa.text("''"), nullable=False),
-        sa.Column("app_refresh_token", sa.Text(), server_default=sa.text("''"), nullable=False),
-        sa.Column("app_status", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "app_refresh_token", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
+        sa.Column(
+            "app_status", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.Column("web_token", sa.Text(), server_default=sa.text("''"), nullable=False),
-        sa.Column("web_device_code", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "web_device_code", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.Column("web_d_num", sa.Text(), server_default=sa.text("''"), nullable=False),
-        sa.Column("web_refresh_token", sa.Text(), server_default=sa.text("''"), nullable=False),
-        sa.Column("web_status", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.Column(
+            "web_refresh_token", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
+        sa.Column(
+            "web_status", sa.Text(), server_default=sa.text("''"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_credential_records"),
         sa.UniqueConstraint(
             "user_id",
@@ -73,12 +89,24 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("uid", sa.Text(), nullable=False),
         sa.Column("date", sa.Date(), nullable=False),
-        sa.Column("game_sign", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("bbs_sign", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("bbs_detail", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("bbs_like", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("bbs_share", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("bbs_reply", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "game_sign", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "bbs_sign", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "bbs_detail", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "bbs_like", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "bbs_share", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "bbs_reply", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_sign_records"),
         sa.UniqueConstraint("uid", "date", name="uq_sign_records_uid_date"),
     )
@@ -90,8 +118,12 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("bot_id", sa.Text(), nullable=False),
         sa.Column("group_id", sa.Text(), nullable=True),
-        sa.Column("allow_peek", sa.Boolean(), server_default=sa.text("1"), nullable=False),
-        sa.Column("uid_hidden", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "allow_peek", sa.Boolean(), server_default=sa.text("1"), nullable=False
+        ),
+        sa.Column(
+            "uid_hidden", sa.Boolean(), server_default=sa.text("0"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_privacy_settings"),
         sa.UniqueConstraint(
             "user_id",

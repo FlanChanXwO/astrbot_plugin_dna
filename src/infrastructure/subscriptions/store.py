@@ -64,7 +64,9 @@ class SubscriptionStore:
                     uid=str(item.get("uid", "")),
                     extra_message=str(item.get("extra_message", "")),
                     extra_data=str(item.get("extra_data", "")),
-                    enabled=item.get("enabled", True) if isinstance(item.get("enabled", True), bool) else True,
+                    enabled=item.get("enabled", True)
+                    if isinstance(item.get("enabled", True), bool)
+                    else True,
                     provenance=str(item.get("provenance", "legacy")),
                 )
                 for item in raw

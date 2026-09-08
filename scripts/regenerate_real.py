@@ -52,7 +52,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
-REAL_DIR = Path("/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/data/plugins/astrbot_plugin_dnaby/output/real")
+REAL_DIR = Path(
+    "/Users/flanchan/Developer/Projects/GithubProjects/astrbot-plugin-dev/data/plugins/astrbot_plugin_dnaby/output/real"
+)
 ASTRBOT_DIR = REAL_DIR / "astrbot"
 GSCORE_DIR = REAL_DIR / "gscore"
 TESTS_OUTPUT_DIR = ROOT / "tests" / "output"
@@ -105,7 +107,9 @@ async def main() -> None:
     blocks = extract_blocks(ann_detail.get("postContent") or [])
     subject = str(ann_detail.get("postTitle") or "")
     time_text = format_post_time(ann_detail.get("postTime"))
-    ann_detail_pages = await draw_ann_detail_card(post_id, subject, blocks, time_text=time_text)
+    ann_detail_pages = await draw_ann_detail_card(
+        post_id, subject, blocks, time_text=time_text
+    )
     if isinstance(ann_detail_pages, list) and ann_detail_pages:
         save_image("ann_detail_01.jpg", ann_detail_pages[0])
         save_image("ann_detail.jpg", ann_detail_pages[0])
@@ -118,14 +122,18 @@ async def main() -> None:
     # 4. 密函简图
     print("[4/13] 渲染 mh_simple.png ...")
     mh_objs = [DNARoleForToolInstanceInfo.model_validate(x) for x in live["mh"]]
-    mh_sim_bytes = await draw_mh_simple(mh_objs, remaining_seconds=3599, subscribe_list=[])
+    mh_sim_bytes = await draw_mh_simple(
+        mh_objs, remaining_seconds=3599, subscribe_list=[]
+    )
     save_image("mh_simple.png", mh_sim_bytes)
     save_image("mh.png", mh_sim_bytes)
     print(f"       -> mh_simple.png 完成: {len(mh_sim_bytes):,} 字节")
 
     # 5. 密函卡片
     print("[5/13] 渲染 mh_card.jpg ...")
-    mh_card_bytes = await draw_mh_card(mh_objs, remaining_seconds=3599, subscribe_list=[], bg_name="bg3.jpg")
+    mh_card_bytes = await draw_mh_card(
+        mh_objs, remaining_seconds=3599, subscribe_list=[], bg_name="bg3.jpg"
+    )
     save_image("mh_card.jpg", mh_card_bytes)
     print(f"       -> mh_card.jpg 完成: {len(mh_card_bytes):,} 字节")
 
@@ -152,7 +160,9 @@ async def main() -> None:
 
     # 8. 签到报告
     print("[8/13] 渲染 sign_report.png ...")
-    sign_rep_bytes = await create_sign_info_image("✅[二重螺旋]签到成功！\n今天已获得奖励：深红凝珠x200", theme="green")
+    sign_rep_bytes = await create_sign_info_image(
+        "✅[二重螺旋]签到成功！\n今天已获得奖励：深红凝珠x200", theme="green"
+    )
     save_image("sign_report.png", sign_rep_bytes)
     print(f"       -> sign_report.png 完成: {len(sign_rep_bytes):,} 字节")
 
@@ -160,7 +170,9 @@ async def main() -> None:
     print("[9/13] 渲染 stamina.jpg ...")
     sn = DNARoleShortNoteRes.model_validate(live["short_note"])
     stam_bg = ROOT / "src" / "resources" / "textures" / "stamina" / "bg" / "bg6.png"
-    stam_bytes = await _draw_stamina_card(ctx, role_show, sn, uid_hidden=False, bg_path=stam_bg)
+    stam_bytes = await _draw_stamina_card(
+        ctx, role_show, sn, uid_hidden=False, bg_path=stam_bg
+    )
     save_image("stamina.jpg", stam_bytes)
     print(f"       -> stamina.jpg 完成: {len(stam_bytes):,} 字节")
 
@@ -172,7 +184,9 @@ async def main() -> None:
 
     # 11. 角色详情
     print("[11/13] 渲染 role_detail.jpg ...")
-    weapons = json.loads((FIXTURES_DIR / "weapon-detail.json").read_text(encoding="utf-8"))
+    weapons = json.loads(
+        (FIXTURES_DIR / "weapon-detail.json").read_text(encoding="utf-8")
+    )
     rd = RoleDetail.model_validate(live["role_detail"]["charDetail"])
     con_weapon = WeaponDetail.model_validate(weapons["weaponDetail"])
     char_id = str(rd.charId)
@@ -194,14 +208,18 @@ async def main() -> None:
     # 12. 本周周报
     print("[12/13] 渲染 weekly_current.jpg ...")
     wc = DNAItemWeeklyReportRes.model_validate(live["weekly_current"])
-    wc_bytes = await _draw_weekly_report_card(ctx, role_show, wc, week_type=1, uid_hidden=False)
+    wc_bytes = await _draw_weekly_report_card(
+        ctx, role_show, wc, week_type=1, uid_hidden=False
+    )
     save_image("weekly_current.jpg", wc_bytes)
     print(f"       -> weekly_current.jpg 完成: {len(wc_bytes):,} 字节")
 
     # 13. 上周周报
     print("[13/13] 渲染 weekly_last.jpg ...")
     wl = DNAItemWeeklyReportRes.model_validate(live["weekly_last"])
-    wl_bytes = await _draw_weekly_report_card(ctx, role_show, wl, week_type=2, uid_hidden=False)
+    wl_bytes = await _draw_weekly_report_card(
+        ctx, role_show, wl, week_type=2, uid_hidden=False
+    )
     save_image("weekly_last.jpg", wl_bytes)
     print(f"       -> weekly_last.jpg 完成: {len(wl_bytes):,} 字节")
 
@@ -226,7 +244,9 @@ async def main() -> None:
     ]
 
     report_rows = []
-    print(f"{'出口':16s} | {'画布':11s} | {'GScore Bytes':12s} | {'AstrBot Bytes':13s} | {'MAD':6s}")
+    print(
+        f"{'出口':16s} | {'画布':11s} | {'GScore Bytes':12s} | {'AstrBot Bytes':13s} | {'MAD':6s}"
+    )
     print("-" * 65)
 
     valid_pairs = []
@@ -246,7 +266,9 @@ async def main() -> None:
         a_img = Image.open(a_path).convert("RGB")
 
         if g_img.size != a_img.size:
-            print(f"WARNING: Size difference for {name}: GScore={g_img.size} vs AstrBot={a_img.size}")
+            print(
+                f"WARNING: Size difference for {name}: GScore={g_img.size} vs AstrBot={a_img.size}"
+            )
             continue
 
         valid_pairs.append((name, g_path, a_path))
@@ -258,7 +280,9 @@ async def main() -> None:
         a_bytes = os.path.getsize(a_path)
         canvas = f"{g_img.size[0]}x{g_img.size[1]}"
         report_rows.append((name, canvas, g_bytes, a_bytes, mad))
-        print(f"{name:16s} | {canvas:11s} | {g_bytes:12,d} | {a_bytes:13,d} | {mad:6.2f}")
+        print(
+            f"{name:16s} | {canvas:11s} | {g_bytes:12,d} | {a_bytes:13,d} | {mad:6.2f}"
+        )
 
     # 生成接触图与对照图
     if valid_pairs:
@@ -297,7 +321,11 @@ async def main() -> None:
                 ox = x + (cell_w - im.width) // 2
                 oy = y + 26 + (max_thumb_h - im.height) // 2
 
-                draw.rectangle([x, y, x + cell_w, y + cell_h], fill=(36, 36, 42), outline=(50, 50, 60))
+                draw.rectangle(
+                    [x, y, x + cell_w, y + cell_h],
+                    fill=(36, 36, 42),
+                    outline=(50, 50, 60),
+                )
                 sheet.paste(im, (ox, oy))
                 draw.text((x + 10, y + 6), label, fill=(220, 220, 230))
 
@@ -317,7 +345,11 @@ async def main() -> None:
 
             sheet = Image.new("RGB", (s_total_w, s_total_h), (20, 20, 24))
             draw = ImageDraw.Draw(sheet)
-            draw.text((s_margin, 12), "左: GScore 原版  |  右: AstrBot T2I 渲染", fill=(240, 240, 240))
+            draw.text(
+                (s_margin, 12),
+                "左: GScore 原版  |  右: AstrBot T2I 渲染",
+                fill=(240, 240, 240),
+            )
 
             for idx, (label, g_path, a_path) in enumerate(valid_pairs):
                 row_idx = idx // pairs_per_row
@@ -343,14 +375,38 @@ async def main() -> None:
                 a_im.thumbnail((thumb_max_w, thumb_max_h), Image.Resampling.LANCZOS)
 
                 # 绘制 GScore
-                draw.rectangle([x_g, y_g, x_g + t_w, y_g + t_h], fill=(32, 34, 40), outline=(50, 52, 60))
-                draw.text((x_g + 10, y_g + 8), f"[GScore] {label}", fill=(180, 200, 240))
-                sheet.paste(g_im, (x_g + (t_w - g_im.width) // 2, y_g + 28 + (thumb_max_h - g_im.height) // 2))
+                draw.rectangle(
+                    [x_g, y_g, x_g + t_w, y_g + t_h],
+                    fill=(32, 34, 40),
+                    outline=(50, 52, 60),
+                )
+                draw.text(
+                    (x_g + 10, y_g + 8), f"[GScore] {label}", fill=(180, 200, 240)
+                )
+                sheet.paste(
+                    g_im,
+                    (
+                        x_g + (t_w - g_im.width) // 2,
+                        y_g + 28 + (thumb_max_h - g_im.height) // 2,
+                    ),
+                )
 
                 # 绘制 AstrBot
-                draw.rectangle([x_a, y_a, x_a + t_w, y_a + t_h], fill=(32, 34, 40), outline=(50, 52, 60))
-                draw.text((x_a + 10, y_a + 8), f"[AstrBot] {label}", fill=(180, 240, 200))
-                sheet.paste(a_im, (x_a + (t_w - a_im.width) // 2, y_a + 28 + (thumb_max_h - a_im.height) // 2))
+                draw.rectangle(
+                    [x_a, y_a, x_a + t_w, y_a + t_h],
+                    fill=(32, 34, 40),
+                    outline=(50, 52, 60),
+                )
+                draw.text(
+                    (x_a + 10, y_a + 8), f"[AstrBot] {label}", fill=(180, 240, 200)
+                )
+                sheet.paste(
+                    a_im,
+                    (
+                        x_a + (t_w - a_im.width) // 2,
+                        y_a + 28 + (thumb_max_h - a_im.height) // 2,
+                    ),
+                )
 
             return sheet
 
@@ -363,7 +419,9 @@ async def main() -> None:
                 make_sheet("diff").save(out_dir / "diff_contact.jpg", quality=92)
                 side_by_side.save(out_dir / "comparison-all.jpg", quality=92)
                 side_by_side.save(out_dir / "comparison.jpg", quality=92)
-        print("\n接触图与对照图已保存: astrbot_contact.jpg, gscore_contact.jpg, diff_contact.jpg, comparison-all.jpg, comparison.jpg")
+        print(
+            "\n接触图与对照图已保存: astrbot_contact.jpg, gscore_contact.jpg, diff_contact.jpg, comparison-all.jpg, comparison.jpg"
+        )
 
     # 更新 acceptance-report.md
     report_content = [
@@ -376,18 +434,24 @@ async def main() -> None:
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for name, canvas, g_bytes, a_bytes, mad in report_rows:
-        report_content.append(f"| {name} | {canvas} | {g_bytes:,} | {a_bytes:,} | {mad:.2f} |")
+        report_content.append(
+            f"| {name} | {canvas} | {g_bytes:,} | {a_bytes:,} | {mad:.2f} |"
+        )
 
-    report_content.extend([
-        "",
-        "自检结论：13 类固定画布全部一致，文本与真实素材完整，无占位图、裁切、缺列或 PIL 静默回退。",
-        "帮助图和角色总览超过 1 MiB 注意线，已保留完整内容并记录；其余 T2I 图片低于 1 MiB。",
-        "日历热运行 T2I 为 9.5-11.4 秒，密函简图 8.0 秒，密函卡片 8.8 秒，角色详情约 9.2 秒。",
-        "最终视觉结论仍需人工逐图签收。",
-        "",
-    ])
+    report_content.extend(
+        [
+            "",
+            "自检结论：13 类固定画布全部一致，文本与真实素材完整，无占位图、裁切、缺列或 PIL 静默回退。",
+            "帮助图和角色总览超过 1 MiB 注意线，已保留完整内容并记录；其余 T2I 图片低于 1 MiB。",
+            "日历热运行 T2I 为 9.5-11.4 秒，密函简图 8.0 秒，密函卡片 8.8 秒，角色详情约 9.2 秒。",
+            "最终视觉结论仍需人工逐图签收。",
+            "",
+        ]
+    )
 
-    (REAL_DIR / "acceptance-report.md").write_text("\n".join(report_content), encoding="utf-8")
+    (REAL_DIR / "acceptance-report.md").write_text(
+        "\n".join(report_content), encoding="utf-8"
+    )
     print("acceptance-report.md 已成功更新！")
 
 

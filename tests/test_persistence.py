@@ -17,7 +17,9 @@ from src.infrastructure.persistence import (
 
 
 @pytest.mark.asyncio
-async def test_database_uses_new_async_sqlite_file_and_does_not_touch_legacy_db(tmp_path: Path):
+async def test_database_uses_new_async_sqlite_file_and_does_not_touch_legacy_db(
+    tmp_path: Path,
+):
     """新持久化路径使用独立文件，且不会打开旧 SQLModel 数据库。"""
     legacy_path = tmp_path / "dnaby.db"
     legacy_bytes = b"legacy-database-fixture"
@@ -34,7 +36,9 @@ async def test_database_uses_new_async_sqlite_file_and_does_not_touch_legacy_db(
 
 
 @pytest.mark.asyncio
-async def test_repository_uses_explicit_transaction_and_rolls_back_on_error(tmp_path: Path):
+async def test_repository_uses_explicit_transaction_and_rolls_back_on_error(
+    tmp_path: Path,
+):
     """repository 不隐式创建 session，事务异常时应完整回滚。"""
     database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
     await database.create_schema_for_tests()
@@ -129,11 +133,18 @@ def test_sqlalchemy_metadata_has_five_new_tables_and_no_sqlmodel_import():
     persistence_root = Path("src/infrastructure/persistence")
     for source_path in persistence_root.glob("*.py"):
         tree = ast.parse(source_path.read_text(encoding="utf-8"))
-        imports = [node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))]
+        imports = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+        ]
         assert not any(
             (
                 isinstance(node, ast.Import)
-                and any(alias.name == "sqlmodel" or alias.name.startswith("sqlmodel.") for alias in node.names)
+                and any(
+                    alias.name == "sqlmodel" or alias.name.startswith("sqlmodel.")
+                    for alias in node.names
+                )
             )
             or (
                 isinstance(node, ast.ImportFrom)
@@ -160,10 +171,12 @@ def test_alembic_initial_revision_is_explicit_and_covers_metadata_tables():
 
     assert assignments == {"revision": "0001_initial", "down_revision": None}
     assert any(
-        isinstance(node, ast.FunctionDef) and node.name == "upgrade" for node in tree.body
+        isinstance(node, ast.FunctionDef) and node.name == "upgrade"
+        for node in tree.body
     )
     assert any(
-        isinstance(node, ast.FunctionDef) and node.name == "downgrade" for node in tree.body
+        isinstance(node, ast.FunctionDef) and node.name == "downgrade"
+        for node in tree.body
     )
     for table_name in Base.metadata.tables:
         assert table_name in migration_text
@@ -203,7 +216,9 @@ def test_alembic_is_declared_without_hardcoded_runtime_database_path():
 
 
 @pytest.mark.asyncio
-async def test_alembic_upgrade_and_downgrade_when_dependency_is_available(tmp_path: Path):
+async def test_alembic_upgrade_and_downgrade_when_dependency_is_available(
+    tmp_path: Path,
+):
     """依赖已安装时，再用隔离 SQLite 真跑一次 revision 往返。"""
     command = pytest.importorskip("alembic.command")
     config_module = pytest.importorskip("alembic.config")

@@ -1,8 +1,8 @@
 # 客户端更新查询与订阅推送设计
 
 > 日期：2026-09-02
-> 状态：已完成需求澄清，待实现
-> 目标工作树：`codex/client-updates-goal`
+> 状态：已实现
+> 实现记录：`goal-6` 的 T01–T17；当前行为以代码、测试和 `docs/usage/` 为准
 
 ## 1. 目标与边界
 
@@ -60,7 +60,7 @@
 
 为了保持“像公告一样”的投递语义，版本变化事件在独立状态中保存待投递目标：
 
-- 事件键为 `region + platform + previous_patch_version + current_patch_version`。
+- 事件键为 `region + channel_id + previous_patch_version + current_patch_version`；状态 key 为 `region:channel_id`。
 - 事件首次生成时固定当时已启用且匹配平台的订阅目标集合；后续新增订阅者不补收历史事件。
 - 单目标发送成功后标记 delivered；失败目标保留 pending，在后续轮询重试。
 - 取消/停用订阅时从所有待投递事件移除该目标；重新订阅不加入旧事件。
@@ -142,7 +142,7 @@ Android EM/++UE4+Release-4.27-CL-0 Android/12
 
 运行期状态写入 `StarTools.get_data_dir(self.name)` 下的 `client_update_state.json`，不写插件源码目录 `data/`。
 
-每个 `region + platform` 至少保存：
+每个 `region:channel_id` 至少保存：
 
 - `patch_version`：最近成功观察版本。
 - `resource_version_dir`：实际用于资源清单路径的目录号（安卓必须保存）。
@@ -173,17 +173,18 @@ Android EM/++UE4+Release-4.27-CL-0 Android/12
 
 首次无历史时使用当前版本和“暂无上次版本/暂无可比较大小”的明确语义，而不是制造旧版本。
 
-合并转发只在目标 `bot_id == "onebot"` 且配置开启时构造节点；节点内容仍使用上述平台消息。OneBot 能力不可用、组件构造失败或目标不是 OneBot 时，安全降级为普通消息并记录原因，不影响版本状态和其他目标推送。
+合并转发只在目标被识别为 OneBot 且配置开启时构造节点；节点内容仍使用上述 channel 消息。OneBot 能力不可用、组件构造失败或目标不是 OneBot 时，安全降级为普通消息并记录原因，不影响版本状态和其他目标推送。
 
 ## 6. 配置、调度与生命周期
 
 ### 配置
 
-在 `NotificationSettings` 中增加独立字段：
+配置位于独立的 `ClientUpdatesSettings` 组：
 
-- `client_update_enabled: bool = True`
-- `client_update_check_minutes: int = 60`，必须为正整数。
-- `client_update_merge_forward: bool = True`
+- `client_updates.enabled: bool = True`
+- `client_updates.check_minutes: int = 60`，必须为正整数。
+- `client_updates.channels: list[str] = ["pc_cn", "android_astc_cn"]`，只接受已注册 channel ID。
+- `client_updates.merge_forward: bool = True`
 
 检查周期不与公告周期共享；不合法值通过现有 typed 配置校验显式报告，不静默改成另一个周期。配置 schema 和使用文档必须同步。
 
@@ -193,7 +194,7 @@ Android EM/++UE4+Release-4.27-CL-0 Android/12
 
 - 任务 ID：`dnaby_client_update_poll`
 - 名称：`客户端更新轮询`
-- schedule：`interval@{client_update_check_minutes}m`
+- schedule：`interval@{client_updates.check_minutes}m`
 - targets：`("client_update_subscriptions",)`
 - registry 可与现有 scheduler 共享 `scheduler_state.json`；任务 ID、启停和 tombstone 独立，不覆盖公告/签到任务。
 - `start()` 幂等创建任务并激活 registry；`stop()` 取消并等待任务、停用 registry。

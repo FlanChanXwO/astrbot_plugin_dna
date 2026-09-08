@@ -503,7 +503,9 @@ class AdminApiService:
         except ValueError:
             return _failure(AdminErrorCode.VALIDATION, "target_id 无效")
         if key[0] != notices_messages.ANN_SUBSCRIBE:
-            return _failure(AdminErrorCode.UNSUPPORTED, "该目标类型不支持公告生命周期操作")
+            return _failure(
+                AdminErrorCode.UNSUPPORTED, "该目标类型不支持公告生命周期操作"
+            )
         try:
             existing = await self._find_target(key)
         except Exception:  # noqa: BLE001
@@ -511,7 +513,9 @@ class AdminApiService:
         if existing is None:
             return _failure(AdminErrorCode.NOT_FOUND, "公告目标不存在")
         if existing.provenance != "chat_command":
-            return _failure(AdminErrorCode.UNSUPPORTED, "该公告目标来源未核验，不能由管理页操作")
+            return _failure(
+                AdminErrorCode.UNSUPPORTED, "该公告目标来源未核验，不能由管理页操作"
+            )
         method = getattr(service, action, None)
         if not callable(method):
             return _failure(AdminErrorCode.INTERNAL, "公告目标服务不可用")
@@ -524,14 +528,22 @@ class AdminApiService:
         if not isinstance(result, TargetMutationResult):
             return _failure(AdminErrorCode.INTERNAL, "公告目标服务返回结果无效")
         if result.status is TargetMutationStatus.INVALID:
-            return _failure(AdminErrorCode.VALIDATION, result.message or "target_id 无效")
+            return _failure(
+                AdminErrorCode.VALIDATION, result.message or "target_id 无效"
+            )
         if result.status is TargetMutationStatus.NOT_FOUND:
-            return _failure(AdminErrorCode.NOT_FOUND, result.message or "公告目标不存在")
+            return _failure(
+                AdminErrorCode.NOT_FOUND, result.message or "公告目标不存在"
+            )
         if result.subscription is None:
             return _failure(AdminErrorCode.INTERNAL, "公告目标服务未返回目标")
         target = TaskTarget.from_subscription(result.subscription)
         if result.status is TargetMutationStatus.PARTIAL:
-            return _failure(AdminErrorCode.PARTIAL, result.message or "公告目标操作部分完成", data=target)
+            return _failure(
+                AdminErrorCode.PARTIAL,
+                result.message or "公告目标操作部分完成",
+                data=target,
+            )
         return AdminApiResponse.success(target)
 
     async def update_target(
@@ -551,7 +563,10 @@ class AdminApiService:
         if target is None:
             return _failure(AdminErrorCode.NOT_FOUND, "投递目标不存在")
         if target.type == notices_messages.ANN_SUBSCRIBE:
-            return _failure(AdminErrorCode.UNSUPPORTED, "公告目标只能通过生命周期操作管理，身份不可移动")
+            return _failure(
+                AdminErrorCode.UNSUPPORTED,
+                "公告目标只能通过生命周期操作管理，身份不可移动",
+            )
         replacement = Subscription(
             type=target.type,
             unified_msg_origin=target.unified_msg_origin,

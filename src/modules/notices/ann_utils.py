@@ -57,7 +57,9 @@ def format_post_time(raw: Any) -> str:
     if raw in (None, ""):
         return ""
     if isinstance(raw, (int, float)):
-        return datetime.fromtimestamp(int(raw), tz=SHANGHAI_TZ).strftime("%Y-%m-%d %H:%M")
+        return datetime.fromtimestamp(int(raw), tz=SHANGHAI_TZ).strftime(
+            "%Y-%m-%d %H:%M"
+        )
 
     text = str(raw).strip()
     if any(part in text for part in _RELATIVE_TIME_PARTS):

@@ -20,6 +20,7 @@ BUILTIN_SCHEDULER_TASK_IDS = (
     "dnaby_ann_poll",
     "dnaby_client_update_poll",
 )
+LEGACY_SIGN_SCHEDULER_MIGRATION = "legacy_scheduled_enabled"
 
 _DAILY_TASK_IDS = frozenset(("dnaby_sign_daily", "dnaby_sign_cleanup"))
 _HOURLY_TASK_IDS = frozenset(("dnaby_mh_push",))
@@ -190,11 +191,13 @@ class SchedulerTaskSnapshot:
 
 
 class SchedulerStateStore:
-    """只持久化永久删除 tombstone，并用临时文件原子替换。"""
+    """持久化任务 tombstone、暂停状态和一次性迁移标记。"""
 
     def __init__(self, path: str | Path | None = None) -> None:
         self.path = Path(path).expanduser().resolve() if path is not None else None
         self._deleted_tasks: set[str] = set()
+        self._paused_tasks: set[str] = set()
+        self._migrations: set[str] = set()
         self._lock = asyncio.Lock()
         self._loaded = False
 
@@ -204,6 +207,59 @@ class SchedulerStateStore:
         async with self._lock:
             await self._load_unlocked()
             return frozenset(self._deleted_tasks)
+
+    async def paused_tasks(self) -> frozenset[str]:
+        """返回持久化的暂停任务集合。"""
+
+        async with self._lock:
+            await self._load_unlocked()
+            return frozenset(self._paused_tasks)
+
+    async def set_paused(self, task_id: str, paused: bool) -> None:
+        """原子更新任务暂停状态；失败时恢复内存快照。"""
+
+        async with self._lock:
+            await self._load_unlocked()
+            previous = set(self._paused_tasks)
+            if paused:
+                self._paused_tasks.add(task_id)
+            else:
+                self._paused_tasks.discard(task_id)
+            if self._paused_tasks == previous:
+                return
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._paused_tasks = previous
+                raise
+
+    async def migrate_legacy_sign_scheduler(
+        self,
+        *,
+        enabled: bool,
+        migration_id: str = LEGACY_SIGN_SCHEDULER_MIGRATION,
+        task_id: str = "dnaby_sign_daily",
+    ) -> bool:
+        """一次性把旧签到总开关转换为可恢复的 registry 状态。"""
+
+        if not isinstance(enabled, bool):
+            raise TypeError("legacy scheduler enabled 必须是布尔值")
+        async with self._lock:
+            await self._load_unlocked()
+            if migration_id in self._migrations:
+                return False
+            previous_paused = set(self._paused_tasks)
+            previous_migrations = set(self._migrations)
+            if not enabled:
+                self._paused_tasks.add(task_id)
+            self._migrations.add(migration_id)
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._paused_tasks = previous_paused
+                self._migrations = previous_migrations
+                raise
+            return True
 
     async def _load_unlocked(self) -> None:
         if self._loaded:
@@ -221,7 +277,21 @@ class SchedulerStateStore:
                 for task_id in deleted
             ):
                 raise TypeError("deleted_tasks must be a list of non-empty strings")
+            paused = raw.get("paused_tasks", [])
+            if not isinstance(paused, list) or any(
+                not isinstance(task_id, str) or not task_id.strip()
+                for task_id in paused
+            ):
+                raise TypeError("paused_tasks must be a list of non-empty strings")
+            migrations = raw.get("migrations", [])
+            if not isinstance(migrations, list) or any(
+                not isinstance(migration_id, str) or not migration_id.strip()
+                for migration_id in migrations
+            ):
+                raise TypeError("migrations must be a list of non-empty strings")
             self._deleted_tasks = set(deleted)
+            self._paused_tasks = set(paused)
+            self._migrations = set(migrations)
         except (OSError, json.JSONDecodeError, TypeError, ValueError) as error:
             raise RuntimeError(
                 f"调度状态文件损坏: {self.path.name} ({type(error).__name__})"
@@ -256,13 +326,23 @@ class SchedulerStateStore:
         tmp = self.path.with_suffix(".json.tmp")
         tmp.write_text(
             json.dumps(
-                {"deleted_tasks": sorted(self._deleted_tasks)},
+                self._state_payload(),
                 ensure_ascii=False,
                 indent=2,
             ),
             encoding="utf-8",
         )
         tmp.replace(self.path)
+
+    def _state_payload(self) -> dict[str, list[str]]:
+        """只写入非空扩展字段，兼容旧 tombstone 文件形状。"""
+
+        payload = {"deleted_tasks": sorted(self._deleted_tasks)}
+        if self._paused_tasks:
+            payload["paused_tasks"] = sorted(self._paused_tasks)
+        if self._migrations:
+            payload["migrations"] = sorted(self._migrations)
+        return payload
 
 
 class SchedulerRegistry:
@@ -277,6 +357,7 @@ class SchedulerRegistry:
         self._enabled: dict[str, bool] = {}
         self._snapshots: dict[str, SchedulerTaskSnapshot] = {}
         self._deleted_tasks: set[str] = set()
+        self._paused_tasks: set[str] = set()
         self._lock = asyncio.Lock()
         self._initialized = False
 
@@ -313,12 +394,13 @@ class SchedulerRegistry:
         )
 
     async def initialize(self) -> None:
-        """加载 tombstone；多 scheduler 并发初始化保持幂等。"""
+        """加载 tombstone/暂停状态；多 scheduler 并发初始化保持幂等。"""
 
         async with self._lock:
             if self._initialized:
                 return
             self._deleted_tasks = set(await self.state_store.load())
+            self._paused_tasks = set(await self.state_store.paused_tasks())
             self._initialized = True
 
     async def _ensure_initialized(self) -> None:
@@ -361,6 +443,38 @@ class SchedulerRegistry:
                 raise SchedulerTaskNotFound(task_id)
             return self._enabled[task_id]
 
+    async def is_paused(self, task_id: str) -> bool:
+        """返回任务是否被正式 scheduler 管理入口暂停。"""
+
+        await self._ensure_initialized()
+        async with self._lock:
+            if task_id not in self._definitions:
+                raise SchedulerTaskNotFound(task_id)
+            return task_id in self._paused_tasks
+
+    async def migrate_legacy_sign_scheduler(self, *, enabled: bool) -> None:
+        """将旧签到总开关一次性迁移为 registry 暂停状态。"""
+
+        await self._ensure_initialized()
+        applied = await self.state_store.migrate_legacy_sign_scheduler(
+            enabled=enabled,
+        )
+        if not applied:
+            return
+        async with self._lock:
+            task_id = "dnaby_sign_daily"
+            if enabled or task_id in self._deleted_tasks:
+                return
+            self._paused_tasks.add(task_id)
+            current = self._snapshots.get(task_id)
+            if current is not None:
+                self._snapshots[task_id] = replace(
+                    current,
+                    state=SchedulerTaskState.PAUSED,
+                    next_run_at=None,
+                    last_error=None,
+                )
+
     async def activate(self, task_id: str) -> None:
         """标记 scheduler 已创建该任务。"""
 
@@ -369,6 +483,8 @@ class SchedulerRegistry:
             self._require_locked(task_id)
             if not self._enabled[task_id]:
                 raise SchedulerTaskUnavailable(task_id)
+            if task_id in self._paused_tasks:
+                return
             current = self._snapshots[task_id]
             self._snapshots[task_id] = replace(
                 current,
@@ -398,6 +514,8 @@ class SchedulerRegistry:
             current = self._require_locked(task_id)
             if not current.can_pause:
                 raise SchedulerTaskNotPausable(task_id)
+            await self.state_store.set_paused(task_id, True)
+            self._paused_tasks.add(task_id)
             self._snapshots[task_id] = replace(
                 current,
                 state=SchedulerTaskState.PAUSED,
@@ -413,6 +531,8 @@ class SchedulerRegistry:
                 raise SchedulerTaskNotPausable(task_id)
             if not self._enabled[task_id]:
                 raise SchedulerTaskUnavailable(task_id)
+            await self.state_store.set_paused(task_id, False)
+            self._paused_tasks.discard(task_id)
             self._snapshots[task_id] = replace(
                 current,
                 state=SchedulerTaskState.RUNNING,
@@ -502,6 +622,7 @@ class SchedulerRegistry:
 
 __all__ = [
     "BUILTIN_SCHEDULER_TASK_IDS",
+    "LEGACY_SIGN_SCHEDULER_MIGRATION",
     "MH_PUSH_AT",
     "MH_PUSH_SCHEDULE",
     "SchedulerRegistry",

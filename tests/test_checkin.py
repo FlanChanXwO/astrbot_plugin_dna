@@ -771,7 +771,9 @@ async def test_auto_sign_report_groups_game_and_community_by_group(
         assert {item.report_type for item in reports} == {"game", "community"}
         assert all(item.success == 1 and item.failed == 0 for item in reports)
         assert all(uid in item.detail_text for item in reports)
-        assert all(messages.sign_detail_separator() not in item.detail_text for item in reports)
+        assert all(
+            messages.sign_detail_separator() not in item.detail_text for item in reports
+        )
 
     del original_calendar
     await database.dispose()
@@ -808,8 +810,7 @@ async def test_group_report_uses_structured_details_not_display_layout(
     reports = {item.report_type: item for item in report.group_reports["group-1"]}
 
     assert reports["game"].detail_text == "\n".join(
-        messages.group_detail("uid-1", line)
-        for line in outcome.game_detail_lines
+        messages.group_detail("uid-1", line) for line in outcome.game_detail_lines
     )
     assert reports["community"].detail_text == "\n".join(
         [

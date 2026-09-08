@@ -1,5 +1,14 @@
 """客户端更新查询与定时推送领域。"""
 
+from .channels import (
+    CHANNEL_REGISTRY,
+    CLIENT_UPDATE_CHANNELS,
+    ClientUpdateChannel,
+    default_channel_id_for_platform,
+    normalize_client_update_channel_ids,
+    resolve_client_update_channel,
+    select_enabled_channels,
+)
 from .contracts import (
     ClientPlatform,
     ClientRegion,
@@ -13,8 +22,11 @@ from .contracts import (
     ClientVersion,
     ClientVersionSnapshot,
     normalize_client_update_platforms,
+    parse_channel_version_list,
+    parse_channel_version_list_entries,
     parse_version_list,
     parse_version_list_entries,
+    sum_channel_patch_file_sizes,
     sum_patch_file_sizes,
 )
 from .delivery import (
@@ -40,11 +52,14 @@ from .state import (
 )
 
 __all__ = [
+    "CHANNEL_REGISTRY",
+    "CLIENT_UPDATE_CHANNELS",
     "STATE_VERSION",
     "ClientPlatform",
     "ClientRegion",
     "ClientUpdateBaseline",
     "ClientUpdateChange",
+    "ClientUpdateChannel",
     "ClientUpdateDeliveryService",
     "ClientUpdateFailureKind",
     "ClientUpdateObservation",
@@ -66,8 +81,15 @@ __all__ = [
     "ClientUpdateTransportError",
     "ClientVersion",
     "ClientVersionSnapshot",
+    "default_channel_id_for_platform",
+    "normalize_client_update_channel_ids",
     "normalize_client_update_platforms",
+    "parse_channel_version_list",
+    "parse_channel_version_list_entries",
     "parse_version_list",
     "parse_version_list_entries",
+    "resolve_client_update_channel",
+    "select_enabled_channels",
+    "sum_channel_patch_file_sizes",
     "sum_patch_file_sizes",
 ]

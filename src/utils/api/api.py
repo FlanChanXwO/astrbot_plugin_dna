@@ -63,27 +63,3 @@ ACTIVITY_LIST_URL = f"{MAIN_URL}/encourage/calendar/Activity/list"
 WIKI_HOME_LIST_URL = f"{MAIN_URL}/forum/wiki/home/page/list"
 WIKI_LIST_URL = f"{MAIN_URL}/forum/wiki/list"
 WIKI_DETAIL_URL = f"{MAIN_URL}/forum/wiki/getDetail"
-
-
-def get_local_proxy_url():
-    try:
-        local_proxy = DNAConfig.get_config("LocalProxyUrl").data
-    except KeyError:
-        local_proxy = None
-    return local_proxy or None
-
-
-def get_need_proxy_func():
-    try:
-        need_proxy = DNAConfig.get_config("NeedProxyFunc").data
-    except KeyError:
-        need_proxy = []
-    return need_proxy or []
-
-
-def get_no_need_proxy_func():
-    try:
-        no_need = DNAConfig.get_config("NoNeedProxyFunc").data
-    except KeyError:
-        no_need = []
-    return no_need or []

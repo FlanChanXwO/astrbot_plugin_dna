@@ -39,7 +39,9 @@ class AsyncDatabase:
         return self._url
 
     @classmethod
-    def from_data_dir(cls, data_dir: str | Path, *, echo: bool = False) -> AsyncDatabase:
+    def from_data_dir(
+        cls, data_dir: str | Path, *, echo: bool = False
+    ) -> AsyncDatabase:
         """从运行期 data 目录定位新数据库，不读取旧 `dnaby.db`。"""
         return cls(Path(data_dir) / "dnaby.sqlite3", echo=echo)
 

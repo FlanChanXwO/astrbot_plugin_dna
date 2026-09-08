@@ -84,7 +84,9 @@ class Bind(SQLModel):
     # ---- 通用 CRUD ----
     @classmethod
     @with_session
-    async def bind_exists(cls, session: AsyncSession, user_id: str, bot_id: str) -> bool:
+    async def bind_exists(
+        cls, session: AsyncSession, user_id: str, bot_id: str
+    ) -> bool:
         sql = select(cls).where(cls.user_id == user_id, cls.bot_id == bot_id)
         result = await session.execute(sql)
         return result.scalars().first() is not None
@@ -260,9 +262,7 @@ class User(SQLModel):
         select_data: dict[str, Any],
         update_data: dict[str, Any],
     ) -> int:
-        sql = select(cls).where(
-            *[getattr(cls, k) == v for k, v in select_data.items()]
-        )
+        sql = select(cls).where(*[getattr(cls, k) == v for k, v in select_data.items()])
         result = await session.execute(sql)
         records = result.scalars().all()
         for record in records:

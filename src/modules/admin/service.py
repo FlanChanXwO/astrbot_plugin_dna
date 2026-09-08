@@ -186,7 +186,10 @@ class AdminAccountService:
             _normalized_identity(update.user_id) != normalized_user_id
         ):
             return _failure(AdminErrorCode.CONFLICT, "user_id 是只读身份键")
-        if update.uid is not None and _normalized_identity(update.uid) != normalized_uid:
+        if (
+            update.uid is not None
+            and _normalized_identity(update.uid) != normalized_uid
+        ):
             return _failure(AdminErrorCode.CONFLICT, "uid 是只读身份键")
 
         async with self.database.transaction() as session:

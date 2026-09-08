@@ -200,11 +200,15 @@ class AdminAliasService:
         )
         if self.custom_path.resolve() == self.default_alias_path.resolve():
             raise ValueError("custom 别名文件不能覆盖默认别名文件")
-        self.weapon_alias_path = Path(weapon_alias_path) if weapon_alias_path is not None else (
-            self.default_alias_path.parent / "weapon_alias.json"
+        self.weapon_alias_path = (
+            Path(weapon_alias_path)
+            if weapon_alias_path is not None
+            else (self.default_alias_path.parent / "weapon_alias.json")
         )
-        self.weapon_custom_path = Path(weapon_custom_path) if weapon_custom_path is not None else (
-            self.custom_path.with_name("weapon_alias_custom.json")
+        self.weapon_custom_path = (
+            Path(weapon_custom_path)
+            if weapon_custom_path is not None
+            else (self.custom_path.with_name("weapon_alias_custom.json"))
         )
         if self.weapon_custom_path.resolve() == self.weapon_alias_path.resolve():
             raise ValueError("武器 custom 别名文件不能覆盖默认别名文件")
@@ -266,10 +270,15 @@ class AdminAliasService:
         weapon_defaults = weapon_defaults or {}
         weapon_custom = weapon_custom or {}
         weapon_names = list(weapon_defaults)
-        weapon_names.extend(name for name in weapon_custom if name not in weapon_defaults)
+        weapon_names.extend(
+            name for name in weapon_custom if name not in weapon_defaults
+        )
         return AdminAliasCatalog(
             tuple(cls._entry(name, defaults, custom) for name in names),
-            tuple(cls._entry(name, weapon_defaults, weapon_custom) for name in weapon_names),
+            tuple(
+                cls._entry(name, weapon_defaults, weapon_custom)
+                for name in weapon_names
+            ),
         )
 
     @staticmethod
@@ -485,11 +494,17 @@ class AdminAliasService:
         if weapon not in defaults:
             return _failure(AdminErrorCode.NOT_FOUND, "武器不存在")
         candidate_key = _alias_key(candidate)
-        if any(_alias_key(value) == candidate_key for value in defaults.get(weapon, ())):
+        if any(
+            _alias_key(value) == candidate_key for value in defaults.get(weapon, ())
+        ):
             return _failure(AdminErrorCode.CONFLICT, "默认别名不可删除")
         values = custom.get(weapon, [])
         index = next(
-            (idx for idx, value in enumerate(values) if _alias_key(value) == candidate_key),
+            (
+                idx
+                for idx, value in enumerate(values)
+                if _alias_key(value) == candidate_key
+            ),
             None,
         )
         if index is None:
@@ -511,7 +526,9 @@ class AdminAliasService:
         self._refresh()
         return await self.list_aliases()
 
-    async def recover_aliases(self, *, force: bool) -> AdminApiResponse[AdminAliasCatalog]:
+    async def recover_aliases(
+        self, *, force: bool
+    ) -> AdminApiResponse[AdminAliasCatalog]:
         """普通恢复保留 custom；强制恢复清空两类 custom 层。"""
 
         if not force:
