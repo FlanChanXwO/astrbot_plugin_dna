@@ -694,17 +694,21 @@ class PlayerRenderer:
                 source="fonts/dna_fonts.ttf",
             )
         if isinstance(self.resources, ResourceMap):
+            status = self.resources.get_font_status()
             return {
                 "kind": "font",
                 "key": "dna_fonts",
-                "status": self.resources.get_font_status(),
+                "status": status,
                 "source": "fonts/dna_fonts.ttf",
+                "incomplete": "false" if status == "provided" else "true",
             }
+        status = self.resources.font_status
         return {
             "kind": "font",
             "key": "dna_fonts",
-            "status": self.resources.font_status,
+            "status": status,
             "source": "fonts/dna_fonts.ttf" if self.resources.font_path is not None else "",
+            "incomplete": "false" if status == "provided" else "true",
         }
 
     def _write(

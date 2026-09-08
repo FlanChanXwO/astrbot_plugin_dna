@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -11,6 +12,7 @@ from ..entry.commands import CommandRegistry, CommandRequest, CommandSpec
 from ..entry.response import ImageResponse
 from ..infrastructure.rendering.artifact import RenderedArtifact
 from ..infrastructure.rendering.artifact_store import write_rendered_artifact
+from ..infrastructure.rendering.runtime_assets import resources_incomplete
 from ..version import PLUGIN_VERSION
 
 HelpRenderer = Callable[[str], Awaitable[bytes]]
@@ -37,6 +39,7 @@ async def help_use_case(
     """使用 DNAUID 原版帮助卡片绘制器输出图片。"""
 
     renderer = request.services.get("help_renderer")
+    resource_records: list[dict[str, str]] = []
     if renderer is None:
         from ..infrastructure.rendering.help import get_help
 
@@ -51,6 +54,7 @@ async def help_use_case(
                 permission=request.permission,
                 version=PLUGIN_VERSION,
                 asset_resolver=asset_resolver,
+                resource_records=resource_records,
             )
     else:
         payload = await _help_renderer(request)(request.matched_prefix)
@@ -63,14 +67,15 @@ async def help_use_case(
         metadata={
             "dnaby.text": "",
             "dnaby.layout": {"width": 2020, "height": None, "sections": []},
-            "dnaby.resources": [],
+            "dnaby.resources": resource_records,
         },
     )
-    return write_rendered_artifact(
+    response = write_rendered_artifact(
         rendered_root,
         artifact,
         prefix="dnaby-help-帮助-",
     )
+    return replace(response, incomplete=resources_incomplete(resource_records))
 
 
 COMMAND_SPECS = (
