@@ -41,14 +41,15 @@ def format_current(snapshot: ClientVersionSnapshot) -> str:
     return (
         f"{_DETECTED_PREFIX}"
         f"国服 {platform_name(snapshot.platform)} 客户端\n"
-        f"当前版本：{snapshot.version_text}"
+        f"当前版本：{snapshot.version_text}\n"
+        "上次版本：暂无；新增更新：暂无可比较大小"
     )
 
 
 def format_no_change(snapshot: ClientVersionSnapshot) -> str:
     """格式化已有基线但版本未变化的查询结果。"""
 
-    return f"{format_current(snapshot)}\n暂无更新"
+    return f"{format_current(snapshot)}；暂无更新"
 
 
 def format_change(change: ClientUpdateChange) -> str:

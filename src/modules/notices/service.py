@@ -206,23 +206,15 @@ class NoticesService:
         )
 
     async def mh(self, request: NoticeRequest):
-        """读取并渲染当前小时段的密函数据。"""
+        """读取并渲染公共密函数据，不要求调用者绑定账号。"""
 
-        resolved = await self._resolve_uid(request, operation="mh")
-        if isinstance(resolved, PlainTextResponse):
-            return resolved
-        target_user_id, uid = resolved
+        del request
         try:
             now = self._now()
-
-            async def fetch() -> Any:
-                return await self.transport.get_mh(
-                    request.actor,
-                    uid,
-                    credential_user_id=target_user_id,
-                )
-
-            snapshot = await self._verified_mh_snapshot(now, fetch)
+            snapshot = await self._verified_mh_snapshot(
+                now,
+                self.transport.get_mh_any,
+            )
         except NoticesTransportError as error:
             logger.warning(
                 "通知请求失败 operation=%s kind=%s resource=%s",
@@ -232,10 +224,7 @@ class NoticesService:
             )
             if error.kind is NoticesFailureKind.CREDENTIAL:
                 return PlainTextResponse(
-                    messages.transport_error(
-                        error.kind.value,
-                        target=target_user_id != request.actor.user_id,
-                    ),
+                    messages.MH_PUBLIC_CREDENTIAL_UNAVAILABLE,
                     need_at=True,
                 )
             return PlainTextResponse(messages.MH_NOT_FOUND, need_at=True)

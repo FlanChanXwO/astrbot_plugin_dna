@@ -17,7 +17,11 @@ from ...utils.api.request_util import DNAApiResp
 
 def _format_number(value: float, *, percent: bool) -> str:
     number = float(value)
-    text = f"{int(number):,}" if number.is_integer() else f"{number:,.2f}".rstrip("0").rstrip(".")
+    text = (
+        f"{int(number):,}"
+        if number.is_integer()
+        else f"{number:,.2f}".rstrip("0").rstrip(".")
+    )
     return f"{text}%" if percent else text
 
 
@@ -39,7 +43,9 @@ def _format_metric(
     return f"{_format_number(base_value, percent=percent)} → {final_text}"
 
 
-def _build_attribute_metrics(base: AttributeBag, final: AttributeBag) -> list[dict[str, str]]:
+def _build_attribute_metrics(
+    base: AttributeBag, final: AttributeBag
+) -> list[dict[str, str]]:
     specs = (
         ("攻击", base.atk, final.atk, False),
         ("生命", base.hp, final.hp, False),
@@ -82,7 +88,9 @@ def _skill_metrics(skill: SkillResult) -> list[dict[str, str]]:
 
 
 def _lineup(build: RoleDamageBuild) -> list[dict[str, str]]:
-    char_name = getattr(build.role_detail, "charName", getattr(build.role_detail, "char_name", ""))
+    char_name = getattr(
+        build.role_detail, "charName", getattr(build.role_detail, "char_name", "")
+    )
     result = [{"label": "角色", "name": char_name}]
     for label, weapon in (
         ("近战", build.close_weapon_detail),
@@ -91,7 +99,9 @@ def _lineup(build: RoleDamageBuild) -> list[dict[str, str]]:
     ):
         if weapon is not None:
             result.append({"label": label, "name": weapon.name})
-    result.extend({"label": "协战", "name": companion.name} for companion in build.companions)
+    result.extend(
+        {"label": "协战", "name": companion.name} for companion in build.companions
+    )
     return result
 
 
@@ -151,9 +161,13 @@ def _weapon_metrics(
     ]
 
 
-def _skill_panels(build: RoleDamageBuild, skills: list[SkillResult]) -> list[dict[str, object]]:
+def _skill_panels(
+    build: RoleDamageBuild, skills: list[SkillResult]
+) -> list[dict[str, object]]:
     skills_by_id = {skill.id: skill for skill in skills}
-    children_by_parent: dict[int, list[SkillResult]] = {skill.id: [] for skill in skills}
+    children_by_parent: dict[int, list[SkillResult]] = {
+        skill.id: [] for skill in skills
+    }
     roots: list[SkillResult] = []
     for skill in skills:
         if skill.parent_id is None:
@@ -163,7 +177,9 @@ def _skill_panels(build: RoleDamageBuild, skills: list[SkillResult]) -> list[dic
         else:
             children_by_parent[skill.parent_id].append(skill)
 
-    levels = get_calculation_skill_levels(build.role_detail, tuple(skill.id for skill in roots))
+    levels = get_calculation_skill_levels(
+        build.role_detail, tuple(skill.id for skill in roots)
+    )
     panels: list[dict[str, object]] = []
     for skill in roots:
         if skill.id not in levels:
@@ -186,7 +202,9 @@ def _success_payload(
     build: RoleDamageBuild,
     calculation: CharacterCalculateData,
 ) -> dict[str, object]:
-    element_name = getattr(build.role_detail, "elementName", getattr(build.role_detail, "element_name", ""))
+    element_name = getattr(
+        build.role_detail, "elementName", getattr(build.role_detail, "element_name", "")
+    )
     return {
         "attributes": _build_attribute_metrics(
             calculation.base_attribute,
@@ -209,7 +227,9 @@ def draw_role_damage_section(
 ) -> dict[str, object]:
     """保留旧函数名，返回完整伤害面板 payload，不生成中间 PIL 图。"""
 
-    element_name = getattr(build.role_detail, "elementName", getattr(build.role_detail, "element_name", ""))
+    element_name = getattr(
+        build.role_detail, "elementName", getattr(build.role_detail, "element_name", "")
+    )
     if not response.is_success:
         return {
             "attributes": [],

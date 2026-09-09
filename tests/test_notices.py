@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,40 @@ def _ann_snapshot() -> AnnSnapshot:
             AnnPost(post_id="1002", title="活动预告", time="2026-08-02"),
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_mh_renderer_consumes_domain_snapshot_without_legacy_revalidation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """typed 密函渲染直接消费领域快照，不回拼 legacy 分节模型。"""
+
+    from src.infrastructure.rendering import notices as notices_module
+
+    payload = BytesIO()
+    Image.new("RGB", (31, 19), "#123456").save(payload, format="JPEG")
+
+    async def fake_draw(*_args, **_kwargs):
+        return payload.getvalue()
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("typed 密函渲染不应调用 legacy model_validate")
+
+    monkeypatch.setattr(notices_module, "draw_mh_card", fake_draw)
+    monkeypatch.setattr(
+        notices_module.DNARoleForToolInstanceInfo,
+        "model_validate",
+        fail,
+    )
+
+    renderer = NoticesRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
+    rendered = await renderer.render_mh(_mh_snapshot(), simple_image=False)
+
+    assert rendered.path.read_bytes() == payload.getvalue()
 
 
 class FakeNoticesTransport:
@@ -229,8 +264,10 @@ async def test_mh_empty_is_visible_not_found(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_mh_uid_invalid_when_unbound(tmp_path: Path) -> None:
-    """无绑定返回显式 UID 提示。"""
+async def test_mh_is_public_and_uses_any_available_credential_when_unbound(
+    tmp_path: Path,
+) -> None:
+    """未绑定调用者也可以查询公共密函，并走系统凭据路径。"""
 
     database = AsyncDatabase(tmp_path / "notices.sqlite3")
     await database.create_schema_for_tests()
@@ -239,9 +276,30 @@ async def test_mh_uid_invalid_when_unbound(tmp_path: Path) -> None:
 
     response = await service.mh(_request())
 
+    assert isinstance(response, ImageResponse)
+    assert transport.calls == ["get_mh_any"]
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_mh_public_credential_failure_has_public_error_message(tmp_path: Path) -> None:
+    """公共密函没有可用凭据时不应误报为调用者未登录。"""
+
+    database = AsyncDatabase(tmp_path / "notices.sqlite3")
+    await database.create_schema_for_tests()
+    transport = FakeNoticesTransport(
+        fail=NoticesTransportError(
+            NoticesFailureKind.CREDENTIAL,
+            resource="密函",
+        )
+    )
+    service = _service(database, transport)
+
+    response = await service.mh(_request())
+
     assert isinstance(response, PlainTextResponse)
-    assert response.text == "当前未绑定账号，请先登录"
-    assert transport.calls == []
+    assert "可用的密函查询凭据" in response.text
+    assert "当前未绑定账号" not in response.text
     await database.dispose()
 
 

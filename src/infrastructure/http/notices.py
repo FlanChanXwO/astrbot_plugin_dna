@@ -14,6 +14,7 @@ from typing import Any
 
 import aiohttp
 from astrbot.api import logger
+from pydantic import BaseModel, ConfigDict
 
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
 from ...infrastructure.persistence import (
@@ -35,6 +36,25 @@ from ...modules.notices.contracts import (
 )
 from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
+
+
+class _NoticesProjection(BaseModel):
+    """密函/公告 transport 的消费者专用响应投影。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+
+class _MhInstanceProjection(_NoticesProjection):
+    id: int
+    name: str
+
+
+class _MhSectionProjection(_NoticesProjection):
+    instances: list[_MhInstanceProjection]
+
+
+class _MhResponseProjection(_NoticesProjection):
+    instanceInfo: list[_MhSectionProjection]
 
 
 def _error_kind(response: Any) -> NoticesFailureKind:
@@ -122,18 +142,22 @@ class DnaApiNoticesTransport:
 
     @staticmethod
     def _mh_snapshot(data: Any) -> MhSnapshot:
-        from ...utils.api.mh_map import get_mh_type_name
-        from ...utils.api.model import DNAMHRes
+        """只解析密函列表实际使用的 instanceInfo/id/name 字段。"""
 
-        payload = DNAMHRes.model_validate(data)
+        from ...utils.api.mh_map import get_mh_type_name
+
+        normalized = {"instanceInfo": data} if isinstance(data, list) else data
+        payload = _MhResponseProjection.model_validate(normalized)
         sections = []
-        for info in payload.instanceInfo:
-            if not info.mh_type:
+        type_names = ("role", "weapon", "mzx")
+        for index, info in enumerate(payload.instanceInfo):
+            if index >= len(type_names):
                 continue
+            mh_type = type_names[index]
             sections.append(
                 MhSection(
-                    mh_type=info.mh_type,
-                    type_name=get_mh_type_name(info.mh_type),
+                    mh_type=mh_type,
+                    type_name=get_mh_type_name(mh_type),
                     instances=tuple(
                         MhInstance(instance_id=item.id, name=item.name)
                         for item in info.instances

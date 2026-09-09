@@ -101,15 +101,19 @@ class MhSnapshotEnvelope:
 
     def __post_init__(self) -> None:
         validate_mh_snapshot(self.snapshot)
-        window_start = _aware(self.window_start, name="window_start").astimezone(SHANGHAI)
+        window_start = _aware(self.window_start, name="window_start").astimezone(
+            SHANGHAI
+        )
         fetched_at = _aware(self.fetched_at, name="fetched_at")
         if window_start.minute or window_start.second or window_start.microsecond:
             raise ValueError("window_start 必须是整点")
         object.__setattr__(self, "window_start", window_start)
         if fetched_at >= window_start + timedelta(hours=1):
             raise ValueError("fetched_at 不属于 window_start")
-        if not isinstance(self.fingerprint, str) or len(self.fingerprint) != 64 or any(
-            char not in "0123456789abcdef" for char in self.fingerprint
+        if (
+            not isinstance(self.fingerprint, str)
+            or len(self.fingerprint) != 64
+            or any(char not in "0123456789abcdef" for char in self.fingerprint)
         ):
             raise ValueError("密函 fingerprint 无效")
         if self.fingerprint != snapshot_fingerprint(self.snapshot):
@@ -134,10 +138,14 @@ class MhSnapshotCache:
     def window_start(now: datetime) -> datetime:
         """将任意带时区时间转换为上海时区的整点窗口。"""
 
-        return _aware(now, name="now").astimezone(SHANGHAI).replace(
-            minute=0,
-            second=0,
-            microsecond=0,
+        return (
+            _aware(now, name="now")
+            .astimezone(SHANGHAI)
+            .replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
         )
 
     @staticmethod

@@ -1,147 +1,50 @@
 # 配置
 
-插件配置入口是 AstrBot Dashboard 的插件配置页。根目录 [`_conf_schema.json`](../../_conf_schema.json)
-是当前配置字段的机器可读投影；修改配置定义后，应由项目脚本重新生成，不要手工维护第二份字段清单。
-修改 Dashboard 配置后请重载插件。
+通过 AstrBot Dashboard 的插件配置页修改设置。根目录 [`_conf_schema.json`](../../_conf_schema.json) 是 Dashboard 使用的机器可读投影；真正的配置模型位于 `src/infrastructure/config/settings.py`。
 
-配置分为八组：`login`、`network`、`sign_in`、`notifications`、`display`、`resources`、`cache` 和
-`agent_tools`。下面列出常用字段与默认值；完整类型、提示和可选项以 schema 为准。
+修改配置后，按 AstrBot 的插件管理方式重载插件，使新的 runtime 重新读取设置。
 
-## 登录 `login`
+## 配置分组
 
-登录接入方式支持 `local`、`http_poll`、`sse` 和 `ws`；local 模式留空 URL 时使用内置服务的实际
-监听地址，填写 `login.url` 后优先使用该公开地址。`login.qr_login` 发送二维码，
-`login.tencent_docs` 将地址包装为腾讯文档可复制链接，`login.forward_login` 将登录内容包装为
-合并转发消息；二维码优先于腾讯文档，OneBot 私聊仍按平台限制发送普通消息。
+当前配置由代码生成以下分组：
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `login.url` | 空 | 外置登录服务地址；留空时使用插件内置服务。 |
-| `login.bind_host` | `127.0.0.1` | 内置登录服务监听地址。 |
-| `login.port` | `6189` | 内置登录服务监听端口；`0` 表示由系统分配临时端口。 |
-| `login.transport` | `local` | 登录接入方式，可选 `local`、`http_poll`、`sse`、`ws`。 |
-| `login.shared_secret` | 空 | 外置登录接入使用的共享密钥；使用内置服务时留空。 |
-| `login.tencent_docs` | `false` | 是否启用腾讯文档登录辅助。 |
-| `login.qr_login` | `false` | 是否启用二维码登录。 |
-| `login.forward_login` | `false` | 是否启用转发消息登录。 |
-| `login.max_bind_count` | `2` | 每个用户允许绑定的最大 UID 数量。 |
+- `general`：命令前缀与通用查询行为；
+- `login`：内置/外置登录服务和账号绑定；
+- `ai`：Agent Tools 开关；
+- `sign_in`：自动签到与签到报告；
+- `notifications`：密函、公告等通知；
+- `client_updates`：客户端版本检查与推送；
+- `display`：图鉴/攻略等显示策略；
+- `network`：API、代理与网络并发；
+- `resources`：公共资源同步与 GitHub 加速；
+- `cache`：数据/卡片缓存策略。
 
-`local` 模式在插件启动时使用内置登录服务；填写 `login.url` 后，登录回复优先使用该公开地址。
-需要让其他设备访问时，`login.bind_host` 和 `login.url` 必须填写调用方可访问的地址。登录参数应在私聊中发送，不要发到公开群聊。
+字段类型、默认值、选项和 Dashboard 提示请直接查看当前 `_conf_schema.json`，避免依赖文档中的重复表格。
 
-## 网络 `network`
+## 常用设置
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `network.max_concurrent_requests` | `4` | 短生命周期网络请求的最大并发数。 |
-| `network.api_proxy_url` | 空 | API 请求代理地址；不需要代理时留空。 |
-| `network.local_proxy_url` | 空 | 本地登录或 WebSocket 请求的代理地址。 |
-| `network.proxy_functions` | `[]` | 指定使用代理的功能，可选 `all`、`get_sms_code`、`login`。 |
-| `network.no_proxy_functions` | `[]` | 指定强制直连的功能。 |
-| `network.websocket_continue_seconds` | `300` | WebSocket 保活时间。 |
-| `network.websocket_wait_seconds` | `5` | WebSocket 连接等待时间。 |
+- `general.command_prefixes`：聊天命令前缀；README 与示例默认使用 `dna`。
+- `login.transport`：登录接入方式；当前支持 `local`、`http_poll`、`sse`、`ws`。其他登录字段见 [账号登录](login.md)。
+- `ai.agent_tools_enabled`：控制是否注册 DNABY Agent Tools；修改后需要重载。见 [Agent Tools](agent-tools.md)。
+- `sign_in.*`：自动签到时间、并发和报告行为。用户自己的自动签到状态仍由账号状态/命令管理。
+- `notifications.*`：公告和密函检查/推送行为。
+- `client_updates.*`：客户端更新检查周期、渠道与消息行为。
+- `resources.*`：公共资源同步传输设置。见 [公共资源](resources.md)。
+- `cache.*`：玩家、公告等内容缓存和主动刷新行为。
 
-代理字段只影响对应的网络请求；公共资源的加速模式单独由 `resources` 配置。
+## 网络与敏感配置
 
-## 签到 `sign_in`
+代理、外置登录地址和共享密钥只应通过受控的 Dashboard 配置保存。不要把 Cookie、token、共享密钥或带凭据的 URL 写进仓库、Issue、PR 或文档示例。
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `sign_in.community_tasks` | `bbs_sign、bbs_detail、bbs_like、bbs_share、bbs_reply` | 要执行的社区任务列表。 |
-| `sign_in.enable_all_users` | `false` | 是否让定时签到覆盖所有已登录用户。 |
-| `sign_in.scheduled_enabled` | `false` | 是否开启每日定时签到。 |
-| `sign_in.sign_time` | `00:05` | 每日定时签到时间，格式为 `HH:mm`。 |
-| `sign_in.concurrency` | `1` | 自动签到并发数。 |
-| `sign_in.concurrency_interval_seconds` | `[3, 5]` | 自动签到任务之间的间隔范围，单位为秒。 |
-| `sign_in.private_report` | `false` | 是否发送私聊签到报告。 |
-| `sign_in.group_report` | `false` | 是否发送群聊签到报告。 |
-| `sign_in.group_report_image` | `false` | 是否使用图片发送群聊签到报告。 |
+`network.proxy_url`、`network.api_base_url` 等字段的确切作用域以 typed settings、transport 实现和 schema 描述为准；排障时先确认当前配置，再看 AstrBot 日志中的脱敏错误。
 
-`sign_in.scheduled_enabled` 默认关闭。开启后还需要设置有效的 `sign_in.sign_time`；
-`sign_in.enable_all_users` 决定定时任务是否覆盖所有已登录用户，手动签到命令不受定时开关影响。
+## 对贡献者
 
-## 通知 `notifications`
+修改配置模型后运行：
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `notifications.announcement_enabled` | `true` | 是否启用公告推送。 |
-| `notifications.announcement_ids` | `[]` | 已处理公告 ID 列表，通常无需手动修改。 |
-| `notifications.announcement_check_minutes` | `10` | 公告检查间隔，单位为分钟。 |
-| `notifications.client_update_enabled` | `true` | 是否启用独立客户端更新定时检查与推送。 |
-| `notifications.client_update_check_minutes` | `60` | 客户端更新检查间隔，单位为分钟，必须为正整数；不与公告轮询周期共用。 |
-| `notifications.client_update_merge_forward` | `true` | OneBot 同轮 PC/安卓结果是否尝试合并转发；合并失败时降级为普通消息。 |
-| `notifications.secret_subscriptions` | `['group']` | 密函订阅作用域，可选 `private`、`group`。 |
-| `notifications.secret_simple_image` | `false` | 是否使用简易密函图片。 |
-| `notifications.secret_push_minute` | `0` | 每小时推送密函的分钟数，`0` 表示整点。 |
-| `notifications.secret_retry_interval_seconds` | `1` | 密函数据未准备好时的重试间隔，单位为秒。 |
-
-公告与密函订阅还可以通过聊天命令管理，具体见 [命令说明](commands.md)。
-
-客户端更新任务使用 `dnaby_client_update_poll`，按 `notifications.client_update_check_minutes` 独立检查，不复用公告轮询周期。客户端更新状态写入 `client_update_state.json`，按区服和平台保存成功观察基线与未完成投递状态；手动查询只读，首次订阅或首次成功检查只建立缺失基线，不推送无法确认时间范围的历史变化。
-
-## 显示 `display`
-
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `display.command_prefixes` | `['kk']` | 命令触发前缀，可以填写字符串或字符串列表；列表中包含空字符串时允许无前缀触发。 |
-| `display.guide_providers` | `['all']` | 角色攻略来源，可选 `all`、`狩月庭攻略组`、`猫冬`。 |
-| `display.show_unowned_roles` | `true` | 是否在角色信息卡片中显示未拥有的角色和武器。 |
-| `display.allow_mention_query` | `true` | 是否允许通过 @ 查询其他用户的角色信息。 |
-
-如果把 `display.command_prefixes` 改成自定义前缀，发送命令时请使用新前缀；修改后重载插件即可生效。
-
-## 公共资源 `resources`
-
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `resources.github_acceleration` | `off` | 公共资源同步方式，可选 `off`、`edgeone`、`hk`、`gh_proxy`、`dpik`、`custom`。 |
-| `resources.custom_github_acceleration_url` | 空 | `custom` 模式使用的 HTTP(S) 基础地址；其他模式无需填写。 |
-
-默认 `resources.github_acceleration` 为 `off`。使用 `custom` 时只填写不含凭据、查询参数和片段的
-HTTP(S) 基础地址；镜像请求失败会明确报告，不会把失败伪装成同步成功。资源同步和目录说明见 [公共资源](resources.md)。
-
-## 缓存 `cache`
-
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `cache.ttl_hours` | `24` | 所有 `CacheManager` 内容缓存共用的整数 TTL（小时）。`-1` 永久有效，`0` 禁用持久缓存，正整数表示缓存有效期。 |
-| `cache.refresh_send_card` | `true` | 单角色主动刷新成功后是否在成功提示后发送新面板图片。`false` 仍完整刷新、渲染并更新缓存，只省略图片；批量刷新始终只返回汇总。 |
-
-`cache.ttl_hours` 只允许 `-1`、`0` 和正整数，小于 `-1` 会在配置校验时失败：
-
-- `-1`：内容缓存读取始终返回 `fresh`，时间维护不会删除条目；显式刷新或 `invalidate` 仍然有效。
-- `0`：`get` 始终返回原因 `disabled` 的 `miss`，不读取磁盘；`put` 只校验内容并返回内存 metadata，
-  不创建或写入持久缓存文件。维护任务仍会删除已有且无活动租约的缓存残留。
-- 正整数：条目年龄小于 TTL 时返回 `fresh`；到达 TTL 后直接返回原因 `ttl_expired` 的 `miss`，
-  不再提供旧内容回退。维护任务删除到期且无活动租约的条目。
-
-`rendered/` 临时文件不属于内容缓存，内部固定按 24 小时清理；`resource_generations/` 等资源快照
-继续由资源协调器按 generation lease 管理。旧的 `fresh_ttl_minutes`、`retention_ttl_hours`、
-`announcement_ttl_hours` 会记录 warning 后丢弃，不迁移旧的自定义数值；`cache.refresh_send_card`
-保留已有配置值，缺失时默认启用（`true`）。可变 AstrBot 配置中的旧 TTL 字段也会被移除。
-
-单角色主动刷新成功时固定先返回 `角色【正式名】面板已刷新`；`refresh_send_card=true` 时随后
-附带新面板图片，`false` 时仅返回文字，但不会跳过刷新、渲染或缓存更新。刷新全部角色命令继续
-只返回成功/失败汇总，不逐张发送图片。
-
-## Agent Tools `agent_tools`
-
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `agent_tools.enabled` | `false` | 是否注册结构化查询工具；默认关闭，开启后需重载插件。 |
-
-开启后不会改变聊天命令，也不会允许工具代替管理员执行账号、隐私、订阅或资源管理操作。工具列表和安全边界见 [Agent Tools 使用说明](agent-tools.md)。
-
-## 数据目录与图片
-
-插件运行期数据统一保存在 AstrBot 的插件数据目录：
-
-```text
-data/plugin_data/astrbot_plugin_dnaby/
+```bash
+python3 scripts/generate_config_schema.py
+python3 -m pytest tests/test_config.py
 ```
 
-目录由 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 提供，不写入插件源码目录。账号绑定、订阅、缓存、图片和公共资源都在这里管理；升级前请备份该目录，不要把其中的数据库、登录信息或订阅记录上传到公开位置。
-
-图片卡片使用 AstrBot 4.26.0 及以上版本提供的全局 HTML/T2I 能力，不新增插件私有渲染服务配置。未启用该能力或服务返回无效图片时，需要图片的命令会返回统一失败提示，文字查询仍可继续使用。
-
-如需查看命令前缀、登录和资源同步的实际操作，请继续阅读 [命令说明](commands.md)、[账号登录](login.md) 和 [公共资源](resources.md)。
+提交代码时同时提交 `_conf_schema.json` 的生成差异。不要手工维护另一份完整字段/默认值清单。

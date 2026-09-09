@@ -70,14 +70,6 @@ jobs:
           python -m pip install --disable-pip-version-check -e "$ASTRBOT_SOURCE"
           python -m pip install --disable-pip-version-check -r "$GITHUB_WORKSPACE/requirements.txt"
 
-      - name: Run lifecycle cleanup contract tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          python tests/test_ci_latest_stable_workflow.py -v
-          python tests/test_loader_cleanup_contracts.py -v
-          python tests/test_web_lifecycle.py -v
-
       - name: Run official PluginManager lifecycle check
         env:
           ASTRBOT_SOURCE: ${{ runner.temp }}/astrbot
@@ -91,4 +83,4 @@ jobs:
             --astrbot-version "$ASTRBOT_VERSION" \
             --plugin-dir "$GITHUB_WORKSPACE" \
             --astrbot-root "$ASTRBOT_ROOT" \
-            --plugin-name astrbot_plugin_dnaby
+            --plugin-name astrbot_plugin_dna

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import random
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -17,6 +18,7 @@ from ...entry.event import EventActor
 from ...modules.player.contracts import (
     DamageCalculation,
     RoleDetail,
+    RoleHeader,
     RoleOverview,
     WeaponDetail,
 )
@@ -50,9 +52,9 @@ from ..resources.encyclopedia import EncyclopediaResourceStore
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
-from .image_inspector import inspect_image
 from .damage_renderer import draw_role_damage_section
 from .fonts import load_runtime_font
+from .image_inspector import inspect_image
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
@@ -99,7 +101,9 @@ async def _item_payload(item: ItemTemp) -> dict[str, object]:
     )
 
     return {
-        "element": pil_image_data_uri(element.resize((element.width // 2, element.height // 2))),
+        "element": pil_image_data_uri(
+            element.resize((element.width // 2, element.height // 2))
+        ),
         "grade": grade_uri,
         "image": pil_image_data_uri(image),
         "level": item.level,
@@ -128,19 +132,32 @@ async def _draw_role_overview_card(
     role_show: RoleShowForTool,
     show_none: bool = True,
     uid_hidden: bool = False,
+    hero_background_path: Path | None = None,
 ) -> bytes:
+    role_chars = getattr(role_show, "roleChars", getattr(role_show, "role_chars", []))
+    close_weapons = getattr(
+        role_show, "closeWeapons", getattr(role_show, "close_weapons", [])
+    )
+    ranged_weapons = getattr(
+        role_show,
+        "langRangeWeapons",
+        getattr(role_show, "ranged_weapons", []),
+    )
+    params = getattr(role_show, "params", [])
     role_items = [
         ItemTemp(
             type="role",
             id=getattr(role, "charId", getattr(role, "char_id", 0)),
             name=getattr(role, "name", ""),
             level=getattr(role, "level", 0),
-            element_icon=getattr(role, "elementIcon", getattr(role, "element_icon", "")),
+            element_icon=getattr(
+                role, "elementIcon", getattr(role, "element_icon", "")
+            ),
             icon=getattr(role, "icon", ""),
             grade_level=getattr(role, "gradeLevel", getattr(role, "grade_level", None)),
             unlocked=getattr(role, "unLocked", getattr(role, "unlocked", False)),
         )
-        for role in role_show.roleChars
+        for role in role_chars
     ]
     close_items = [
         ItemTemp(
@@ -148,12 +165,16 @@ async def _draw_role_overview_card(
             id=getattr(weapon, "weaponId", getattr(weapon, "weapon_id", 0)),
             name=getattr(weapon, "name", ""),
             level=getattr(weapon, "level", 0),
-            element_icon=getattr(weapon, "elementIcon", getattr(weapon, "element_icon", "")),
+            element_icon=getattr(
+                weapon, "elementIcon", getattr(weapon, "element_icon", "")
+            ),
             icon=getattr(weapon, "icon", ""),
-            grade_level=getattr(weapon, "skillLevel", getattr(weapon, "skill_level", None)),
+            grade_level=getattr(
+                weapon, "skillLevel", getattr(weapon, "skill_level", None)
+            ),
             unlocked=getattr(weapon, "unLocked", getattr(weapon, "unlocked", False)),
         )
-        for weapon in role_show.closeWeapons
+        for weapon in close_weapons
     ]
     lang_items = [
         ItemTemp(
@@ -161,12 +182,16 @@ async def _draw_role_overview_card(
             id=getattr(weapon, "weaponId", getattr(weapon, "weapon_id", 0)),
             name=getattr(weapon, "name", ""),
             level=getattr(weapon, "level", 0),
-            element_icon=getattr(weapon, "elementIcon", getattr(weapon, "element_icon", "")),
+            element_icon=getattr(
+                weapon, "elementIcon", getattr(weapon, "element_icon", "")
+            ),
             icon=getattr(weapon, "icon", ""),
-            grade_level=getattr(weapon, "skillLevel", getattr(weapon, "skill_level", None)),
+            grade_level=getattr(
+                weapon, "skillLevel", getattr(weapon, "skill_level", None)
+            ),
             unlocked=getattr(weapon, "unLocked", getattr(weapon, "unlocked", False)),
         )
-        for weapon in role_show.langRangeWeapons
+        for weapon in ranged_weapons
     ]
     achievements = [
         {"label": "角色数量", "value": str(sum(item.unlocked for item in role_items))},
@@ -174,37 +199,56 @@ async def _draw_role_overview_card(
         {"label": "远程武器", "value": str(sum(item.unlocked for item in lang_items))},
     ]
     achievements.extend(
-        {"label": getattr(item, "paramKey", getattr(item, "param_key", "")), "value": str(getattr(item, "paramValue", getattr(item, "param_value", "")))}
-        for item in role_show.params
-        if getattr(item, "paramKey", getattr(item, "param_key", "")) in ("装饰数量", "魔灵数量")
+        {
+            "label": getattr(item, "paramKey", getattr(item, "param_key", "")),
+            "value": str(getattr(item, "paramValue", getattr(item, "param_value", ""))),
+        }
+        for item in params
+        if getattr(item, "paramKey", getattr(item, "param_key", ""))
+        in ("装饰数量", "魔灵数量")
     )
-    total_achv = getattr(role_show.roleAchv, "total", getattr(role_show, "achievement_total", 0))
+    role_achievement = getattr(role_show, "roleAchv", None)
+    total_achv = getattr(
+        role_achievement, "total", getattr(role_show, "achievement_total", 0)
+    )
     achievements.append({"label": "总成就数", "value": str(total_achv)})
     header_stats = [
-        (getattr(item, "paramKey", getattr(item, "param_key", "")), str(getattr(item, "paramValue", getattr(item, "param_value", ""))))
-        for item in role_show.params
-        if getattr(item, "paramKey", getattr(item, "param_key", "")) in ("总活跃天数", "游戏时长")
+        (
+            getattr(item, "paramKey", getattr(item, "param_key", "")),
+            str(getattr(item, "paramValue", getattr(item, "param_value", ""))),
+        )
+        for item in params
+        if getattr(item, "paramKey", getattr(item, "param_key", ""))
+        in ("总活跃天数", "游戏时长")
     ]
     header = await build_profile_header(
         ctx,
         getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
         getattr(role_show, "roleName", getattr(role_show, "role_name", "")),
-        user_level=role_show.level,
+        user_level=getattr(role_show, "level", None),
         stats=header_stats,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
     )
 
     sections = [
-        await _section_payload(role_items, "角色信息", show_none, ROLE_TEXT_PATH / "bg" / "bg1.png"),
-        await _section_payload(close_items, "近战武器", show_none, ROLE_TEXT_PATH / "bg" / "bg5.png"),
-        await _section_payload(lang_items, "远程武器", show_none, ROLE_TEXT_PATH / "bg" / "bg4.png"),
+        await _section_payload(
+            role_items, "角色信息", show_none, ROLE_TEXT_PATH / "bg" / "bg1.png"
+        ),
+        await _section_payload(
+            close_items, "近战武器", show_none, ROLE_TEXT_PATH / "bg" / "bg5.png"
+        ),
+        await _section_payload(
+            lang_items, "远程武器", show_none, ROLE_TEXT_PATH / "bg" / "bg4.png"
+        ),
     ]
     section_counts = [
         len(items) if show_none else sum(item.unlocked for item in items)
         for items in (role_items, close_items, lang_items)
     ]
-    height = 800 + sum(70 + 320 * math.ceil(count / 5) for count in section_counts if count)
+    height = 800 + sum(
+        70 + 320 * math.ceil(count / 5) for count in section_counts if count
+    )
 
     return await _RENDERER.render(
         "cards/role_info.html.j2",
@@ -212,7 +256,7 @@ async def _draw_role_overview_card(
             "achievements": achievements,
             "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
@@ -221,7 +265,9 @@ async def _draw_role_overview_card(
             "item_foreground": image_data_uri(ROLE_TEXT_PATH / "item_fg.png"),
             "item_mask": image_data_uri(ROLE_TEXT_PATH / "item_mask.png"),
             "sections": sections,
-            "title_background": image_data_uri(ROLE_TEXT_PATH / "title_bg.jpg"),
+            "title_background": image_data_uri(
+                hero_background_path or ROLE_TEXT_PATH / "title_bg.jpg"
+            ),
             "title_mask": image_data_uri(ROLE_TEXT_PATH / "title_mask.png"),
             "height": height,
             "width": 1200,
@@ -234,14 +280,21 @@ draw_role_overview_card = _draw_role_overview_card
 
 
 async def draw_role_info_card_core(
-    role_show: RoleShowForTool,
+    role_show: RoleShowForTool | RoleOverview,
     uid_hidden: bool = False,
     show_none: bool = True,
     ev_stub: EventContext | None = None,
     avatar_user_id: str | None = None,
+    hero_background_path: Path | None = None,
 ) -> bytes:
     ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
-    return await _draw_role_overview_card(ctx, role_show, show_none=show_none, uid_hidden=uid_hidden)
+    return await _draw_role_overview_card(
+        ctx,
+        role_show,
+        show_none=show_none,
+        uid_hidden=uid_hidden,
+        hero_background_path=hero_background_path,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +384,9 @@ async def _skill_payload(role_detail: Any) -> list[dict[str, object]]:
 async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
     quality = getattr(mode, "quality", None) or 1
     payload: dict[str, object] = {
-        "background": image_data_uri(DETAIL_TEXT_PATH / f"mod/mod_{position}_{quality}.png"),
+        "background": image_data_uri(
+            DETAIL_TEXT_PATH / f"mod/mod_{position}_{quality}.png"
+        ),
         "icon": None,
         "level": None,
         "name": getattr(mode, "name", "") or "",
@@ -339,7 +394,9 @@ async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
     }
     mode_id = getattr(mode, "id", -1)
     if mode_id != -1:
-        payload["icon"] = pil_image_data_uri(await get_mod_img(mode_id, getattr(mode, "icon", "")))
+        payload["icon"] = pil_image_data_uri(
+            await get_mod_img(mode_id, getattr(mode, "icon", ""))
+        )
         level = getattr(mode, "level", 0)
         payload["level"] = f"+{level}" if level else None
     return payload
@@ -350,7 +407,9 @@ async def _role_modes_payload(modes: list[Any]) -> list[dict[str, object]]:
     order = tuple((index, "left") for index in (0, 2, 4, 6)) + tuple(
         (index, "right") for index in (1, 3, 7, 5)
     )
-    payload = [await _mode_payload(padded[index], position) for index, position in order]
+    payload = [
+        await _mode_payload(padded[index], position) for index, position in order
+    ]
     payload.append(await _mode_payload(padded[8], "center"))
     return payload
 
@@ -368,17 +427,29 @@ async def _hero_payload(
         original_path, image = role_panel
         panel_size = (1000, 850)
         if image.width >= image.height:
-            panel = ImageOps.fit(image.convert("RGBA"), panel_size, method=Image.Resampling.LANCZOS)
+            panel = ImageOps.fit(
+                image.convert("RGBA"), panel_size, method=Image.Resampling.LANCZOS
+            )
         else:
             portrait_size = (600, 850)
-            portrait = ImageOps.fit(image.convert("RGBA"), portrait_size, method=Image.Resampling.LANCZOS)
+            portrait = ImageOps.fit(
+                image.convert("RGBA"), portrait_size, method=Image.Resampling.LANCZOS
+            )
             side_mask = Image.new("L", portrait_size, 255)
-            side_fade = Image.linear_gradient("L").rotate(270, expand=True).resize((72, portrait_size[1]))
+            side_fade = (
+                Image.linear_gradient("L")
+                .rotate(270, expand=True)
+                .resize((72, portrait_size[1]))
+            )
             side_mask.paste(side_fade, (portrait_size[0] - 72, 0))
             panel = Image.new("RGBA", panel_size)
-            panel.alpha_composite(Image.composite(portrait, Image.new("RGBA", portrait_size), side_mask))
+            panel.alpha_composite(
+                Image.composite(portrait, Image.new("RGBA", portrait_size), side_mask)
+            )
         bottom_mask = Image.new("L", panel_size, 255)
-        bottom_fade = ImageOps.invert(Image.linear_gradient("L")).resize((panel_size[0], 72))
+        bottom_fade = ImageOps.invert(Image.linear_gradient("L")).resize(
+            (panel_size[0], 72)
+        )
         bottom_mask.paste(bottom_fade, (0, panel_size[1] - 72))
         panel = Image.composite(panel, Image.new("RGBA", panel_size), bottom_mask)
         return original_path, {"image": pil_image_data_uri(panel), "kind": "panel"}
@@ -424,26 +495,35 @@ async def _draw_role_detail_card(
         if weapon is not None:
             weapon_sections.append(await draw_weapon_detail_section(weapon, title))
 
-    original_path, hero = await _hero_payload(char_id, role_detail, custom_panel=custom_panel)
+    original_path, hero = await _hero_payload(
+        char_id, role_detail, custom_panel=custom_panel
+    )
     header = await build_profile_header(
         ctx,
         getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
         getattr(role_show, "roleName", getattr(role_show, "role_name", "")),
         user_level=role_show.level,
         stats=[
-            (getattr(item, "paramKey", getattr(item, "param_key", "")), str(getattr(item, "paramValue", getattr(item, "param_value", ""))))
+            (
+                getattr(item, "paramKey", getattr(item, "param_key", "")),
+                str(getattr(item, "paramValue", getattr(item, "param_value", ""))),
+            )
             for item in role_show.params
-            if getattr(item, "paramKey", getattr(item, "param_key", "")) in ("总活跃天数", "游戏时长")
+            if getattr(item, "paramKey", getattr(item, "param_key", ""))
+            in ("总活跃天数", "游戏时长")
         ],
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
     )
-    grade_level = getattr(role_detail, "gradeLevel", getattr(role_detail, "grade_level", 0))
+    grade_level = getattr(
+        role_detail, "gradeLevel", getattr(role_detail, "grade_level", 0)
+    )
     grade_total = 7 if grade_level >= 7 else 6
     grades = [
         {
             "background": image_data_uri(
-                DETAIL_TEXT_PATH / ("grade_1.png" if index <= grade_level else "grade_0.png")
+                DETAIL_TEXT_PATH
+                / ("grade_1.png" if index <= grade_level else "grade_0.png")
             ),
             "icon": pil_image_data_uri(get_grade_img(index)),
             "index": index,
@@ -460,7 +540,14 @@ async def _draw_role_detail_card(
             "divider": image_data_uri(COMMON_PATH / "div.png"),
             "damage": damage,
             "element_icon": pil_image_data_uri(
-                await get_attr_img(char_id, getattr(role_detail, "elementIcon", getattr(role_detail, "element_icon", "")))
+                await get_attr_img(
+                    char_id,
+                    getattr(
+                        role_detail,
+                        "elementIcon",
+                        getattr(role_detail, "element_icon", ""),
+                    ),
+                )
             ),
             "font": font_data_uri(FONT_ORIGIN_PATH),
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
@@ -471,7 +558,9 @@ async def _draw_role_detail_card(
             "profile_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "role": {
                 "grade": grade_level,
-                "grade_icon": pil_image_data_uri(get_grade_img(grade_level)) if grade_level > 0 else None,
+                "grade_icon": pil_image_data_uri(get_grade_img(grade_level))
+                if grade_level > 0
+                else None,
                 "level": role_detail.level,
                 "name": char_name,
             },
@@ -505,17 +594,10 @@ async def render_role_card_image(
 
     char_id = str(getattr(role_detail, "charId", getattr(role_detail, "char_id", 0)))
     char_name = getattr(role_detail, "charName", getattr(role_detail, "char_name", ""))
-    role_show = RoleShowForTool.model_validate(
-        {
-            "roleId": char_id,
-            "roleName": char_name,
-            "level": role_detail.level,
-            "params": [],
-            "roleAchv": {"total": 0},
-            "roleChars": [],
-            "closeWeapons": [],
-            "langRangeWeapons": [],
-        }
+    role_show = RoleHeader(
+        role_id=char_id,
+        role_name=char_name,
+        level=role_detail.level,
     )
     ctx = EventContext(user_id=uid)
     damage_calc = (
@@ -584,6 +666,27 @@ class ResourceMap:
             if p.is_file():
                 return p
         return None
+
+    def random_panel_background(self) -> Path | None:
+        """从运行期 panel/ 图集随机选一张通用 hero 背景；无图集或均为非图片时返回 None。
+
+        上游公共资源仓库把 panel/ 定义为通用横版卡片背景图集（如 panel_1..5.png），
+        非角色专属；基本信息卡（dna卡片）顶部 hero 背景在每次查询时随机取一张，
+        图集缺失时由调用方回退本地素材，不伪造资源也不中断渲染。
+        """
+
+        if self.root is None:
+            return None
+        panel_root = self.root / "panel"
+        if not panel_root.is_dir():
+            return None
+        candidates = sorted(
+            path
+            for path in panel_root.iterdir()
+            if path.is_file()
+            and path.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+        )
+        return random.choice(candidates) if candidates else None
 
     def role_avatar(self, char_id: str | int) -> Path | None:
         key = str(char_id)
@@ -658,7 +761,9 @@ class RenderedPlayerImage:
 class PlayerRenderer:
     """生成角色总览与详情卡片的运行期 T2I 图片。"""
 
-    def __init__(self, output_dir: str | Path, resources: EncyclopediaResourceStore | ResourceMap) -> None:
+    def __init__(
+        self, output_dir: str | Path, resources: EncyclopediaResourceStore | ResourceMap
+    ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
 
@@ -678,7 +783,9 @@ class PlayerRenderer:
             "kind": "font",
             "key": "dna_fonts",
             "status": self.resources.font_status,
-            "source": "fonts/dna_fonts.ttf" if self.resources.font_path is not None else "",
+            "source": "fonts/dna_fonts.ttf"
+            if self.resources.font_path is not None
+            else "",
         }
 
     def _write(
@@ -704,9 +811,7 @@ class PlayerRenderer:
                 "dnaby.resources": resources,
             },
         )
-        response = write_rendered_artifact(
-            self.output_dir, artifact, prefix="player-"
-        )
+        response = write_rendered_artifact(self.output_dir, artifact, prefix="player-")
         return RenderedPlayerImage(
             path=Path(response.image),
             width=artifact.width,
@@ -717,8 +822,7 @@ class PlayerRenderer:
             temporary=True,
             original_image_path=original_image_path,
             incomplete=any(
-                resource.get("status") == "placeholder"
-                for resource in resources
+                resource.get("status") == "placeholder" for resource in resources
             ),
             sidecar=Path(response.sidecar) if response.sidecar is not None else None,
             manifest=Path(response.manifest) if response.manifest is not None else None,
@@ -735,18 +839,6 @@ class PlayerRenderer:
         uid_hidden: bool = False,
         show_unowned: bool = True,
     ) -> RenderedPlayerImage:
-        role_show = RoleShowForTool.model_validate(
-            {
-                "roleId": overview.role_id,
-                "roleName": overview.role_name,
-                "level": overview.level,
-                "params": [item.model_dump(by_alias=True) for item in overview.params],
-                "roleAchv": {"total": overview.achievement_total},
-                "roleChars": [item.model_dump(by_alias=True) for item in overview.role_chars],
-                "closeWeapons": [item.model_dump(by_alias=True) for item in overview.close_weapons],
-                "langRangeWeapons": [item.model_dump(by_alias=True) for item in overview.ranged_weapons],
-            }
-        )
         ev_stub = (
             None
             if actor is None
@@ -758,19 +850,28 @@ class PlayerRenderer:
                 unified_msg_origin=actor.unified_msg_origin or "",
             )
         )
+        hero_background = (
+            self.resources.random_panel_background()
+            if isinstance(self.resources, ResourceMap)
+            else None
+        )
         image_bytes = await draw_role_info_card_core(
-            role_show,
+            overview,
             uid_hidden=uid_hidden,
             show_none=show_unowned,
             ev_stub=ev_stub,
-            avatar_user_id=target_user_id or (actor.user_id if actor is not None else uid),
+            avatar_user_id=target_user_id
+            or (actor.user_id if actor is not None else uid),
+            hero_background_path=hero_background,
         )
         lines = [
             overview.role_name,
             f"UID {'***' if uid_hidden else uid}",
             f"等级: {_text_value(overview.level)}",
         ]
-        lines.extend(f"{item.param_key}: {item.param_value}" for item in overview.params)
+        lines.extend(
+            f"{item.param_key}: {item.param_value}" for item in overview.params
+        )
         sections = [
             {"name": "角色信息", "items": len(overview.role_chars)},
             {"name": "近战武器", "items": len(overview.close_weapons)},
@@ -778,6 +879,21 @@ class PlayerRenderer:
         ]
         resources = [self._font_resource()]
         if isinstance(self.resources, ResourceMap):
+            # panel 是可回退的装饰性 hero 背景：图集缺失时渲染仍完整（回退本地
+            # title_bg），因此用 fallback 而非 placeholder，不使整卡被判 incomplete。
+            resources.append(
+                {
+                    "kind": "panel_background",
+                    "status": (
+                        "provided" if hero_background is not None else "fallback"
+                    ),
+                    "source": (
+                        f"panel/{hero_background.name}"
+                        if hero_background is not None
+                        else "panel/"
+                    ),
+                }
+            )
             for role in overview.role_chars:
                 if self.resources.root is not None:
                     status = self.resources.get_avatar_status(role.char_id)
@@ -800,7 +916,9 @@ class PlayerRenderer:
                         "source": f"images/weapon/{weapon.weapon_id}.png",
                     }
                 )
-        return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
+        return self._write(
+            image_bytes, lines=lines, resources=resources, sections=sections
+        )
 
     async def render_overview_legacy(
         self,
@@ -849,30 +967,17 @@ class PlayerRenderer:
         char_id = str(detail.char_id)
         char_name = detail.char_name
         if overview is not None:
-            role_show = RoleShowForTool.model_validate(
-                {
-                    "roleId": overview.role_id,
-                    "roleName": overview.role_name,
-                    "level": overview.level,
-                    "params": [p.model_dump(by_alias=True) for p in overview.params],
-                    "roleAchv": {"total": overview.achievement_total},
-                    "roleChars": [c.model_dump(by_alias=True) for c in overview.role_chars],
-                    "closeWeapons": [w.model_dump(by_alias=True) for w in overview.close_weapons],
-                    "langRangeWeapons": [w.model_dump(by_alias=True) for w in overview.ranged_weapons],
-                }
+            role_show = RoleHeader(
+                role_id=overview.role_id,
+                role_name=overview.role_name,
+                level=overview.level,
+                params=list(overview.params),
             )
         else:
-            role_show = RoleShowForTool.model_validate(
-                {
-                    "roleId": char_id,
-                    "roleName": char_name,
-                    "level": detail.level,
-                    "params": [],
-                    "roleAchv": {"total": 0},
-                    "roleChars": [],
-                    "closeWeapons": [],
-                    "langRangeWeapons": [],
-                }
+            role_show = RoleHeader(
+                role_id=char_id,
+                role_name=char_name,
+                level=detail.level,
             )
 
         ev_stub = (
@@ -886,7 +991,9 @@ class PlayerRenderer:
                 unified_msg_origin=actor.unified_msg_origin or "",
             )
         )
-        ctx = ev_stub or EventContext(user_id=target_user_id or (actor.user_id if actor is not None else uid))
+        ctx = ev_stub or EventContext(
+            user_id=target_user_id or (actor.user_id if actor is not None else uid)
+        )
 
         damage_response = None
         if damage_data is not None:

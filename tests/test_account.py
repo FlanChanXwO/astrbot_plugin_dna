@@ -40,7 +40,9 @@ async def database(tmp_path) -> AsyncIterator[AsyncDatabase]:
 class FakeAccountTransport:
     """可控制成功、取消和错误分支的 transport fixture。"""
 
-    def __init__(self, outcome: object, page_url: str = "https://login.test/session") -> None:
+    def __init__(
+        self, outcome: object, page_url: str = "https://login.test/session"
+    ) -> None:
         self.outcome = outcome
         self.page_url = page_url
         self.attempts: list[LoginAttempt] = []
@@ -65,7 +67,9 @@ def _actor() -> AccountActor:
 
 
 @pytest.mark.asyncio
-async def test_login_success_persists_roles_and_credentials_without_leaking_secrets(database):
+async def test_login_success_persists_roles_and_credentials_without_leaking_secrets(
+    database,
+):
     """登录成功应原子保存凭据和角色绑定，响应不得包含任何 secret。"""
     app_cookie = "cookie-task10-fixture"
     refresh_token = "refresh-task10-fixture"
@@ -155,7 +159,9 @@ async def test_login_default_role_becomes_current_even_when_bindings_exist(datab
 
 
 @pytest.mark.asyncio
-async def test_login_rolls_back_bindings_when_credential_write_fails(database, monkeypatch):
+async def test_login_rolls_back_bindings_when_credential_write_fails(
+    database, monkeypatch
+):
     """凭据写入异常时，登录事务不得留下孤立绑定。"""
     transport = FakeAccountTransport(
         LoginResult.success(
@@ -181,14 +187,20 @@ async def test_login_rolls_back_bindings_when_credential_write_fails(database, m
         )
 
     async with database.session() as session:
-        assert await AccountBindingRepository.list(
-            session,
-            user_id="user-1",
-        ) == []
-        assert await CredentialRepository.list(
-            session,
-            user_id="user-1",
-        ) == []
+        assert (
+            await AccountBindingRepository.list(
+                session,
+                user_id="user-1",
+            )
+            == []
+        )
+        assert (
+            await CredentialRepository.list(
+                session,
+                user_id="user-1",
+            )
+            == []
+        )
 
 
 @pytest.mark.asyncio
@@ -224,7 +236,9 @@ async def test_login_transport_errors_are_visible_but_do_not_leak_details(
 ):
     """网络、状态码和服务端失败不得伪装成功，也不得回显 transport detail。"""
     secret_detail = "token=secret-task10-detail"
-    transport = FakeAccountTransport(AccountTransportError(kind, detail=secret_detail, status_code=502))
+    transport = FakeAccountTransport(
+        AccountTransportError(kind, detail=secret_detail, status_code=502)
+    )
     service = AccountService(database, transport, max_bind_count=2)
 
     response = await service.login(
@@ -307,7 +321,9 @@ async def test_credential_query_returns_status_summary_not_raw_tokens(database):
             app_status="",
         )
 
-    service = AccountService(database, FakeAccountTransport(LoginResult.cancelled()), max_bind_count=2)
+    service = AccountService(
+        database, FakeAccountTransport(LoginResult.cancelled()), max_bind_count=2
+    )
     response = await service.credentials(_actor())
 
     assert "1234567890123" in response.text
@@ -371,6 +387,7 @@ def test_login_input_is_typed_and_rejects_ambiguous_values():
 @pytest.mark.asyncio
 async def test_legacy_transport_maps_response_shape_errors_without_raw_detail():
     """legacy API 结构异常要归类为服务端错误，不把异常原文带出边界。"""
+
     class BrokenApi:
         async def login_app(self, _mobile, _code, _dev_code):
             raise TypeError("token=transport-shape-secret")

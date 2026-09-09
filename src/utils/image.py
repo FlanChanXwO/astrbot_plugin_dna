@@ -23,7 +23,7 @@ from .resource.RESOURCE_PATH import (
 )
 from .session import EventContext
 
-ICON = Path(__file__).parent.parent.parent / "ICON.png"
+ICON = Path(__file__).parent.parent.parent / "logo.png"
 TEXT_PATH = Path(__file__).parent / "texture2d"
 
 
@@ -141,7 +141,9 @@ async def _download_optional_image(path: Path, name: str, pic_url: str) -> bool:
     return True
 
 
-async def get_skill_img(char_id: str | int, skill_name: str, pic_url: str | None = None) -> Image.Image:
+async def get_skill_img(
+    char_id: str | int, skill_name: str, pic_url: str | None = None
+) -> Image.Image:
     char_skill_dir = SKILL_PATH / str(char_id)
     char_skill_dir.mkdir(parents=True, exist_ok=True)
 
@@ -172,7 +174,9 @@ async def get_avatar_img(char_id: str | int, pic_url: str | None = None) -> Imag
     return image
 
 
-async def get_weapon_img(weapon_id: str | int, pic_url: str | None = None) -> Image.Image:
+async def get_weapon_img(
+    weapon_id: str | int, pic_url: str | None = None
+) -> Image.Image:
     weapon_dir = WEAPON_PATH
     weapon_dir.mkdir(parents=True, exist_ok=True)
 
@@ -187,7 +191,9 @@ async def get_weapon_img(weapon_id: str | int, pic_url: str | None = None) -> Im
     return image.resize((256, 256))
 
 
-async def get_attr_img(attr_id: str | int | None = None, pic_url: str | None = None) -> Image.Image:
+async def get_attr_img(
+    attr_id: str | int | None = None, pic_url: str | None = None
+) -> Image.Image:
     if attr_id is None:
         if pic_url:
             attr_id = pic_url.split("/")[-1].split(".")[0]
@@ -208,7 +214,9 @@ async def get_attr_img(attr_id: str | int | None = None, pic_url: str | None = N
     return image
 
 
-async def get_weapon_attr_img(attr_id: str | int | None = None, pic_url: str | None = None) -> Image.Image:
+async def get_weapon_attr_img(
+    attr_id: str | int | None = None, pic_url: str | None = None
+) -> Image.Image:
     if attr_id is None:
         if pic_url:
             attr_id = pic_url.split("/")[-1].split(".")[0]
@@ -335,7 +343,9 @@ async def get_avatar_title_img(
     avatar_temp.alpha_composite(avatar_frame, (0, 0))
 
     if user_level:
-        avatar_title_level = Image.open(TEXT_PATH / "avatar_title_level.png").convert("RGBA")
+        avatar_title_level = Image.open(TEXT_PATH / "avatar_title_level.png").convert(
+            "RGBA"
+        )
         draw_avatar_title_level = ImageDraw.Draw(avatar_title_level)
         _ = draw_avatar_title_level.text(
             (36, 35),
@@ -349,7 +359,9 @@ async def get_avatar_title_img(
     img.alpha_composite(avatar_temp, (115, 20))
 
     if other_info and len(other_info) >= 2:
-        avatar_title_base_info = Image.open(TEXT_PATH / "avatar_title_base_info.png").convert("RGBA")
+        avatar_title_base_info = Image.open(
+            TEXT_PATH / "avatar_title_base_info.png"
+        ).convert("RGBA")
 
         if len(other_info) >= 4:
             other_info = other_info[:4]
@@ -448,7 +460,9 @@ class SmoothDrawer:
             w, h = xy
             paste_x, paste_y = 0, 0
         else:
-            raise ValueError(f"xy 参数必须是 2 或 4 个元素的元组，当前为 {len(xy)} 个元素")
+            raise ValueError(
+                f"xy 参数必须是 2 或 4 个元素的元组，当前为 {len(xy)} 个元素"
+            )
 
         if h <= 0 or w <= 0:
             return
@@ -476,13 +490,17 @@ def get_smooth_drawer(scale: int = 4) -> SmoothDrawer:
     return SmoothDrawer(scale=scale)
 
 
-def save_webp_img(image: Image.Image, path: Path, quality: int = 90, method: int = 4) -> None:
+def save_webp_img(
+    image: Image.Image, path: Path, quality: int = 90, method: int = 4
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     mode = "RGBA" if "A" in image.getbands() or "transparency" in image.info else "RGB"
     image.convert(mode).save(path, "WEBP", quality=quality, method=method)
 
 
-def compress_to_webp(image_path: Path, quality: int = 90, delete_original: bool = True) -> tuple[bool, Path]:
+def compress_to_webp(
+    image_path: Path, quality: int = 90, delete_original: bool = True
+) -> tuple[bool, Path]:
     try:
         if not image_path.exists():
             logger.warning(f"图片不存在: {image_path}")

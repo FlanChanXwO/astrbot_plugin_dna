@@ -7,6 +7,7 @@ AstrBot 的 ``register_web_api`` 由 Dashboard 统一鉴权，不能直接作为
 
 from __future__ import annotations
 
+from builtins import BaseExceptionGroup
 import inspect
 from collections.abc import Callable, Iterable
 from types import SimpleNamespace
@@ -92,7 +93,7 @@ class LocalLoginServer:
         host: str,
         port: int,
         public_host: str | None = None,
-        base_path: str = "/astrbot_plugin_dnaby",
+        base_path: str = "/astrbot_plugin_dna",
     ) -> None:
         if not host.strip():
             raise ValueError("本地登录服务 host 不能为空")
@@ -126,16 +127,26 @@ class LocalLoginServer:
     async def start(self) -> None:
         if self._runner is not None:
             raise RuntimeError("本地登录服务已经启动")
-        self._runner = web.AppRunner(self._app)
-        await self._runner.setup()
-        self._site = web.TCPSite(self._runner, host=self.host, port=self.port)
-        await self._site.start()
-        server = getattr(self._site, "_server", None)
-        sockets = getattr(server, "sockets", ())
-        if not sockets:
-            await self.stop()
-            raise RuntimeError("本地登录服务启动后未取得监听 socket")
-        self._actual_port = int(sockets[0].getsockname()[1])
+        runner = web.AppRunner(self._app)
+        self._runner = runner
+        try:
+            await runner.setup()
+            self._site = web.TCPSite(runner, host=self.host, port=self.port)
+            await self._site.start()
+            server = getattr(self._site, "_server", None)
+            sockets = getattr(server, "sockets", ())
+            if not sockets:
+                raise RuntimeError("本地登录服务启动后未取得监听 socket")
+            self._actual_port = int(sockets[0].getsockname()[1])
+        except BaseException as start_error:
+            try:
+                await self.stop()
+            except BaseException as cleanup_error:  # noqa: BLE001
+                raise BaseExceptionGroup(
+                    "本地登录服务启动失败且清理失败",
+                    [start_error, cleanup_error],
+                ) from start_error
+            raise
 
     async def stop(self) -> None:
         if self._runner is not None:
@@ -144,13 +155,15 @@ class LocalLoginServer:
         self._site = None
         self._actual_port = None
 
-    def _make_route_handler(self, handler: Callable[..., Any]) -> Callable[[web.Request], Any]:
+    def _make_route_handler(
+        self, handler: Callable[..., Any]
+    ) -> Callable[[web.Request], Any]:
         async def route_handler(request: web.Request) -> web.StreamResponse:
             adapter = _AioHttpRequest(request)
             plugin_request = PluginRequest(
                 adapter,
                 path_params=dict(request.match_info),
-                plugin_name="astrbot_plugin_dnaby",
+                plugin_name="astrbot_plugin_dna",
             )
             with bind_request_context(plugin_request):
                 result = handler(**dict(request.match_info))

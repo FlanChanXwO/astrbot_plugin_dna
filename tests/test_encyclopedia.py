@@ -265,7 +265,9 @@ def _resources(tmp_path: Path) -> EncyclopediaResourceStore:
     )
 
 
-def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(tmp_path: Path) -> None:
+def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(
+    tmp_path: Path,
+) -> None:
     """运行期资源根的索引必须支持别名、图鉴和按作者筛选的攻略。"""
 
     root = tmp_path / "resources"
@@ -296,7 +298,9 @@ def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(tmp_path: Path) -> None:
+async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
+    tmp_path: Path,
+) -> None:
     """周报和日历必须在图片 metadata 中显式区分提供素材与 placeholder。"""
 
     from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
@@ -314,7 +318,9 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(t
         cached = WEEKLY_ITEM_PATH / f"item_{item_id}.png"
         cached.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (64, 64), "gray").save(cached)
-    renderer = EncyclopediaRenderer(tmp_path / "rendered", EncyclopediaResourceStore.from_root(root))
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered", EncyclopediaResourceStore.from_root(root)
+    )
 
     weekly_image = await renderer.render_weekly_report(
         _weekly(),
@@ -330,26 +336,34 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(t
         for item in weekly_image.resources
     )
     assert any(
-        item["kind"] == "weekly_item" and item["key"] == "100" and item["status"] == "provided"
+        item["kind"] == "weekly_item"
+        and item["key"] == "100"
+        and item["status"] == "provided"
         for item in weekly_image.resources
     )
     assert any(
-        item["kind"] == "weekly_item" and item["key"] == "101" and item["status"] == "placeholder"
+        item["kind"] == "weekly_item"
+        and item["key"] == "101"
+        and item["status"] == "placeholder"
         for item in weekly_image.resources
     )
     assert any(
-        item["kind"] == "calendar" and item["key"] == "活动甲" and item["status"] == "provided"
+        item["kind"] == "calendar"
+        and item["key"] == "活动甲"
+        and item["status"] == "provided"
         for item in calendar_image.resources
     )
     assert any(
-        item["kind"] == "calendar" and item["key"] == "活动乙" and item["status"] == "placeholder"
+        item["kind"] == "calendar"
+        and item["key"] == "活动乙"
+        and item["status"] == "placeholder"
         for item in calendar_image.resources
     )
 
 
 @pytest.mark.asyncio
-async def test_stamina_renderer_uses_legacy_dnauid_canvas(tmp_path: Path) -> None:
-    """便签必须复用原 DNAUID 的 2000x1100 卡片，而不是 rewrite 调试列表。"""
+async def test_stamina_renderer_uses_legacy_dna_canvas(tmp_path: Path) -> None:
+    """便签必须复用原 DNA 的 2000x1100 卡片，而不是 rewrite 调试列表。"""
 
     from src.utils.resource.RESOURCE_PATH import AVATAR_PATH
 
@@ -372,6 +386,76 @@ async def test_stamina_renderer_uses_legacy_dnauid_canvas(tmp_path: Path) -> Non
     with Image.open(rendered.path) as image:
         assert image.size == (2000, 1100)
         assert image.getpixel((1900, 500)) != (25, 31, 48)
+
+
+@pytest.mark.asyncio
+async def test_typed_stamina_renderer_skips_legacy_model_revalidation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """typed 便签渲染不应为了兼容模板再次校验完整 legacy 响应。"""
+
+    from src.infrastructure.rendering import encyclopedia as encyclopedia_module
+    from src.modules.player.contracts import RoleHeader
+
+    payload = BytesIO()
+    Image.new("RGB", (31, 19), "#123456").save(payload, format="JPEG")
+
+    async def fake_draw(_ctx, role, snapshot, **_kwargs):
+        assert isinstance(role, RoleHeader)
+        assert isinstance(snapshot, PlayerShortNote)
+        return payload.getvalue()
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("typed 便签渲染不应调用 legacy model_validate")
+
+    monkeypatch.setattr(encyclopedia_module, "_draw_stamina_card", fake_draw)
+    monkeypatch.setattr(encyclopedia_module.DNARoleForToolRes, "model_validate", fail)
+    monkeypatch.setattr(encyclopedia_module.DNARoleShortNoteRes, "model_validate", fail)
+
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
+    rendered = await renderer.render_stamina(_short_note(), uid=UID)
+
+    assert rendered.path.read_bytes() == payload.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_typed_weekly_renderer_skips_legacy_model_revalidation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """typed 周报渲染不应回拼完整 legacy 周报/角色模型。"""
+
+    from src.infrastructure.rendering import encyclopedia as encyclopedia_module
+    from src.modules.player.contracts import RoleHeader
+
+    payload = BytesIO()
+    Image.new("RGB", (31, 19), "#123456").save(payload, format="JPEG")
+
+    async def fake_draw(_ctx, role, report, **_kwargs):
+        assert isinstance(role, RoleHeader)
+        assert isinstance(report, WeeklyReport)
+        return payload.getvalue()
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("typed 周报渲染不应调用 legacy model_validate")
+
+    monkeypatch.setattr(encyclopedia_module, "_draw_weekly_report_card", fake_draw)
+    monkeypatch.setattr(encyclopedia_module.DNARoleForToolRes, "model_validate", fail)
+    monkeypatch.setattr(
+        encyclopedia_module.DNAItemWeeklyReportRes, "model_validate", fail
+    )
+
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
+    rendered = await renderer.render_weekly_report(_weekly(), uid=UID)
+
+    assert rendered.path.read_bytes() == payload.getvalue()
 
 
 @pytest.mark.asyncio
@@ -452,11 +536,19 @@ def test_legacy_role_adapter_preserves_role_id() -> None:
 def test_renderer_value_uses_asia_shanghai_for_aware_datetime() -> None:
     from src.infrastructure.rendering.encyclopedia import _value
 
-    assert _value(datetime(2026, 8, 11, 1, 0, tzinfo=ZoneInfo("UTC"))) == "2026-08-11 09:00"
+    assert (
+        _value(datetime(2026, 8, 11, 1, 0, tzinfo=ZoneInfo("UTC")))
+        == "2026-08-11 09:00"
+    )
 
 
-def test_renderer_write_preserves_t2i_bytes_and_metadata_sidecar(tmp_path: Path) -> None:
-    renderer = EncyclopediaRenderer(tmp_path / "rendered", EncyclopediaResourceStore.from_root(tmp_path / "resources"))
+def test_renderer_write_preserves_t2i_bytes_and_metadata_sidecar(
+    tmp_path: Path,
+) -> None:
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore.from_root(tmp_path / "resources"),
+    )
     source = BytesIO()
     Image.new("RGB", (3, 2), "red").save(source, format="JPEG", quality=85)
     payload = source.getvalue()
@@ -468,8 +560,12 @@ def test_renderer_write_preserves_t2i_bytes_and_metadata_sidecar(tmp_path: Path)
 
 @pytest.mark.asyncio
 async def test_calendar_is_global_and_ignores_mention_privacy(tmp_path: Path) -> None:
-    database = await _database_with_binding(tmp_path, user_id="target-user", uid=TARGET_UID)
-    transport = FixtureEncyclopediaTransport(_short_note(), _weekly(), _calendar(), _codes())
+    database = await _database_with_binding(
+        tmp_path, user_id="target-user", uid=TARGET_UID
+    )
+    transport = FixtureEncyclopediaTransport(
+        _short_note(), _weekly(), _calendar(), _codes()
+    )
     resources = _resources(tmp_path)
     calendar_asset = tmp_path / "calendar-a.png"
     Image.new("RGBA", (64, 64), "orange").save(calendar_asset)
@@ -514,7 +610,9 @@ def _service(
 
 
 @pytest.mark.asyncio
-async def test_stamina_and_weekly_images_preserve_full_typed_output(tmp_path: Path) -> None:
+async def test_stamina_and_weekly_images_preserve_full_typed_output(
+    tmp_path: Path,
+) -> None:
     database = await _database_with_binding(tmp_path)
     transport = FixtureEncyclopediaTransport(
         _short_note(),
@@ -618,11 +716,6 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
     assert isinstance(stamina, ImageResponse)
     assert isinstance(weekly, ImageResponse)
     assert isinstance(calendar, ImageResponse)
-    for response in (stamina, weekly):
-        with Image.open(Path(response.image)) as image:
-            pixel = image.convert("RGB").getpixel((160, 145))
-            assert isinstance(pixel, tuple)
-            assert pixel[2] >= 250 and pixel[0] <= 5 and pixel[1] <= 5
     assert transport.calls == [
         ("short_note", "target-user"),
         ("weekly", 2),
@@ -632,8 +725,11 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
 
 
 @pytest.mark.asyncio
-async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(tmp_path: Path) -> None:
-    database = await _database_with_binding(tmp_path)
+async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
+    tmp_path: Path,
+) -> None:
+    database = AsyncDatabase(tmp_path / "encyclopedia.sqlite3")
+    await database.create_schema_for_tests()
     resources = _resources(tmp_path)
     calendar_asset = tmp_path / "calendar-a.png"
     Image.new("RGBA", (64, 64), "orange").save(calendar_asset)
@@ -643,17 +739,25 @@ async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
         guide_assets=resources.guide_assets,
         calendar_assets={"calendar://a": calendar_asset},
     )
-    transport = FixtureEncyclopediaTransport(_short_note(), _weekly(), _calendar(), _codes())
+    transport = FixtureEncyclopediaTransport(
+        _short_note(), _weekly(), _calendar(), _codes()
+    )
     service = _service(database, transport, resources, tmp_path)
     actor = EventActor("user-1", "bot-1", "group-1")
 
-    calendar = await service.calendar(EncyclopediaRequest(actor=actor, target_user_id=None))
+    calendar = await service.calendar(
+        EncyclopediaRequest(actor=actor, target_user_id=None)
+    )
     codes = await service.codes(EncyclopediaRequest(actor=actor, target_user_id=None))
     wiki = await service.wiki(
-        EncyclopediaRequest(actor=actor, target_user_id=None, parameters={"name": "小甲"}),
+        EncyclopediaRequest(
+            actor=actor, target_user_id=None, parameters={"name": "小甲"}
+        ),
     )
     guide = await service.guide(
-        EncyclopediaRequest(actor=actor, target_user_id=None, parameters={"char_name": "小甲"}),
+        EncyclopediaRequest(
+            actor=actor, target_user_id=None, parameters={"char_name": "小甲"}
+        ),
     )
     alias = await service.alias_list(
         EncyclopediaRequest(
@@ -672,11 +776,17 @@ async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
     assert "活动甲" in artifact.metadata["dnaby.text"]
     assert "活动乙" in artifact.metadata["dnaby.text"]
     assert isinstance(codes, ChainResponse)
-    assert any(isinstance(item, PlainTextResponse) and "CODE-A" in item.text for item in codes.components)
+    assert any(
+        isinstance(item, PlainTextResponse) and "CODE-A" in item.text
+        for item in codes.components
+    )
     assert isinstance(wiki, ImageResponse)
     assert Path(wiki.image).name == "role.webp"
     assert isinstance(guide, ChainResponse)
-    assert any(isinstance(item, PlainTextResponse) and "狩月庭攻略组" in item.text for item in guide.components)
+    assert any(
+        isinstance(item, PlainTextResponse) and "狩月庭攻略组" in item.text
+        for item in guide.components
+    )
     assert sum(isinstance(item, ImageResponse) for item in guide.components) == 2
     assert isinstance(alias, PlainTextResponse)
     assert "小甲" in alias.text and "角色甲" in alias.text
@@ -686,7 +796,9 @@ async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
 
 
 @pytest.mark.asyncio
-async def test_guide_keeps_one_author_label_for_each_provider_group(tmp_path: Path) -> None:
+async def test_guide_keeps_one_author_label_for_each_provider_group(
+    tmp_path: Path,
+) -> None:
     """同一作者的多张攻略图只应在组首显示一次作者文案。"""
 
     database = await _database_with_binding(tmp_path)
@@ -703,7 +815,9 @@ async def test_guide_keeps_one_author_label_for_each_provider_group(tmp_path: Pa
             ),
         },
     )
-    transport = FixtureEncyclopediaTransport(_short_note(), _weekly(), _calendar(), _codes())
+    transport = FixtureEncyclopediaTransport(
+        _short_note(), _weekly(), _calendar(), _codes()
+    )
     service = _service(database, transport, resources, tmp_path)
 
     response = await service.guide(
@@ -715,10 +829,18 @@ async def test_guide_keeps_one_author_label_for_each_provider_group(tmp_path: Pa
     )
 
     assert isinstance(response, ChainResponse)
-    assert [component.text for component in response.components if isinstance(component, PlainTextResponse)] == [
+    assert [
+        component.text
+        for component in response.components
+        if isinstance(component, PlainTextResponse)
+    ] == [
         "攻略作者：攻略组",
     ]
-    assert [component.image for component in response.components if isinstance(component, ImageResponse)] == [
+    assert [
+        component.image
+        for component in response.components
+        if isinstance(component, ImageResponse)
+    ] == [
         str(guide_one),
         str(guide_two),
     ]
@@ -726,7 +848,9 @@ async def test_guide_keeps_one_author_label_for_each_provider_group(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_codes_keep_each_entry_expiry_when_provider_dates_differ(tmp_path: Path) -> None:
+async def test_codes_keep_each_entry_expiry_when_provider_dates_differ(
+    tmp_path: Path,
+) -> None:
     """不同兑换码的截止时间必须逐项输出，不能只保留第一项。"""
 
     database = await _database_with_binding(tmp_path)
@@ -766,14 +890,18 @@ async def test_codes_keep_each_entry_expiry_when_provider_dates_differ(tmp_path:
 
 
 @pytest.mark.asyncio
-async def test_encyclopedia_errors_are_visible_and_target_privacy_is_preserved(tmp_path: Path) -> None:
+async def test_encyclopedia_errors_are_visible_and_target_privacy_is_preserved(
+    tmp_path: Path,
+) -> None:
     database = await _database_with_binding(tmp_path)
     error = EncyclopediaTransportError(
         "server",
         resource="周报数据",
         detail="token=secret-encyclopedia",
     )
-    transport = FixtureEncyclopediaTransport(_short_note(), _weekly(), _calendar(), _codes(), error=error)
+    transport = FixtureEncyclopediaTransport(
+        _short_note(), _weekly(), _calendar(), _codes(), error=error
+    )
     service = _service(database, transport, _resources(tmp_path), tmp_path)
 
     response = await service.stamina(

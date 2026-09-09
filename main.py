@@ -35,7 +35,7 @@ COMMAND_REGISTRY: CommandRegistry = load_command_registry()
 class DnabyPlugin(Star):
     """二重螺旋的 AstrBot 插件入口。"""
 
-    name = "astrbot_plugin_dnaby"
+    name = "astrbot_plugin_dna"
 
     def __init__(
         self,

@@ -22,8 +22,12 @@ from pydantic import BaseModel
 from ...entry.event import EventActor
 from ...modules.encyclopedia.contracts import (
     CalendarSnapshot,
-    RoleOverview,
+    PlayerShortNote,
+    WeeklyReport,
+    WeeklyReportCategory,
+    WeeklyReportItem,
 )
+from ...modules.player.contracts import RoleHeader, RoleOverview
 from ...utils import dna_api
 from ...utils.api.model import (
     DNAItemWeeklyReportRes,
@@ -62,6 +66,25 @@ FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 
 
+def _as_role_header(
+    role: RoleHeader | RoleOverview | None,
+    *,
+    uid: str | None,
+) -> RoleHeader:
+    """将兼容输入收窄为便签/周报/签到所需的角色头部。"""
+
+    if isinstance(role, RoleHeader):
+        return role
+    if isinstance(role, RoleOverview):
+        return RoleHeader(
+            role_id=role.role_id,
+            role_name=role.role_name,
+            level=role.level,
+            params=list(role.params),
+        )
+    return RoleHeader(role_id=uid or "0", role_name="DNA", level=0)
+
+
 # ---------------------------------------------------------------------------
 # 1. 体力 / 日常便签 (Stamina)
 # ---------------------------------------------------------------------------
@@ -70,7 +93,11 @@ SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 def _get_stamina_bg_list() -> Path:
     bg_path = STAMINA_TEXT_PATH / "bg"
     if bg_path.is_dir():
-        bg_list = [path for path in bg_path.iterdir() if path.suffix.lower() in (".jpg", ".png", ".webp")]
+        bg_list = [
+            path
+            for path in bg_path.iterdir()
+            if path.suffix.lower() in (".jpg", ".png", ".webp")
+        ]
         if bg_list:
             return random.choice(bg_list)
     return COMMON_PATH / "bg.jpg"
@@ -87,6 +114,101 @@ def _format_stamina_seconds(seconds: float) -> str:
     return f"{hours:02d}:{minute:02d}:{second:02d}"
 
 
+async def _draw_stamina_card_view(
+    ctx: EventContext,
+    role: RoleHeader,
+    short_note: PlayerShortNote,
+    uid_hidden: bool = False,
+    bg_path: Path | None = None,
+) -> bytes:
+    """直接从便签/角色头部 DTO 构造模板输入。"""
+
+    other_info = [
+        (item.param_key, item.param_value)
+        for item in role.params
+        if item.param_key in ("总活跃天数", "游戏时长", "获得角色数")
+    ]
+    header = await build_profile_header(
+        ctx,
+        role.role_id,
+        role.role_name,
+        user_level=role.level,
+        stats=other_info,
+        avatar_user_id=ctx.user_id,
+        uid_hidden=uid_hidden,
+    )
+    raw_notes = [
+        (
+            "备忘手记",
+            short_note.current_task_progress,
+            short_note.max_daily_task_progress,
+        ),
+        (
+            "迷津",
+            short_note.rouge_like_reward_count,
+            short_note.rouge_like_reward_total,
+        ),
+        (
+            "梦魇残声",
+            short_note.hard_boss_reward_count,
+            short_note.hard_boss_reward_total,
+        ),
+        ("竞逐", short_note.dungeon_reward, short_note.dungeon_reward_total),
+    ]
+    notes = [
+        {
+            "current": current,
+            "icon": pil_image_data_uri(
+                tint_image(
+                    Image.open(STAMINA_TEXT_PATH / f"icon{index}.png"), (240, 230, 140)
+                ),
+            ),
+            "name": name,
+            "ratio": _progress_ratio(current, total),
+            "total": total,
+        }
+        for index, (name, current, total) in enumerate(raw_notes, start=1)
+    ]
+
+    drafts: list[dict[str, object]] = []
+    now = int(time.time())
+    for draft in short_note.drafts:
+        if not draft.product_name or draft.end_at is None:
+            continue
+        end_at = int(draft.end_at.timestamp())
+        is_done = draft.completed or now > end_at
+        drafts.append(
+            {
+                "done": is_done,
+                "name": draft.product_name,
+                "state": "已完成" if is_done else _format_stamina_seconds(end_at - now),
+            }
+        )
+
+    selected_bg = bg_path or _get_stamina_bg_list()
+    return await _RENDERER.render(
+        "cards/stamina.html.j2",
+        {
+            "background": image_data_uri(selected_bg),
+            "drafts": drafts,
+            "divider": image_data_uri(STAMINA_TEXT_PATH / "div.png"),
+            "foreground": image_data_uri(STAMINA_TEXT_PATH / "fg.png"),
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "footer_text": "DNA",
+            "header": header,
+            "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
+            "bar_background": image_data_uri(STAMINA_TEXT_PATH / "bar_bg2.png"),
+            "success": image_data_uri(STAMINA_TEXT_PATH / "success.png"),
+            "running": image_data_uri(STAMINA_TEXT_PATH / "running.png"),
+            "draft_background": image_data_uri(STAMINA_TEXT_PATH / "draft_bg.png"),
+            "height": 1100,
+            "notes": notes,
+            "width": 2000,
+        },
+        RenderSpec(width=2000, height=1100, full_page=True, output_format="jpeg"),
+    )
+
+
 async def _draw_stamina_card(
     ctx: EventContext,
     role_show: RoleShowForTool,
@@ -94,6 +216,15 @@ async def _draw_stamina_card(
     uid_hidden: bool = False,
     bg_path: Path | None = None,
 ) -> bytes:
+    """组装 legacy 便签 payload；typed DTO 走最小 view 分支。"""
+
+    if isinstance(role_show, RoleHeader) and isinstance(
+        short_note_info, PlayerShortNote
+    ):
+        return await _draw_stamina_card_view(
+            ctx, role_show, short_note_info, uid_hidden=uid_hidden, bg_path=bg_path
+        )
+
     other_info = [
         (item.paramKey, item.paramValue)
         for item in role_show.params
@@ -110,16 +241,30 @@ async def _draw_stamina_card(
     )
 
     raw_notes = [
-        ("备忘手记", short_note_info.currentTaskProgress, short_note_info.maxDailyTaskProgress),
-        ("迷津", short_note_info.rougeLikeRewardCount, short_note_info.rougeLikeRewardTotal),
-        ("梦魇残声", short_note_info.hardBossRewardCount, short_note_info.hardBossRewardTotal),
+        (
+            "备忘手记",
+            short_note_info.currentTaskProgress,
+            short_note_info.maxDailyTaskProgress,
+        ),
+        (
+            "迷津",
+            short_note_info.rougeLikeRewardCount,
+            short_note_info.rougeLikeRewardTotal,
+        ),
+        (
+            "梦魇残声",
+            short_note_info.hardBossRewardCount,
+            short_note_info.hardBossRewardTotal,
+        ),
         ("竞逐", short_note_info.dungeonReward, short_note_info.dungeonRewardTotal),
     ]
     notes = [
         {
             "current": current,
             "icon": pil_image_data_uri(
-                tint_image(Image.open(STAMINA_TEXT_PATH / f"icon{index}.png"), (240, 230, 140)),
+                tint_image(
+                    Image.open(STAMINA_TEXT_PATH / f"icon{index}.png"), (240, 230, 140)
+                ),
             ),
             "name": name,
             "ratio": _progress_ratio(current, total),
@@ -140,7 +285,9 @@ async def _draw_stamina_card(
                 {
                     "done": is_done,
                     "name": draft.productName,
-                    "state": "已完成" if is_done else _format_stamina_seconds(int(draft.endTime) - now),
+                    "state": "已完成"
+                    if is_done
+                    else _format_stamina_seconds(int(draft.endTime) - now),
                 }
             )
 
@@ -153,7 +300,7 @@ async def _draw_stamina_card(
             "divider": image_data_uri(STAMINA_TEXT_PATH / "div.png"),
             "foreground": image_data_uri(STAMINA_TEXT_PATH / "fg.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "bar_background": image_data_uri(STAMINA_TEXT_PATH / "bar_bg2.png"),
@@ -176,14 +323,22 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
         if short_note is None:
             raise ValueError("缺少 short_note_info 参数")
         uid_hidden = bool(kwargs.get("uid_hidden", False))
-        return await _draw_stamina_card(ctx, role_show, short_note, uid_hidden=uid_hidden)
+        return await _draw_stamina_card(
+            ctx, role_show, short_note, uid_hidden=uid_hidden
+        )
     elif len(args) >= 2:
         short_note = args[0]
         role_info = args[1]
-        role_show = role_info.roleInfo.roleShow if hasattr(role_info, "roleInfo") else role_info
-        ctx = kwargs.get("ctx") or EventContext(user_id=kwargs.get("avatar_user_id", "0"))
+        role_show = (
+            role_info.roleInfo.roleShow if hasattr(role_info, "roleInfo") else role_info
+        )
+        ctx = kwargs.get("ctx") or EventContext(
+            user_id=kwargs.get("avatar_user_id", "0")
+        )
         uid_hidden = bool(kwargs.get("uid_hidden", False))
-        raw_bytes = await _draw_stamina_card(ctx, role_show, short_note, uid_hidden=uid_hidden)
+        raw_bytes = await _draw_stamina_card(
+            ctx, role_show, short_note, uid_hidden=uid_hidden
+        )
         return Image.open(BytesIO(raw_bytes)).convert("RGBA")
     else:
         return await _draw_stamina_card(*args, **kwargs)
@@ -214,10 +369,14 @@ async def draw_stamina_img(sender: Sender, ctx: EventContext):
     if not role_for_tool_info.is_success:
         await dna_not_found(sender, ctx, "角色列表信息")
         return
-    role_show = DNARoleForToolRes.model_validate(role_for_tool_info.data).roleInfo.roleShow
+    role_show = DNARoleForToolRes.model_validate(
+        role_for_tool_info.data
+    ).roleInfo.roleShow
     uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
 
-    card = await _draw_stamina_card(ctx, role_show, short_note_res, uid_hidden=uid_hidden)
+    card = await _draw_stamina_card(
+        ctx, role_show, short_note_res, uid_hidden=uid_hidden
+    )
     await sender.send(card)
 
 
@@ -234,10 +393,17 @@ def weekly_item_display_name(name: str) -> str:
     return name if len(name) <= 8 else f"{name[:7]}…"
 
 
-async def _weekly_item_payload(item, item_assets: dict[int, Image.Image | Path] | None = None) -> dict[str, object]:
+async def _weekly_item_payload(
+    item, item_assets: dict[int, Image.Image | Path] | None = None
+) -> dict[str, object]:
+    item_id = getattr(item, "item_id", getattr(item, "itemId", 0))
+    item_name = getattr(item, "item_name", getattr(item, "itemName", ""))
+    item_icon = getattr(item, "icon", "") or ""
+    item_quality = getattr(item, "quality", 0)
+    item_total = getattr(item, "total_num", getattr(item, "totalNum", "0"))
     quality_dir = WEEKLY_TEXT_PATH / "quality"
-    if item_assets and item.itemId in item_assets:
-        asset = item_assets[item.itemId]
+    if item_assets and item_id in item_assets:
+        asset = item_assets[item_id]
         if isinstance(asset, Path):
             icon = image_data_uri(asset)
         elif isinstance(asset, Image.Image):
@@ -245,26 +411,91 @@ async def _weekly_item_payload(item, item_assets: dict[int, Image.Image | Path] 
         else:
             icon = str(asset)
     else:
-        name = f"item_{item.itemId}.png"
+        name = f"item_{item_id}.png"
         path = WEEKLY_ITEM_PATH / name
         if path.exists():
             icon = image_data_uri(path)
         else:
             try:
-                img = await download_pic_from_url(WEEKLY_ITEM_PATH, item.icon, size=(105, 105), name=name)
+                img = await download_pic_from_url(
+                    WEEKLY_ITEM_PATH, item_icon, size=(105, 105), name=name
+                )
                 icon = pil_image_data_uri(img)
             except (OSError, httpx.HTTPError):
                 fallback_img = Image.new("RGB", (105, 105), "#333333")
                 icon = pil_image_data_uri(fallback_img)
-    quality = item.quality if 0 <= item.quality <= 5 else 0
+    quality = item_quality if 0 <= item_quality <= 5 else 0
     quality_path = quality_dir / f"q{quality}.png"
     quality_uri = image_data_uri(quality_path) if quality_path.exists() else ""
     return {
         "icon": icon,
-        "name": item.itemName,
+        "name": item_name,
         "quality": quality_uri,
-        "total": item.totalNum,
+        "total": str(item_total),
     }
+
+
+async def _draw_weekly_report_card_view(
+    ctx: EventContext,
+    role: RoleHeader,
+    report: WeeklyReport,
+    week_type: int = 1,
+    uid_hidden: bool = False,
+    item_assets: dict[int, Image.Image | Path] | None = None,
+) -> bytes:
+    """直接从周报领域 DTO 构造模板输入。"""
+
+    other_info = [
+        (item.param_key, item.param_value)
+        for item in role.params
+        if item.param_key in ("总活跃天数", "游戏时长", "获得角色数")
+    ]
+    header = await build_profile_header(
+        ctx,
+        role.role_id,
+        role.role_name,
+        user_level=role.level,
+        stats=other_info,
+        avatar_user_id=ctx.user_id,
+        uid_hidden=uid_hidden,
+    )
+    category_items = await asyncio.gather(
+        *(
+            asyncio.gather(
+                *(_weekly_item_payload(item, item_assets) for item in category.items)
+            )
+            for category in report.categories
+        )
+    )
+    categories = [
+        {"items": list(items), "name": category.category_name}
+        for category, items in zip(report.categories, category_items, strict=True)
+    ]
+    height = (
+        400
+        + sum(
+            70 + max(1, math.ceil(len(category["items"]) / 5)) * 230 + 20
+            for category in categories
+        )
+        + 100
+    )
+    return await _RENDERER.render(
+        "cards/weekly_report.html.j2",
+        {
+            "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
+            "categories": categories,
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "footer_text": "DNA",
+            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
+            "header": header,
+            "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
+            "period": f"{_fmt_date(report.start_date)}  ~  {_fmt_date(report.end_date)}",
+            "week_label": "本周周报" if week_type == 1 else "上周周报",
+            "height": height,
+            "width": 1200,
+        },
+        RenderSpec(width=1200, height=height, full_page=False, output_format="jpeg"),
+    )
 
 
 async def _draw_weekly_report_card(
@@ -275,6 +506,16 @@ async def _draw_weekly_report_card(
     uid_hidden: bool = False,
     item_assets: dict[int, Image.Image | Path] | None = None,
 ) -> bytes:
+    if isinstance(role_show, RoleHeader) and isinstance(report, WeeklyReport):
+        return await _draw_weekly_report_card_view(
+            ctx,
+            role_show,
+            report,
+            week_type=week_type,
+            uid_hidden=uid_hidden,
+            item_assets=item_assets,
+        )
+
     other_info = [
         (item.paramKey, item.paramValue)
         for item in role_show.params
@@ -290,23 +531,32 @@ async def _draw_weekly_report_card(
         uid_hidden=uid_hidden,
     )
     category_items = await asyncio.gather(
-        *(asyncio.gather(*(_weekly_item_payload(item, item_assets) for item in category.items)) for category in report.categories)
+        *(
+            asyncio.gather(
+                *(_weekly_item_payload(item, item_assets) for item in category.items)
+            )
+            for category in report.categories
+        )
     )
     categories = [
         {"items": list(items), "name": category.categoryName}
         for category, items in zip(report.categories, category_items, strict=True)
     ]
-    height = 400 + sum(
-        70 + max(1, math.ceil(len(category["items"]) / 5)) * 230 + 20
-        for category in categories
-    ) + 100
+    height = (
+        400
+        + sum(
+            70 + max(1, math.ceil(len(category["items"]) / 5)) * 230 + 20
+            for category in categories
+        )
+        + 100
+    )
     return await _RENDERER.render(
         "cards/weekly_report.html.j2",
         {
             "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
             "categories": categories,
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
@@ -340,8 +590,12 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
     elif len(args) >= 2:
         report = args[0]
         role_info = args[1]
-        role_show = role_info.roleInfo.roleShow if hasattr(role_info, "roleInfo") else role_info
-        ctx = kwargs.get("ctx") or EventContext(user_id=kwargs.get("avatar_user_id", "0"))
+        role_show = (
+            role_info.roleInfo.roleShow if hasattr(role_info, "roleInfo") else role_info
+        )
+        ctx = kwargs.get("ctx") or EventContext(
+            user_id=kwargs.get("avatar_user_id", "0")
+        )
         week_type = int(kwargs.get("week_type", 1))
         uid_hidden = bool(kwargs.get("uid_hidden", False))
         item_assets = kwargs.get("item_assets")
@@ -378,10 +632,14 @@ async def draw_weekly_report_img(sender: Sender, ctx: EventContext, week_type: i
     role_for_tool_info = await dna_api.get_default_role_for_tool(dna_user)
     if not role_for_tool_info.is_success:
         return await dna_not_found(sender, ctx, "角色列表信息")
-    role_show = DNARoleForToolRes.model_validate(role_for_tool_info.data).roleInfo.roleShow
+    role_show = DNARoleForToolRes.model_validate(
+        role_for_tool_info.data
+    ).roleInfo.roleShow
     uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
 
-    card = await _draw_weekly_report_card(ctx, role_show, report, week_type=week_type, uid_hidden=uid_hidden)
+    card = await _draw_weekly_report_card(
+        ctx, role_show, report, week_type=week_type, uid_hidden=uid_hidden
+    )
     await sender.send(card)
 
 
@@ -449,11 +707,17 @@ def _calendar_background(height: int) -> Image.Image:
 async def _load_banner(height: int) -> str:
     """按旧 PIL 合成顺序预合成 banner，避免 T2I 对透明 JPEG 的底色差异。"""
 
-    banner_bg = Image.open(CALENDAR_TEXT_PATH / "banner_bg.webp").convert("RGBA").resize((1200, 675))
+    banner_bg = (
+        Image.open(CALENDAR_TEXT_PATH / "banner_bg.webp")
+        .convert("RGBA")
+        .resize((1200, 675))
+    )
     banner_mask = Image.open(CALENDAR_TEXT_PATH / "banner_mask.png").getchannel("A")
     banner_bg = crop_center_img(banner_bg, banner_mask.width, banner_mask.height)
     background = _calendar_background(height).crop((0, 150, 1200, 750))
-    banner = Image.alpha_composite(background, Image.merge("RGBA", (*banner_bg.split()[:3], banner_mask)))
+    banner = Image.alpha_composite(
+        background, Image.merge("RGBA", (*banner_bg.split()[:3], banner_mask))
+    )
     frame = Image.open(CALENDAR_TEXT_PATH / "banner_frame.png").convert("RGBA")
     banner.alpha_composite(frame)
     return pil_image_data_uri(banner)
@@ -466,9 +730,17 @@ def _event_dates(cont: CalendarContent) -> list[str]:
     if isinstance(cont.end_time, str) and cont.end_time:
         date_range.append(cont.end_time)
     if isinstance(cont.start_time, int) and cont.start_time > 0:
-        date_range.append(datetime.fromtimestamp(cont.start_time, tz=SHANGHAI_TZ).strftime("%Y-%m-%d %H:%M"))
+        date_range.append(
+            datetime.fromtimestamp(cont.start_time, tz=SHANGHAI_TZ).strftime(
+                "%Y-%m-%d %H:%M"
+            )
+        )
     if isinstance(cont.end_time, int) and cont.end_time > 0:
-        date_range.append(datetime.fromtimestamp(cont.end_time, tz=SHANGHAI_TZ).strftime("%Y-%m-%d %H:%M"))
+        date_range.append(
+            datetime.fromtimestamp(cont.end_time, tz=SHANGHAI_TZ).strftime(
+                "%Y-%m-%d %H:%M"
+            )
+        )
     return date_range
 
 
@@ -480,12 +752,24 @@ def get_left_time_str(remaining_time: timedelta) -> str:
 
 
 def get_date_range(dateRange: list[str], now: datetime):
-    start_time = datetime.strptime(dateRange[0], "%Y-%m-%d %H:%M").replace(tzinfo=SHANGHAI_TZ)
-    end_time = datetime.strptime(dateRange[1], "%Y-%m-%d %H:%M").replace(tzinfo=SHANGHAI_TZ)
-    now = now.replace(tzinfo=SHANGHAI_TZ) if now.tzinfo is None else now.astimezone(SHANGHAI_TZ)
+    start_time = datetime.strptime(dateRange[0], "%Y-%m-%d %H:%M").replace(
+        tzinfo=SHANGHAI_TZ
+    )
+    end_time = datetime.strptime(dateRange[1], "%Y-%m-%d %H:%M").replace(
+        tzinfo=SHANGHAI_TZ
+    )
+    now = (
+        now.replace(tzinfo=SHANGHAI_TZ)
+        if now.tzinfo is None
+        else now.astimezone(SHANGHAI_TZ)
+    )
     if start_time <= now <= end_time:
         remaining_time = end_time - now
-        return "进行中", get_left_time_str(remaining_time), "red" if remaining_time.days < 1 else "white"
+        return (
+            "进行中",
+            get_left_time_str(remaining_time),
+            "red" if remaining_time.days < 1 else "white",
+        )
     if now > end_time:
         return "已结束", "", "white"
     return "未开始", "", "white"
@@ -506,21 +790,31 @@ def _event_payload(cont: CalendarContent, now: datetime) -> dict[str, object]:
     if len(date_range) < 2:
         return payload
 
-    start_time = datetime.strptime(date_range[0], "%Y-%m-%d %H:%M").replace(tzinfo=SHANGHAI_TZ)
-    end_time = datetime.strptime(date_range[1], "%Y-%m-%d %H:%M").replace(tzinfo=SHANGHAI_TZ)
+    start_time = datetime.strptime(date_range[0], "%Y-%m-%d %H:%M").replace(
+        tzinfo=SHANGHAI_TZ
+    )
+    end_time = datetime.strptime(date_range[1], "%Y-%m-%d %H:%M").replace(
+        tzinfo=SHANGHAI_TZ
+    )
     status, left, color = get_date_range(date_range, now)
     if status == "已结束":
         progress = 1.0
     else:
         total_duration = (end_time - start_time).total_seconds()
-        progress = (now - start_time).total_seconds() / total_duration if total_duration > 0 else 0
+        progress = (
+            (now - start_time).total_seconds() / total_duration
+            if total_duration > 0
+            else 0
+        )
     payload.update(
         {
             "date_range": f"{start_time:%m.%d %H:%M} ~ {end_time:%m.%d %H:%M}",
             "left": left,
             "left_color": color,
             "progress": max(0.0, min(progress, 1.0)),
-            "progress_color": "white" if status == "已结束" else ("gold" if color == "white" else color),
+            "progress_color": "white"
+            if status == "已结束"
+            else ("gold" if color == "white" else color),
             "status": status,
         }
     )
@@ -565,7 +859,9 @@ async def _draw_calendar_card_bytes(
     raw_bytes = await _RENDERER.render(
         "cards/calendar.html.j2",
         {
-            "background": pil_image_data_uri(background.convert("RGB"), image_format="JPEG"),
+            "background": pil_image_data_uri(
+                background.convert("RGB"), image_format="JPEG"
+            ),
             "banner": await _load_banner(height),
             "events": events,
             "event_background": image_data_uri(CALENDAR_TEXT_PATH / "event_bg.png"),
@@ -573,7 +869,7 @@ async def _draw_calendar_card_bytes(
             "time_icon": image_data_uri(CALENDAR_TEXT_PATH / "time_icon.png"),
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "height": height,
             "width": 1200,
         },
@@ -595,13 +891,29 @@ async def draw_calendar_card(
 
 async def draw_calendar_img(ctx: EventContext):
     activity_res = await dna_api.get_activity_info()
-    activity_list = activity_res.data.get("activities", []) if activity_res.is_success and isinstance(activity_res.data, dict) else []
+    activity_list = (
+        activity_res.data.get("activities", [])
+        if activity_res.is_success and isinstance(activity_res.data, dict)
+        else []
+    )
 
     wiki_list = []
     wiki_home = await dna_api.get_calendar_info()
     if wiki_home:
-        jumu = next(filter(lambda x: x["sectionType"] == 3 and x.get("activityUps") is not None, wiki_home), None)
-        old_activity_list = next(filter(lambda x: x["sectionType"] == 3 and x.get("activities") is not None, wiki_home), None)
+        jumu = next(
+            filter(
+                lambda x: x["sectionType"] == 3 and x.get("activityUps") is not None,
+                wiki_home,
+            ),
+            None,
+        )
+        old_activity_list = next(
+            filter(
+                lambda x: x["sectionType"] == 3 and x.get("activities") is not None,
+                wiki_home,
+            ),
+            None,
+        )
         if jumu:
             wiki_list.append(jumu)
         if old_activity_list:
@@ -612,13 +924,26 @@ async def draw_calendar_img(ctx: EventContext):
 
     now = datetime.now(tz=SHANGHAI_TZ)
     content = [
-        CalendarContent(title="魔灵", pic="moling.png", start_time=get_time(now, TimeType.MOLING)["start_date_str"], end_time=get_time(now, TimeType.MOLING)["end_date_str"]),
-        CalendarContent(title="周本", pic="zhouben.png", start_time=get_time(now, TimeType.ZHOUBEN)["start_date_str"], end_time=get_time(now, TimeType.ZHOUBEN)["end_date_str"]),
+        CalendarContent(
+            title="魔灵",
+            pic="moling.png",
+            start_time=get_time(now, TimeType.MOLING)["start_date_str"],
+            end_time=get_time(now, TimeType.MOLING)["end_date_str"],
+        ),
+        CalendarContent(
+            title="周本",
+            pic="zhouben.png",
+            start_time=get_time(now, TimeType.ZHOUBEN)["start_date_str"],
+            end_time=get_time(now, TimeType.ZHOUBEN)["end_date_str"],
+        ),
     ]
     if wiki_list:
         for item in wiki_list:
             for activity_up in item.get("activityUps", []):
-                start_time, end_time = activity_up.get("createTime"), activity_up.get("endTime")
+                start_time, end_time = (
+                    activity_up.get("createTime"),
+                    activity_up.get("endTime"),
+                )
                 content.extend(
                     CalendarContent(
                         title=activity_up.get("name") or entry["name"],
@@ -633,8 +958,12 @@ async def draw_calendar_img(ctx: EventContext):
                     CalendarContent(
                         title=activity["name"],
                         pic=activity["pic"],
-                        start_time=int(activity["createTime"] / 1000) if activity["createTime"] else "",
-                        end_time=int(activity["endTime"] / 1000) if activity["endTime"] else "",
+                        start_time=int(activity["createTime"] / 1000)
+                        if activity["createTime"]
+                        else "",
+                        end_time=int(activity["endTime"] / 1000)
+                        if activity["endTime"]
+                        else "",
                     )
                 )
     for activity in activity_list:
@@ -662,7 +991,9 @@ async def draw_calendar_img(ctx: EventContext):
     return await _RENDERER.render(
         "cards/calendar.html.j2",
         {
-            "background": pil_image_data_uri(background.convert("RGB"), image_format="JPEG"),
+            "background": pil_image_data_uri(
+                background.convert("RGB"), image_format="JPEG"
+            ),
             "banner": await _load_banner(height),
             "events": events,
             "event_background": image_data_uri(CALENDAR_TEXT_PATH / "event_bg.png"),
@@ -670,7 +1001,7 @@ async def draw_calendar_img(ctx: EventContext):
             "time_icon": image_data_uri(CALENDAR_TEXT_PATH / "time_icon.png"),
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNAUID",
+            "footer_text": "DNA",
             "height": height,
             "width": 1200,
         },
@@ -714,7 +1045,9 @@ def _legacy_role_payload(role: RoleOverview) -> dict[str, Any]:
 class EncyclopediaRenderer:
     """生成百科/便签/周报/日历卡片的运行期 PNG。"""
 
-    def __init__(self, output_dir: str | Path, resources: EncyclopediaResourceStore) -> None:
+    def __init__(
+        self, output_dir: str | Path, resources: EncyclopediaResourceStore
+    ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
 
@@ -723,7 +1056,9 @@ class EncyclopediaRenderer:
             "kind": "font",
             "key": "dna_fonts",
             "status": self.resources.font_status,
-            "source": "fonts/dna_fonts.ttf" if self.resources.font_path is not None else "",
+            "source": "fonts/dna_fonts.ttf"
+            if self.resources.font_path is not None
+            else "",
         }
 
     def _write(
@@ -780,84 +1115,137 @@ class EncyclopediaRenderer:
     async def render_stamina(
         self,
         snapshot: Any,
-        role: RoleOverview | None = None,
+        role: RoleHeader | RoleOverview | None = None,
         *,
         actor: EventActor | None = None,
         target_user_id: str | None = None,
         uid: str | None = None,
         uid_hidden: bool = False,
     ) -> RenderedEncyclopediaImage:
-        if role is None:
-            role = getattr(snapshot, "role_overview", None)
-        if role is None:
-            role = RoleOverview(
-                role_id=uid or "0",
-                role_name="DNAUID",
-                level=0,
-                achievement_total=0,
+        typed_snapshot = isinstance(snapshot, PlayerShortNote)
+        if typed_snapshot:
+            role = _as_role_header(
+                role if role is not None else snapshot.role_overview,
+                uid=uid,
             )
-        role_payload = _legacy_role_payload(role)["roleInfo"]["roleShow"]
-        role_show = DNARoleForToolRes.model_validate(
-            {"roleInfo": {"roleShow": role_payload}},
-        ).roleInfo.roleShow
-
-        if hasattr(snapshot, "model_dump"):
-            short_note = DNARoleShortNoteRes.model_validate(snapshot.model_dump(by_alias=True))
+            role_show = role
+            short_note = snapshot
         else:
-            drafts = getattr(snapshot, "drafts", ())
-            doing_items = [
-                {
-                    "name": d.product_name,
-                    "productName": d.product_name,
-                    "startTime": _value(d.start_at) if d.start_at else "0",
-                    "endTime": str(int(d.end_at.timestamp())) if d.end_at else "0",
-                    "draftCompleteNum": 0,
-                    "draftDoingNum": 1,
-                }
-                for d in drafts
-                if not d.completed and d.product_name
-            ]
-            short_note_dict = {
-                "currentTaskProgress": getattr(snapshot, "current_task_progress", 0),
-                "maxDailyTaskProgress": getattr(snapshot, "max_daily_task_progress", 0),
-                "rougeLikeRewardCount": getattr(snapshot, "rouge_like_reward_count", getattr(snapshot, "rougelike_reward_count", 0)),
-                "rougeLikeRewardTotal": getattr(snapshot, "rouge_like_reward_total", getattr(snapshot, "rougelike_reward_total", 0)),
-                "hardBossRewardCount": getattr(snapshot, "hard_boss_reward_count", 0),
-                "hardBossRewardTotal": getattr(snapshot, "hard_boss_reward_total", 0),
-                "dungeonReward": getattr(snapshot, "dungeon_reward", 0),
-                "dungeonRewardTotal": getattr(snapshot, "dungeon_reward_total", 0),
-                "draftInfo": {
-                    "draftDoingNum": getattr(snapshot, "draft_doing_num", len(doing_items)),
-                    "draftMaxNum": getattr(snapshot, "draft_max_num", 5),
-                    "draftDoingInfo": doing_items,
-                },
-            }
-            short_note = DNARoleShortNoteRes.model_validate(short_note_dict)
+            if role is None:
+                role = getattr(snapshot, "role_overview", None)
+            if role is None:
+                role = RoleOverview(
+                    role_id=uid or "0",
+                    role_name="DNA",
+                    level=0,
+                    achievement_total=0,
+                )
+            role_payload = _legacy_role_payload(role)["roleInfo"]["roleShow"]
+            role_show = DNARoleForToolRes.model_validate(
+                {"roleInfo": {"roleShow": role_payload}},
+            ).roleInfo.roleShow
 
-        avatar_user_id = target_user_id or (actor.user_id if actor is not None else (uid or "0"))
+            if hasattr(snapshot, "model_dump"):
+                short_note = DNARoleShortNoteRes.model_validate(
+                    snapshot.model_dump(by_alias=True)
+                )
+            else:
+                drafts = getattr(snapshot, "drafts", ())
+                doing_items = [
+                    {
+                        "name": d.product_name,
+                        "productName": d.product_name,
+                        "startTime": _value(d.start_at) if d.start_at else "0",
+                        "endTime": str(int(d.end_at.timestamp())) if d.end_at else "0",
+                        "draftCompleteNum": 0,
+                        "draftDoingNum": 1,
+                    }
+                    for d in drafts
+                    if not d.completed and d.product_name
+                ]
+                short_note_dict = {
+                    "currentTaskProgress": getattr(
+                        snapshot, "current_task_progress", 0
+                    ),
+                    "maxDailyTaskProgress": getattr(
+                        snapshot, "max_daily_task_progress", 0
+                    ),
+                    "rougeLikeRewardCount": getattr(
+                        snapshot,
+                        "rouge_like_reward_count",
+                        getattr(snapshot, "rougelike_reward_count", 0),
+                    ),
+                    "rougeLikeRewardTotal": getattr(
+                        snapshot,
+                        "rouge_like_reward_total",
+                        getattr(snapshot, "rougelike_reward_total", 0),
+                    ),
+                    "hardBossRewardCount": getattr(
+                        snapshot, "hard_boss_reward_count", 0
+                    ),
+                    "hardBossRewardTotal": getattr(
+                        snapshot, "hard_boss_reward_total", 0
+                    ),
+                    "dungeonReward": getattr(snapshot, "dungeon_reward", 0),
+                    "dungeonRewardTotal": getattr(snapshot, "dungeon_reward_total", 0),
+                    "draftInfo": {
+                        "draftDoingNum": getattr(
+                            snapshot, "draft_doing_num", len(doing_items)
+                        ),
+                        "draftMaxNum": getattr(snapshot, "draft_max_num", 5),
+                        "draftDoingInfo": doing_items,
+                    },
+                }
+                short_note = DNARoleShortNoteRes.model_validate(short_note_dict)
+
+        if typed_snapshot:
+            current_task_progress = snapshot.current_task_progress
+            max_daily_task_progress = snapshot.max_daily_task_progress
+            hard_boss_reward_count = snapshot.hard_boss_reward_count
+            hard_boss_reward_total = snapshot.hard_boss_reward_total
+            dungeon_reward = snapshot.dungeon_reward
+            dungeon_reward_total = snapshot.dungeon_reward_total
+        else:
+            current_task_progress = getattr(snapshot, "current_task_progress", 0)
+            max_daily_task_progress = getattr(snapshot, "max_daily_task_progress", 0)
+            hard_boss_reward_count = getattr(snapshot, "hard_boss_reward_count", 0)
+            hard_boss_reward_total = getattr(snapshot, "hard_boss_reward_total", 0)
+            dungeon_reward = getattr(snapshot, "dungeon_reward", 0)
+            dungeon_reward_total = getattr(snapshot, "dungeon_reward_total", 0)
+
+        avatar_user_id = target_user_id or (
+            actor.user_id if actor is not None else (uid or "0")
+        )
         ctx = EventContext(
             user_id=avatar_user_id,
             bot_id="" if actor is None else actor.bot_id,
             group_id="" if actor is None or actor.group_id is None else actor.group_id,
             at=avatar_user_id,
-            unified_msg_origin="" if actor is None or actor.unified_msg_origin is None else actor.unified_msg_origin,
+            unified_msg_origin=""
+            if actor is None or actor.unified_msg_origin is None
+            else actor.unified_msg_origin,
         )
         image_bytes = await _draw_stamina_card(
-            ctx,
-            role_show,
-            short_note,
-            uid_hidden=uid_hidden,
+            ctx, role_show, short_note, uid_hidden=uid_hidden
         )
 
-        rougelike_count = getattr(snapshot, "rouge_like_reward_count", getattr(snapshot, "rougelike_reward_count", 0))
-        rougelike_total = getattr(snapshot, "rouge_like_reward_total", getattr(snapshot, "rougelike_reward_total", 0))
+        rougelike_count = getattr(
+            snapshot,
+            "rouge_like_reward_count",
+            getattr(snapshot, "rougelike_reward_count", 0),
+        )
+        rougelike_total = getattr(
+            snapshot,
+            "rouge_like_reward_total",
+            getattr(snapshot, "rougelike_reward_total", 0),
+        )
         lines = [
             role.role_name,
             f"UID {'***' if uid_hidden else role.role_id}",
-            f"备忘手记: {snapshot.current_task_progress}/{snapshot.max_daily_task_progress}",
+            f"备忘手记: {current_task_progress}/{max_daily_task_progress}",
             f"迷津: {rougelike_count}/{rougelike_total}",
-            f"梦魇残声: {snapshot.hard_boss_reward_count}/{snapshot.hard_boss_reward_total}",
-            f"竞逐: {snapshot.dungeon_reward}/{snapshot.dungeon_reward_total}",
+            f"梦魇残声: {hard_boss_reward_count}/{hard_boss_reward_total}",
+            f"竞逐: {dungeon_reward}/{dungeon_reward_total}",
         ]
         lines.extend(f"{item.param_key}: {item.param_value}" for item in role.params)
         drafts = getattr(snapshot, "drafts", None)
@@ -870,8 +1258,16 @@ class EncyclopediaRenderer:
                     lines.append(f"生产: {d.product_name}")
                     lines.append(d.product_name)
         elif getattr(snapshot, "draft_info", None) is not None:
-            lines.extend(f"生产: {item.name}" for item in snapshot.draft_info.doing_items if item.name)
-            lines.extend(f"已完成: {item.name}" for item in snapshot.draft_info.finish_items if item.name)
+            lines.extend(
+                f"生产: {item.name}"
+                for item in snapshot.draft_info.doing_items
+                if item.name
+            )
+            lines.extend(
+                f"已完成: {item.name}"
+                for item in snapshot.draft_info.finish_items
+                if item.name
+            )
 
         resources = [
             self._font_resource(),
@@ -884,95 +1280,158 @@ class EncyclopediaRenderer:
         ]
         sections = [
             {"name": "日常便签", "items": 4},
-            {"name": "图纸生产", "items": len(getattr(snapshot, "drafts", ())) if drafts is not None else (0 if getattr(snapshot, "draft_info", None) is None else snapshot.draft_info.draft_doing_num)},
+            {
+                "name": "图纸生产",
+                "items": len(getattr(snapshot, "drafts", ()))
+                if drafts is not None
+                else (
+                    0
+                    if getattr(snapshot, "draft_info", None) is None
+                    else snapshot.draft_info.draft_doing_num
+                ),
+            },
         ]
-        return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
+        return self._write(
+            image_bytes, lines=lines, resources=resources, sections=sections
+        )
 
     async def render_weekly_report(
         self,
         snapshot: Any,
-        role: RoleOverview | None = None,
+        role: RoleHeader | RoleOverview | None = None,
         *,
         actor: EventActor | None = None,
         target_user_id: str | None = None,
         uid: str | None = None,
         uid_hidden: bool = False,
     ) -> RenderedEncyclopediaImage:
-        if role is None:
-            role = getattr(snapshot, "role_overview", None)
-        if role is None:
-            role = RoleOverview(
-                role_id=uid or "0",
-                role_name="DNAUID",
-                level=0,
-                achievement_total=0,
+        typed_snapshot = isinstance(snapshot, WeeklyReport)
+        if typed_snapshot:
+            role = _as_role_header(
+                role if role is not None else snapshot.role_overview,
+                uid=uid,
             )
-        role_payload = _legacy_role_payload(role)["roleInfo"]["roleShow"]
-        role_show = DNARoleForToolRes.model_validate(
-            {"roleInfo": {"roleShow": role_payload}},
-        ).roleInfo.roleShow
-
-        if hasattr(snapshot, "model_dump"):
-            report = DNAItemWeeklyReportRes.model_validate(snapshot.model_dump(by_alias=True))
+            role_show = role
+            report = snapshot
+            report_week_type = snapshot.week_type
+            report_start_date = snapshot.start_date
+            report_end_date = snapshot.end_date
         else:
-            report_dict = {
-                "weekType": snapshot.week_type,
-                "startDate": snapshot.start_date,
-                "endDate": snapshot.end_date,
-                "categories": [
-                    {
-                        "categoryName": cat.category_name,
-                        "type": cat.category_type,
-                        "isBase": cat.is_base,
-                        "items": [
-                            {
-                                "itemId": item.item_id,
-                                "itemName": item.item_name,
-                                "quality": item.quality,
-                                "totalNum": str(item.total_num),
-                                "icon": item.icon,
-                            }
-                            for item in cat.items
-                        ],
-                    }
-                    for cat in snapshot.categories
-                ],
-            }
-            report = DNAItemWeeklyReportRes.model_validate(report_dict)
+            if role is None:
+                role = getattr(snapshot, "role_overview", None)
+            if role is None:
+                role = RoleOverview(
+                    role_id=uid or "0",
+                    role_name="DNA",
+                    level=0,
+                    achievement_total=0,
+                )
+            role_payload = _legacy_role_payload(role)["roleInfo"]["roleShow"]
+            role_show = DNARoleForToolRes.model_validate(
+                {"roleInfo": {"roleShow": role_payload}},
+            ).roleInfo.roleShow
 
-        avatar_user_id = target_user_id or (actor.user_id if actor is not None else (uid or "0"))
+            if hasattr(snapshot, "model_dump"):
+                report = DNAItemWeeklyReportRes.model_validate(
+                    snapshot.model_dump(by_alias=True)
+                )
+                report_week_type = report.weekType
+                report_start_date = report.startDate
+                report_end_date = report.endDate
+            else:
+                report_dict = {
+                    "weekType": snapshot.week_type,
+                    "startDate": snapshot.start_date,
+                    "endDate": snapshot.end_date,
+                    "categories": [
+                        {
+                            "categoryName": cat.category_name,
+                            "type": cat.category_type,
+                            "isBase": cat.is_base,
+                            "items": [
+                                {
+                                    "itemId": item.item_id,
+                                    "itemName": item.item_name,
+                                    "quality": item.quality,
+                                    "totalNum": str(item.total_num),
+                                    "icon": item.icon,
+                                }
+                                for item in cat.items
+                            ],
+                        }
+                        for cat in snapshot.categories
+                    ],
+                }
+                report = DNAItemWeeklyReportRes.model_validate(report_dict)
+                report_week_type = snapshot.week_type
+                report_start_date = snapshot.start_date
+                report_end_date = snapshot.end_date
+
+        avatar_user_id = target_user_id or (
+            actor.user_id if actor is not None else (uid or "0")
+        )
         ctx = EventContext(
             user_id=avatar_user_id,
             bot_id="" if actor is None else actor.bot_id,
             group_id="" if actor is None or actor.group_id is None else actor.group_id,
             at=avatar_user_id,
-            unified_msg_origin="" if actor is None or actor.unified_msg_origin is None else actor.unified_msg_origin,
+            unified_msg_origin=""
+            if actor is None or actor.unified_msg_origin is None
+            else actor.unified_msg_origin,
         )
         image_bytes = await _draw_weekly_report_card(
             ctx,
             role_show,
             report,
-            week_type=snapshot.week_type,
+            week_type=report_week_type,
             uid_hidden=uid_hidden,
         )
 
         lines = [
             role.role_name,
             f"UID {'***' if uid_hidden else role.role_id}",
-            f"周期: {_fmt_date(snapshot.start_date)} ~ {_fmt_date(snapshot.end_date)}",
+            f"周期: {_fmt_date(report_start_date)} ~ {_fmt_date(report_end_date)}",
         ]
-        if snapshot.week_type == 2:
+        if report_week_type == 2:
             lines.append("上周周报")
-        for category in snapshot.categories:
+        if typed_snapshot:
+            categories = snapshot.categories
+        else:
+            categories = tuple(
+                WeeklyReportCategory(
+                    category_name=category.categoryName,
+                    category_type=category.type,
+                    is_base=category.isBase,
+                    items=tuple(
+                        WeeklyReportItem(
+                            item_id=item.itemId,
+                            item_name=item.itemName,
+                            quality=item.quality,
+                            total_num=item.totalNum,
+                            icon=item.icon,
+                        )
+                        for item in category.items
+                    ),
+                )
+                for category in report.categories
+            )
+        for category in categories:
             lines.append(category.category_name)
             for item in category.items:
                 lines.append(item.item_name)
 
-        sections = [{"name": category.category_name, "items": len(category.items)} for category in snapshot.categories]
+        sections = [
+            {"name": category.category_name, "items": len(category.items)}
+            for category in categories
+        ]
         resources = [self._font_resource()]
-        for category in snapshot.categories:
+        for category in categories:
             for item in category.items:
-                status = "provided" if self.resources.weekly_asset(item.item_id) is not None else "placeholder"
+                status = (
+                    "provided"
+                    if self.resources.weekly_asset(item.item_id) is not None
+                    else "placeholder"
+                )
                 resources.append(
                     {
                         "kind": "weekly_item",
@@ -981,7 +1440,9 @@ class EncyclopediaRenderer:
                         "source": f"resources/weekly_item/item_{item.item_id}.png",
                     }
                 )
-        return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
+        return self._write(
+            image_bytes, lines=lines, resources=resources, sections=sections
+        )
 
     async def render_calendar(
         self,
@@ -999,14 +1460,20 @@ class EncyclopediaRenderer:
             )
             for event in snapshot.events
         ]
-        image_bytes = await _draw_calendar_card_bytes(contents, calendar_assets=self.resources.calendar_assets)
+        image_bytes = await _draw_calendar_card_bytes(
+            contents, calendar_assets=self.resources.calendar_assets
+        )
         lines = ["二重螺旋 · 活动日历"]
         for event in snapshot.events:
-            lines.append(f"{event.title}: {_value(event.start_at) if event.start_at else ''} ~ {_value(event.end_at) if event.end_at else ''}")
+            lines.append(
+                f"{event.title}: {_value(event.start_at) if event.start_at else ''} ~ {_value(event.end_at) if event.end_at else ''}"
+            )
             lines.append(event.title)
         resources = [self._font_resource()]
         for event in snapshot.events:
-            asset = self.resources.calendar_asset(event.pic) or self.resources.calendar_asset(event.title)
+            asset = self.resources.calendar_asset(
+                event.pic
+            ) or self.resources.calendar_asset(event.title)
             status = "provided" if asset is not None else "placeholder"
             resources.append(
                 {
@@ -1017,7 +1484,9 @@ class EncyclopediaRenderer:
                 }
             )
         sections = [{"name": "活动日历", "items": len(snapshot.events)}]
-        return self._write(image_bytes, lines=lines, resources=resources, sections=sections)
+        return self._write(
+            image_bytes, lines=lines, resources=resources, sections=sections
+        )
 
 
 __all__ = [

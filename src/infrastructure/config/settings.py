@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Mapping
 from typing import Any, Literal
@@ -15,17 +16,31 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     SecretStr,
     field_validator,
     model_validator,
 )
 
+from ...modules.client_updates.channels import (
+    CLIENT_UPDATE_CHANNELS,
+    normalize_client_update_channel_ids,
+)
 from ..resources.acceleration import (
     GithubAccelerationMode,
     normalize_http_base_url,
     resolve_github_acceleration_prefix,
 )
-from .legacy import _LEGACY_MAP, DNA_PREFIX, DNAConfig, DNASignConfig
+from .legacy import (
+    _LEGACY_MAP,
+    DNA_CONFIG_SECTION,
+    DNA_PREFIX,
+    DNA_SIGN_CONFIG_SECTION,
+    DNAConfig,
+    DNASignConfig,
+    LEGACY_DNA_CONFIG_SECTION,
+    LEGACY_DNA_SIGN_CONFIG_SECTION,
+)
 
 logger = logging.getLogger(__name__)
 _REMOVED_MH_LEGACY_KEYS = frozenset(("MHPushSubscribe", "MHCache"))
@@ -101,8 +116,45 @@ class LoginSettings(_SettingsModel):
     )
 
 
+class GeneralSettings(_SettingsModel):
+    """命令触发和跨功能查询行为配置。"""
+
+    command_prefixes: list[str] = Field(
+        default_factory=lambda: ["dna"],
+        description="命令触发前缀列表",
+        json_schema_extra={
+            "hint": "插件支持的命令触发前缀列表，如 ['dna']；列表含空字符串时允许无前缀触发"
+        },
+    )
+    allow_mention_query: bool = Field(
+        default=True,
+        description="允许 AT 查询他人",
+        json_schema_extra={"hint": "是否允许通过 @ 查询他人的角色信息"},
+    )
+
+    @field_validator("command_prefixes", mode="before")
+    @classmethod
+    def _validate_prefixes(cls, value: Any) -> list[str]:
+        # 前缀错误若回落为 dna 会改变命令触发面，必须让配置边界显式失败。
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, (list, tuple, set)):
+            return [str(item) for item in value]
+        raise ValueError("command_prefixes 必须是字符串或字符串列表")
+
+
+class AISettings(_SettingsModel):
+    """AI 相关能力开关。"""
+
+    agent_tools_enabled: bool = Field(
+        default=False,
+        description="Agent Tools 总开关",
+        json_schema_extra={"hint": "是否注册二重螺旋 Agent Tools"},
+    )
+
+
 class NetworkSettings(_SettingsModel):
-    """API、代理和 WebSocket 连接配置。"""
+    """二重螺旋 App API、代理和业务 WebSocket 配置。"""
 
     max_concurrent_requests: int = Field(
         default=4,
@@ -113,39 +165,35 @@ class NetworkSettings(_SettingsModel):
         },
     )
 
-    api_proxy_url: str = Field(
+    api_base_url: str = Field(
         default="",
-        description="API 代理地址",
-        json_schema_extra={"hint": "二重螺旋 API 代理地址"},
+        description="API 服务地址",
+        json_schema_extra={"hint": "留空使用官方 API；仅在使用兼容 API 反代服务时填写"},
     )
-    local_proxy_url: str = Field(
+    proxy_url: str = Field(
         default="",
-        description="本地代理地址",
-        json_schema_extra={"hint": "本地代理地址"},
-    )
-    proxy_functions: list[Literal["all", "get_sms_code", "login"]] = Field(
-        default_factory=list,
-        description="指定走代理的函数",
-        json_schema_extra={"hint": "需要使用代理的函数；空列表表示不额外指定"},
-    )
-    no_proxy_functions: list[str] = Field(
-        default_factory=list,
-        description="强制直连的函数",
-        json_schema_extra={"hint": "强制不使用代理的函数，优先级高于 proxy_functions"},
+        description="App API 代理地址",
+        json_schema_extra={
+            "hint": "仅代理二重螺旋 App REST API 与官方业务 WebSocket；留空直连，不影响 GitHub、CDN、AstrBot、OneBot 或外置登录"
+        },
     )
     websocket_continue_seconds: int = Field(
         default=300,
         ge=0,
         le=86400,
-        description="WebSocket 保活时间",
-        json_schema_extra={"hint": "WebSocket 保活持续时间（秒）"},
+        description="API WebSocket 保活时间",
+        json_schema_extra={
+            "hint": "API WebSocket 保活持续时间（秒），不作用于 OneBot 或外置 dna-login WebSocket"
+        },
     )
     websocket_wait_seconds: int = Field(
         default=5,
         ge=0,
         le=30,
-        description="WebSocket 连接等待时间",
-        json_schema_extra={"hint": "等待 WebSocket 建立连接的时间（秒）"},
+        description="API WebSocket 连接等待时间",
+        json_schema_extra={
+            "hint": "等待 API WebSocket 建立连接的时间（秒），不作用于 OneBot 或外置 dna-login WebSocket"
+        },
     )
 
 
@@ -230,6 +278,20 @@ class AgentToolsSettings(_SettingsModel):
 class SignInSettings(_SettingsModel):
     """游戏签到、社区任务和签到报告配置。"""
 
+    # 仅保留旧版定时任务总开关，供 scheduler 首次启动时迁移，不进入 typed schema。
+    _legacy_scheduler_enabled: bool = PrivateAttr(default=True)
+
+    def _set_legacy_scheduler_enabled(self, enabled: bool) -> None:
+        """保存旧配置值，交由 scheduler 一次性迁移为 registry 状态。"""
+
+        self._legacy_scheduler_enabled = enabled
+
+    @property
+    def scheduler_enabled_for_runtime(self) -> bool:
+        """返回旧配置值，供 scheduler 执行一次性迁移。"""
+
+        return self._legacy_scheduler_enabled
+
     community_tasks: list[
         Literal["bbs_sign", "bbs_detail", "bbs_like", "bbs_share", "bbs_reply"]
     ] = Field(
@@ -243,15 +305,12 @@ class SignInSettings(_SettingsModel):
         description="启用的社区任务",
         json_schema_extra={"hint": "启用的社区任务列表"},
     )
-    enable_all_users: bool = Field(
-        default=False,
-        description="全员自动签到",
-        json_schema_extra={"hint": "是否为所有已登录用户自动执行签到"},
-    )
-    scheduled_enabled: bool = Field(
-        default=False,
-        description="定时签到开关",
-        json_schema_extra={"hint": "是否启用定时签到"},
+    default_auto_sign_enabled: bool = Field(
+        default=True,
+        description="首登自动签到",
+        json_schema_extra={
+            "hint": "新 UID 首次绑定时是否默认开启自动签到；用户之后可自行关闭"
+        },
     )
     sign_time: str = Field(
         default="00:05",
@@ -309,18 +368,86 @@ class SignInSettings(_SettingsModel):
     )
 
 
+class ClientUpdatesSettings(_SettingsModel):
+    """客户端更新轮询、渠道和投递配置。"""
+
+    enabled: bool = Field(
+        default=True,
+        description="客户端更新推送开关",
+        json_schema_extra={"hint": "是否启用客户端更新定时检查与推送"},
+    )
+    check_minutes: int = Field(
+        default=60,
+        gt=0,
+        description="客户端更新检查间隔",
+        json_schema_extra={"hint": "客户端更新定时检查间隔（分钟），必须为正整数"},
+    )
+    channels: list[str] = Field(
+        default_factory=lambda: list(CLIENT_UPDATE_CHANNELS),
+        description="客户端更新渠道",
+        json_schema_extra={
+            "hint": "只能选择代码 registry 中的固定渠道 ID，不填写 URL、branch 或 manifest key"
+        },
+    )
+
+    @field_validator("channels", mode="before")
+    @classmethod
+    def _normalize_channels(cls, value: Any) -> list[str]:
+        try:
+            return list(normalize_client_update_channel_ids(value))
+        except (TypeError, ValueError) as error:
+            raise ValueError("客户端更新渠道必须全部是已注册的渠道 ID") from error
+
+    merge_forward: bool = Field(
+        default=True,
+        description="客户端更新合并转发",
+        json_schema_extra={"hint": "OneBot 平台是否将同轮多渠道更新合并为转发消息"},
+    )
+
+
 class NotificationSettings(_SettingsModel):
     """公告和密函通知配置。"""
+
+    _compat_client_update_enabled: bool = PrivateAttr(default=True)
+    _compat_client_update_check_minutes: int = PrivateAttr(default=60)
+    _compat_client_update_merge_forward: bool = PrivateAttr(default=True)
+
+    def __init__(self, **data: Any) -> None:
+        # 调度管理旧入口仍可能直接构造 NotificationSettings；兼容参数只在
+        # 构造边界消费，不进入 typed model、model_dump 或 AstrBot schema。
+        legacy_client_values = {
+            key: data.pop(key)
+            for key in (
+                "client_update_enabled",
+                "client_update_check_minutes",
+                "client_update_merge_forward",
+            )
+            if key in data
+        }
+        super().__init__(**data)
+        if legacy_client_values:
+            client_updates = ClientUpdatesSettings.model_validate(
+                {
+                    "enabled": legacy_client_values.get(
+                        "client_update_enabled",
+                        self._compat_client_update_enabled,
+                    ),
+                    "check_minutes": legacy_client_values.get(
+                        "client_update_check_minutes",
+                        self._compat_client_update_check_minutes,
+                    ),
+                    "merge_forward": legacy_client_values.get(
+                        "client_update_merge_forward",
+                        self._compat_client_update_merge_forward,
+                    ),
+                }
+            )
+            self._set_client_update_compatibility(client_updates)
 
     announcement_enabled: bool = Field(
         default=True,
         description="公告推送开关",
         json_schema_extra={"hint": "是否启用公告推送"},
-    )
-    announcement_ids: list[int] = Field(
-        default_factory=list,
-        description="已推送公告ID",
-        json_schema_extra={"hint": "已经推送过的公告 ID 列表"},
     )
     announcement_check_minutes: int = Field(
         default=10,
@@ -328,27 +455,6 @@ class NotificationSettings(_SettingsModel):
         le=60,
         description="公告检查间隔",
         json_schema_extra={"hint": "公告推送检查间隔（分钟）"},
-    )
-    client_update_enabled: bool = Field(
-        default=True,
-        description="客户端更新推送开关",
-        json_schema_extra={"hint": "是否启用独立的客户端更新定时检查与推送"},
-    )
-    client_update_check_minutes: int = Field(
-        default=60,
-        gt=0,
-        description="客户端更新检查间隔",
-        json_schema_extra={"hint": "客户端更新定时检查间隔（分钟），必须为正整数"},
-    )
-    client_update_merge_forward: bool = Field(
-        default=True,
-        description="客户端更新合并转发",
-        json_schema_extra={"hint": "OneBot 平台是否将同轮客户端更新合并为转发消息"},
-    )
-    secret_subscriptions: list[Literal["private", "group"]] = Field(
-        default_factory=lambda: ["group"],
-        description="密函订阅作用域",
-        json_schema_extra={"hint": "密函订阅作用域 (private/group)"},
     )
     secret_simple_image: bool = Field(
         default=False,
@@ -366,20 +472,45 @@ class NotificationSettings(_SettingsModel):
         default=1,
         gt=0,
         description="密函数据重试间隔",
-        json_schema_extra={"hint": "当前小时密函未准备好或校验失败时的重试间隔（秒）"},
+        json_schema_extra={
+            "hint": "当前小时密函未准备好或校验失败时的重试间隔（秒）",
+            "invisible": True,
+        },
     )
+
+    def _set_client_update_compatibility(
+        self,
+        client_updates: ClientUpdatesSettings,
+    ) -> None:
+        self._compat_client_update_enabled = client_updates.enabled
+        self._compat_client_update_check_minutes = client_updates.check_minutes
+        self._compat_client_update_merge_forward = client_updates.merge_forward
+
+    @property
+    def client_update_enabled(self) -> bool:
+        """兼容旧读取；正式配置位于 client_updates.enabled。"""
+
+        return self._compat_client_update_enabled
+
+    @property
+    def client_update_check_minutes(self) -> int:
+        """兼容旧读取；正式配置位于 client_updates.check_minutes。"""
+
+        return self._compat_client_update_check_minutes
+
+    @property
+    def client_update_merge_forward(self) -> bool:
+        """兼容旧读取；正式配置位于 client_updates.merge_forward。"""
+
+        return self._compat_client_update_merge_forward
 
 
 class DisplaySettings(_SettingsModel):
-    """角色展示、攻略来源和 AT 查询配置。"""
+    """角色展示和攻略来源配置。"""
 
-    command_prefixes: list[str] = Field(
-        default_factory=lambda: ["kk"],
-        description="命令触发前缀列表",
-        json_schema_extra={
-            "hint": "插件支持的命令触发前缀列表，如 ['kk', 'dna']；列表含空字符串时允许无前缀触发"
-        },
-    )
+    _compat_command_prefixes: list[str] = PrivateAttr(default_factory=lambda: ["dna"])
+    _compat_allow_mention_query: bool = PrivateAttr(default=True)
+
     guide_providers: list[Literal["all", "狩月庭攻略组", "猫冬"]] = Field(
         default_factory=lambda: ["all"],
         description="角色攻略提供方",
@@ -390,127 +521,419 @@ class DisplaySettings(_SettingsModel):
         description="显示未拥有角色",
         json_schema_extra={"hint": "是否在角色信息卡片中显示未拥有的角色和武器"},
     )
-    allow_mention_query: bool = Field(
-        default=True,
-        description="允许AT查询他人",
-        json_schema_extra={"hint": "是否允许通过 @ 查询他人的角色信息"},
-    )
 
-    @field_validator("command_prefixes", mode="before")
-    @classmethod
-    def _validate_prefixes(cls, v: Any) -> list[str]:
-        # 前缀错误若回落为 kk 会改变命令触发面，必须让配置边界显式失败。
-        if isinstance(v, str):
-            return [v]
-        if isinstance(v, (list, tuple, set)):
-            return [str(x) for x in v]
-        raise ValueError("command_prefixes 必须是字符串或字符串列表")
+    def _set_general_compatibility(
+        self,
+        command_prefixes: list[str],
+        allow_mention_query: bool,
+    ) -> None:
+        self._compat_command_prefixes = list(command_prefixes)
+        self._compat_allow_mention_query = allow_mention_query
+
+    @property
+    def command_prefixes(self) -> list[str]:
+        """兼容旧读取；正式配置位于 general.command_prefixes。"""
+
+        return list(self._compat_command_prefixes)
 
     @property
     def command_prefix(self) -> str:
         """保持向前兼容的单前缀访问属性。"""
-        return self.command_prefixes[0] if self.command_prefixes else "kk"
+
+        return (
+            self._compat_command_prefixes[0] if self._compat_command_prefixes else "dna"
+        )
+
+    @property
+    def allow_mention_query(self) -> bool:
+        """兼容旧读取；正式配置位于 general.allow_mention_query。"""
+
+        return self._compat_allow_mention_query
+
+
+_TARGET_CONFIG_GROUPS = (
+    "general",
+    "login",
+    "ai",
+    "sign_in",
+    "notifications",
+    "client_updates",
+    "display",
+    "network",
+    "resources",
+    "cache",
+)
+_REMOVED_SIGN_IN_FIELDS = frozenset(
+    ("scheduled_enabled", "game_enabled", "community_enabled")
+)
+_REMOVED_NOTIFICATION_FIELDS = frozenset(
+    (
+        "announcement_ids",
+        "secret_subscriptions",
+        "client_update_enabled",
+        "client_update_check_minutes",
+        "client_update_merge_forward",
+        "announcement_groups",
+        *_REMOVED_MH_TYPED_FIELDS,
+    )
+)
+_OLD_PROXY_COMPONENTS = frozenset(
+    ("local_proxy_url", "proxy_functions", "no_proxy_functions")
+)
+_LEGACY_PROXY_COMPONENT_KEYS = {
+    "LocalProxyUrl": "local_proxy_url",
+    "NeedProxyFunc": "proxy_functions",
+    "NoNeedProxyFunc": "no_proxy_functions",
+}
+
+
+def _normalize_migrated_value(field: str, value: Any) -> Any:
+    if field == "command_prefixes" and isinstance(value, str):
+        return [value]
+    return copy.deepcopy(value)
+
+
+def _read_legacy_scheduled_enabled(raw: Mapping[str, Any] | None) -> bool:
+    """读取旧定时签到总开关，供 scheduler 首次启动迁移使用。"""
+
+    if raw is None:
+        return True
+    if not isinstance(raw, Mapping):
+        raise TypeError("配置必须是对象")
+
+    values: list[tuple[bool, str]] = []
+
+    def collect(value: Any, source: str) -> None:
+        if not isinstance(value, bool):
+            raise TypeError(
+                f"配置字段 sign_in.scheduled_enabled 必须是布尔值（来源 {source}）"
+            )
+        values.append((value, source))
+
+    if "scheduled_enabled" in raw:
+        collect(raw["scheduled_enabled"], "top-level.scheduled_enabled")
+    for section_name in (
+        DNA_CONFIG_SECTION,
+        DNA_SIGN_CONFIG_SECTION,
+        LEGACY_DNA_CONFIG_SECTION,
+        LEGACY_DNA_SIGN_CONFIG_SECTION,
+        "sign_in",
+    ):
+        section = raw.get(section_name)
+        if isinstance(section, Mapping) and "scheduled_enabled" in section:
+            collect(
+                section["scheduled_enabled"],
+                f"{section_name}.scheduled_enabled",
+            )
+
+    if not values:
+        return True
+    first_value, first_source = values[0]
+    for value, source in values[1:]:
+        if value != first_value:
+            raise ValueError(
+                "配置字段 sign_in.scheduled_enabled 存在冲突来源："
+                f"{first_source} 与 {source}"
+            )
+    return first_value
+
+
+def _record_assignment(
+    result: dict[str, dict[str, Any]],
+    assignments: dict[tuple[str, str], tuple[Any, str]],
+    group: str,
+    field: str,
+    value: Any,
+    source: str,
+) -> None:
+    normalized = _normalize_migrated_value(field, value)
+    key = (group, field)
+    previous = assignments.get(key)
+    if previous is not None and previous[0] != normalized:
+        raise ValueError(
+            f"配置字段 {group}.{field} 存在冲突来源：{previous[1]} 与 {source}"
+        )
+    assignments[key] = (copy.deepcopy(normalized), source)
+    result[group][field] = copy.deepcopy(normalized)
+
+
+def _record_proxy_component(
+    proxy_components: dict[str, tuple[Any, str]],
+    field: str,
+    value: Any,
+    source: str,
+) -> None:
+    normalized = copy.deepcopy(value)
+    previous = proxy_components.get(field)
+    if previous is not None and previous[0] != normalized:
+        raise ValueError(
+            f"配置字段 network.{field} 存在冲突来源：{previous[1]} 与 {source}"
+        )
+    proxy_components[field] = (normalized, source)
+
+
+def _discard_migrated_field(group: str, field: str, source: str) -> None:
+    logger.warning(
+        "[dnaby][config] 丢弃已移除配置 %s.%s（来源 %s）",
+        group,
+        field,
+        source,
+    )
+
+
+def _consume_legacy_entry(
+    result: dict[str, dict[str, Any]],
+    assignments: dict[tuple[str, str], tuple[Any, str]],
+    proxy_components: dict[str, tuple[Any, str]],
+    key: str,
+    value: Any,
+    source: str,
+) -> None:
+    proxy_field = _LEGACY_PROXY_COMPONENT_KEYS.get(key, key)
+    if proxy_field in _OLD_PROXY_COMPONENTS:
+        _record_proxy_component(proxy_components, proxy_field, value, source)
+        return
+    mapped = _LEGACY_MAP.get(key)
+    if mapped is None:
+        return
+    group, field = mapped
+    if group == "notifications" and field in _REMOVED_NOTIFICATION_FIELDS:
+        _discard_migrated_field(group, field, source)
+        return
+    if group == "sign_in" and field in _REMOVED_SIGN_IN_FIELDS:
+        _discard_migrated_field(group, field, source)
+        return
+    _record_assignment(result, assignments, group, field, value, source)
+
+
+def _consume_typed_group(
+    result: dict[str, dict[str, Any]],
+    assignments: dict[tuple[str, str], tuple[Any, str]],
+    proxy_components: dict[str, tuple[Any, str]],
+    group_name: str,
+    group_data: Mapping[str, Any],
+) -> None:
+    for field, value in group_data.items():
+        source = f"{group_name}.{field}"
+        if group_name == "display":
+            if field in {"command_prefix", "command_prefixes", "allow_mention_query"}:
+                _record_assignment(
+                    result,
+                    assignments,
+                    "general",
+                    "command_prefixes" if field == "command_prefix" else field,
+                    value,
+                    source,
+                )
+            else:
+                _record_assignment(result, assignments, "display", field, value, source)
+            continue
+
+        if group_name == "agent_tools":
+            _record_assignment(
+                result,
+                assignments,
+                "ai",
+                "agent_tools_enabled" if field == "enabled" else field,
+                value,
+                source,
+            )
+            continue
+
+        if group_name == "sign_in":
+            if field in _REMOVED_SIGN_IN_FIELDS:
+                _discard_migrated_field(group_name, field, source)
+            elif field == "enable_all_users":
+                _record_assignment(
+                    result,
+                    assignments,
+                    "sign_in",
+                    "default_auto_sign_enabled",
+                    value,
+                    source,
+                )
+            else:
+                _record_assignment(result, assignments, "sign_in", field, value, source)
+            continue
+
+        if group_name == "notifications":
+            if field in {
+                "client_update_enabled",
+                "client_update_check_minutes",
+                "client_update_merge_forward",
+            }:
+                target_field = field.removeprefix("client_update_")
+                _record_assignment(
+                    result,
+                    assignments,
+                    "client_updates",
+                    target_field,
+                    value,
+                    source,
+                )
+            elif field in _REMOVED_NOTIFICATION_FIELDS:
+                _discard_migrated_field(group_name, field, source)
+            else:
+                _record_assignment(
+                    result,
+                    assignments,
+                    "notifications",
+                    field,
+                    value,
+                    source,
+                )
+            continue
+
+        if group_name == "network":
+            if field == "api_proxy_url":
+                _record_assignment(
+                    result,
+                    assignments,
+                    "network",
+                    "api_base_url",
+                    value,
+                    source,
+                )
+            elif field in _OLD_PROXY_COMPONENTS:
+                _record_proxy_component(proxy_components, field, value, source)
+            else:
+                _record_assignment(result, assignments, "network", field, value, source)
+            continue
+
+        if group_name == "cache" and field in _REMOVED_CACHE_FIELDS:
+            _discard_migrated_field(group_name, field, source)
+            continue
+        _record_assignment(result, assignments, group_name, field, value, source)
+
+
+def _resolve_legacy_proxy(
+    result: dict[str, dict[str, Any]],
+    assignments: dict[tuple[str, str], tuple[Any, str]],
+    proxy_components: dict[str, tuple[Any, str]],
+) -> None:
+    if not proxy_components:
+        return
+
+    local_value = proxy_components.get("local_proxy_url", ("", "default"))[0]
+    functions_value = proxy_components.get("proxy_functions", ([], "default"))[0]
+    no_proxy_value = proxy_components.get("no_proxy_functions", ([], "default"))[0]
+
+    if not isinstance(local_value, str):
+        raise TypeError("旧版 local_proxy_url 必须是字符串")
+    if not isinstance(functions_value, (list, tuple)):
+        raise TypeError("旧版 proxy_functions 必须是字符串列表")
+    if not isinstance(no_proxy_value, (list, tuple)):
+        raise TypeError("旧版 no_proxy_functions 必须是字符串列表")
+    if any(not isinstance(item, str) for item in functions_value):
+        raise TypeError("旧版 proxy_functions 必须是字符串列表")
+    if any(not isinstance(item, str) for item in no_proxy_value):
+        raise TypeError("旧版 no_proxy_functions 必须是字符串列表")
+
+    if (
+        local_value.strip()
+        and list(functions_value) == ["all"]
+        and list(no_proxy_value) == []
+    ):
+        source = proxy_components.get("local_proxy_url", (None, "旧版局部代理"))[1]
+        _record_assignment(
+            result,
+            assignments,
+            "network",
+            "proxy_url",
+            local_value,
+            f"{source}（完整旧局部代理）",
+        )
+        return
+
+    if local_value.strip():
+        logger.warning(
+            "[dnaby][config] 检测到旧版按函数代理配置；该模式已废弃，为避免扩大代理范围，"
+            "未自动迁移为统一代理，请重新配置 network.proxy_url"
+        )
 
 
 def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
-    """将老版 GsCore 嵌套配置、老版扁平配置或不完整配置迁移规范化为 typed 分组结构。"""
-    result: dict[str, Any] = {
-        "login": {},
-        "network": {},
-        "sign_in": {},
-        "notifications": {},
-        "display": {},
-        "resources": {},
-        "cache": {},
-        "agent_tools": {},
+    """将旧配置迁移为目标分组，并在校验前显式处理冲突和废弃字段。"""
+    result: dict[str, dict[str, Any]] = {
+        group_name: {} for group_name in _TARGET_CONFIG_GROUPS
     }
     if raw is None:
         return result
+    if not isinstance(raw, Mapping):
+        raise TypeError("配置必须是对象")
 
-    raw_dict = dict(raw)
-
+    # 深拷贝只用于迁移快照；调用方传入的 AstrBot 配置永远不原地改写。
+    raw_dict = copy.deepcopy(dict(raw))
     known_sections = (
-        "DNAUID配置",
-        "DNAUID签到配置",
-        "login",
-        "network",
-        "sign_in",
-        "notifications",
-        "display",
-        "resources",
-        "cache",
+        DNA_CONFIG_SECTION,
+        DNA_SIGN_CONFIG_SECTION,
+        LEGACY_DNA_CONFIG_SECTION,
+        LEGACY_DNA_SIGN_CONFIG_SECTION,
+        *_TARGET_CONFIG_GROUPS,
         "agent_tools",
     )
     for section_name in known_sections:
-        # 已存在但结构错误的配置不是“缺省配置”，必须阻止迁移吞掉该错误。
         if section_name in raw_dict and not isinstance(raw_dict[section_name], Mapping):
             raise TypeError(f"配置分组 {section_name} 必须是对象")
 
     _log_discarded_mh_config(raw_dict)
     _log_discarded_cache_config(raw_dict)
 
-    # 1. 检查并迁移 GScore 嵌套 section ("DNAUID配置", "DNAUID签到配置")
-    for section_key in ("DNAUID配置", "DNAUID签到配置"):
-        section_data = raw_dict.get(section_key)
-        if isinstance(section_data, Mapping):
-            for k, v in section_data.items():
-                if k in _LEGACY_MAP:
-                    group, field = _LEGACY_MAP[k]
-                    if field == "command_prefixes" and isinstance(v, str):
-                        result[group][field] = [v]
-                    else:
-                        result[group][field] = v
+    assignments: dict[tuple[str, str], tuple[Any, str]] = {}
+    proxy_components: dict[str, tuple[Any, str]] = {}
 
-    # 2. 检查并迁移顶层扁平老字段
-    for k, v in raw_dict.items():
-        if k in _LEGACY_MAP:
-            group, field = _LEGACY_MAP[k]
-            if field == "command_prefixes" and isinstance(v, str):
-                result[group][field] = [v]
-            else:
-                result[group][field] = v
-
-    # 3. 合并已有的 typed 分组配置（typed 配置优先）
-    for group_name in (
-        "login",
-        "network",
-        "sign_in",
-        "notifications",
-        "display",
-        "resources",
-        "cache",
-        "agent_tools",
+    for section_name in (
+        DNA_CONFIG_SECTION,
+        DNA_SIGN_CONFIG_SECTION,
+        LEGACY_DNA_CONFIG_SECTION,
+        LEGACY_DNA_SIGN_CONFIG_SECTION,
     ):
+        section_data = raw_dict.get(section_name)
+        if isinstance(section_data, Mapping):
+            for key, value in section_data.items():
+                _consume_legacy_entry(
+                    result,
+                    assignments,
+                    proxy_components,
+                    str(key),
+                    value,
+                    f"{section_name}.{key}",
+                )
+
+    for key, value in raw_dict.items():
+        if key in _LEGACY_MAP or key in _OLD_PROXY_COMPONENTS:
+            _consume_legacy_entry(
+                result,
+                assignments,
+                proxy_components,
+                str(key),
+                value,
+                f"top-level.{key}",
+            )
+
+    for group_name in (*_TARGET_CONFIG_GROUPS, "agent_tools"):
         group_data = raw_dict.get(group_name)
         if isinstance(group_data, Mapping):
-            for k, v in group_data.items():
-                if group_name == "sign_in" and k in {
-                    "game_enabled",
-                    "community_enabled",
-                }:
-                    continue
-                if group_name == "display" and k == "command_prefix":
-                    if "command_prefixes" not in group_data:
-                        result[group_name]["command_prefixes"] = v
-                    continue
-                if group_name == "notifications" and (
-                    k in _REMOVED_MH_TYPED_FIELDS or k == "announcement_groups"
-                ):
-                    continue
-                if group_name == "cache" and k in _REMOVED_CACHE_FIELDS:
-                    continue
-                result[group_name][k] = v
+            _consume_typed_group(
+                result,
+                assignments,
+                proxy_components,
+                group_name,
+                group_data,
+            )
 
+    _resolve_legacy_proxy(result, assignments, proxy_components)
     return result
 
 
 class DnabySettings(_SettingsModel):
     """插件完整 typed 配置。"""
 
-    login: LoginSettings = Field(default_factory=LoginSettings, description="登录设置")
-    network: NetworkSettings = Field(
-        default_factory=NetworkSettings, description="网络设置"
+    general: GeneralSettings = Field(
+        default_factory=GeneralSettings, description="通用设置"
     )
+    login: LoginSettings = Field(default_factory=LoginSettings, description="登录设置")
+    ai: AISettings = Field(default_factory=AISettings, description="AI 设置")
     sign_in: SignInSettings = Field(
         default_factory=SignInSettings, description="签到设置"
     )
@@ -518,40 +941,48 @@ class DnabySettings(_SettingsModel):
         default_factory=NotificationSettings,
         description="通知设置",
     )
+    client_updates: ClientUpdatesSettings = Field(
+        default_factory=ClientUpdatesSettings,
+        description="客户端更新设置",
+    )
     display: DisplaySettings = Field(
         default_factory=DisplaySettings, description="显示设置"
+    )
+    network: NetworkSettings = Field(
+        default_factory=NetworkSettings, description="网络设置"
     )
     resources: ResourceSettings = Field(
         default_factory=ResourceSettings, description="资源设置"
     )
-    cache: CacheSettings = Field(
-        default_factory=CacheSettings, description="缓存设置"
-    )
-    agent_tools: AgentToolsSettings = Field(
-        default_factory=AgentToolsSettings,
-        description="Agent Tools 设置",
-    )
+    cache: CacheSettings = Field(default_factory=CacheSettings, description="缓存设置")
+
+    def model_post_init(self, __context: Any) -> None:
+        """同步尚未迁移的旧读取属性，但不把兼容字段暴露为模型字段。"""
+        self.display._set_general_compatibility(
+            self.general.command_prefixes,
+            self.general.allow_mention_query,
+        )
+        self.notifications._set_client_update_compatibility(self.client_updates)
+
+    @property
+    def agent_tools(self) -> AgentToolsSettings:
+        """兼容旧读取；正式开关位于 ai.agent_tools_enabled。"""
+
+        return AgentToolsSettings(enabled=self.ai.agent_tools_enabled)
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
-        """将 AstrBot 的嵌套配置字典转换为 typed settings。"""
+        """将 AstrBot 的嵌套配置字典转换为 typed settings，且不改写输入。"""
+        legacy_scheduler_enabled = _read_legacy_scheduled_enabled(config)
         migrated = migrate_config_dict(config)
         settings = cls.model_validate(migrated)
-
-        # 若传入的是可变字典（例如 AstrBotConfig），同步更新其标准分组键
-        if isinstance(config, dict):
-            _discard_removed_mh_config(config)
-            _discard_removed_cache_config(config)
-            for group_name, group_values in migrated.items():
-                if group_name not in config or not isinstance(config[group_name], dict):
-                    config[group_name] = dict(group_values)
-                else:
-                    config[group_name].update(group_values)
+        settings.sign_in._set_legacy_scheduler_enabled(legacy_scheduler_enabled)
+        canonical_store = copy.deepcopy(migrated)
 
         if hasattr(DNAConfig, "bind"):
-            DNAConfig.bind(dict(config) if config is not None else migrated)
+            DNAConfig.bind(copy.deepcopy(canonical_store))
         if hasattr(DNASignConfig, "bind"):
-            DNASignConfig.bind(dict(config) if config is not None else migrated)
+            DNASignConfig.bind(copy.deepcopy(canonical_store))
         return settings
 
 
@@ -562,7 +993,12 @@ def _log_discarded_mh_config(raw: Mapping[str, Any]) -> None:
     for key in _REMOVED_MH_LEGACY_KEYS:
         if key in raw:
             locations.append(("top-level", key))
-    for section_name in ("DNAUID配置", "DNAUID签到配置"):
+    for section_name in (
+        DNA_CONFIG_SECTION,
+        DNA_SIGN_CONFIG_SECTION,
+        LEGACY_DNA_CONFIG_SECTION,
+        LEGACY_DNA_SIGN_CONFIG_SECTION,
+    ):
         section = raw.get(section_name)
         if isinstance(section, Mapping):
             for key in _REMOVED_MH_LEGACY_KEYS:
@@ -575,22 +1011,6 @@ def _log_discarded_mh_config(raw: Mapping[str, Any]) -> None:
                 locations.append(("notifications", field))
     for location, key in locations:
         logger.warning("[dnaby][config] 丢弃已移除的全局密函配置 %s.%s", location, key)
-
-
-def _discard_removed_mh_config(raw: dict[str, Any]) -> None:
-    """从 AstrBot 可变配置中移除已废弃密函全局键，避免再次持久化。"""
-
-    for key in _REMOVED_MH_LEGACY_KEYS:
-        raw.pop(key, None)
-    for section_name in ("DNAUID配置", "DNAUID签到配置"):
-        section = raw.get(section_name)
-        if isinstance(section, dict):
-            for key in _REMOVED_MH_LEGACY_KEYS:
-                section.pop(key, None)
-    notifications = raw.get("notifications")
-    if isinstance(notifications, dict):
-        for field in _REMOVED_MH_TYPED_FIELDS:
-            notifications.pop(field, None)
 
 
 def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
@@ -607,23 +1027,17 @@ def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
             )
 
 
-def _discard_removed_cache_config(raw: dict[str, Any]) -> None:
-    """从 AstrBot 可变配置中移除旧缓存字段，避免再次持久化。"""
-
-    cache = raw.get("cache")
-    if isinstance(cache, dict):
-        for field in _REMOVED_CACHE_FIELDS:
-            cache.pop(field, None)
-
-
 __all__ = [
     "DNA_PREFIX",
+    "AISettings",
     "AgentToolsSettings",
     "CacheSettings",
+    "ClientUpdatesSettings",
     "DNAConfig",
     "DNASignConfig",
     "DisplaySettings",
     "DnabySettings",
+    "GeneralSettings",
     "LoginSettings",
     "NetworkSettings",
     "NotificationSettings",

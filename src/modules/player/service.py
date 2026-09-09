@@ -347,25 +347,18 @@ class PlayerService:
             now=now,
         )
 
-    async def _role_overview_result(
+    async def _overview_card_response(
         self,
         request: PlayerCommandRequest,
-    ) -> _OverviewResult | PlainTextResponse:
-        """读取概览快照并生成可复用的图片响应。"""
+        target_user_id: str,
+        uid: str,
+        state: _OverviewState,
+        *,
+        now: datetime,
+        allow_cached: bool = True,
+    ) -> ImageResponse:
+        """根据概览结构生成卡片；刷新流程可以跳过旧卡片读取。"""
 
-        resolved = await self._resolve_uid(request, operation="role_overview")
-        if isinstance(resolved, PlainTextResponse):
-            return resolved
-        target_user_id, uid = resolved
-        now = self._now()
-        state = await self._load_overview(
-            request,
-            target_user_id,
-            uid,
-            now=now,
-        )
-        if isinstance(state, PlainTextResponse):
-            return state
         uid_hidden = await self.privacy.is_uid_hidden(
             target_user_id,
             group_id=request.actor.group_id,
@@ -381,9 +374,10 @@ class PlayerService:
                 uid_hidden,
                 self.show_unowned_roles,
             )
-            cached = await self._cached_card(card_key, now=now)
-            if cached is not None:
-                return _OverviewResult(state.overview, cached)
+            if allow_cached:
+                cached = await self._cached_card(card_key, now=now)
+                if cached is not None:
+                    return cached
         response = await self._render_overview(
             state.overview,
             request,
@@ -405,6 +399,34 @@ class PlayerService:
                 resource_version=resource_version,
                 now=now,
             )
+        return response
+
+    async def _role_overview_result(
+        self,
+        request: PlayerCommandRequest,
+    ) -> _OverviewResult | PlainTextResponse:
+        """读取概览快照并生成可复用的图片响应。"""
+
+        resolved = await self._resolve_uid(request, operation="role_overview")
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        now = self._now()
+        state = await self._load_overview(
+            request,
+            target_user_id,
+            uid,
+            now=now,
+        )
+        if isinstance(state, PlainTextResponse):
+            return state
+        response = await self._overview_card_response(
+            request,
+            target_user_id,
+            uid,
+            state,
+            now=now,
+        )
         return _OverviewResult(state.overview, response)
 
     async def role_overview(self, request: PlayerCommandRequest) -> CommandResponse:
@@ -856,6 +878,78 @@ class PlayerService:
         else:
             overview_digest = self._value_digest(overview)
         return _RefreshOverviewState(overview, overview_digest, role)
+
+    async def refresh_info_card(self, request: PlayerCommandRequest):
+        """强制刷新当前用户当前 UID 的基本信息卡片，不请求角色详情。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        resolved = await self._resolve_uid(request, operation="refresh_info_card")
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, refresh_uid = resolved
+        now = self._now()
+
+        async def refresh() -> CommandResponse:
+            try:
+                overview = await self._fetch_overview(
+                    request,
+                    target_user_id,
+                    refresh_uid,
+                )
+            except PlayerTransportError as error:
+                return self._transport_response(error)
+
+            if self.cache is not None:
+                await self.cache.invalidate_overview(target_user_id, refresh_uid)
+                metadata = await self.cache.put_data(
+                    self.cache.overview_data_key(target_user_id, refresh_uid),
+                    overview,
+                    tags=(
+                        "player_data",
+                        "overview",
+                        self.cache.identity_tag(target_user_id, refresh_uid),
+                    ),
+                    now=now,
+                )
+                overview_digest = metadata.content_sha256
+            else:
+                overview_digest = self._value_digest(overview)
+
+            response = await self._overview_card_response(
+                request,
+                target_user_id,
+                refresh_uid,
+                _OverviewState(overview, overview_digest),
+                now=now,
+                allow_cached=False,
+            )
+            notice = PlainTextResponse(messages.PLAYER_INFO_CARD_REFRESHED)
+            if not self.refresh_send_card:
+                return notice
+            return ChainResponse((notice, response))
+
+        if self.cache is None:
+            return await refresh()
+        async with self._overview_lock(target_user_id, refresh_uid):
+            return await refresh()
+
+    async def clear_info_card_cache(
+        self,
+        request: PlayerCommandRequest,
+    ) -> PlainTextResponse:
+        """只清理当前用户当前 UID 的基本信息卡片缓存。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        resolved = await self._resolve_uid(request, operation="clear_info_card_cache")
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        if self.cache is not None:
+            await self.cache.invalidate_overview_card(target_user_id, uid)
+        return PlainTextResponse(messages.PLAYER_INFO_CARD_CACHE_CLEARED)
+
 
     async def refresh_role(
         self,

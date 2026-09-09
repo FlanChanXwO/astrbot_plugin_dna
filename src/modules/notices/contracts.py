@@ -144,7 +144,7 @@ class NoticeRequest:
     target_user_id: str | None
     parameters: dict[str, Any] = field(default_factory=dict)
     text: str = ""
-    matched_prefix: str = "kk"
+    matched_prefix: str = "dna"
 
 
 class NoticesTransport(Protocol):
@@ -161,7 +161,7 @@ class NoticesTransport(Protocol):
         ...
 
     async def get_mh_any(self) -> MhSnapshot:
-        """使用任意可用账号凭据读取密函（供计划任务推送）。"""
+        """使用任意可用账号凭据读取公共密函。"""
         ...
 
     async def get_ann_list(self) -> AnnSnapshot:

@@ -1,216 +1,146 @@
-# DNAUID（二重螺旋）
+<div align="center">
 
-DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 的游戏助手插件，提供账号管理、角色信息、图鉴攻略、签到、密函、公告和隐私控制等功能。插件版本与 AstrBot 兼容范围以 [`metadata.yaml`](metadata.yaml) 为准。
+<img src="./logo.png" alt="狩月终端 Logo" width="180" />
 
-## 核心功能
+# 狩月终端
 
-- **账号管理**：登录、退出登录、切换 UID、查看绑定 UID，以及严格脱敏的登录状态查询。
-- **角色与玩家信息**：角色总览、角色详情、面板刷新、缓存清理、日常便笺、周报和日历。
-- **图鉴与攻略**：角色/武器列表、角色图鉴、别名查询、角色攻略和当前可用兑换码。
-- **签到服务**：手动签到、签到日历、当前 UID 的自动签到，以及社区任务和签到报告配置。
-- **密函与公告**：查看密函和公告，按会话订阅推送；管理员可以管理群聊公告订阅。
-- **隐私控制**：控制他人是否可以查询自己的信息，并选择是否在卡片中显示 UID。
-- **管理员工具**：批量签到、角色/武器别名维护、公共资源状态查看与资源同步。
-- **可选 Agent Tools**：通过配置开关提供结构化查询工具，默认关闭，不影响聊天命令。
 
-## 支持的 AstrBot 版本
+**面向 AstrBot 的《二重螺旋》游戏助手插件**
 
-当前插件要求 **AstrBot 4.26.0 或更高版本**。建议升级 AstrBot 后再升级插件；如果 Dashboard 报告版本不兼容，请先确认 AstrBot 版本和插件目录中的 [`metadata.yaml`](metadata.yaml)。
+<img src="https://count.getloli.com/@astrbot_plugin_dna?name=astrbot_plugin_dna&theme=rule34&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" alt="Moe Counter" />
 
-图片卡片使用 AstrBot 提供的全局 HTML/T2I 能力。未启用该能力时，文字查询仍可用，但需要图片渲染的命令可能无法生成卡片。
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
+[![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.26.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
+[![Resource](https://img.shields.io/badge/Resource-dna--resource-orange.svg)](https://github.com/FlanChanXwO/dna-resource)
 
-## 手动安装
+角色面板 · 图鉴攻略 · 签到服务 · 密函公告
 
-1. 准备 AstrBot 4.26.0 或更高版本，并确认可以访问 AstrBot 的插件目录。
-2. 在 AstrBot 根目录执行：
+</div>
 
-   ```bash
-   git clone https://github.com/FlanChanXwO/astrbot_plugin_dnaby.git data/plugins/astrbot_plugin_dnaby
-   python3 -m pip install -r data/plugins/astrbot_plugin_dnaby/requirements.txt
-   ```
+---
 
-   如果 AstrBot 已自动同步插件依赖，可以跳过第二条命令。已存在插件目录时，请更新原目录，不要在插件目录下再套一层同名目录。
-3. 启动或重载 AstrBot，在 Dashboard 的插件列表中确认 `astrbot_plugin_dnaby` 已启用。
-4. 打开插件配置页，按需要设置登录、命令前缀和通知选项，然后发送 `kk帮助` 检查命令是否生效。
+## ✨ 项目简介
 
-当前文档以手动安装为准；如后续提供 AstrBot Marketplace 版本，请以仓库页面和市场页面显示的实际状态为准。
+**狩月终端**（`astrbot_plugin_dna`）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 的《二重螺旋》游戏助手插件。
 
-## 配置
+插件围绕账号、角色与公共游戏资料提供一套原生 AstrBot 使用体验：既可以在聊天中查询角色、图鉴、攻略、签到与公告，也提供面向管理员的资源同步、订阅与管理能力。
 
-配置入口是 AstrBot Dashboard 的插件配置页。配置分为以下八组；完整字段、类型和默认值见 [`_conf_schema.json`](_conf_schema.json)。修改配置后请重载插件。
+> [!IMPORTANT]
+> 当前插件要求 **AstrBot 4.26.0 或更高版本**。图片卡片依赖 AstrBot 提供的全局 HTML/T2I 能力；未启用时，纯文字能力仍可正常使用，但部分图片命令无法渲染卡片。
 
-### 登录 `login`
+## 🚀 核心能力
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `login.url` | 空 | 外置登录服务地址；留空时使用插件内置服务。 |
-| `login.bind_host` | `127.0.0.1` | 内置登录服务监听地址。 |
-| `login.port` | `6189` | 内置登录服务监听端口。 |
-| `login.transport` | `local` | 登录接入方式，可选 `local`、`http_poll`、`sse`、`ws`。 |
-| `login.shared_secret` | 空 | 外置登录接入所需的共享密钥；不需要外置服务时留空。 |
-| `login.tencent_docs` | `false` | 是否启用腾讯文档登录辅助。 |
-| `login.qr_login` | `false` | 是否启用二维码登录。 |
-| `login.forward_login` | `false` | 是否启用转发消息登录。 |
-| `login.max_bind_count` | `2` | 每个未登录用户允许绑定的最大 UID 数量。 |
+- 👤 **账号管理**：登录、退出登录、UID 绑定、切换与删除，并提供严格脱敏的登录状态查询。
+- 🧬 **角色与玩家信息**：基本信息卡片、角色详情、角色面板刷新、卡片缓存管理、日常便笺、周报与日历。
+- 📚 **图鉴与攻略**：角色 / 武器列表、角色图鉴、别名查询、角色攻略与当前可用兑换码。
+- ✅ **签到服务**：手动签到、签到日历、按 UID 控制的自动签到，以及可独立订阅的签到汇总与群聊报告。
+- 📢 **密函与公告**：密函、公告查询与会话级订阅推送，管理员可管理群聊公告订阅。
+- 🔐 **隐私控制**：限制其他成员查询个人信息，并可单独控制卡片中的 UID 展示。
+- 🛠️ **管理员工具**：批量签到、角色 / 武器别名维护、公共资源状态检查与资源同步。
+- 🤖 **可选 Agent Tools**：按配置注册结构化查询工具，默认关闭，不改变聊天命令行为。
 
-### 网络 `network`
+## 📦 安装
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `network.max_concurrent_requests` | `4` | 短请求最大并发数。 |
-| `network.api_proxy_url` | 空 | API 请求代理地址；不需要代理时留空。 |
-| `network.local_proxy_url` | 空 | 本地登录或 WebSocket 请求代理地址。 |
-| `network.proxy_functions` | `[]` | 指定使用代理的功能，可选 `all`、`get_sms_code`、`login`。 |
-| `network.no_proxy_functions` | `[]` | 指定强制直连的功能。 |
-| `network.websocket_continue_seconds` | `300` | WebSocket 保活时间。 |
-| `network.websocket_wait_seconds` | `5` | WebSocket 连接等待时间。 |
+### 手动安装
 
-### 签到 `sign_in`
+在 AstrBot 根目录执行：
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `sign_in.community_tasks` | `bbs_sign、bbs_detail、bbs_like、bbs_share、bbs_reply` | 要执行的社区任务列表。 |
-| `sign_in.enable_all_users` | `false` | 是否让定时签到覆盖所有已登录用户。 |
-| `sign_in.scheduled_enabled` | `false` | 是否开启每日定时签到；默认关闭。 |
-| `sign_in.sign_time` | `00:05` | 每日定时签到时间，格式为 `HH:mm`。 |
-| `sign_in.concurrency` | `1` | 自动签到并发数。 |
-| `sign_in.concurrency_interval_seconds` | `[3, 5]` | 自动签到任务之间的随机间隔范围，单位为秒。 |
-| `sign_in.private_report` | `false` | 是否发送私聊签到报告。 |
-| `sign_in.group_report` | `false` | 是否发送群聊签到报告。 |
-| `sign_in.group_report_image` | `false` | 是否用图片发送群聊签到报告。 |
+```bash
+git clone https://github.com/FlanChanXwO/astrbot_plugin_dna.git data/plugins/astrbot_plugin_dna
+python3 -m pip install -r data/plugins/astrbot_plugin_dna/requirements.txt
+```
 
-### 通知 `notifications`
+随后重启 AstrBot 或在 Dashboard 中重载插件。
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `notifications.announcement_enabled` | `true` | 是否启用公告推送。 |
-| `notifications.announcement_ids` | `[]` | 已处理公告 ID 列表，通常无需手动修改。 |
-| `notifications.announcement_check_minutes` | `10` | 公告检查间隔，单位为分钟。 |
-| `notifications.secret_subscriptions` | `["group"]` | 密函订阅作用域，可选 `private`、`group`。 |
-| `notifications.secret_simple_image` | `false` | 是否使用简易密函图片。 |
-| `notifications.secret_push_minute` | `0` | 每小时推送密函的分钟数，`0` 表示整点。 |
-| `notifications.secret_retry_interval_seconds` | `1` | 密函数据未准备好时的重试间隔，单位为秒。 |
+> [!NOTE]
+> 如果 AstrBot 已自动同步插件依赖，可跳过手动安装 `requirements.txt`。公开发布并进入 AstrBot 插件市场后，以市场页面显示的安装入口为准。
 
-### 显示 `display`
+## ⚡ 快速开始
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `display.command_prefixes` | `["kk"]` | 命令触发前缀，可以填写字符串或字符串列表；列表中包含空字符串时允许无前缀触发。 |
-| `display.guide_providers` | `["all"]` | 角色攻略来源，可选 `all`、`狩月庭攻略组`、`猫冬`。 |
-| `display.show_unowned_roles` | `true` | 是否在角色信息卡片中显示未拥有的角色和武器。 |
-| `display.allow_mention_query` | `true` | 是否允许通过 @ 查询其他用户的角色信息。 |
-
-### 公共资源 `resources`
-
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `resources.github_acceleration` | `off` | 公共资源同步方式，可选 `off`、`edgeone`、`hk`、`gh_proxy`、`dpik`、`custom`。 |
-| `resources.custom_github_acceleration_url` | 空 | `custom` 模式使用的 HTTP(S) 基础地址；其他模式无需填写。 |
-
-### 缓存 `cache`
-
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `cache.fresh_ttl_minutes` | `30` | 缓存保持 fresh 的时间，单位为分钟；`-1` 表示只在主动刷新或失效时更新。 |
-| `cache.retention_ttl_hours` | `24` | 缓存允许保留的时间，单位为小时。 |
-| `cache.announcement_ttl_hours` | `24` | 公告和已校验资源缓存的保留时间，单位为小时。 |
-| `cache.refresh_send_card` | `true` | 手动刷新成功后是否立即发送新卡片。 |
-
-### Agent Tools `agent_tools`
-
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `agent_tools.enabled` | `false` | 是否注册结构化查询工具；默认关闭，开启后需重载插件。 |
-
-首次使用图鉴、攻略或图片卡片时，公共资源可能尚未同步。管理员可以先发送 `kk资源状态` 查看状态，再发送 `kk下载全部资源` 触发同步；同步失败时请根据返回信息和 AstrBot 日志排查网络或资源配置。
-
-## 命令
-
-默认前缀为 `kk`。下列示例均使用默认前缀；如果修改了 `display.command_prefixes`，请把示例中的 `kk` 替换为自己的前缀。完整的 60 条命令、参数和权限见 [`commands.json`](commands.json)，命令使用说明见 [`docs/usage/commands.md`](docs/usage/commands.md)。
-
-### 常用命令
+默认命令前缀为 `dna`。如果修改了 `general.command_prefixes`，请同步替换下列示例中的前缀。
 
 | 场景 | 示例 | 说明 |
 | --- | --- | --- |
-| 帮助 | `kk帮助` | 查看当前可用命令。 |
-| 登录 | `kk登录` | 发起登录流程。 |
-| 账号 | `kk查看UID`、`kk切换1234567890123`、`kk删除1234567890123` | 查看、切换或删除绑定 UID。 |
-| 退出 | `kk退出登录` | 退出当前登录。 |
-| 信息卡片 | `kk卡片` | 查询当前 UID 的基本信息。 |
-| 角色详情 | `kk菲娜面板` | 查询指定角色的基础详情。 |
-| 刷新与缓存 | `kk刷新菲娜面板`、`kk清理菲娜面板缓存` | 刷新角色数据或清理指定角色缓存。 |
-| 日常信息 | `kk日常`、`kk周报`、`kk上周周报`、`kk日历` | 查看便笺、周报和日历。 |
-| 图鉴攻略 | `kk菲娜图鉴`、`kk菲娜攻略`、`kk角色列表` | 查看图鉴、攻略或角色列表。 |
-| 兑换码 | `kk兑换码` | 查看当前可用的兑换码。 |
-| 签到 | `kk签到`、`kk签到日历` | 手动签到或查看签到日历。 |
-| 自动签到 | `kk开启自动签到`、`kk关闭自动签到` | 开关当前 UID 的自动签到。 |
-| 密函 | `kk密函`、`kk密函列表`、`kk我的密函` | 查看密函、列表和当前订阅。 |
-| 公告 | `kk公告`、`kk公告 1` | 查看公告列表或指定公告详情。 |
-| 隐私 | `kk开偷窥`、`kk防偷窥`、`kk隐藏UID`、`kk显示UID` | 设置个人查询权限和 UID 展示方式。 |
+| 帮助 | `dna帮助` | 查看当前可用命令 |
+| 登录 | `dna登录` | 发起账号登录流程 |
+| UID 管理 | `dna查看UID` | 查看当前账号绑定情况 |
+| 信息卡片 | `dna卡片` | 查询当前 UID 的基本信息卡片 |
+| 角色面板 | `dna菲娜面板` | 查询指定角色详情 |
+| 日常信息 | `dna日常` / `dna周报` / `dna日历` | 查看便笺、周报与日历 |
+| 图鉴攻略 | `dna菲娜图鉴` / `dna菲娜攻略` | 查看角色图鉴或攻略 |
+| 签到 | `dna签到` | 执行当前 UID 签到 |
+| 资源状态 | `dna资源状态` | 检查公共资源版本与状态 |
+| 同步资源 | `dna同步资源` | 管理员同步公共资源 |
 
-登录参数属于敏感信息，建议在私聊中完成登录，不要直接发到公开群聊。`获取ck`、`获取Token` 等状态命令只返回脱敏状态，不会把原始登录信息作为聊天回复。
+完整命令、参数和权限请查看 [`commands.json`](commands.json)；使用边界见 [命令说明](docs/usage/commands.md)。
 
-部分查询命令支持在消息中 @ 目标用户；是否允许查询他人由 `display.allow_mention_query` 控制。关闭后，普通查询只读取发送者自己的信息。
+## ⚙️ 配置
 
-### 管理员命令
+推荐通过 **AstrBot Dashboard → 插件配置** 完成设置。配置主要覆盖：
 
-以下命令需要 AstrBot `ADMIN` 权限：
+- 通用命令前缀与查询行为；
+- 登录方式与账号绑定上限；
+- Agent Tools 开关；
+- 自动签到与签到报告；
+- 公告、密函与客户端更新通知；
+- 图鉴 / 攻略显示策略；
+- API 网络、代理与并发限制；
+- 公共资源同步与 GitHub 加速；
+- 卡片与数据缓存策略。
 
-- `kk全部签到`：手动触发所有符合条件的账号签到。
-- `kk订阅公告`、`kk取消订阅公告`：开关当前群聊的公告推送。
-- `kk添加角色菲娜别名小菲`、`kk删除角色菲娜别名小菲`：维护角色别名。
-- `kk添加武器武器名别名别名`、`kk删除武器武器名别名别名`：维护武器别名。
-- `kk恢复别名`、`kk强制恢复别名`：重新加载默认别名，或清除自定义别名。
-- `kk资源状态`、`kk下载全部资源`：查看或同步公共资源。
+完整字段、类型、默认值和使用说明见：
 
-管理员隐私命令还包括 `kk指定开偷窥`、`kk指定防偷窥`、`kk全体开偷窥`、`kk全体防偷窥`、`kk指定隐藏UID` 和 `kk全体隐藏UID` 等；完整触发形式请以 [`commands.json`](commands.json) 为准。
+- [`_conf_schema.json`](_conf_schema.json)
+- [配置说明](docs/usage/configuration.md)
 
-## 数据目录与隐私
+修改配置后建议重载插件。
 
-插件运行期数据统一保存在 AstrBot 的插件数据目录：
+## 🧰 公共资源
 
-```text
-data/plugin_data/astrbot_plugin_dnaby/
-```
+角色、武器、图鉴、攻略、日历、字体和兑换码等公共资料由独立仓库维护：
 
-该目录由 AstrBot 的 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 提供。账号绑定、订阅、缓存、图片和公共资源等运行期文件都写入这里，不写入插件源码目录。升级或迁移前建议备份该目录；不要将其中的数据库、登录信息、订阅记录或日志上传到公开位置。
+**[`FlanChanXwO/dna-resource`](https://github.com/FlanChanXwO/dna-resource)**
 
-隐私相关行为由以下设置和命令共同控制：
+插件不会在启动时强制同步资源。已有资源会先完成完整校验后再暴露给业务读取，新的资源同步也会在候选内容通过 manifest、目录、摘要和图片等校验后才切换为当前可用版本。
 
-- `display.allow_mention_query` 控制是否允许通过 @ 查询他人。
-- `kk开偷窥` / `kk防偷窥` 控制他人是否可以查询自己的游戏信息。
-- `kk隐藏UID` / `kk显示UID` 控制生成的卡片是否显示自己的 UID。
-- 反馈问题时请先移除登录信息、UID、群成员信息和其他个人数据，再提交日志或截图。
+管理员可通过以下命令处理资源：
 
-## 常见问题
+- `dna资源状态`：查看当前 generation、资源版本与最近同步结果；
+- `dna同步资源`：从 `dna-resource` 的 `main` 分支同步并发布经过校验的新资源快照。
 
-### 命令没有响应怎么办？
+详细资源结构、同步规则与排障方式见 [公共资源说明](docs/usage/resources.md)。
 
-先发送 `kk帮助`，确认插件已经启用且命令前缀仍为 `kk`。如果修改过 `display.command_prefixes`，请使用新前缀；修改配置后需要重载插件。
+## 📖 文档导航
 
-### 图片、图鉴或攻略显示缺失怎么办？
+`docs/` 只维护当前版本需要的 `usage/` 与 `dev/` 两类文档：
 
-先让管理员发送 `kk资源状态`。如果资源目录尚未准备好，发送 `kk下载全部资源`；如果同步失败，检查 `resources.github_acceleration`、网络连接和 AstrBot 日志。图片卡片还需要 AstrBot 的全局 HTML/T2I 能力。
+| 文档 | 内容 |
+| --- | --- |
+| [命令说明](docs/usage/commands.md) | 命令入口、权限/登录边界与事实源 |
+| [配置说明](docs/usage/configuration.md) | Dashboard 配置分组与维护方式 |
+| [账号登录](docs/usage/login.md) | 登录方式、UID 与排障 |
+| [公共资源](docs/usage/resources.md) | 资源同步、校验与排障 |
+| [Agent Tools](docs/usage/agent-tools.md) | Agent 工具启用与安全边界 |
+| [管理页面](docs/usage/admin-pages.md) | Dashboard 管理能力 |
+| [项目架构](docs/dev/architecture.md) | 当前模块边界与事实源 |
+| [开发环境](docs/dev/setup.md) | 本地开发与运行环境 |
+| [测试说明](docs/dev/testing.md) | 测试范围与验证方式 |
+| [维护约定](docs/dev/maintenance.md) | 生成物、文案与文档维护规则 |
 
-### 登录页打不开怎么办？
+## 🔐 安全与隐私
 
-确认 `login.bind_host`、`login.port` 没有被其他程序占用；在其他设备访问时，监听地址和 `login.url` 必须使用调用方可访问的地址。外置接入方式还需要同时核对 `login.transport` 和共享密钥配置。
+账号凭据与运行期数据不会作为仓库内容提交。反馈问题时请避免上传 Cookie、token、数据库、完整插件数据目录、Dashboard 密钥或其他个人信息。
 
-### 如何开启自动签到？
+涉及登录、账号和隐私问题时，建议只提供：
 
-先使用 `kk开启自动签到` 为当前 UID 开启，再在配置中打开 `sign_in.scheduled_enabled` 并设置 `sign_in.sign_time`。如果需要覆盖所有已登录用户，再打开 `sign_in.enable_all_users`。手动 `kk签到` 不受定时开关影响。
+- AstrBot 与插件版本；
+- 可复现的最小操作步骤；
+- 已脱敏的日志或错误类别；
+- 预期结果与实际结果。
 
-### 如何限制群成员查看我的信息？
+## 🧪 开发与测试
 
-发送 `kk防偷窥` 并视需要发送 `kk隐藏UID`。管理员也可以使用群聊隐私管理命令设置指定成员或全体成员的规则。
-
-### 升级后如何确认插件版本？
-
-检查 [`metadata.yaml`](metadata.yaml) 中的 `version`，并在 AstrBot 日志或 Dashboard 中确认插件重新加载成功。当前版本要求 AstrBot 4.26.0 或更高版本。
-
-## 开发与本地测试
-
-在插件目录安装依赖后，可运行以下检查：
+在插件目录中可以执行：
 
 ```bash
 python3 -m compileall .
@@ -218,19 +148,30 @@ python3 -m pytest
 ruff check .
 ```
 
-开发环境、依赖同步和测试范围见 [`docs/dev/setup.md`](docs/dev/setup.md) 与 [`docs/dev/testing.md`](docs/dev/testing.md)。命令、配置和资源的详细说明见 [`docs/README.md`](docs/README.md)。
+贡献涉及命令、配置、数据结构或资源契约时，请同步更新对应文档与测试。
 
-## 问题反馈与贡献
+## 🐛 问题反馈与贡献
 
-请在 [GitHub Issues](https://github.com/FlanChanXwO/astrbot_plugin_dnaby/issues) 提交问题，在描述中尽量提供：
+欢迎通过 [GitHub Issues](https://github.com/FlanChanXwO/astrbot_plugin_dna/issues) 提交 Bug 或功能建议，也欢迎提交 Pull Request 改进代码、测试与文档。
 
-- AstrBot 版本、插件版本和运行平台；
-- 可以复现问题的命令、配置项或最小步骤；
-- 已脱敏的错误信息、日志片段或截图；
-- 预期结果与实际结果。
+提交前请确认：
 
-提交前请确认没有附带登录信息、个人数据或本地路径。欢迎提交文档、测试和代码改进；涉及命令或配置变化时，请同时更新对应说明并运行本地测试。
+- 已使用对应 Issue / PR 模板补充必要信息；
+- 日志与截图已经脱敏；
+- 没有提交运行期账号数据或凭据；
+- 与代码行为相关的文档和测试已经同步更新。
 
-## License
+## ⚠️ 免责声明
 
-插件代码使用 [GPL-3.0](LICENSE) 许可证。
+- 本项目是非官方第三方开源项目，与《二重螺旋》及其开发、发行或运营方不存在隶属、授权、合作或官方认可关系。
+- 项目中涉及的游戏名称、商标、角色、图片及其他相关素材，其权利归原权利人所有；本项目仅在实现插件功能所需范围内引用或链接相关内容。
+- 使用本插件时，请遵守《二重螺旋》及相关平台、接口与服务的用户协议和适用规则。因使用本插件产生的账号、网络、平台或数据风险由使用者自行承担。
+- 本项目代码依照 [GNU General Public License v3.0](LICENSE) 发布；本免责声明不限制或改变该许可证已经授予的权利。
+
+## 📄 License
+
+本项目代码使用 [GNU General Public License v3.0](LICENSE) 许可证。
+
+## 🙏 参考与致谢
+
+- 原插件 / 参考实现：[tyql688/DNAUID](https://github.com/tyql688/DNA%55ID)

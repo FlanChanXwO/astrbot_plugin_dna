@@ -192,7 +192,11 @@ class NoticesScheduler:
         if self._started:
             return
         for task_id, enabled in self._enabled_tasks.items():
-            if not enabled or await self.registry.is_deleted(task_id):
+            if (
+                not enabled
+                or await self.registry.is_deleted(task_id)
+                or await self.registry.is_paused(task_id)
+            ):
                 continue
             await self.registry.activate(task_id)
             self._create_task(task_id)

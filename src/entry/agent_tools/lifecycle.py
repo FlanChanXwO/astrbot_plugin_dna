@@ -70,15 +70,10 @@ class AgentToolsLifecycle:
         """只保留仍可能存在于 Context 中的工具，供后续注销重试。"""
 
         retained_names = tuple(names)
-        tools_by_name = {
-            getattr(tool, "name", ""): tool
-            for tool in self._tools
-        }
+        tools_by_name = {getattr(tool, "name", ""): tool for tool in self._tools}
         self._registered_names = retained_names
         self._tools = tuple(
-            tools_by_name[name]
-            for name in retained_names
-            if name in tools_by_name
+            tools_by_name[name] for name in retained_names if name in tools_by_name
         )
 
     async def _unregister_names(

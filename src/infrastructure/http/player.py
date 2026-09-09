@@ -11,6 +11,7 @@ import asyncio
 from typing import Any
 
 import aiohttp
+from pydantic import BaseModel, ConfigDict, Field
 
 from ...entry.event import EventActor
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
@@ -20,9 +21,13 @@ from ...modules.player.contracts import (
     DamageSnapshot,
     PlayerFailureKind,
     PlayerTransportError,
+    RoleAchievement,
     RoleDetail,
+    RoleHeader,
+    RoleItem,
     RoleOverview,
     WeaponDetail,
+    WeaponItem,
 )
 from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
@@ -56,6 +61,58 @@ def _response_data(response: Any, *, resource: str) -> Any:
             detail="successful response has no data",
         )
     return data
+
+
+class _PlayerProjection(BaseModel):
+    """玩家查询 transport 的局部响应模型，不复用全量 legacy response。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+
+class _RoleAchievementTotalProjection(_PlayerProjection):
+    total: int = 0
+
+
+class _RoleCardShowProjection(_PlayerProjection):
+    roleChars: list[RoleItem]
+    langRangeWeapons: list[WeaponItem]
+    closeWeapons: list[WeaponItem]
+    level: int
+    params: list[RoleAchievement]
+    roleId: str
+    roleName: str
+    roleAchv: _RoleAchievementTotalProjection
+
+
+class _RoleCardInfoProjection(_PlayerProjection):
+    roleShow: _RoleCardShowProjection
+
+
+class _RoleCardResponse(_PlayerProjection):
+    roleInfo: _RoleCardInfoProjection
+
+
+class _RoleHeaderShowProjection(_PlayerProjection):
+    roleId: str
+    roleName: str = ""
+    level: int | None = None
+    params: list[RoleAchievement] = Field(default_factory=list)
+
+
+class _RoleHeaderInfoProjection(_PlayerProjection):
+    roleShow: _RoleHeaderShowProjection
+
+
+class _RoleHeaderResponse(_PlayerProjection):
+    roleInfo: _RoleHeaderInfoProjection
+
+
+class _RoleDetailResponse(_PlayerProjection):
+    charDetail: dict[str, Any]
+
+
+class _WeaponDetailResponse(_PlayerProjection):
+    weaponDetail: dict[str, Any]
 
 
 class DnaApiPlayerTransport:
@@ -113,9 +170,9 @@ class DnaApiPlayerTransport:
 
     @staticmethod
     def _overview(data: Any) -> RoleOverview:
-        from ...utils.api.model import DNARoleForToolRes
+        """解析角色卡片所需的完整展柜投影。"""
 
-        payload = DNARoleForToolRes.model_validate(data)
+        payload = _RoleCardResponse.model_validate(data)
         role_show = payload.roleInfo.roleShow
         return RoleOverview.model_validate(
             {
@@ -138,20 +195,29 @@ class DnaApiPlayerTransport:
         )
 
     @staticmethod
-    def _role_detail(data: Any) -> RoleDetail:
-        from ...utils.api.model import DNARoleDetailRes
+    def _role_header(data: Any) -> RoleHeader:
+        """解析只需要身份、等级和统计项的轻量角色投影。"""
 
-        payload = DNARoleDetailRes.model_validate(data)
-        return RoleDetail.model_validate(payload.charDetail.model_dump(by_alias=True))
+        payload = _RoleHeaderResponse.model_validate(data)
+        role_show = payload.roleInfo.roleShow
+        return RoleHeader.model_validate(
+            {
+                "roleId": role_show.roleId,
+                "roleName": role_show.roleName or "",
+                "level": role_show.level,
+                "params": [item.model_dump(by_alias=True) for item in role_show.params],
+            },
+        )
+
+    @staticmethod
+    def _role_detail(data: Any) -> RoleDetail:
+        payload = _RoleDetailResponse.model_validate(data)
+        return RoleDetail.model_validate(payload.charDetail)
 
     @staticmethod
     def _weapon_detail(data: Any) -> WeaponDetail:
-        from ...utils.api.model import DNAWeaponDetailRes
-
-        payload = DNAWeaponDetailRes.model_validate(data)
-        return WeaponDetail.model_validate(
-            payload.weaponDetail.model_dump(by_alias=True)
-        )
+        payload = _WeaponDetailResponse.model_validate(data)
+        return WeaponDetail.model_validate(payload.weaponDetail)
 
     @gated_transport_method
     async def get_overview(

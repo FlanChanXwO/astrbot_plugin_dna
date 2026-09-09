@@ -42,7 +42,7 @@ def _notice_request(request: CommandRequest) -> NoticeRequest:
         target_user_id=request.target_user_id,
         parameters=dict(request.parameters),
         text=request.text,
-        matched_prefix=getattr(request, "matched_prefix", "kk"),
+        matched_prefix=getattr(request, "matched_prefix", "dna"),
     )
 
 

@@ -7,6 +7,12 @@ os.environ.setdefault("DNABY_DATA_DIR", "/tmp/dnaby-test-data")
 import pytest
 
 from src.infrastructure.config import generate_legacy_schema as generate_astrbot_schema
+from src.infrastructure.config.legacy import (
+    DNA_CONFIG_SECTION,
+    DNA_SIGN_CONFIG_SECTION,
+    LEGACY_DNA_CONFIG_SECTION,
+    LEGACY_DNA_SIGN_CONFIG_SECTION,
+)
 from src.infrastructure.config.schema import (
     generate_astrbot_schema as generate_typed_schema,
 )
@@ -20,9 +26,9 @@ from src.infrastructure.config.settings import (
 
 def test_schema_generation():
     schema = generate_astrbot_schema()
-    assert "DNAUID配置" in schema
-    assert "DNAUID签到配置" in schema
-    default_items = schema["DNAUID配置"]["items"]
+    assert DNA_CONFIG_SECTION in schema
+    assert DNA_SIGN_CONFIG_SECTION in schema
+    default_items = schema[DNA_CONFIG_SECTION]["items"]
     assert default_items["MaxBindNum"]["type"] == "int"
     assert default_items["DNAQRLogin"]["type"] == "bool"
     assert default_items["DNALoginBindHost"]["default"] == "127.0.0.1"
@@ -31,7 +37,7 @@ def test_schema_generation():
     assert "MHCache" not in default_items
     assert default_items["MHSubscribe"]["type"] == "list"
     assert "DNAAnnGroups" not in default_items
-    assert "DNASignin" not in schema["DNAUID签到配置"]["items"]
+    assert "DNASignin" not in schema[DNA_SIGN_CONFIG_SECTION]["items"]
 
 
 def test_typed_sign_in_config_has_no_feature_enable_switches():
@@ -62,7 +68,7 @@ def test_schema_is_accepted_by_astrbot_config(tmp_path):
         config_path=str(tmp_path / "config.json"),
         schema=generate_astrbot_schema(),
     )
-    assert "DNAAnnGroups" not in config["DNAUID配置"]
+    assert "DNAAnnGroups" not in config[DNA_CONFIG_SECTION]
 
 
 def test_get_config_defaults():
@@ -80,7 +86,7 @@ def test_get_config_defaults():
 
 def test_bind_and_get():
     store = {}
-    store.setdefault("DNAUID配置", {})["MaxBindNum"] = 5
+    store.setdefault(DNA_CONFIG_SECTION, {})["MaxBindNum"] = 5
     DNAConfig.bind(store)
     assert DNAConfig.get_config("MaxBindNum").data == 5
 
@@ -95,13 +101,15 @@ def test_display_settings_supports_configurable_command_prefix():
     assert settings.display.command_prefix == "dna"
     assert settings.display.command_prefixes == ["dna"]
 
-    multi_settings = DnabySettings.from_config({"display": {"command_prefixes": ["kk", "dna"]}})
+    multi_settings = DnabySettings.from_config(
+        {"display": {"command_prefixes": ["kk", "dna"]}}
+    )
     assert multi_settings.display.command_prefixes == ["kk", "dna"]
     assert multi_settings.display.command_prefix == "kk"
 
     default_settings = DnabySettings.from_config({})
-    assert default_settings.display.command_prefix == "kk"
-    assert default_settings.display.command_prefixes == ["kk"]
+    assert default_settings.display.command_prefix == "dna"
+    assert default_settings.display.command_prefixes == ["dna"]
 
 
 def test_display_settings_rejects_invalid_prefix_values():
@@ -149,17 +157,14 @@ def test_all_config_items_resolve_from_typed_config():
             "max_bind_count": 5,
         },
         "network": {
-            "api_proxy_url": "http://proxy.api",
-            "local_proxy_url": "http://127.0.0.1:7890",
-            "proxy_functions": ["all"],
-            "no_proxy_functions": ["login"],
+            "api_base_url": "http://proxy.api",
+            "proxy_url": "http://127.0.0.1:7890",
             "websocket_continue_seconds": 600,
             "websocket_wait_seconds": 10,
         },
         "sign_in": {
             "community_tasks": ["bbs_sign"],
-            "enable_all_users": True,
-            "scheduled_enabled": True,
+            "default_auto_sign_enabled": True,
             "sign_time": "06:30",
             "concurrency": 3,
             "concurrency_interval_seconds": [5, 10],
@@ -169,17 +174,16 @@ def test_all_config_items_resolve_from_typed_config():
         },
         "notifications": {
             "announcement_enabled": False,
-            "announcement_groups": {"123": True},
-            "announcement_ids": [101, 102],
             "announcement_check_minutes": 15,
-            "secret_subscriptions": ["private", "group"],
             "secret_simple_image": True,
         },
+        "general": {
+            "command_prefixes": ["dna"],
+            "allow_mention_query": False,
+        },
         "display": {
-            "command_prefix": "dna",
             "guide_providers": ["猫冬"],
             "show_unowned_roles": False,
-            "allow_mention_query": False,
         },
     }
     settings = DnabySettings.from_config(config_dict)
@@ -195,16 +199,13 @@ def test_all_config_items_resolve_from_typed_config():
     assert settings.login.forward_login is True
     assert settings.login.max_bind_count == 5
 
-    assert settings.network.api_proxy_url == "http://proxy.api"
-    assert settings.network.local_proxy_url == "http://127.0.0.1:7890"
-    assert settings.network.proxy_functions == ["all"]
-    assert settings.network.no_proxy_functions == ["login"]
+    assert settings.network.api_base_url == "http://proxy.api"
+    assert settings.network.proxy_url == "http://127.0.0.1:7890"
     assert settings.network.websocket_continue_seconds == 600
     assert settings.network.websocket_wait_seconds == 10
 
     assert settings.sign_in.community_tasks == ["bbs_sign"]
-    assert settings.sign_in.enable_all_users is True
-    assert settings.sign_in.scheduled_enabled is True
+    assert settings.sign_in.default_auto_sign_enabled is True
     assert settings.sign_in.sign_time == "06:30"
     assert settings.sign_in.concurrency == 3
     assert settings.sign_in.concurrency_interval_seconds == (5, 10)
@@ -213,15 +214,13 @@ def test_all_config_items_resolve_from_typed_config():
     assert settings.sign_in.group_report_image is True
 
     assert settings.notifications.announcement_enabled is False
-    assert settings.notifications.announcement_ids == [101, 102]
     assert settings.notifications.announcement_check_minutes == 15
-    assert settings.notifications.secret_subscriptions == ["private", "group"]
     assert settings.notifications.secret_simple_image is True
 
-    assert settings.display.command_prefix == "dna"
+    assert settings.general.command_prefixes == ["dna"]
+    assert settings.general.allow_mention_query is False
     assert settings.display.guide_providers == ["猫冬"]
     assert settings.display.show_unowned_roles is False
-    assert settings.display.allow_mention_query is False
 
     # 验证 legacy namespace get_config 同步生效
     assert DNAConfig.get_config("MaxBindNum").data == 5
@@ -241,8 +240,8 @@ def test_all_config_items_resolve_from_typed_config():
     assert DNAConfig.get_config("DNAAnnState").data is False
     assert DNAConfig.get_config("DNAUrlProxyUrl").data == "http://proxy.api"
     assert DNAConfig.get_config("LocalProxyUrl").data == "http://127.0.0.1:7890"
-    assert DNAConfig.get_config("NeedProxyFunc").data == ["all"]
-    assert DNAConfig.get_config("NoNeedProxyFunc").data == ["login"]
+    assert DNAConfig.get_config("NeedProxyFunc").data == []
+    assert DNAConfig.get_config("NoNeedProxyFunc").data == []
     assert DNAConfig.get_config("WebSocketContinueTime").data == 600
     assert DNAConfig.get_config("WebSocketWaitTime").data == 10
 
@@ -266,19 +265,22 @@ def test_build_runtime_propagates_all_settings(tmp_path):
         "login": {
             "max_bind_count": 7,
         },
+        "general": {
+            "command_prefixes": ["dna"],
+            "allow_mention_query": False,
+        },
         "display": {
-            "command_prefix": "dna",
             "guide_providers": ["猫冬"],
             "show_unowned_roles": False,
-            "allow_mention_query": False,
         },
         "sign_in": {
             "community_tasks": ["bbs_sign"],
-            "enable_all_users": True,
-            "scheduled_enabled": True,
+            "default_auto_sign_enabled": True,
             "sign_time": "07:15",
             "concurrency": 4,
             "concurrency_interval_seconds": [2, 6],
+            "group_report": True,
+            "group_report_image": True,
         },
         "notifications": {
             "announcement_enabled": False,
@@ -294,13 +296,12 @@ def test_build_runtime_propagates_all_settings(tmp_path):
 
     # 1. 验证 settings 字段
     assert runtime.settings.login.max_bind_count == 7
-    assert runtime.settings.display.command_prefix == "dna"
+    assert runtime.settings.general.command_prefixes == ["dna"]
+    assert runtime.settings.general.allow_mention_query is False
     assert runtime.settings.display.guide_providers == ["猫冬"]
     assert runtime.settings.display.show_unowned_roles is False
-    assert runtime.settings.display.allow_mention_query is False
     assert runtime.settings.sign_in.sign_time == "07:15"
-    assert runtime.settings.sign_in.enable_all_users is True
-    assert runtime.settings.sign_in.scheduled_enabled is True
+    assert runtime.settings.sign_in.default_auto_sign_enabled is True
     assert runtime.settings.sign_in.concurrency == 4
     assert runtime.settings.sign_in.concurrency_interval_seconds == (2, 6)
     assert runtime.settings.notifications.announcement_enabled is False
@@ -312,6 +313,7 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     # 2. 验证下发到各个具体 service / scheduler
     account_service = runtime.services["account_service"]
     assert account_service.max_bind_count == 7
+    assert account_service.default_auto_sign_enabled is True
 
     privacy_service = runtime.services["privacy_service"]
     assert privacy_service.allow_mention_query is False
@@ -326,11 +328,11 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     assert checkin_service.community_tasks == ("bbs_sign",)
     assert checkin_service.concurrency == 4
     assert checkin_service.interval_range == (2, 6)
+    assert checkin_service.group_report is True
+    assert checkin_service.group_report_image is True
 
     sign_scheduler = runtime.services["sign_scheduler"]
     assert sign_scheduler.sign_time == (7, 15)
-    assert sign_scheduler.scheduled_enabled is True
-    assert sign_scheduler.enable_all_users is True
 
     notices_scheduler = runtime.services["notices_scheduler"]
     assert notices_scheduler.announcement_enabled is False
@@ -351,12 +353,20 @@ def test_schema_descriptions_have_no_periods_and_hints_are_populated():
 
     schema = generate_astrbot_schema()
     for group_name, group in schema.items():
-        assert "。" not in group["description"], f"分组 {group_name} description 包含句号"
-        assert not group["description"].endswith("."), f"分组 {group_name} description 包含英文句号结尾"
+        assert "。" not in group["description"], (
+            f"分组 {group_name} description 包含句号"
+        )
+        assert not group["description"].endswith("."), (
+            f"分组 {group_name} description 包含英文句号结尾"
+        )
         for field_name, field_def in group.get("items", {}).items():
             desc = field_def.get("description", "")
-            assert "。" not in desc, f"字段 {group_name}.{field_name} description 包含句号: {desc}"
-            assert not desc.endswith("."), f"字段 {group_name}.{field_name} description 包含英文句号结尾: {desc}"
+            assert "。" not in desc, (
+                f"字段 {group_name}.{field_name} description 包含句号: {desc}"
+            )
+            assert not desc.endswith("."), (
+                f"字段 {group_name}.{field_name} description 包含英文句号结尾: {desc}"
+            )
             hint = field_def.get("hint", "")
             assert hint, f"字段 {group_name}.{field_name} 缺少 hint"
 
@@ -368,8 +378,12 @@ def test_schema_descriptions_have_no_periods_and_hints_are_populated():
             assert "。" not in group["description"]
             for field_name, field_def in group.get("items", {}).items():
                 desc = field_def.get("description", "")
-                assert "。" not in desc, f"_conf_schema.json 字段 {group_name}.{field_name} description 包含句号: {desc}"
-                assert field_def.get("hint"), f"_conf_schema.json 字段 {group_name}.{field_name} 缺少 hint"
+                assert "。" not in desc, (
+                    f"_conf_schema.json 字段 {group_name}.{field_name} description 包含句号: {desc}"
+                )
+                assert field_def.get("hint"), (
+                    f"_conf_schema.json 字段 {group_name}.{field_name} 缺少 hint"
+                )
 
 
 def test_numeric_config_fields_use_int_types():
@@ -382,7 +396,9 @@ def test_numeric_config_fields_use_int_types():
     assert schema["network"]["items"]["websocket_continue_seconds"]["type"] == "int"
     assert schema["network"]["items"]["websocket_wait_seconds"]["type"] == "int"
     assert schema["sign_in"]["items"]["concurrency"]["type"] == "int"
-    assert schema["notifications"]["items"]["announcement_check_minutes"]["type"] == "int"
+    assert (
+        schema["notifications"]["items"]["announcement_check_minutes"]["type"] == "int"
+    )
 
 
 def test_legacy_nested_and_flat_config_migration():
@@ -390,14 +406,14 @@ def test_legacy_nested_and_flat_config_migration():
     from src.infrastructure.config.settings import DnabySettings, migrate_config_dict
 
     legacy_gscore = {
-        "DNAUID配置": {
+        LEGACY_DNA_CONFIG_SECTION: {
             "MaxBindNum": 4,
             "DNALoginUrl": "http://login.local:8080",
             "CommandPrefix": "dna",
             "DNAAnnGroups": {"group_100": True},
             "MHSimplePic": True,
         },
-        "DNAUID签到配置": {
+        LEGACY_DNA_SIGN_CONFIG_SECTION: {
             "SignTime": "08:00",
             "SignAllUser": True,
             "PrivateSignReport": True,
@@ -406,10 +422,10 @@ def test_legacy_nested_and_flat_config_migration():
     migrated = migrate_config_dict(legacy_gscore)
     assert migrated["login"]["max_bind_count"] == 4
     assert migrated["login"]["url"] == "http://login.local:8080"
-    assert migrated["display"]["command_prefixes"] == ["dna"]
+    assert migrated["general"]["command_prefixes"] == ["dna"]
     assert migrated["notifications"]["secret_simple_image"] is True
     assert migrated["sign_in"]["sign_time"] == "08:00"
-    assert migrated["sign_in"]["enable_all_users"] is True
+    assert migrated["sign_in"]["default_auto_sign_enabled"] is True
     assert migrated["sign_in"]["private_report"] is True
 
     settings = DnabySettings.from_config(legacy_gscore)
@@ -418,7 +434,7 @@ def test_legacy_nested_and_flat_config_migration():
     assert settings.display.command_prefix == "dna"
     assert settings.notifications.secret_simple_image is True
     assert settings.sign_in.sign_time == "08:00"
-    assert settings.sign_in.enable_all_users is True
+    assert settings.sign_in.default_auto_sign_enabled is True
 
 
 def test_config_migration_rejects_malformed_known_sections():
@@ -427,5 +443,5 @@ def test_config_migration_rejects_malformed_known_sections():
     with pytest.raises(TypeError, match="sign_in"):
         migrate_config_dict({"sign_in": "not-an-object"})
 
-    with pytest.raises(TypeError, match="DNAUID签到配置"):
-        migrate_config_dict({"DNAUID签到配置": []})
+    with pytest.raises(TypeError):
+        migrate_config_dict({LEGACY_DNA_SIGN_CONFIG_SECTION: []})

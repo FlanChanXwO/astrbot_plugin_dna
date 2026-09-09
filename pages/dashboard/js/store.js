@@ -6,7 +6,7 @@ const NAV_ITEMS = Object.freeze([
 
 const PAGE_SIZE_OPTIONS = Object.freeze([10, 20, 50]);
 const DEFAULT_PAGE_SIZE = 20;
-const DEFAULT_PLUGIN_DISPLAY_NAME = "DNAUID（二重螺旋）";
+const DEFAULT_PLUGIN_DISPLAY_NAME = "狩月终端";
 
 const TASK_STATE_LABELS = Object.freeze({
   running: "运行中",

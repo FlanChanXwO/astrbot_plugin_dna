@@ -139,12 +139,17 @@ class ClientVersionSnapshot:
     revamp: int
     patch_key: int
     region: ClientRegion = ClientRegion.CN
+    channel_id: str | None = None
 
     def __post_init__(self) -> None:
         """固定枚举和值对象字段，避免状态层保存歧义类型。"""
 
         object.__setattr__(self, "platform", ClientPlatform(self.platform))
         object.__setattr__(self, "region", ClientRegion(self.region))
+        if self.channel_id is not None and (
+            not isinstance(self.channel_id, str) or not self.channel_id.strip()
+        ):
+            raise ValueError("channel_id 必须是非空字符串或 None")
         for field_name in (
             "version_key",
             "patch_version",
@@ -217,9 +222,10 @@ class ClientUpdateChange:
     added_size_bytes: int
     region: ClientRegion = ClientRegion.CN
     platform: ClientPlatform = ClientPlatform.PC
+    channel_id: str | None = None
 
     def __post_init__(self) -> None:
-        """校验变化两端属于同一平台且确实向前推进。"""
+        """校验变化两端属于同一渠道且确实向前推进。"""
 
         object.__setattr__(self, "region", ClientRegion(self.region))
         object.__setattr__(self, "platform", ClientPlatform(self.platform))
@@ -227,6 +233,22 @@ class ClientUpdateChange:
             raise TypeError("previous 必须是 ClientVersionSnapshot")
         if not isinstance(self.current, ClientVersionSnapshot):
             raise TypeError("current 必须是 ClientVersionSnapshot")
+        channel_ids = {
+            snapshot.channel_id
+            for snapshot in (self.previous, self.current)
+            if snapshot.channel_id is not None
+        }
+        if self.channel_id is None:
+            if len(channel_ids) > 1:
+                raise ValueError("变化快照的渠道必须一致")
+            normalized_channel_id = next(iter(channel_ids), self.platform.value)
+        else:
+            if not isinstance(self.channel_id, str) or not self.channel_id.strip():
+                raise ValueError("channel_id 必须是非空字符串或 None")
+            normalized_channel_id = self.channel_id
+        if channel_ids and channel_ids != {normalized_channel_id}:
+            raise ValueError("变化快照的渠道必须与 channel_id 一致")
+        object.__setattr__(self, "channel_id", normalized_channel_id)
         if (
             self.previous.region is not self.region
             or self.current.region is not self.region
@@ -247,23 +269,52 @@ class ClientUpdateChange:
         """返回供投递去重使用的稳定变化键。"""
 
         return (
-            f"{self.region.value}:{self.platform.value}:"
+            f"{self.region.value}:{self.channel_id}:"
             f"{self.previous.patch_version}:{self.current.patch_version}"
         )
+
+
+def parse_channel_version_list_entries(
+    payload: object,
+    *,
+    channel_id: str,
+) -> tuple[ClientVersionSnapshot, ...]:
+    """按固定渠道解析 VersionList，并保留渠道身份。"""
+
+    channel = _resolve_channel(channel_id)
+    return _parse_version_list_entries(
+        payload,
+        platform=channel.platform,
+        region=channel.region,
+        channel_id=channel.channel_id,
+    )
 
 
 def parse_version_list_entries(
     payload: object,
     platform: ClientPlatform | str,
 ) -> tuple[ClientVersionSnapshot, ...]:
-    """严格解析 VersionList 中的全部版本条目。
+    """兼容旧 platform API；传入 channel ID 时保留新的渠道身份。"""
 
-    ``versionList`` 的 key 是字符串：PC 通常是 patchVersion，安卓通常同时
-    充当资源目录号。因此每条记录都保留数值 ``version_key`` 和安卓资源目录，
-    供 transport 在历史区间读取清单时使用。
-    """
+    if isinstance(platform, str) and _is_registered_channel_id(platform):
+        return parse_channel_version_list_entries(payload, channel_id=platform)
+    return _parse_version_list_entries(
+        payload,
+        platform=_coerce_platform(platform),
+        region=ClientRegion.CN,
+        channel_id=None,
+    )
 
-    normalized_platform = _coerce_platform(platform)
+
+def _parse_version_list_entries(
+    payload: object,
+    *,
+    platform: ClientPlatform,
+    region: ClientRegion,
+    channel_id: str | None,
+) -> tuple[ClientVersionSnapshot, ...]:
+    """严格解析 VersionList 中的全部版本条目。"""
+
     root = _require_mapping(payload, "VersionList")
     raw_versions = root.get("versionList")
     if not isinstance(raw_versions, Mapping) or not raw_versions:
@@ -281,7 +332,9 @@ def parse_version_list_entries(
         version_key = int(raw_key)
         versions.append(
             ClientVersionSnapshot(
-                platform=normalized_platform,
+                platform=platform,
+                region=region,
+                channel_id=channel_id,
                 version_key=version_key,
                 patch_version=_require_non_negative_int(
                     entry,
@@ -289,7 +342,7 @@ def parse_version_list_entries(
                     context=f"VersionList[{raw_key!r}]",
                 ),
                 resource_version_dir=(
-                    raw_key if normalized_platform is ClientPlatform.ANDROID else None
+                    raw_key if platform is ClientPlatform.ANDROID else None
                 ),
                 major=_require_non_negative_int(
                     entry,
@@ -317,6 +370,19 @@ def parse_version_list_entries(
     return tuple(versions)
 
 
+def parse_channel_version_list(
+    payload: object,
+    *,
+    channel_id: str,
+) -> ClientVersionSnapshot:
+    """按固定渠道校验并选择 VersionList 中数值上最新的记录。"""
+
+    versions = parse_channel_version_list_entries(payload, channel_id=channel_id)
+    return max(
+        versions, key=lambda version: (version.version_key, version.patch_version)
+    )
+
+
 def parse_version_list(
     payload: object,
     platform: ClientPlatform | str,
@@ -329,27 +395,49 @@ def parse_version_list(
     )
 
 
+def sum_channel_patch_file_sizes(
+    channel_id: str,
+    pak_files_info: object,
+    res_discrete_info: object,
+) -> int:
+    """按固定渠道的 manifest key 计算去重后的补丁清单大小。"""
+
+    channel = _resolve_channel(channel_id)
+    return _sum_manifest_file_sizes(
+        channel.manifest_key,
+        pak_files_info,
+        res_discrete_info,
+    )
+
+
 def sum_patch_file_sizes(
     platform: ClientPlatform | str,
     pak_files_info: object,
     res_discrete_info: object,
 ) -> int:
-    """归一化两类补丁清单并返回去重后的字节总数。
-
-    两个清单均必须含有目标平台的 ``pakFileInfos`` 数组。文件名按原始非空
-    字符串作为去重键，不做大小写、路径或版本号改写；相同文件名的大小冲突
-    是结构错误而不是可合并数据。
-    """
+    """兼容旧 platform API，按平台默认 manifest key 计算补丁清单大小。"""
 
     normalized_platform = _coerce_platform(platform)
-    platform_key = _manifest_platform_key(normalized_platform)
-    sizes_by_name: dict[str, int] = {}
+    return _sum_manifest_file_sizes(
+        _manifest_platform_key(normalized_platform),
+        pak_files_info,
+        res_discrete_info,
+    )
 
+
+def _sum_manifest_file_sizes(
+    manifest_key: str,
+    pak_files_info: object,
+    res_discrete_info: object,
+) -> int:
+    """按一个已解析的 manifest key 严格合并两份补丁清单。"""
+
+    sizes_by_name: dict[str, int] = {}
     for resource_name, payload in (
         ("PakFilesInfo", pak_files_info),
         ("ResDiscreteInfo", res_discrete_info),
     ):
-        entries = _manifest_entries(payload, platform_key, resource_name)
+        entries = _manifest_entries(payload, manifest_key, resource_name)
         for index, raw_entry in enumerate(entries):
             entry = _require_mapping(
                 raw_entry, f"{resource_name}.pakFileInfos[{index}]"
@@ -373,6 +461,18 @@ def sum_patch_file_sizes(
             sizes_by_name.setdefault(file_name, file_size)
 
     return sum(sizes_by_name.values())
+
+
+def _is_registered_channel_id(value: str) -> bool:
+    from .channels import CLIENT_UPDATE_CHANNELS
+
+    return value in CLIENT_UPDATE_CHANNELS
+
+
+def _resolve_channel(channel_id: str):
+    from .channels import resolve_client_update_channel
+
+    return resolve_client_update_channel(channel_id)
 
 
 def _coerce_platform(platform: ClientPlatform | str) -> ClientPlatform:
@@ -445,7 +545,10 @@ __all__ = [
     "ClientVersion",
     "ClientVersionSnapshot",
     "normalize_client_update_platforms",
+    "parse_channel_version_list",
+    "parse_channel_version_list_entries",
     "parse_version_list",
     "parse_version_list_entries",
+    "sum_channel_patch_file_sizes",
     "sum_patch_file_sizes",
 ]

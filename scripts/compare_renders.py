@@ -1,4 +1,4 @@
-"""本地离线双渲染器图像对比（legacy DNAUID vs rewrite）。
+"""本地离线双渲染器图像对比（legacy DNA vs rewrite）。
 
 把同一份密函 fixture 数据分别喂给 legacy ``draw_mh_simple`` 与 rewrite
 ``NoticesRenderer.render_mh``，输出结构化对比表：
@@ -267,9 +267,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="本地离线双渲染器密函图像对比")
     parser.add_argument(
         "--out",
-        default=ROOT / "docs" / "porting" / "render-compare-mh.md",
+        default=ROOT / "docs" / "dev" / "render-compare-mh.md",
         type=Path,
-        help="对比报告输出路径（默认 docs/porting/render-compare-mh.md）",
+        help="对比报告输出路径（默认 docs/dev/render-compare-mh.md）",
     )
     args = parser.parse_args()
 

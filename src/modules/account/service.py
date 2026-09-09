@@ -103,12 +103,14 @@ class AccountService:
         transport: AccountTransport,
         *,
         max_bind_count: int,
+        default_auto_sign_enabled: bool = True,
     ) -> None:
         if max_bind_count < 0:
             raise ValueError("max_bind_count 不能为负数")
         self.database = database
         self.transport = transport
         self.max_bind_count = max_bind_count
+        self.default_auto_sign_enabled = default_auto_sign_enabled
         self._login_flow: object | None = None
 
     def set_login_flow(self, login_flow: object | None) -> None:
@@ -241,6 +243,7 @@ class AccountService:
                             uid=role.uid,
                             group_id=actor.group_id,
                             is_active=False,
+                            auto_sign_enabled=self.default_auto_sign_enabled,
                         )
                     await CredentialRepository.save_app(
                         session,
@@ -297,6 +300,7 @@ class AccountService:
                 uid=normalized_uid,
                 group_id=actor.group_id,
                 is_active=not bindings,
+                auto_sign_enabled=self.default_auto_sign_enabled,
             )
         return PlainTextResponse(messages.UID_BIND_SUCCESS)
 

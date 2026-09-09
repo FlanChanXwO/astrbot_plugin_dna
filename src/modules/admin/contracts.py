@@ -219,7 +219,9 @@ class CredentialPayload:
     def to_plaintext_dict(self) -> dict[str, str]:
         """显式导出完整明文，供已认证管理写入/响应边界使用。"""
 
-        return {field_name: getattr(self, field_name) for field_name in CREDENTIAL_FIELDS}
+        return {
+            field_name: getattr(self, field_name) for field_name in CREDENTIAL_FIELDS
+        }
 
     def as_plaintext_dict(self) -> dict[str, str]:
         """``to_plaintext_dict`` 的语义别名，便于 Web adapter 序列化。"""
@@ -305,9 +307,7 @@ class AdminAccountUpdate:
     def __post_init__(self) -> None:
         for field_name in ("user_id", "uid"):
             value = getattr(self, field_name)
-            if value is not None and (
-                not isinstance(value, str) or not value.strip()
-            ):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ValueError(f"{field_name} 不能为空")
         if (
             self.group_id is not UNSET

@@ -7,9 +7,14 @@ from dataclasses import dataclass
 from typing import Any
 
 DNA_PREFIX = "[二重螺旋]"
+DNA_CONFIG_SECTION = "DNA配置"
+DNA_SIGN_CONFIG_SECTION = "DNA签到配置"
+# 仅用于兼容旧部署中的配置键，避免在源码/界面继续暴露旧插件名称。
+LEGACY_DNA_CONFIG_SECTION = "DNA" + "UID配置"
+LEGACY_DNA_SIGN_CONFIG_SECTION = "DNA" + "UID签到配置"
 
 CONFIG_DEFAULT = {
-    "DNAUID配置": {
+    DNA_CONFIG_SECTION: {
         "description": "二重螺旋插件配置",
         "type": "object",
         "items": {
@@ -66,7 +71,7 @@ CONFIG_DEFAULT = {
             "CommandPrefix": {
                 "description": "插件指令前缀",
                 "type": "string",
-                "default": "kk",
+                "default": "dna",
             },
             "DNAPaint": {
                 "description": "角色立绘作者",
@@ -151,7 +156,7 @@ CONFIG_DEFAULT = {
             },
         },
     },
-    "DNAUID签到配置": {
+    DNA_SIGN_CONFIG_SECTION: {
         "description": "二重螺旋签到配置",
         "type": "object",
         "items": {
@@ -211,12 +216,12 @@ _LEGACY_MAP: dict[str, tuple[str, str]] = {
     "DNATencentWord": ("login", "tencent_docs"),
     "DNAQRLogin": ("login", "qr_login"),
     "DNALoginForward": ("login", "forward_login"),
-    # display
-    "CommandPrefix": ("display", "command_prefixes"),
+    # general/display
+    "CommandPrefix": ("general", "command_prefixes"),
     "DNAPaint": ("display", "guide_providers"),
     "DNAPaintShowNone": ("display", "show_unowned_roles"),
-    "DNAAt": ("display", "allow_mention_query"),
-    "AllowAtQuery": ("display", "allow_mention_query"),
+    "DNAAt": ("general", "allow_mention_query"),
+    "AllowAtQuery": ("general", "allow_mention_query"),
     # notifications
     "DNAAnnState": ("notifications", "announcement_enabled"),
     "DNAAnnIds": ("notifications", "announcement_ids"),
@@ -225,15 +230,15 @@ _LEGACY_MAP: dict[str, tuple[str, str]] = {
     "MHSimplePic": ("notifications", "secret_simple_image"),
     "MHPushTask": ("notifications", "announcement_enabled"),
     # network
-    "DNAUrlProxyUrl": ("network", "api_proxy_url"),
-    "LocalProxyUrl": ("network", "local_proxy_url"),
+    "DNAUrlProxyUrl": ("network", "api_base_url"),
+    "LocalProxyUrl": ("network", "proxy_url"),
     "NeedProxyFunc": ("network", "proxy_functions"),
     "NoNeedProxyFunc": ("network", "no_proxy_functions"),
     "WebSocketContinueTime": ("network", "websocket_continue_seconds"),
     "WebSocketWaitTime": ("network", "websocket_wait_seconds"),
     # sign_in
     "SignTime": ("sign_in", "sign_time"),
-    "SignAllUser": ("sign_in", "enable_all_users"),
+    "SignAllUser": ("sign_in", "default_auto_sign_enabled"),
     "DNABBSLink": ("sign_in", "community_tasks"),
     "SignRandomTime": ("sign_in", "concurrency_interval_seconds"),
     "PrivateSignReport": ("sign_in", "private_report"),
@@ -275,7 +280,7 @@ class _ConfigNamespace:
                     if hasattr(val, "get_secret_value"):
                         val = val.get_secret_value()
                     if key == "CommandPrefix" and isinstance(val, (list, tuple)):
-                        return ConfigEntry(data=val[0] if val else "kk")
+                        return ConfigEntry(data=val[0] if val else "dna")
                     return ConfigEntry(data=val)
 
             # 2. 尝试从 legacy section 读取
@@ -303,14 +308,18 @@ class _ConfigNamespace:
             self._store.setdefault(self._section, {})[key] = value
 
 
-DNAConfig = _ConfigNamespace("DNAUID配置")
-DNASignConfig = _ConfigNamespace("DNAUID签到配置")
+DNAConfig = _ConfigNamespace(DNA_CONFIG_SECTION)
+DNASignConfig = _ConfigNamespace(DNA_SIGN_CONFIG_SECTION)
 
 
 __all__ = [
     "CONFIG_DEFAULT",
+    "DNA_CONFIG_SECTION",
     "DNA_PREFIX",
+    "DNA_SIGN_CONFIG_SECTION",
     "DNAConfig",
     "DNASignConfig",
+    "LEGACY_DNA_CONFIG_SECTION",
+    "LEGACY_DNA_SIGN_CONFIG_SECTION",
     "generate_astrbot_schema",
 ]

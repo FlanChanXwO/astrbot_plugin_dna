@@ -9,11 +9,14 @@ from typing import Any, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel, SecretStr
 
+from ...modules.client_updates.channels import CLIENT_UPDATE_CHANNELS
 from .settings import (
-    AgentToolsSettings,
+    AISettings,
     CacheSettings,
+    ClientUpdatesSettings,
     DisplaySettings,
     DnabySettings,
+    GeneralSettings,
     LoginSettings,
     NetworkSettings,
     NotificationSettings,
@@ -22,15 +25,30 @@ from .settings import (
 )
 
 _GROUPS: tuple[tuple[str, type[BaseModel]], ...] = (
+    ("general", GeneralSettings),
     ("login", LoginSettings),
-    ("network", NetworkSettings),
+    ("ai", AISettings),
     ("sign_in", SignInSettings),
     ("notifications", NotificationSettings),
+    ("client_updates", ClientUpdatesSettings),
     ("display", DisplaySettings),
+    ("network", NetworkSettings),
     ("resources", ResourceSettings),
     ("cache", CacheSettings),
-    ("agent_tools", AgentToolsSettings),
 )
+
+# AstrBot 会在插件构造函数之前按 schema 删除未知字段。这个字段不属于
+# 新 typed model，只作为一次版本迁移窗口保留，确保旧 sign_in 配置能到达
+# ``DnabySettings.from_config``。``invisible`` 防止它成为新的正式配置入口。
+_SIGN_IN_COMPATIBILITY_FIELDS: dict[str, dict[str, Any]] = {
+    "scheduled_enabled": {
+        "type": "bool",
+        "description": "旧版每日自动签到任务一次性迁移字段",
+        "hint": "仅用于首次升级迁移；新配置请使用每个 UID 的自动签到选择",
+        "default": True,
+        "invisible": True,
+    }
+}
 
 
 def _unwrap_optional(annotation: Any) -> Any:
@@ -117,18 +135,28 @@ def _field_schema(field: Any) -> dict[str, Any]:
 def generate_astrbot_schema() -> dict[str, dict[str, Any]]:
     """生成可被 AstrBot 4.27.x 递归解析的 schema。"""
 
-    return {
-        group_name: {
+    result: dict[str, dict[str, Any]] = {}
+    for group_name, model in _GROUPS:
+        fields: dict[str, dict[str, Any]] = {}
+        for field_name, field in model.model_fields.items():
+            field_schema = _field_schema(field)
+            if group_name == "client_updates" and field_name == "channels":
+                field_schema["options"] = list(CLIENT_UPDATE_CHANNELS)
+            fields[field_name] = field_schema
+        if group_name == "sign_in":
+            fields.update(
+                {
+                    field_name: dict(field_schema)
+                    for field_name, field_schema in _SIGN_IN_COMPATIBILITY_FIELDS.items()
+                }
+            )
+        result[group_name] = {
             "description": DnabySettings.model_fields[group_name].description
             or group_name,
             "type": "object",
-            "items": {
-                field_name: _field_schema(field)
-                for field_name, field in model.model_fields.items()
-            },
+            "items": fields,
         }
-        for group_name, model in _GROUPS
-    }
+    return result
 
 
 def write_astrbot_schema(path: str | Path) -> Path:

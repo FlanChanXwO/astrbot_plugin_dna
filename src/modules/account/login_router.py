@@ -40,7 +40,7 @@ from .transport import TransportError, build_transport
 if TYPE_CHECKING:
     from ...infrastructure.http.login_server import LocalLoginServer
 
-ROUTE_PREFIX = "/astrbot_plugin_dnaby"
+ROUTE_PREFIX = "/astrbot_plugin_dna"
 
 cache = TimedCache(timeout=600, maxsize=10)
 _local_login_server: LocalLoginServer | None = None
@@ -63,7 +63,9 @@ class LoginSession(BaseModel):
     user_id: str = Field(description="机器人用户标识")
     app_dev_code: str | None = Field(default=None, description="App 设备码")
     app_mobile: str | None = Field(default=None, description="App 已成功发码的手机号")
-    submission: LoginSubmission | None = Field(default=None, description="待处理的登录提交")
+    submission: LoginSubmission | None = Field(
+        default=None, description="待处理的登录提交"
+    )
 
 
 class LoginSubmitParams(BaseModel):
@@ -108,8 +110,16 @@ async def get_dna_login_url() -> str:
     if _local_login_server is not None:
         return _local_login_server.base_url
 
-    host = DNAConfig.get_config("DNALoginBindHost").data if hasattr(DNAConfig, "get_config") else "127.0.0.1"
-    port = DNAConfig.get_config("DNALoginPort").data if hasattr(DNAConfig, "get_config") else 6189
+    host = (
+        DNAConfig.get_config("DNALoginBindHost").data
+        if hasattr(DNAConfig, "get_config")
+        else "127.0.0.1"
+    )
+    port = (
+        DNAConfig.get_config("DNALoginPort").data
+        if hasattr(DNAConfig, "get_config")
+        else 6189
+    )
     if host == "localhost" or host == "127.0.0.1":
         public_host = "localhost"
     else:
@@ -123,14 +133,16 @@ async def send_login(sender: Sender, ctx: EventContext, url: str) -> None:
         # 二维码 helper 保留旧 path 参数；文件名使用摘要，避免外部 user_id 逃出运行期目录。
         qr_name = hashlib.sha256(ctx.user_id.encode("utf-8")).hexdigest()
         path = (
-            Path(StarTools.get_data_dir("astrbot_plugin_dnaby"))
+            Path(StarTools.get_data_dir("astrbot_plugin_dna"))
             / "login_qr"
             / f"{qr_name}.gif"
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         qr_items = [
             MessageSegment.text(f"[二重螺旋] 您的id为【{ctx.user_id}】\n"),
-            MessageSegment.text("请扫描下方二维码获取登录地址，并复制地址到浏览器打开\n"),
+            MessageSegment.text(
+                "请扫描下方二维码获取登录地址，并复制地址到浏览器打开\n"
+            ),
             MessageSegment.image(await get_qrcode_base64(url, path, ctx.bot_id)),
         ]
 
@@ -314,8 +326,6 @@ async def _render_login_page(
             server_url=server_url,
             auth=auth,
             userId=login_session.user_id,
-            login_mode=LoginChannel.APP.value,
-            app_login_url=f"{server_url}/dna/i/{auth}",
         )
     )
 
@@ -418,7 +428,12 @@ def get_routes() -> list[tuple[str, Callable, list[str], str]]:
     return [
         (f"{ROUTE_PREFIX}/dna/i/{{auth}}", dna_login_index, ["GET"], "App 登录页"),
         (f"{ROUTE_PREFIX}/dna/login", dna_login, ["POST"], "App 登录提交"),
-        (f"{ROUTE_PREFIX}/dna/getSmsCode", dna_app_get_sms_code, ["POST"], "App 获取短信验证码"),
+        (
+            f"{ROUTE_PREFIX}/dna/getSmsCode",
+            dna_app_get_sms_code,
+            ["POST"],
+            "App 获取短信验证码",
+        ),
     ]
 
 

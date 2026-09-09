@@ -15,9 +15,9 @@ from typing import Any
 from pydantic import BaseModel
 
 from ...entry.response import ImageResponse
+from ...infrastructure.cache import CacheLookup, CacheManager
 from ...infrastructure.rendering.artifact import RenderedArtifact
 from ...infrastructure.rendering.artifact_store import write_rendered_artifact
-from ...infrastructure.cache import CacheLookup, CacheManager
 
 PLAYER_DATA_CACHE_TYPE = "player_data"
 PLAYER_CARD_CACHE_TYPE = "player_card"
@@ -300,6 +300,31 @@ class PlayerCache:
             now=now,
         )
 
+    async def invalidate_overview_card(
+        self,
+        target_user_id: str,
+        uid: str,
+    ) -> int:
+        """只失效一个身份的基本信息卡片，保留概览数据和角色详情缓存。"""
+
+        return await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(self.identity_tag(target_user_id, uid), "overview"),
+        )
+
+    async def invalidate_overview(
+        self,
+        target_user_id: str,
+        uid: str,
+    ) -> int:
+        """同时失效一个身份的基本信息数据和基本信息卡片。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        return await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, "overview"),
+        ) + await self.invalidate_overview_card(target_user_id, uid)
+
     async def invalidate_role(
         self,
         target_user_id: str,
@@ -310,15 +335,7 @@ class PlayerCache:
 
         identity = self.identity_tag(target_user_id, uid)
         role = f"role:{char_id}"
-        removed = 0
-        removed += await self.manager.invalidate(
-            PLAYER_DATA_CACHE_TYPE,
-            tags=(identity, "overview"),
-        )
-        removed += await self.manager.invalidate(
-            PLAYER_CARD_CACHE_TYPE,
-            tags=(identity, "overview"),
-        )
+        removed = await self.invalidate_overview(target_user_id, uid)
         removed += await self.manager.invalidate(
             PLAYER_DATA_CACHE_TYPE,
             tags=(identity, role),

@@ -49,8 +49,12 @@ class DNABind(Bind, table=True):  # pyright: ignore[reportGeneralTypeIssues, rep
 
     @classmethod
     @with_session
-    async def get_group_all_uid(cls, session: AsyncSession, group_id: str) -> list[Self]:
-        result = await session.scalars(select(cls).where(col(cls.group_id).contains(group_id)))
+    async def get_group_all_uid(
+        cls, session: AsyncSession, group_id: str
+    ) -> list[Self]:
+        result = await session.scalars(
+            select(cls).where(col(cls.group_id).contains(group_id))
+        )
         return list(result.all()) if result else []
 
     @classmethod
@@ -80,7 +84,9 @@ class DNABind(Bind, table=True):  # pyright: ignore[reportGeneralTypeIssues, rep
 
         # 第一次绑定
         if not await cls.bind_exists(user_id, bot_id):
-            code = await cls.insert_data(user_id=user_id, bot_id=bot_id, uid=uid, group_id=group_id)
+            code = await cls.insert_data(
+                user_id=user_id, bot_id=bot_id, uid=uid, group_id=group_id
+            )
             return code
 
         # 获取历史
@@ -113,7 +119,9 @@ class DNABind(Bind, table=True):  # pyright: ignore[reportGeneralTypeIssues, rep
 
         if not result:
             # 没有剩余uid，使用 SQL DELETE 删除记录
-            sql = delete(cls).where(and_(col(cls.user_id) == user_id, col(cls.bot_id) == bot_id))
+            sql = delete(cls).where(
+                and_(col(cls.user_id) == user_id, col(cls.bot_id) == bot_id)
+            )
             await session.execute(sql)
             return 0
         else:
@@ -122,8 +130,12 @@ class DNABind(Bind, table=True):  # pyright: ignore[reportGeneralTypeIssues, rep
 
     @classmethod
     @with_session
-    async def delete_all_uid(cls, session: AsyncSession, user_id: str, bot_id: str) -> int:
-        sql = delete(cls).where(and_(col(cls.user_id) == user_id, col(cls.bot_id) == bot_id))
+    async def delete_all_uid(
+        cls, session: AsyncSession, user_id: str, bot_id: str
+    ) -> int:
+        sql = delete(cls).where(
+            and_(col(cls.user_id) == user_id, col(cls.bot_id) == bot_id)
+        )
         await session.execute(sql)
         return 0
 
@@ -138,8 +150,15 @@ class DNAUser(User, table=True):  # pyright: ignore[reportGeneralTypeIssues, rep
 
     @classmethod
     @with_session
-    async def mark_cookie_invalid(cls, session: AsyncSession, uid: str, cookie: str, mark: str):
-        sql = update(cls).where(col(cls.uid) == uid).where(col(cls.cookie) == cookie).values(status=mark)
+    async def mark_cookie_invalid(
+        cls, session: AsyncSession, uid: str, cookie: str, mark: str
+    ):
+        sql = (
+            update(cls)
+            .where(col(cls.uid) == uid)
+            .where(col(cls.cookie) == cookie)
+            .values(status=mark)
+        )
         await session.execute(sql)
         return True
 
@@ -216,7 +235,9 @@ class DNAUser(User, table=True):  # pyright: ignore[reportGeneralTypeIssues, rep
 
     @classmethod
     @with_session
-    async def select_data_by_cookie(cls, session: AsyncSession, cookie: str) -> Self | None:
+    async def select_data_by_cookie(
+        cls, session: AsyncSession, cookie: str
+    ) -> Self | None:
         sql = select(cls).where(cls.cookie == cookie)
         result = await session.execute(sql)
         data = result.scalars().all()
@@ -358,7 +379,9 @@ class DNASign(BaseIDModel, table=True):  # pyright: ignore[reportGeneralTypeIssu
         dna_sign_data.date = dna_sign_data.date or get_today_date()
 
         # 查询是否存在记录
-        record = await cls._find_sign_record(session, dna_sign_data.uid, dna_sign_data.date)
+        record = await cls._find_sign_record(
+            session, dna_sign_data.uid, dna_sign_data.date
+        )
 
         if record:
             # 更新已有记录
@@ -590,8 +613,12 @@ class DNAGroupPrivacy(BaseIDModel, table=True):  # pyright: ignore[reportGeneral
             new_record = cls(
                 group_id=group_id,
                 bot_id=bot_id,
-                force_allow_peek=force_allow_peek if force_allow_peek is not NO_CHANGE else None,
-                force_uid_hidden=force_uid_hidden if force_uid_hidden is not NO_CHANGE else None,
+                force_allow_peek=force_allow_peek
+                if force_allow_peek is not NO_CHANGE
+                else None,
+                force_uid_hidden=force_uid_hidden
+                if force_uid_hidden is not NO_CHANGE
+                else None,
             )
             session.add(new_record)
             return new_record

@@ -41,7 +41,9 @@ class RenderSpec:
         self.full_page = full_page
         self.clip = clip
         self.scale = scale
-        self.image_format: ImageFormat = output_format if output_format is not None else image_format
+        self.image_format: ImageFormat = (
+            output_format if output_format is not None else image_format
+        )
         self.quality = quality
 
         if self.width <= 0:

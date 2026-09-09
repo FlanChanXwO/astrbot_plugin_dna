@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DNAUID 登录</title>
+    <title>狩月终端 登录</title>
     <link
       rel="icon"
-      href="https://herobox-img.yingxiong.com/h5/img/logo_1.png"
-      type="image/x-icon"
+      href="{{ plugin_logo }}"
+      type="image/png"
     />
     <script src="https://dnabbs.yingxiong.com/lib/ct4.js"></script>
     <style>
@@ -257,32 +257,6 @@
         border-left: 1px solid rgba(255, 255, 255, 0.34);
       }
 
-      .login-mode-switch {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding: 4px;
-        margin-bottom: 28px;
-        background: rgba(255, 255, 255, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.54);
-        border-radius: 12px;
-      }
-
-      .login-mode-switch a {
-        padding: 9px 12px;
-        color: var(--muted);
-        border-radius: 9px;
-        font-size: 0.82rem;
-        font-weight: 700;
-        text-align: center;
-        text-decoration: none;
-      }
-
-      .login-mode-switch a[aria-current='page'] {
-        color: var(--primary-strong);
-        background: rgba(255, 255, 255, 0.72);
-        box-shadow: 0 4px 14px rgba(44, 65, 102, 0.1);
-      }
-
       .form-heading {
         margin-bottom: 30px;
       }
@@ -528,12 +502,12 @@
         <div class="login-header">
           <div class="banner">
             <img
-              src="https://herobox-img.yingxiong.com/role/config/character/icon/Head_Songlu.png"
-              alt="松露角色头像"
+              src="{{ plugin_logo }}"
+              alt="狩月终端 Logo"
             />
           </div>
           <div class="banner-text">
-            <div class="logo-text">DNAUID</div>
+            <div class="logo-text">狩月终端</div>
             <div class="welcome-text">登录皎皎角账号</div>
             <div class="dnabbs-text">在本页面完成验证并获取验证码</div>
           </div>
@@ -550,16 +524,9 @@
       </section>
 
       <section class="form-panel">
-        <nav class="login-mode-switch" aria-label="登录方式">
-          <a
-            href="{{ app_login_url }}"
-            aria-current="page"
-            >App 登录</a
-          >
-        </nav>
         <div class="form-heading">
           <div class="form-eyebrow">手机验证码登录</div>
-          <h1>登录 DNAUID</h1>
+          <h1>登录狩月终端</h1>
           <p>填写皎皎角绑定的手机号，完成安全验证后即可登录。</p>
         </div>
         <form id="loginForm">

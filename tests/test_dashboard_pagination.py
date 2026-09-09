@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 import json
+from collections.abc import AsyncIterator
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,16 +15,19 @@ from src.infrastructure.persistence import (
     AsyncDatabase,
     CredentialRepository,
 )
-from src.infrastructure.scheduler_state import SchedulerRegistry, SchedulerTaskDefinition
+from src.infrastructure.scheduler_state import (
+    SchedulerRegistry,
+    SchedulerTaskDefinition,
+)
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.admin import (
     AdminAccount,
     AdminAccountService,
+    AdminAliasService,
     AdminApiResponse,
     AdminApiService,
-    AdminAliasService,
-    AdminPagination,
     AdminPage,
+    AdminPagination,
     CredentialPayload,
     MembershipCapability,
     MembershipProbeResult,
@@ -243,7 +246,7 @@ def test_dashboard_uses_compact_tables_pagination_modals_dynamic_brand_and_no_ic
     css = (page_root / "css" / "dashboard.css").read_text(encoding="utf-8")
 
     assert "logo.png" in html
-    assert "DNAUID（二重螺旋）" in html or "DNAUID（二重螺旋）" in store
+    assert "狩月终端" in html or "狩月终端" in store
     assert "getContext" in bridge
     assert "displayName" in bridge
     assert html.lower().count("<svg") == 0
@@ -267,7 +270,7 @@ def test_dashboard_uses_compact_tables_pagination_modals_dynamic_brand_and_no_ic
 
 
 def test_admin_web_pagination_query_defaults_and_validation(monkeypatch: pytest.MonkeyPatch) -> None:
-    import src.entry.admin_web as admin_web
+    from src.entry import admin_web
 
     monkeypatch.setattr(
         admin_web,
@@ -290,7 +293,7 @@ def test_admin_web_pagination_query_defaults_and_validation(monkeypatch: pytest.
 async def test_admin_web_routes_paginated_accounts_and_redacts_credentials(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import src.entry.admin_web as admin_web
+    from src.entry import admin_web
 
     captured: dict[str, object] = {}
 
@@ -352,7 +355,7 @@ async def test_admin_web_routes_paginated_accounts_and_redacts_credentials(
 async def test_admin_web_rejects_invalid_page_size_before_service_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import src.entry.admin_web as admin_web
+    from src.entry import admin_web
 
     class MustNotRun:
         async def list_accounts_page(self, *args: object, **kwargs: object):

@@ -9,6 +9,9 @@ NOTICES_SERVICE_UNAVAILABLE = get_tip("notices.service_unavailable")
 NOTICES_UID_INVALID = get_tip("notices.uid_invalid")
 NOTICES_PEEK_BLOCKED = get_tip("notices.peek_blocked")
 MH_NOT_FOUND = get_tip("notices.mh_not_found")
+MH_PUBLIC_CREDENTIAL_UNAVAILABLE = get_tip(
+    "notices.mh_public_credential_unavailable"
+)
 ANN_LIST_FAILED = get_tip("notices.ann_list_failed")
 ANN_INDEX_INVALID = get_tip("notices.ann_index_invalid")
 ANN_DETAIL_FAILED = get_tip("notices.ann_detail_failed")
@@ -38,11 +41,11 @@ def transport_error(kind: str, *, target: bool = False) -> str:
     return get_tip("common.service_unavailable")
 
 
-def mh_all_forbidden(prefix: str = "kk") -> str:
+def mh_all_forbidden(prefix: str = "dna") -> str:
     return get_tip("notices.mh_all_forbidden", prefix=prefix)
 
 
-def mh_push_time_format(prefix: str = "kk") -> str:
+def mh_push_time_format(prefix: str = "dna") -> str:
     return get_tip("notices.mh_push_time_format", prefix=prefix)
 
 
@@ -82,7 +85,7 @@ def mh_text_title() -> str:
     return get_tip("notices.mh_text_title")
 
 
-COMMAND_PREFIX = "kk"
+COMMAND_PREFIX = "dna"
 MH_ALL_FORBIDDEN = mh_all_forbidden(COMMAND_PREFIX)
 MH_SUBSCRIBED_TEMPLATE = get_tip_template("notices.mh_subscribed")
 MH_DUPLICATE = get_tip_template("notices.mh_duplicate")
@@ -131,6 +134,7 @@ __all__ = [
     "MH_PIC_SUBSCRIBE",
     "MH_PIC_SUBSCRIBED",
     "MH_PIC_UNSUBSCRIBED",
+    "MH_PUBLIC_CREDENTIAL_UNAVAILABLE",
     "MH_PUSH_TIME_FORMAT",
     "MH_PUSH_TIME_SET",
     "MH_PUSH_TIME_UNLIMITED",

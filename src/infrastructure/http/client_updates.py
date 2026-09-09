@@ -10,11 +10,16 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from typing import Any, Self
 
 import httpx
 
+from ...modules.client_updates.channels import (
+    CLIENT_UPDATE_CHANNELS,
+    ClientUpdateChannel,
+    default_channel_id_for_platform,
+    resolve_client_update_channel,
+)
 from ...modules.client_updates.contracts import (
     ClientPlatform,
     ClientUpdateFailureKind,
@@ -23,6 +28,7 @@ from ...modules.client_updates.contracts import (
     ClientUpdateTransportError,
     ClientVersionSnapshot,
     parse_version_list_entries,
+    sum_channel_patch_file_sizes,
     sum_patch_file_sizes,
 )
 from .concurrency import RequestConcurrencyGate
@@ -95,40 +101,17 @@ else:
     _NETWORK_ERRORS = (httpx.HTTPError, OSError, asyncio.TimeoutError)
 
 
-PC_PRIMARY_BASE_URL = "http://pan01-1-eo.shyxhy.com"
-PC_FALLBACK_BASE_URL = "http://pan01-1-hs.shyxhy.com"
-ANDROID_PRIMARY_BASE_URL = "https://pan01-1-hs.shyxhy.com"
-ANDROID_FALLBACK_BASE_URL = PC_PRIMARY_BASE_URL
-
-PC_BRANCH = "Patches/FinalPatch/CN/Default/WindowsNoEditor/PC_OBT_CN_Pub"
-ANDROID_BRANCH = "Patches/FinalPatch/CN/Default/Android_ASTC/Android_OBT_CN_Pub"
-
-PC_USER_AGENT = "EMLauncher/++UE4+Release-4.27-CL-0 Windows/10.0.26100.1.256.64bit"
-ANDROID_USER_AGENT = "EM/++UE4+Release-4.27-CL-0 Android/12"
-
-
-@dataclass(frozen=True, slots=True)
-class _PlatformConfig:
-    primary_base_url: str
-    fallback_base_url: str
-    branch: str
-    user_agent: str
-
-
-_PLATFORM_CONFIGS = {
-    ClientPlatform.PC: _PlatformConfig(
-        primary_base_url=PC_PRIMARY_BASE_URL,
-        fallback_base_url=PC_FALLBACK_BASE_URL,
-        branch=PC_BRANCH,
-        user_agent=PC_USER_AGENT,
-    ),
-    ClientPlatform.ANDROID: _PlatformConfig(
-        primary_base_url=ANDROID_PRIMARY_BASE_URL,
-        fallback_base_url=ANDROID_FALLBACK_BASE_URL,
-        branch=ANDROID_BRANCH,
-        user_agent=ANDROID_USER_AGENT,
-    ),
-}
+# 旧 platform transport 常量继续保留为兼容导出，但协议元数据唯一来自 channel registry。
+_PC_CHANNEL = CLIENT_UPDATE_CHANNELS["pc_cn"]
+_ANDROID_CHANNEL = CLIENT_UPDATE_CHANNELS["android_astc_cn"]
+PC_PRIMARY_BASE_URL = _PC_CHANNEL.primary_base_url
+PC_FALLBACK_BASE_URL = _PC_CHANNEL.fallback_base_url
+ANDROID_PRIMARY_BASE_URL = _ANDROID_CHANNEL.primary_base_url
+ANDROID_FALLBACK_BASE_URL = _ANDROID_CHANNEL.fallback_base_url
+PC_BRANCH = _PC_CHANNEL.branch
+ANDROID_BRANCH = _ANDROID_CHANNEL.branch
+PC_USER_AGENT = _PC_CHANNEL.user_agent
+ANDROID_USER_AGENT = _ANDROID_CHANNEL.user_agent
 
 
 SessionFactory = Callable[[], Any]
@@ -154,23 +137,27 @@ class ClientUpdateTransport:
         *,
         previous_patch_version: int | None = None,
     ) -> ClientUpdateObservation:
-        """读取最新版本，并在提供历史版本时计算新增补丁大小。"""
+        """读取一个平台或固定渠道的最新版本及新增补丁大小。"""
 
-        normalized_platform = _coerce_platform(platform)
+        normalized_platform, channel, explicit_channel = _resolve_target(platform)
         _validate_previous_patch_version(previous_patch_version)
-        config = _PLATFORM_CONFIGS[normalized_platform]
 
         async with self._session_factory() as session:
             version_payload, version_url = await self._get_version_payload(
                 session,
-                config,
+                channel,
             )
             version_base_url = (
-                config.primary_base_url
-                if version_url == _version_url(config.primary_base_url, config.branch)
-                else config.fallback_base_url
+                channel.primary_base_url
+                if version_url == _version_url(channel.primary_base_url, channel.branch)
+                else channel.fallback_base_url
             )
-            entries = _parse_version_entries(version_payload, normalized_platform)
+            entries = _parse_version_entries(
+                version_payload,
+                normalized_platform,
+                channel=channel,
+                explicit_channel=explicit_channel,
+            )
             latest = max(
                 entries,
                 key=lambda version: (version.version_key, version.patch_version),
@@ -195,9 +182,9 @@ class ClientUpdateTransport:
                     )
                 patch_sizes[patch_version] = await self._get_patch_size(
                     session,
-                    normalized_platform,
-                    config,
+                    channel,
                     entry,
+                    explicit_channel=explicit_channel,
                     base_url=version_base_url,
                 )
 
@@ -209,15 +196,73 @@ class ClientUpdateTransport:
     async def _get_version_payload(
         self,
         session: Any,
-        config: _PlatformConfig,
+        channel: ClientUpdateChannel,
     ) -> tuple[object, str]:
         return await self._get_json_with_fallback(
             session,
-            primary_url=_version_url(config.primary_base_url, config.branch),
-            fallback_url=_version_url(config.fallback_base_url, config.branch),
-            user_agent=config.user_agent,
+            primary_url=_version_url(channel.primary_base_url, channel.branch),
+            fallback_url=_version_url(channel.fallback_base_url, channel.branch),
+            user_agent=channel.user_agent,
             resource="VersionList",
         )
+
+    async def _get_patch_size(
+        self,
+        session: Any,
+        channel: ClientUpdateChannel,
+        entry: ClientVersionSnapshot,
+        *,
+        explicit_channel: bool,
+        base_url: str,
+    ) -> int:
+        directory = _manifest_directory(channel.platform, entry)
+        fallback_base_url = (
+            channel.fallback_base_url
+            if base_url == channel.primary_base_url
+            else channel.primary_base_url
+        )
+        pak_payload_result, res_payload_result = await asyncio.gather(
+            self._get_json_with_fallback(
+                session,
+                primary_url=_manifest_url(
+                    base_url, channel.branch, directory, "PakFilesInfo.json"
+                ),
+                fallback_url=_manifest_url(
+                    fallback_base_url,
+                    channel.branch,
+                    directory,
+                    "PakFilesInfo.json",
+                ),
+                user_agent=channel.user_agent,
+                resource="PakFilesInfo",
+            ),
+            self._get_json_with_fallback(
+                session,
+                primary_url=_manifest_url(
+                    base_url, channel.branch, directory, "ResDiscreteInfo.json"
+                ),
+                fallback_url=_manifest_url(
+                    fallback_base_url,
+                    channel.branch,
+                    directory,
+                    "ResDiscreteInfo.json",
+                ),
+                user_agent=channel.user_agent,
+                resource="ResDiscreteInfo",
+            ),
+        )
+        pak_payload, _ = pak_payload_result
+        res_payload, _ = res_payload_result
+        try:
+            if explicit_channel:
+                return sum_channel_patch_file_sizes(
+                    channel.channel_id,
+                    pak_payload,
+                    res_payload,
+                )
+            return sum_patch_file_sizes(channel.platform, pak_payload, res_payload)
+        except (ClientUpdateStructureError, TypeError, ValueError) as error:
+            raise _contract_error("补丁清单", type(error).__name__) from None
 
     async def _get_json_with_fallback(
         self,
@@ -250,58 +295,6 @@ class ClientUpdateTransport:
                 ),
                 fallback_url,
             )
-
-    async def _get_patch_size(
-        self,
-        session: Any,
-        platform: ClientPlatform,
-        config: _PlatformConfig,
-        entry: ClientVersionSnapshot,
-        *,
-        base_url: str,
-    ) -> int:
-        directory = _manifest_directory(platform, entry)
-        fallback_base_url = (
-            config.fallback_base_url
-            if base_url == config.primary_base_url
-            else config.primary_base_url
-        )
-        pak_payload_result, res_payload_result = await asyncio.gather(
-            self._get_json_with_fallback(
-                session,
-                primary_url=_manifest_url(
-                    base_url, config.branch, directory, "PakFilesInfo.json"
-                ),
-                fallback_url=_manifest_url(
-                    fallback_base_url,
-                    config.branch,
-                    directory,
-                    "PakFilesInfo.json",
-                ),
-                user_agent=config.user_agent,
-                resource="PakFilesInfo",
-            ),
-            self._get_json_with_fallback(
-                session,
-                primary_url=_manifest_url(
-                    base_url, config.branch, directory, "ResDiscreteInfo.json"
-                ),
-                fallback_url=_manifest_url(
-                    fallback_base_url,
-                    config.branch,
-                    directory,
-                    "ResDiscreteInfo.json",
-                ),
-                user_agent=config.user_agent,
-                resource="ResDiscreteInfo",
-            ),
-        )
-        pak_payload, _ = pak_payload_result
-        res_payload, _ = res_payload_result
-        try:
-            return sum_patch_file_sizes(platform, pak_payload, res_payload)
-        except (ClientUpdateStructureError, TypeError, ValueError) as error:
-            raise _contract_error("补丁清单", type(error).__name__) from None
 
     async def _get_json(
         self,
@@ -355,11 +348,30 @@ class ClientUpdateTransport:
         return await self.request_gate.run(request, key=("client-update-json", url))
 
 
+def _resolve_target(
+    target: ClientPlatform | str,
+) -> tuple[ClientPlatform, ClientUpdateChannel, bool]:
+    try:
+        normalized_platform = _coerce_platform(target)
+    except ValueError:
+        channel = resolve_client_update_channel(target)
+        return channel.platform, channel, True
+    channel = resolve_client_update_channel(
+        default_channel_id_for_platform(normalized_platform)
+    )
+    return normalized_platform, channel, False
+
+
 def _parse_version_entries(
     payload: object,
     platform: ClientPlatform,
+    *,
+    channel: ClientUpdateChannel,
+    explicit_channel: bool,
 ) -> tuple[ClientVersionSnapshot, ...]:
     try:
+        if explicit_channel:
+            return parse_version_list_entries(payload, channel.channel_id)
         return parse_version_list_entries(payload, platform)
     except (ClientUpdateStructureError, TypeError, ValueError) as error:
         raise _contract_error("VersionList", type(error).__name__) from None

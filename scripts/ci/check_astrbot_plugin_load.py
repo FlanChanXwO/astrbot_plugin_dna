@@ -114,9 +114,7 @@ def _is_excluded_name(name: str) -> bool:
         return True
     if name.startswith(".env"):
         return True
-    if lowered.endswith((".sqlite", ".sqlite3", ".db", ".log", ".pyc")):
-        return True
-    return False
+    return lowered.endswith((".sqlite", ".sqlite3", ".db", ".log", ".pyc"))
 
 
 def _validate_plugin_name(plugin_name: str) -> None:
@@ -219,9 +217,8 @@ def _write_ci_plugin_config(astrbot_root: Path, plugin_name: str) -> None:
         json.dumps(
             {
                 "login": {"port": 0},
-                "sign_in": {"scheduled_enabled": False},
                 "notifications": {"announcement_enabled": False},
-                "agent_tools": {"enabled": False},
+                "ai": {"agent_tools_enabled": False},
             },
             ensure_ascii=False,
             indent=2,
@@ -273,75 +270,16 @@ def _build_official_context(context_cls: type[Any], config: Any) -> Any:
     return context_cls(**kwargs)
 
 
-class _ResourcePreheatGuard:
-    """在官方导入插件后、执行 initialize 前禁用外部资源预热。"""
-
-    def __init__(self, plugin_name: str) -> None:
-        self._plugin_name = plugin_name
-        self._service_cls: type[Any] | None = None
-        self._original_start_preheat: Any | None = None
-
-    def install_for_imported_plugin(self, root_dir_name: str) -> None:
-        if root_dir_name != self._plugin_name or self._service_cls is not None:
-            return
-        module_name = (
-            f"data.plugins.{self._plugin_name}.src.modules.operations.resource_service"
-        )
-        module = sys.modules.get(module_name)
-        if module is None:
-            # 插件导入失败时必须让官方 loader 自己报告原始 import 错误。
-            return
-        service_cls = getattr(module, "ResourceUpdateService", None)
-        original = getattr(service_cls, "start_preheat", None)
-        if service_cls is None or not callable(original):
-            return
-
-        async def _skip_preheat(_self: Any) -> None:
-            """loader CI 不把外部公共资源仓库可用性作为通过条件。"""
-
-        self._service_cls = service_cls
-        self._original_start_preheat = original
-        service_cls.start_preheat = _skip_preheat
-
-    def restore(self) -> None:
-        if self._service_cls is not None and self._original_start_preheat is not None:
-            self._service_cls.start_preheat = self._original_start_preheat
-            self._service_cls = None
-            self._original_start_preheat = None
-
-
-def _tracking_manager_class(
-    manager_cls: type[Any],
-    *,
-    plugin_name: str,
-    on_plugin_import: Callable[[str], object],
-) -> type[Any]:
-    has_cleanup_hook = hasattr(manager_cls, "_cleanup_plugin_state")
-    has_import_hook = hasattr(manager_cls, "_import_plugin_with_dependency_recovery")
-    if not has_cleanup_hook and not has_import_hook:
+def _tracking_manager_class(manager_cls: type[Any]) -> type[Any]:
+    if not hasattr(manager_cls, "_cleanup_plugin_state"):
         return manager_cls
 
     class TrackingPluginManager(manager_cls):
-        """在官方清理前保留失败初始化实例，并注入 CI 预热隔离。"""
+        """在官方清理前保留失败初始化实例。"""
 
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             self.captured_metadata: list[Any] = []
             super().__init__(*args, **kwargs)
-
-        async def _import_plugin_with_dependency_recovery(
-            self,
-            *args: Any,
-            **kwargs: Any,
-        ) -> Any:
-            imported_module = await _await_if_needed(
-                super()._import_plugin_with_dependency_recovery(*args, **kwargs),
-            )
-            root_dir_name = kwargs.get("root_dir_name")
-            if root_dir_name is None and len(args) >= 3:
-                root_dir_name = args[2]
-            if root_dir_name == plugin_name:
-                await _await_if_needed(on_plugin_import(plugin_name))
-            return imported_module
 
         def _cleanup_plugin_state(self, *args: Any, **kwargs: Any) -> Any:
             get_all_stars = getattr(self.context, "get_all_stars", None)
@@ -361,33 +299,20 @@ def _build_official_runtime(
     """建立官方 Context/PluginManager，供同一套 loader 逻辑调用。"""
 
     _write_ci_plugin_config(astrbot_root, plugin_name)
-    resource_guard = _ResourcePreheatGuard(plugin_name)
-    try:
-        from astrbot.api.star import Context
-        from astrbot.core import AstrBotConfig
-        from astrbot.core.star.star_manager import PluginManager
+    from astrbot.api.star import Context
+    from astrbot.core import AstrBotConfig
+    from astrbot.core.star.star_manager import PluginManager
 
-        config = AstrBotConfig(
-            config_path=str(astrbot_root / "data" / "cmd_config.json"),
-        )
-        context = _build_official_context(Context, config)
-        # 避免同一解释器内的测试/重复调用复用旧 Web API 列表。
-        if isinstance(getattr(Context, "registered_web_apis", None), list):
-            Context.registered_web_apis = []
-        manager_cls = _tracking_manager_class(
-            PluginManager,
-            plugin_name=plugin_name,
-            on_plugin_import=resource_guard.install_for_imported_plugin,
-        )
-        manager = manager_cls(context, config)
-    except _CATCHABLE_ERRORS:
-        resource_guard.restore()
-        raise
-    return LoaderRuntime(
-        context=context,
-        plugin_manager=manager,
-        cleanup_callbacks=(resource_guard.restore,),
+    config = AstrBotConfig(
+        config_path=str(astrbot_root / "data" / "cmd_config.json"),
     )
+    context = _build_official_context(Context, config)
+    # 避免同一解释器内的测试/重复调用复用旧 Web API 列表。
+    if isinstance(getattr(Context, "registered_web_apis", None), list):
+        Context.registered_web_apis = []
+    manager_cls = _tracking_manager_class(PluginManager)
+    manager = manager_cls(context, config)
+    return LoaderRuntime(context=context, plugin_manager=manager)
 
 
 def _find_metadata(runtime: LoaderRuntime, plugin_name: str) -> Any | None:
@@ -742,7 +667,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--astrbot-root", required=True, help="本次检查使用的临时 ASTRBOT_ROOT"
     )
     parser.add_argument(
-        "--plugin-name", required=True, help="插件目录名，例如 astrbot_plugin_dnaby"
+        "--plugin-name", required=True, help="插件目录名，例如 astrbot_plugin_dna"
     )
     return parser
 

@@ -16,7 +16,9 @@ from .contracts import PrivacyActor, PrivacySnapshot, QueryResolution
 class PrivacyService:
     """在显式事务内协调个人隐私、群强制设置和 @ 查询策略。"""
 
-    def __init__(self, database: AsyncDatabase, *, allow_mention_query: bool = True) -> None:
+    def __init__(
+        self, database: AsyncDatabase, *, allow_mention_query: bool = True
+    ) -> None:
         self.database = database
         self.allow_mention_query = allow_mention_query
 
@@ -245,9 +247,7 @@ class PrivacyService:
                 uid_hidden=uid_hidden,
             )
         return PlainTextResponse(
-            messages.TARGET_UID_ENABLED
-            if uid_hidden
-            else messages.TARGET_UID_DISABLED,
+            messages.TARGET_UID_ENABLED if uid_hidden else messages.TARGET_UID_DISABLED,
         )
 
     async def set_group_peek(

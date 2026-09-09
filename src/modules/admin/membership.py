@@ -277,7 +277,9 @@ def _coerce_result(
             reason=(
                 str(value.get("reason"))
                 if value.get("reason") is not None
-                else (None if status is not MembershipStatus.UNKNOWN else "invalid_result")
+                else (
+                    None if status is not MembershipStatus.UNKNOWN else "invalid_result"
+                )
             ),
         )
     return MembershipProbeResult(
@@ -503,10 +505,12 @@ class MembershipService:
                 data=empty_result,
             )
         try:
-            deleted_count = await self.subscriptions.delete_personal_subscriptions_for_group(
-                normalized_user_id,
-                normalized_group_id,
-                subscription_type=notices_messages.MH_SUBSCRIBE,
+            deleted_count = (
+                await self.subscriptions.delete_personal_subscriptions_for_group(
+                    normalized_user_id,
+                    normalized_group_id,
+                    subscription_type=notices_messages.MH_SUBSCRIBE,
+                )
             )
         except Exception:  # noqa: BLE001
             return _failure(
@@ -544,15 +548,14 @@ class MembershipService:
             return _failure(AdminErrorCode.VALIDATION, "删除计划 user_id 无效")
         if plan.uid is not None or not plan.affected_uids:
             return _failure(AdminErrorCode.VALIDATION, "全局删除计划范围不一致")
-        if any(not _normalized_id(uid) or uid != uid.strip() for uid in plan.affected_uids):
+        if any(
+            not _normalized_id(uid) or uid != uid.strip() for uid in plan.affected_uids
+        ):
             return _failure(AdminErrorCode.VALIDATION, "删除计划包含无效 UID")
         if len(set(plan.affected_uids)) != len(plan.affected_uids):
             return _failure(AdminErrorCode.VALIDATION, "删除计划包含重复 UID")
         expected = f"delete:user:{user_id}"
-        if (
-            plan.confirmation_payload != expected
-            or confirmation_payload != expected
-        ):
+        if plan.confirmation_payload != expected or confirmation_payload != expected:
             return _failure(AdminErrorCode.VALIDATION, "删除确认串与目标身份不匹配")
         return user_id
 
@@ -709,18 +712,14 @@ class AiocqhttpMembershipProbe:
             try:
                 raw_platforms = get_insts()
                 platforms = (
-                    tuple(raw_platforms)
-                    if isinstance(raw_platforms, Iterable)
-                    else ()
+                    tuple(raw_platforms) if isinstance(raw_platforms, Iterable) else ()
                 )
             except Exception:  # noqa: BLE001
                 platforms = ()
         else:
             raw_platforms = getattr(manager, "platform_insts", ())
             platforms = (
-                tuple(raw_platforms)
-                if isinstance(raw_platforms, Iterable)
-                else ()
+                tuple(raw_platforms) if isinstance(raw_platforms, Iterable) else ()
             )
         if self.platform_id is not None:
             for platform in platforms:

@@ -105,6 +105,22 @@ class RoleAchievement(_PlayerModel):
     )
 
 
+class RoleHeader(_PlayerModel):
+    """查询型卡片只需要的角色头部与统计投影。
+
+    角色列表、武器列表和成就总数属于完整角色卡片的消费者；签到日历、
+    日常便签和周报只读取身份、等级及少量统计项，因此不应为这些命令
+    强制校验完整展柜。
+    """
+
+    role_id: str = Field(validation_alias="roleId", serialization_alias="roleId")
+    role_name: str = Field(
+        default="", validation_alias="roleName", serialization_alias="roleName"
+    )
+    level: int | None = None
+    params: list[RoleAchievement] = Field(default_factory=list)
+
+
 class RoleOverview(_PlayerModel):
     """`defaultRoleForTool` 中 roleShow 的完整 typed 投影。"""
 
@@ -542,6 +558,7 @@ __all__ = [
     "PlayerTransportError",
     "RoleAttribute",
     "RoleDetail",
+    "RoleHeader",
     "RoleItem",
     "RoleOverview",
     "RoleSkill",
