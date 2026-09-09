@@ -308,21 +308,29 @@ class ClientUpdateTransport:
             if not _can_fallback(error):
                 raise
             logger.warning(
-                "客户端更新主端点失败，尝试备用端点 "
+                "客户端更新端点失败 endpoint_role=primary next_role=fallback "
                 "resource=%s kind=%s status=%s",
                 error.resource,
                 error.kind.value,
                 error.status_code,
             )
-            return (
-                await self._get_json(
+            try:
+                fallback_payload = await self._get_json(
                     session,
                     fallback_url,
                     user_agent=user_agent,
                     resource=resource,
-                ),
-                fallback_url,
-            )
+                )
+            except ClientUpdateTransportError as fallback_error:
+                logger.warning(
+                    "客户端更新端点失败 endpoint_role=fallback "
+                    "resource=%s kind=%s status=%s",
+                    fallback_error.resource,
+                    fallback_error.kind.value,
+                    fallback_error.status_code,
+                )
+                raise
+            return fallback_payload, fallback_url
 
     async def _get_json(
         self,

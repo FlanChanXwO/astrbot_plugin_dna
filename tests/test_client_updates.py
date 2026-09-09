@@ -756,9 +756,15 @@ async def test_manifest_transport_logs_safe_primary_failure_before_fallback(
     assert caught.value.status_code == 503
     assert logger.calls == [
         (
-            "客户端更新主端点失败，尝试备用端点 resource=%s kind=%s status=%s",
+            "客户端更新端点失败 endpoint_role=primary next_role=fallback "
+            "resource=%s kind=%s status=%s",
             ("VersionList", "network", None),
-        )
+        ),
+        (
+            "客户端更新端点失败 endpoint_role=fallback "
+            "resource=%s kind=%s status=%s",
+            ("VersionList", "status", 503),
+        ),
     ]
     assert primary_url not in repr(logger.calls)
     assert fallback_url not in repr(logger.calls)
