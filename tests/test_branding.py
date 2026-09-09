@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -24,6 +23,19 @@ def test_rendered_brand_surfaces_use_display_name() -> None:
     assert '<div class="logo-text">DNA</div>' not in login_template
     assert "<h1>登录 DNA</h1>" not in login_template
     assert "DNA | 二重螺旋活动列表一栏 | 皎皎角" not in calendar_template
+
+
+def test_login_template_keeps_static_fallback_and_defers_media_loading():
+    login_template = (ROOT / "src/templates/index.html.j2").read_text(encoding="utf-8")
+
+    assert "login_media.video_url" in login_template
+    assert "login_media.audio_url" in login_template
+    assert "prefers-reduced-motion: reduce" in login_template
+    assert 'aria-pressed="false"' in login_template
+    assert "data-video-src" in login_template
+    assert "data-audio-src" in login_template
+    assert "herobox-img.yingxiong.com/post/1748784746036602530.jpg" in login_template
+
 
 
 def test_login_surfaces_use_canonical_plugin_logo() -> None:

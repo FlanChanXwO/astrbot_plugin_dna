@@ -49,7 +49,7 @@
         content: '';
         position: fixed;
         inset: -24px;
-        z-index: -2;
+        z-index: -3;
         background-image: var(
           --page-background,
           url('https://herobox-img.yingxiong.com/post/1748784746036602530.jpg')
@@ -68,6 +68,22 @@
         background:
           radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.4), transparent 34%),
           linear-gradient(135deg, rgba(27, 45, 75, 0.38), rgba(227, 235, 247, 0.2));
+      }
+
+      .background-video {
+        position: fixed;
+        inset: 0;
+        z-index: -2;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.45s ease;
+      }
+
+      .background-video.is-ready {
+        opacity: 1;
       }
 
       .login-container {
@@ -376,6 +392,38 @@
         opacity: 0.86;
       }
 
+      .audio-toggle {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        z-index: 20;
+        display: inline-flex;
+        width: auto;
+        min-height: 42px;
+        padding: 9px 14px;
+        align-items: center;
+        gap: 8px;
+        color: #fff;
+        background: rgba(37, 51, 76, 0.76);
+        border: 1px solid rgba(255, 255, 255, 0.36);
+        border-radius: 999px;
+        box-shadow: 0 10px 24px rgba(25, 36, 57, 0.2);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      .audio-toggle:hover:not(:disabled),
+      .audio-toggle:focus-visible:not(:disabled) {
+        background: rgba(37, 51, 76, 0.9);
+        transform: translateY(-1px);
+      }
+
+      .audio-toggle[aria-pressed='true'] {
+        background: rgba(53, 104, 212, 0.84);
+      }
+
       .toast-container {
         position: fixed;
         top: 20px;
@@ -495,6 +543,36 @@
     </style>
   </head>
   <body>
+    {% if login_media and login_media.video_url and login_media.audio_url %}
+    <video
+      id="backgroundVideo"
+      class="background-video"
+      autoplay
+      loop
+      muted
+      playsinline
+      preload="metadata"
+      aria-hidden="true"
+      data-video-src="{{ login_media.video_url | e }}"
+    ></video>
+    <audio
+      id="backgroundAudio"
+      loop
+      preload="none"
+      data-audio-src="{{ login_media.audio_url | e }}"
+    ></audio>
+    <button
+      type="button"
+      id="audioToggle"
+      class="audio-toggle"
+      hidden
+      aria-label="开启音乐"
+      aria-pressed="false"
+    >
+      <span aria-hidden="true">♫</span>
+      <span id="audioToggleLabel">开启音乐</span>
+    </button>
+    {% endif %}
     <div class="toast-container" id="toastContainer"></div>
 
     <main class="login-container">
@@ -768,6 +846,99 @@
         updateLoginButton()
       })
 
+      function initLoginMedia() {
+        const backgroundVideo = document.getElementById('backgroundVideo')
+        const backgroundAudio = document.getElementById('backgroundAudio')
+        const audioToggle = document.getElementById('audioToggle')
+        const audioToggleLabel = document.getElementById('audioToggleLabel')
+
+        if (!backgroundVideo || !backgroundAudio || !audioToggle) {
+          return
+        }
+
+        const reducedMotion = window.matchMedia(
+          '(prefers-reduced-motion: reduce)',
+        ).matches
+        if (reducedMotion) {
+          return
+        }
+
+        const videoSrc = backgroundVideo.dataset.videoSrc
+        const audioSrc = backgroundAudio.dataset.audioSrc
+        if (!videoSrc || !audioSrc) {
+          return
+        }
+
+        let audioAutoplayAttempted = false
+        let videoFailed = false
+
+        function updateAudioToggle() {
+          const isPlaying = !backgroundAudio.paused
+          const isMuted = backgroundAudio.muted
+          const label = isPlaying
+            ? isMuted
+              ? '开启音乐'
+              : '静音'
+            : '开启音乐'
+          audioToggleLabel.textContent = label
+          audioToggle.setAttribute('aria-label', label)
+          audioToggle.setAttribute('aria-pressed', String(isMuted))
+        }
+
+        function hideAudioToggle() {
+          backgroundAudio.pause()
+          audioToggle.hidden = true
+        }
+
+        function stopMediaAfterVideoFailure() {
+          videoFailed = true
+          backgroundVideo.pause()
+          backgroundVideo.classList.remove('is-ready')
+          hideAudioToggle()
+        }
+
+        async function tryPlayAudio() {
+          if (videoFailed || audioAutoplayAttempted || !backgroundAudio.src) {
+            return
+          }
+          audioAutoplayAttempted = true
+          audioToggle.hidden = false
+          updateAudioToggle()
+          try {
+            await backgroundAudio.play()
+          } catch {
+            // 浏览器禁止自动播放时保留按钮，让用户显式启动音乐。
+          }
+          updateAudioToggle()
+        }
+
+        backgroundVideo.addEventListener('canplay', function () {
+          backgroundVideo.classList.add('is-ready')
+        })
+        backgroundVideo.addEventListener('error', stopMediaAfterVideoFailure)
+        backgroundAudio.addEventListener('canplay', tryPlayAudio)
+        backgroundAudio.addEventListener('error', hideAudioToggle)
+        audioToggle.addEventListener('click', async function () {
+          if (backgroundAudio.paused) {
+            backgroundAudio.muted = false
+            try {
+              await backgroundAudio.play()
+            } catch {
+              // 播放权限仍未授予时维持可重试的按钮状态。
+            }
+          } else {
+            backgroundAudio.muted = !backgroundAudio.muted
+          }
+          updateAudioToggle()
+        })
+
+        backgroundVideo.src = videoSrc
+        backgroundAudio.src = audioSrc
+        backgroundAudio.volume = 0.35
+        backgroundVideo.load()
+        backgroundAudio.load()
+      }
+
       function loadBackgroundImage() {
         const img = new Image()
         img.onload = function () {
@@ -776,6 +947,7 @@
         img.src = 'https://herobox-img.yingxiong.com/post/1748784746036602530.jpg'
       }
 
+      initLoginMedia()
       window.addEventListener('load', loadBackgroundImage)
     </script>
   </body>

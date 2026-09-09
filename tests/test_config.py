@@ -20,8 +20,19 @@ from src.infrastructure.config.settings import (
     DnabySettings,
     DNAConfig,
     DNASignConfig,
+    LoginSettings,
     SignInSettings,
 )
+
+
+def test_login_dynamic_background_defaults_to_enabled_and_is_in_schema():
+    settings = LoginSettings()
+    assert settings.dynamic_background is True
+
+    schema = generate_typed_schema()
+    field = schema["login"]["items"]["dynamic_background"]
+    assert field["type"] == "bool"
+    assert field["default"] is True
 
 
 def test_schema_generation():
