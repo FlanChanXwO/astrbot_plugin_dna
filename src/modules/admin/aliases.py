@@ -8,7 +8,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .contracts import AdminApiResponse, AdminError, AdminErrorCode
+from .contracts import (
+    AdminApiResponse,
+    AdminError,
+    AdminErrorCode,
+    AdminPage,
+    AdminPagination,
+    paginate_items,
+)
 
 
 class AliasStorageError(ValueError):
@@ -323,6 +330,39 @@ class AdminAliasService:
             )
         except AliasStorageError:
             return _failure(AdminErrorCode.INTERNAL, "读取角色别名失败")
+
+    async def list_role_aliases_page(
+        self,
+        pagination: AdminPagination,
+    ) -> AdminApiResponse[AdminPage[AdminAliasEntry]]:
+        """按角色分页，并搜索 canonical/default/custom/effective 别名。"""
+
+        if not isinstance(pagination, AdminPagination):
+            return _failure(AdminErrorCode.VALIDATION, "分页参数无效")
+        try:
+            defaults, custom = self._load()
+            catalog = self._catalog(defaults, custom)
+        except AliasStorageError:
+            return _failure(AdminErrorCode.INTERNAL, "读取角色别名失败")
+
+        search = pagination.search.casefold()
+        matching_roles = tuple(
+            role
+            for role in catalog.roles
+            if not search
+            or any(
+                search in value.casefold()
+                for value in (
+                    role.canonical_name,
+                    *role.default_aliases,
+                    *role.custom_aliases,
+                    *role.effective_aliases,
+                )
+            )
+        )
+        return AdminApiResponse.success(
+            paginate_items(matching_roles, pagination)
+        )
 
     async def get_catalog(self) -> AdminApiResponse[AdminAliasCatalog]:
         """``list_aliases`` 的 API 语义别名。"""

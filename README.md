@@ -174,4 +174,4 @@ ruff check .
 
 ## 🙏 参考与致谢
 
-- 原插件 / 参考实现：[tyql688/DNA](https://github.com/tyql688/DNA%55ID)
+- 原插件 / 参考实现：[tyql688/DNAUID](https://github.com/tyql688/DNA%55ID)
