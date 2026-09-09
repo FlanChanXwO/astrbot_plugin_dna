@@ -66,18 +66,22 @@
       }
       .background-video.is-ready { opacity: 1; }
       .site-header {
+        display: flex;
+        justify-content: center;
+        align-items: center;
         width: 100%;
         max-width: 1600px;
         margin-inline: auto;
         padding: max(32px, env(safe-area-inset-top)) clamp(24px, 5vw, 80px) 0;
+        z-index: 2;
       }
-      .brand { display: inline-flex; align-items: center; gap: 12px; }
-      .brand img {
+      .brand-title-logo {
         display: block;
-        width: 40px;
-        height: 40px;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
+        height: clamp(38px, 5.5vw, 56px);
+        width: auto;
+        max-width: 85vw;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.7));
       }
       .logo-text {
         font-size: 18px;
@@ -136,13 +140,14 @@
         color: var(--ink);
         background: rgba(232, 207, 171, 0.09);
       }
-      .media-toggle[aria-pressed='true'] { color: var(--accent); }
-      .media-toggle svg { width: 19px; height: 19px; }
-      .audio-toggle .sound-on, .motion-toggle .pause-icon { display: none; }
-      .audio-toggle[aria-pressed='true'] .sound-on,
-      .motion-toggle[aria-pressed='true'] .pause-icon { display: block; }
-      .audio-toggle[aria-pressed='true'] .sound-off,
-      .motion-toggle[aria-pressed='true'] .play-icon { display: none; }
+      .media-toggle svg, .media-toggle img {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+      }
+      .audio-toggle .sound-on { display: none; }
+      .audio-toggle[aria-pressed='true'] .sound-on { display: block; }
+      .audio-toggle[aria-pressed='true'] .sound-off { display: none; }
       .sr-only {
         position: absolute;
         width: 1px;
@@ -277,35 +282,31 @@
       .form-status[data-kind='success'] { color: #d7e7bd; }
       @media (max-width: 720px) {
         .scene {
-          bottom: auto;
-          height: 70vh;
-          height: 70svh;
-          min-height: 400px;
-          background-position: 52% 20%;
+          inset: 0;
+          height: 100%;
+          min-height: 100%;
+          background-position: 50% 25%;
         }
-        .background-video { object-position: 52% 20%; }
+        .background-video { object-position: 50% 25%; }
         .scene::after {
-          background: linear-gradient(180deg, rgba(20, 19, 22, 0.22), transparent 22%, transparent 53%, #141316 100%);
+          background: linear-gradient(180deg, rgba(20, 19, 22, 0.35), rgba(20, 19, 22, 0.2) 40%, rgba(20, 19, 22, 0.65) 100%);
         }
         .site-header {
-          padding: max(20px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-left)) 0;
+          padding: max(20px, env(safe-area-inset-top)) 16px 0;
         }
-        .brand { gap: 10px; }
-        .brand img { width: 34px; height: 34px; border-radius: 10px; }
-        .logo-text { font-size: 16px; }
+        .brand-title-logo {
+          height: clamp(34px, 8.5vw, 46px);
+        }
         .login-container {
           flex: 1;
-          align-items: flex-end;
+          align-items: center;
           justify-content: center;
-          padding: clamp(210px, 35svh, 420px) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+          padding: 20px max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
         }
-        .form-panel { width: 408px; padding: 18px 24px 24px; border-radius: 18px; }
+        .form-panel { width: 408px; padding: 22px 24px 26px; border-radius: 18px; }
         h1 { margin-bottom: 24px; font-size: 25px; }
         .input-group { margin-bottom: 18px; }
         #loginBtn { margin-top: 24px; }
-      }
-      @media (max-width: 720px) and (max-height: 740px) {
-        .login-container { padding-top: clamp(155px, 28svh, 210px); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
       }
       @media (max-width: 360px) {
         .form-panel { padding-inline: 20px; }
@@ -332,10 +333,8 @@
     <audio id="backgroundAudio" loop preload="none" data-audio-src="{{ login_media.audio_url | e }}"></audio>
     {% endif %}
     <header class="site-header">
-      <div class="brand">
-        <img src="{{ plugin_logo }}" alt="狩月终端 Logo" width="40" height="40" />
-        <div class="logo-text">狩月终端</div>
-      </div>
+      <img class="brand-title-logo" src="{{ title_logo | default(plugin_logo) }}" alt="狩月终端 Logo" />
+      <div class="logo-text sr-only">狩月终端</div>
     </header>
     <main class="login-container">
       <section class="form-panel" aria-labelledby="loginHeading">
@@ -344,15 +343,15 @@
             <p class="form-eyebrow">皎皎角账号</p>
             {% if login_media and login_media.video_url and login_media.audio_url %}
             <div class="media-controls" role="group" aria-label="背景播放控制">
-              <button type="button" id="motionToggle" class="media-toggle motion-toggle" hidden
-                aria-label="暂停动态背景" title="暂停动态背景" aria-pressed="false">
-                <svg class="pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg>
-                <svg class="play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m8 5 11 7-11 7Z" /></svg>
-              </button>
               <button type="button" id="audioToggle" class="media-toggle audio-toggle" hidden
                 aria-label="开启音乐" title="开启音乐" aria-pressed="false">
+                {% if music_on_icon and music_off_icon %}
+                <img class="sound-on" src="{{ music_on_icon }}" alt="" aria-hidden="true" />
+                <img class="sound-off" src="{{ music_off_icon }}" alt="" aria-hidden="true" />
+                {% else %}
                 <svg class="sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4-6 5H2v6h3l6 5ZM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14" /></svg>
                 <svg class="sound-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4-6 5H2v6h3l6 5ZM16 9l6 6m0-6-6 6" /></svg>
+                {% endif %}
                 <span id="audioToggleLabel" class="sr-only">开启音乐</span>
               </button>
             </div>
@@ -582,10 +581,8 @@
         const audio = document.getElementById('backgroundAudio')
         const audioToggle = document.getElementById('audioToggle')
         const audioLabel = document.getElementById('audioToggleLabel')
-        const motionToggle = document.getElementById('motionToggle')
-        if (!video || !audio || !audioToggle || !motionToggle) return
+        if (!video || !audio || !audioToggle) return
         const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-        let videoWanted = true
         let audioWanted = false
         let videoFailed = false
         let audioFailed = false
@@ -598,16 +595,10 @@
           audioToggle.setAttribute('aria-label', audioText)
           audioToggle.title = audioText
           audioLabel.textContent = audioText
-          const moving = !video.paused
-          const motionText = moving ? '暂停动态背景' : '播放动态背景'
-          motionToggle.setAttribute('aria-pressed', String(moving))
-          motionToggle.setAttribute('aria-label', motionText)
-          motionToggle.title = motionText
         }
 
         async function syncMedia() {
           const disabled = reducedMotion.matches || videoFailed
-          motionToggle.hidden = disabled
           audioToggle.hidden = disabled || audioFailed
           if (disabled || pageHidden) {
             video.pause()
@@ -629,9 +620,7 @@
             video.muted = true
             video.src = video.dataset.videoSrc
           }
-          if (videoWanted) {
-            try { await video.play() } catch { /* Keep the poster and manual play control. */ }
-          } else video.pause()
+          try { await video.play() } catch { /* Keep the poster if autoplay fails. */ }
           // A user gesture is required before loading the separate soundtrack.
           if (audioWanted && !audioFailed && !pageHidden && !reducedMotion.matches && !videoFailed) {
             if (!audio.hasAttribute('src')) audio.src = audio.dataset.audioSrc
@@ -642,7 +631,7 @@
         }
 
         video.addEventListener('playing', function () {
-          if (pageHidden || reducedMotion.matches || videoFailed || !videoWanted) {
+          if (pageHidden || reducedMotion.matches || videoFailed) {
             video.pause()
             return
           }
@@ -677,10 +666,6 @@
             try { await audio.play() } catch { audioWanted = false }
           } else audio.pause()
           updateControls()
-        })
-        motionToggle.addEventListener('click', function () {
-          videoWanted = !video.paused ? false : true
-          syncMedia()
         })
         document.addEventListener('visibilitychange', function () {
           pageHidden = document.hidden

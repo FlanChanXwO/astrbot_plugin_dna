@@ -51,14 +51,16 @@ def _render(*, media: bool = True) -> tuple[str, _LoginParser]:
 
 
 def test_media_controls_are_inside_the_form_and_do_not_submit() -> None:
-    _, parser = _render()
-    for identifier in ("audioToggle", "motionToggle"):
-        assert identifier in parser.form_controls
-        control = parser.controls[identifier]
-        assert control["type"] == "button"
-        assert control["aria-label"]
-        assert control["aria-pressed"] == "false"
-        assert "hidden" in control
+    page, parser = _render()
+    assert "audioToggle" in parser.form_controls
+    control = parser.controls["audioToggle"]
+    assert control["type"] == "button"
+    assert control["aria-label"]
+    assert control["aria-pressed"] == "false"
+    assert "hidden" in control
+    assert "motionToggle" not in parser.controls
+    assert "motionToggle" not in page
+    assert "暂停动态背景" not in page
 
 
 def test_page_does_not_load_sdk_or_soundtrack_during_initial_parse() -> None:
