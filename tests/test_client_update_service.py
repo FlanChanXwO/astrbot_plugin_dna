@@ -12,8 +12,8 @@ import pytest
 from src.entry.event import EventActor
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.client_updates import (
-    AppStoreVersionMetadata,
     AppStoreProviderConfig,
+    AppStoreVersionMetadata,
     ClientPlatform,
     ClientSourceObservation,
     ClientSourceVersion,
@@ -537,6 +537,220 @@ async def test_concurrent_polls_are_serialized_before_reading_source_baseline(
 
 
 @pytest.mark.asyncio
+async def test_subscribe_waits_for_poll_initial_baseline_and_rechecks_after_lock(
+    tmp_path,
+) -> None:
+    source_id = "cn-official-pc-manifest"
+    current = _source_version(source_id, "100", order_key=(100, 100))
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+
+    class BlockingTransport:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ClientSourceVersion | None]] = []
+
+        async def get_observation(
+            self,
+            requested_source_id: str,
+            *,
+            baseline: ClientSourceVersion | None = None,
+        ) -> ClientSourceObservation:
+            self.calls.append((requested_source_id, baseline))
+            if len(self.calls) == 1:
+                first_started.set()
+                await release_first.wait()
+            return ClientSourceObservation(
+                current=current,
+                observed_versions=(current,),
+                history_complete=True,
+                added_size_bytes=None,
+            )
+
+    transport = BlockingTransport()
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        subscriptions=subscriptions,
+        target_ids=("cn-official-pc",),
+    )
+
+    poll_task = asyncio.create_task(service.poll_now())
+    await first_started.wait()
+    subscribe_task = asyncio.create_task(
+        service.subscribe(ClientUpdateRequest(actor=_group_actor()))
+    )
+    await asyncio.sleep(0)
+
+    assert not subscribe_task.done()
+    release_first.set()
+    changes, response = await asyncio.gather(poll_task, subscribe_task)
+
+    assert changes == ()
+    assert response.text == messages.CLIENT_UPDATE_SUBSCRIBED
+    assert transport.calls == [(source_id, None)]
+    baseline = await state.get_baseline(source_id)
+    assert baseline is not None
+    assert baseline.version == current
+    assert await state.pending_events() == ()
+
+
+@pytest.mark.asyncio
+async def test_poll_waits_for_subscribe_initial_baseline_and_reuses_it(
+    tmp_path,
+) -> None:
+    source_id = "cn-official-pc-manifest"
+    current = _source_version(source_id, "100", order_key=(100, 100))
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    initialization_started = asyncio.Event()
+    release_initialization = asyncio.Event()
+
+    class BlockingTransport:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ClientSourceVersion | None]] = []
+
+        async def get_observation(
+            self,
+            requested_source_id: str,
+            *,
+            baseline: ClientSourceVersion | None = None,
+        ) -> ClientSourceObservation:
+            self.calls.append((requested_source_id, baseline))
+            if len(self.calls) == 1:
+                initialization_started.set()
+                await release_initialization.wait()
+            return ClientSourceObservation(
+                current=current,
+                observed_versions=(current,),
+                history_complete=True,
+                added_size_bytes=None,
+            )
+
+    transport = BlockingTransport()
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        subscriptions=subscriptions,
+        target_ids=("cn-official-pc",),
+    )
+
+    subscribe_task = asyncio.create_task(
+        service.subscribe(ClientUpdateRequest(actor=_group_actor()))
+    )
+    await initialization_started.wait()
+    poll_task = asyncio.create_task(service.poll_now())
+    await asyncio.sleep(0)
+
+    assert not poll_task.done()
+    release_initialization.set()
+    response, changes = await asyncio.gather(subscribe_task, poll_task)
+
+    assert response.text == messages.CLIENT_UPDATE_SUBSCRIBED
+    assert changes == ()
+    assert transport.calls == [(source_id, None), (source_id, current)]
+    baseline = await state.get_baseline(source_id)
+    assert baseline is not None
+    assert baseline.version == current
+    assert await state.pending_events() == ()
+
+
+@pytest.mark.asyncio
+async def test_subscribe_does_not_receive_change_already_in_flight_before_subscription(
+    tmp_path,
+) -> None:
+    pc_source = "cn-official-pc-manifest"
+    android_source = "cn-official-android-astc-manifest"
+    pc_previous = _source_version(pc_source, "100", order_key=(100, 100))
+    pc_current = _source_version(pc_source, "101", order_key=(101, 101))
+    pc_next = _source_version(pc_source, "102", order_key=(102, 102))
+    android_current = _source_version(
+        android_source,
+        "200",
+        order_key=(200, 200),
+    )
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    await state.save_baseline(
+        ClientUpdateBaseline(
+            version=pc_previous,
+            observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+        )
+    )
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    poll_started = asyncio.Event()
+    release_poll = asyncio.Event()
+
+    class ConcurrentTransport:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ClientSourceVersion | None]] = []
+
+        async def get_observation(
+            self,
+            source_id: str,
+            *,
+            baseline: ClientSourceVersion | None = None,
+        ) -> ClientSourceObservation:
+            self.calls.append((source_id, baseline))
+            if source_id == pc_source and baseline == pc_previous:
+                poll_started.set()
+                await release_poll.wait()
+                return ClientSourceObservation(
+                    current=pc_current,
+                    observed_versions=(pc_previous, pc_current),
+                    history_complete=True,
+                    added_size_bytes=1024,
+                )
+            if source_id == pc_source and baseline == pc_current:
+                return ClientSourceObservation(
+                    current=pc_next,
+                    observed_versions=(pc_current, pc_next),
+                    history_complete=True,
+                    added_size_bytes=1024,
+                )
+            if source_id == android_source:
+                return ClientSourceObservation(
+                    current=android_current,
+                    observed_versions=(android_current,),
+                    history_complete=True,
+                    added_size_bytes=None,
+                )
+            raise AssertionError((source_id, baseline))
+
+    transport = ConcurrentTransport()
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        subscriptions=subscriptions,
+        target_ids=("cn-official-pc", "cn-official-android"),
+    )
+
+    poll_task = asyncio.create_task(service.poll_now())
+    await poll_started.wait()
+    subscribe_task = asyncio.create_task(
+        service.subscribe(ClientUpdateRequest(actor=_group_actor()))
+    )
+    asyncio.get_running_loop().call_soon(release_poll.set)
+    poll_changes, response = await asyncio.gather(poll_task, subscribe_task)
+
+    assert tuple(change.current.revision_id for change in poll_changes) == ("101",)
+    assert response.text == messages.CLIENT_UPDATE_SUBSCRIBED
+    assert transport.calls == [
+        (pc_source, pc_previous),
+        (android_source, None),
+    ]
+    assert await state.pending_events() == ()
+
+    next_changes = await service.poll_now()
+
+    assert tuple(change.current.revision_id for change in next_changes) == ("102",)
+    pending = await state.pending_events()
+    assert len(pending) == 1
+    assert pending[0].change.current == pc_next
+    assert tuple(target.origin for target in pending[0].pending_targets) == ("group:1",)
+
+
+@pytest.mark.asyncio
 async def test_poll_rejects_reliable_rollback_without_writing_state() -> None:
     source_id = "cn-official-pc-manifest"
     previous = _source_version(source_id, "103", order_key=(103, 103))
@@ -689,6 +903,52 @@ async def test_subscribe_writes_target_neutral_metadata_and_survives_reload(
         messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE
     )
     assert reloaded_subscriptions[0].extra_data == "{}"
+
+
+@pytest.mark.asyncio
+async def test_subscribe_with_existing_baseline_defers_source_read_until_poll(
+    tmp_path,
+) -> None:
+    source_id = "cn-official-pc-manifest"
+    previous = _source_version(source_id, "100", order_key=(100, 100))
+    current = _source_version(source_id, "101", order_key=(101, 101))
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    baseline = ClientUpdateBaseline(
+        version=previous,
+        observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+    )
+    await state.save_baseline(baseline)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    transport = _Transport(
+        {
+            source_id: ClientSourceObservation(
+                current=current,
+                observed_versions=(previous, current),
+                history_complete=True,
+                added_size_bytes=1024,
+            )
+        }
+    )
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        subscriptions=subscriptions,
+        target_ids=("cn-official-pc",),
+    )
+
+    response = await service.subscribe(ClientUpdateRequest(actor=_group_actor()))
+
+    assert response.text == messages.CLIENT_UPDATE_SUBSCRIBED
+    assert transport.calls == []
+    assert await state.get_baseline(source_id) == baseline
+
+    changes = await service.poll_now()
+
+    assert tuple(change.current for change in changes) == (current,)
+    assert transport.calls == [(source_id, previous)]
+    pending = await state.pending_events()
+    assert len(pending) == 1
+    assert tuple(target.origin for target in pending[0].pending_targets) == ("group:1",)
 
 
 @pytest.mark.asyncio

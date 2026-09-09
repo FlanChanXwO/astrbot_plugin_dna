@@ -230,7 +230,7 @@ class ClientUpdateService:
         return MultiTextResponse(tuple(result))
 
     async def subscribe(self, request: ClientUpdateRequest) -> PlainTextResponse:
-        """串行创建或更新群订阅，并尝试建立缺失 Source 基线。"""
+        """串行创建或更新群订阅，并在订阅生效前建立缺失 Source 基线。"""
 
         actor = request.actor
         if actor is None:
@@ -254,6 +254,7 @@ class ClientUpdateService:
 
         async with self._subscription_mutation_lock:
             existing = await self._subscription_for_origin(actor.unified_msg_origin)
+            failed_sources = await self._initialize_missing_baselines()
             await subscriptions.add(
                 messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
                 origin=actor.unified_msg_origin,
@@ -265,7 +266,6 @@ class ClientUpdateService:
                 extra_data="{}",
                 provenance="chat_command",
             )
-            failed_sources = await self._initialize_missing_baselines()
             if existing is not None:
                 return PlainTextResponse(
                     messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED,
@@ -304,25 +304,27 @@ class ClientUpdateService:
                 need_at=True,
             )
 
-        async with self._subscription_mutation_lock:
+        async with (
+            self._subscription_mutation_lock,
+            self.state.delivery_coordination_lock,
+        ):
             # 消息发送是不可回滚的外部副作用；取消与 delivery 共用 state 协调锁，
             # 因而取消返回后不会再开始发送已取消目标的旧 pending 事件。
-            async with self.state.delivery_coordination_lock:
-                deleted = await subscriptions.delete(
-                    messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-                    actor.unified_msg_origin,
-                    uid="",
-                )
-                await self.state.remove_target(actor.unified_msg_origin, uid="")
-                if not deleted:
-                    return PlainTextResponse(
-                        messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
-                        need_at=True,
-                    )
+            deleted = await subscriptions.delete(
+                messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                actor.unified_msg_origin,
+                uid="",
+            )
+            await self.state.remove_target(actor.unified_msg_origin, uid="")
+            if not deleted:
                 return PlainTextResponse(
-                    messages.CLIENT_UPDATE_UNSUBSCRIBED,
+                    messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
                     need_at=True,
                 )
+            return PlainTextResponse(
+                messages.CLIENT_UPDATE_UNSUBSCRIBED,
+                need_at=True,
+            )
 
     async def _subscription_for_origin(self, origin: str) -> Subscription | None:
         subscriptions = self.subscriptions
@@ -339,31 +341,36 @@ class ClientUpdateService:
         )
 
     async def _initialize_missing_baselines(self) -> tuple[str, ...]:
-        """每个尚无基线的配置 Source 最多尝试一次首次读取。"""
+        """每个尚无基线的配置 Source 最多尝试一次首次读取。
+
+        初始化与定时轮询共享 ``_poll_lock``，并在获得锁后重新读取基线，
+        避免等待期间已经完成的轮询结果被旧的缺失判断覆盖。
+        """
 
         if self.transport is None:
             return tuple(self._target_ids_by_source)
         failed: list[str] = []
-        for source_id in self._target_ids_by_source:
-            if await self.state.get_baseline(source_id) is not None:
-                continue
-            try:
-                observation = await self.transport.get_observation(source_id)
-                _validate_observation(observation, source_id)
-                await self.state.save_baseline(
-                    ClientUpdateBaseline(
-                        version=observation.current,
-                        observed_at=datetime.now(timezone.utc),
+        async with self._poll_lock:
+            for source_id in self._target_ids_by_source:
+                if await self.state.get_baseline(source_id) is not None:
+                    continue
+                try:
+                    observation = await self.transport.get_observation(source_id)
+                    _validate_observation(observation, source_id)
+                    await self.state.save_baseline(
+                        ClientUpdateBaseline(
+                            version=observation.current,
+                            observed_at=datetime.now(timezone.utc),
+                        )
                     )
-                )
-            except ClientUpdateTransportError as error:
-                _log_transport_failure("subscribe_baseline", source_id, error)
-                failed.append(source_id)
-            except (ClientUpdateStructureError, TypeError, ValueError) as error:
-                _log_source_failure(
-                    "subscribe_baseline", source_id, type(error).__name__
-                )
-                failed.append(source_id)
+                except ClientUpdateTransportError as error:
+                    _log_transport_failure("subscribe_baseline", source_id, error)
+                    failed.append(source_id)
+                except (ClientUpdateStructureError, TypeError, ValueError) as error:
+                    _log_source_failure(
+                        "subscribe_baseline", source_id, type(error).__name__
+                    )
+                    failed.append(source_id)
         return tuple(failed)
 
     def _target_names(self, target_ids: Sequence[str]) -> tuple[str, ...]:
