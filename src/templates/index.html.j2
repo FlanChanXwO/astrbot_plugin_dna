@@ -2,953 +2,680 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#141316" />
+    <meta name="referrer" content="no-referrer" />
     <title>狩月终端 登录</title>
-    <link
-      rel="icon"
-      href="{{ plugin_logo }}"
-      type="image/png"
-    />
-    <script src="https://dnabbs.yingxiong.com/lib/ct4.js"></script>
+    <link rel="icon" href="{{ plugin_logo }}" type="image/png" />
     <style>
       :root {
-        color-scheme: light;
-        --ink: #25334c;
-        --muted: #768196;
-        --primary: #4f7fe6;
-        --primary-strong: #3568d4;
+        color-scheme: dark;
+        --ink: #f4efe7;
+        --muted: #bab3ac;
+        --accent: #e8cfab;
+        --surface: #19191d;
+        --line: rgba(232, 207, 171, 0.22);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        font-synthesis: none;
       }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html,
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      html, body { margin: 0; min-height: 100%; }
       body {
-        margin: 0;
-        min-height: 100%;
-      }
-
-      body {
-        position: relative;
-        isolation: isolate;
         min-height: 100vh;
-        padding: 32px;
+        min-height: 100svh;
         display: flex;
-        justify-content: center;
-        align-items: center;
-        overflow-x: hidden;
+        flex-direction: column;
         color: var(--ink);
-        background: #dfe7f3;
-        font-family:
-          Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei',
-          sans-serif;
+        background: #141316;
+        isolation: isolate;
       }
-
-      body::before {
-        content: '';
-        position: fixed;
-        inset: -24px;
-        z-index: -3;
-        background-image: var(
-          --page-background,
-          url('https://herobox-img.yingxiong.com/post/1748784746036602530.jpg')
-        );
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        filter: blur(3px) saturate(0.94);
+      button, input { font: inherit; }
+      button { cursor: pointer; touch-action: manipulation; }
+      button:disabled { cursor: not-allowed; }
+      button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 4px;
       }
-
-      body::after {
-        content: '';
+      .scene {
         position: fixed;
         inset: 0;
         z-index: -1;
-        background:
-          radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.4), transparent 34%),
-          linear-gradient(135deg, rgba(27, 45, 75, 0.38), rgba(227, 235, 247, 0.2));
+        overflow: hidden;
+        pointer-events: none;
+        background: #242128 url('https://herobox-img.yingxiong.com/post/1748784746036602530.jpg') center / cover no-repeat;
       }
-
-      .background-video {
-        position: fixed;
+      .scene::after {
+        content: '';
+        position: absolute;
         inset: 0;
-        z-index: -2;
+        background: linear-gradient(90deg, rgba(12, 12, 16, 0.12) 35%, rgba(12, 12, 16, 0.58)),
+          linear-gradient(0deg, rgba(12, 12, 16, 0.55), transparent 30%, transparent 80%, rgba(12, 12, 16, 0.35));
+      }
+      .background-video {
+        display: block;
         width: 100%;
         height: 100%;
         object-fit: cover;
-        pointer-events: none;
+        object-position: 50% 35%;
         opacity: 0;
-        transition: opacity 0.45s ease;
+        transition: opacity 240ms ease;
       }
-
-      .background-video.is-ready {
-        opacity: 1;
+      .background-video.is-ready { opacity: 1; }
+      .site-header {
+        width: 100%;
+        max-width: 1600px;
+        margin-inline: auto;
+        padding: max(32px, env(safe-area-inset-top)) clamp(24px, 5vw, 80px) 0;
       }
-
+      .brand { display: inline-flex; align-items: center; gap: 12px; }
+      .brand img {
+        display: block;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      .logo-text {
+        font-size: 18px;
+        font-weight: 650;
+        letter-spacing: 0.16em;
+        text-shadow: 0 2px 12px #141316;
+      }
       .login-container {
-        display: grid;
-        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-        width: 900px;
-        max-width: 100%;
-        min-height: 540px;
-        overflow: hidden;
-        background: rgba(241, 246, 255, 0.18);
-        border: 1px solid rgba(255, 255, 255, 0.58);
-        border-radius: 28px;
-        box-shadow:
-          0 28px 80px rgba(27, 41, 68, 0.26),
-          0 2px 12px rgba(27, 41, 68, 0.08),
-          inset 0 1px 0 rgba(255, 255, 255, 0.42);
-        backdrop-filter: blur(22px) saturate(1.15);
-        -webkit-backdrop-filter: blur(22px) saturate(1.15);
-      }
-
-      .intro-panel {
-        display: flex;
-        min-width: 0;
-        padding: 40px;
-        flex-direction: column;
-        color: #fff;
-        background:
-          radial-gradient(circle at 95% 0, rgba(124, 167, 255, 0.32), transparent 34%),
-          linear-gradient(155deg, rgba(24, 42, 72, 0.68), rgba(45, 76, 125, 0.52));
-      }
-
-      .login-header {
+        flex: 1;
         display: flex;
         align-items: center;
-        gap: 18px;
-      }
-
-      .banner {
-        width: 72px;
-        height: 72px;
-        flex: 0 0 auto;
-        border-radius: 50%;
-        overflow: hidden;
-        border: 3px solid rgba(255, 255, 255, 0.64);
-        box-shadow: 0 10px 26px rgba(10, 24, 50, 0.28);
-      }
-
-      .banner img {
+        justify-content: flex-end;
         width: 100%;
-        height: 100%;
-        object-fit: cover;
+        max-width: 1600px;
+        margin-inline: auto;
+        padding: 48px clamp(24px, 5vw, 80px) 88px;
       }
-
-      .banner-text {
-        min-width: 0;
+      .form-panel {
+        width: 408px;
+        max-width: 100%;
+        padding: 30px 32px 32px;
+        background: linear-gradient(145deg, rgba(37, 32, 33, 0.96), rgba(19, 20, 24, 0.97));
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow: 0 24px 72px rgba(0, 0, 0, 0.24);
       }
-
-      .logo-text {
-        display: inline-flex;
-        padding: 4px 9px;
-        margin-bottom: 8px;
-        color: rgba(255, 255, 255, 0.9);
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 999px;
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.09em;
-      }
-
-      .welcome-text {
-        margin-bottom: 5px;
-        font-size: 1.55rem;
-        font-weight: 700;
-        line-height: 1.25;
-        letter-spacing: -0.02em;
-      }
-
-      .dnabbs-text {
-        color: rgba(255, 255, 255, 0.68);
-        font-size: 0.86rem;
-        line-height: 1.5;
-      }
-
-      .verification-guide {
-        padding-top: 32px;
-        margin-top: auto;
-      }
-
-      .guide-kicker {
-        margin-bottom: 7px;
-        color: #aecaff;
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-      }
-
-      .guide-title {
-        font-size: 1.18rem;
-        font-weight: 700;
-      }
-
-      .guide-steps {
-        padding-left: 1.15rem;
-        margin: 12px 0 18px;
-        color: rgba(255, 255, 255, 0.72);
-        font-size: 0.84rem;
-        line-height: 1.75;
-      }
-
-      .guide-steps li::marker {
-        color: #aecaff;
-        font-weight: 700;
-      }
-
-      .app-links {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-      }
-
-      .app-link {
+      .form-toolbar {
+        min-height: 44px;
         display: flex;
-        min-width: 0;
-        padding: 12px 13px;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
-        color: #fff;
-        background: rgba(255, 255, 255, 0.11);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        border-radius: 12px;
-        text-decoration: none;
-        transition:
-          transform 0.2s ease,
-          background-color 0.2s ease,
-          border-color 0.2s ease;
+        gap: 12px;
+        margin-bottom: 2px;
       }
-
-      .app-link:hover,
-      .app-link:focus-visible {
-        background: rgba(255, 255, 255, 0.18);
-        border-color: rgba(255, 255, 255, 0.34);
-        outline: none;
-        transform: translateY(-2px);
-      }
-
-      .platform-name {
-        overflow: hidden;
-        font-weight: 700;
-        text-overflow: ellipsis;
-      }
-
-      .app-action {
-        flex: 0 0 auto;
-        color: rgba(255, 255, 255, 0.64);
-        font-size: 0.72rem;
-      }
-
-      .download-links {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 5px;
-        margin-top: 12px;
-        color: rgba(255, 255, 255, 0.48);
-        font-size: 0.74rem;
-      }
-
-      .download-links a {
-        color: rgba(255, 255, 255, 0.74);
-        text-underline-offset: 3px;
-      }
-
-      .download-links a:hover,
-      .download-links a:focus-visible {
-        color: #fff;
-      }
-
-      .form-panel {
-        display: flex;
-        min-width: 0;
-        padding: 42px 46px;
-        flex-direction: column;
-        justify-content: center;
-        background: rgba(255, 255, 255, 0.48);
-        border-left: 1px solid rgba(255, 255, 255, 0.34);
-      }
-
-      .form-heading {
-        margin-bottom: 30px;
-      }
-
       .form-eyebrow {
-        color: var(--primary);
-        font-size: 0.75rem;
-        font-weight: 700;
+        margin: 0;
+        color: var(--accent);
+        font-size: 13px;
         letter-spacing: 0.12em;
       }
-
-      .form-heading h1 {
-        margin: 9px 0 8px;
-        color: var(--ink);
-        font-size: 1.75rem;
-        line-height: 1.25;
-        letter-spacing: -0.03em;
-      }
-
-      .form-heading p {
-        margin: 0;
+      .media-controls { display: flex; gap: 8px; margin-right: -8px; }
+      .media-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
         color: var(--muted);
-        font-size: 0.88rem;
-        line-height: 1.65;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 50%;
+        transition: color 180ms ease, background-color 180ms ease;
       }
-
-      .input-group {
-        margin-bottom: 20px;
+      .media-toggle:hover, .media-toggle:focus-visible {
+        color: var(--ink);
+        background: rgba(232, 207, 171, 0.09);
       }
-
+      .media-toggle[aria-pressed='true'] { color: var(--accent); }
+      .media-toggle svg { width: 19px; height: 19px; }
+      .audio-toggle .sound-on, .motion-toggle .pause-icon { display: none; }
+      .audio-toggle[aria-pressed='true'] .sound-on,
+      .motion-toggle[aria-pressed='true'] .pause-icon { display: block; }
+      .audio-toggle[aria-pressed='true'] .sound-off,
+      .motion-toggle[aria-pressed='true'] .play-icon { display: none; }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      h1 {
+        margin: 4px 0 28px;
+        font-size: clamp(24px, 2.1vw, 28px);
+        font-weight: 600;
+        line-height: 1.4;
+        letter-spacing: 0.02em;
+      }
+      .input-group { margin-bottom: 20px; }
       label {
         display: block;
-        margin-bottom: 8px;
-        color: #44516a;
-        font-size: 0.86rem;
-        font-weight: 650;
+        margin-bottom: 9px;
+        font-size: 13px;
+        color: var(--muted);
       }
-
-      input[type='tel'],
-      input[type='text'] {
+      .input-shell {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        min-height: 52px;
+        border: 1px solid rgba(232, 207, 171, 0.26);
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.18);
+        transition: border-color 180ms ease, background-color 180ms ease;
+      }
+      .input-shell:focus-within {
+        border-color: var(--accent);
+        background: rgba(0, 0, 0, 0.28);
+        box-shadow: 0 0 0 3px rgba(232, 207, 171, 0.1);
+      }
+      .phone-prefix {
+        flex: none;
+        margin-left: 16px;
+        padding-right: 14px;
+        border-right: 1px solid var(--line);
+        font-size: 14px;
+        color: var(--muted);
+      }
+      input {
         width: 100%;
-        min-height: 48px;
+        min-width: 0;
+        height: 50px;
         padding: 12px 14px;
         color: var(--ink);
-        background: rgba(255, 255, 255, 0.56);
-        border: 1px solid rgba(255, 255, 255, 0.68);
-        border-radius: 12px;
+        background: transparent;
+        border: 0;
+        border-radius: 10px;
         outline: none;
         font-size: 16px;
-        transition:
-          background-color 0.2s ease,
-          border-color 0.2s ease,
-          box-shadow 0.2s ease;
+        line-height: 1.5;
       }
-
-      input[type='tel']::placeholder,
-      input[type='text']::placeholder {
-        color: #a0a9b8;
+      input::placeholder { color: #948e8a; opacity: 1; }
+      input:-webkit-autofill {
+        -webkit-text-fill-color: var(--ink);
+        box-shadow: 0 0 0 60px #282528 inset;
+        caret-color: var(--ink);
       }
-
-      input[type='tel']:focus,
-      input[type='text']:focus {
-        background: rgba(255, 255, 255, 0.78);
-        border-color: rgba(79, 127, 230, 0.72);
-        box-shadow: 0 0 0 4px rgba(79, 127, 230, 0.11);
-      }
-
-      .verification-group {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 10px;
-      }
-
+      #verificationCode { letter-spacing: 0.16em; }
+      #verificationCode::placeholder { letter-spacing: 0; }
       #getCodeBtn {
-        width: auto;
-        min-width: 116px;
-        padding-inline: 14px;
-        font-size: 0.88rem;
-      }
-
-      .user-id-display {
-        margin: 2px 0 14px;
-        color: #9aa4b4;
-        font-size: 0.72rem;
-        text-align: right;
-      }
-
-      button {
-        width: 100%;
-        min-height: 48px;
-        padding: 12px 16px;
-        color: #fff;
-        background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+        flex: none;
+        min-width: 112px;
+        min-height: 44px;
+        margin-right: 3px;
+        padding: 10px 12px;
+        color: var(--accent);
+        background: transparent;
         border: 0;
-        border-radius: 12px;
-        box-shadow: 0 10px 24px rgba(53, 104, 212, 0.24);
-        cursor: pointer;
-        font-size: 1rem;
-        font-weight: 700;
-        transition:
-          transform 0.2s ease,
-          box-shadow 0.2s ease,
-          opacity 0.2s ease;
+        border-radius: 7px;
+        font-size: 13px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
       }
-
-      button:hover:not(:disabled),
-      button:focus-visible:not(:disabled) {
-        box-shadow: 0 13px 30px rgba(53, 104, 212, 0.32);
-        outline: none;
-        transform: translateY(-1px);
-      }
-
-      button:disabled {
-        background: #d7dce5;
-        box-shadow: none;
-        cursor: not-allowed;
-        opacity: 0.86;
-      }
-
-      .audio-toggle {
-        position: fixed;
-        right: 22px;
-        bottom: 22px;
-        z-index: 20;
-        display: inline-flex;
-        width: auto;
-        min-height: 42px;
-        padding: 9px 14px;
+      #getCodeBtn:hover:not(:disabled) { background: rgba(232, 207, 171, 0.08); }
+      #getCodeBtn:disabled { color: #827e7b; }
+      #loginBtn {
+        display: flex;
         align-items: center;
-        gap: 8px;
-        color: #fff;
-        background: rgba(37, 51, 76, 0.76);
-        border: 1px solid rgba(255, 255, 255, 0.36);
-        border-radius: 999px;
-        box-shadow: 0 10px 24px rgba(25, 36, 57, 0.2);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        font-size: 0.78rem;
-        font-weight: 700;
+        justify-content: center;
+        gap: 12px;
+        width: 100%;
+        min-height: 52px;
+        margin-top: 28px;
+        padding: 13px 18px;
+        color: #26201b;
+        background: var(--accent);
+        border: 1px solid transparent;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 650;
+        letter-spacing: 0.12em;
+        transition: background-color 180ms ease, color 180ms ease;
       }
-
-      .audio-toggle:hover:not(:disabled),
-      .audio-toggle:focus-visible:not(:disabled) {
-        background: rgba(37, 51, 76, 0.9);
-        transform: translateY(-1px);
+      #loginBtn svg { width: 18px; height: 18px; }
+      #loginBtn:hover:not(:disabled) { background: #f4e0c4; }
+      #loginBtn:active:not(:disabled) { background: #d6b88f; }
+      #loginBtn:disabled {
+        color: #aaa097;
+        background: #433c36;
+        border-color: rgba(232, 207, 171, 0.09);
       }
-
-      .audio-toggle[aria-pressed='true'] {
-        background: rgba(53, 104, 212, 0.84);
+      .form-status {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.65;
+        overflow-wrap: anywhere;
       }
-
-      .toast-container {
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 9999;
-        width: 90%;
-        max-width: 400px;
-      }
-
-      .toast {
-        padding: 14px 18px;
-        margin-bottom: 10px;
-        color: #fff;
-        background: rgba(37, 51, 76, 0.94);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 12px;
-        box-shadow: 0 12px 30px rgba(25, 36, 57, 0.2);
-        font-weight: 500;
-        text-align: center;
-        transform: translateY(-100px);
-        opacity: 0;
-        transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-      }
-
-      .toast.show {
-        transform: translateY(0);
-        opacity: 1;
-      }
-
-      .toast.hide {
-        transform: translateY(-100px);
-        opacity: 0;
-      }
-
-      .toast.success {
-        background: linear-gradient(135deg, #4f7fe6, #6f67d9);
-      }
-
-      .toast.error {
-        background: linear-gradient(135deg, #dc5d70, #c8445c);
-      }
-
-      .toast.warning {
-        color: #553b12;
-        background: linear-gradient(135deg, #ffe6b4, #f4c96e);
-      }
-
-      .toast.info {
-        background: linear-gradient(135deg, #438bd9, #4dadd7);
-      }
-
+      .form-status:empty { display: none; }
+      .form-status[data-kind='error'] { color: #ffb4b9; }
+      .form-status[data-kind='success'] { color: #d7e7bd; }
       @media (max-width: 720px) {
-        body {
-          padding: 18px 12px;
-          align-items: flex-start;
+        .scene {
+          bottom: auto;
+          height: 70vh;
+          height: 70svh;
+          min-height: 400px;
+          background-position: 52% 20%;
         }
-
+        .background-video { object-position: 52% 20%; }
+        .scene::after {
+          background: linear-gradient(180deg, rgba(20, 19, 22, 0.22), transparent 22%, transparent 53%, #141316 100%);
+        }
+        .site-header {
+          padding: max(20px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-left)) 0;
+        }
+        .brand { gap: 10px; }
+        .brand img { width: 34px; height: 34px; border-radius: 10px; }
+        .logo-text { font-size: 16px; }
         .login-container {
-          grid-template-columns: 1fr;
-          width: 390px;
-          min-height: 0;
-          border-radius: 22px;
+          flex: 1;
+          align-items: flex-end;
+          justify-content: center;
+          padding: clamp(210px, 35svh, 420px) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
         }
-
-        .intro-panel {
-          padding: 25px 24px 24px;
-        }
-
-        .banner {
-          width: 62px;
-          height: 62px;
-        }
-
-        .welcome-text {
-          font-size: 1.35rem;
-        }
-
-        .verification-guide {
-          padding-top: 24px;
-        }
-
-        .guide-steps {
-          margin-bottom: 14px;
-          line-height: 1.65;
-        }
-
-        .form-panel {
-          padding: 28px 24px 30px;
-          border-top: 1px solid rgba(255, 255, 255, 0.34);
-          border-left: 0;
-        }
-
-        .form-heading {
-          margin-bottom: 24px;
-        }
-
-        .form-heading h1 {
-          font-size: 1.5rem;
-        }
+        .form-panel { width: 408px; padding: 18px 24px 24px; border-radius: 18px; }
+        h1 { margin-bottom: 24px; font-size: 25px; }
+        .input-group { margin-bottom: 18px; }
+        #loginBtn { margin-top: 24px; }
       }
-
-      @media (max-width: 350px) {
-        .app-links {
-          grid-template-columns: 1fr;
-        }
+      @media (max-width: 720px) and (max-height: 740px) {
+        .login-container { padding-top: clamp(155px, 28svh, 210px); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
       }
-
+      @media (max-width: 360px) {
+        .form-panel { padding-inline: 20px; }
+        h1 { font-size: 23px; }
+        #getCodeBtn { min-width: 104px; padding-inline: 8px; }
+      }
+      @media (max-height: 520px) and (min-width: 721px) {
+        .site-header { padding-top: max(20px, env(safe-area-inset-top)); }
+        .login-container { padding-block: 24px; }
+      }
       @media (prefers-reduced-motion: reduce) {
-        *,
-        *::before,
-        *::after {
-          scroll-behavior: auto !important;
-          transition-duration: 0.01ms !important;
-        }
+        *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
       }
     </style>
   </head>
   <body>
+    <div class="scene" aria-hidden="true">
+      {% if login_media and login_media.video_url and login_media.audio_url %}
+      <video id="backgroundVideo" class="background-video" loop muted playsinline preload="none"
+        disablepictureinpicture data-video-src="{{ login_media.video_url | e }}"></video>
+      {% endif %}
+    </div>
     {% if login_media and login_media.video_url and login_media.audio_url %}
-    <video
-      id="backgroundVideo"
-      class="background-video"
-      autoplay
-      loop
-      muted
-      playsinline
-      preload="metadata"
-      aria-hidden="true"
-      data-video-src="{{ login_media.video_url | e }}"
-    ></video>
-    <audio
-      id="backgroundAudio"
-      loop
-      preload="none"
-      data-audio-src="{{ login_media.audio_url | e }}"
-    ></audio>
-    <button
-      type="button"
-      id="audioToggle"
-      class="audio-toggle"
-      hidden
-      aria-label="开启音乐"
-      aria-pressed="false"
-    >
-      <span aria-hidden="true">♫</span>
-      <span id="audioToggleLabel">开启音乐</span>
-    </button>
+    <audio id="backgroundAudio" loop preload="none" data-audio-src="{{ login_media.audio_url | e }}"></audio>
     {% endif %}
-    <div class="toast-container" id="toastContainer"></div>
-
+    <header class="site-header">
+      <div class="brand">
+        <img src="{{ plugin_logo }}" alt="狩月终端 Logo" width="40" height="40" />
+        <div class="logo-text">狩月终端</div>
+      </div>
+    </header>
     <main class="login-container">
-      <section class="intro-panel">
-        <div class="login-header">
-          <div class="banner">
-            <img
-              src="{{ plugin_logo }}"
-              alt="狩月终端 Logo"
-            />
-          </div>
-          <div class="banner-text">
-            <div class="logo-text">狩月终端</div>
-            <div class="welcome-text">登录皎皎角账号</div>
-            <div class="dnabbs-text">在本页面完成验证并获取验证码</div>
-          </div>
-        </div>
-        <div class="verification-guide">
-          <div class="guide-kicker">登录流程</div>
-          <div class="guide-title">直接在当前页面完成登录</div>
-          <ol class="guide-steps">
-            <li>填写皎皎角绑定的手机号</li>
-            <li>完成安全验证并获取验证码</li>
-            <li>输入短信中的四位验证码</li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="form-panel">
-        <div class="form-heading">
-          <div class="form-eyebrow">手机验证码登录</div>
-          <h1>登录狩月终端</h1>
-          <p>填写皎皎角绑定的手机号，完成安全验证后即可登录。</p>
-        </div>
+      <section class="form-panel" aria-labelledby="loginHeading">
         <form id="loginForm">
+          <div class="form-toolbar">
+            <p class="form-eyebrow">皎皎角账号</p>
+            {% if login_media and login_media.video_url and login_media.audio_url %}
+            <div class="media-controls" role="group" aria-label="背景播放控制">
+              <button type="button" id="motionToggle" class="media-toggle motion-toggle" hidden
+                aria-label="暂停动态背景" title="暂停动态背景" aria-pressed="false">
+                <svg class="pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg>
+                <svg class="play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m8 5 11 7-11 7Z" /></svg>
+              </button>
+              <button type="button" id="audioToggle" class="media-toggle audio-toggle" hidden
+                aria-label="开启音乐" title="开启音乐" aria-pressed="false">
+                <svg class="sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4-6 5H2v6h3l6 5ZM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14" /></svg>
+                <svg class="sound-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4-6 5H2v6h3l6 5ZM16 9l6 6m0-6-6 6" /></svg>
+                <span id="audioToggleLabel" class="sr-only">开启音乐</span>
+              </button>
+            </div>
+            {% endif %}
+          </div>
+          <h1 id="loginHeading">登录狩月终端</h1>
           <div class="input-group">
             <label for="phone">手机号</label>
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              required
-              pattern="[0-9]{11}"
-              placeholder="请输入 11 位手机号"
-              autocomplete="tel"
-              inputmode="numeric"
-            />
+            <div class="input-shell">
+              <span class="phone-prefix" aria-hidden="true">+86</span>
+              <input type="tel" id="phone" name="phone" required pattern="1[3-9][0-9]{9}" maxlength="11"
+                placeholder="请输入手机号" autocomplete="tel-national" inputmode="numeric" />
+            </div>
           </div>
           <div class="input-group">
             <label for="verificationCode">验证码</label>
-            <div class="verification-group">
-            <input
-              type="text"
-              id="verificationCode"
-              name="verificationCode"
-              required
-              pattern="[0-9]{4}"
-              maxlength="4"
-              autocomplete="one-time-code"
-              inputmode="numeric"
-              placeholder="请输入四位验证码"
-            />
+            <div class="input-shell verification-group">
+              <input type="text" id="verificationCode" name="verificationCode" required pattern="[0-9]{4}" maxlength="4"
+                autocomplete="one-time-code" inputmode="numeric" placeholder="四位验证码" />
               <button type="button" id="getCodeBtn" disabled>获取验证码</button>
             </div>
           </div>
-          <div id="userIdDisplay" class="user-id-display">当前识别码: {{ userId }}</div>
-          <button type="submit" id="loginBtn" disabled>登录</button>
+          <button type="submit" id="loginBtn" disabled>
+            <span id="loginBtnLabel">登录</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
+          </button>
+          <p id="formStatus" class="form-status" role="status" aria-live="polite" aria-atomic="true"></p>
         </form>
       </section>
     </main>
-
     <script>
       const phoneInput = document.getElementById('phone')
       const verificationCodeInput = document.getElementById('verificationCode')
       const loginBtn = document.getElementById('loginBtn')
+      const loginBtnLabel = document.getElementById('loginBtnLabel')
       const loginForm = document.getElementById('loginForm')
-      const toastContainer = document.getElementById('toastContainer')
-      let isSubmitting = false
       const getCodeBtn = document.getElementById('getCodeBtn')
+      const formStatus = document.getElementById('formStatus')
+      const serverUrl = {{ server_url | tojson }}
+      const sessionAuth = {{ auth | tojson }}
+      const captchaId = '114d4e96cc4536050c7efaeb7e4f3c8c'
+      let isSubmitting = false
       let isCodeCooldown = false
+      let isSmsPending = false
+      let isCaptchaLoading = false
+      let captchaPromise = null
 
-      // 通用 Toast 提示函数
-      function showToast(message, type = 'info', duration = 3000) {
-        const toast = document.createElement('div')
-        toast.className = `toast ${type}`
-        toast.textContent = message
-        toastContainer.appendChild(toast)
-
-        // 触发显示动画
-        setTimeout(() => {
-          toast.classList.add('show')
-        }, 10)
-
-        // 自动隐藏
-        setTimeout(() => {
-          toast.classList.remove('show')
-          toast.classList.add('hide')
-          setTimeout(() => {
-            toastContainer.removeChild(toast)
-          }, 400)
-        }, duration)
+      function showMessage(message, kind = 'info') {
+        formStatus.dataset.kind = kind
+        formStatus.textContent = message
       }
 
       function updateLoginButton() {
         const isPhoneValid = /^1[3-9]\d{9}$/.test(phoneInput.value)
         const isCodeValid = /^\d{4}$/.test(verificationCodeInput.value)
         loginBtn.disabled = isSubmitting || !isPhoneValid || !isCodeValid
-        getCodeBtn.disabled = isCodeCooldown || !isPhoneValid
+        getCodeBtn.disabled = isSubmitting || isCodeCooldown || isSmsPending || isCaptchaLoading || !isPhoneValid
       }
-
       phoneInput.addEventListener('input', updateLoginButton)
       verificationCodeInput.addEventListener('input', updateLoginButton)
-
-      const captchaId = '114d4e96cc4536050c7efaeb7e4f3c8c'
+      window.addEventListener('pageshow', updateLoginButton)
 
       function startCodeCooldown() {
         isCodeCooldown = true
-        let countdown = 60
-        getCodeBtn.textContent = `${countdown}秒后重试`
+        const deadline = Date.now() + 60000
+        getCodeBtn.textContent = '60秒后重试'
         updateLoginButton()
-
         const timer = window.setInterval(() => {
-          countdown -= 1
-          if (countdown <= 0) {
+          const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+          getCodeBtn.textContent = remaining ? `${remaining}秒后重试` : '获取验证码'
+          if (!remaining) {
             window.clearInterval(timer)
             isCodeCooldown = false
-            getCodeBtn.textContent = '获取验证码'
             updateLoginButton()
-            return
           }
-          getCodeBtn.textContent = `${countdown}秒后重试`
         }, 1000)
       }
 
       async function requestSmsCode(validation) {
-        validation.captcha_id = captchaId
+        if (isSmsPending || isCodeCooldown) return
+        isSmsPending = true
+        getCodeBtn.textContent = '发送中…'
+        updateLoginButton()
         try {
-          const response = await fetch(
-            '{{ server_url }}/dna/getSmsCode',
-            {
+          const response = await fetch(`${serverUrl}/dna/getSmsCode`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              auth: '{{ auth }}',
+              auth: sessionAuth,
               mobile: phoneInput.value,
-              vJson: JSON.stringify(validation),
+              vJson: JSON.stringify({ ...validation, captcha_id: captchaId }),
             }),
           })
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`)
-          }
-
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
           const result = await response.json()
           if (result.success) {
-            showToast('验证码已发送', 'success')
+            showMessage('验证码已发送', 'success')
             startCodeCooldown()
-            return
+          } else {
+            showMessage('验证码发送失败' + (result.msg ? ': ' + result.msg : '，请重试'), 'error')
           }
-          showToast(
-            '验证码发送失败' + (result.msg ? ': ' + result.msg : '，请重试'),
-            'error',
-          )
         } catch {
-          showToast('请求出错，请检查网络连接', 'error')
+          showMessage('验证码发送失败，请检查网络后重试', 'error')
+        } finally {
+          isSmsPending = false
+          if (!isCodeCooldown) getCodeBtn.textContent = '获取验证码'
+          updateLoginButton()
         }
       }
 
-      window.initAlicom4(
-        {
-          captchaId: captchaId,
-          https: true,
-          product: 'bind',
-          clientType: 'android',
-          clientVersion: '1.8.4',
-          outside: true,
-          rem: 0.85,
-          mi: {
-            packageName: 'com.dnabridge.dna_bridge',
-            displayName: 'DNA登录桥',
-            appVer: '0.1.0',
-            build: '1',
-            clientVersion: '1.8.4',
-            geeid: {bd: '$unknown', d: '$unknown', e: '$unknown', ver: '1.0.0', client_type: 'android'}
+      // Load the verification SDK only on demand; it must not block the page or media.
+      function loadCaptcha() {
+        if (captchaPromise) return captchaPromise
+        captchaPromise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+          let settled = false
+          const timer = window.setTimeout(() => fail(), 15000)
+          function fail() {
+            if (settled) return
+            settled = true
+            window.clearTimeout(timer)
+            script.remove()
+            reject(new Error('captcha unavailable'))
           }
-        },
-        function (captcha) {
-          captcha
-            .onReady(function () {})
-            .onNextReady(function () {})
-            .onSuccess(function () {
-              const validation = captcha.getValidate()
-              if (!validation) {
-                showToast('请完成验证', 'warning')
-                return
-              }
-              requestSmsCode(validation)
-            })
-            .onFail(function () {
-              showToast('验证未通过，请重试', 'warning')
-            })
-            .onError(function (error) {
-              let message = '验证失败，请稍后重试'
-              if (error && error.msg) {
-                message = `验证失败: ${error.msg}`
-              } else if (error && error.desc) {
-                message = `验证失败: ${error.desc}`
-              } else if (error && error.code) {
-                message = `验证失败: ${error.code}`
-              }
-              showToast(message, 'error', 5000)
-            })
+          function initialize() {
+            if (settled) return
+            if (typeof window.initAlicom4 !== 'function') { fail(); return }
+            try {
+              window.initAlicom4({
+                captchaId, https: true, product: 'bind', clientType: 'android',
+                clientVersion: '1.8.4', outside: true, rem: 0.85,
+                mi: {
+                  packageName: 'com.dnabridge.dna_bridge', displayName: 'DNA登录桥',
+                  appVer: '0.1.0', build: '1', clientVersion: '1.8.4',
+                  geeid: { bd: '$unknown', d: '$unknown', e: '$unknown', ver: '1.0.0', client_type: 'android' },
+                },
+              }, function (captcha) {
+                if (settled) return
+                captcha
+                  .onReady(function () {
+                    if (settled) return
+                    settled = true
+                    window.clearTimeout(timer)
+                    resolve(captcha)
+                  })
+                  .onNextReady(function () {})
+                  .onSuccess(function () {
+                    const validation = captcha.getValidate()
+                    if (validation) requestSmsCode(validation)
+                    else showMessage('请完成验证', 'error')
+                  })
+                  .onFail(function () { showMessage('验证未通过，请重试', 'error') })
+                  .onError(function (error) {
+                    if (!settled) fail()
+                    showMessage('验证失败' + (error?.msg ? ': ' + error.msg : '，请稍后重试'), 'error')
+                  })
+              })
+            } catch { fail() }
+          }
+          if (typeof window.initAlicom4 === 'function') initialize()
+          else {
+            script.src = 'https://dnabbs.yingxiong.com/lib/ct4.js'
+            script.async = true
+            script.onload = initialize
+            script.onerror = fail
+            document.head.appendChild(script)
+          }
+        }).catch(error => {
+          captchaPromise = null
+          throw error
+        })
+        return captchaPromise
+      }
 
-          getCodeBtn.addEventListener('click', function () {
-            if (getCodeBtn.disabled) {
-              return
-            }
-            captcha.showCaptcha()
-          })
-        },
-      )
-
-      loginForm.addEventListener('submit', async function (e) {
-        e.preventDefault()
-        if (loginBtn.disabled) {
-          return
-        }
-
-        isSubmitting = true
-        loginBtn.textContent = '登录中...'
+      getCodeBtn.addEventListener('click', async function () {
+        if (getCodeBtn.disabled) return
+        isCaptchaLoading = true
+        getCodeBtn.textContent = '加载验证…'
+        showMessage('')
         updateLoginButton()
-
-        const data = {
-          mobile: phoneInput.value,
-          code: verificationCodeInput.value,
-          auth: '{{ auth }}',
-        }
-
         try {
-          const response = await fetch(
-            '{{ server_url }}/dna/login',
-            {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-            },
-          )
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`)
-          }
+          const captcha = await loadCaptcha()
+          captcha.showCaptcha()
+        } catch {
+          showMessage('安全验证未能加载，请检查网络后重试', 'error')
+        } finally {
+          isCaptchaLoading = false
+          if (!isCodeCooldown && !isSmsPending) getCodeBtn.textContent = '获取验证码'
+          updateLoginButton()
+        }
+      })
 
+      loginForm.addEventListener('submit', async function (event) {
+        event.preventDefault()
+        if (loginBtn.disabled) return
+        isSubmitting = true
+        loginBtnLabel.textContent = '登录中…'
+        loginForm.setAttribute('aria-busy', 'true')
+        showMessage('')
+        updateLoginButton()
+        try {
+          const response = await fetch(`${serverUrl}/dna/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mobile: phoneInput.value, code: verificationCodeInput.value, auth: sessionAuth }),
+          })
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
           const result = await response.json()
           if (result.success) {
-            showToast('正在尝试登录...正在跳转...', 'success', 2000)
-            setTimeout(() => {
-              window.location.href = 'https://github.com/FlanChanXwO'
-            }, 2000)
+            showMessage('正在尝试登录…正在跳转…', 'success')
+            window.setTimeout(() => { window.location.href = 'https://github.com/FlanChanXwO' }, 2000)
             return
           }
-
-          showToast('登录失败' + (result.msg ? ': ' + result.msg : '，请重试'), 'error')
+          showMessage('登录失败' + (result.msg ? ': ' + result.msg : '，请重试'), 'error')
         } catch {
-          showToast('登录失败，请重试', 'error')
+          showMessage('登录失败，请检查网络后重试', 'error')
         }
-
         isSubmitting = false
-        loginBtn.textContent = '登录'
+        loginBtnLabel.textContent = '登录'
+        loginForm.removeAttribute('aria-busy')
         updateLoginButton()
       })
 
       function initLoginMedia() {
-        const backgroundVideo = document.getElementById('backgroundVideo')
-        const backgroundAudio = document.getElementById('backgroundAudio')
+        const video = document.getElementById('backgroundVideo')
+        const audio = document.getElementById('backgroundAudio')
         const audioToggle = document.getElementById('audioToggle')
-        const audioToggleLabel = document.getElementById('audioToggleLabel')
-
-        if (!backgroundVideo || !backgroundAudio || !audioToggle) {
-          return
-        }
-
-        const reducedMotion = window.matchMedia(
-          '(prefers-reduced-motion: reduce)',
-        ).matches
-        if (reducedMotion) {
-          return
-        }
-
-        const videoSrc = backgroundVideo.dataset.videoSrc
-        const audioSrc = backgroundAudio.dataset.audioSrc
-        if (!videoSrc || !audioSrc) {
-          return
-        }
-
-        let audioAutoplayAttempted = false
+        const audioLabel = document.getElementById('audioToggleLabel')
+        const motionToggle = document.getElementById('motionToggle')
+        if (!video || !audio || !audioToggle || !motionToggle) return
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+        let videoWanted = true
+        let audioWanted = false
         let videoFailed = false
+        let audioFailed = false
+        let pageHidden = document.hidden
 
-        function updateAudioToggle() {
-          const isPlaying = !backgroundAudio.paused
-          const isMuted = backgroundAudio.muted
-          const label = isPlaying
-            ? isMuted
-              ? '开启音乐'
-              : '静音'
-            : '开启音乐'
-          audioToggleLabel.textContent = label
-          audioToggle.setAttribute('aria-label', label)
-          audioToggle.setAttribute('aria-pressed', String(isMuted))
+        function updateControls() {
+          const playing = !audio.paused && !audio.muted
+          const audioText = playing ? '静音' : '开启音乐'
+          audioToggle.setAttribute('aria-pressed', String(playing))
+          audioToggle.setAttribute('aria-label', audioText)
+          audioToggle.title = audioText
+          audioLabel.textContent = audioText
+          const moving = !video.paused
+          const motionText = moving ? '暂停动态背景' : '播放动态背景'
+          motionToggle.setAttribute('aria-pressed', String(moving))
+          motionToggle.setAttribute('aria-label', motionText)
+          motionToggle.title = motionText
         }
 
-        function hideAudioToggle() {
-          backgroundAudio.pause()
-          audioToggle.hidden = true
-        }
-
-        function stopMediaAfterVideoFailure() {
-          videoFailed = true
-          backgroundVideo.pause()
-          backgroundVideo.classList.remove('is-ready')
-          hideAudioToggle()
-        }
-
-        async function tryPlayAudio() {
-          if (videoFailed || audioAutoplayAttempted || !backgroundAudio.src) {
+        async function syncMedia() {
+          const disabled = reducedMotion.matches || videoFailed
+          motionToggle.hidden = disabled
+          audioToggle.hidden = disabled || audioFailed
+          if (disabled || pageHidden) {
+            video.pause()
+            audio.pause()
+            if (disabled) {
+              video.classList.remove('is-ready')
+              // Releasing sources also stops downloads when reduced motion changes.
+              for (const media of [video, audio]) {
+                if (media.hasAttribute('src')) {
+                  media.removeAttribute('src')
+                  media.load()
+                }
+              }
+            }
+            updateControls()
             return
           }
-          audioAutoplayAttempted = true
-          audioToggle.hidden = false
-          updateAudioToggle()
-          try {
-            await backgroundAudio.play()
-          } catch {
-            // 浏览器禁止自动播放时保留按钮，让用户显式启动音乐。
+          if (!video.hasAttribute('src')) {
+            video.muted = true
+            video.src = video.dataset.videoSrc
           }
-          updateAudioToggle()
+          if (videoWanted) {
+            try { await video.play() } catch { /* Keep the poster and manual play control. */ }
+          } else video.pause()
+          // A user gesture is required before loading the separate soundtrack.
+          if (audioWanted && !audioFailed && !pageHidden && !reducedMotion.matches && !videoFailed) {
+            if (!audio.hasAttribute('src')) audio.src = audio.dataset.audioSrc
+            audio.volume = 0.35
+            try { await audio.play() } catch { audioWanted = false }
+          } else audio.pause()
+          updateControls()
         }
 
-        backgroundVideo.addEventListener('canplay', function () {
-          backgroundVideo.classList.add('is-ready')
+        video.addEventListener('playing', function () {
+          if (pageHidden || reducedMotion.matches || videoFailed || !videoWanted) {
+            video.pause()
+            return
+          }
+          video.classList.add('is-ready')
+          updateControls()
         })
-        backgroundVideo.addEventListener('error', stopMediaAfterVideoFailure)
-        backgroundAudio.addEventListener('canplay', tryPlayAudio)
-        backgroundAudio.addEventListener('error', hideAudioToggle)
+        video.addEventListener('pause', updateControls)
+        video.addEventListener('error', function () {
+          if (!video.hasAttribute('src')) return
+          videoFailed = true
+          audioWanted = false
+          syncMedia()
+        })
+        audio.addEventListener('playing', function () {
+          if (pageHidden || reducedMotion.matches || !audioWanted) audio.pause()
+          updateControls()
+        })
+        audio.addEventListener('pause', updateControls)
+        audio.addEventListener('error', function () {
+          if (!audio.hasAttribute('src')) return
+          audioFailed = true
+          audioWanted = false
+          audioToggle.hidden = true
+          audio.pause()
+        })
         audioToggle.addEventListener('click', async function () {
-          if (backgroundAudio.paused) {
-            backgroundAudio.muted = false
-            try {
-              await backgroundAudio.play()
-            } catch {
-              // 播放权限仍未授予时维持可重试的按钮状态。
-            }
-          } else {
-            backgroundAudio.muted = !backgroundAudio.muted
-          }
-          updateAudioToggle()
+          audioWanted = !audioWanted
+          // Start directly in the gesture, before awaiting the video play promise.
+          if (audioWanted) {
+            if (!audio.hasAttribute('src')) audio.src = audio.dataset.audioSrc
+            audio.volume = 0.35
+            try { await audio.play() } catch { audioWanted = false }
+          } else audio.pause()
+          updateControls()
         })
-
-        backgroundVideo.src = videoSrc
-        backgroundAudio.src = audioSrc
-        backgroundAudio.volume = 0.35
-        backgroundVideo.load()
-        backgroundAudio.load()
+        motionToggle.addEventListener('click', function () {
+          videoWanted = !video.paused ? false : true
+          syncMedia()
+        })
+        document.addEventListener('visibilitychange', function () {
+          pageHidden = document.hidden
+          syncMedia()
+        })
+        window.addEventListener('pagehide', function () { pageHidden = true; syncMedia() })
+        window.addEventListener('pageshow', function () { pageHidden = document.hidden; syncMedia() })
+        reducedMotion.addEventListener('change', syncMedia)
+        syncMedia()
       }
-
-      function loadBackgroundImage() {
-        const img = new Image()
-        img.onload = function () {
-          document.body.style.setProperty('--page-background', `url("${img.src}")`)
-        }
-        img.src = 'https://herobox-img.yingxiong.com/post/1748784746036602530.jpg'
-      }
-
       initLoginMedia()
-      window.addEventListener('load', loadBackgroundImage)
     </script>
   </body>
 </html>
