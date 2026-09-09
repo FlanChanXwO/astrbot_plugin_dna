@@ -14,13 +14,13 @@
 
 ## Task 2：实现 legacy layout detector 与启动前 fail-fast
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：检测旧数据库、旧 resource/generation、旧状态、旧 rendered/other、旧 cache 和 `resources/.git` 旧形态；确保检测早于任何新目录或数据库写入。
 - 验收：旧结构明确失败并包含迁移提示；新结构通过；无自动复制、移动或双读。
-- 实际变更：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际变更：新增 `LegacyLayoutDetector`、`LegacyLayoutIssue` 和 `LegacyLayoutError`，覆盖旧数据库、资源、状态、渲染、媒体、缓存及旧资源仓库标记；旧目录仅在含实际数据时阻断，`resources/.git` 始终作为旧仓库位置阻断，避免导入期空目录副作用误报。`build_runtime` 在真实数据库构造前解析 `RuntimeDataLayout` 并执行只读门禁，错误明确要求人工迁移/清理且声明不自动复制、移动或双读；从 `src.infrastructure` 导出 detector API。新增逐路径、空新布局、无变更和启动前数据库创建顺序测试。
+- 验证证据：Red 阶段新增测试先因 detector 尚未导出/接入而失败；实现后 `tests/test_legacy_layout.py` 23 项通过，路径、持久化、配置相关测试共 50 项通过；目标文件 Ruff 检查通过；`src` 与 `tests` `compileall` 通过；LSP 对 bootstrap、detector、基础设施导出和测试文件均无诊断。
+- 剩余风险：旧 `RESOURCE_PATH` 导入期副作用和旧数据库实际路径仍待 Task 3 清除/切换；混合回归中的既有登录页面断言失败与 goal 工作区守卫失败未归属于本任务，本轮未修改其相关行为。
+- 下一步：执行 Task 3，移除旧路径导入期副作用并切换数据库到 `db/dna.sqlite3`。
 
 ## Task 3：消除旧路径导入期副作用并切换数据库路径
 

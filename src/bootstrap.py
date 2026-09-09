@@ -29,6 +29,7 @@ from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
+from .infrastructure.data_layout import RuntimeDataLayout
 from .infrastructure.http import (
     ClientUpdateTransport as DnaApiClientUpdateTransport,
 )
@@ -41,6 +42,7 @@ from .infrastructure.http import (
     RequestConcurrencyGate,
 )
 from .infrastructure.i18n import validate_tip_catalog
+from .infrastructure.legacy_layout import LegacyLayoutDetector
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
@@ -158,6 +160,16 @@ def build_runtime(
 ) -> PluginRuntime:
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
 
+    runtime_data_layout: RuntimeDataLayout | None = None
+    if database is None:
+        from astrbot.api.star import StarTools
+
+        runtime_data_layout = RuntimeDataLayout.from_data_dir(
+            StarTools.get_data_dir(PLUGIN_NAME),
+        )
+        # 必须先完成只读旧布局检测，再进入任何会创建数据库或运行期目录的阶段。
+        LegacyLayoutDetector(runtime_data_layout).ensure_compatible()
+
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()
     settings = DnabySettings.from_config(config)
@@ -172,11 +184,9 @@ def build_runtime(
     request_gate = RequestConcurrencyGate(settings.network.max_concurrent_requests)
     runtime_database = database
     if runtime_database is None:
-        from astrbot.api.star import StarTools
-
-        runtime_database = AsyncDatabase.from_data_dir(
-            StarTools.get_data_dir(PLUGIN_NAME),
-        )
+        if runtime_data_layout is None:
+            raise RuntimeError("运行期数据布局尚未解析")
+        runtime_database = AsyncDatabase.from_data_dir(runtime_data_layout.data_dir)
     resolved_account_transport = account_transport or DnaApiAccountTransport()
     account_service = AccountService(
         runtime_database,
