@@ -4,6 +4,10 @@ const NAV_ITEMS = Object.freeze([
   { id: "aliases", label: "角色别名" },
 ]);
 
+const PAGE_SIZE_OPTIONS = Object.freeze([10, 20, 50]);
+const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PLUGIN_DISPLAY_NAME = "狩月终端";
+
 const TASK_STATE_LABELS = Object.freeze({
   running: "运行中",
   paused: "已暂停",
@@ -42,22 +46,6 @@ function accountKey(account) {
   return `${account?.user_id || ""}:${account?.uid || ""}`;
 }
 
-function accountGroups(value) {
-  const accounts = asList(value, "accounts");
-  const groups = new Map();
-  for (const account of accounts) {
-    if (!account || typeof account.user_id !== "string" || !account.user_id.trim()) {
-      continue;
-    }
-    const userId = account.user_id.trim();
-    if (!groups.has(userId)) {
-      groups.set(userId, { user_id: userId, accounts: [] });
-    }
-    groups.get(userId).accounts.push(account);
-  }
-  return [...groups.values()];
-}
-
 function accountFormValue(account) {
   const credentials = blankCredentials();
   for (const field of CREDENTIAL_FIELDS) {
@@ -92,7 +80,7 @@ function blankDialog() {
   };
 }
 
-function blankDrawer() {
+function blankModal() {
   return {
     open: false,
     kind: "generic",
@@ -122,6 +110,43 @@ function asList(value, key) {
   return [];
 }
 
+function emptyPage(page = 1, pageSize = DEFAULT_PAGE_SIZE) {
+  return {
+    page,
+    pageSize,
+    total: 0,
+    totalPages: 0,
+  };
+}
+
+function asPage(value, key, fallback = emptyPage()) {
+  const data = responseData(value);
+  const items = Array.isArray(data?.items)
+    ? data.items
+    : Array.isArray(data?.[key])
+      ? data[key]
+      : Array.isArray(data)
+        ? data
+        : [];
+  const page = Number.isInteger(data?.page) && data.page >= 1 ? data.page : fallback.page;
+  const pageSize = PAGE_SIZE_OPTIONS.includes(data?.page_size)
+    ? data.page_size
+    : fallback.pageSize;
+  const total = Number.isInteger(data?.total) && data.total >= 0 ? data.total : items.length;
+  const totalPages = Number.isInteger(data?.total_pages) && data.total_pages >= 0
+    ? data.total_pages
+    : total === 0
+      ? 0
+      : Math.ceil(total / pageSize);
+  return {
+    items,
+    page,
+    pageSize,
+    total,
+    totalPages,
+  };
+}
+
 function capabilityValue(value) {
   const data = responseData(value);
   return {
@@ -131,12 +156,28 @@ function capabilityValue(value) {
   };
 }
 
+function normalizedPageNumber(value) {
+  const page = Number(value);
+  return Number.isInteger(page) && page >= 1 ? page : null;
+}
+
+function pageState(page) {
+  return {
+    page: page.page,
+    pageSize: page.pageSize,
+    total: page.total,
+    totalPages: page.totalPages,
+  };
+}
+
 export function createDashboardStore({ api }) {
   return {
     api,
     navItems: NAV_ITEMS,
+    pageSizeOptions: PAGE_SIZE_OPTIONS,
     activePage: "tasks",
     mobileNavOpen: false,
+    pluginDisplayName: DEFAULT_PLUGIN_DISPLAY_NAME,
     pluginVersion: "",
     capabilities: null,
     bootstrapError: "",
@@ -152,6 +193,10 @@ export function createDashboardStore({ api }) {
     selectedTaskId: "",
     taskScheduleDrafts: {},
     taskActionBusy: "",
+    targetSearch: "",
+    targetSearchInput: "",
+    targetPage: emptyPage(),
+    targetRequestId: 0,
 
     membershipCapability: {
       supported: false,
@@ -162,14 +207,18 @@ export function createDashboardStore({ api }) {
     membershipError: "",
     memberUserId: "",
     memberScan: null,
+    memberPage: emptyPage(),
     memberScanLoading: false,
+    memberRequestId: 0,
     memberActionBusy: false,
     memberDeletePreviewLoading: false,
     memberDeletePlan: null,
 
     accounts: [],
-    accountGroups: [],
     accountSearch: "",
+    accountSearchInput: "",
+    accountPage: emptyPage(),
+    accountRequestId: 0,
     accountsLoading: false,
     accountsError: "",
     selectedAccount: null,
@@ -189,10 +238,14 @@ export function createDashboardStore({ api }) {
 
     aliasRoles: [],
     aliasSearch: "",
+    aliasSearchInput: "",
+    aliasPage: emptyPage(),
+    aliasRequestId: 0,
     aliasesLoading: false,
     aliasesError: "",
     aliasDrafts: {},
     aliasActionBusy: "",
+    aliasModalRole: null,
 
     toast: {
       open: false,
@@ -200,41 +253,10 @@ export function createDashboardStore({ api }) {
       tone: "info",
     },
     dialog: blankDialog(),
-    drawer: blankDrawer(),
+    modal: blankModal(),
 
     get activePageLabel() {
       return this.navItems.find((item) => item.id === this.activePage)?.label || "任务与探测";
-    },
-
-    get filteredAccountGroups() {
-      const query = this.accountSearch.trim().toLocaleLowerCase();
-      if (!query) {
-        return this.accountGroups;
-      }
-      return this.accountGroups
-        .map((group) => ({
-          ...group,
-          accounts: group.accounts.filter((account) =>
-            accountKey(account).toLocaleLowerCase().includes(query),
-          ),
-        }))
-        .filter((group) => group.accounts.length > 0);
-    },
-
-    get filteredAliasRoles() {
-      const query = this.aliasSearch.trim().toLocaleLowerCase();
-      if (!query) {
-        return this.aliasRoles;
-      }
-      return this.aliasRoles.filter((role) => {
-        const values = [
-          role.canonical_name,
-          ...(role.default_aliases || []),
-          ...(role.custom_aliases || []),
-          ...(role.effective_aliases || []),
-        ];
-        return values.some((value) => String(value).toLocaleLowerCase().includes(query));
-      });
     },
 
     get selectedTask() {
@@ -246,7 +268,7 @@ export function createDashboardStore({ api }) {
     },
 
     get membershipResults() {
-      return this.memberScan?.groups || this.memberScan?.results || [];
+      return this.memberScan?.items || this.memberScan?.groups || this.memberScan?.results || [];
     },
 
     get canScanMembers() {
@@ -259,10 +281,29 @@ export function createDashboardStore({ api }) {
       );
     },
 
+    setDocumentMetadata() {
+      if (typeof document === "undefined") {
+        return;
+      }
+      document.title = `${this.pluginDisplayName} 管理面板`;
+      document.documentElement.dataset.pluginDisplayName = this.pluginDisplayName;
+    },
+
     async initialize() {
       this.loading = true;
       this.errorMessage = "";
       this.bootstrapError = "";
+      try {
+        const context = responseData(await this.api.getContext());
+        const displayName = typeof context?.displayName === "string"
+          ? context.displayName.trim()
+          : "";
+        this.pluginDisplayName = displayName || DEFAULT_PLUGIN_DISPLAY_NAME;
+      } catch (_error) {
+        this.pluginDisplayName = DEFAULT_PLUGIN_DISPLAY_NAME;
+      }
+      this.setDocumentMetadata();
+
       try {
         const payload = responseData(await this.api.getBootstrap());
         this.pluginVersion = payload?.version || payload?.plugin_version || "";
@@ -271,7 +312,7 @@ export function createDashboardStore({ api }) {
           this.membershipCapability = capabilityValue(payload.capabilities.membership_probe);
         }
       } catch (error) {
-        // capability 不支持时 bootstrap 会按后端契约返回错误；保留页面可用，交给成员区域禁用扫描并说明原因。
+        // 能力读取失败时保留页面结构，让成员区域明确显示不可用原因。
         this.bootstrapError = safeErrorMessage(error);
         this.capabilities = {};
         this.membershipCapability = {
@@ -343,33 +384,43 @@ export function createDashboardStore({ api }) {
       }
     },
 
-    openDrawer(options = {}) {
-      if (this.drawer.kind === "account-edit") {
+    openModal(options = {}) {
+      if (this.modal.kind === "account-edit") {
         this.clearAccountSecrets();
       }
-      if (this.drawer.kind === "preview") {
+      if (this.modal.kind === "preview") {
         this.clearPreviewState();
       }
-      this.drawer = {
-        ...blankDrawer(),
+      this.modal = {
+        ...blankModal(),
         ...options,
         open: true,
       };
     },
 
-    closeDrawer() {
-      if (this.drawer.kind === "account-edit") {
+    closeModal() {
+      const kind = this.modal.kind;
+      if (kind === "account-edit") {
         this.clearAccountSecrets();
         this.accountEditorOpen = false;
+        this.accountEditorRequestId += 1;
+        this.selectedAccount = null;
+        this.accountForm = blankAccountForm();
+      }
+      if (kind === "preview" || kind === "detail-form") {
+        this.clearPreviewState();
         this.selectedAccount = null;
       }
-      if (this.drawer.kind === "preview") {
-        this.clearPreviewState();
+      if (kind === "alias-edit") {
+        this.aliasModalRole = null;
       }
-      if (this.drawer.kind === "detail-form") {
-        this.clearPreviewState();
+      this.modal = blankModal();
+    },
+
+    handleKeydown(event) {
+      if (event?.key === "Escape") {
+        this.closeOverlay();
       }
-      this.drawer = blankDrawer();
     },
 
     closeOverlay() {
@@ -377,25 +428,69 @@ export function createDashboardStore({ api }) {
       if (this.dialog.open) {
         this.closeDialog();
       }
-      if (this.drawer.open) {
-        this.closeDrawer();
+      if (this.modal.open) {
+        this.closeModal();
       }
     },
 
     async reloadAccountState() {
+      const requestId = ++this.accountRequestId;
       this.accountsLoading = true;
       this.accountsError = "";
       try {
-        const payload = await this.api.getAccounts({ includeCredentials: false });
-        this.accounts = asList(payload, "accounts");
-        this.accountGroups = accountGroups(this.accounts);
+        const payload = await this.api.getAccounts({
+          includeCredentials: false,
+          page: this.accountPage.page,
+          pageSize: this.accountPage.pageSize,
+          search: this.accountSearch,
+        });
+        const page = asPage(payload, "accounts", this.accountPage);
+        if (requestId !== this.accountRequestId) {
+          return;
+        }
+        this.accounts = page.items;
+        this.accountPage = pageState(page);
+        if (page.items.length === 0 && page.total > 0 && page.page > page.totalPages) {
+          this.accountPage.page = page.totalPages;
+          await this.reloadAccountState();
+        }
       } catch (error) {
+        if (requestId !== this.accountRequestId) {
+          return;
+        }
         this.accounts = [];
-        this.accountGroups = [];
+        this.accountPage = emptyPage(this.accountPage.page, this.accountPage.pageSize);
         this.accountsError = safeErrorMessage(error);
       } finally {
-        this.accountsLoading = false;
+        if (requestId === this.accountRequestId) {
+          this.accountsLoading = false;
+        }
       }
+    },
+
+    async applyAccountSearch() {
+      this.accountSearch = this.accountSearchInput.trim();
+      this.accountPage.page = 1;
+      await this.reloadAccountState();
+    },
+
+    async setAccountPage(page) {
+      const nextPage = normalizedPageNumber(page);
+      if (!nextPage || (this.accountPage.totalPages > 0 && nextPage > this.accountPage.totalPages)) {
+        return;
+      }
+      this.accountPage.page = nextPage;
+      await this.reloadAccountState();
+    },
+
+    async setAccountPageSize(value) {
+      const pageSize = Number(value);
+      if (!PAGE_SIZE_OPTIONS.includes(pageSize)) {
+        return;
+      }
+      this.accountPage.page = 1;
+      this.accountPage.pageSize = pageSize;
+      await this.reloadAccountState();
     },
 
     async openAccountEditor(account) {
@@ -408,7 +503,7 @@ export function createDashboardStore({ api }) {
       this.selectedAccount = account;
       this.accountForm = accountFormValue(account);
       this.accountEditorOpen = true;
-      this.openDrawer({
+      this.openModal({
         kind: "account-edit",
         title: `编辑账号 ${account.uid || ""}`,
         description: "身份键只读；来源群、启用状态和全部 App 凭据可编辑。",
@@ -417,8 +512,8 @@ export function createDashboardStore({ api }) {
         const payload = responseData(await this.api.getAccount(account.user_id, account.uid));
         if (
           requestId !== this.accountEditorRequestId ||
-          !this.drawer.open ||
-          this.drawer.kind !== "account-edit"
+          !this.modal.open ||
+          this.modal.kind !== "account-edit"
         ) {
           return;
         }
@@ -431,7 +526,7 @@ export function createDashboardStore({ api }) {
           return;
         }
         this.accountEditorOpen = false;
-        this.closeDrawer();
+        this.closeModal();
         this.showToast(safeErrorMessage(error), "error");
       }
     },
@@ -452,8 +547,8 @@ export function createDashboardStore({ api }) {
       this.accountEditorOpen = false;
       this.accountForm = blankAccountForm();
       this.selectedAccount = null;
-      if (this.drawer.open) {
-        this.closeDrawer();
+      if (this.modal.kind === "account-edit") {
+        this.modal = blankModal();
       }
     },
 
@@ -625,7 +720,7 @@ export function createDashboardStore({ api }) {
       }
       this.clearPreviewState();
       this.selectedAccount = account;
-      this.openDrawer({
+      this.openModal({
         kind: "detail-form",
         title: `生成详情卡 · ${account.uid || ""}`,
         description: "输入总览中的角色名称，可选填至多两件武器名称。",
@@ -638,7 +733,7 @@ export function createDashboardStore({ api }) {
       }
       this.clearPreviewState();
       this.selectedAccount = account;
-      this.openDrawer({
+      this.openModal({
         kind: "preview",
         title: `基本信息卡 · ${account.uid || ""}`,
         description: "管理预览固定显示完整 UID，不受用户隐私设置影响。",
@@ -649,8 +744,8 @@ export function createDashboardStore({ api }) {
         const payload = responseData(await this.api.previewOverview(account.user_id, account.uid));
         if (
           requestId !== this.previewRequestId ||
-          !this.drawer.open ||
-          this.drawer.kind !== "preview"
+          !this.modal.open ||
+          this.modal.kind !== "preview"
         ) {
           return;
         }
@@ -683,7 +778,7 @@ export function createDashboardStore({ api }) {
       this.selectedAccount = account;
       this.previewCharName = charName;
       this.previewWeaponNames = weaponNames.join(", ");
-      this.openDrawer({
+      this.openModal({
         kind: "preview",
         title: `详情卡 · ${account.uid || ""}`,
         description: "管理预览固定显示完整 UID，不受用户隐私设置影响。",
@@ -696,8 +791,8 @@ export function createDashboardStore({ api }) {
         );
         if (
           requestId !== this.previewRequestId ||
-          !this.drawer.open ||
-          this.drawer.kind !== "preview"
+          !this.modal.open ||
+          this.modal.kind !== "preview"
         ) {
           return;
         }
@@ -716,16 +811,30 @@ export function createDashboardStore({ api }) {
       }
     },
 
-    previewDetailFromDrawer() {
+    previewDetailFromModal() {
       return this.previewDetail(this.selectedAccount);
     },
 
     async reloadAliasState() {
+      const requestId = ++this.aliasRequestId;
       this.aliasesLoading = true;
       this.aliasesError = "";
       try {
-        const payload = await this.api.getAliasCatalog();
-        this.aliasRoles = asList(payload, "roles");
+        const payload = await this.api.getAliasCatalog({
+          page: this.aliasPage.page,
+          pageSize: this.aliasPage.pageSize,
+          search: this.aliasSearch,
+        });
+        const page = asPage(payload, "roles", this.aliasPage);
+        if (requestId !== this.aliasRequestId) {
+          return;
+        }
+        this.aliasRoles = page.items;
+        this.aliasPage = pageState(page);
+        const modalRoleName = this.aliasModalRole?.canonical_name;
+        this.aliasModalRole = modalRoleName
+          ? this.aliasRoles.find((role) => role.canonical_name === modalRoleName) || null
+          : this.aliasModalRole;
         const drafts = { ...this.aliasDrafts };
         for (const role of this.aliasRoles) {
           const name = role?.canonical_name;
@@ -734,16 +843,63 @@ export function createDashboardStore({ api }) {
           }
         }
         this.aliasDrafts = drafts;
+        if (page.items.length === 0 && page.total > 0 && page.page > page.totalPages) {
+          this.aliasPage.page = page.totalPages;
+          await this.reloadAliasState();
+        }
       } catch (error) {
+        if (requestId !== this.aliasRequestId) {
+          return;
+        }
         this.aliasRoles = [];
+        this.aliasPage = emptyPage(this.aliasPage.page, this.aliasPage.pageSize);
         this.aliasesError = safeErrorMessage(error);
       } finally {
-        this.aliasesLoading = false;
+        if (requestId === this.aliasRequestId) {
+          this.aliasesLoading = false;
+        }
       }
+    },
+
+    async applyAliasSearch() {
+      this.aliasSearch = this.aliasSearchInput.trim();
+      this.aliasPage.page = 1;
+      await this.reloadAliasState();
+    },
+
+    async setAliasPage(page) {
+      const nextPage = normalizedPageNumber(page);
+      if (!nextPage || (this.aliasPage.totalPages > 0 && nextPage > this.aliasPage.totalPages)) {
+        return;
+      }
+      this.aliasPage.page = nextPage;
+      await this.reloadAliasState();
+    },
+
+    async setAliasPageSize(value) {
+      const pageSize = Number(value);
+      if (!PAGE_SIZE_OPTIONS.includes(pageSize)) {
+        return;
+      }
+      this.aliasPage.page = 1;
+      this.aliasPage.pageSize = pageSize;
+      await this.reloadAliasState();
     },
 
     aliasRoleName(role) {
       return typeof role === "string" ? role : role?.canonical_name || "";
+    },
+
+    openAliasEditor(role) {
+      if (!role) {
+        return;
+      }
+      this.aliasModalRole = role;
+      this.openModal({
+        kind: "alias-edit",
+        title: `编辑角色别名 · ${role.canonical_name}`,
+        description: "完整别名在此查看；默认别名只读，自定义别名可追加、删除或恢复。",
+      });
     },
 
     confirmAddAlias(role) {
@@ -886,23 +1042,74 @@ export function createDashboardStore({ api }) {
       }
     },
 
-    async loadTargets(taskId) {
-      this.selectedTaskId = taskId || "";
+    async loadTargets(taskId, requestedPage = this.targetPage.page) {
+      const nextTaskId = taskId || "";
+      if (nextTaskId !== this.selectedTaskId) {
+        this.targetPage.page = 1;
+      }
+      this.selectedTaskId = nextTaskId;
       this.targetsLoading = true;
       this.targetsError = "";
+      const requestId = ++this.targetRequestId;
       if (!this.selectedTaskId) {
         this.targets = [];
+        this.targetPage = emptyPage(1, this.targetPage.pageSize);
         this.targetsLoading = false;
         return;
       }
       try {
-        this.targets = asList(await this.api.getTargets(this.selectedTaskId), "targets");
+        const payload = await this.api.getTargets(this.selectedTaskId, {
+          page: requestedPage,
+          pageSize: this.targetPage.pageSize,
+          search: this.targetSearch,
+        });
+        const page = asPage(payload, "targets", this.targetPage);
+        if (requestId !== this.targetRequestId) {
+          return;
+        }
+        this.targets = page.items;
+        this.targetPage = pageState(page);
+        if (page.items.length === 0 && page.total > 0 && page.page > page.totalPages) {
+          this.targetPage.page = page.totalPages;
+          await this.loadTargets(this.selectedTaskId, page.totalPages);
+        }
       } catch (error) {
+        if (requestId !== this.targetRequestId) {
+          return;
+        }
         this.targets = [];
+        this.targetPage = emptyPage(this.targetPage.page, this.targetPage.pageSize);
         this.targetsError = safeErrorMessage(error);
       } finally {
-        this.targetsLoading = false;
+        if (requestId === this.targetRequestId) {
+          this.targetsLoading = false;
+        }
       }
+    },
+
+    async applyTargetSearch() {
+      this.targetSearch = this.targetSearchInput.trim();
+      this.targetPage.page = 1;
+      await this.loadTargets(this.selectedTaskId, 1);
+    },
+
+    async setTargetPage(page) {
+      const nextPage = normalizedPageNumber(page);
+      if (!nextPage || (this.targetPage.totalPages > 0 && nextPage > this.targetPage.totalPages)) {
+        return;
+      }
+      this.targetPage.page = nextPage;
+      await this.loadTargets(this.selectedTaskId, nextPage);
+    },
+
+    async setTargetPageSize(value) {
+      const pageSize = Number(value);
+      if (!PAGE_SIZE_OPTIONS.includes(pageSize)) {
+        return;
+      }
+      this.targetPage.page = 1;
+      this.targetPage.pageSize = pageSize;
+      await this.loadTargets(this.selectedTaskId, 1);
     },
 
     taskSchedule(task) {
@@ -1039,9 +1246,21 @@ export function createDashboardStore({ api }) {
 
     confirmTargetAction(target, action) {
       const actions = {
-        enableTarget: { title: "确认启用公告目标", description: `将启用「${this.targetLabel(target)}」的公告推送。`, confirmLabel: "启用目标" },
-        disableTarget: { title: "确认停用公告目标", description: `将停用「${this.targetLabel(target)}」的公告推送，停用后不再发送。`, confirmLabel: "停用目标" },
-        deleteTarget: { title: "确认删除公告目标", description: `将永久删除「${this.targetLabel(target)}」的公告推送目标。`, confirmLabel: "删除目标" },
+        enableTarget: {
+          title: "确认启用公告目标",
+          description: `将启用「${this.targetLabel(target)}」的公告推送。`,
+          confirmLabel: "启用目标",
+        },
+        disableTarget: {
+          title: "确认停用公告目标",
+          description: `将停用「${this.targetLabel(target)}」的公告推送，停用后不再发送。`,
+          confirmLabel: "停用目标",
+        },
+        deleteTarget: {
+          title: "确认删除公告目标",
+          description: `将永久删除「${this.targetLabel(target)}」的公告推送目标。`,
+          confirmLabel: "删除目标",
+        },
       };
       const options = actions[action];
       if (!options || target?.managed !== true) {
@@ -1116,21 +1335,61 @@ export function createDashboardStore({ api }) {
         this.membershipError = "仅支持 aiocqhttp（OneBot V11）平台，且需要填写 user_id";
         return;
       }
+      const requestId = ++this.memberRequestId;
       this.memberScanLoading = true;
       this.membershipError = "";
       try {
-        const payload = responseData(await this.api.scanMembers(userId));
+        const payload = responseData(
+          await this.api.scanMembers(userId, {
+            page: this.memberPage.page,
+            pageSize: this.memberPage.pageSize,
+          }),
+        );
+        if (requestId !== this.memberRequestId) {
+          return;
+        }
         this.memberScan = payload;
+        const page = asPage(payload, "groups", this.memberPage);
+        this.memberPage = pageState(page);
         if (payload?.capability) {
           this.membershipCapability = capabilityValue(payload.capability);
         }
+        if (page.items.length === 0 && page.total > 0 && page.page > page.totalPages) {
+          this.memberPage.page = page.totalPages;
+          await this.scanMembers(true);
+          return;
+        }
         this.showToast("成员探测完成");
       } catch (error) {
-        this.memberScan = null;
-        this.membershipError = safeErrorMessage(error);
+        if (requestId === this.memberRequestId) {
+          this.memberScan = null;
+          this.memberPage = emptyPage(this.memberPage.page, this.memberPage.pageSize);
+          this.membershipError = safeErrorMessage(error);
+        }
       } finally {
-        this.memberScanLoading = false;
+        if (requestId === this.memberRequestId) {
+          this.memberScanLoading = false;
+        }
       }
+    },
+
+    async setMemberPage(page) {
+      const nextPage = normalizedPageNumber(page);
+      if (!nextPage || (this.memberPage.totalPages > 0 && nextPage > this.memberPage.totalPages)) {
+        return;
+      }
+      this.memberPage.page = nextPage;
+      await this.scanMembers(true);
+    },
+
+    async setMemberPageSize(value) {
+      const pageSize = Number(value);
+      if (!PAGE_SIZE_OPTIONS.includes(pageSize)) {
+        return;
+      }
+      this.memberPage.page = 1;
+      this.memberPage.pageSize = pageSize;
+      await this.scanMembers(true);
     },
 
     async reloadMembershipState() {
