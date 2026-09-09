@@ -107,6 +107,7 @@ function dataValue(response) {
 
 export function createDashboardApi() {
   return {
+    getContext,
     getBootstrap: () => apiGet("admin/bootstrap"),
     getAccounts,
     getAccount,
@@ -139,8 +140,30 @@ export function createDashboardApi() {
   };
 }
 
-export async function getAliasCatalog() {
-  return dataValue(await apiGet("admin/aliases"));
+export async function getContext() {
+  const bridge = await bridgeReady();
+  if (typeof bridge.getContext !== "function") {
+    return {};
+  }
+  const context = await bridge.getContext();
+  if (!context || typeof context !== "object") {
+    return {};
+  }
+  return {
+    ...context,
+    displayName:
+      typeof context.displayName === "string" ? context.displayName.trim() : "",
+  };
+}
+
+export async function getAliasCatalog({ page = 1, pageSize = 20, search = "" } = {}) {
+  return dataValue(
+    await apiGet("admin/aliases", {
+      page: String(page),
+      page_size: String(pageSize),
+      search,
+    }),
+  );
 }
 
 export async function addAlias(roleName, alias) {
@@ -162,10 +185,18 @@ export async function restoreAllAliases() {
   return dataValue(await apiPost("admin/aliases/restore-all", {}));
 }
 
-export async function getAccounts({ includeCredentials = false } = {}) {
+export async function getAccounts({
+  includeCredentials = false,
+  page = 1,
+  pageSize = 20,
+  search = "",
+} = {}) {
   return dataValue(
     await apiGet("admin/accounts", {
       include_credentials: includeCredentials ? "true" : "false",
+      page: String(page),
+      page_size: String(pageSize),
+      search,
     }),
   );
 }
@@ -239,8 +270,15 @@ export async function getTasks() {
   return dataValue(await apiGet("admin/tasks"));
 }
 
-export async function getTargets(taskId) {
-  const params = taskId ? { task_id: taskId } : undefined;
+export async function getTargets(taskId, { page = 1, pageSize = 20, search = "" } = {}) {
+  const params = {
+    page: String(page),
+    page_size: String(pageSize),
+    search,
+  };
+  if (taskId) {
+    params.task_id = taskId;
+  }
   return dataValue(await apiGet("admin/targets", params));
 }
 
@@ -287,9 +325,14 @@ export async function getMembershipCapability() {
   return dataValue(await apiGet("admin/members/capability"));
 }
 
-export async function scanMembers(userId) {
+export async function scanMembers(userId, { page = 1, pageSize = 20 } = {}) {
   const user = pathSegment(userId, "user_id");
-  return dataValue(await apiPost(`admin/members/${user}/scan`, {}));
+  return dataValue(
+    await apiPost(
+      `admin/members/${user}/scan?page=${encodeURIComponent(String(page))}&page_size=${encodeURIComponent(String(pageSize))}`,
+      {},
+    ),
+  );
 }
 
 export async function cleanupMemberGroup(userId, groupId) {

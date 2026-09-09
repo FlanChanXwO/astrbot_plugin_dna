@@ -5,7 +5,7 @@ const root = document.querySelector("#app");
 const petiteVue = globalThis.PetiteVue;
 
 if (!root) {
-  throw new Error("DNABY dashboard root not found");
+  throw new Error("Dashboard root not found");
 }
 
 if (!petiteVue || typeof petiteVue.createApp !== "function") {
@@ -18,10 +18,22 @@ const store = createDashboardStore({ api: createDashboardApi() });
 globalThis.dnabyDashboard = store;
 petiteVue.createApp(store).mount("#app");
 
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    store.closeOverlay();
+  }
+});
+
+function syncDocumentMetadata() {
+  document.title = `${store.pluginDisplayName} 管理面板`;
+  document.documentElement.dataset.pluginDisplayName = store.pluginDisplayName;
+}
+
 async function boot() {
   try {
     await bridgeReady();
     await store.initialize();
+    syncDocumentMetadata();
   } catch (error) {
     store.fail(error);
     store.loading = false;

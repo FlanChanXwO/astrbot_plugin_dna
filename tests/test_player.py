@@ -165,10 +165,10 @@ class FixturePlayerTransport:
 
 
 @pytest.mark.asyncio
-async def test_role_detail_does_not_request_damage_for_normal_app_card(
+async def test_role_detail_requests_damage_for_complete_app_card(
     tmp_path: Path,
 ) -> None:
-    """正常角色详情只读取基础资料，不调用伤害计算 API。"""
+    """正常角色详情会恢复伤害/显赫相关计算数据并渲染完整详情。"""
 
     _preseed_legacy_assets()
     database = await _database_with_binding(tmp_path)
@@ -191,12 +191,12 @@ async def test_role_detail_does_not_request_damage_for_normal_app_card(
     )
 
     assert isinstance(response, ImageResponse)
-    assert transport.damage_calls == 0
+    assert transport.damage_calls == 1
     artifact = read_rendered_artifact(Path(response.image))
     text = artifact.metadata["dnaby.text"]
     layout = artifact.metadata["dnaby.layout"]
-    assert "伤害计算" not in text
-    assert "伤害" not in {section["name"] for section in layout["sections"]}
+    assert "技能伤害" in text
+    assert "伤害" in {section["name"] for section in layout["sections"]}
     await database.dispose()
 
 
@@ -752,11 +752,11 @@ async def test_concurrent_role_details_keep_their_related_original_paths(
         "https://api.example.test/damage?token=secret-url-006",
     ),
 )
-async def test_normal_detail_does_not_expose_or_request_damage_payload(
+async def test_damage_failure_hides_optional_detail_section(
     tmp_path: Path,
     upstream_message: str,
 ) -> None:
-    """正常详情不调用伤害接口，也不把任何伤害正文写入用户图片。"""
+    """伤害计算失败或不受支持时，整个可选伤害区块都应隐藏。"""
 
     class SensitiveDamageTransport(FixturePlayerTransport):
         async def calculate_damage(
@@ -802,16 +802,16 @@ async def test_normal_detail_does_not_expose_or_request_damage_payload(
 
     assert isinstance(response, ImageResponse)
     assert response.original_image_path is None
-    assert transport.damage_calls == 0
     assert upstream_message not in repr(response)
     artifact = read_rendered_artifact(Path(response.image))
     text = artifact.metadata["dnaby.text"]
     layout = artifact.metadata["dnaby.layout"]
     resources = artifact.metadata["dnaby.resources"]
-    assert "伤害计算" not in text
+    assert messages.PLAYER_DAMAGE_FAILED not in text
     assert upstream_message not in text
     assert upstream_message not in layout
     assert upstream_message not in resources
+    assert "伤害" not in {section["name"] for section in layout["sections"]}
     await database.dispose()
 
 

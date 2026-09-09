@@ -11,9 +11,13 @@ from PIL import Image
 
 from src.entry.event import EventActor
 from src.entry.response import ImageResponse, PlainTextResponse
+from src.infrastructure.http.app import AppTransportError, AppTransportFailureKind
+from src.infrastructure.http.auth import is_credential_failure
+from src.infrastructure.http.checkin import DnaApiCheckinTransport, _app_error
 from src.infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
+    CredentialRepository,
     PrivacySettingRepository,
     SignRecordRepository,
 )
@@ -42,6 +46,42 @@ from src.modules.privacy import PrivacyService
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 UID = "1234567890123"
 TARGET_UID = "9876543210987"
+
+
+def test_checkin_app_http_auth_failure_is_credential_error() -> None:
+    """HTTP authentication failures must not degrade into generic service errors."""
+
+    error = _app_error(
+        AppTransportError(
+            AppTransportFailureKind.STATUS,
+            method="POST",
+            url="https://dnabbs-api.yingxiong.com/example",
+            status_code=401,
+        ),
+        resource="签到日历",
+    )
+
+    assert error.kind is CheckinFailureKind.CREDENTIAL
+
+
+def test_sign_calendar_projection_accepts_upstream_compact_payload() -> None:
+    """The compact upstream calendar response may omit status and awards."""
+
+    calendar = DnaApiCheckinTransport._sign_calendar(
+        {
+            "period": {
+                "id": 1,
+                "name": "周期",
+                "overDays": 30,
+                "startDate": 0,
+                "endDate": 0,
+            }
+        }
+    )
+
+    assert calendar.today_signed is None
+    assert calendar.signin_time is None
+    assert calendar.day_awards == ()
 
 
 def _calendar_fixture(*, today_signed: bool | None = False) -> SignCalendar:
@@ -203,6 +243,13 @@ async def _database_with_binding(
             group_id="group-1",
             is_active=True,
         )
+        await CredentialRepository.add(
+            session,
+            user_id=user_id,
+            uid=uid,
+            app_cookie="test-token",
+            app_device_code="test-device",
+        )
     return database
 
 
@@ -328,6 +375,40 @@ async def test_manual_sign_transport_failure_is_visible_and_redacted(
     assert messages.transport_error(CheckinFailureKind.NETWORK) in response.text
     assert "secret-upstream-001" not in response.text
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_manual_sign_credential_failure_requests_login(tmp_path: Path) -> None:
+    """Credential failures must ask the current user to log in again."""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeCheckinTransport(
+        fail=CheckinTransportError(
+            CheckinFailureKind.CREDENTIAL,
+            resource="账号凭据",
+        ),
+    )
+    service = _service(database, transport)
+
+    response = await service.manual_sign(_request())
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == "登录已失效，请重新登录"
+    async with database.session() as session:
+        record = await CredentialRepository.get(session, user_id="user-1", uid=UID)
+    assert record is not None
+    assert record.app_status == "无效"
+    await database.dispose()
+
+
+def test_identity_validation_failure_is_credential_failure() -> None:
+    """上游身份校验失败必须映射为登录失效，而不是服务异常。"""
+
+    class Response:
+        code = 220
+        msg = "用户身份校验失败"
+
+    assert is_credential_failure(Response()) is True
 
 
 @pytest.mark.asyncio
@@ -690,6 +771,53 @@ async def test_auto_sign_all_summary_counts_game_and_community(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
+async def test_auto_sign_skips_bindings_without_usable_credentials(tmp_path: Path) -> None:
+    """计划任务不把历史绑定/缺失凭据账号计为失败，也不产生群失败明细。"""
+
+    database = await _database_with_binding(tmp_path)
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="stale-user",
+            uid="2222222222222",
+            group_id="group-1",
+            is_active=False,
+            auto_sign_enabled=True,
+        )
+    service = _service(database, FakeCheckinTransport(), group_report=True)
+
+    report = await service.auto_sign_report()
+
+    assert "今日成功游戏签到 1 个账号" in report.summary_text
+    reports = report.group_reports["group-1"]
+    assert all(item.success == 1 and item.failed == 0 for item in reports)
+    assert all(item.mention_details == () for item in reports)
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_auto_sign_credential_expiry_is_not_group_failure(
+    tmp_path: Path,
+) -> None:
+    """运行中确认凭据过期时跳过群失败 @，与原 DNAUID 行为一致。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeCheckinTransport(
+        fail=CheckinTransportError(
+            CheckinFailureKind.CREDENTIAL,
+            resource="签到日历",
+        )
+    )
+    service = _service(database, transport, group_report=True)
+
+    report = await service.auto_sign_report()
+
+    assert "今日成功游戏签到 0 个账号" in report.summary_text
+    assert report.group_reports == {}
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_auto_sign_all_preserves_text_only_compatibility(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -770,7 +898,7 @@ async def test_auto_sign_report_groups_game_and_community_by_group(
         reports = report.group_reports[group_id]
         assert {item.report_type for item in reports} == {"game", "community"}
         assert all(item.success == 1 and item.failed == 0 for item in reports)
-        assert all(uid in item.detail_text for item in reports)
+        assert all(item.detail_text == "" for item in reports)
         assert all(
             messages.sign_detail_separator() not in item.detail_text for item in reports
         )
@@ -799,7 +927,7 @@ async def test_group_report_uses_structured_details_not_display_layout(
     async def run_all_signs_with_results(**_kwargs: object) -> _CheckinBatchResult:
         return _CheckinBatchResult(
             summary=CheckinSummary(success=1, failed=0, game_success=1, bbs_success=0),
-            group_results={"group-1": (("uid-1", outcome),)},
+            group_results={"group-1": (("user-1", outcome),)},
         )
 
     monkeypatch.setattr(
@@ -809,17 +937,18 @@ async def test_group_report_uses_structured_details_not_display_layout(
     report = await service.auto_sign_report()
     reports = {item.report_type: item for item in report.group_reports["group-1"]}
 
-    assert reports["game"].detail_text == "\n".join(
-        messages.group_detail("uid-1", line) for line in outcome.game_detail_lines
+    assert reports["game"].detail_text == ""
+    assert reports["game"].mention_details == ()
+    assert reports["community"].detail_text == ""
+    assert reports["community"].mention_details == (
+        (
+            "user-1",
+            "\n".join(
+                ["社区点赞：失败", messages.sign_detail_error(outcome.error)]
+            ),
+        ),
     )
-    assert reports["community"].detail_text == "\n".join(
-        [
-            messages.group_detail("uid-1", "社区点赞：失败"),
-            messages.group_detail("uid-1", messages.sign_detail_error(outcome.error)),
-        ]
-    )
-    assert "展示层误分类" not in reports["game"].detail_text
-    assert "展示层误分类" not in reports["community"].detail_text
+    assert "展示层误分类" not in reports["community"].mention_details[0][1]
 
     await database.dispose()
 

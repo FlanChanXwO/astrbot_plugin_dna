@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum
+from math import ceil
 from types import MappingProxyType
 from typing import Generic, TypeVar
 
@@ -21,6 +23,8 @@ CREDENTIAL_FIELDS = (
 )
 
 ADMIN_NO_STORE_HEADERS = MappingProxyType({"Cache-Control": "no-store"})
+ADMIN_PAGE_SIZES = (10, 20, 50)
+DEFAULT_ADMIN_PAGE_SIZE = 20
 
 
 class AdminErrorCode(StrEnum):
@@ -47,6 +51,97 @@ class AdminError:
 
 
 ResponseData = TypeVar("ResponseData")
+
+
+@dataclass(frozen=True, slots=True)
+class AdminPagination:
+    """Dashboard 列表查询的分页参数。
+
+    页码从 1 开始；页大小只允许使用前端提供的 10、20、50，避免不同入口对
+    分页契约产生漂移。搜索文本不做长度截断，空白会在 DTO 边界统一归一化。
+    """
+
+    page: int = 1
+    page_size: int = DEFAULT_ADMIN_PAGE_SIZE
+    search: str = ""
+
+    def __post_init__(self) -> None:
+        if isinstance(self.page, bool) or not isinstance(self.page, int) or self.page < 1:
+            raise ValueError("page 必须是大于等于 1 的整数")
+        if self.page_size not in ADMIN_PAGE_SIZES:
+            raise ValueError("page_size 只支持 10、20、50")
+        if not isinstance(self.search, str):
+            raise ValueError("search 必须是字符串")
+        object.__setattr__(self, "search", " ".join(self.search.strip().split()))
+
+
+@dataclass(frozen=True, slots=True)
+class AdminPage(Generic[ResponseData]):
+    """统一列表分页响应；空数据的 ``total_pages`` 为 0。"""
+
+    items: tuple[ResponseData, ...]
+    page: int
+    page_size: int
+    total: int
+
+    def __post_init__(self) -> None:
+        if isinstance(self.page, bool) or not isinstance(self.page, int) or self.page < 1:
+            raise ValueError("page 必须是大于等于 1 的整数")
+        if self.page_size not in ADMIN_PAGE_SIZES:
+            raise ValueError("page_size 只支持 10、20、50")
+        if isinstance(self.total, bool) or not isinstance(self.total, int) or self.total < 0:
+            raise ValueError("total 必须是大于等于 0 的整数")
+        object.__setattr__(self, "items", tuple(self.items))
+
+    @property
+    def total_pages(self) -> int:
+        """返回总页数；没有数据时按契约返回 0。"""
+
+        return ceil(self.total / self.page_size) if self.total else 0
+
+    @classmethod
+    def from_items(
+        cls,
+        items: Iterable[ResponseData],
+        pagination: AdminPagination,
+        *,
+        total: int | None = None,
+    ) -> AdminPage[ResponseData]:
+        """从当前页条目建立响应；``total`` 默认等于条目数。"""
+
+        values = tuple(items)
+        return cls(
+            items=values,
+            page=pagination.page,
+            page_size=pagination.page_size,
+            total=len(values) if total is None else total,
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        """导出分页字段；条目继续交给 Web adapter 递归序列化。"""
+
+        return {
+            "items": list(self.items),
+            "page": self.page,
+            "page_size": self.page_size,
+            "total": self.total,
+            "total_pages": self.total_pages,
+        }
+
+
+def paginate_items(
+    values: Iterable[ResponseData],
+    pagination: AdminPagination,
+) -> AdminPage[ResponseData]:
+    """对已完成业务过滤的值分页，不改变全量 service 方法。"""
+
+    all_values = tuple(values)
+    start = (pagination.page - 1) * pagination.page_size
+    return AdminPage.from_items(
+        all_values[start : start + pagination.page_size],
+        pagination,
+        total=len(all_values),
+    )
 
 
 @dataclass(frozen=True, slots=True)

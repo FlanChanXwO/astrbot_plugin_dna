@@ -23,6 +23,7 @@ from . import messages
 from .cache import PlayerCache
 from .contracts import (
     DamageCalculation,
+    DamageSnapshot,
     PlayerCommandRequest,
     PlayerFailureKind,
     PlayerTransport,
@@ -72,13 +73,13 @@ class _RefreshOverviewState:
 class _RoleDetailBundle:
     role_detail: RoleDetail
     weapon_sections: tuple[tuple[str, WeaponDetail], ...]
-    damage: DamageCalculation | None = None
+    damage: DamageCalculation
 
     @property
     def cacheable(self) -> bool:
-        """基础角色和武器详情完整即可缓存；详情不再依赖伤害接口。"""
+        """伤害失败时不把错误结果固化为后续请求的成功缓存。"""
 
-        return True
+        return self.damage.data is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -523,19 +524,14 @@ class PlayerService:
                 }
                 for label, detail in bundle.weapon_sections
             ],
-            # 保留旧缓存中显式伤害结果的解析兼容；新卡片路径固定不写入伤害。
-            "damage": (
-                None
-                if bundle.damage is None
-                else {
-                    "data": (
-                        None
-                        if bundle.damage.data is None
-                        else bundle.damage.data.model_dump(mode="json", by_alias=True)
-                    ),
-                    "message": bundle.damage.message,
-                }
-            ),
+            "damage": {
+                "data": (
+                    None
+                    if bundle.damage.data is None
+                    else bundle.damage.data.model_dump(mode="json", by_alias=True)
+                ),
+                "message": bundle.damage.message,
+            },
         }
 
     @staticmethod
@@ -546,7 +542,7 @@ class PlayerService:
         if (
             not isinstance(role_raw, dict)
             or not isinstance(sections_raw, list)
-            or (damage_raw is not None and not isinstance(damage_raw, dict))
+            or not isinstance(damage_raw, dict)
         ):
             raise TypeError("角色详情缓存结构无效")
         sections: list[tuple[str, WeaponDetail]] = []
@@ -558,9 +554,17 @@ class PlayerService:
             if not isinstance(label, str) or not isinstance(detail_raw, dict):
                 raise TypeError("角色详情缓存武器结构无效")
             sections.append((label, WeaponDetail.model_validate(detail_raw)))
-        # 旧缓存可能仍带有伤害结果，但正常详情路径必须忽略它，避免升级后
-        # 继续渲染已废弃的伤害区块；伤害 DTO/renderer 仍由显式调用方复用。
-        damage = None
+        damage_data = damage_raw.get("data")
+        if damage_data is None:
+            damage = DamageCalculation.failure(
+                str(damage_raw.get("message") or messages.PLAYER_DAMAGE_FAILED),
+            )
+        elif isinstance(damage_data, dict):
+            damage = DamageCalculation.success(
+                DamageSnapshot.model_validate(damage_data),
+            )
+        else:
+            raise ValueError("角色详情缓存伤害结构无效")
         return _RoleDetailBundle(
             role_detail=RoleDetail.model_validate(role_raw),
             weapon_sections=tuple(sections),
@@ -609,9 +613,52 @@ class PlayerService:
             )
             weapon_sections.append((slot, weapon_detail))
 
+        try:
+            damage = await self.transport.calculate_damage(
+                request.actor,
+                uid,
+                role_detail,
+                next(
+                    (
+                        detail
+                        for label, detail in weapon_sections
+                        if label == "同律武器"
+                    ),
+                    None,
+                ),
+                next(
+                    (
+                        detail
+                        for label, detail in weapon_sections
+                        if label == "近战武器"
+                    ),
+                    None,
+                ),
+                next(
+                    (
+                        detail
+                        for label, detail in weapon_sections
+                        if label == "远程武器"
+                    ),
+                    None,
+                ),
+                credential_user_id=target_user_id,
+            )
+        except PlayerTransportError as error:
+            logger.warning(
+                "玩家请求失败 kind=%s resource=%s",
+                error.kind.value,
+                error.resource,
+            )
+            damage = DamageCalculation.failure(messages.transport_error(error.kind.value))
+        if damage.data is None:
+            # 上游失败正文不得进入图片或 PNG 文本元数据。
+            damage = DamageCalculation.failure(messages.PLAYER_DAMAGE_FAILED)
+
         return _RoleDetailBundle(
             role_detail=role_detail,
             weapon_sections=tuple(weapon_sections),
+            damage=damage,
         )
 
     async def _load_detail(
@@ -813,7 +860,7 @@ class PlayerService:
         return response
 
     async def role_detail(self, request: PlayerCommandRequest):
-        """读取角色详情和选定武器后生成一张基础详情图。"""
+        """读取角色详情、选定武器和伤害结果后生成一张完整详情图。"""
 
         resolved = await self._resolve_uid(request, operation="role_detail")
         if isinstance(resolved, PlainTextResponse):
