@@ -18,6 +18,8 @@ from .contracts import (
     AdminApiResponse,
     AdminError,
     AdminErrorCode,
+    AdminPage,
+    AdminPagination,
     CredentialPayload,
     DeletionPreview,
 )
@@ -128,6 +130,51 @@ class AdminAccountService:
                     )
                 )
         return AdminApiResponse.success(tuple(accounts))
+
+    async def list_accounts_page(
+        self,
+        pagination: AdminPagination,
+        *,
+        include_credentials: bool = False,
+    ) -> AdminApiResponse[AdminPage[AdminAccount]]:
+        """按单个 ``(user_id, uid)`` 绑定分页；凭据只读取当前页。"""
+
+        if not isinstance(pagination, AdminPagination):
+            return _failure(AdminErrorCode.VALIDATION, "分页参数无效")
+
+        search = pagination.search.casefold()
+        async with self.database.session() as session:
+            bindings = await AccountBindingRepository.list_all(session)
+            matching_bindings = tuple(
+                binding
+                for binding in bindings
+                if not search
+                or search in binding.user_id.casefold()
+                or search in binding.uid.casefold()
+            )
+            start = (pagination.page - 1) * pagination.page_size
+            page_bindings = matching_bindings[start : start + pagination.page_size]
+            accounts = []
+            for binding in page_bindings:
+                credential = await CredentialRepository.get(
+                    session,
+                    user_id=binding.user_id,
+                    uid=binding.uid,
+                )
+                accounts.append(
+                    _account_from_records(
+                        binding,
+                        credential,
+                        include_credentials=include_credentials,
+                    )
+                )
+
+        page = AdminPage.from_items(
+            accounts,
+            pagination,
+            total=len(matching_bindings),
+        )
+        return AdminApiResponse.success(page)
 
     async def get_account(
         self,
