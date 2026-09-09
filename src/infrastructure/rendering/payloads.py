@@ -8,7 +8,7 @@ import httpx
 
 from ...utils.image import get_avatar_img
 from ...utils.image_utils import get_event_avatar
-from ...utils.resource.RESOURCE_PATH import AVATAR_PATH
+from ...utils.resource.RESOURCE_PATH import USER_AVATAR_PATH
 from ...utils.session import EventContext
 from .assets import image_data_uri, pil_image_data_uri
 
@@ -34,7 +34,7 @@ async def build_profile_header(
     original_at = ctx.at
     ctx.at = avatar_user_id or ""
     try:
-        avatar = await get_event_avatar(ctx, avatar_path=AVATAR_PATH)
+        avatar = await get_event_avatar(ctx, avatar_path=USER_AVATAR_PATH)
     except (httpx.HTTPError, OSError, TypeError, ValueError):
         avatar = await get_avatar_img("5101")
     finally:

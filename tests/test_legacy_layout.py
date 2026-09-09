@@ -20,6 +20,7 @@ LEGACY_PATHS = (
     "resource_generations",
     "rendered",
     "other",
+    "login_qr",
     "custom",
     "players",
     "subscriptions.json",

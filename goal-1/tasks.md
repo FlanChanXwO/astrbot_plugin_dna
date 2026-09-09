@@ -53,13 +53,13 @@
 
 ## Task 5：切换动态素材、API、渲染和媒体缓存路径
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：迁移 `resource/*` 到 `cache/assets/*`，拆分游戏头像和用户头像，迁移 API、玩家卡、MH、顶层 rendered 和 other 媒体路径。
 - 验收：新运行不会创建顶层 `resource/`、`rendered/` 或 `other/`；缓存读写和清理语义保持不变。
-- 实际变更：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际变更：扩展 `RuntimeDataLayout`，提供 `cache/assets`、`cache/api`、`cache/rendered`、`cache/media` 及游戏头像、用户头像、自定义素材、签到、公告、日历和登录二维码子目录；更新资源路径兼容投影与用户头像调用方，登录二维码改用新媒体目录；bootstrap 将玩家数据、玩家卡、密函和公告 typed cache 映射到对应 cache namespace，并统一把渲染与百科临时产物放入 `cache/rendered`。`CacheManager` 的 sidecar、完整性、租约、TTL、invalidate 和递归清理语义保持不变。
+- 验证证据：Red 阶段 Task5 目标测试先得到 `4 failed, 3 passed`；补充登录二维码路径契约后实际得到 `1 failed, 19 passed`。Green 阶段 `tests/test_runtime_data_layout.py tests/test_legacy_layout.py -q` 为 `31 passed`；相关资源、渲染、缓存和签到回归为 `87 passed, 3 failed`，3 项为既有玩家详情/签到断言失败；最终完整 pytest 为 `248 passed, 5 failed`，新增失败均未出现，剩余失败为既有签到、登录集成、goal 工作区守卫和玩家详情断言。目标文件 Ruff、`compileall src tests`、`git diff --check` 通过；LSP 诊断为空；源码检索未发现旧顶层 `resource`、`rendered`、`other` 或 `login_qr` 写入构造。
+- 剩余风险：完整 Ruff 仍受本任务前的仓库既有违规影响；Task 6 仍需迁移 state、aliases 和备份路径，Task 7-11 尚未执行。未显式提供 namespace 映射的独立 `CacheManager` 继续使用原有 `cache/<type>` 物理布局，这是为保持现有调用方兼容；生产 bootstrap 已提供完整映射。
+- 下一步：执行 Task 6，迁移 state、aliases 与备份路径。
 
 ## Task 6：迁移 state、aliases 与备份路径
 

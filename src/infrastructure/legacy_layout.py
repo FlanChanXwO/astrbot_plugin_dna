@@ -15,6 +15,7 @@ _LEGACY_LAYOUT_MARKERS: tuple[tuple[str, str], ...] = (
     ("resource_generations", "旧资源 generation 目录"),
     ("rendered", "旧渲染产物目录"),
     ("other", "旧媒体目录"),
+    ("login_qr", "旧登录二维码目录"),
     ("custom", "旧自定义素材目录"),
     ("players", "旧玩家数据目录"),
     ("subscriptions.json", "旧订阅状态文件"),

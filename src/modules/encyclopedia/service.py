@@ -13,6 +13,7 @@ from ...entry.response import (
     PlainTextResponse,
     write_temporary_image,
 )
+from ...infrastructure.data_layout import RuntimeDataLayout
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import EncyclopediaRenderer
 from ...infrastructure.resources import (
@@ -43,6 +44,7 @@ class EncyclopediaService:
         *,
         guide_providers: tuple[str, ...] = ("all",),
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
+        rendered_root: str | Path | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -51,6 +53,13 @@ class EncyclopediaService:
         self.resources = resources
         self.guide_providers = guide_providers
         self.resource_snapshots = resource_snapshots
+        self.rendered_root = (
+            Path(rendered_root).expanduser().absolute()
+            if rendered_root is not None
+            else RuntimeDataLayout.from_data_dir(
+                self.database.path.parent
+            ).cache_rendered_dir
+        )
 
     def _renderer_context(self):
         if self.resource_snapshots is None:
@@ -71,7 +80,7 @@ class EncyclopediaService:
 
     def _copy_resource_image(self, path: Path) -> ImageResponse:
         return write_temporary_image(
-            self.database.path.parent / "rendered",
+            self.rendered_root,
             path.read_bytes(),
             prefix="dnaby-resource-",
             suffix=path.suffix or ".bin",

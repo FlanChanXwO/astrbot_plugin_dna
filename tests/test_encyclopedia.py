@@ -303,7 +303,7 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
 ) -> None:
     """周报和日历必须在图片 metadata 中显式区分提供素材与 placeholder。"""
 
-    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import USER_AVATAR_PATH, WEEKLY_ITEM_PATH
 
     root = tmp_path / "resources"
     weekly = root / "weekly_item" / "item_100.png"
@@ -311,7 +311,7 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
     for path, color in ((weekly, "yellow"), (calendar, "orange")):
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (31, 37), color).save(path)
-    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar = USER_AVATAR_PATH / "avatar_user-1.png"
     avatar.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (64, 64), "red").save(avatar)
     for item_id in range(101, 107):
@@ -365,9 +365,9 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
 async def test_stamina_renderer_uses_legacy_dna_canvas(tmp_path: Path) -> None:
     """便签必须复用原 DNA 的 2000x1100 卡片，而不是 rewrite 调试列表。"""
 
-    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH
+    from src.utils.resource.RESOURCE_PATH import USER_AVATAR_PATH
 
-    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar = USER_AVATAR_PATH / "avatar_user-1.png"
     avatar.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (64, 64), "red").save(avatar)
     renderer = EncyclopediaRenderer(
@@ -552,9 +552,9 @@ async def test_typed_weekly_renderer_skips_legacy_model_revalidation(
 async def test_weekly_renderer_uses_all_legacy_material_rows(tmp_path: Path) -> None:
     """周报按原素材卡模式动态增高，七个资源和空分类都必须保留。"""
 
-    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import USER_AVATAR_PATH, WEEKLY_ITEM_PATH
 
-    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar = USER_AVATAR_PATH / "avatar_user-1.png"
     avatar.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (64, 64), "red").save(avatar)
     for item_id in range(100, 107):
@@ -753,7 +753,7 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
 ) -> None:
     """@查询必须沿用 resolved target，而不是命令发起者的头像或账号。"""
 
-    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import USER_AVATAR_PATH, WEEKLY_ITEM_PATH
 
     database = await _database_with_binding(
         tmp_path,
@@ -761,7 +761,7 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
         uid=TARGET_UID,
     )
     for user_id, color in (("user-1", "red"), ("target-user", "blue")):
-        avatar = AVATAR_PATH / f"avatar_{user_id}.png"
+        avatar = USER_AVATAR_PATH / f"avatar_{user_id}.png"
         avatar.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (64, 64), color).save(avatar)
     for item_id in range(100, 107):

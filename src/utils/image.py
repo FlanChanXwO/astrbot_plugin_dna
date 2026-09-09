@@ -18,6 +18,7 @@ from .resource.RESOURCE_PATH import (
     MOD_PATH,
     PAINT_PATH,
     SKILL_PATH,
+    USER_AVATAR_PATH,
     WEAPON_ATTR_PATH,
     WEAPON_PATH,
 )
@@ -328,7 +329,7 @@ async def get_avatar_title_img(
     else:
         ev.at = ""  # 清空 at，确保获取发送者自己的头像
     try:
-        avatar = await get_event_avatar(ev, avatar_path=AVATAR_PATH)
+        avatar = await get_event_avatar(ev, avatar_path=USER_AVATAR_PATH)
     except (httpx.HTTPError, OSError, TypeError, ValueError):
         avatar = await get_avatar_img("5101")
     finally:

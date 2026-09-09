@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from src.infrastructure import RuntimeDataLayout
+from src.infrastructure.cache import CacheManager
+from src.infrastructure.config.settings import CacheSettings
+from src.infrastructure.persistence import AsyncDatabase
 from src.infrastructure.resources import (
     resource_generation_state_path,
     resource_generations_dir,
@@ -58,6 +66,131 @@ def test_runtime_data_layout_from_data_dir_accepts_string_path(
 
     assert layout.data_dir == data_dir
     assert layout.database_path == data_dir / "db" / "dna.sqlite3"
+
+
+def test_runtime_data_layout_exposes_cache_scopes_without_legacy_roots(
+    tmp_path: Path,
+) -> None:
+    """动态素材、API、渲染和媒体缓存都落在 cache 下。"""
+
+    data_dir = tmp_path / "plugin-data"
+    layout = RuntimeDataLayout(data_dir)
+
+    assert layout.cache_assets_dir == data_dir / "cache" / "assets"
+    assert layout.cache_game_avatar_dir == data_dir / "cache" / "assets" / "game_avatar"
+    assert layout.cache_user_avatar_dir == data_dir / "cache" / "assets" / "user_avatar"
+    assert layout.cache_custom_dir == data_dir / "cache" / "assets" / "custom"
+    assert layout.cache_custom_paint_dir == (
+        data_dir / "cache" / "assets" / "custom" / "custom_paint"
+    )
+    assert layout.cache_api_dir == data_dir / "cache" / "api"
+    assert layout.cache_rendered_dir == data_dir / "cache" / "rendered"
+    assert layout.cache_media_dir == data_dir / "cache" / "media"
+    assert layout.cache_sign_dir == data_dir / "cache" / "media" / "sign"
+    assert layout.cache_ann_card_dir == data_dir / "cache" / "media" / "ann_card"
+    assert layout.cache_calendar_dir == data_dir / "cache" / "media" / "calendar"
+    assert layout.cache_login_qr_dir == data_dir / "cache" / "media" / "login_qr"
+    assert not data_dir.exists()
+
+
+def test_resource_path_projection_uses_split_asset_and_media_scopes() -> None:
+    """旧导入投影必须指向新 cache 分层，而不是顶层旧目录。"""
+
+    from src.utils.resource.RESOURCE_PATH import (
+        ANN_CARD_PATH,
+        AVATAR_PATH,
+        CALENDAR_PATH,
+        CUSTOM_PAINT_PATH,
+        CUSTOM_PATH,
+        LOGIN_QR_PATH,
+        OTHER_PATH,
+        RESOURCE_PATH,
+        SIGN_PATH,
+        USER_AVATAR_PATH,
+    )
+
+    layout = RuntimeDataLayout.from_data_dir(os.environ["DNABY_DATA_DIR"])
+
+    assert RESOURCE_PATH == layout.cache_assets_dir
+    assert AVATAR_PATH == layout.cache_game_avatar_dir
+    assert USER_AVATAR_PATH == layout.cache_user_avatar_dir
+    assert CUSTOM_PATH == layout.cache_custom_dir
+    assert CUSTOM_PAINT_PATH == layout.cache_custom_paint_dir
+    assert OTHER_PATH == layout.cache_media_dir
+    assert SIGN_PATH == layout.cache_sign_dir
+    assert ANN_CARD_PATH == layout.cache_ann_card_dir
+    assert LOGIN_QR_PATH == layout.cache_login_qr_dir
+    assert CALENDAR_PATH == layout.cache_calendar_dir
+
+
+@pytest.mark.asyncio
+async def test_cache_manager_partitions_typed_entries_and_keeps_cleanup_semantics(
+    tmp_path: Path,
+) -> None:
+    """typed cache 的读写和 TTL 清理只改变物理分层，不改变语义。"""
+
+    layout = RuntimeDataLayout(tmp_path / "plugin-data")
+    manager = CacheManager(
+        layout.cache_dir,
+        CacheSettings(ttl_hours=1),
+        cache_type_roots={
+            "player_data": layout.cache_api_dir,
+            "player_card": layout.cache_rendered_dir,
+            "mh": layout.cache_api_dir,
+            "announcement": layout.cache_media_dir,
+        },
+    )
+    created_at = datetime.now(timezone.utc)
+
+    await manager.put("player_data", "player-key", b"{}", now=created_at)
+    await manager.put("player_card", "card-key", b"card", now=created_at)
+    await manager.put("mh", "mh-key", b"mh", now=created_at)
+    await manager.put("announcement", "ann-key", b"ann", now=created_at)
+
+    assert (layout.cache_api_dir / "player_data").is_dir()
+    assert (layout.cache_api_dir / "mh").is_dir()
+    assert (layout.cache_rendered_dir / "player_card").is_dir()
+    assert (layout.cache_media_dir / "announcement").is_dir()
+    assert (await manager.get("player_data", "player-key")).entry is not None
+    assert (await manager.get("announcement", "ann-key")).entry is not None
+
+    removed = await manager.cleanup(now=created_at + timedelta(hours=1))
+
+    assert removed == 4
+    assert not any(layout.cache_dir.rglob("*.data"))
+
+
+@pytest.mark.asyncio
+async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
+    tmp_path: Path,
+) -> None:
+    """默认 runtime 不再把 rendered 或 typed cache 写到数据根。"""
+
+    from src.bootstrap import build_runtime
+
+    database = AsyncDatabase(tmp_path / "dna.sqlite3")
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {},
+        database=database,
+    )
+    layout = RuntimeDataLayout(tmp_path)
+
+    try:
+        assert runtime.services["rendered_root"] == layout.cache_rendered_dir
+        assert runtime.services["rendered_store"].root == layout.cache_rendered_dir
+        assert runtime.services["cache_manager"].root == layout.cache_dir
+        assert runtime.services["cache_manager"].cache_type_roots == {
+            "player_data": layout.cache_api_dir,
+            "player_card": layout.cache_rendered_dir,
+            "mh": layout.cache_api_dir,
+            "announcement": layout.cache_media_dir,
+        }
+        assert not (tmp_path / "rendered").exists()
+        assert not (tmp_path / "resource").exists()
+        assert not (tmp_path / "other").exists()
+    finally:
+        await database.dispose()
 
 
 def test_resource_path_helpers_use_nested_resource_layout(tmp_path: Path) -> None:

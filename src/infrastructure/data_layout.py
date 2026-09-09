@@ -11,6 +11,18 @@ STATE_DIR_NAME = "state"
 RESOURCES_DIR_NAME = "resources"
 CACHE_DIR_NAME = "cache"
 BACKUPS_DIR_NAME = "backups"
+ASSETS_DIR_NAME = "assets"
+API_CACHE_DIR_NAME = "api"
+RENDERED_CACHE_DIR_NAME = "rendered"
+MEDIA_CACHE_DIR_NAME = "media"
+GAME_AVATAR_DIR_NAME = "game_avatar"
+USER_AVATAR_DIR_NAME = "user_avatar"
+CUSTOM_DIR_NAME = "custom"
+CUSTOM_PAINT_DIR_NAME = "custom_paint"
+SIGN_DIR_NAME = "sign"
+ANN_CARD_DIR_NAME = "ann_card"
+CALENDAR_DIR_NAME = "calendar"
+LOGIN_QR_DIR_NAME = "login_qr"
 ALIASES_DIR_NAME = "aliases"
 CHAR_ALIAS_FILE_NAME = "char.json"
 WEAPON_ALIAS_FILE_NAME = "weapon.json"
@@ -124,6 +136,78 @@ class RuntimeDataLayout:
         return self.data_dir / CACHE_DIR_NAME
 
     @property
+    def cache_assets_dir(self) -> Path:
+        """动态游戏素材缓存目录。"""
+
+        return self.cache_dir / ASSETS_DIR_NAME
+
+    @property
+    def cache_game_avatar_dir(self) -> Path:
+        """游戏角色头像缓存目录。"""
+
+        return self.cache_assets_dir / GAME_AVATAR_DIR_NAME
+
+    @property
+    def cache_user_avatar_dir(self) -> Path:
+        """事件用户头像缓存目录。"""
+
+        return self.cache_assets_dir / USER_AVATAR_DIR_NAME
+
+    @property
+    def cache_custom_dir(self) -> Path:
+        """自定义素材缓存目录。"""
+
+        return self.cache_assets_dir / CUSTOM_DIR_NAME
+
+    @property
+    def cache_custom_paint_dir(self) -> Path:
+        """自定义立绘缓存目录。"""
+
+        return self.cache_custom_dir / CUSTOM_PAINT_DIR_NAME
+
+    @property
+    def cache_api_dir(self) -> Path:
+        """外部 API 响应缓存目录。"""
+
+        return self.cache_dir / API_CACHE_DIR_NAME
+
+    @property
+    def cache_rendered_dir(self) -> Path:
+        """渲染卡片内容缓存与临时产物目录。"""
+
+        return self.cache_dir / RENDERED_CACHE_DIR_NAME
+
+    @property
+    def cache_media_dir(self) -> Path:
+        """公告、签到和日历等媒体缓存目录。"""
+
+        return self.cache_dir / MEDIA_CACHE_DIR_NAME
+
+    @property
+    def cache_sign_dir(self) -> Path:
+        """签到奖励图标缓存目录。"""
+
+        return self.cache_media_dir / SIGN_DIR_NAME
+
+    @property
+    def cache_ann_card_dir(self) -> Path:
+        """公告卡片媒体缓存目录。"""
+
+        return self.cache_media_dir / ANN_CARD_DIR_NAME
+
+    @property
+    def cache_calendar_dir(self) -> Path:
+        """活动日历媒体缓存目录。"""
+
+        return self.cache_media_dir / CALENDAR_DIR_NAME
+
+    @property
+    def cache_login_qr_dir(self) -> Path:
+        """登录二维码临时媒体目录。"""
+
+        return self.cache_media_dir / LOGIN_QR_DIR_NAME
+
+    @property
     def backups_dir(self) -> Path:
         """状态迁移和客户端更新等备份目录。"""
 
@@ -132,19 +216,31 @@ class RuntimeDataLayout:
 
 __all__ = [
     "ALIASES_DIR_NAME",
+    "ANN_CARD_DIR_NAME",
+    "API_CACHE_DIR_NAME",
+    "ASSETS_DIR_NAME",
     "BACKUPS_DIR_NAME",
     "CACHE_DIR_NAME",
+    "CALENDAR_DIR_NAME",
     "CHAR_ALIAS_FILE_NAME",
+    "CUSTOM_DIR_NAME",
+    "CUSTOM_PAINT_DIR_NAME",
     "DATABASE_DIR_NAME",
     "DATABASE_FILE_NAME",
+    "GAME_AVATAR_DIR_NAME",
     "ID2NAME_FILE_NAME",
+    "LOGIN_QR_DIR_NAME",
+    "MEDIA_CACHE_DIR_NAME",
+    "RENDERED_CACHE_DIR_NAME",
     "RESOURCES_DIR_NAME",
     "RESOURCE_GENERATIONS_DIR_NAME",
     "RESOURCE_GENERATION_STATE_FILE_NAME",
     "RESOURCE_LAST_SYNC_STATE_FILE_NAME",
     "RESOURCE_REPOSITORY_DIR_NAME",
     "RESOURCE_VALIDATION_STATE_FILE_NAME",
+    "SIGN_DIR_NAME",
     "STATE_DIR_NAME",
+    "USER_AVATAR_DIR_NAME",
     "WEAPON_ALIAS_FILE_NAME",
     "RuntimeDataLayout",
 ]

@@ -91,10 +91,15 @@ from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.ann_delivery_state import AnnDeliveryStateStore
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.contracts import NoticesTransport
+from .modules.notices.mh_cache import MH_CACHE_TYPE
 from .modules.notices.service import NoticesService
 from .modules.notices.target_service import AnnouncementTargetService
 from .modules.operations.resource_service import ResourceUpdateService
-from .modules.player.cache import PlayerCache
+from .modules.player.cache import (
+    PLAYER_CARD_CACHE_TYPE,
+    PLAYER_DATA_CACHE_TYPE,
+    PlayerCache,
+)
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
@@ -282,8 +287,17 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else EncyclopediaResourceStore()
     )
-    rendered_root = runtime_data_layout.data_dir / "rendered"
-    cache_manager = CacheManager(runtime_data_layout.data_dir / "cache", settings.cache)
+    rendered_root = runtime_data_layout.cache_rendered_dir
+    cache_manager = CacheManager(
+        runtime_data_layout.cache_dir,
+        settings.cache,
+        cache_type_roots={
+            PLAYER_DATA_CACHE_TYPE: runtime_data_layout.cache_api_dir,
+            PLAYER_CARD_CACHE_TYPE: runtime_data_layout.cache_rendered_dir,
+            MH_CACHE_TYPE: runtime_data_layout.cache_api_dir,
+            "announcement": runtime_data_layout.cache_media_dir,
+        },
+    )
     player_cache = PlayerCache(
         cache_manager,
         rendered_root,
@@ -352,6 +366,7 @@ def build_runtime(
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
         resource_snapshots=resource_snapshots,
+        rendered_root=rendered_root,
     )
     subscriptions = SubscriptionStore(
         runtime_data_layout.data_dir / "subscriptions.json"
