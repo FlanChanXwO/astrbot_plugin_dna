@@ -404,7 +404,9 @@ def _parse_manifest_versions(
         snapshots,
         key=lambda snapshot: (snapshot.version_key, snapshot.patch_version),
     )
-    return tuple(_source_version_from_snapshot(source.source_id, item) for item in ordered)
+    return tuple(
+        _source_version_from_snapshot(source.source_id, item) for item in ordered
+    )
 
 
 def _source_version_from_snapshot(
@@ -503,7 +505,9 @@ def _manifest_url(base_url: str, branch: str, directory: str, name: str) -> str:
 
 
 def _app_store_lookup_url(config: AppStoreProviderConfig) -> str:
-    return f"https://itunes.apple.com/lookup?id={config.track_id}&country={config.country}"
+    return (
+        f"https://itunes.apple.com/lookup?id={config.track_id}&country={config.country}"
+    )
 
 
 def _can_fallback(error: ClientUpdateTransportError) -> bool:

@@ -261,14 +261,11 @@ CLIENT_UPDATE_REGISTRY = ClientUpdateRegistry(
             provider_config=ManifestCdnProviderConfig(
                 primary_base_url="http://pan01-1-eo.shyxhy.com",
                 fallback_base_url="http://pan01-1-hs.shyxhy.com",
-                branch=(
-                    "Patches/FinalPatch/CN/Default/WindowsNoEditor/PC_OBT_CN_Pub"
-                ),
+                branch=("Patches/FinalPatch/CN/Default/WindowsNoEditor/PC_OBT_CN_Pub"),
                 pak_manifest_key="WindowsNoEditor",
                 res_manifest_key="WindowsNoEditor",
                 user_agent=(
-                    "EMLauncher/++UE4+Release-4.27-CL-0 "
-                    "Windows/10.0.26100.1.256.64bit"
+                    "EMLauncher/++UE4+Release-4.27-CL-0 Windows/10.0.26100.1.256.64bit"
                 ),
             ),
         ),

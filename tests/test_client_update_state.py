@@ -37,7 +37,9 @@ def _version(source_id: str, revision: str, *, order: int) -> ClientSourceVersio
 
 
 @pytest.mark.asyncio
-async def test_state_v4_round_trips_source_baseline_and_target_snapshot(tmp_path) -> None:
+async def test_state_v4_round_trips_source_baseline_and_target_snapshot(
+    tmp_path,
+) -> None:
     source_id = "cn-official-pc-manifest"
     previous = _version(source_id, "100", order=100)
     current = _version(source_id, "102", order=102)
@@ -76,9 +78,7 @@ async def test_state_v4_round_trips_source_baseline_and_target_snapshot(tmp_path
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["schema_version"] == 4
     assert tuple(payload["baselines"]) == (source_id,)
-    assert payload["pending_events"][0]["change"]["target_ids"] == [
-        "cn-official-pc"
-    ]
+    assert payload["pending_events"][0]["change"]["target_ids"] == ["cn-official-pc"]
     assert payload["pending_events"][0]["targets"][0]["target_ids"] == [
         "cn-official-pc"
     ]

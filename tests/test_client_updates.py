@@ -157,7 +157,9 @@ def test_verified_registry_contains_only_investigated_cn_targets() -> None:
     ios = resolve_client_update_source("cn-official-ios-app-store")
     assert ios.platform is ClientPlatform.IOS
     assert ios.provider_kind is ClientUpdateProviderKind.APP_STORE
-    assert ios.provider_config == AppStoreProviderConfig(track_id=6470771372, country="cn")
+    assert ios.provider_config == AppStoreProviderConfig(
+        track_id=6470771372, country="cn"
+    )
 
 
 def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
@@ -388,7 +390,9 @@ class _FakeSession:
         return None
 
     def get(self, url: str, **kwargs: Any) -> _FakeResponse:
-        self.requests.append(_Request(url=url, headers=dict(kwargs.get("headers") or {})))
+        self.requests.append(
+            _Request(url=url, headers=dict(kwargs.get("headers") or {}))
+        )
         route = self.routes[url]
         if isinstance(route, BaseException):
             raise route
@@ -463,7 +467,9 @@ async def test_manifest_transport_sums_continuous_history_records() -> None:
 
     observation = await ClientUpdateTransport(
         session_factory=lambda: _FakeSession(routes)
-    ).get_observation(source.source_id, baseline=_source_version(source.source_id, "100"))
+    ).get_observation(
+        source.source_id, baseline=_source_version(source.source_id, "100")
+    )
 
     assert observation.current.revision_id == "102"
     assert observation.history_complete is True
@@ -500,7 +506,9 @@ async def test_manifest_transport_reads_only_real_sparse_history_records() -> No
 
     observation = await ClientUpdateTransport(
         session_factory=lambda: session
-    ).get_observation(source.source_id, baseline=_source_version(source.source_id, "100"))
+    ).get_observation(
+        source.source_id, baseline=_source_version(source.source_id, "100")
+    )
 
     assert isinstance(observation, ClientSourceObservation)
     assert observation.current.revision_id == "103"
@@ -515,7 +523,9 @@ async def test_manifest_transport_reads_only_real_sparse_history_records() -> No
 
 
 @pytest.mark.asyncio
-async def test_manifest_transport_marks_baseline_outside_window_as_history_gap() -> None:
+async def test_manifest_transport_marks_baseline_outside_window_as_history_gap() -> (
+    None
+):
     source = resolve_client_update_source("cn-official-pc-manifest")
     config = source.provider_config
     assert isinstance(config, ManifestCdnProviderConfig)
@@ -536,7 +546,9 @@ async def test_manifest_transport_marks_baseline_outside_window_as_history_gap()
 
     observation = await ClientUpdateTransport(
         session_factory=lambda: session
-    ).get_observation(source.source_id, baseline=_source_version(source.source_id, "100"))
+    ).get_observation(
+        source.source_id, baseline=_source_version(source.source_id, "100")
+    )
 
     assert observation.current.revision_id == "103"
     assert observation.history_complete is False
@@ -633,7 +645,9 @@ async def test_android_manifest_uses_version_key_directory_and_separate_keys() -
     ).get_observation(source.source_id, baseline=baseline)
 
     assert observation.added_size_bytes == 42
-    assert {request.url for request in session.requests if "Info.json" in request.url} == {
+    assert {
+        request.url for request in session.requests if "Info.json" in request.url
+    } == {
         f"{base}/PakFilesInfo.json",
         f"{base}/ResDiscreteInfo.json",
     }
@@ -657,7 +671,9 @@ async def test_app_store_transport_reports_changed_and_unchanged_baselines() -> 
     source = resolve_client_update_source("cn-official-ios-app-store")
     config = source.provider_config
     assert isinstance(config, AppStoreProviderConfig)
-    url = f"https://itunes.apple.com/lookup?id={config.track_id}&country={config.country}"
+    url = (
+        f"https://itunes.apple.com/lookup?id={config.track_id}&country={config.country}"
+    )
     payload = {
         "resultCount": 1,
         "results": [
@@ -671,10 +687,14 @@ async def test_app_store_transport_reports_changed_and_unchanged_baselines() -> 
 
     changed = await ClientUpdateTransport(
         session_factory=lambda: _FakeSession({url: _FakeResponse(200, payload)})
-    ).get_observation(source.source_id, baseline=_app_store_version(source.source_id, "1.5.0"))
+    ).get_observation(
+        source.source_id, baseline=_app_store_version(source.source_id, "1.5.0")
+    )
     unchanged = await ClientUpdateTransport(
         session_factory=lambda: _FakeSession({url: _FakeResponse(200, payload)})
-    ).get_observation(source.source_id, baseline=_app_store_version(source.source_id, "1.6.0"))
+    ).get_observation(
+        source.source_id, baseline=_app_store_version(source.source_id, "1.6.0")
+    )
 
     assert changed.current.revision_id == "6470771372:1.6.0"
     assert changed.current.order_key is None
@@ -689,7 +709,9 @@ async def test_app_store_transport_rejects_malformed_lookup_contract() -> None:
     source = resolve_client_update_source("cn-official-ios-app-store")
     config = source.provider_config
     assert isinstance(config, AppStoreProviderConfig)
-    url = f"https://itunes.apple.com/lookup?id={config.track_id}&country={config.country}"
+    url = (
+        f"https://itunes.apple.com/lookup?id={config.track_id}&country={config.country}"
+    )
     session = _FakeSession(
         {
             url: _FakeResponse(
@@ -806,8 +828,7 @@ async def test_manifest_transport_logs_safe_primary_failure_before_fallback(
             ("VersionList", "network", None),
         ),
         (
-            "客户端更新端点失败 endpoint_role=fallback "
-            "resource=%s kind=%s status=%s",
+            "客户端更新端点失败 endpoint_role=fallback resource=%s kind=%s status=%s",
             ("VersionList", "status", 503),
         ),
     ]
@@ -844,7 +865,9 @@ async def test_manifest_transport_does_not_fallback_for_terminal_failures(
 
 
 @pytest.mark.asyncio
-async def test_manifest_transport_classifies_corrupt_manifest_as_contract_failure() -> None:
+async def test_manifest_transport_classifies_corrupt_manifest_as_contract_failure() -> (
+    None
+):
     source = resolve_client_update_source("cn-official-pc-manifest")
     config = source.provider_config
     assert isinstance(config, ManifestCdnProviderConfig)
