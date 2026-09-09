@@ -357,10 +357,23 @@ class _FakeResponse:
     async def __aexit__(self, _exc_type, _exc_value, _traceback) -> None:
         return None
 
-    async def json(self) -> object:
+    async def json(self, **_kwargs: object) -> object:
         if isinstance(self.payload, BaseException):
             raise self.payload
         return self.payload
+
+
+class _JavascriptJsonResponse(_FakeResponse):
+    """模拟 Apple Lookup 返回 text/javascript JSON 的真实响应。"""
+
+    async def json(
+        self,
+        *,
+        content_type: str | None = "application/json",
+    ) -> object:
+        if content_type is not None:
+            raise ValueError("unexpected text/javascript content type")
+        return await super().json()
 
 
 class _FakeSession:
@@ -692,6 +705,38 @@ async def test_app_store_transport_rejects_malformed_lookup_contract() -> None:
         )
 
     assert caught.value.kind is ClientUpdateFailureKind.CONTRACT
+
+
+@pytest.mark.asyncio
+async def test_app_store_transport_accepts_lookup_text_javascript_json() -> None:
+    source = resolve_client_update_source("cn-official-ios-app-store")
+    config = source.provider_config
+    assert isinstance(config, AppStoreProviderConfig)
+    url = f"https://itunes.apple.com/lookup?id={config.track_id}&country=cn"
+    session = _FakeSession(
+        {
+            url: _JavascriptJsonResponse(
+                200,
+                {
+                    "resultCount": 1,
+                    "results": [
+                        {
+                            "trackId": config.track_id,
+                            "version": "1.6.0",
+                            "currentVersionReleaseDate": "2026-09-08T00:27:25Z",
+                        }
+                    ],
+                },
+            )
+        }
+    )
+
+    observation = await ClientUpdateTransport(
+        session_factory=lambda: session
+    ).get_observation(source.source_id)
+
+    assert observation.current.version_text == "1.6.0"
+    assert observation.current.revision_id == f"{config.track_id}:1.6.0"
 
 
 @pytest.mark.asyncio

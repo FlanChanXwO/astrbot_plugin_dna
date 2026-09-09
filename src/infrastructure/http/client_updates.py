@@ -48,7 +48,7 @@ class _HttpxResponse:
         self.status = response.status_code
         self._response = response
 
-    async def json(self) -> object:
+    async def json(self, **_kwargs: object) -> object:
         return self._response.json()
 
 
@@ -275,6 +275,7 @@ class ClientUpdateTransport:
             _app_store_lookup_url(config),
             user_agent=_APP_STORE_USER_AGENT,
             resource="App Store Lookup",
+            accept_nonstandard_json_content_type=True,
         )
         current = _parse_app_store_version(payload, source, config)
         unchanged = baseline is not None and baseline.revision_id == current.revision_id
@@ -339,6 +340,7 @@ class ClientUpdateTransport:
         *,
         user_agent: str,
         resource: str,
+        accept_nonstandard_json_content_type: bool = False,
     ) -> object:
         async def request() -> object:
             try:
@@ -357,6 +359,10 @@ class ClientUpdateTransport:
                             detail="response status is not successful",
                         )
                     try:
+                        if accept_nonstandard_json_content_type:
+                            # Apple Lookup 当前合法 JSON 使用 text/javascript；只跳过
+                            # MIME 门禁，后续 typed contract 仍严格校验响应结构。
+                            return await response.json(content_type=None)
                         return await response.json()
                     except (TypeError, ValueError, UnicodeError) as error:
                         raise _contract_error(resource, type(error).__name__) from None

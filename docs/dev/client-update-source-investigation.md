@@ -46,6 +46,9 @@
 
 - 官方商店：`https://apps.apple.com/cn/app/id6470771372`
 - 只读版本接口：`https://itunes.apple.com/lookup?id=6470771372&country=cn`
+- Lookup 正常响应的正文是 JSON，但当前 `Content-Type` 为
+  `text/javascript; charset=utf-8`；transport 只对该 provider 放宽 MIME 检查，
+  仍由 typed contract 严格校验字段。
 - App Store 页面和 Lookup 元数据均指向英雄游戏中国大陆发行主体。
 - `revision_id` 使用 App Store track ID 与版本组合；若没有可靠可比较 build number，则 `order_key=None`，不伪造 rollback 或差分大小。
 
