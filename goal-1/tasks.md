@@ -4,13 +4,13 @@
 
 ## Task 1：建立运行期数据布局接口与测试基线
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：新增统一 `RuntimeDataLayout` 及对应路径测试；明确数据根、数据库、状态、资源、缓存和备份路径。
 - 验收：新路径可被构造；测试明确 `db/dna.sqlite3`、`state/aliases`、资源和缓存子域。
-- 实际变更：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际变更：新增 `src/infrastructure/data_layout.py`，提供只读运行期数据根、`db/dna.sqlite3`、`state/`、`resources/`、`cache/`、`backups/` 路径接口；从 `src.infrastructure` 导出 `RuntimeDataLayout`；新增路径契约测试。
+- 验证证据：Red 阶段测试因 `RuntimeDataLayout` 尚未导出而失败；实现后 `tests/test_runtime_data_layout.py` 与 `tests/test_persistence.py` 共 10 项通过；目标文件 Ruff 检查通过；目标文件 `compileall` 通过；LSP 对 3 个变更文件无诊断。
+- 剩余风险：布局尚未接入 bootstrap、数据库、legacy detector 和各业务状态/缓存路径，留待后续任务；当前测试环境需存在空的 `tests/.data` 目录，属于现有 fixture 环境问题。
+- 下一步：执行 Task 2，实现启动前 legacy layout detector 与 fail-fast。
 
 ## Task 2：实现 legacy layout detector 与启动前 fail-fast
 
