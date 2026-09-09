@@ -57,13 +57,15 @@ class _FakeResourceSnapshots:
 
 
 def _write_valid_media(root: Path) -> None:
-    media_dir = root / "images" / "login"
-    media_dir.mkdir(parents=True, exist_ok=True)
+    video_dir = root / "videos" / "login"
+    audio_dir = root / "audios" / "login"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    audio_dir.mkdir(parents=True, exist_ok=True)
     # 最小合法媒体头：MP4 的 ftyp box 与带 ID3 头的 MP3。
-    (media_dir / "background.mp4").write_bytes(
+    (video_dir / "background.mp4").write_bytes(
         b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2"
     )
-    (media_dir / "background.mp3").write_bytes(
+    (audio_dir / "background.mp3").write_bytes(
         b"ID3\x04\x00\x00\x00\x00\x00\x00" + b"audio"
     )
 
@@ -94,13 +96,13 @@ def test_login_media_resolver_disables_pair_when_one_asset_is_missing_or_invalid
     tmp_path: Path,
 ) -> None:
     _write_valid_media(tmp_path)
-    (tmp_path / "images" / "login" / "background.mp3").unlink()
+    (tmp_path / "audios" / "login" / "background.mp3").unlink()
     service = LoginMediaService(_FakeResourceSnapshots(tmp_path))
 
     assert service.resolve("http://example.test/astrbot_plugin_dna", enabled=True).is_empty
 
     _write_valid_media(tmp_path)
-    (tmp_path / "images" / "login" / "background.mp4").write_bytes(b"not-mp4")
+    (tmp_path / "videos" / "login" / "background.mp4").write_bytes(b"not-mp4")
     assert service.resolve("http://example.test/astrbot_plugin_dna", enabled=True).is_empty
 
 
@@ -154,7 +156,7 @@ async def test_login_media_routes_support_range_and_release_generation_lease(
                 assert response.status == 206
                 assert response.headers["Content-Type"].startswith("video/mp4")
                 assert response.headers["Content-Range"].startswith("bytes 0-7/")
-                assert body == (tmp_path / "images/login/background.mp4").read_bytes()[:8]
+                assert body == (tmp_path / "videos/login/background.mp4").read_bytes()[:8]
 
             async with client.get(f"{server.base_url}{LOGIN_MEDIA_AUDIO_ROUTE}") as response:
                 assert response.status == 200

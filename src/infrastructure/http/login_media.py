@@ -19,8 +19,8 @@ LOGIN_MEDIA_AUDIO_PATH = "/dna/login/media/background.mp3"
 LOGIN_MEDIA_VIDEO_ROUTE = f"/astrbot_plugin_dna{LOGIN_MEDIA_VIDEO_PATH}"
 LOGIN_MEDIA_AUDIO_ROUTE = f"/astrbot_plugin_dna{LOGIN_MEDIA_AUDIO_PATH}"
 
-_VIDEO_RELATIVE_PATH = Path("images/login/background.mp4")
-_AUDIO_RELATIVE_PATH = Path("images/login/background.mp3")
+_VIDEO_RELATIVE_PATH = Path("videos/login/background.mp4")
+_AUDIO_RELATIVE_PATH = Path("audios/login/background.mp3")
 _MEDIA_DEFINITIONS: dict[str, tuple[Path, str]] = {
     "video": (_VIDEO_RELATIVE_PATH, "video/mp4"),
     "audio": (_AUDIO_RELATIVE_PATH, "audio/mpeg"),
