@@ -45,7 +45,7 @@ def test_admin_help_shows_unsubscribe_examples_for_checkin_subscriptions() -> No
     assert items["订阅本群签到报告"] == (
         "dna订阅本群签到报告 / dna取消订阅本群签到报告"
     )
-    assert items["订阅客户端更新"] == "dna订阅客户端更新"
+    assert items["订阅客户端更新"].startswith("dna订阅客户端更新")
     assert items["取消订阅客户端更新"] == "dna取消订阅客户端更新"
     assert items["订阅公告"] == "dna订阅公告"
     assert items["取消订阅公告"] == "dna取消订阅公告"

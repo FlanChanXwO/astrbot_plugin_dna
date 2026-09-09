@@ -9,7 +9,7 @@ from typing import Any, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel, SecretStr
 
-from ...modules.client_updates.registry import CLIENT_UPDATE_TARGETS
+from ...modules.client_updates.channels import CLIENT_UPDATE_CHANNELS
 from .settings import (
     AISettings,
     CacheSettings,
@@ -140,8 +140,8 @@ def generate_astrbot_schema() -> dict[str, dict[str, Any]]:
         fields: dict[str, dict[str, Any]] = {}
         for field_name, field in model.model_fields.items():
             field_schema = _field_schema(field)
-            if group_name == "client_updates" and field_name == "targets":
-                field_schema["options"] = list(CLIENT_UPDATE_TARGETS)
+            if group_name == "client_updates" and field_name == "channels":
+                field_schema["options"] = list(CLIENT_UPDATE_CHANNELS)
             fields[field_name] = field_schema
         if group_name == "sign_in":
             fields.update(

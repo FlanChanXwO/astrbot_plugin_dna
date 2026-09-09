@@ -98,12 +98,9 @@ class ClientUpdatesScheduler:
                 await self.delivery.deliver(changes)
             except asyncio.CancelledError:
                 raise
-            except Exception as error:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 await self.registry.mark_error(CLIENT_UPDATE_TASK_ID)
-                logger.warning(
-                    f"[dnaby][{CLIENT_UPDATE_TASK_ID}] 定时任务异常 error_type=%s",
-                    type(error).__name__,
-                )
+                logger.warning(f"[dnaby][{CLIENT_UPDATE_TASK_ID}] 定时任务异常")
             else:
                 await self.registry.mark_running(CLIENT_UPDATE_TASK_ID)
 

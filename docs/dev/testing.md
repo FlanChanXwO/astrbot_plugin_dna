@@ -23,7 +23,6 @@ python3 -m pytest tests/test_entry_commands.py
 python3 -m pytest tests/test_config.py
 python3 -m pytest tests/test_account.py
 python3 -m pytest tests/test_resources.py
-python3 -m pytest tests/test_client_updates.py tests/test_client_update_smoke.py
 ```
 
 ## 长期保留的测试类型
@@ -46,7 +45,3 @@ python3 -m pytest tests/test_client_updates.py tests/test_client_update_smoke.py
 自动测试使用 fake Context、事件 fixture、隔离数据库/临时目录和可注入 transport。测试不应依赖真实账号凭据、手机号验证码、OneBot 群成员、生产数据库或外部服务可用性。
 
 修复 bug 时，优先补充能复现问题的最小回归测试；重构时保持行为测试先绿后改，并在完成后再次运行对应测试。
-
-真实客户端更新 Source 不属于默认 pytest。代码与离线 fake 测试通过后，可在
-隔离环境运行 `python3 scripts/smoke_client_update_sources.py`。该工具不会写 state
-或订阅，也不会下载完整补丁；不要对生产数据目录运行额外的手工迁移脚本。

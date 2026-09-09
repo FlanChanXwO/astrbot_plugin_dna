@@ -1,8 +1,8 @@
-"""客户端更新的框架无关 Source 推送 DTO 与注入式投递适配器。
+"""客户端更新的框架无关推送 DTO 与注入式投递适配器。
 
-领域层只负责把事件创建时固定的 Target 消息交给最小化推送端口。OneBot 节点
-的具体构造留在注入的 ``send_forward`` 回调中；这里不导入 AstrBot 消息组件，
-避免客户端更新 use case 与宿主框架耦合。
+领域层只负责按照订阅筛选平台消息，并把消息交给最小化的推送端口。OneBot
+节点的具体构造留在注入的 ``send_forward`` 回调中；这里不导入 AstrBot 消息
+组件，避免客户端更新 use case 与宿主框架耦合。
 """
 
 from __future__ import annotations
@@ -14,8 +14,7 @@ from typing import Protocol
 
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from . import messages
-from .contracts import ClientUpdateChange
-from .registry import CLIENT_UPDATE_REGISTRY, ClientUpdateRegistry
+from .contracts import ClientPlatform, ClientUpdateChange
 from .routing import active_subscriptions as _active_subscriptions
 from .state import (
     ClientUpdatePendingEvent,
@@ -26,6 +25,10 @@ from .state import (
 
 logger = logging.getLogger(__name__)
 
+_CLIENT_PLATFORM_ORDER = {
+    ClientPlatform.PC: 0,
+    ClientPlatform.ANDROID: 1,
+}
 _ONEBOT_PLATFORM_NAMES = frozenset(("aiocqhttp", "onebot"))
 
 SenderResult = bool | None
@@ -43,26 +46,15 @@ class ClientUpdatePushTarget:
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdatePushMessage:
-    """一个 Source 变化及其固定 Target 集合对应的用户可见消息。"""
+    """一个平台对应的一条用户可见更新消息。"""
 
-    event_key: str
-    source_id: str
-    target_ids: tuple[str, ...]
+    platform: ClientPlatform
     text: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.event_key, str) or not self.event_key.strip():
-            raise ValueError("event_key 必须是非空字符串")
-        if not isinstance(self.source_id, str) or not self.source_id.strip():
-            raise ValueError("source_id 必须是非空字符串")
-        normalized_target_ids = tuple(self.target_ids)
-        if not normalized_target_ids:
-            raise ValueError("target_ids 必须至少包含一个 Target ID")
-        if len(normalized_target_ids) != len(set(normalized_target_ids)):
-            raise ValueError("target_ids 不能重复")
+        object.__setattr__(self, "platform", ClientPlatform(self.platform))
         if not isinstance(self.text, str):
             raise TypeError("text 必须是字符串")
-        object.__setattr__(self, "target_ids", normalized_target_ids)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,40 +72,19 @@ class ClientUpdatePush:
             not isinstance(message, ClientUpdatePushMessage) for message in normalized
         ):
             raise TypeError("messages 必须全部是 ClientUpdatePushMessage")
-        event_keys = tuple(message.event_key for message in normalized)
-        if len(event_keys) != len(set(event_keys)):
-            raise ValueError("messages 的 event_key 不能重复")
         object.__setattr__(self, "messages", normalized)
-
-
-@dataclass(frozen=True, slots=True)
-class ClientUpdatePushResult:
-    """一轮推送中真实发送成功的事件键。"""
-
-    succeeded_event_keys: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        normalized = tuple(self.succeeded_event_keys)
-        if any(
-            not isinstance(event_key, str) or not event_key.strip()
-            for event_key in normalized
-        ):
-            raise ValueError("succeeded_event_keys 必须全部是非空字符串")
-        if len(normalized) != len(set(normalized)):
-            raise ValueError("succeeded_event_keys 不能重复")
-        object.__setattr__(self, "succeeded_event_keys", normalized)
 
 
 class ClientUpdatePushPort(Protocol):
     """客户端更新投递所需的最小端口。"""
 
-    async def send(self, push: ClientUpdatePush) -> ClientUpdatePushResult:
-        """向一个目标发送一轮消息，并返回真实成功的事件键。"""
+    async def send(self, push: ClientUpdatePush) -> SenderResult:
+        """向一个目标发送一轮消息；显式返回 False 表示失败。"""
         ...
 
 
 class ClientUpdateDeliveryService:
-    """按有效订阅投递 Source 消息，并隔离每个目标的投递失败。
+    """按订阅筛选平台消息，并隔离每个目标的投递失败。
 
     未注入 ``state`` 时，``deliver`` 保留框架无关 DTO seam 的即时投递语义，
     供单元测试和其他调用方构造消息。bootstrap 会注入状态 store，此时每轮
@@ -126,34 +97,17 @@ class ClientUpdateDeliveryService:
         push_port: ClientUpdatePushPort,
         *,
         state: ClientUpdateStateStore | None = None,
-        registry: ClientUpdateRegistry | None = None,
     ) -> None:
-        resolved_registry = (
-            state.registry
-            if registry is None and state is not None
-            else registry or CLIENT_UPDATE_REGISTRY
-        )
-        if not isinstance(resolved_registry, ClientUpdateRegistry):
-            raise TypeError("registry 必须是 ClientUpdateRegistry")
-        if state is not None and state.registry != resolved_registry:
-            raise ValueError("state 与 delivery 必须使用同一 ClientUpdateRegistry")
         self.subscriptions = subscriptions
         self.push_port = push_port
         self.state = state
-        self.registry = resolved_registry
-        self._source_order = {
-            source.source_id: index
-            for index, source in enumerate(resolved_registry.sources)
-        }
 
     async def deliver(self, changes: Sequence[ClientUpdateChange]) -> int:
-        """投递变化；有状态运行时串行完成 pending 的发送与确认。"""
+        """投递变化；有状态运行时先重试 pending 事件。"""
 
-        state = self.state
-        if state is None:
+        if self.state is None:
             return await self._deliver_without_state(changes)
-        async with state.delivery_coordination_lock:
-            return await self._deliver_with_state(changes)
+        return await self._deliver_with_state(changes)
 
     async def _deliver_without_state(
         self,
@@ -161,32 +115,29 @@ class ClientUpdateDeliveryService:
     ) -> int:
         """直接投递 DTO seam，不创建持久化事件。"""
 
-        ordered_changes = _order_changes(
-            changes,
-            self.registry,
-            self._source_order,
-        )
+        ordered_changes = _order_changes(changes)
         if not ordered_changes:
             return 0
 
         delivered = 0
         subscriptions = await self._subscriptions()
         active = _active_subscriptions(subscriptions)
-        for subscription, routable in active.values():
-            if not routable:
+        for subscription, platforms in active.values():
+            if platforms is None:
+                continue
+            selected_changes = tuple(
+                change for change in ordered_changes if change.platform in platforms
+            )
+            if not selected_changes:
                 continue
             push = _build_push(
                 ClientUpdatePushTarget(
                     origin=subscription.unified_msg_origin,
                     bot_id=subscription.bot_id,
                 ),
-                ordered_changes,
-                self.registry,
+                selected_changes,
             )
-            succeeded_event_keys = await self._send_push(push)
-            if succeeded_event_keys == frozenset(
-                message.event_key for message in push.messages
-            ):
+            if await self._send_push(push):
                 delivered += 1
         return delivered
 
@@ -200,10 +151,9 @@ class ClientUpdateDeliveryService:
         if state is None:
             raise RuntimeError("client update delivery state unavailable")
 
-        ordered_changes = _order_changes(
-            changes,
-            self.registry,
-            self._source_order,
+        ordered_changes = tuple(
+            canonicalize_client_update_change(change)
+            for change in _order_changes(changes)
         )
         pending_keys_before = {
             event.event_key for event in await state.pending_events()
@@ -226,10 +176,9 @@ class ClientUpdateDeliveryService:
                     origin=subscription.unified_msg_origin,
                     uid=subscription.uid,
                     bot_id=subscription.bot_id,
-                    target_ids=change.target_ids,
                 )
-                for subscription, routable in active.values()
-                if routable
+                for subscription, platforms in active.values()
+                if platforms is not None and change.platform in platforms
             )
             event = await state.ensure_pending_event(change, targets)
             if event is not None and event.event_key not in new_event_keys:
@@ -258,24 +207,18 @@ class ClientUpdateDeliveryService:
                 if active_entry is None:
                     await state.remove_event_target(event.event_key, target)
                     continue
-                subscription, routable = active_entry
-                if not routable:
+                subscription, platforms = active_entry
+                if (
+                    platforms is None
+                    or not subscription.enabled
+                    or event.change.platform not in platforms
+                ):
                     await state.remove_event_target(event.event_key, target)
                     continue
-                current_target = ClientUpdatePendingTarget(
-                    origin=target.origin,
-                    uid=target.uid,
-                    bot_id=subscription.bot_id,
-                    target_ids=target.target_ids,
-                )
-                group_key = (
-                    current_target.origin,
-                    current_target.uid,
-                    current_target.bot_id,
-                )
+                group_key = (target.origin, target.uid, target.bot_id)
                 group = groups.get(group_key)
                 if group is None:
-                    groups[group_key] = (current_target, [event])
+                    groups[group_key] = (target, [event])
                 else:
                     group[1].append(event)
         return await self._deliver_event_groups(tuple(groups.values()))
@@ -297,22 +240,18 @@ class ClientUpdateDeliveryService:
             push = _build_push(
                 ClientUpdatePushTarget(origin=target.origin, bot_id=target.bot_id),
                 tuple(event.change for event in pending_events),
-                self.registry,
             )
-            succeeded_event_keys = await self._send_push(push)
+            if not await self._send_push(push):
+                continue
+            delivered += 1
             for event in pending_events:
-                if event.event_key in succeeded_event_keys:
-                    await state.mark_delivered(event.event_key, target)
-            if succeeded_event_keys == frozenset(
-                event.event_key for event in pending_events
-            ):
-                delivered += 1
+                await state.mark_delivered(event.event_key, target)
         return delivered
 
     async def _subscriptions(self) -> tuple[Subscription, ...]:
         return await self.subscriptions.get(messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE)
 
-    async def _send_push(self, push: ClientUpdatePush) -> frozenset[str]:
+    async def _send_push(self, push: ClientUpdatePush) -> bool:
         try:
             result = await self.push_port.send(push)
         except Exception as error:  # noqa: BLE001
@@ -320,17 +259,11 @@ class ClientUpdateDeliveryService:
                 "[dnaby][client_update] 订阅目标投递失败（错误类型：%s）",
                 type(error).__name__,
             )
-            return frozenset()
-        if not isinstance(result, ClientUpdatePushResult):
-            logger.warning("[dnaby][client_update] 订阅目标投递返回无效结果类型")
-            return frozenset()
-
-        expected_event_keys = frozenset(message.event_key for message in push.messages)
-        succeeded_event_keys = frozenset(result.succeeded_event_keys)
-        if not succeeded_event_keys.issubset(expected_event_keys):
-            logger.warning("[dnaby][client_update] 订阅目标投递返回未知事件键")
-            return frozenset()
-        return succeeded_event_keys
+            return False
+        if result is False:
+            logger.warning("[dnaby][client_update] 订阅目标投递返回失败")
+            return False
+        return True
 
 
 class ClientUpdatePushAdapter:
@@ -347,11 +280,11 @@ class ClientUpdatePushAdapter:
         self._send_forward = send_forward
         self.merge_forward = bool(merge_forward)
 
-    async def send(self, push: ClientUpdatePush) -> ClientUpdatePushResult:
-        """按目标适配器与配置选择合并转发，失败时降级为普通消息。"""
+    async def send(self, push: ClientUpdatePush) -> bool:
+        """按目标平台与配置选择合并转发，失败时降级为普通消息。"""
 
         if not push.messages:
-            return ClientUpdatePushResult(succeeded_event_keys=())
+            return True
 
         if (
             _is_onebot_target(push.target)
@@ -359,11 +292,7 @@ class ClientUpdatePushAdapter:
             and len(push.messages) > 1
             and await self._try_send_forward(push)
         ):
-            return ClientUpdatePushResult(
-                succeeded_event_keys=tuple(
-                    message.event_key for message in push.messages
-                )
-            )
+            return True
         return await self._send_independent_text(push)
 
     async def _try_send_forward(self, push: ClientUpdatePush) -> bool:
@@ -392,11 +321,8 @@ class ClientUpdatePushAdapter:
             return False
         return True
 
-    async def _send_independent_text(
-        self,
-        push: ClientUpdatePush,
-    ) -> ClientUpdatePushResult:
-        succeeded_event_keys: list[str] = []
+    async def _send_independent_text(self, push: ClientUpdatePush) -> bool:
+        success = True
         for message in push.messages:
             try:
                 result = await self._send_text(push.target.origin, message.text)
@@ -405,39 +331,27 @@ class ClientUpdatePushAdapter:
                     "[dnaby][client_update] 普通消息投递失败，错误类型：%s",
                     type(error).__name__,
                 )
+                success = False
                 continue
             if result is False:
                 logger.warning("[dnaby][client_update] 普通消息投递返回失败")
-                continue
-            succeeded_event_keys.append(message.event_key)
-        return ClientUpdatePushResult(succeeded_event_keys=tuple(succeeded_event_keys))
+                success = False
+        return success
 
 
 def _build_push(
     target: ClientUpdatePushTarget,
     changes: Sequence[ClientUpdateChange],
-    registry: ClientUpdateRegistry,
 ) -> ClientUpdatePush:
     return ClientUpdatePush(
         target=target,
-        messages=tuple(_push_message(change, registry) for change in changes),
-    )
-
-
-def _push_message(
-    change: ClientUpdateChange,
-    registry: ClientUpdateRegistry,
-) -> ClientUpdatePushMessage:
-    normalized = canonicalize_client_update_change(change, registry=registry)
-    target_names = tuple(
-        registry.resolve_target(target_id).display_name
-        for target_id in normalized.target_ids
-    )
-    return ClientUpdatePushMessage(
-        event_key=normalized.event_key,
-        source_id=normalized.source_id,
-        target_ids=normalized.target_ids,
-        text=messages.format_change(normalized, target_names),
+        messages=tuple(
+            ClientUpdatePushMessage(
+                platform=change.platform,
+                text=messages.format_change(change),
+            )
+            for change in changes
+        ),
     )
 
 
@@ -468,17 +382,14 @@ def _is_onebot_target(target: ClientUpdatePushTarget) -> bool:
 
 def _order_changes(
     changes: Sequence[ClientUpdateChange],
-    registry: ClientUpdateRegistry,
-    source_order: dict[str, int],
 ) -> tuple[ClientUpdateChange, ...]:
-    normalized = tuple(
-        canonicalize_client_update_change(change, registry=registry)
-        for change in tuple(changes)
-    )
+    normalized = tuple(changes)
+    if any(not isinstance(change, ClientUpdateChange) for change in normalized):
+        raise TypeError("changes 必须全部是 ClientUpdateChange")
     return tuple(
         sorted(
             normalized,
-            key=lambda change: source_order[change.source_id],
+            key=lambda change: _CLIENT_PLATFORM_ORDER[change.platform],
         )
     )
 
@@ -489,7 +400,6 @@ __all__ = [
     "ClientUpdatePushAdapter",
     "ClientUpdatePushMessage",
     "ClientUpdatePushPort",
-    "ClientUpdatePushResult",
     "ClientUpdatePushTarget",
     "ForwardSender",
     "SenderResult",

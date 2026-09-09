@@ -738,24 +738,28 @@
   },
   {
     "id": "client_update",
-    "pattern": "^dna客户端更新$",
+    "pattern": "^dna客户端更新(?:\\s+(?P<platform>PC|安卓))?$",
     "group": "信息查询",
     "name": "客户端更新",
-    "description": "查询已配置目标的客户端版本更新",
+    "description": "查询国服 PC 与安卓客户端版本更新",
     "examples": [
-      "dna客户端更新"
+      "dna客户端更新",
+      "dna客户端更新 PC",
+      "dna客户端更新 安卓"
     ],
     "permission": "user",
     "use_case": "src.modules.client_updates.commands.client_update_query_use_case"
   },
   {
     "id": "client_update_subscribe",
-    "pattern": "^dna订阅客户端更新$",
+    "pattern": "^dna订阅客户端更新(?:\\s+(?P<platform>PC|安卓))?$",
     "group": "信息查询",
     "name": "订阅客户端更新",
     "description": "订阅群聊中的客户端更新推送",
     "examples": [
-      "dna订阅客户端更新"
+      "dna订阅客户端更新",
+      "dna订阅客户端更新 PC",
+      "dna订阅客户端更新 安卓"
     ],
     "permission": "admin",
     "use_case": "src.modules.client_updates.commands.client_update_subscribe_use_case"

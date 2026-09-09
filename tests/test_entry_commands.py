@@ -119,23 +119,6 @@ def test_explicit_registry_loads_only_implemented_commands():
     assert COMMAND_REGISTRY.get("help").name == "帮助"
 
 
-def test_client_update_commands_are_strictly_parameterless():
-    registry = load_command_registry(prefix="dna")
-    commands = {
-        "client_update": "dna客户端更新",
-        "client_update_subscribe": "dna订阅客户端更新",
-        "client_update_unsubscribe": "dna取消订阅客户端更新",
-    }
-
-    for command_id, text in commands.items():
-        spec = registry.get(command_id)
-        assert registry.named_parameters(command_id) == ()
-        assert spec.examples == (text,)
-        assert registry.match(text).command.id == command_id
-        assert registry.match(f"{text} PC") is None
-        assert registry.match(f"{text} cn-official-pc") is None
-
-
 def test_registry_rejects_invalid_permission_and_duplicate_loading():
     """权限枚举、重复模块和重复命令必须显式失败。"""
 

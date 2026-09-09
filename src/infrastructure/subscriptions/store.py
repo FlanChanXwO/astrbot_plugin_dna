@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -346,47 +345,6 @@ class SubscriptionStore:
                 self._subs = previous
                 raise
             return replacement
-
-    async def transform_type(
-        self,
-        sub_type: str,
-        transform: Callable[[Subscription], Subscription],
-    ) -> int:
-        """原子地逐条转换一种订阅，并保持每条记录的身份字段不变。"""
-
-        if not callable(transform):
-            raise TypeError("transform 必须可调用")
-
-        async with self._lock:
-            await self.load()
-            previous = self._subs
-            updated: list[Subscription] = []
-            changed = 0
-            for subscription in previous:
-                if subscription.type != sub_type:
-                    updated.append(subscription)
-                    continue
-                replacement = transform(subscription)
-                if not isinstance(replacement, Subscription):
-                    raise TypeError("transform 必须返回 Subscription")
-                if (
-                    replacement.type != subscription.type
-                    or replacement.unified_msg_origin != subscription.unified_msg_origin
-                    or replacement.uid != subscription.uid
-                ):
-                    raise ValueError("transform 不可更新订阅身份字段")
-                updated.append(replacement)
-                changed += replacement != subscription
-
-            if not changed:
-                return 0
-            self._subs = updated
-            try:
-                self._save_unlocked()
-            except BaseException:
-                self._subs = previous
-                raise
-            return changed
 
     async def get(
         self,
