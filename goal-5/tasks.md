@@ -282,7 +282,7 @@
 - 剩余风险：文档按当前插件/资源仓库契约描述行为；资源仓库与 editor 分支仍需按三仓顺序先行交付，真实运行期无 snapshot/完整 snapshot/同步刷新验证留给 Task 14，最终集中审计留给 Task 15–16。
 - 下一步建议：执行 Task 14，使用隔离 fixture 完成无 snapshot、完整 snapshot 和同步后无需重启刷新冒烟验证。
 
-## Task 14 — 无 snapshot / 完整 snapshot / 同步刷新运行期验证 `[pending]`
+## Task 14 — 无 snapshot / 完整 snapshot / 同步刷新运行期验证 `[completed]`
 
 **目标**：用现有 fixture/fake 或本地可验证资源执行两种 snapshot 场景和同步后刷新冒烟，不访问真实生产账号，不提交资源内容。
 
@@ -290,10 +290,10 @@
 
 **验收**：无 verified snapshot 可启动、基础命令可执行、图片命令不因缺失资源崩溃并产生 `incomplete`；完整 snapshot 恢复主要渲染；发布新 generation 后无需重启使用新资源；取消/失败/非 2xx 等现有错误语义未被吞掉。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：使用 pytest 临时目录和 fake resource service 验证无 verified snapshot 的 `build_runtime` 初始化、资源视图为空、预热/终止生命周期和基础命令 registry；资源 renderer 使用现有缺失资源 fixture 验证图片命令不抛 `FileNotFoundError`，而是产生 `placeholder`/`fallback` 与 `incomplete`。使用 `test_goal3_resource_generations.py` 的本地 Git fixture 验证完整 generation 发布、重启恢复、旧 generation lease、listener 刷新和失败保留旧快照；未访问真实账号、生产数据或提交资源内容。为避免开发机 `127.0.0.1:6189` 占用干扰资源生命周期测试，将该测试显式配置为已支持的临时端口 `login.port=0`，不改变生产默认配置。
+- 验证证据：资源/renderer/generation/loader/lifecycle/cache/命令 focused 回归 `101 passed, 1 warning`；资源仓库显式 `DNA_RESOURCE_REPO` contract 为 `6 passed`；官方 AstrBot `v4.26.5` 本地 tag loader 为 `load + initialize: success (commands=63, handlers=63)`、`terminate: success`。另执行无 snapshot lifecycle smoke（资源 root/player resources 均为空，preheat `start/stop` 成功）；resolver/renderer 测试覆盖缺失资源 `incomplete`、完整 snapshot 优先级和新 generation 读取；`ResourceUpdateService` 测试覆盖取消、同步失败、Git/候选错误、非成功同步结果的可见性与 single-flight。所有验证使用隔离临时目录/fake，不执行真实同步。
+- 剩余风险：完整 snapshot 的视觉质量仍依赖资源仓库 `main` 的实际素材和外部 T2I/账号环境；当前已验证的是资源 manifest/fixture、resolver 和主要 renderer 降级/刷新契约，不宣称真实生产图片验收。资源仓库与 editor 分支仍需按三仓顺序交付；全 goal 的最终规格偏差、敏感信息、包体积和回滚集中审计留给 Task 15–16。
+- 下一步建议：执行 Task 15，集中检查运行期边界、文档/安全/回滚、三仓交付顺序和规格偏差。
 
 ## Task 15 — 运行期、文档、安全与回滚集中检查 `[pending]`
 

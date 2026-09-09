@@ -33,10 +33,14 @@ async def test_bootstrap_starts_and_stops_injected_resource_preheat_service(
     resource_service = FakeResourceUpdateService()
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *args: None),
-        {},
+        # 资源生命周期测试不应争用开发机上的默认登录端口。
+        {"login": {"port": 0}},
         database=AsyncDatabase(tmp_path / "dnaby.sqlite3"),
         services={"resource_update_service": resource_service},
     )
+
+    assert runtime.services["resource_root"] is None
+    assert runtime.services["player_resources"].root is None
 
     await runtime.initialize()
     await runtime.terminate()
