@@ -1,5 +1,21 @@
 # 更新日志
 
+## v0.3.4 — 2026-09-09
+
+### 修复
+
+- 将按名称订阅的密函刷新通知压缩为单行：同一类型的多个密函合并展示，多个类型之间以分号分隔；保留现有群聊 `@`、订阅匹配、推送时间窗口、图片密函与全量文本密函行为。（[#51](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/51)）
+
+### 回退
+
+- 回退客户端更新 Target / Source 重构；本版本继续沿用 `client_updates.channels` 以及现有国服 PC / 安卓查询与订阅语义，不包含该 PR 引入的 Target registry、state v4 与 iOS 目标。（[#41](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/41)、[`7e69a54`](https://github.com/FlanChanXwO/astrbot_plugin_dna/commit/7e69a546b1dc47ec538769222d4de659950048ba)）
+
+### 维护
+
+- 将根 `CHANGELOG.md` 收敛为全部历史 GitHub Release 的统一事实源，统一 `v0.2.0` 至 `v0.3.3` 的中文发布说明格式，并扩展发布脚本与 workflow，使更新日志变更时能够同步现有 Release。（[#47](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/47)）
+
+**完整变更**：[`v0.3.3...v0.3.4`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.3.3...v0.3.4)
+
 ## v0.3.3 — 2026-09-09
 
 ### 变更
