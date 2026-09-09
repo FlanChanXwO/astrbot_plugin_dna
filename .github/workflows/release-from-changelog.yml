@@ -61,20 +61,12 @@ jobs:
           set -euo pipefail
 
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            if [ "$RELEASE_TAG" = "v0.3.3" ]; then
-              gh release delete "$RELEASE_TAG" \
-                --repo "$GITHUB_REPOSITORY" \
-                --cleanup-tag \
-                --yes
-              echo "Deleted release $RELEASE_TAG for clean recreation"
-            else
-              gh release edit "$RELEASE_TAG" \
-                --repo "$GITHUB_REPOSITORY" \
-                --title "$RELEASE_TAG" \
-                --notes-file "$RELEASE_NOTES_FILE"
-              echo "Updated release $RELEASE_TAG"
-              exit 0
-            fi
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes-file "$RELEASE_NOTES_FILE"
+            echo "Updated release $RELEASE_TAG"
+            exit 0
           fi
 
           if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
