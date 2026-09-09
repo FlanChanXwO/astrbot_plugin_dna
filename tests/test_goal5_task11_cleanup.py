@@ -43,15 +43,26 @@ def test_migrated_large_resource_roots_are_not_bundled() -> None:
 
 
 def test_bootstrap_allowlist_points_to_retained_small_texture_tree() -> None:
-    """无 snapshot 只保留 texture2d 中的数字 bootstrap。"""
+    """无 snapshot 只保留显式登记的数字、logo 和帮助小图标 bootstrap。"""
 
-    expected_keys = {f"texture.common.number.{digit}" for digit in range(11)}
+    number_keys = {f"texture.common.number.{digit}" for digit in range(11)}
+    help_icon_filenames = {
+        path.name for path in (PROJECT_ROOT / "src/resources/help/icon_path").glob("*.png")
+    }
+    help_keys = {f"texture.help.icon:{filename}" for filename in help_icon_filenames}
+    expected_keys = number_keys | help_keys | {"texture.help.logo"}
 
     assert set(bootstrap._BOOTSTRAP_ALLOWLIST) == expected_keys
+    assert bootstrap._BOOTSTRAP_ALLOWLIST["texture.help.logo"] == PROJECT_ROOT / "ICON.png"
     assert all(
         bootstrap._BOOTSTRAP_ALLOWLIST[key]
         == PROJECT_ROOT / "src/utils/texture2d" / "number" / f"{key.rsplit('.', 1)[1]}.png"
-        for key in expected_keys
+        for key in number_keys
+    )
+    assert all(
+        bootstrap._BOOTSTRAP_ALLOWLIST[f"texture.help.icon:{filename}"]
+        == PROJECT_ROOT / "src/resources/help/icon_path" / filename
+        for filename in help_icon_filenames
     )
     assert all(path.is_file() for path in bootstrap._BOOTSTRAP_ALLOWLIST.values())
 

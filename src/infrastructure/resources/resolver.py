@@ -21,7 +21,8 @@ AssetStatus: TypeAlias = Literal[
 ]
 
 # 只有明确登记为完整保留的 bootstrap 资源才能不标记为不完整。
-_BOOTSTRAP_COMPLETE_KEYS = frozenset({"font.help"})
+_BOOTSTRAP_COMPLETE_KEYS = frozenset({"font.help", "texture.help.logo"})
+_BOOTSTRAP_COMPLETE_PREFIXES = ("texture.help.icon:",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,7 +153,10 @@ class RuntimeAssetResolver:
                     path=resolved_path,
                     source="bootstrap",
                     status="fallback",
-                    incomplete=logical_key not in _BOOTSTRAP_COMPLETE_KEYS,
+                    incomplete=(
+                        logical_key not in _BOOTSTRAP_COMPLETE_KEYS
+                        and not logical_key.startswith(_BOOTSTRAP_COMPLETE_PREFIXES)
+                    ),
                 )
 
         return ResolvedAsset(
