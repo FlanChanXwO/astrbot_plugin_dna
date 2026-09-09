@@ -258,16 +258,16 @@
 - 剩余风险：资源仓库提交必须先于插件版本发布；旧独立 helper 在无 snapshot 时会使用 placeholder/Pillow fallback，完整视觉效果依赖 verified snapshot。旧 renderer 全量回归仍有 24 个依赖本机 `127.0.0.1:8999/text2img` 的环境失败，非本 task 资源逻辑失败。
 - 下一步建议：执行 Task 12，集中检查全量静态路径/逻辑 key、发布包体积与最大剩余文件，并收口删除后的资源边界。
 
-## Task 12 — 资源删除与体积集中检查 `[pending]`
+## Task 12 — 资源删除与体积集中检查 `[completed]`
 
 **类型**：集中检查-debug（Task 10–11）。
 
 **检查**：运行全量静态路径/逻辑 key 搜索、目标测试/compile/lint/加载检查，构建真实市场发布包并记录体积；检查 `<=8 MiB`、`<=12 MiB`、`<16 MiB` 判定与最大剩余文件，发现回归或超标就追加最小修复/下一批纹理迁移 task。
 
-- 实际检查：待填。
-- 验证证据：待填。
-- 新增修复 task：待填。
-- 剩余风险：待填。
+- 实际检查：以 Task 11 提交 `8b1a450274b9d1c747cc7d469f0e4e071cc785b7` 为输入，复核 13 个已删除字体/纹理根均不在 tracked tree；全量检索了旧物理路径、文件名、legacy 常量、snapshot logical key 和 runtime `Image.open` 调用。构建了当前仓库唯一可复现的提交 ZIP（仓库没有专用市场打包脚本）；该保守包包含测试、文档和 goal 记录，未采用未经证实的市场端排除规则。
+- 验证证据：提交 ZIP 共 543 个文件，压缩包 `3,292,638 bytes / 3.140104 MiB`，ZIP 成员压缩总量 `3,195,230 bytes / 3.047209 MiB`，未压缩总量 `6,043,038 bytes / 5.763090 MiB`，因此同时满足 `<=8 MiB`、`<=12 MiB` 和 `<16 MiB`。最大剩余文件为 `src/utils/texture2d/bg.jpg`（408,490 bytes，0.389566 MiB），其次为 `avatar_title_bg.png`（340,740 bytes）和 `bg2.jpg`（232,350 bytes）；包内无已删除大资源根。目标 focused 回归为 `144 passed, 1 warning`；完整 pytest 为 `1032 passed, 1 skipped, 12 failed, 3 subtests passed`，失败均已归类为宿主端口 `6189` 被占用、缺失被忽略的 `tests/.data`、默认指向旧资源 checkout、旧 editor checkout/缺失 Vitest、以及既有 cache/help/import 契约，不属于 Task 11 变更。使用资源仓库 `2e31eb3b7bb112e2a105d89cbf55fccc52dbd1f0` 与 AstrBot `v4.26.5` 本地 tag 的官方 loader 检查分别通过：资源 contract/resolver 在显式资源路径下通过，插件 `load + initialize` 注册 `63` 个 command/handler，`terminate` 成功。`compileall`、变更文件 `ruff check`、pre-commit ruff 和 `git diff --check` 通过；全仓 ruff 仍报告 25 个既有非本 task 违规，未出现在本次变更文件中。
+- 新增修复 task：无。Task 11 变更没有引入资源路径、包体积或官方加载回归；跨仓 editor contract 失败留作资源仓库/editor 分支先行交付顺序的风险记录，不在本插件 task 内安装新依赖或修改其他仓库。
+- 剩余风险：仓库没有可在本地确认的官方市场后端过滤规则，3.140104 MiB 是包含开发文件的保守 source-archive 上界；最终仍需在 Task 16 按最终提交重新测量。完整 pytest 的 12 个非资源失败需要在宿主端口、ignored fixture、资源仓库/editor checkout 和既有测试基线恢复后复核；当前不应将其误报为本 task 全绿。资源仓库必须先于插件发布，editor worktree `codex/resource-texture-contract` 还缺独立 `node_modules/vitest`，未安装新依赖以保持环境不变。
 
 ## Task 13 — README 与资源使用/维护文档同步 `[pending]`
 
