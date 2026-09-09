@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from shutil import copyfile
 
 import pytest
 from PIL import Image, ImageFont
@@ -700,7 +699,6 @@ async def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_
     """玩家图片的资源 metadata 必须区分私有根提供的素材与 placeholder。"""
 
     resource_root = tmp_path / "resources"
-    font_source = Path(__file__).resolve().parents[1] / "src" / "resources" / "fonts" / "dna_fonts.ttf"
     font = resource_root / "fonts" / "dna_fonts.ttf"
     avatar = resource_root / "images" / "role_avatar" / "101.png"
     paint = resource_root / "images" / "role_paint" / "101.png"
@@ -709,7 +707,8 @@ async def test_player_renderer_marks_runtime_root_assets_and_missing_values(tmp_
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (17, 19), color).save(path)
     font.parent.mkdir(parents=True, exist_ok=True)
-    copyfile(font_source, font)
+    # 资源状态测试只需一个存在的 snapshot 条目，字体解析失败会走 Pillow fallback。
+    font.write_bytes(b"snapshot-font")
     renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap.from_root(resource_root))
 
     overview = await renderer.render_overview(

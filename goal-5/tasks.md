@@ -245,7 +245,7 @@
   - 旧 renderer 全量回归仍有 24 个依赖本机 `127.0.0.1:8999/text2img` 的环境失败，本 task 的资源 focused 验证不受影响。
 - 下一步建议：执行 Task 11，删除前先完成插件重复字体/纹理的静态引用审计，并保留 bootstrap allowlist 与无 snapshot 降级验证。
 
-## Task 11 — 删除重复字体与已接管的大型纹理 `[pending]`
+## Task 11 — 删除重复字体与已接管的大型纹理 `[completed]`
 
 **目标**：在 resolver、renderer 和资源仓库证据齐备后，删除插件内重复/完整字体树及由 `dna-resource` 接管的大型纹理，仅保留 bootstrap allowlist。
 
@@ -253,10 +253,10 @@
 
 **验收**：删除前静态引用审计无待删除路径消费者；目标资源在 verified snapshot 中可验证；插件导入/启动/无 snapshot 降级不抛 `FileNotFoundError`；未删除的 bootstrap 资源有清单和理由。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：删除 `src/resources/fonts/` 与重复的 `src/utils/fonts/`，以及已由资源仓库接管的 `textures/{ann,calendar,common,detail,guide,help,mh,role,sign,stamina,wiki}`；保留 `src/resources/help/` 的帮助数据/图标、`src/resources/textures/weekly_report/` 和 `src/utils/texture2d/` 的小型 bootstrap 装饰素材。将 allowlist 收敛为 `texture.common.number.{0..10}`，并把 profile/header、legacy renderer 与字体加载改为本地 bootstrap、verified snapshot 或可见 placeholder/Pillow fallback；同步修正无 snapshot 回归测试和日历最小 fixture。
+- 验证证据：Task 11 测试先行 Red 阶段实际得到 6 个预期失败；资源仓库 `2e31eb3b7bb112e2a105d89cbf55fccc52dbd1f0`（`redeem-code-v1-resource-slimming-2026-09-08`）的 127 个 `file_hashes` 全部匹配，120 个日历/纹理图片可由 Pillow 解码，7 个字体文件头有效。插件 focused 回归 `144 passed, 1 warning`，资源仓库契约测试在显式 `DNA_RESOURCE_REPO` 下 `6 passed`；`compileall`、本次变更文件 `ruff check` 与 `git diff --check` 均通过。删除后的静态审计仅保留兼容常量和安全 fallback 封装，没有未兜底的待删除资源直接读取。
+- 剩余风险：资源仓库提交必须先于插件版本发布；旧独立 helper 在无 snapshot 时会使用 placeholder/Pillow fallback，完整视觉效果依赖 verified snapshot。旧 renderer 全量回归仍有 24 个依赖本机 `127.0.0.1:8999/text2img` 的环境失败，非本 task 资源逻辑失败。
+- 下一步建议：执行 Task 12，集中检查全量静态路径/逻辑 key、发布包体积与最大剩余文件，并收口删除后的资源边界。
 
 ## Task 12 — 资源删除与体积集中检查 `[pending]`
 

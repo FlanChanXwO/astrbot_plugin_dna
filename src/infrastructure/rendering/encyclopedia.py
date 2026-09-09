@@ -46,17 +46,25 @@ from ...utils.utils import get_using_id, is_peek_blocked, is_uid_hidden
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .assets import font_data_uri, image_data_uri, pil_image_data_uri
+from .assets import pil_image_data_uri
 from .legacy_assets import (
     CALENDAR_TEXT_PATH,
     COMMON_PATH,
     FONT_ORIGIN_PATH,
     STAMINA_TEXT_PATH,
     WEEKLY_TEXT_PATH,
+    open_legacy_image,
+)
+from .legacy_assets import (
+    legacy_font_data_uri as font_data_uri,
+)
+from .legacy_assets import (
+    legacy_image_data_uri as image_data_uri,
 )
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
 from .runtime_assets import (
+    placeholder_image,
     render_runtime_card,
     resolve_runtime_asset,
     resource_record,
@@ -125,7 +133,7 @@ async def _draw_stamina_card(
         {
             "current": current,
             "icon": pil_image_data_uri(
-                tint_image(Image.open(STAMINA_TEXT_PATH / f"icon{index}.png"), (240, 230, 140)),
+                tint_image(open_legacy_image(STAMINA_TEXT_PATH / f"icon{index}.png", size=(96, 96), label=f"stamina-{index}"), (240, 230, 140)),
             ),
             "name": name,
             "ratio": _progress_ratio(current, total),
@@ -448,21 +456,34 @@ class CalendarContent(BaseModel):
 def _calendar_background(height: int) -> Image.Image:
     """按旧 PIL 的中心裁剪规则生成最终画布背景。"""
 
-    with Image.open(CALENDAR_TEXT_PATH / "bg.jpg") as opened:
-        return crop_center_img(opened.convert("RGBA"), 1200, height)
+    opened = open_legacy_image(
+        CALENDAR_TEXT_PATH / "bg.jpg",
+        size=(1200, max(750, height)),
+        label="calendar-bg",
+    )
+    return crop_center_img(opened, 1200, height)
 
 
 async def _load_banner(height: int) -> str:
-    """按旧 PIL 合成顺序预合成 banner，避免 T2I 对透明 JPEG 的底色差异。"""
+    """按旧 PIL 合成顺序预合成 banner，缺素材时返回可见占位图。"""
 
-    banner_bg = Image.open(CALENDAR_TEXT_PATH / "banner_bg.webp").convert("RGBA").resize((1200, 675))
-    banner_mask = Image.open(CALENDAR_TEXT_PATH / "banner_mask.png").getchannel("A")
-    banner_bg = crop_center_img(banner_bg, banner_mask.width, banner_mask.height)
-    background = _calendar_background(height).crop((0, 150, 1200, 750))
-    banner = Image.alpha_composite(background, Image.merge("RGBA", (*banner_bg.split()[:3], banner_mask)))
-    frame = Image.open(CALENDAR_TEXT_PATH / "banner_frame.png").convert("RGBA")
-    banner.alpha_composite(frame)
-    return pil_image_data_uri(banner)
+    try:
+        with Image.open(CALENDAR_TEXT_PATH / "banner_bg.webp") as opened:
+            banner_bg = opened.convert("RGBA").resize((1200, 675))
+        with Image.open(CALENDAR_TEXT_PATH / "banner_mask.png") as opened:
+            banner_mask = opened.getchannel("A")
+        banner_bg = crop_center_img(banner_bg, banner_mask.width, banner_mask.height)
+        background = _calendar_background(height).crop((0, 150, 1200, 750))
+        banner = Image.alpha_composite(
+            background,
+            Image.merge("RGBA", (*banner_bg.split()[:3], banner_mask)),
+        )
+        with Image.open(CALENDAR_TEXT_PATH / "banner_frame.png") as opened:
+            frame = opened.convert("RGBA")
+        banner.alpha_composite(frame)
+        return pil_image_data_uri(banner)
+    except (OSError, ValueError):
+        return pil_image_data_uri(placeholder_image((1200, 600), "calendar-banner"))
 
 
 def _event_dates(cont: CalendarContent) -> list[str]:

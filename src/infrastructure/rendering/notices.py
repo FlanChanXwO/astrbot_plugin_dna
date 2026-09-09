@@ -40,13 +40,7 @@ from ..http.concurrency import RequestConcurrencyGate
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .assets import (
-    font_data_uri,
-    image_data_uri,
-    optimized_image_data_uri,
-    pil_image_data_uri,
-    unicode_font_data_uris,
-)
+from .assets import pil_image_data_uri
 from .image_inspector import MediaType, inspect_image
 from .legacy_assets import (
     COMMON_PATH,
@@ -54,6 +48,18 @@ from .legacy_assets import (
     MH_TEXT_PATH,
     OFFICIAL_AVATAR_PATH,
     UNICODE_ORIGIN_PATH,
+)
+from .legacy_assets import (
+    legacy_font_data_uri as font_data_uri,
+)
+from .legacy_assets import (
+    legacy_image_data_uri as image_data_uri,
+)
+from .legacy_assets import (
+    legacy_optimized_image_data_uri as optimized_image_data_uri,
+)
+from .legacy_assets import (
+    legacy_unicode_font_data_uris as unicode_font_data_uris,
 )
 from .renderer import HtmlRenderer
 from .runtime_assets import (

@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 import pytest
 from PIL import Image
 
+import src.infrastructure.rendering.encyclopedia as encyclopedia_module
 import src.infrastructure.rendering.payloads as profile_payloads
 from src.infrastructure.rendering.encyclopedia import (
-    TEXT_PATH,
     CalendarContent,
     _calendar_background,
     _event_payload,
@@ -59,16 +59,30 @@ def test_calendar_payload_preserves_long_title_and_date_state() -> None:
 
 
 @pytest.mark.asyncio
-async def test_calendar_banner_matches_legacy_rgba_mask_composition() -> None:
+async def test_calendar_banner_matches_legacy_rgba_mask_composition(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 旧 PIL 合成顺序仍需有回归覆盖，但素材本身由 snapshot 提供；测试使用最小
+    # 临时 fixture，避免重新把完整日历纹理提交回插件。
+    calendar_root = tmp_path / "calendar"
+    calendar_root.mkdir()
+    Image.new("RGB", (1200, 2580), "#234567").save(calendar_root / "bg.jpg")
+    Image.new("RGBA", (1200, 675), (137, 171, 205, 255)).save(calendar_root / "banner_bg.webp")
+    Image.new("RGBA", (1200, 600), (255, 255, 255, 255)).save(calendar_root / "banner_mask.png")
+    frame = Image.new("RGBA", (1200, 600), (0, 0, 0, 0))
+    frame.save(calendar_root / "banner_frame.png")
+    monkeypatch.setattr(encyclopedia_module, "CALENDAR_TEXT_PATH", calendar_root)
+
     data_uri = await _load_banner(2580)
     actual = Image.open(BytesIO(base64.b64decode(data_uri.split(",", 1)[1]))).convert("RGBA")
 
     expected = _calendar_background(2580).crop((0, 150, 1200, 750))
-    with Image.open(TEXT_PATH / "banner_bg.webp") as opened:
+    with Image.open(calendar_root / "banner_bg.webp") as opened:
         banner = crop_center_img(opened.convert("RGBA").resize((1200, 675)), 1200, 600)
-    with Image.open(TEXT_PATH / "banner_mask.png") as opened:
+    with Image.open(calendar_root / "banner_mask.png") as opened:
         mask = opened.getchannel("A")
-    with Image.open(TEXT_PATH / "banner_frame.png") as opened:
+    with Image.open(calendar_root / "banner_frame.png") as opened:
         frame = opened.convert("RGBA")
     expected.paste(banner, (0, 0), mask)
     expected.alpha_composite(frame)

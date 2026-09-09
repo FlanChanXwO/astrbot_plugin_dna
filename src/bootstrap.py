@@ -137,9 +137,8 @@ _SNAPSHOT_ASSET_PATHS = {
 }
 _BOOTSTRAP_ALLOWLIST = {
     f"texture.common.number.{digit}": Path(__file__).parent
-    / "resources"
-    / "textures"
-    / "common"
+    / "utils"
+    / "texture2d"
     / "number"
     / f"{digit}.png"
     for digit in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)

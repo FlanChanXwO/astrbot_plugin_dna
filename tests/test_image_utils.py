@@ -28,7 +28,7 @@ def test_footer_keeps_legacy_card_width() -> None:
     card = Image.new("RGBA", (1200, 300), "black")
     rendered = add_footer(card, 600)
 
-    footer = Image.open(Path(__file__).parents[1] / "src/resources/textures/common/footer.png")
+    footer = Image.open(Path(__file__).parents[1] / "src/utils/texture2d/footer.png")
     expected_height = int(footer.height * 600 / footer.width)
     expected_left = (card.width - 600) // 2
     expected_top = card.height - expected_height - 20

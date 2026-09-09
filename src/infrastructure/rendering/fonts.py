@@ -6,7 +6,8 @@ from pathlib import Path
 
 from PIL import ImageFont
 
-BUNDLED_FONT_PATH = Path(__file__).resolve().parents[2] / "resources" / "fonts" / "dna_fonts.ttf"
+# 完整字体由 verified resource snapshot 提供；插件本地不再携带字体副本。
+BUNDLED_FONT_PATH: Path | None = None
 
 
 def load_runtime_font(

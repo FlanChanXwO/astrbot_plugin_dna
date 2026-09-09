@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 
 from ...entry.commands import COMMAND_GROUP_ORDER
 from ...version import PLUGIN_VERSION
-from .assets import font_data_uri, image_data_uri
 from .legacy_assets import (
     HELP_BACKGROUND_PATH,
     HELP_BANNER_PATH,
@@ -20,6 +19,12 @@ from .legacy_assets import (
     HELP_ICON_DIR,
     HELP_ITEM_PATH,
     PLUGIN_ICON_PATH,
+)
+from .legacy_assets import (
+    legacy_font_data_uri as font_data_uri,
+)
+from .legacy_assets import (
+    legacy_image_data_uri as image_data_uri,
 )
 from .renderer import HtmlRenderer
 from .runtime_assets import (
@@ -280,6 +285,7 @@ async def get_help(
         lines = []
 
     def image_uri(key: str, path: Path, label: str) -> str:
+        # 无 snapshot 时也经过统一 placeholder 逻辑，避免删除外置素材后回读失效路径。
         if asset_resolver is None:
             return image_data_uri(path)
         uri, asset = resolved_image_data_uri(

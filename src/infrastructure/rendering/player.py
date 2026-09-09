@@ -49,7 +49,7 @@ from ...utils.session import EventContext
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .assets import font_data_uri, image_data_uri, pil_image_data_uri
+from .assets import pil_image_data_uri
 from .damage_renderer import draw_role_damage_section
 from .fonts import load_runtime_font
 from .image_inspector import inspect_image
@@ -58,6 +58,12 @@ from .legacy_assets import (
     DETAIL_TEXT_PATH,
     FONT_ORIGIN_PATH,
     ROLE_TEXT_PATH,
+)
+from .legacy_assets import (
+    legacy_font_data_uri as font_data_uri,
+)
+from .legacy_assets import (
+    legacy_image_data_uri as image_data_uri,
 )
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import httpx
 
 from ...utils.image import get_avatar_img
@@ -9,9 +11,9 @@ from ...utils.image_utils import get_event_avatar
 from ...utils.resource.RESOURCE_PATH import AVATAR_PATH
 from ...utils.session import EventContext
 from .assets import image_data_uri, pil_image_data_uri
-from .legacy_assets import COMMON_PATH
 
-TEXTURE_PATH = COMMON_PATH
+# 资料头只依赖少量小装饰图，保留在本地 bootstrap；大型纹理由 resolver 提供。
+TEXTURE_PATH = Path(__file__).resolve().parents[2] / "utils" / "texture2d"
 
 
 async def build_profile_header(

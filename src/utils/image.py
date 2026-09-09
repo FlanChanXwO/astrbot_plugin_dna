@@ -274,13 +274,14 @@ async def get_avatar_title_img(
     avatar_user_id: str | None = None,
     uid_hidden: bool = False,
 ) -> Image.Image:
-    from .fonts.dna_fonts import (
-        dna_font_20,
-        dna_font_24,
-        dna_font_30,
-        dna_font_40,
-        dna_font_50,
-    )
+    # 字体由 resolver 注入到新 renderer；旧 helper 无 snapshot 时使用统一 Pillow fallback。
+    from src.infrastructure.rendering.fonts import load_runtime_font
+
+    dna_font_20 = load_runtime_font(20)
+    dna_font_24 = load_runtime_font(24)
+    dna_font_30 = load_runtime_font(30)
+    dna_font_40 = load_runtime_font(40)
+    dna_font_50 = load_runtime_font(50)
 
     img = Image.open(TEXT_PATH / "avatar_title_bg.png").convert("RGBA")
     draw = ImageDraw.Draw(img)
