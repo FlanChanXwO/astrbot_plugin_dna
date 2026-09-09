@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.bootstrap import _SNAPSHOT_ASSET_PATHS
 from src.infrastructure.resources import (
     ResourceGenerationError,
     ResourceSnapshotCoordinator,
@@ -31,6 +32,42 @@ def _resolver(
         snapshot_assets=snapshot_assets or {},
         bootstrap_allowlist=bootstrap_allowlist or {},
     )
+
+
+def test_renderer_texture_keys_map_to_real_snapshot_files(tmp_path: Path) -> None:
+    """卡片纹理 key 必须映射到资源仓库中的具体、可读取文件。"""
+
+    expected = {
+        "texture:stamina:bg": "textures/stamina/bg/bg6.png",
+        "texture.mh.card": "textures/mh/card.png",
+        "texture.ann.list": "textures/ann/dna_official_avatar.jpeg",
+        "texture.ann.detail": "textures/ann/dna_official_avatar.jpeg",
+        "texture.sign.background": "textures/sign/role_bg.png",
+        "texture.sign.bar": "textures/sign/bar.png",
+        "texture.sign.item_BG": "textures/sign/item_BG.png",
+        "texture.sign.green": "textures/sign/green.png",
+        "texture.sign.red": "textures/sign/red.png",
+        "texture.sign.line": "textures/sign/line.png",
+        "texture.help.background": "textures/help/bg.jpg",
+        "texture.help.banner": "textures/help/banner_bg.jpg",
+        "texture.help.cag": "textures/help/cag_bg.png",
+        "texture.help.item": "textures/help/item.png",
+        "texture.common.footer": "textures/common/footer.png",
+    }
+    root = tmp_path / "generation"
+    for relative in expected.values():
+        _write(root / relative, relative.encode())
+
+    resolver = _resolver(
+        snapshot_root=root,
+        snapshot_assets=_SNAPSHOT_ASSET_PATHS,
+    )
+
+    for logical_key, relative in expected.items():
+        resolved = resolver.resolve(logical_key)
+        assert resolved.path == root / relative
+        assert resolved.source == "verified_snapshot"
+        assert resolved.status == "provided"
 
 
 def test_verified_snapshot_wins_over_bootstrap_for_font_and_texture(

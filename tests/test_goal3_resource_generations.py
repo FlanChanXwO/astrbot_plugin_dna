@@ -422,6 +422,19 @@ def test_validator_handles_complete_binary_assets_without_path_read_bytes(
     assert snapshot.commit_sha == "a" * 40
 
 
+def test_validator_decodes_images_in_shared_texture_root(tmp_path: Path) -> None:
+    """公共纹理目录中的图片也必须经过 generation 解码校验。"""
+
+    candidate = tmp_path / "candidate"
+    _write_resources(candidate, "v1")
+    texture_path = candidate / "textures" / "common" / "bg.jpg"
+    texture_path.parent.mkdir(parents=True, exist_ok=True)
+    texture_path.write_bytes(b"not-a-decodable-image")
+
+    with pytest.raises(ResourceGenerationError, match="图片"):
+        ResourceGenerationValidator().validate(candidate, "a" * 40)
+
+
 def test_validator_rejects_truncated_image_after_valid_header(tmp_path: Path) -> None:
     """仅伪造图片文件头的候选不能通过完整解码校验。"""
 

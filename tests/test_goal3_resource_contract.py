@@ -91,9 +91,23 @@ def test_manifest_declares_contract_directories_and_existing_layout() -> None:
     manifest = _read_json(RESOURCE_ROOT / "resource_manifest.json")
     required_dirs = set(manifest["required_dirs"])
 
-    assert {"data", "schemas"}.issubset(required_dirs)
+    assert {"data", "schemas", "textures"}.issubset(required_dirs)
     assert isinstance(manifest["resource_version"], str)
     assert manifest["resource_version"].startswith("redeem-code-v1-")
+    assert isinstance(manifest["file_hashes"], dict)
+    assert manifest["file_hashes"]
+    for font_name in (
+        "dna_fonts.ttf",
+        "dna_fonts.woff2",
+        "arial-unicode-ms-bold.ttf",
+        "arial-unicode-ms-bold.woff2",
+        "arial-unicode-ms-bold-fallback.woff2",
+        "NotoColorEmoji.ttf",
+        "MiSansVF.woff2",
+    ):
+        assert f"fonts/{font_name}" in manifest["file_hashes"]
+    assert (RESOURCE_ROOT / "textures" / "common" / "bg.jpg").is_file()
+    assert (RESOURCE_ROOT / "calendar" / "bg.jpg").is_file()
     for directory in required_dirs:
         assert (RESOURCE_ROOT / directory).is_dir(), directory
 

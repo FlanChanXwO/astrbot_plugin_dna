@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import os
 import subprocess
@@ -31,6 +32,7 @@ REQUIRED_DIRS = (
     "guide",
     "weekly_item",
     "calendar",
+    "textures",
 )
 
 
@@ -58,6 +60,11 @@ def _git_bytes(*args: str, cwd: Path | None = None) -> bytes:
 
 
 def _resource_repo_root() -> Path:
+    configured = os.environ.get("DNA_RESOURCE_REPO")
+    if configured:
+        candidate = Path(configured).expanduser().resolve()
+        if (candidate / "resource_manifest.json").is_file():
+            return candidate
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "astrbot_plugin_dna_resources"
         if (candidate / "resource_manifest.json").is_file():
@@ -74,10 +81,6 @@ def _resource_files(root: Path, redeem_codes: object, public_resources: Path) ->
         (public_resources / "resource_manifest.json").read_text(encoding="utf-8"),
     )
     assert tuple(public_manifest["required_dirs"]) == REQUIRED_DIRS
-    (root / "resource_manifest.json").write_text(
-        json.dumps(public_manifest),
-        encoding="utf-8",
-    )
     (root / "alias" / "char_alias.json").write_text(
         json.dumps({"角色甲": ["角色甲", "小甲"]}),
         encoding="utf-8",
@@ -100,8 +103,20 @@ def _resource_files(root: Path, redeem_codes: object, public_resources: Path) ->
     image_path = root / "images" / "role_avatar" / "1101.png"
     image_path.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (2, 2), (255, 0, 0, 255)).save(image_path, format="PNG")
-    (root / "fonts" / "dna_fonts.ttf").write_bytes(b"\x00\x01\x00\x00task19")
+    font_path = root / "fonts" / "dna_fonts.ttf"
+    font_path.write_bytes(b"\x00\x01\x00\x00task19")
     (root / "README.md").write_text("Task 19 fixture\n", encoding="utf-8")
+    public_manifest["file_hashes"] = {
+        relative: hashlib.sha256(path.read_bytes()).hexdigest()
+        for relative, path in (
+            ("images/role_avatar/1101.png", image_path),
+            ("fonts/dna_fonts.ttf", font_path),
+        )
+    }
+    (root / "resource_manifest.json").write_text(
+        json.dumps(public_manifest),
+        encoding="utf-8",
+    )
 
 
 def _commit(source: Path, message: str) -> str:
@@ -157,6 +172,11 @@ class LocalBareRunner:
 
 
 def _editor_root() -> Path:
+    configured = os.environ.get("DNA_RESOURCE_EDITOR")
+    if configured:
+        candidate = Path(configured).expanduser().resolve()
+        if (candidate / "package.json").is_file():
+            return candidate
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "dna-resource-editor"
         if (candidate / "package.json").is_file():

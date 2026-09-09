@@ -19,6 +19,7 @@ RUNTIME_RESOURCE_DIRECTORIES: tuple[str, ...] = (
     "guide",
     "weekly_item",
     "calendar",
+    "textures",
 )
 """v0.3 renderer 与资料索引共同消费的公共资源目录。"""
 

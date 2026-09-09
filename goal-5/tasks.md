@@ -220,7 +220,7 @@
   - `dna-resource` 当前尚无 `textures` 目录和 `file_hashes` 证据，远端资源与 wildcard 映射尚未验证。
   - 旧 renderer 的完整回归仍有 24 个依赖本机 `http://127.0.0.1:8999/text2img` 的环境失败；本 task 的 focused resolver/audit 回归不受影响。
 
-## Task 10 — `dna-resource` 补齐字体/大型纹理并更新 manifest `[pending]`
+## Task 10 — `dna-resource` 补齐字体/大型纹理并更新 manifest `[completed]`
 
 **目标**：在资源仓库中补齐完整字体变体和已确定外置纹理，写入 `file_hashes` 并更新 `resource_version`，以现有 validator 验证可发布 generation。
 
@@ -228,10 +228,22 @@
 
 **验收**：资源仓库变更可独立提交；关键字体文件头、图片可解码、SHA-256、manifest 和 generation validator 全部通过；若仓库不可访问，task 明确标记阻塞并把可继续的插件侧工作与发布风险写清楚。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：
+  - 在 `codex/resource-slimming-design-resource` 资源工作区提交 `2e31eb3b7bb112e2a105d89cbf55fccc52dbd1f0`：补齐 manifest 所需的 7 个关键字体变体（本 task 新增缺失的 `MiSansVF.woff2`、两个 `arial-unicode-ms-bold` WOFF2 变体和 `dna_fonts.woff2`）、9 个 calendar 素材，以及 `textures/{ann,common,detail,help,mh,role,sign,stamina}` 共 111 个共享纹理；未把这些资源复制回插件仓库。
+  - 更新 `resource_manifest.json`：`required_dirs` 纳入 `textures`，`resource_version` 更新为 `redeem-code-v1-resource-slimming-2026-09-08`，为 127 个文件写入 SHA-256 `file_hashes`。
+  - 在 `codex/resource-texture-contract` 编辑器工作区提交 `66a3b85`：资源路径契约识别共享纹理、named panel、可选 SHA-256 manifest 字段，并允许资源仓库现有维护文档。
+  - 插件工作区纳入 `textures` generation/manifest 校验和真实文件名 resolver 映射；公告 list/detail 在当前资源仓库仅有官方头像素材时共用 `dna_official_avatar.jpeg`，不伪造不存在的独立图片。
+- 验证证据：
+  - TDD Red 阶段新增纹理目录、图片解码、资源契约和 resolver 映射测试均按预期失败；Green 后插件 focused pytest 为 `50 passed, 1 warning`。
+  - 编辑器 `npm run test:worker`：`7` 个文件、`101` 个测试通过；`npm run test:ui`：`10` 个文件、`87` 个测试通过；`npm run typecheck` 通过；实际资源树的 validator 临时集成检查通过。
+  - 插件变更文件 `compileall`、定向 `ruff check`、`git diff --check` 全部通过；无新增依赖。
+  - 以资源提交的完整 SHA 校验 generation：manifest/hash `127` 项、图片 `120` 个全部可解码、7 个字体头分别符合 TTF/WOFF2、generation `content_sha256=bba25183cf7264764fd007004ecf19f5cde867e6f05e288c1ff8dcda4e04b5ab`。
+- 剩余风险：
+  - 资源分支和编辑器分支目前只在本地 worktree，尚未 push/开 PR/合并；发布顺序仍必须先合并 `dna-resource`，再合并插件。
+  - Task 11 尚未删除插件内重复字体和已接管的大型纹理，因此本 task 不代表最终插件包体积已达标；`weekly_report` 小图标仍按范围保留在插件侧。
+  - `ann.list` 与 `ann.detail` 当前共用官方头像是可验证的降级装饰素材，不等价于两套独立公告美术资源；若上游提供独立素材，需后续补充映射和 hash。
+  - 旧 renderer 全量回归仍有 24 个依赖本机 `127.0.0.1:8999/text2img` 的环境失败，本 task 的资源 focused 验证不受影响。
+- 下一步建议：执行 Task 11，删除前先完成插件重复字体/纹理的静态引用审计，并保留 bootstrap allowlist 与无 snapshot 降级验证。
 
 ## Task 11 — 删除重复字体与已接管的大型纹理 `[pending]`
 

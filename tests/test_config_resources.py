@@ -116,6 +116,12 @@ def test_resource_manifest_requires_safe_directories(tmp_path: Path) -> None:
         ResourceManifest.load(invalid_path)
 
 
+def test_runtime_resource_layout_includes_shared_renderer_textures() -> None:
+    """公共卡片纹理必须和字体/图片一样属于 manifest 运行期目录契约。"""
+
+    assert "textures" in RUNTIME_RESOURCE_DIRECTORIES
+
+
 def test_resource_manifest_requires_complete_runtime_layout(tmp_path: Path) -> None:
     """资源仓库必须声明 renderer 与百科索引共同消费的完整目录布局。"""
 
@@ -130,6 +136,7 @@ def test_resource_manifest_requires_complete_runtime_layout(tmp_path: Path) -> N
         "guide",
         "weekly_item",
         "calendar",
+        "textures",
     ):
         (tmp_path / relative).mkdir(parents=True, exist_ok=True)
 

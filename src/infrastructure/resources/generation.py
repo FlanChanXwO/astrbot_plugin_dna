@@ -96,7 +96,7 @@ _FONT_SIGNATURES = {
     ".woff": frozenset({b"wOFF"}),
     ".woff2": frozenset({b"wOF2"}),
 }
-_ASSET_ROOTS = ("images", "panel", "wiki", "guide", "weekly_item", "calendar")
+_ASSET_ROOTS = ("images", "panel", "wiki", "guide", "weekly_item", "calendar", "textures")
 _ALIAS_FILES = ("char_alias.json", "weapon_alias.json")
 _REDEEM_KEYS = frozenset(
     {"code", "reward", "valid_from", "expires_at", "platforms", "servers"}
