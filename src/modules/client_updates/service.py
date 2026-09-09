@@ -53,20 +53,36 @@ class ClientUpdateService:
         transport: ClientUpdateTransport | None = None,
         subscriptions: SubscriptionStore | None = None,
         target_ids: Sequence[str] | None = None,
-        registry: ClientUpdateRegistry = CLIENT_UPDATE_REGISTRY,
+        registry: ClientUpdateRegistry | None = None,
     ) -> None:
-        if not isinstance(registry, ClientUpdateRegistry):
+        resolved_registry = (
+            state.registry
+            if registry is None and isinstance(state, ClientUpdateStateStore)
+            else registry or CLIENT_UPDATE_REGISTRY
+        )
+        if not isinstance(resolved_registry, ClientUpdateRegistry):
             raise TypeError("registry 必须是 ClientUpdateRegistry")
+        if (
+            isinstance(state, ClientUpdateStateStore)
+            and state.registry != resolved_registry
+        ):
+            raise ValueError("state 与 service 必须使用同一 ClientUpdateRegistry")
         self.state = state
         self.transport = transport
         self.subscriptions = subscriptions
-        self.registry = registry
+        self.registry = resolved_registry
         self._poll_lock = asyncio.Lock()
         self._subscription_mutation_lock = asyncio.Lock()
-        self.target_ids = registry.normalize_target_ids(
-            DEFAULT_CLIENT_UPDATE_TARGET_IDS if target_ids is None else target_ids
-        )
-        self._target_ids_by_source = registry.group_target_ids_by_source(
+        if target_ids is None:
+            configured_target_ids = (
+                DEFAULT_CLIENT_UPDATE_TARGET_IDS
+                if resolved_registry == CLIENT_UPDATE_REGISTRY
+                else tuple(target.target_id for target in resolved_registry.targets)
+            )
+        else:
+            configured_target_ids = target_ids
+        self.target_ids = resolved_registry.normalize_target_ids(configured_target_ids)
+        self._target_ids_by_source = resolved_registry.group_target_ids_by_source(
             self.target_ids
         )
 

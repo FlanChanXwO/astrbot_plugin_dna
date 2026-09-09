@@ -667,6 +667,37 @@ def _app_store_version(source_id: str, version: str) -> ClientSourceVersion:
 
 
 @pytest.mark.asyncio
+async def test_transport_uses_the_injected_registry_for_custom_sources() -> None:
+    source = ClientUpdateSource(
+        source_id="custom-ios-source",
+        platform=ClientPlatform.IOS,
+        provider_kind=ClientUpdateProviderKind.APP_STORE,
+        provider_config=AppStoreProviderConfig(track_id=123, country="us"),
+    )
+    registry = ClientUpdateRegistry(sources=(source,), targets=())
+    url = "https://itunes.apple.com/lookup?id=123&country=us"
+    session = _FakeSession(
+        {
+            url: _FakeResponse(
+                200,
+                {
+                    "resultCount": 1,
+                    "results": [{"trackId": 123, "version": "2.0.0"}],
+                },
+            )
+        }
+    )
+
+    observation = await ClientUpdateTransport(
+        registry=registry,
+        session_factory=lambda: session,
+    ).get_observation(source.source_id)
+
+    assert observation.current.source_id == source.source_id
+    assert observation.current.revision_id == "123:2.0.0"
+
+
+@pytest.mark.asyncio
 async def test_app_store_transport_reports_changed_and_unchanged_baselines() -> None:
     source = resolve_client_update_source("cn-official-ios-app-store")
     config = source.provider_config

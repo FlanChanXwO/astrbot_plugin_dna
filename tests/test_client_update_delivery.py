@@ -10,6 +10,8 @@ import pytest
 from src.entry.event import EventActor
 from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.client_updates import (
+    AppStoreProviderConfig,
+    ClientPlatform,
     ClientSourceVersion,
     ClientUpdateChange,
     ClientUpdateDeliveryService,
@@ -18,11 +20,45 @@ from src.modules.client_updates import (
     ClientUpdatePushMessage,
     ClientUpdatePushResult,
     ClientUpdatePushTarget,
+    ClientUpdateProviderKind,
+    ClientUpdateRegistry,
     ClientUpdateRequest,
     ClientUpdateService,
+    ClientUpdateSource,
     ClientUpdateStateStore,
+    ClientUpdateTarget,
     messages,
 )
+
+
+def _shared_source_registry() -> ClientUpdateRegistry:
+    source = ClientUpdateSource(
+        source_id="shared-source",
+        platform=ClientPlatform.IOS,
+        provider_kind=ClientUpdateProviderKind.APP_STORE,
+        provider_config=AppStoreProviderConfig(track_id=1, country="cn"),
+    )
+    return ClientUpdateRegistry(
+        sources=(source,),
+        targets=(
+            ClientUpdateTarget(
+                target_id="cn-official-ios",
+                region_id="cn",
+                ecosystem_id="official",
+                platform=ClientPlatform.IOS,
+                source_id=source.source_id,
+                display_name="国服官服 iOS",
+            ),
+            ClientUpdateTarget(
+                target_id="global-official-ios",
+                region_id="global",
+                ecosystem_id="official",
+                platform=ClientPlatform.IOS,
+                source_id=source.source_id,
+                display_name="全球服官服 iOS",
+            ),
+        ),
+    )
 
 
 def _change(
@@ -129,6 +165,40 @@ async def test_target_neutral_subscription_receives_source_message(tmp_path) -> 
 
 
 @pytest.mark.asyncio
+async def test_delivery_uses_the_injected_registry_for_custom_sources(tmp_path) -> None:
+    registry = _shared_source_registry()
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    await _add_subscription(subscriptions, "group:1")
+    port = _RecordingPushPort()
+    delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        port,
+        state=ClientUpdateStateStore(
+            tmp_path / "client_updates.json",
+            registry=registry,
+        ),
+    )
+
+    delivered = await delivery.deliver(
+        (
+            _change(
+                "shared-source",
+                ("cn-official-ios", "global-official-ios"),
+                previous="1",
+                current="2",
+            ),
+        )
+    )
+
+    assert delivered == 1
+    assert port.pushes[0].messages[0].source_id == "shared-source"
+    assert port.pushes[0].messages[0].target_ids == (
+        "cn-official-ios",
+        "global-official-ios",
+    )
+
+
+@pytest.mark.asyncio
 async def test_pending_retry_keeps_event_target_snapshot_across_reload(
     tmp_path,
 ) -> None:
@@ -169,6 +239,32 @@ async def test_pending_retry_keeps_event_target_snapshot_across_reload(
     assert reloaded_port.pushes[0].messages[0].target_ids == ("cn-official-pc",)
     assert "国服官服 PC" in reloaded_port.pushes[0].messages[0].text
     assert "iOS" not in reloaded_port.pushes[0].messages[0].text
+
+
+@pytest.mark.asyncio
+async def test_pending_retry_uses_current_subscription_bot_id(tmp_path) -> None:
+    subscription_path = tmp_path / "subscriptions.json"
+    state_path = tmp_path / "client_updates.json"
+    subscriptions = SubscriptionStore(subscription_path)
+    await _add_subscription(subscriptions, "group:1", bot_id="old-bot")
+    first_port = _RecordingPushPort({"group:1": [False]})
+    first_delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        first_port,
+        state=ClientUpdateStateStore(state_path),
+    )
+    assert await first_delivery.deliver((_pc_change(),)) == 0
+
+    await _add_subscription(subscriptions, "group:1", bot_id="onebot")
+    retry_port = _RecordingPushPort()
+    retry_delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        retry_port,
+        state=ClientUpdateStateStore(state_path),
+    )
+
+    assert await retry_delivery.deliver(()) == 1
+    assert retry_port.pushes[0].target.bot_id == "onebot"
 
 
 @pytest.mark.asyncio

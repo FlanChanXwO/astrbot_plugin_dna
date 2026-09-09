@@ -15,7 +15,7 @@ from typing import Protocol
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from . import messages
 from .contracts import ClientUpdateChange
-from .registry import CLIENT_UPDATE_REGISTRY, resolve_client_update_target
+from .registry import CLIENT_UPDATE_REGISTRY, ClientUpdateRegistry
 from .routing import active_subscriptions as _active_subscriptions
 from .state import (
     ClientUpdatePendingEvent,
@@ -26,10 +26,6 @@ from .state import (
 
 logger = logging.getLogger(__name__)
 
-_CLIENT_SOURCE_ORDER = {
-    source.source_id: index
-    for index, source in enumerate(CLIENT_UPDATE_REGISTRY.sources)
-}
 _ONEBOT_PLATFORM_NAMES = frozenset(("aiocqhttp", "onebot"))
 
 SenderResult = bool | None
@@ -64,10 +60,6 @@ class ClientUpdatePushMessage:
             raise ValueError("target_ids 必须至少包含一个 Target ID")
         if len(normalized_target_ids) != len(set(normalized_target_ids)):
             raise ValueError("target_ids 不能重复")
-        for target_id in normalized_target_ids:
-            target = resolve_client_update_target(target_id)
-            if target.source_id != self.source_id:
-                raise ValueError("消息 Target 与 Source 不一致")
         if not isinstance(self.text, str):
             raise TypeError("text 必须是字符串")
         object.__setattr__(self, "target_ids", normalized_target_ids)
@@ -134,10 +126,25 @@ class ClientUpdateDeliveryService:
         push_port: ClientUpdatePushPort,
         *,
         state: ClientUpdateStateStore | None = None,
+        registry: ClientUpdateRegistry | None = None,
     ) -> None:
+        resolved_registry = (
+            state.registry
+            if registry is None and state is not None
+            else registry or CLIENT_UPDATE_REGISTRY
+        )
+        if not isinstance(resolved_registry, ClientUpdateRegistry):
+            raise TypeError("registry 必须是 ClientUpdateRegistry")
+        if state is not None and state.registry != resolved_registry:
+            raise ValueError("state 与 delivery 必须使用同一 ClientUpdateRegistry")
         self.subscriptions = subscriptions
         self.push_port = push_port
         self.state = state
+        self.registry = resolved_registry
+        self._source_order = {
+            source.source_id: index
+            for index, source in enumerate(resolved_registry.sources)
+        }
 
     async def deliver(self, changes: Sequence[ClientUpdateChange]) -> int:
         """投递变化；有状态运行时串行完成 pending 的发送与确认。"""
@@ -154,7 +161,11 @@ class ClientUpdateDeliveryService:
     ) -> int:
         """直接投递 DTO seam，不创建持久化事件。"""
 
-        ordered_changes = _order_changes(changes)
+        ordered_changes = _order_changes(
+            changes,
+            self.registry,
+            self._source_order,
+        )
         if not ordered_changes:
             return 0
 
@@ -170,6 +181,7 @@ class ClientUpdateDeliveryService:
                     bot_id=subscription.bot_id,
                 ),
                 ordered_changes,
+                self.registry,
             )
             succeeded_event_keys = await self._send_push(push)
             if succeeded_event_keys == frozenset(
@@ -188,7 +200,11 @@ class ClientUpdateDeliveryService:
         if state is None:
             raise RuntimeError("client update delivery state unavailable")
 
-        ordered_changes = _order_changes(changes)
+        ordered_changes = _order_changes(
+            changes,
+            self.registry,
+            self._source_order,
+        )
         pending_keys_before = {
             event.event_key for event in await state.pending_events()
         }
@@ -242,14 +258,24 @@ class ClientUpdateDeliveryService:
                 if active_entry is None:
                     await state.remove_event_target(event.event_key, target)
                     continue
-                _subscription, routable = active_entry
+                subscription, routable = active_entry
                 if not routable:
                     await state.remove_event_target(event.event_key, target)
                     continue
-                group_key = (target.origin, target.uid, target.bot_id)
+                current_target = ClientUpdatePendingTarget(
+                    origin=target.origin,
+                    uid=target.uid,
+                    bot_id=subscription.bot_id,
+                    target_ids=target.target_ids,
+                )
+                group_key = (
+                    current_target.origin,
+                    current_target.uid,
+                    current_target.bot_id,
+                )
                 group = groups.get(group_key)
                 if group is None:
-                    groups[group_key] = (target, [event])
+                    groups[group_key] = (current_target, [event])
                 else:
                     group[1].append(event)
         return await self._deliver_event_groups(tuple(groups.values()))
@@ -271,6 +297,7 @@ class ClientUpdateDeliveryService:
             push = _build_push(
                 ClientUpdatePushTarget(origin=target.origin, bot_id=target.bot_id),
                 tuple(event.change for event in pending_events),
+                self.registry,
             )
             succeeded_event_keys = await self._send_push(push)
             for event in pending_events:
@@ -389,18 +416,28 @@ class ClientUpdatePushAdapter:
 def _build_push(
     target: ClientUpdatePushTarget,
     changes: Sequence[ClientUpdateChange],
+    registry: ClientUpdateRegistry,
 ) -> ClientUpdatePush:
     return ClientUpdatePush(
         target=target,
-        messages=tuple(
-            ClientUpdatePushMessage(
-                event_key=change.event_key,
-                source_id=change.source_id,
-                target_ids=change.target_ids,
-                text=messages.format_change(change),
-            )
-            for change in changes
-        ),
+        messages=tuple(_push_message(change, registry) for change in changes),
+    )
+
+
+def _push_message(
+    change: ClientUpdateChange,
+    registry: ClientUpdateRegistry,
+) -> ClientUpdatePushMessage:
+    normalized = canonicalize_client_update_change(change, registry=registry)
+    target_names = tuple(
+        registry.resolve_target(target_id).display_name
+        for target_id in normalized.target_ids
+    )
+    return ClientUpdatePushMessage(
+        event_key=normalized.event_key,
+        source_id=normalized.source_id,
+        target_ids=normalized.target_ids,
+        text=messages.format_change(normalized, target_names),
     )
 
 
@@ -431,14 +468,17 @@ def _is_onebot_target(target: ClientUpdatePushTarget) -> bool:
 
 def _order_changes(
     changes: Sequence[ClientUpdateChange],
+    registry: ClientUpdateRegistry,
+    source_order: dict[str, int],
 ) -> tuple[ClientUpdateChange, ...]:
     normalized = tuple(
-        canonicalize_client_update_change(change) for change in tuple(changes)
+        canonicalize_client_update_change(change, registry=registry)
+        for change in tuple(changes)
     )
     return tuple(
         sorted(
             normalized,
-            key=lambda change: _CLIENT_SOURCE_ORDER[change.source_id],
+            key=lambda change: source_order[change.source_id],
         )
     )
 

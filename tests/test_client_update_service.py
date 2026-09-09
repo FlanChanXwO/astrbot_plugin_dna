@@ -594,6 +594,62 @@ async def test_poll_observes_shared_source_once() -> None:
     assert state.writes == 1
 
 
+@pytest.mark.asyncio
+async def test_custom_registry_poll_persists_source_and_target_snapshot(
+    tmp_path,
+) -> None:
+    registry = _shared_source_registry()
+    source_id = "shared-source"
+    previous = _source_version(source_id, "1.5.0")
+    current = _source_version(source_id, "1.6.0")
+    state_path = tmp_path / "client_updates.json"
+    state = ClientUpdateStateStore(state_path, registry=registry)
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    await subscriptions.add(
+        messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+        origin="group:1",
+        bot_id="bot-1",
+        extra_data="{}",
+    )
+    await state.save_baseline(
+        ClientUpdateBaseline(
+            version=previous,
+            observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+        )
+    )
+    service = ClientUpdateService(
+        state,
+        transport=_Transport(
+            {
+                source_id: ClientSourceObservation(
+                    current=current,
+                    observed_versions=(current,),
+                    history_complete=False,
+                    added_size_bytes=None,
+                )
+            }
+        ),
+        subscriptions=subscriptions,
+        target_ids=("cn-official-ios", "global-official-ios"),
+    )
+
+    changes = await service.poll_now()
+
+    assert len(changes) == 1
+    assert changes[0].target_ids == (
+        "cn-official-ios",
+        "global-official-ios",
+    )
+    reloaded = ClientUpdateStateStore(state_path, registry=registry)
+    assert (await reloaded.get_baseline(source_id)).version == current
+    pending = await reloaded.pending_events()
+    assert len(pending) == 1
+    assert pending[0].change.target_ids == (
+        "cn-official-ios",
+        "global-official-ios",
+    )
+
+
 def _group_actor(origin: str = "group:1") -> EventActor:
     return EventActor(
         user_id="admin-1",

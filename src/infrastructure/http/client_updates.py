@@ -27,11 +27,12 @@ from ...modules.client_updates.contracts import (
     sum_manifest_patch_file_sizes,
 )
 from ...modules.client_updates.registry import (
+    CLIENT_UPDATE_REGISTRY,
     AppStoreProviderConfig,
     ClientUpdateProviderKind,
+    ClientUpdateRegistry,
     ClientUpdateSource,
     ManifestCdnProviderConfig,
-    resolve_client_update_source,
 )
 from .concurrency import RequestConcurrencyGate
 
@@ -112,8 +113,12 @@ class ClientUpdateTransport:
         *,
         request_gate: RequestConcurrencyGate | None = None,
         session_factory: SessionFactory | None = None,
+        registry: ClientUpdateRegistry = CLIENT_UPDATE_REGISTRY,
     ) -> None:
+        if not isinstance(registry, ClientUpdateRegistry):
+            raise TypeError("registry 必须是 ClientUpdateRegistry")
         self.request_gate = request_gate
+        self.registry = registry
         self._session_factory = (
             aiohttp.ClientSession if session_factory is None else session_factory
         )
@@ -126,7 +131,7 @@ class ClientUpdateTransport:
     ) -> ClientSourceObservation:
         """读取一个已登记 Source；baseline 缺口通过 observation 显式表达。"""
 
-        source = resolve_client_update_source(source_id)
+        source = self.registry.resolve_source(source_id)
         _validate_baseline(source, baseline)
         async with self._session_factory() as session:
             if source.provider_kind is ClientUpdateProviderKind.MANIFEST_CDN:
