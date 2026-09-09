@@ -570,7 +570,7 @@ def build_runtime(
         client_update_state,
         transport=resolved_client_updates_transport,
         subscriptions=subscriptions,
-        channels=tuple(settings.client_updates.channels),
+        target_ids=tuple(settings.client_updates.targets),
     )
     if services is not None and "client_update_service" in services:
         client_update_service = cast(
@@ -791,6 +791,7 @@ def build_runtime(
         start_hooks=(
             _initialize_resource_views,
             login_flow.start,
+            client_update_service.initialize,
             web.initialize,
             cache_maintenance.start,
             sign_scheduler.start,
@@ -803,6 +804,7 @@ def build_runtime(
         stop_hooks=(
             _stop_resource_views,
             login_flow.stop,
+            client_update_service.terminate,
             web.stop,
             cache_maintenance.stop,
             sign_scheduler.stop,

@@ -1,30 +1,33 @@
-"""客户端更新基线与待投递事件的 typed JSON 状态边界。
-
-状态文件只保存运行期最近一次成功观察、变化摘要和未完成的投递事件，不接触
-AstrBot event 或订阅对象。所有读写都经过固定 schema 校验；写入先落到同目录
-临时文件，再替换最终文件，避免进程在写入中断时留下半份 JSON。
-"""
+"""客户端更新 Source 基线与待投递事件的 v4 typed JSON 状态边界。"""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
 from .contracts import (
-    ClientPlatform,
-    ClientRegion,
+    AppStoreVersionMetadata,
+    ClientSourceProviderMetadata,
+    ClientSourceVersion,
     ClientUpdateChange,
-    ClientVersionSnapshot,
+    ManifestCdnVersionMetadata,
+)
+from .registry import (
+    CLIENT_UPDATE_REGISTRY,
+    ClientUpdateRegistry,
+    ClientUpdateProviderKind,
 )
 
-STATE_VERSION = 3
-_LEGACY_STATE_VERSION = 1
-_V2_STATE_VERSION = 2
+logger = logging.getLogger(__name__)
+
+STATE_VERSION = 4
+_IGNORED_STATE_VERSIONS = frozenset((1, 2, 3))
 _PENDING_STATUSES = frozenset(("pending", "delivered"))
 
 
@@ -43,15 +46,15 @@ class ClientUpdateStateError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdateBaseline:
-    """一个区服/平台最近成功观察到的基线。"""
+    """一个 Source 最近成功观察到的版本基线。"""
 
-    snapshot: ClientVersionSnapshot
+    version: ClientSourceVersion
     observed_at: datetime
     last_change: ClientUpdateChange | None = None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.snapshot, ClientVersionSnapshot):
-            raise TypeError("snapshot 必须是 ClientVersionSnapshot")
+        if not isinstance(self.version, ClientSourceVersion):
+            raise TypeError("version 必须是 ClientSourceVersion")
         if not isinstance(self.observed_at, datetime):
             raise TypeError("observed_at 必须是 datetime")
         if self.observed_at.tzinfo is None or self.observed_at.utcoffset() is None:
@@ -59,15 +62,22 @@ class ClientUpdateBaseline:
         if self.last_change is not None:
             if not isinstance(self.last_change, ClientUpdateChange):
                 raise TypeError("last_change 必须是 ClientUpdateChange 或 None")
-            if self.last_change.current != self.snapshot:
-                raise ValueError("last_change.current 必须等于当前基线快照")
+            if self.last_change.current != self.version:
+                raise ValueError("last_change.current 必须等于当前基线版本")
+
+    @property
+    def source_id(self) -> str:
+        """返回基线所属 Source。"""
+
+        return self.version.source_id
 
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdatePendingTarget:
-    """一次客户端更新事件首次生成时固定下来的投递目标。"""
+    """事件创建时固定的消息目的地和其实际覆盖 Target。"""
 
     origin: str
+    target_ids: tuple[str, ...]
     uid: str = ""
     bot_id: str = ""
     delivered: bool = False
@@ -79,25 +89,29 @@ class ClientUpdatePendingTarget:
             raise TypeError("投递目标 uid 必须是字符串")
         if not isinstance(self.bot_id, str):
             raise TypeError("投递目标 bot_id 必须是字符串")
+        normalized_target_ids = _normalize_target_id_values(self.target_ids)
+        if not normalized_target_ids:
+            raise ValueError("投递目标必须包含至少一个 Target ID")
         if type(self.delivered) is not bool:
             raise TypeError("投递目标 delivered 必须是布尔值")
+        object.__setattr__(self, "target_ids", normalized_target_ids)
 
     @property
     def key(self) -> tuple[str, str]:
-        """返回订阅的稳定身份键；bot_id 变化不应把目标变成新订阅。"""
+        """返回订阅的稳定身份键；bot_id 变化不产生新订阅。"""
 
         return self.origin, self.uid
 
     @property
     def status(self) -> str:
-        """返回持久化和诊断使用的 ``pending``/``delivered`` 状态。"""
+        """返回持久化和诊断使用的 pending/delivered 状态。"""
 
         return "delivered" if self.delivered else "pending"
 
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdatePendingEvent:
-    """一个版本变化及其首次匹配目标集合。"""
+    """一个 Source 变化及其首次匹配的固定投递目标集合。"""
 
     change: ClientUpdateChange
     targets: tuple[ClientUpdatePendingTarget, ...]
@@ -113,6 +127,9 @@ class ClientUpdatePendingEvent:
         keys = [target.key for target in normalized]
         if len(keys) != len(set(keys)):
             raise ValueError("一个事件不能重复记录同一投递目标")
+        expected_target_ids = self.change.target_ids
+        if any(target.target_ids != expected_target_ids for target in normalized):
+            raise ValueError("投递目标覆盖的 Target 必须与变化快照一致")
         object.__setattr__(self, "targets", normalized)
 
     @property
@@ -129,28 +146,34 @@ class ClientUpdatePendingEvent:
 
 
 class ClientUpdateStateStore:
-    """版本化客户端更新基线和投递状态的读写入口。
+    """串行、原子地读写客户端更新 state v4。"""
 
-    ``path`` 由 bootstrap 根据 ``StarTools.get_data_dir`` 注入；本类不自行决定
-    运行期目录。单进程内的写操作通过 asyncio 锁串行化，并在内存和磁盘写入
-    失败时恢复原有基线及 pending 事件。
-    """
-
-    def __init__(self, path: str | Path) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        registry: ClientUpdateRegistry = CLIENT_UPDATE_REGISTRY,
+    ) -> None:
+        if not isinstance(registry, ClientUpdateRegistry):
+            raise TypeError("registry 必须是 ClientUpdateRegistry")
         self.path = Path(path).expanduser().resolve()
-        self._baselines: dict[tuple[ClientRegion, str], ClientUpdateBaseline] = {}
+        self.registry = registry
+        self._baselines: dict[str, ClientUpdateBaseline] = {}
         self._pending_events: dict[str, ClientUpdatePendingEvent] = {}
         self._lock = asyncio.Lock()
+        # 外部消息发送无法由 state 文件事务回滚；投递与取消必须共享这把进程内锁，
+        # 保证“读取 pending → 发送 → 确认”和取消清理之间具有明确先后顺序。
+        self._delivery_coordination_lock = asyncio.Lock()
         self._loaded = False
 
     @property
-    def migration_backup_path(self) -> Path:
-        """返回 State v2→v3 迁移保留的原始字节备份路径。"""
+    def delivery_coordination_lock(self) -> asyncio.Lock:
+        """返回投递与取消订阅共享的进程内协调锁。"""
 
-        return self.path.with_name(f"{self.path.name}.v2.bak")
+        return self._delivery_coordination_lock
 
     async def load(self) -> None:
-        """幂等加载状态文件；缺失文件代表尚未建立任何状态。"""
+        """幂等加载；缺失文件或已识别旧 schema 均视为空状态。"""
 
         if self._loaded:
             return
@@ -158,20 +181,12 @@ class ClientUpdateStateStore:
             if not self._loaded:
                 self._load_unlocked()
 
-    async def get_baseline(
-        self,
-        region: ClientRegion | str,
-        platform: ClientPlatform | str,
-    ) -> ClientUpdateBaseline | None:
-        """读取一个区服/平台或固定渠道基线，未建立时返回 ``None``。"""
+    async def get_baseline(self, source_id: str) -> ClientUpdateBaseline | None:
+        """读取一个已登记 Source 的基线。"""
 
-        candidates = _baseline_lookup_keys(region, platform)
+        normalized_source_id = _registered_source_id(source_id, self.registry)
         await self.load()
-        for key in candidates:
-            baseline = self._baselines.get(key)
-            if baseline is not None:
-                return baseline
-        return None
+        return self._baselines.get(normalized_source_id)
 
     async def pending_events(self) -> tuple[ClientUpdatePendingEvent, ...]:
         """按首次生成顺序返回仍未完成的投递事件。"""
@@ -180,17 +195,13 @@ class ClientUpdateStateStore:
         return tuple(self._pending_events.values())
 
     async def save_baseline(self, baseline: ClientUpdateBaseline) -> None:
-        """保存基线并原子替换状态文件。"""
+        """保存 Source 基线并原子替换状态文件。"""
 
-        if not isinstance(baseline, ClientUpdateBaseline):
-            raise TypeError("baseline 必须是 ClientUpdateBaseline")
-        baseline = _canonicalize_baseline_for_state(baseline)
-        key = _snapshot_baseline_key(baseline.snapshot)
-
+        normalized = _canonicalize_baseline(baseline, self.registry)
         async with self._lock:
             self._load_unlocked()
             previous = self._baselines.copy()
-            self._baselines[key] = baseline
+            self._baselines[normalized.source_id] = normalized
             try:
                 self._save_unlocked()
             except OSError as error:
@@ -208,22 +219,16 @@ class ClientUpdateStateStore:
         change: ClientUpdateChange,
         targets: Iterable[ClientUpdatePendingTarget],
     ) -> ClientUpdatePendingEvent | None:
-        """原子保存新基线和变化事件，避免基线先推进后丢失事件。
+        """原子保存基线和首次事件；无消息目的地时仅推进基线。"""
 
-        ``targets`` 只在事件首次生成时生效；已有同键事件继续保留其固定目标。
-        没有匹配目标时仍保存基线，但不会创建事件。
-        """
-
-        if not isinstance(baseline, ClientUpdateBaseline):
-            raise TypeError("baseline 必须是 ClientUpdateBaseline")
-        if not isinstance(change, ClientUpdateChange):
-            raise TypeError("change 必须是 ClientUpdateChange")
-        baseline = _canonicalize_baseline_for_state(baseline)
-        change = _canonicalize_change_for_state(change, context="change")
-        if baseline.last_change != change:
+        normalized_baseline = _canonicalize_baseline(baseline, self.registry)
+        normalized_change = canonicalize_client_update_change(
+            change,
+            registry=self.registry,
+        )
+        if normalized_baseline.last_change != normalized_change:
             raise ValueError("baseline.last_change 必须等于 change")
-        key = _snapshot_baseline_key(baseline.snapshot)
-        event = ClientUpdatePendingEvent(change, tuple(targets))
+        event = ClientUpdatePendingEvent(normalized_change, tuple(targets))
         if event.targets and not event.pending_targets:
             raise ValueError("新建事件至少需要一个 pending 目标")
 
@@ -235,7 +240,7 @@ class ClientUpdateStateStore:
 
             previous_baselines = self._baselines.copy()
             previous_pending_events = self._pending_events.copy()
-            self._baselines[key] = baseline
+            self._baselines[normalized_baseline.source_id] = normalized_baseline
             if existing is None and event.targets:
                 self._pending_events[event.event_key] = event
                 stored_event = event
@@ -260,15 +265,13 @@ class ClientUpdateStateStore:
         change: ClientUpdateChange,
         targets: Iterable[ClientUpdatePendingTarget],
     ) -> ClientUpdatePendingEvent | None:
-        """首次记录变化事件及固定目标；同一事件键不会吸收新目标。
+        """首次记录变化事件；同一事件键不会吸收后来出现的目标。"""
 
-        没有匹配目标时不建立事件，避免在后来新增订阅时补发已经观察过的变化。
-        """
-
-        if not isinstance(change, ClientUpdateChange):
-            raise TypeError("change 必须是 ClientUpdateChange")
-        change = _canonicalize_change_for_state(change, context="change")
-        event = ClientUpdatePendingEvent(change, tuple(targets))
+        normalized_change = canonicalize_client_update_change(
+            change,
+            registry=self.registry,
+        )
+        event = ClientUpdatePendingEvent(normalized_change, tuple(targets))
         if not event.targets:
             return None
         if not event.pending_targets:
@@ -281,7 +284,6 @@ class ClientUpdateStateStore:
                 if existing.change != event.change:
                     raise ClientUpdateStateError("event key maps to different change")
                 return existing
-
             previous = self._pending_events.copy()
             self._pending_events[event.event_key] = event
             try:
@@ -301,7 +303,7 @@ class ClientUpdateStateStore:
         event_key: str,
         target: ClientUpdatePendingTarget | tuple[str, str],
     ) -> bool:
-        """标记一个目标成功；事件全部完成后立即清理。"""
+        """标记一个目的地成功；事件全部完成后立即清理。"""
 
         normalized_event_key = _require_non_empty_string(event_key, "event_key")
         target_key = _pending_target_key(target)
@@ -324,10 +326,12 @@ class ClientUpdateStateStore:
                 return True
 
             updated_targets = list(event.targets)
+            item = updated_targets[target_index]
             updated_targets[target_index] = ClientUpdatePendingTarget(
-                origin=updated_targets[target_index].origin,
-                uid=updated_targets[target_index].uid,
-                bot_id=updated_targets[target_index].bot_id,
+                origin=item.origin,
+                uid=item.uid,
+                bot_id=item.bot_id,
+                target_ids=item.target_ids,
                 delivered=True,
             )
             previous = self._pending_events.copy()
@@ -355,7 +359,7 @@ class ClientUpdateStateStore:
         event_key: str,
         target: ClientUpdatePendingTarget | tuple[str, str],
     ) -> bool:
-        """从一个事件中移除目标；无剩余目标时清理该事件。"""
+        """从一个事件中移除目的地；无剩余目标时清理事件。"""
 
         normalized_event_key = _require_non_empty_string(event_key, "event_key")
         target_key = _pending_target_key(target)
@@ -364,7 +368,6 @@ class ClientUpdateStateStore:
             event = self._pending_events.get(normalized_event_key)
             if event is None or all(item.key != target_key for item in event.targets):
                 return False
-
             previous = self._pending_events.copy()
             remaining = tuple(item for item in event.targets if item.key != target_key)
             if remaining and any(not item.delivered for item in remaining):
@@ -387,7 +390,7 @@ class ClientUpdateStateStore:
             return True
 
     async def remove_target(self, origin: str, *, uid: str = "") -> int:
-        """从所有未完成事件移除订阅目标，避免取消后重新订阅时补发旧事件。"""
+        """从所有未完成事件移除一个订阅目的地。"""
 
         normalized_origin = _require_non_empty_string(origin, "origin")
         if not isinstance(uid, str):
@@ -431,44 +434,41 @@ class ClientUpdateStateStore:
             return
 
         try:
-            raw_bytes = self.path.read_bytes()
-            raw = json.loads(raw_bytes.decode("utf-8"))
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
             root = _require_mapping(raw, "state")
             schema_version = _required(root, "schema_version", "state")
-            if type(schema_version) is not int or schema_version not in (
-                _LEGACY_STATE_VERSION,
-                _V2_STATE_VERSION,
-                STATE_VERSION,
-            ):
-                raise ValueError("unsupported state schema version")
-            raw_baselines = _required(root, "baselines", "state")
-            if not isinstance(raw_baselines, Mapping):
-                raise TypeError("state.baselines must be an object")
-
-            baselines: dict[tuple[ClientRegion, str], ClientUpdateBaseline] = {}
-            for raw_key, raw_baseline in raw_baselines.items():
-                region, channel_id = _parse_state_baseline_key(
-                    raw_key,
-                    schema_version=schema_version,
+            if type(schema_version) is not int:
+                raise TypeError("state.schema_version must be an integer")
+            if schema_version in _IGNORED_STATE_VERSIONS:
+                logger.warning(
+                    "[dnaby][client_update] 忽略不兼容的客户端更新 state v%s，按空状态启动",
+                    schema_version,
                 )
+                self._baselines = {}
+                self._pending_events = {}
+                self._loaded = True
+                return
+            if schema_version != STATE_VERSION:
+                raise ValueError("unsupported state schema version")
+
+            raw_baselines = _require_mapping(
+                _required(root, "baselines", "state"), "state.baselines"
+            )
+            baselines: dict[str, ClientUpdateBaseline] = {}
+            for raw_source_id, raw_baseline in raw_baselines.items():
+                source_id = _registered_source_id(raw_source_id, self.registry)
                 baseline = _parse_baseline(
                     raw_baseline,
-                    f"state.baselines[{raw_key!r}]",
-                    channel_id=channel_id,
-                    canonicalize=schema_version != STATE_VERSION,
+                    f"state.baselines[{raw_source_id!r}]",
+                    self.registry,
                 )
-                key = (region, channel_id)
-                if key in baselines:
-                    raise ValueError("duplicate baseline channel key")
-                baselines[key] = baseline
+                if baseline.source_id != source_id:
+                    raise ValueError("baseline key does not match version source")
+                baselines[source_id] = baseline
 
-            if schema_version == _LEGACY_STATE_VERSION:
-                raw_pending_events: object = []
-            else:
-                raw_pending_events = _required(root, "pending_events", "state")
             pending_events = _parse_pending_events(
-                raw_pending_events,
-                schema_version=schema_version,
+                _required(root, "pending_events", "state"),
+                self.registry,
             )
         except (
             OSError,
@@ -480,60 +480,16 @@ class ClientUpdateStateStore:
         ) as error:
             raise ClientUpdateStateError("state file could not be loaded") from error
 
-        if schema_version != STATE_VERSION:
-            previous_baselines = self._baselines
-            previous_pending_events = self._pending_events
-            self._baselines = baselines
-            self._pending_events = pending_events
-            try:
-                self._preserve_legacy_state_unlocked(raw_bytes)
-                self._save_unlocked()
-            except OSError as error:
-                self._baselines = previous_baselines
-                self._pending_events = previous_pending_events
-                raise ClientUpdateStateError(
-                    "state migration could not be committed"
-                ) from error
-            except BaseException:
-                self._baselines = previous_baselines
-                self._pending_events = previous_pending_events
-                raise
-
         self._baselines = baselines
         self._pending_events = pending_events
         self._loaded = True
-
-    def _preserve_legacy_state_unlocked(self, raw_bytes: bytes) -> None:
-        """迁移前保留原始字节；已有相同备份时保持幂等，不覆盖它。"""
-
-        backup_path = self.migration_backup_path
-        if backup_path.exists():
-            if backup_path.read_bytes() != raw_bytes:
-                raise OSError("legacy state backup does not match source")
-            return
-
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = backup_path.with_name(f".{backup_path.name}.tmp")
-        try:
-            temporary_path.write_bytes(raw_bytes)
-            temporary_path.replace(backup_path)
-        finally:
-            try:
-                temporary_path.unlink(missing_ok=True)
-            except FileNotFoundError:
-                pass
 
     def _save_unlocked(self) -> None:
         payload = {
             "schema_version": STATE_VERSION,
             "baselines": {
-                _format_baseline_key(region, channel_or_platform): _baseline_to_json(
-                    baseline
-                )
-                for (region, channel_or_platform), baseline in sorted(
-                    self._baselines.items(),
-                    key=lambda item: (item[0][0].value, item[0][1]),
-                )
+                source_id: _baseline_to_json(baseline)
+                for source_id, baseline in sorted(self._baselines.items())
             },
             "pending_events": [
                 _pending_event_to_json(event) for event in self._pending_events.values()
@@ -548,221 +504,78 @@ class ClientUpdateStateStore:
             )
             temporary_path.replace(self.path)
         finally:
-            try:
-                temporary_path.unlink(missing_ok=True)
-            except FileNotFoundError:
-                pass
-
-
-def _baseline_key(
-    region: ClientRegion | str,
-    platform_or_channel: ClientPlatform | str,
-) -> tuple[ClientRegion, str]:
-    try:
-        normalized_region = ClientRegion(region)
-    except (TypeError, ValueError) as error:
-        raise ValueError("不支持的客户端区服") from error
-
-    try:
-        return normalized_region, ClientPlatform(platform_or_channel).value
-    except (TypeError, ValueError):
-        channel = _resolve_channel(platform_or_channel)
-        if channel.region is not normalized_region:
-            raise ValueError("客户端更新渠道与区服不一致")
-        return normalized_region, channel.channel_id
-
-
-def _baseline_lookup_keys(
-    region: ClientRegion | str,
-    platform_or_channel: ClientPlatform | str,
-) -> tuple[tuple[ClientRegion, str], ...]:
-    normalized_region = ClientRegion(region)
-    if isinstance(platform_or_channel, str):
-        try:
-            platform = ClientPlatform(platform_or_channel)
-        except ValueError:
-            return (_baseline_key(normalized_region, platform_or_channel),)
-        channel_id = _default_channel_id(platform)
-        return (
-            (normalized_region, channel_id),
-            (normalized_region, platform.value),
-        )
-    platform = ClientPlatform(platform_or_channel)
-    channel_id = _default_channel_id(platform)
-    return (
-        (normalized_region, channel_id),
-        (normalized_region, platform.value),
-    )
-
-
-def _snapshot_baseline_key(
-    snapshot: ClientVersionSnapshot,
-) -> tuple[ClientRegion, str]:
-    if snapshot.channel_id is None:
-        channel_id = _canonical_channel_id_for_identity(
-            snapshot.region,
-            snapshot.platform.value,
-        )
-        return snapshot.region, channel_id
-    channel = _resolve_channel(snapshot.channel_id)
-    if (
-        channel.region is not snapshot.region
-        or channel.platform is not snapshot.platform
-    ):
-        raise ValueError("snapshot channel identity differs")
-    return snapshot.region, channel.channel_id
-
-
-def _format_baseline_key(region: ClientRegion, channel_or_platform: str) -> str:
-    return f"{region.value}:{channel_or_platform}"
-
-
-def _format_event_key(
-    region: ClientRegion,
-    channel_id: str,
-    previous_patch_version: int,
-    current_patch_version: int,
-) -> str:
-    return (
-        f"{region.value}:{channel_id}:{previous_patch_version}:{current_patch_version}"
-    )
-
-
-def _parse_baseline_key(value: object) -> tuple[ClientRegion, str]:
-    if not isinstance(value, str):
-        raise TypeError("baseline key must be a string")
-    parts = value.split(":")
-    if len(parts) != 2:
-        raise ValueError("baseline key must contain region and platform")
-    return _baseline_key(parts[0], parts[1])
-
-
-def _parse_state_baseline_key(
-    value: object,
-    *,
-    schema_version: int,
-) -> tuple[ClientRegion, str]:
-    """读取状态 key，并在 v1/v2 中映射旧 platform 身份。"""
-
-    region, identity = _parse_baseline_key(value)
-    if schema_version == STATE_VERSION:
-        if not _is_registered_channel_id(identity):
-            raise ValueError("state v3 baseline key must use a channel ID")
-        channel = _resolve_channel(identity)
-        if channel.region is not region:
-            raise ValueError("baseline channel and region differ")
-        return region, channel.channel_id
-    return region, _canonical_channel_id_for_identity(region, identity)
-
-
-def _canonical_channel_id_for_identity(
-    region: ClientRegion,
-    identity: str,
-) -> str:
-    """把旧 platform 或固定 channel 身份归一化为 v3 channel ID。"""
-
-    try:
-        platform = ClientPlatform(identity)
-    except (TypeError, ValueError):
-        channel = _resolve_channel(identity)
-        if channel.region is not region:
-            raise ValueError("客户端更新渠道与区服不一致")
-        return channel.channel_id
-
-    channel_id = _default_channel_id(platform)
-    channel = _resolve_channel(channel_id)
-    if channel.region is not region:
-        raise ValueError("客户端平台与区服不一致")
-    return channel.channel_id
-
-
-def _default_channel_id(platform: ClientPlatform) -> str:
-    from .channels import default_channel_id_for_platform
-
-    return default_channel_id_for_platform(platform)
-
-
-def _resolve_channel(channel_id: str):
-    from .channels import resolve_client_update_channel
-
-    return resolve_client_update_channel(channel_id)
-
-
-def _is_registered_channel_id(value: str) -> bool:
-    from .channels import CLIENT_UPDATE_CHANNELS
-
-    return value in CLIENT_UPDATE_CHANNELS
-
-
-def _platform_for_identity(channel_or_platform: str) -> ClientPlatform:
-    try:
-        return ClientPlatform(channel_or_platform)
-    except ValueError:
-        return _resolve_channel(channel_or_platform).platform
-
-
-def _canonicalize_baseline_for_state(
-    baseline: ClientUpdateBaseline,
-) -> ClientUpdateBaseline:
-    """在持久化边界把旧 platform 身份转换为固定 channel。"""
-
-    channel_id = _canonical_channel_id_for_identity(
-        baseline.snapshot.region,
-        baseline.snapshot.channel_id or baseline.snapshot.platform.value,
-    )
-    snapshot = _align_snapshot_to_channel(
-        baseline.snapshot,
-        channel_id,
-        "baseline.snapshot",
-        canonicalize=True,
-    )
-    last_change = baseline.last_change
-    if last_change is not None:
-        last_change = _canonicalize_change_for_state(
-            last_change,
-            channel_id=channel_id,
-            context="baseline.last_change",
-        )
-    return ClientUpdateBaseline(
-        snapshot=snapshot,
-        observed_at=baseline.observed_at,
-        last_change=last_change,
-    )
-
-
-def _canonicalize_change_for_state(
-    change: ClientUpdateChange,
-    *,
-    channel_id: str | None = None,
-    context: str,
-) -> ClientUpdateChange:
-    """在持久化边界把变化及两端快照统一为 canonical channel。"""
-
-    normalized_channel_id = channel_id or _canonical_channel_id_for_identity(
-        change.region,
-        change.channel_id,
-    )
-    return _align_change_to_channel(
-        change,
-        normalized_channel_id,
-        context,
-        canonicalize=True,
-    )
+            temporary_path.unlink(missing_ok=True)
 
 
 def canonicalize_client_update_change(
     change: ClientUpdateChange,
+    *,
+    registry: ClientUpdateRegistry = CLIENT_UPDATE_REGISTRY,
 ) -> ClientUpdateChange:
-    """把旧 platform-only 变化转换为状态与投递共用的 canonical channel。"""
+    """验证变化引用的 Source 与 Target 均来自 registry 且关系一致。"""
 
     if not isinstance(change, ClientUpdateChange):
         raise TypeError("change 必须是 ClientUpdateChange")
-    return _canonicalize_change_for_state(change, context="change")
+    if not isinstance(registry, ClientUpdateRegistry):
+        raise TypeError("registry 必须是 ClientUpdateRegistry")
+    source_id = _registered_source_id(change.source_id, registry)
+    for target_id in change.target_ids:
+        target = registry.resolve_target(target_id)
+        if target.source_id != source_id:
+            raise ValueError("变化 Target 与 Source 不一致")
+    return change
+
+
+def _canonicalize_baseline(
+    baseline: ClientUpdateBaseline,
+    registry: ClientUpdateRegistry,
+) -> ClientUpdateBaseline:
+    if not isinstance(baseline, ClientUpdateBaseline):
+        raise TypeError("baseline 必须是 ClientUpdateBaseline")
+    source_id = _registered_source_id(baseline.source_id, registry)
+    if baseline.last_change is not None:
+        change = canonicalize_client_update_change(
+            baseline.last_change,
+            registry=registry,
+        )
+        if change.source_id != source_id:
+            raise ValueError("baseline.last_change 与基线 Source 不一致")
+    return baseline
+
+
+def _registered_source_id(value: object, registry: ClientUpdateRegistry) -> str:
+    if not isinstance(value, str):
+        raise TypeError("source_id 必须是字符串")
+    return registry.resolve_source(value).source_id
+
+
+def _normalize_target_id_values(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        raise TypeError("target_ids 必须是 Target ID 序列")
+    try:
+        target_ids = tuple(value)  # type: ignore[arg-type]
+    except TypeError as error:
+        raise TypeError("target_ids 必须是 Target ID 序列") from error
+    if any(not isinstance(target_id, str) for target_id in target_ids):
+        raise TypeError("target_ids 必须全部是字符串")
+    if len(target_ids) != len(set(target_ids)):
+        raise ValueError("target_ids 不能重复")
+    return cast(tuple[str, ...], target_ids)
+
+
+def _normalize_target_ids(
+    value: object,
+    registry: ClientUpdateRegistry,
+) -> tuple[str, ...]:
+    target_ids = _normalize_target_id_values(value)
+    for target_id in target_ids:
+        registry.resolve_target(target_id)
+    return target_ids
 
 
 def _baseline_to_json(baseline: ClientUpdateBaseline) -> dict[str, Any]:
     return {
-        "snapshot": _snapshot_to_json(baseline.snapshot),
+        "version": _version_to_json(baseline.version),
         "observed_at": baseline.observed_at.isoformat(),
         "last_change": (
             _change_to_json(baseline.last_change)
@@ -772,35 +585,50 @@ def _baseline_to_json(baseline: ClientUpdateBaseline) -> dict[str, Any]:
     }
 
 
-def _snapshot_to_json(snapshot: ClientVersionSnapshot) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "region": snapshot.region.value,
-        "platform": snapshot.platform.value,
-        "version_key": snapshot.version_key,
-        "patch_version": snapshot.patch_version,
-        "resource_version_dir": snapshot.resource_version_dir,
-        "version_text": snapshot.version_text,
-        "major": snapshot.major,
-        "minor": snapshot.minor,
-        "revamp": snapshot.revamp,
-        "patch_key": snapshot.patch_key,
+def _version_to_json(version: ClientSourceVersion) -> dict[str, Any]:
+    return {
+        "source_id": version.source_id,
+        "version_text": version.version_text,
+        "revision_id": version.revision_id,
+        "order_key": (
+            list(version.order_key)
+            if isinstance(version.order_key, tuple)
+            else version.order_key
+        ),
+        "provider_metadata": _provider_metadata_to_json(version.provider_metadata),
     }
-    if snapshot.channel_id is not None:
-        payload["channel_id"] = snapshot.channel_id
-    return payload
+
+
+def _provider_metadata_to_json(
+    metadata: ClientSourceProviderMetadata | None,
+) -> dict[str, Any] | None:
+    if metadata is None:
+        return None
+    if isinstance(metadata, ManifestCdnVersionMetadata):
+        return {
+            "kind": ClientUpdateProviderKind.MANIFEST_CDN.value,
+            "version_key": metadata.version_key,
+            "patch_version": metadata.patch_version,
+            "resource_version_dir": metadata.resource_version_dir,
+        }
+    if isinstance(metadata, AppStoreVersionMetadata):
+        return {
+            "kind": ClientUpdateProviderKind.APP_STORE.value,
+            "track_id": metadata.track_id,
+            "country": metadata.country,
+            "release_date": metadata.release_date,
+        }
+    raise TypeError("不支持的 provider metadata")
 
 
 def _change_to_json(change: ClientUpdateChange) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "region": change.region.value,
-        "platform": change.platform.value,
-        "previous": _snapshot_to_json(change.previous),
-        "current": _snapshot_to_json(change.current),
+    return {
+        "previous": _version_to_json(change.previous),
+        "current": _version_to_json(change.current),
+        "history_complete": change.history_complete,
         "added_size_bytes": change.added_size_bytes,
+        "target_ids": list(change.target_ids),
     }
-    if change.channel_id != change.platform.value:
-        payload["channel_id"] = change.channel_id
-    return payload
 
 
 def _pending_event_to_json(event: ClientUpdatePendingEvent) -> dict[str, Any]:
@@ -812,6 +640,7 @@ def _pending_event_to_json(event: ClientUpdatePendingEvent) -> dict[str, Any]:
                 "origin": target.origin,
                 "uid": target.uid,
                 "bot_id": target.bot_id,
+                "target_ids": list(target.target_ids),
                 "status": target.status,
             }
             for target in event.targets
@@ -822,17 +651,9 @@ def _pending_event_to_json(event: ClientUpdatePendingEvent) -> dict[str, Any]:
 def _parse_baseline(
     value: object,
     context: str,
-    *,
-    channel_id: str,
-    canonicalize: bool,
+    registry: ClientUpdateRegistry,
 ) -> ClientUpdateBaseline:
     entry = _require_mapping(value, context)
-    snapshot = _align_snapshot_to_channel(
-        _parse_snapshot(_required(entry, "snapshot", context), f"{context}.snapshot"),
-        channel_id,
-        f"{context}.snapshot",
-        canonicalize=canonicalize,
-    )
     observed_at_raw = _required(entry, "observed_at", context)
     if not isinstance(observed_at_raw, str):
         raise TypeError(f"{context}.observed_at must be a string")
@@ -840,255 +661,176 @@ def _parse_baseline(
         observed_at = datetime.fromisoformat(observed_at_raw)
     except ValueError as error:
         raise ValueError(f"{context}.observed_at is invalid") from error
-    last_change = _parse_change(
-        _required(entry, "last_change", context), f"{context}.last_change"
-    )
-    if last_change is not None:
-        last_change = _align_change_to_channel(
-            last_change,
-            channel_id,
-            f"{context}.last_change",
-            canonicalize=canonicalize,
-        )
     return ClientUpdateBaseline(
-        snapshot=snapshot,
+        version=_parse_version(
+            _required(entry, "version", context),
+            f"{context}.version",
+            registry,
+        ),
         observed_at=observed_at,
-        last_change=last_change,
+        last_change=_parse_change(
+            _required(entry, "last_change", context),
+            f"{context}.last_change",
+            registry,
+        ),
     )
 
 
-def _align_snapshot_to_channel(
-    snapshot: ClientVersionSnapshot,
-    channel_id: str,
+def _parse_version(
+    value: object,
     context: str,
-    *,
-    canonicalize: bool,
-) -> ClientVersionSnapshot:
-    channel = _resolve_channel(channel_id)
-    if snapshot.region is not channel.region:
-        raise ValueError(f"{context}.region does not match channel")
-    if snapshot.platform is not channel.platform:
-        raise ValueError(f"{context}.platform does not match channel")
-    if snapshot.channel_id is not None:
-        if canonicalize:
-            snapshot_channel_id = _canonical_channel_id_for_identity(
-                snapshot.region,
-                snapshot.channel_id,
-            )
-            if snapshot_channel_id != channel_id:
-                raise ValueError(f"{context}.channel_id does not match channel")
-        elif snapshot.channel_id != channel_id:
-            raise ValueError(f"{context}.channel_id does not match channel")
-    elif not canonicalize:
-        raise ValueError(f"{context}.channel_id is required")
-    if canonicalize:
-        return replace(snapshot, channel_id=channel_id)
-    return snapshot
+    registry: ClientUpdateRegistry,
+) -> ClientSourceVersion:
+    entry = _require_mapping(value, context)
+    source_id = _registered_source_id(
+        _required(entry, "source_id", context),
+        registry,
+    )
+    order_key = _parse_order_key(_required(entry, "order_key", context), context)
+    metadata = _parse_provider_metadata(
+        _required(entry, "provider_metadata", context),
+        source_id,
+        context,
+        registry,
+    )
+    return ClientSourceVersion(
+        source_id=source_id,
+        version_text=cast(str, _required(entry, "version_text", context)),
+        revision_id=cast(str, _required(entry, "revision_id", context)),
+        order_key=order_key,
+        provider_metadata=metadata,
+    )
 
 
-def _align_change_to_channel(
-    change: ClientUpdateChange,
-    channel_id: str,
+def _parse_order_key(value: object, context: str):
+    if isinstance(value, list):
+        if any(type(item) is not int for item in value):
+            raise TypeError(f"{context}.order_key items must be integers")
+        return tuple(cast(list[int], value))
+    if value is None or type(value) is int or isinstance(value, str):
+        return value
+    raise TypeError(f"{context}.order_key is invalid")
+
+
+def _parse_provider_metadata(
+    value: object,
+    source_id: str,
     context: str,
-    *,
-    canonicalize: bool,
-) -> ClientUpdateChange:
-    channel = _resolve_channel(channel_id)
-    if change.region is not channel.region:
-        raise ValueError(f"{context}.region does not match channel")
-    if change.platform is not channel.platform:
-        raise ValueError(f"{context}.platform does not match channel")
-    previous = _align_snapshot_to_channel(
-        change.previous,
-        channel_id,
-        f"{context}.previous",
-        canonicalize=canonicalize,
-    )
-    current = _align_snapshot_to_channel(
-        change.current,
-        channel_id,
-        f"{context}.current",
-        canonicalize=canonicalize,
-    )
-    if canonicalize:
-        return ClientUpdateChange(
-            previous=previous,
-            current=current,
-            added_size_bytes=change.added_size_bytes,
-            region=channel.region,
-            platform=channel.platform,
-            channel_id=channel_id,
+    registry: ClientUpdateRegistry,
+) -> ClientSourceProviderMetadata | None:
+    if value is None:
+        return None
+    entry = _require_mapping(value, f"{context}.provider_metadata")
+    kind = _required(entry, "kind", f"{context}.provider_metadata")
+    source = registry.resolve_source(source_id)
+    if kind != source.provider_kind.value:
+        raise ValueError(f"{context}.provider_metadata kind does not match Source")
+    if source.provider_kind is ClientUpdateProviderKind.MANIFEST_CDN:
+        return ManifestCdnVersionMetadata(
+            version_key=cast(int, _required(entry, "version_key", context)),
+            patch_version=cast(int, _required(entry, "patch_version", context)),
+            resource_version_dir=cast(
+                str | None, _required(entry, "resource_version_dir", context)
+            ),
         )
-    if change.channel_id != channel_id:
-        raise ValueError(f"{context}.channel_id does not match channel")
-    return change
+    return AppStoreVersionMetadata(
+        track_id=cast(int, _required(entry, "track_id", context)),
+        country=cast(str, _required(entry, "country", context)),
+        release_date=cast(str | None, _required(entry, "release_date", context)),
+    )
+
+
+def _parse_change(
+    value: object,
+    context: str,
+    registry: ClientUpdateRegistry,
+) -> ClientUpdateChange | None:
+    if value is None:
+        return None
+    entry = _require_mapping(value, context)
+    change = ClientUpdateChange(
+        previous=_parse_version(
+            _required(entry, "previous", context),
+            f"{context}.previous",
+            registry,
+        ),
+        current=_parse_version(
+            _required(entry, "current", context),
+            f"{context}.current",
+            registry,
+        ),
+        history_complete=cast(bool, _required(entry, "history_complete", context)),
+        added_size_bytes=cast(
+            int | None, _required(entry, "added_size_bytes", context)
+        ),
+        target_ids=_normalize_target_ids(
+            _required(entry, "target_ids", context),
+            registry,
+        ),
+    )
+    return canonicalize_client_update_change(change, registry=registry)
 
 
 def _parse_pending_events(
     value: object,
-    *,
-    schema_version: int,
+    registry: ClientUpdateRegistry,
 ) -> dict[str, ClientUpdatePendingEvent]:
     if not isinstance(value, list):
         raise TypeError("state.pending_events must be a list")
     events: dict[str, ClientUpdatePendingEvent] = {}
     for index, raw_event in enumerate(value):
-        event = _parse_pending_event(
-            raw_event,
-            f"state.pending_events[{index}]",
-            schema_version=schema_version,
+        context = f"state.pending_events[{index}]"
+        entry = _require_mapping(raw_event, context)
+        raw_event_key = _require_non_empty_string(
+            _required(entry, "event_key", context), f"{context}.event_key"
         )
+        change = _parse_change(
+            _required(entry, "change", context),
+            f"{context}.change",
+            registry,
+        )
+        if change is None:
+            raise ValueError(f"{context}.change must be an object")
+        raw_targets = _required(entry, "targets", context)
+        if not isinstance(raw_targets, list):
+            raise TypeError(f"{context}.targets must be a list")
+        event = ClientUpdatePendingEvent(
+            change=change,
+            targets=tuple(
+                _parse_pending_target(
+                    item,
+                    f"{context}.targets[{target_index}]",
+                    registry,
+                )
+                for target_index, item in enumerate(raw_targets)
+            ),
+        )
+        if raw_event_key != event.event_key:
+            raise ValueError(f"{context}.event_key does not match change")
         if event.event_key in events:
             raise ValueError("duplicate pending event key")
         events[event.event_key] = event
     return events
 
 
-def _parse_pending_event(
+def _parse_pending_target(
     value: object,
     context: str,
-    *,
-    schema_version: int,
-) -> ClientUpdatePendingEvent:
+    registry: ClientUpdateRegistry,
+) -> ClientUpdatePendingTarget:
     entry = _require_mapping(value, context)
-    raw_event_key = _required(entry, "event_key", context)
-    if not isinstance(raw_event_key, str) or not raw_event_key:
-        raise ValueError(f"{context}.event_key must be a non-empty string")
-    (
-        region,
-        identity,
-        previous_patch_version,
-        current_patch_version,
-    ) = _parse_event_key(raw_event_key, context, schema_version=schema_version)
-    raw_change = _parse_change(_required(entry, "change", context), f"{context}.change")
-    if raw_change is None:
-        raise ValueError(f"{context}.change must be an object")
-    channel_id = _canonical_channel_id_for_identity(region, identity)
-    change = _align_change_to_channel(
-        raw_change,
-        channel_id,
-        f"{context}.change",
-        canonicalize=schema_version != STATE_VERSION,
-    )
-    if change.previous.patch_version != previous_patch_version:
-        raise ValueError(f"{context}.event_key previous patch does not match change")
-    if change.current.patch_version != current_patch_version:
-        raise ValueError(f"{context}.event_key current patch does not match change")
-    raw_targets = _required(entry, "targets", context)
-    if not isinstance(raw_targets, list):
-        raise TypeError(f"{context}.targets must be a list")
-    event = ClientUpdatePendingEvent(
-        change,
-        tuple(
-            _parse_pending_target(target, f"{context}.targets[{index}]")
-            for index, target in enumerate(raw_targets)
-        ),
-    )
-    expected_event_key = (
-        event.event_key
-        if schema_version == STATE_VERSION
-        else _format_event_key(
-            region,
-            channel_id,
-            previous_patch_version,
-            current_patch_version,
-        )
-    )
-    if event.event_key != expected_event_key or (
-        schema_version == STATE_VERSION and raw_event_key != expected_event_key
-    ):
-        raise ValueError(f"{context}.event_key does not match change")
-    if not event.targets or not event.pending_targets:
-        raise ValueError(f"{context} must contain a pending target")
-    return event
-
-
-def _parse_event_key(
-    value: str,
-    context: str,
-    *,
-    schema_version: int,
-) -> tuple[ClientRegion, str, int, int]:
-    parts = value.split(":")
-    if len(parts) != 4 or not all(parts[:2]):
-        raise ValueError(f"{context}.event_key has invalid shape")
-    try:
-        region = ClientRegion(parts[0])
-    except ValueError as error:
-        raise ValueError(f"{context}.event_key region is invalid") from error
-    identity = parts[1]
-    try:
-        previous_patch_version = int(parts[2])
-        current_patch_version = int(parts[3])
-    except ValueError as error:
-        raise ValueError(f"{context}.event_key patch version is invalid") from error
-    if previous_patch_version < 0 or current_patch_version <= previous_patch_version:
-        raise ValueError(f"{context}.event_key patch range is invalid")
-
-    if schema_version == STATE_VERSION and not _is_registered_channel_id(identity):
-        raise ValueError(f"{context}.event_key channel ID is invalid")
-    return region, identity, previous_patch_version, current_patch_version
-
-
-def _parse_pending_target(value: object, context: str) -> ClientUpdatePendingTarget:
-    entry = _require_mapping(value, context)
-    origin = _required(entry, "origin", context)
-    uid = _required(entry, "uid", context)
-    bot_id = _required(entry, "bot_id", context)
     status = _required(entry, "status", context)
-    if not isinstance(origin, str) or not origin:
-        raise ValueError(f"{context}.origin must be a non-empty string")
-    if not isinstance(uid, str):
-        raise TypeError(f"{context}.uid must be a string")
-    if not isinstance(bot_id, str):
-        raise TypeError(f"{context}.bot_id must be a string")
     if not isinstance(status, str) or status not in _PENDING_STATUSES:
         raise ValueError(f"{context}.status is invalid")
     return ClientUpdatePendingTarget(
-        origin=origin,
-        uid=uid,
-        bot_id=bot_id,
+        origin=cast(str, _required(entry, "origin", context)),
+        uid=cast(str, _required(entry, "uid", context)),
+        bot_id=cast(str, _required(entry, "bot_id", context)),
+        target_ids=_normalize_target_ids(
+            _required(entry, "target_ids", context),
+            registry,
+        ),
         delivered=status == "delivered",
-    )
-
-
-def _parse_snapshot(value: object, context: str) -> ClientVersionSnapshot:
-    entry = _require_mapping(value, context)
-    snapshot = ClientVersionSnapshot(
-        region=cast(ClientRegion, _required(entry, "region", context)),
-        platform=cast(ClientPlatform, _required(entry, "platform", context)),
-        version_key=cast(int, _required(entry, "version_key", context)),
-        patch_version=cast(int, _required(entry, "patch_version", context)),
-        resource_version_dir=cast(
-            str | None, _required(entry, "resource_version_dir", context)
-        ),
-        major=cast(int, _required(entry, "major", context)),
-        minor=cast(int, _required(entry, "minor", context)),
-        revamp=cast(int, _required(entry, "revamp", context)),
-        patch_key=cast(int, _required(entry, "patch_key", context)),
-        channel_id=cast(str | None, entry.get("channel_id")),
-    )
-    version_text = _required(entry, "version_text", context)
-    if not isinstance(version_text, str) or version_text != snapshot.version_text:
-        raise ValueError(f"{context}.version_text does not match snapshot")
-    return snapshot
-
-
-def _parse_change(value: object, context: str) -> ClientUpdateChange | None:
-    if value is None:
-        return None
-    entry = _require_mapping(value, context)
-    return ClientUpdateChange(
-        previous=_parse_snapshot(
-            _required(entry, "previous", context), f"{context}.previous"
-        ),
-        current=_parse_snapshot(
-            _required(entry, "current", context), f"{context}.current"
-        ),
-        added_size_bytes=cast(int, _required(entry, "added_size_bytes", context)),
-        region=cast(ClientRegion, _required(entry, "region", context)),
-        platform=cast(ClientPlatform, _required(entry, "platform", context)),
-        channel_id=cast(str | None, entry.get("channel_id")),
     )
 
 
@@ -1127,10 +869,10 @@ def _require_mapping(value: object, context: str) -> Mapping[str, object]:
 
 __all__ = [
     "STATE_VERSION",
-    "canonicalize_client_update_change",
     "ClientUpdateBaseline",
     "ClientUpdatePendingEvent",
     "ClientUpdatePendingTarget",
     "ClientUpdateStateError",
     "ClientUpdateStateStore",
+    "canonicalize_client_update_change",
 ]

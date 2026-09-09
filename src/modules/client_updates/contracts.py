@@ -20,16 +20,11 @@ _DECIMAL_KEY = re.compile(r"^[0-9]+$")
 
 
 class ClientPlatform(StrEnum):
-    """首版支持的国服客户端平台。"""
+    """已验证客户端更新源使用的平台。"""
 
     PC = "pc"
     ANDROID = "android"
-
-
-class ClientRegion(StrEnum):
-    """首版固定支持的游戏区服。"""
-
-    CN = "cn"
+    IOS = "ios"
 
 
 _CLIENT_UPDATE_PLATFORM_ORDER = (ClientPlatform.PC, ClientPlatform.ANDROID)
@@ -51,6 +46,9 @@ def normalize_client_update_platforms(
         raise ValueError("客户端更新至少需要选择一个平台")
 
     selected = {ClientPlatform(platform) for platform in candidates}
+    unsupported = selected.difference(_CLIENT_UPDATE_PLATFORM_ORDER)
+    if unsupported:
+        raise ValueError("旧客户端更新请求不支持该平台")
     return tuple(
         platform for platform in _CLIENT_UPDATE_PLATFORM_ORDER if platform in selected
     )
@@ -58,19 +56,13 @@ def normalize_client_update_platforms(
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdateRequest:
-    """客户端更新命令的框架无关输入。"""
+    """不携带 Target selector 的客户端更新命令输入。"""
 
     actor: EventActor | None
-    platforms: tuple[ClientPlatform, ...] = _CLIENT_UPDATE_PLATFORM_ORDER
 
     def __post_init__(self) -> None:
         if self.actor is not None and not isinstance(self.actor, EventActor):
             raise TypeError("actor 必须是 EventActor 或 None")
-        object.__setattr__(
-            self,
-            "platforms",
-            normalize_client_update_platforms(self.platforms),
-        )
 
 
 class ClientUpdateStructureError(ValueError):
@@ -128,9 +120,8 @@ class ClientUpdateTransportError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class ClientVersionSnapshot:
-    """VersionList 中一个已归一化的最新版本快照。"""
+    """VersionList 中一条仅含 manifest provider 所需字段的记录。"""
 
-    platform: ClientPlatform
     version_key: int
     patch_version: int
     resource_version_dir: str | None
@@ -138,18 +129,10 @@ class ClientVersionSnapshot:
     minor: int
     revamp: int
     patch_key: int
-    region: ClientRegion = ClientRegion.CN
-    channel_id: str | None = None
 
     def __post_init__(self) -> None:
-        """固定枚举和值对象字段，避免状态层保存歧义类型。"""
+        """校验 manifest provider 所需的数值与目录字段。"""
 
-        object.__setattr__(self, "platform", ClientPlatform(self.platform))
-        object.__setattr__(self, "region", ClientRegion(self.region))
-        if self.channel_id is not None and (
-            not isinstance(self.channel_id, str) or not self.channel_id.strip()
-        ):
-            raise ValueError("channel_id 必须是非空字符串或 None")
         for field_name in (
             "version_key",
             "patch_version",
@@ -178,6 +161,129 @@ class ClientVersionSnapshot:
 ClientVersion = ClientVersionSnapshot
 
 
+ClientVersionOrderKey = int | str | tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ManifestCdnVersionMetadata:
+    """manifest CDN 版本记录的 provider 专属元数据。"""
+
+    version_key: int
+    patch_version: int
+    resource_version_dir: str | None
+
+    def __post_init__(self) -> None:
+        for field_name in ("version_key", "patch_version"):
+            value = getattr(self, field_name)
+            if type(value) is not int or value < 0:
+                raise ValueError(f"{field_name} 必须是非负整数")
+        if self.resource_version_dir is not None and (
+            not isinstance(self.resource_version_dir, str)
+            or not self.resource_version_dir.strip()
+        ):
+            raise ValueError("resource_version_dir 必须是非空字符串或 None")
+
+
+@dataclass(frozen=True, slots=True)
+class AppStoreVersionMetadata:
+    """App Store 当前版本的 provider 专属元数据。"""
+
+    track_id: int
+    country: str
+    release_date: str | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.track_id) is not int or self.track_id <= 0:
+            raise ValueError("track_id 必须是正整数")
+        if (
+            not isinstance(self.country, str)
+            or len(self.country) != 2
+            or not self.country.isascii()
+            or not self.country.isalpha()
+        ):
+            raise ValueError("country 必须是两个 ASCII 字母")
+        object.__setattr__(self, "country", self.country.lower())
+        if self.release_date is not None and (
+            not isinstance(self.release_date, str) or not self.release_date.strip()
+        ):
+            raise ValueError("release_date 必须是非空字符串或 None")
+
+
+ClientSourceProviderMetadata = ManifestCdnVersionMetadata | AppStoreVersionMetadata
+
+
+@dataclass(frozen=True, slots=True)
+class ClientSourceVersion:
+    """一个不携带 Target、区服或账号生态的 Source 版本。"""
+
+    source_id: str
+    version_text: str
+    revision_id: str
+    order_key: ClientVersionOrderKey | None = None
+    provider_metadata: ClientSourceProviderMetadata | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("source_id", "version_text", "revision_id"):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} 必须是非空字符串")
+
+        order_key = self.order_key
+        if order_key is not None:
+            if isinstance(order_key, bool) or not isinstance(
+                order_key, (int, str, tuple)
+            ):
+                raise TypeError("order_key 必须是整数、字符串、整数元组或 None")
+            if isinstance(order_key, int) and order_key < 0:
+                raise ValueError("order_key 整数必须非负")
+            if isinstance(order_key, str) and not order_key.strip():
+                raise ValueError("order_key 字符串必须非空")
+            if isinstance(order_key, tuple) and (
+                not order_key
+                or any(
+                    isinstance(item, bool) or not isinstance(item, int) or item < 0
+                    for item in order_key
+                )
+            ):
+                raise ValueError("order_key 元组必须由非负整数组成")
+
+        if self.provider_metadata is not None and not isinstance(
+            self.provider_metadata,
+            (ManifestCdnVersionMetadata, AppStoreVersionMetadata),
+        ):
+            raise TypeError("provider_metadata 必须是 typed provider metadata 或 None")
+
+
+@dataclass(frozen=True, slots=True)
+class ClientSourceObservation:
+    """一次 Source 读取结果及其可见历史完整性。"""
+
+    current: ClientSourceVersion
+    observed_versions: tuple[ClientSourceVersion, ...]
+    history_complete: bool
+    added_size_bytes: int | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.current, ClientSourceVersion):
+            raise TypeError("current 必须是 ClientSourceVersion")
+        versions = tuple(self.observed_versions)
+        if not versions or any(
+            not isinstance(version, ClientSourceVersion) for version in versions
+        ):
+            raise ValueError("observed_versions 必须包含 ClientSourceVersion")
+        if any(version.source_id != self.current.source_id for version in versions):
+            raise ValueError("observation 中的版本必须属于同一 Source")
+        if versions[-1] != self.current:
+            raise ValueError("current 必须是 observed_versions 的最后一个版本")
+        if type(self.history_complete) is not bool:
+            raise TypeError("history_complete 必须是布尔值")
+        if self.added_size_bytes is not None and (
+            type(self.added_size_bytes) is not int or self.added_size_bytes < 0
+        ):
+            raise ValueError("added_size_bytes 必须是非负整数或 None")
+        object.__setattr__(self, "observed_versions", versions)
+
+
 @dataclass(frozen=True, slots=True)
 class ClientUpdateObservation:
     """一次 transport 成功读取的最新版本及新增补丁大小。"""
@@ -201,108 +307,77 @@ class ClientUpdateObservation:
 
 
 class ClientUpdateTransport(Protocol):
-    """客户端更新 use case 所需的最小读取 transport。"""
+    """客户端更新 use case 所需的 Source-neutral 读取 transport。"""
 
     async def get_observation(
         self,
-        platform: ClientPlatform | str,
+        source_id: str,
         *,
-        previous_patch_version: int | None = None,
-    ) -> ClientUpdateObservation:
-        """读取一个平台的最新版本和指定历史区间的补丁大小。"""
+        baseline: ClientSourceVersion | None = None,
+    ) -> ClientSourceObservation:
+        """读取一个已登记 Source 的当前版本和可见历史。"""
         ...
 
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdateChange:
-    """一次已确认的客户端版本变化及其新增字节数。"""
+    """一次 Source 版本变化及事件创建时的 Target 快照。"""
 
-    previous: ClientVersionSnapshot
-    current: ClientVersionSnapshot
-    added_size_bytes: int
-    region: ClientRegion = ClientRegion.CN
-    platform: ClientPlatform = ClientPlatform.PC
-    channel_id: str | None = None
+    previous: ClientSourceVersion
+    current: ClientSourceVersion
+    history_complete: bool
+    added_size_bytes: int | None
+    target_ids: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        """校验变化两端属于同一渠道且确实向前推进。"""
+        if not isinstance(self.previous, ClientSourceVersion):
+            raise TypeError("previous 必须是 ClientSourceVersion")
+        if not isinstance(self.current, ClientSourceVersion):
+            raise TypeError("current 必须是 ClientSourceVersion")
+        if self.previous.source_id != self.current.source_id:
+            raise ValueError("变化两端必须属于同一 Source")
+        if self.previous.revision_id == self.current.revision_id:
+            raise ValueError("变化两端的 revision_id 必须不同")
+        if type(self.history_complete) is not bool:
+            raise TypeError("history_complete 必须是布尔值")
+        if self.added_size_bytes is not None and (
+            type(self.added_size_bytes) is not int or self.added_size_bytes < 0
+        ):
+            raise ValueError("added_size_bytes 必须是非负整数或 None")
+        normalized_target_ids = tuple(self.target_ids)
+        if not normalized_target_ids or any(
+            not isinstance(target_id, str) or not target_id.strip()
+            for target_id in normalized_target_ids
+        ):
+            raise ValueError("target_ids 必须包含非空 Target ID")
+        if len(normalized_target_ids) != len(set(normalized_target_ids)):
+            raise ValueError("target_ids 不能重复")
+        object.__setattr__(self, "target_ids", normalized_target_ids)
 
-        object.__setattr__(self, "region", ClientRegion(self.region))
-        object.__setattr__(self, "platform", ClientPlatform(self.platform))
-        if not isinstance(self.previous, ClientVersionSnapshot):
-            raise TypeError("previous 必须是 ClientVersionSnapshot")
-        if not isinstance(self.current, ClientVersionSnapshot):
-            raise TypeError("current 必须是 ClientVersionSnapshot")
-        channel_ids = {
-            snapshot.channel_id
-            for snapshot in (self.previous, self.current)
-            if snapshot.channel_id is not None
-        }
-        if self.channel_id is None:
-            if len(channel_ids) > 1:
-                raise ValueError("变化快照的渠道必须一致")
-            normalized_channel_id = next(iter(channel_ids), self.platform.value)
-        else:
-            if not isinstance(self.channel_id, str) or not self.channel_id.strip():
-                raise ValueError("channel_id 必须是非空字符串或 None")
-            normalized_channel_id = self.channel_id
-        if channel_ids and channel_ids != {normalized_channel_id}:
-            raise ValueError("变化快照的渠道必须与 channel_id 一致")
-        object.__setattr__(self, "channel_id", normalized_channel_id)
-        if (
-            self.previous.region is not self.region
-            or self.current.region is not self.region
-        ):
-            raise ValueError("变化快照的区服必须一致")
-        if (
-            self.previous.platform is not self.platform
-            or self.current.platform is not self.platform
-        ):
-            raise ValueError("变化快照的平台必须一致")
-        if self.current.patch_version <= self.previous.patch_version:
-            raise ValueError("变化快照必须向前推进")
-        if type(self.added_size_bytes) is not int or self.added_size_bytes < 0:
-            raise ValueError("added_size_bytes 必须是非负整数")
+    @property
+    def source_id(self) -> str:
+        """返回变化所属 Source。"""
+
+        return self.current.source_id
 
     @property
     def event_key(self) -> str:
-        """返回供投递去重使用的稳定变化键。"""
+        """返回由 Source 和两端 revision 组成的稳定事件键。"""
 
         return (
-            f"{self.region.value}:{self.channel_id}:"
-            f"{self.previous.patch_version}:{self.current.patch_version}"
+            f"{self.source_id}:{self.previous.revision_id}:{self.current.revision_id}"
         )
-
-
-def parse_channel_version_list_entries(
-    payload: object,
-    *,
-    channel_id: str,
-) -> tuple[ClientVersionSnapshot, ...]:
-    """按固定渠道解析 VersionList，并保留渠道身份。"""
-
-    channel = _resolve_channel(channel_id)
-    return _parse_version_list_entries(
-        payload,
-        platform=channel.platform,
-        region=channel.region,
-        channel_id=channel.channel_id,
-    )
 
 
 def parse_version_list_entries(
     payload: object,
     platform: ClientPlatform | str,
 ) -> tuple[ClientVersionSnapshot, ...]:
-    """兼容旧 platform API；传入 channel ID 时保留新的渠道身份。"""
+    """按 manifest Source 平台解析 VersionList 的全部实际记录。"""
 
-    if isinstance(platform, str) and _is_registered_channel_id(platform):
-        return parse_channel_version_list_entries(payload, channel_id=platform)
     return _parse_version_list_entries(
         payload,
         platform=_coerce_platform(platform),
-        region=ClientRegion.CN,
-        channel_id=None,
     )
 
 
@@ -310,8 +385,6 @@ def _parse_version_list_entries(
     payload: object,
     *,
     platform: ClientPlatform,
-    region: ClientRegion,
-    channel_id: str | None,
 ) -> tuple[ClientVersionSnapshot, ...]:
     """严格解析 VersionList 中的全部版本条目。"""
 
@@ -332,9 +405,6 @@ def _parse_version_list_entries(
         version_key = int(raw_key)
         versions.append(
             ClientVersionSnapshot(
-                platform=platform,
-                region=region,
-                channel_id=channel_id,
                 version_key=version_key,
                 patch_version=_require_non_negative_int(
                     entry,
@@ -370,19 +440,6 @@ def _parse_version_list_entries(
     return tuple(versions)
 
 
-def parse_channel_version_list(
-    payload: object,
-    *,
-    channel_id: str,
-) -> ClientVersionSnapshot:
-    """按固定渠道校验并选择 VersionList 中数值上最新的记录。"""
-
-    versions = parse_channel_version_list_entries(payload, channel_id=channel_id)
-    return max(
-        versions, key=lambda version: (version.version_key, version.patch_version)
-    )
-
-
 def parse_version_list(
     payload: object,
     platform: ClientPlatform | str,
@@ -395,21 +452,6 @@ def parse_version_list(
     )
 
 
-def sum_channel_patch_file_sizes(
-    channel_id: str,
-    pak_files_info: object,
-    res_discrete_info: object,
-) -> int:
-    """按固定渠道的 manifest key 计算去重后的补丁清单大小。"""
-
-    channel = _resolve_channel(channel_id)
-    return _sum_manifest_file_sizes(
-        channel.manifest_key,
-        pak_files_info,
-        res_discrete_info,
-    )
-
-
 def sum_patch_file_sizes(
     platform: ClientPlatform | str,
     pak_files_info: object,
@@ -418,24 +460,34 @@ def sum_patch_file_sizes(
     """兼容旧 platform API，按平台默认 manifest key 计算补丁清单大小。"""
 
     normalized_platform = _coerce_platform(platform)
-    return _sum_manifest_file_sizes(
-        _manifest_platform_key(normalized_platform),
+    manifest_key = _manifest_platform_key(normalized_platform)
+    return sum_manifest_patch_file_sizes(
+        manifest_key,
+        manifest_key,
         pak_files_info,
         res_discrete_info,
     )
 
 
-def _sum_manifest_file_sizes(
-    manifest_key: str,
+def sum_manifest_patch_file_sizes(
+    pak_manifest_key: str,
+    res_manifest_key: str,
     pak_files_info: object,
     res_discrete_info: object,
 ) -> int:
-    """按一个已解析的 manifest key 严格合并两份补丁清单。"""
+    """按两份 manifest 各自的 key 严格合并补丁清单。"""
+
+    for field_name, value in (
+        ("pak_manifest_key", pak_manifest_key),
+        ("res_manifest_key", res_manifest_key),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field_name} 必须是非空字符串")
 
     sizes_by_name: dict[str, int] = {}
-    for resource_name, payload in (
-        ("PakFilesInfo", pak_files_info),
-        ("ResDiscreteInfo", res_discrete_info),
+    for resource_name, manifest_key, payload in (
+        ("PakFilesInfo", pak_manifest_key, pak_files_info),
+        ("ResDiscreteInfo", res_manifest_key, res_discrete_info),
     ):
         entries = _manifest_entries(payload, manifest_key, resource_name)
         for index, raw_entry in enumerate(entries):
@@ -461,18 +513,6 @@ def _sum_manifest_file_sizes(
             sizes_by_name.setdefault(file_name, file_size)
 
     return sum(sizes_by_name.values())
-
-
-def _is_registered_channel_id(value: str) -> bool:
-    from .channels import CLIENT_UPDATE_CHANNELS
-
-    return value in CLIENT_UPDATE_CHANNELS
-
-
-def _resolve_channel(channel_id: str):
-    from .channels import resolve_client_update_channel
-
-    return resolve_client_update_channel(channel_id)
 
 
 def _coerce_platform(platform: ClientPlatform | str) -> ClientPlatform:
@@ -533,8 +573,11 @@ def _manifest_entries(
 
 
 __all__ = [
+    "AppStoreVersionMetadata",
     "ClientPlatform",
-    "ClientRegion",
+    "ClientSourceObservation",
+    "ClientSourceProviderMetadata",
+    "ClientSourceVersion",
     "ClientUpdateChange",
     "ClientUpdateFailureKind",
     "ClientUpdateObservation",
@@ -543,12 +586,12 @@ __all__ = [
     "ClientUpdateTransport",
     "ClientUpdateTransportError",
     "ClientVersion",
+    "ClientVersionOrderKey",
     "ClientVersionSnapshot",
+    "ManifestCdnVersionMetadata",
     "normalize_client_update_platforms",
-    "parse_channel_version_list",
-    "parse_channel_version_list_entries",
     "parse_version_list",
     "parse_version_list_entries",
-    "sum_channel_patch_file_sizes",
+    "sum_manifest_patch_file_sizes",
     "sum_patch_file_sizes",
 ]

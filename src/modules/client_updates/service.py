@@ -1,14 +1,10 @@
-"""客户端更新查询、订阅与版本变化检测领域逻辑。
-
-本模块只编排已归一化的版本快照、补丁大小、状态 store 和订阅 store，不接触
-AstrBot event、HTTP 请求或消息投递。手动查询保持只读；订阅首次执行时只为
-尚未建立基线的平台尝试建立基线。
-"""
+"""客户端更新 Source 查询、轮询与订阅编排。"""
 
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
 
@@ -16,44 +12,39 @@ from ...entry.response import CommandResponse, MultiTextResponse, PlainTextRespo
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from ...infrastructure.utils.logger import logger
 from . import messages
-from .channels import (
-    CLIENT_UPDATE_CHANNELS,
-    ClientUpdateChannel,
-    default_channel_id_for_platform,
-    normalize_client_update_channel_ids,
-    resolve_client_update_channel,
-    select_enabled_channels,
-)
 from .contracts import (
-    ClientPlatform,
-    ClientRegion,
+    ClientSourceObservation,
+    ClientSourceVersion,
     ClientUpdateChange,
-    ClientUpdateObservation,
     ClientUpdateRequest,
     ClientUpdateStructureError,
     ClientUpdateTransport,
     ClientUpdateTransportError,
-    ClientVersionSnapshot,
+)
+from .registry import (
+    CLIENT_UPDATE_REGISTRY,
+    DEFAULT_CLIENT_UPDATE_TARGET_IDS,
+    ClientUpdateRegistry,
 )
 from .routing import pending_targets_for_change
 from .state import ClientUpdateBaseline, ClientUpdateStateStore
 
 
 class ClientUpdateRollbackError(ValueError):
-    """当前快照低于最近成功基线时抛出的服务端状态异常。"""
+    """可靠 order key 表明 Source 版本倒退。"""
 
-    def __init__(self, previous_patch_version: int, current_patch_version: int) -> None:
-        self.previous_patch_version = previous_patch_version
-        self.current_patch_version = current_patch_version
+    def __init__(self, previous_revision_id: str, current_revision_id: str) -> None:
+        self.previous_revision_id = previous_revision_id
+        self.current_revision_id = current_revision_id
         super().__init__("client update version moved backwards")
 
 
 class ClientUpdatePatchSizeError(ValueError):
-    """变化区间缺少补丁大小或补丁大小结构非法。"""
+    """完整历史变化缺少可用更新大小时抛出的领域错误。"""
 
 
 class ClientUpdateService:
-    """保存成功观察、查询当前版本并管理群级客户端更新订阅。"""
+    """按 Source 去重读取，并把结果展开为配置 Target。"""
 
     def __init__(
         self,
@@ -61,176 +52,138 @@ class ClientUpdateService:
         *,
         transport: ClientUpdateTransport | None = None,
         subscriptions: SubscriptionStore | None = None,
-        channels: Sequence[str] | None = None,
+        target_ids: Sequence[str] | None = None,
+        registry: ClientUpdateRegistry | None = None,
     ) -> None:
+        resolved_registry = (
+            state.registry
+            if registry is None and isinstance(state, ClientUpdateStateStore)
+            else registry or CLIENT_UPDATE_REGISTRY
+        )
+        if not isinstance(resolved_registry, ClientUpdateRegistry):
+            raise TypeError("registry 必须是 ClientUpdateRegistry")
+        if (
+            isinstance(state, ClientUpdateStateStore)
+            and state.registry != resolved_registry
+        ):
+            raise ValueError("state 与 service 必须使用同一 ClientUpdateRegistry")
         self.state = state
         self.transport = transport
         self.subscriptions = subscriptions
-        self._channel_mode = channels is not None
-        self.channels = (
-            tuple(CLIENT_UPDATE_CHANNELS)
-            if channels is None
-            else normalize_client_update_channel_ids(channels)
-        )
-        # 未传 channels 时保留旧 platform transport seam；bootstrap 传入配置后
-        # 才切换到固定 channel ID，避免破坏已有自定义 transport。
-        self._poll_targets: tuple[ClientPlatform | str, ...] = (
-            (ClientPlatform.PC, ClientPlatform.ANDROID)
-            if channels is None
-            else self.channels
-        )
-
-    def _targets_for_platforms(
-        self,
-        platforms: tuple[ClientPlatform, ...],
-    ) -> tuple[ClientPlatform | str, ...]:
-        if not self._channel_mode:
-            return platforms
-        return tuple(
-            channel_id
-            for platform in platforms
-            for channel_id in select_enabled_channels(
-                self.channels,
-                platform=platform,
+        self.registry = resolved_registry
+        self._poll_lock = asyncio.Lock()
+        self._subscription_mutation_lock = asyncio.Lock()
+        if target_ids is None:
+            configured_target_ids = (
+                DEFAULT_CLIENT_UPDATE_TARGET_IDS
+                if resolved_registry == CLIENT_UPDATE_REGISTRY
+                else tuple(target.target_id for target in resolved_registry.targets)
             )
+        else:
+            configured_target_ids = target_ids
+        self.target_ids = resolved_registry.normalize_target_ids(configured_target_ids)
+        self._target_ids_by_source = resolved_registry.group_target_ids_by_source(
+            self.target_ids
         )
 
-    async def observe(
-        self,
-        current: ClientVersionSnapshot,
-        *,
-        observed_at: datetime,
-        patch_sizes: Mapping[int, int],
-    ) -> ClientUpdateChange | None:
-        """观察一个平台快照并返回新变化；首次或未变化观察返回 ``None``。
-
-        ``patch_sizes`` 使用补丁版本号到字节数的映射。只有
-        ``previous.patch_version < patch_version <= current.patch_version`` 的
-        补丁参与汇总；变化确认成功后才会写入新的基线。
-        """
-
-        return await self._observe(
-            current,
-            observed_at=observed_at,
-            patch_sizes=patch_sizes,
-            stage_pending=False,
-        )
-
-    async def _observe(
-        self,
-        current: ClientVersionSnapshot,
-        *,
-        observed_at: datetime,
-        patch_sizes: Mapping[int, int],
-        stage_pending: bool,
-    ) -> ClientUpdateChange | None:
-        """执行观察；定时轮询可要求基线和 pending 事件一次落盘。"""
-
-        if not isinstance(current, ClientVersionSnapshot):
-            raise TypeError("current 必须是 ClientVersionSnapshot")
-        current = _canonicalize_snapshot_channel(current)
-
-        baseline = await self.state.get_baseline(
-            current.region,
-            current.channel_id or current.platform,
-        )
-        if baseline is None:
-            await self.state.save_baseline(
-                ClientUpdateBaseline(snapshot=current, observed_at=observed_at)
-            )
-            return None
-
-        previous = baseline.snapshot
-        if current.patch_version < previous.patch_version:
-            raise ClientUpdateRollbackError(
-                previous.patch_version,
-                current.patch_version,
-            )
-
-        if current.patch_version == previous.patch_version:
-            await self.state.save_baseline(
-                ClientUpdateBaseline(
-                    snapshot=current,
-                    observed_at=observed_at,
-                    last_change=baseline.last_change,
-                )
-            )
-            return None
-
-        change = _change_from_baseline(
-            baseline,
-            current,
-            patch_sizes,
-        )
-        new_baseline = ClientUpdateBaseline(
-            snapshot=current,
-            observed_at=observed_at,
-            last_change=change,
-        )
-        if not stage_pending:
-            await self.state.save_baseline(new_baseline)
-            return change
+    async def initialize(self) -> None:
+        """在 scheduler 启动前清理旧平台筛选元数据。"""
 
         subscriptions = self.subscriptions
-        targets = (
-            pending_targets_for_change(
-                change,
-                await subscriptions.get(messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE),
+        if subscriptions is None:
+            return
+        async with self._subscription_mutation_lock:
+            await subscriptions.transform_type(
+                messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                _clean_legacy_platform_metadata,
             )
-            if subscriptions is not None
-            else ()
-        )
-        await self.state.save_baseline_with_pending_event(
-            new_baseline,
-            change,
-            targets,
-        )
-        return change
+
+    async def terminate(self) -> None:
+        """生命周期对齐钩子；本服务没有独立后台资源。"""
 
     async def poll_now(self) -> tuple[ClientUpdateChange, ...]:
-        """轮询已启用渠道并维护成功观察基线，返回本轮确认的变化。"""
+        """串行执行轮询，避免并发观察以旧 baseline 覆盖新结果。"""
+
+        async with self._poll_lock:
+            return await self._poll_now_unlocked()
+
+    async def _poll_now_unlocked(self) -> tuple[ClientUpdateChange, ...]:
+        """每个 Source 读取一次，并原子保存基线与首次 pending 事件。"""
 
         if self.transport is None:
             raise RuntimeError("client update transport unavailable")
 
         changes: list[ClientUpdateChange] = []
-        for target in self._poll_targets:
-            baseline = await self.state.get_baseline(
-                _target_region(target),
-                target,
-            )
+        for source_id, target_ids in self._target_ids_by_source.items():
+            baseline = await self.state.get_baseline(source_id)
             try:
                 observation = await self.transport.get_observation(
-                    target,
-                    previous_patch_version=(
-                        baseline.snapshot.patch_version
-                        if baseline is not None
-                        else None
-                    ),
+                    source_id,
+                    baseline=baseline.version if baseline is not None else None,
                 )
-                _validate_observation(observation, target)
-                change = await self._observe(
-                    observation.snapshot,
-                    observed_at=datetime.now(timezone.utc),
-                    patch_sizes=observation.patch_sizes,
-                    stage_pending=True,
+                _validate_observation(observation, source_id)
+                change = _change_from_observation(baseline, observation, target_ids)
+                observed_at = datetime.now(timezone.utc)
+                if baseline is None:
+                    await self.state.save_baseline(
+                        ClientUpdateBaseline(
+                            version=observation.current,
+                            observed_at=observed_at,
+                        )
+                    )
+                    continue
+                if change is None:
+                    last_change = (
+                        replace(baseline.last_change, current=observation.current)
+                        if baseline.last_change is not None
+                        else None
+                    )
+                    await self.state.save_baseline(
+                        ClientUpdateBaseline(
+                            version=observation.current,
+                            observed_at=observed_at,
+                            last_change=last_change,
+                        )
+                    )
+                    continue
+
+                subscriptions = self.subscriptions
+                pending_targets = (
+                    pending_targets_for_change(
+                        change,
+                        await subscriptions.get(
+                            messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE
+                        ),
+                    )
+                    if subscriptions is not None
+                    else ()
+                )
+                await self.state.save_baseline_with_pending_event(
+                    ClientUpdateBaseline(
+                        version=observation.current,
+                        observed_at=observed_at,
+                        last_change=change,
+                    ),
+                    change,
+                    pending_targets,
                 )
             except ClientUpdateTransportError as error:
-                _log_transport_failure("poll", target, error)
+                _log_transport_failure("poll", source_id, error)
                 continue
             except (
                 ClientUpdatePatchSizeError,
                 ClientUpdateRollbackError,
                 ClientUpdateStructureError,
+                TypeError,
+                ValueError,
             ) as error:
-                _log_query_failure(target, type(error).__name__)
+                _log_source_failure("poll", source_id, type(error).__name__)
                 continue
-            if change is not None:
-                changes.append(change)
+            changes.append(change)
         return tuple(changes)
 
     async def query(self, request: ClientUpdateRequest) -> CommandResponse:
-        """查询所选平台的当前版本；不会推进或覆盖定时观察基线。"""
+        """查询配置 Target；读取 baseline 仅用于比较，绝不修改 state。"""
 
         if request.actor is None:
             return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
@@ -238,46 +191,37 @@ class ClientUpdateService:
             return PlainTextResponse(messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE)
 
         result: list[str] = []
-        for target in self._targets_for_platforms(request.platforms):
-            baseline = await self.state.get_baseline(
-                _target_region(target),
-                target,
-            )
+        for source_id, target_ids in self._target_ids_by_source.items():
+            baseline = await self.state.get_baseline(source_id)
             try:
                 observation = await self.transport.get_observation(
-                    target,
-                    previous_patch_version=(
-                        baseline.snapshot.patch_version
-                        if baseline is not None
-                        else None
-                    ),
+                    source_id,
+                    baseline=baseline.version if baseline is not None else None,
                 )
-                _validate_observation(observation, target)
+                _validate_observation(observation, source_id)
+                target_names = self._target_names(target_ids)
                 if baseline is None:
-                    result.append(messages.format_current(observation.snapshot))
+                    result.append(
+                        messages.format_current(observation.current, target_names)
+                    )
                     continue
-                if (
-                    observation.snapshot.patch_version
-                    == baseline.snapshot.patch_version
-                ):
-                    result.append(messages.format_no_change(observation.snapshot))
+                change = _change_from_observation(baseline, observation, target_ids)
+                if change is None:
+                    result.append(
+                        messages.format_no_change(observation.current, target_names)
+                    )
                     continue
-                change = _change_from_baseline(
-                    baseline,
-                    observation.snapshot,
-                    observation.patch_sizes,
-                )
+                result.append(messages.format_change(change, target_names))
             except ClientUpdateTransportError as error:
-                _log_transport_failure("query", target, error)
-                continue
+                _log_transport_failure("query", source_id, error)
             except (
                 ClientUpdatePatchSizeError,
                 ClientUpdateRollbackError,
                 ClientUpdateStructureError,
+                TypeError,
+                ValueError,
             ) as error:
-                _log_query_failure(target, type(error).__name__)
-                continue
-            result.append(messages.format_change(change))
+                _log_source_failure("query", source_id, type(error).__name__)
 
         if not result:
             return PlainTextResponse(messages.CLIENT_UPDATE_UNAVAILABLE)
@@ -286,7 +230,7 @@ class ClientUpdateService:
         return MultiTextResponse(tuple(result))
 
     async def subscribe(self, request: ClientUpdateRequest) -> PlainTextResponse:
-        """创建或更新当前群的客户端更新订阅，并尝试建立缺失基线。"""
+        """串行创建或更新群订阅，并尝试建立缺失 Source 基线。"""
 
         actor = request.actor
         if actor is None:
@@ -301,40 +245,41 @@ class ClientUpdateService:
                 messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
                 need_at=True,
             )
-        if self.subscriptions is None:
+        subscriptions = self.subscriptions
+        if subscriptions is None:
             return PlainTextResponse(
                 messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE,
                 need_at=True,
             )
 
-        existing = await self._subscription_for_origin(actor.unified_msg_origin)
-        await self.subscriptions.add(
-            messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-            origin=actor.unified_msg_origin,
-            user_id=actor.user_id,
-            group_id=actor.group_id,
-            bot_id=actor.bot_id,
-            user_type="group",
-            uid="",
-            extra_data=_serialize_platforms(request.platforms),
-            provenance="chat_command",
-        )
-
-        failed_platforms = await self._initialize_missing_baselines(request.platforms)
-        if existing is not None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED,
-                need_at=True,
+        async with self._subscription_mutation_lock:
+            existing = await self._subscription_for_origin(actor.unified_msg_origin)
+            await subscriptions.add(
+                messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                origin=actor.unified_msg_origin,
+                user_id=actor.user_id,
+                group_id=actor.group_id,
+                bot_id=actor.bot_id,
+                user_type="group",
+                uid="",
+                extra_data="{}",
+                provenance="chat_command",
             )
-        if failed_platforms:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_SUBSCRIBED_RETRY,
-                need_at=True,
-            )
-        return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED, need_at=True)
+            failed_sources = await self._initialize_missing_baselines()
+            if existing is not None:
+                return PlainTextResponse(
+                    messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED,
+                    need_at=True,
+                )
+            if failed_sources:
+                return PlainTextResponse(
+                    messages.CLIENT_UPDATE_SUBSCRIBED_RETRY,
+                    need_at=True,
+                )
+            return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED, need_at=True)
 
     async def unsubscribe(self, request: ClientUpdateRequest) -> PlainTextResponse:
-        """取消当前群的客户端更新订阅。"""
+        """串行取消当前群订阅，并同步移除该目标的 pending。"""
 
         actor = request.actor
         if actor is None:
@@ -352,25 +297,32 @@ class ClientUpdateService:
                 messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
                 need_at=True,
             )
-        if self.subscriptions is None:
+        subscriptions = self.subscriptions
+        if subscriptions is None:
             return PlainTextResponse(
                 messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE,
                 need_at=True,
             )
 
-        deleted = await self.subscriptions.delete(
-            messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-            actor.unified_msg_origin,
-            uid="",
-        )
-        # 取消后即刻移除所有历史 pending，重新订阅不能补发旧事件。
-        await self.state.remove_target(actor.unified_msg_origin, uid="")
-        if not deleted:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
-                need_at=True,
-            )
-        return PlainTextResponse(messages.CLIENT_UPDATE_UNSUBSCRIBED, need_at=True)
+        async with self._subscription_mutation_lock:
+            # 消息发送是不可回滚的外部副作用；取消与 delivery 共用 state 协调锁，
+            # 因而取消返回后不会再开始发送已取消目标的旧 pending 事件。
+            async with self.state.delivery_coordination_lock:
+                deleted = await subscriptions.delete(
+                    messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+                    actor.unified_msg_origin,
+                    uid="",
+                )
+                await self.state.remove_target(actor.unified_msg_origin, uid="")
+                if not deleted:
+                    return PlainTextResponse(
+                        messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
+                        need_at=True,
+                    )
+                return PlainTextResponse(
+                    messages.CLIENT_UPDATE_UNSUBSCRIBED,
+                    need_at=True,
+                )
 
     async def _subscription_for_origin(self, origin: str) -> Subscription | None:
         subscriptions = self.subscriptions
@@ -386,210 +338,139 @@ class ClientUpdateService:
             None,
         )
 
-    async def _initialize_missing_baselines(
-        self,
-        platforms: tuple[ClientPlatform, ...],
-    ) -> tuple[ClientPlatform | str, ...]:
-        """只为没有基线的平台或渠道建立首个成功观察。"""
+    async def _initialize_missing_baselines(self) -> tuple[str, ...]:
+        """每个尚无基线的配置 Source 最多尝试一次首次读取。"""
 
-        targets = self._targets_for_platforms(platforms)
         if self.transport is None:
-            return targets
-
-        failed: list[ClientPlatform | str] = []
-        for target in targets:
-            baseline = await self.state.get_baseline(
-                _target_region(target),
-                target,
-            )
-            if baseline is not None:
+            return tuple(self._target_ids_by_source)
+        failed: list[str] = []
+        for source_id in self._target_ids_by_source:
+            if await self.state.get_baseline(source_id) is not None:
                 continue
             try:
-                observation = await self.transport.get_observation(target)
-                _validate_observation(observation, target)
+                observation = await self.transport.get_observation(source_id)
+                _validate_observation(observation, source_id)
                 await self.state.save_baseline(
                     ClientUpdateBaseline(
-                        snapshot=observation.snapshot,
+                        version=observation.current,
                         observed_at=datetime.now(timezone.utc),
                     )
                 )
             except ClientUpdateTransportError as error:
-                _log_transport_failure("subscribe_baseline", target, error)
-                failed.append(target)
-            except (ClientUpdateStructureError, ValueError) as error:
-                _log_query_failure(target, type(error).__name__)
-                failed.append(target)
+                _log_transport_failure("subscribe_baseline", source_id, error)
+                failed.append(source_id)
+            except (ClientUpdateStructureError, TypeError, ValueError) as error:
+                _log_source_failure(
+                    "subscribe_baseline", source_id, type(error).__name__
+                )
+                failed.append(source_id)
         return tuple(failed)
 
-
-def _canonicalize_snapshot_channel(
-    snapshot: ClientVersionSnapshot,
-) -> ClientVersionSnapshot:
-    """把旧 transport 的 platform-only 快照转换为固定 channel。"""
-
-    identity = snapshot.channel_id
-    channel_id = (
-        default_channel_id_for_platform(snapshot.platform)
-        if identity is None or identity == snapshot.platform.value
-        else identity
-    )
-    try:
-        channel = resolve_client_update_channel(channel_id)
-    except (TypeError, ValueError) as error:
-        raise ClientUpdateStructureError("observation 的渠道无效") from error
-    if (
-        channel.region is not snapshot.region
-        or channel.platform is not snapshot.platform
-    ):
-        raise ClientUpdateStructureError("observation 的渠道与区服或平台不一致")
-    if snapshot.channel_id == channel.channel_id:
-        return snapshot
-    return replace(snapshot, channel_id=channel.channel_id)
-
-
-def _change_from_baseline(
-    baseline: ClientUpdateBaseline,
-    current: ClientVersionSnapshot,
-    patch_sizes: Mapping[int, int],
-) -> ClientUpdateChange:
-    previous = baseline.snapshot
-    if current.patch_version < previous.patch_version:
-        raise ClientUpdateRollbackError(
-            previous.patch_version,
-            current.patch_version,
+    def _target_names(self, target_ids: Sequence[str]) -> tuple[str, ...]:
+        return tuple(
+            self.registry.resolve_target(target_id).display_name
+            for target_id in target_ids
         )
-    if current.patch_version == previous.patch_version:
-        raise ValueError("未变化快照不应创建 ClientUpdateChange")
-    normalized_sizes = _normalize_patch_sizes(patch_sizes)
+
+
+def _change_from_observation(
+    baseline: ClientUpdateBaseline | None,
+    observation: ClientSourceObservation,
+    target_ids: tuple[str, ...],
+) -> ClientUpdateChange | None:
+    if baseline is None:
+        return None
+    previous = baseline.version
+    current = observation.current
+    if current.revision_id == previous.revision_id:
+        return None
+    if _is_rollback(previous, current):
+        raise ClientUpdateRollbackError(previous.revision_id, current.revision_id)
+    if observation.history_complete and observation.added_size_bytes is None:
+        raise ClientUpdatePatchSizeError("complete history must include update size")
+    if not observation.history_complete and observation.added_size_bytes is not None:
+        raise ClientUpdateStructureError("history gap cannot include update size")
     return ClientUpdateChange(
         previous=previous,
         current=current,
-        added_size_bytes=_sum_new_patch_sizes(
-            previous.patch_version,
-            current.patch_version,
-            normalized_sizes,
-        ),
-        region=current.region,
-        platform=current.platform,
+        history_complete=observation.history_complete,
+        added_size_bytes=observation.added_size_bytes,
+        target_ids=target_ids,
     )
+
+
+def _is_rollback(previous: ClientSourceVersion, current: ClientSourceVersion) -> bool:
+    if previous.order_key is None or current.order_key is None:
+        return False
+    try:
+        return current.order_key < previous.order_key
+    except TypeError as error:
+        raise ClientUpdateStructureError(
+            "Source order_key types do not match"
+        ) from error
 
 
 def _validate_observation(
-    observation: ClientUpdateObservation,
-    target: ClientPlatform | str,
+    observation: ClientSourceObservation,
+    source_id: str,
 ) -> None:
-    if not isinstance(observation, ClientUpdateObservation):
+    if not isinstance(observation, ClientSourceObservation):
         raise ClientUpdateStructureError("transport 返回了无效 observation")
-
-    expected_platform = _target_platform(target)
-    if (
-        observation.snapshot.region is not _target_region(target)
-        or observation.snapshot.platform is not expected_platform
-    ):
-        raise ClientUpdateStructureError("observation 的区服或平台与请求不一致")
-
-    if _is_explicit_channel_target(target):
-        channel = _target_channel(target)
-        if observation.snapshot.channel_id != channel.channel_id:
-            raise ClientUpdateStructureError("observation 的渠道与请求不一致")
+    if observation.current.source_id != source_id:
+        raise ClientUpdateStructureError("observation 与请求 Source 不一致")
 
 
-def _target_platform(target: ClientPlatform | str) -> ClientPlatform:
+def _has_legacy_platform_metadata(subscription: Subscription) -> bool:
+    """识别可安全清理的旧平台列表；损坏或未知形状保持原样。"""
+
     try:
-        return ClientPlatform(target)
-    except (TypeError, ValueError):
-        return _target_channel(target).platform
-
-
-def _target_region(target: ClientPlatform | str) -> ClientRegion:
-    if not _is_explicit_channel_target(target):
-        return ClientRegion.CN
-    return _target_channel(target).region
-
-
-def _target_channel(target: ClientPlatform | str) -> ClientUpdateChannel:
-    try:
-        platform = ClientPlatform(target)
-    except (TypeError, ValueError):
-        return resolve_client_update_channel(target)
-    return resolve_client_update_channel(default_channel_id_for_platform(platform))
-
-
-def _is_explicit_channel_target(target: ClientPlatform | str) -> bool:
-    if isinstance(target, ClientPlatform):
+        payload = json.loads(subscription.extra_data)
+        if payload == {}:
+            return False
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != {"platforms"}
+            or not isinstance(payload["platforms"], list)
+        ):
+            raise TypeError("客户端更新订阅元数据不是受支持的旧形状")
+    except (TypeError, json.JSONDecodeError) as error:
+        logger.warning(
+            "客户端更新订阅元数据无效，跳过清理（错误类型：%s）",
+            type(error).__name__,
+        )
         return False
-    try:
-        ClientPlatform(target)
-    except (TypeError, ValueError):
-        return True
-    return False
+    return True
 
 
-def _target_label(target: ClientPlatform | str) -> str:
-    if _is_explicit_channel_target(target):
-        return _target_channel(target).channel_id
-    return _target_platform(target).value
+def _clean_legacy_platform_metadata(subscription: Subscription) -> Subscription:
+    """只改写可识别旧形状；损坏或未知元数据由识别函数告警并保留。"""
 
-
-def _serialize_platforms(platforms: tuple[ClientPlatform, ...]) -> str:
-    return json.dumps(
-        {"platforms": [platform.value for platform in platforms]},
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
+    if not _has_legacy_platform_metadata(subscription):
+        return subscription
+    return replace(subscription, extra_data="{}")
 
 
 def _log_transport_failure(
     operation: str,
-    target: ClientPlatform | str,
+    source_id: str,
     error: ClientUpdateTransportError,
 ) -> None:
-    """只记录可观测的安全摘要，不把 transport detail 带入日志。"""
-
     logger.warning(
-        "客户端更新请求失败 operation=%s target=%s kind=%s resource=%s",
+        "客户端更新请求失败 operation=%s source=%s kind=%s resource=%s",
         operation,
-        _target_label(target),
+        source_id,
         error.kind.value,
         error.resource,
     )
 
 
-def _log_query_failure(target: ClientPlatform | str, category: str) -> None:
+def _log_source_failure(operation: str, source_id: str, category: str) -> None:
     logger.warning(
-        "客户端更新结果不可用 target=%s category=%s",
-        _target_label(target),
+        "客户端更新结果不可用 operation=%s source=%s category=%s",
+        operation,
+        source_id,
         category,
     )
-
-
-def _normalize_patch_sizes(patch_sizes: Mapping[int, int]) -> dict[int, int]:
-    if not isinstance(patch_sizes, Mapping):
-        raise TypeError("patch_sizes 必须是补丁版本到字节数的映射")
-    normalized: dict[int, int] = {}
-    for patch_version, size_bytes in patch_sizes.items():
-        if type(patch_version) is not int or patch_version < 0:
-            raise ClientUpdatePatchSizeError("patch_sizes 的补丁版本号必须是非负整数")
-        if type(size_bytes) is not int or size_bytes < 0:
-            raise ClientUpdatePatchSizeError("patch_sizes 的大小必须是非负整数")
-        normalized[patch_version] = size_bytes
-    return normalized
-
-
-def _sum_new_patch_sizes(
-    previous_patch_version: int,
-    current_patch_version: int,
-    patch_sizes: Mapping[int, int],
-) -> int:
-    total = 0
-    for patch_version in range(previous_patch_version + 1, current_patch_version + 1):
-        try:
-            total += patch_sizes[patch_version]
-        except KeyError as error:
-            raise ClientUpdatePatchSizeError(
-                f"missing patch size for version {patch_version}"
-            ) from error
-    return total
 
 
 __all__ = [
