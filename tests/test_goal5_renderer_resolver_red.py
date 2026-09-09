@@ -377,3 +377,5 @@ async def test_help_accepts_resolver_for_font_and_texture_fallback(
 
     assert rendered == _jpeg_bytes()
     _assert_missing_keys(resolver, ("font.help",), ("texture.help",))
+    assert ("generation-a", "texture.help.icon:通用.png") in resolver.calls
+    assert ("generation-a", "texture.help.icon:状态") not in resolver.calls

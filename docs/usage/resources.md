@@ -45,7 +45,7 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
   "format_version": 1,
   "required_dirs": [
     "fonts", "images", "panel", "alias", "data", "schemas",
-    "wiki/role", "wiki/weapon", "wiki/spirit", "guide", "weekly_item", "calendar"
+    "wiki/role", "wiki/weapon", "wiki/spirit", "guide", "weekly_item", "calendar", "textures"
   ],
   "resource_version": "2026.08.11"
 }

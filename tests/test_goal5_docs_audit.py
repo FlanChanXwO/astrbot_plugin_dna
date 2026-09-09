@@ -17,6 +17,7 @@ DOCS_INDEX = ROOT / "docs" / "README.md"
 USAGE_DOCS = tuple(sorted((ROOT / "docs" / "usage").glob("*.md")))
 PUBLIC_DOCS = (DOCS_INDEX, *USAGE_DOCS)
 COMMANDS_DOC = ROOT / "docs" / "usage" / "commands.md"
+RESOURCES_DOC = ROOT / "docs" / "usage" / "resources.md"
 DEVELOPER_SETUP = ROOT / "docs" / "dev" / "setup.md"
 SCHEMA = ROOT / "_conf_schema.json"
 COMMANDS = ROOT / "commands.json"
@@ -88,6 +89,11 @@ def test_usage_docs_contain_no_internal_migration_or_private_deployment_residue(
         if _PUBLIC_RESIDUE_PATTERN.search(_read(path))
     }
     assert not residue, f"用户文档仍有内部迁移、部署或敏感信息残留：{residue}"
+
+
+def test_resource_manifest_example_includes_runtime_texture_directory() -> None:
+    text = _read(RESOURCES_DOC)
+    assert '"textures"' in text
 
 
 def test_usage_docs_only_reference_active_configuration_fields() -> None:

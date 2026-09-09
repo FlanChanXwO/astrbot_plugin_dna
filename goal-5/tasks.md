@@ -311,10 +311,10 @@
 - 验证证据：
   - 使用显式 `DNA_RESOURCE_REPO=/Users/flanchan/Developer/Projects/GithubProjects/.worktrees/astrbot_plugin_dna_resources-resource-slimming-design` 运行资源/文档/清理/治理/解析器/资源契约 focused suite：`53 passed, 1 warning`；未设置该变量时的唯一失败是宿主默认旧资源 checkout 缺少 `schemas`/`textures`，已确认是环境选择问题而非插件实现失败。
   - 变更运行时代码定向 `ruff check`、`git diff --check` 和 LSP diagnostics（bootstrap、manifest、generation、resolver、runtime_assets）均通过；资源 manifest 独立 SHA-256 核验通过。静态 smoke 明确复现上述 Help 缺口：`texture.help.logo`、`texture.help.icon:状态`、`font.help` 在无 snapshot 时均为 `none/missing/incomplete=True`，数字 bootstrap 仍按既有契约工作。
-- 新增修复 task：Task 15A（先修复 Help logo/必要小图标的显式 bootstrap 映射与 completeness 语义，再补齐文档 manifest 示例；必须 TDD Red → Green，并验证无 snapshot/full snapshot、docs、ruff、compile）。
-- 剩余风险：Task 15A 尚未完成；资源仓库和 editor 分支仍只存在本地 worktree，最终市场包需在 Task 16 重新测量；完整 pytest 的宿主端口、ignored fixture、旧 checkout/T2I 环境失败仍不应误报为资源目标全绿。
+- 发现并已在 Task 15A 修复两项同一根因的可执行缺口：Help 的 `texture.help.logo`、`texture.help.icon:*` 未进入 bootstrap allowlist，运行期 resolver 会把仓库中仍保留的 logo/帮助小图标解析为 `none/placeholder/incomplete`；`docs/usage/resources.md` 的 manifest 示例也遗漏已成为 runtime contract 的 `textures` 目录。
+- 剩余风险：资源仓库和 editor 分支仍只存在本地 worktree，最终市场包需在 Task 16 重新测量；完整 pytest 的宿主端口、ignored fixture、旧 checkout/T2I 环境失败仍不应误报为资源目标全绿。Help bootstrap 采用静态显式文件名清单，后续若保留图标集合变化需同步更新 allowlist 与契约测试。
 
-## Task 15A — 修复 Help bootstrap 资源契约与 manifest 文档 `[pending]`
+## Task 15A — 修复 Help bootstrap 资源契约与 manifest 文档 `[completed]`
 
 **目标**：让规格明确保留的 `ICON.png`/Help 必要小图标在 resolver 模式下通过显式 bootstrap allowlist 工作，不因没有 verified snapshot 被误标 `incomplete`；同步修正资源 manifest 文档示例。
 
@@ -322,9 +322,9 @@
 
 **验收**：TDD Red → Green 覆盖 logo、实际 Help icon filename、无 snapshot Help 资源记录和 completeness；显式 bootstrap 仍拒绝未登记路径；文档示例包含 `textures`；相关 pytest、compile、ruff 和 diff 检查通过。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
+- 实际做了什么：在 `src/bootstrap.py` 增加静态显式的 47 个 Help icon filename、`ICON.png` logo 和既有数字纹理 bootstrap 映射；在 resolver 中把 logo 与 `texture.help.icon:` 前缀标记为完整 fallback，同时保留未登记 icon、缺失 `font.help` 的 `none/missing/incomplete` 语义；Help renderer 的逻辑 key 改为使用实际解析到的 icon filename，避免 alias/fallback 名称与 allowlist 脱节；manifest 文档示例补充 `textures`。未递归扫描本地资源目录、未引入依赖、未改变 verified snapshot 优先级。
+- 验证证据：先运行 TDD Red，目标 suite 以 `33 passed, 4 failed` 证明缺口；实现后运行相同 focused suite 为 `37 passed, 1 warning`；覆盖 `ICON.png`、真实 `日常.png`、未登记 icon、无 snapshot completeness、Help 实际 key 和 `textures` 文档示例。`compileall -q`、定向 `ruff check`、`git diff --check` 和受影响 Python 文件 LSP diagnostics 均通过。
+- 剩余风险：完整 pytest 的既有宿主端口、ignored fixture、旧资源 checkout/T2I 环境失败仍留给后续统一复核；Help 的字体仍需 verified snapshot 或显式供给，bootstrap 只保证规格保留的 logo/小图标。最终发布包仍需 Task 16 按最终提交重新测量。
 
 ## Task 16 — 最终发布包测量与证据收口 `[pending]`
 

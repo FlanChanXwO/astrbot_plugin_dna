@@ -135,13 +135,70 @@ _SNAPSHOT_ASSET_PATHS = {
     "texture.help.item": "textures/help/item.png",
     "texture.common.footer": "textures/common/footer.png",
 }
+_HELP_ICON_BOOTSTRAP_FILENAMES = (
+    "1.png",
+    "UID.png",
+    "git更新记录.png",
+    "token登录.png",
+    "体力.png",
+    "全体开偷窥.png",
+    "全体防偷窥.png",
+    "全部重新签到.png",
+    "关闭自动签到.png",
+    "切换UID.png",
+    "删除UID.png",
+    "删除全部UID.png",
+    "卡片.png",
+    "取消全体偷窥.png",
+    "取消订阅全部密函.png",
+    "取消订阅公告.png",
+    "取消订阅密函.png",
+    "基本信息.png",
+    "开偷窥.png",
+    "开启自动签到.png",
+    "恢复别名.png",
+    "我的密函订阅.png",
+    "所有密函列表.png",
+    "抽卡.png",
+    "指定开偷窥.png",
+    "指定防偷窥.png",
+    "日常.png",
+    "查看UID.png",
+    "查看当前密函.png",
+    "武器别名.png",
+    "深渊.png",
+    "登录.png",
+    "签到.png",
+    "签到日历.png",
+    "获取绑定的token.png",
+    "角色别名.png",
+    "角色攻略.png",
+    "角色面板.png",
+    "订阅公告.png",
+    "订阅密函图片.png",
+    "订阅密函推送周期.png",
+    "订阅指定密函推送.png",
+    "订阅自动签到结果.png",
+    "订阅角色密函推送.png",
+    "退出登录.png",
+    "通用.png",
+    "防偷窥.png",
+)
+_HELP_ICON_BOOTSTRAP_ROOT = Path(__file__).parent / "resources" / "help" / "icon_path"
 _BOOTSTRAP_ALLOWLIST = {
-    f"texture.common.number.{digit}": Path(__file__).parent
-    / "utils"
-    / "texture2d"
-    / "number"
-    / f"{digit}.png"
-    for digit in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    **{
+        f"texture.common.number.{digit}": Path(__file__).parent
+        / "utils"
+        / "texture2d"
+        / "number"
+        / f"{digit}.png"
+        for digit in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    },
+    "texture.help.logo": Path(__file__).parent.parent / "ICON.png",
+    **{
+        f"texture.help.icon:{filename}": _HELP_ICON_BOOTSTRAP_ROOT / filename
+        for filename in _HELP_ICON_BOOTSTRAP_FILENAMES
+    },
 }
 
 

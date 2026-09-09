@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.bootstrap import _SNAPSHOT_ASSET_PATHS
+from src.bootstrap import _BOOTSTRAP_ALLOWLIST, _SNAPSHOT_ASSET_PATHS
 from src.infrastructure.resources import (
     ResourceGenerationError,
     ResourceSnapshotCoordinator,
@@ -325,3 +325,30 @@ async def test_bootstrap_uses_empty_resource_views_without_verified_snapshot(
     assert bootstrap.source == "bootstrap"
     assert bootstrap.status == "fallback"
     assert bootstrap.incomplete is True
+
+
+def test_help_bootstrap_assets_are_complete_without_verified_snapshot() -> None:
+    resolver = _resolver(
+        snapshot_assets=_SNAPSHOT_ASSET_PATHS,
+        bootstrap_allowlist=_BOOTSTRAP_ALLOWLIST,
+    )
+
+    logo = resolver.resolve("texture.help.logo")
+    icon = resolver.resolve("texture.help.icon:日常.png")
+    unknown_icon = resolver.resolve("texture.help.icon:不存在.png")
+    font = resolver.resolve("font.help")
+
+    for asset in (logo, icon):
+        assert asset.path is not None
+        assert asset.path.is_file()
+        assert asset.source == "bootstrap"
+        assert asset.status == "fallback"
+        assert asset.incomplete is False
+    assert unknown_icon.path is None
+    assert unknown_icon.source == "none"
+    assert unknown_icon.status == "missing"
+    assert unknown_icon.incomplete is True
+    assert font.path is None
+    assert font.source == "none"
+    assert font.status == "missing"
+    assert font.incomplete is True

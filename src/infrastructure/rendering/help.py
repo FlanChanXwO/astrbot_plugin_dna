@@ -119,7 +119,7 @@ def _help_icon_uri(
     path = _find_icon(name)
     if asset_resolver is None:
         return image_data_uri(path)
-    key = f"texture.help.icon:{name}"
+    key = f"texture.help.icon:{path.name}"
     uri, asset = resolved_image_data_uri(
         asset_resolver,
         key,
