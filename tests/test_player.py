@@ -752,11 +752,11 @@ async def test_concurrent_role_details_keep_their_related_original_paths(
         "https://api.example.test/damage?token=secret-url-006",
     ),
 )
-async def test_damage_failure_payload_never_reaches_detail_image(
+async def test_damage_failure_hides_optional_detail_section(
     tmp_path: Path,
     upstream_message: str,
 ) -> None:
-    """伤害失败的上游正文不得进入用户图片或 PNG 文本元数据。"""
+    """伤害计算失败或不受支持时，整个可选伤害区块都应隐藏。"""
 
     class SensitiveDamageTransport(FixturePlayerTransport):
         async def calculate_damage(
@@ -807,10 +807,11 @@ async def test_damage_failure_payload_never_reaches_detail_image(
     text = artifact.metadata["dnaby.text"]
     layout = artifact.metadata["dnaby.layout"]
     resources = artifact.metadata["dnaby.resources"]
-    assert messages.PLAYER_DAMAGE_FAILED in text
+    assert messages.PLAYER_DAMAGE_FAILED not in text
     assert upstream_message not in text
     assert upstream_message not in layout
     assert upstream_message not in resources
+    assert "伤害" not in {section["name"] for section in layout["sections"]}
     await database.dispose()
 
 

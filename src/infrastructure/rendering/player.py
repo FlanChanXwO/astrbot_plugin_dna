@@ -613,13 +613,9 @@ async def render_role_card_image(
         level=role_detail.level,
     )
     ctx = EventContext(user_id=uid)
-    damage_calc = (
-        DNAApiResp.ok(damage_data)
-        if damage_data is not None
-        else DNAApiResp.err(damage_message)
-        if damage_message is not None
-        else None
-    )
+    # 伤害计算是角色面板的可选增强信息。上游不支持当前角色或计算失败时，
+    # 不在卡片中渲染错误区块；只有拿到有效计算结果时才显示伤害区域。
+    damage_calc = DNAApiResp.ok(damage_data) if damage_data is not None else None
     card_bytes, _ = await _draw_role_detail_card(
         ctx,
         char_id,
@@ -1008,13 +1004,11 @@ class PlayerRenderer:
             user_id=target_user_id or (actor.user_id if actor is not None else uid)
         )
 
-        damage_response = None
-        if damage_data is not None:
-            damage_response = DNAApiResp.ok(damage_data)
-        elif damage_message is not None:
-            damage_response = DNAApiResp.err(damage_message)
-        elif damage_calc is not None and damage_calc.message:
-            damage_response = DNAApiResp.err(damage_calc.message)
+        # 伤害计算失败（包括上游暂不支持角色）时直接隐藏该可选区块，
+        # 失败状态仍留在 service/transport 链路中，不进入用户卡片与元数据。
+        damage_response = (
+            DNAApiResp.ok(damage_data) if damage_data is not None else None
+        )
 
         custom_panel = None
         if isinstance(self.resources, ResourceMap):
@@ -1059,12 +1053,6 @@ class PlayerRenderer:
                 )
                 for item in attrs:
                     lines.append(f"{item.key}: {item.value}")
-        else:
-            if damage_message:
-                lines.append(damage_message)
-            elif damage_calc is not None and damage_calc.message:
-                lines.append(damage_calc.message)
-
         sections = [
             {"name": "角色头部", "items": 1},
             {"name": "角色属性", "items": 11},
