@@ -54,11 +54,6 @@ from .service import (
     ClientUpdateRollbackError,
     ClientUpdateService,
 )
-from .smoke import (
-    ClientUpdateSmokeResult,
-    format_client_update_smoke_result,
-    run_client_update_source_smoke,
-)
 from .state import (
     STATE_VERSION,
     ClientUpdateBaseline,
@@ -100,7 +95,6 @@ __all__ = [
     "ClientUpdateRequest",
     "ClientUpdateRollbackError",
     "ClientUpdateService",
-    "ClientUpdateSmokeResult",
     "ClientUpdateSource",
     "ClientUpdateStateError",
     "ClientUpdateStateStore",
@@ -113,14 +107,12 @@ __all__ = [
     "ManifestCdnProviderConfig",
     "ManifestCdnVersionMetadata",
     "group_client_update_target_ids_by_source",
-    "format_client_update_smoke_result",
     "normalize_client_update_platforms",
     "normalize_client_update_target_ids",
     "parse_version_list",
     "parse_version_list_entries",
     "resolve_client_update_source",
     "resolve_client_update_target",
-    "run_client_update_source_smoke",
     "select_client_update_target_ids_by_platform",
     "sum_manifest_patch_file_sizes",
     "sum_patch_file_sizes",

@@ -23,7 +23,7 @@ python3 -m pytest tests/test_entry_commands.py
 python3 -m pytest tests/test_config.py
 python3 -m pytest tests/test_account.py
 python3 -m pytest tests/test_resources.py
-python3 -m pytest tests/test_client_updates.py tests/test_client_update_smoke.py
+python3 -m pytest tests/test_client_updates.py tests/test_client_update_service.py tests/test_client_update_delivery.py tests/test_client_update_state.py
 ```
 
 ## 长期保留的测试类型

@@ -6,7 +6,7 @@
 
 - 命令变化：修改 registry 后运行 `python3 scripts/generate_commands_manifest.py`，同步 `tests/test_entry_commands.py` 和 `docs/usage/commands.md` 中受影响的使用说明。
 - 配置变化：修改 `src/infrastructure/config/` 后运行 `python3 scripts/generate_config_schema.py`，同步 `tests/test_config.py` 和 `docs/usage/configuration.md`。
-- 客户端更新 Target / Source 变化：先更新只读证据与 registry，再运行 `python3 scripts/smoke_client_update_sources.py`；随后重新生成命令和配置投影。
+- 客户端更新 Target / Source 变化：先核对 `src/modules/client_updates/registry.py` 中的稳定协议参数，再运行 `python3 scripts/smoke_client_update_sources.py`；随后重新生成命令和配置投影。
 - 登录、Dashboard、Agent Tools、公共资源等行为变化：只更新对应的 `docs/usage/` 主题，不在多个文档重复完整清单。
 - 数据库 schema 变化：使用 Alembic revision，更新持久化测试；只有用户/部署者需要采取动作时才补充文档。
 - 发布历史：写入根目录 `CHANGELOG.md`，不要在 `docs/` 保存阶段报告、迁移日志或某次生产环境快照。
@@ -36,9 +36,13 @@
 
 客户端更新使用两层身份：Target 表达用户侧“区服 × 账号生态 × 平台”，Source
 表达版本读取协议。新增 Target 前必须同时确认现实发行、账号/服务器语义和稳定
-只读 Source；下载页面或商店入口本身不足以证明应新增 Target。调查证据集中在
-[`client-update-source-investigation.md`](client-update-source-investigation.md)，
-registry 位于 `src/modules/client_updates/registry.py`。
+只读 Source；下载页面或商店入口本身不足以证明应新增 Target。Source 的固定协议
+参数集中在 `src/modules/client_updates/registry.py`，不要把某次版本号、条数或
+响应大小等瞬时观察结果写入长期文档。
+
+Manifest Source 的 `PakFilesInfo.json` 和 `ResDiscreteInfo.json` key 是 registry
+配置的一部分，两个 key 不一定相同；App Store Source 只读取 Apple Lookup 的
+当前版本，不复用 manifest 的补丁历史或大小计算。
 
 长期只读检查入口：
 
