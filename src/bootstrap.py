@@ -102,6 +102,7 @@ from .modules.player.cache import PlayerCache
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
+from .utils.name_convert import configure_alias_storage
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
 
@@ -187,6 +188,11 @@ def build_runtime(
         if runtime_data_layout is None:
             raise RuntimeError("运行期数据布局尚未解析")
         runtime_database = AsyncDatabase.from_data_dir(runtime_data_layout.data_dir)
+    if runtime_data_layout is None:
+        runtime_data_layout = RuntimeDataLayout.from_data_dir(
+            runtime_database.path.parent,
+        )
+    configure_alias_storage(runtime_data_layout)
     resolved_account_transport = account_transport or DnaApiAccountTransport()
     account_service = AccountService(
         runtime_database,
@@ -197,10 +203,10 @@ def build_runtime(
     if services is not None and "account_service" in services:
         account_service = cast(AccountService, services["account_service"])
 
-    custom_alias_path = runtime_database.path.parent / "alias_custom.json"
-    custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
-    resource_cache_root = resource_repository_dir(runtime_database.path.parent)
-    resource_generations_root = resource_generations_dir(runtime_database.path.parent)
+    custom_alias_path = runtime_data_layout.char_alias_path
+    custom_weapon_alias_path = runtime_data_layout.weapon_alias_path
+    resource_cache_root = resource_repository_dir(runtime_data_layout.data_dir)
+    resource_generations_root = resource_generations_dir(runtime_data_layout.data_dir)
     resource_snapshots = ResourceSnapshotCoordinator(
         resource_cache_root,
         generations_root=resource_generations_root,
@@ -280,8 +286,8 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else EncyclopediaResourceStore()
     )
-    rendered_root = runtime_database.path.parent / "rendered"
-    cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
+    rendered_root = runtime_data_layout.data_dir / "rendered"
+    cache_manager = CacheManager(runtime_data_layout.data_dir / "cache", settings.cache)
     player_cache = PlayerCache(
         cache_manager,
         rendered_root,
@@ -352,7 +358,7 @@ def build_runtime(
         resource_snapshots=resource_snapshots,
     )
     subscriptions = SubscriptionStore(
-        runtime_database.path.parent / "subscriptions.json"
+        runtime_data_layout.data_dir / "subscriptions.json"
     )
     deletion_coordinator = AccountDeletionCoordinator(runtime_database, subscriptions)
     membership_probe = AiocqhttpMembershipProbe(context=context)
@@ -363,7 +369,7 @@ def build_runtime(
         deletion_coordinator=deletion_coordinator,
     )
     scheduler_registry = SchedulerRegistry(
-        runtime_database.path.parent / "scheduler_state.json"
+        runtime_data_layout.data_dir / "scheduler_state.json"
     )
     checkin_renderer = CheckinRenderer(
         rendered_root,
@@ -477,9 +483,9 @@ def build_runtime(
         runtime_database,
         request_gate=request_gate,
     )
-    ann_state = AnnStateStore(runtime_database.path.parent / "ann_state.json")
+    ann_state = AnnStateStore(runtime_data_layout.data_dir / "ann_state.json")
     ann_delivery_state = AnnDeliveryStateStore(
-        runtime_database.path.parent / "ann_delivery_state.json",
+        runtime_data_layout.data_dir / "ann_delivery_state.json",
     )
 
     class _AnnouncementListSource:
@@ -571,7 +577,7 @@ def build_runtime(
             services["client_updates_transport"],
         )
     client_update_state = ClientUpdateStateStore(
-        runtime_database.path.parent / "client_update_state.json",
+        runtime_data_layout.data_dir / "client_update_state.json",
     )
     if services is not None and "client_update_state" in services:
         client_update_state = cast(

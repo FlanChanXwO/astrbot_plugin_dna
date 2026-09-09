@@ -24,13 +24,13 @@
 
 ## Task 3：消除旧路径导入期副作用并切换数据库路径
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：移除旧 `RESOURCE_PATH`/`name_convert` 导入期创建副作用；数据库改为 `db/dna.sqlite3`；保留别名业务能力但改由 layout 提供路径。
 - 验收：导入模块不创建旧目录；数据库初始化只写新路径；别名调用方仍可工作。
-- 实际变更：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际变更：移除两个 `RESOURCE_PATH` 模块的导入期目录创建；将兼容模块改为无副作用路径投影；新增 `RuntimeDataLayout` 的 `state/aliases/{char,weapon,id2name}.json` 契约；`name_convert` 改为按需创建并写入别名目录，bootstrap 统一绑定实际 layout；`AsyncDatabase.from_data_dir()` 改用 `db/dna.sqlite3` 并在数据库初始化阶段创建 `db/`；修正 bootstrap 在新数据库路径下对数据根、别名和现有状态路径的推导。
+- 验证证据：Red 阶段目标测试 `6 failed, 8 passed`；Green 阶段 `tests/test_runtime_data_layout.py tests/test_persistence.py tests/test_name_convert.py tests/test_config.py::test_build_runtime_propagates_all_settings` 为 `14 passed`；别名、资源、登录媒体、渲染相关测试 `32 passed`；`compileall src tests`、目标文件 Ruff、`git diff --check` 通过；LSP 对受影响源码无诊断，引用分析确认 `configure_alias_storage` 仅由 bootstrap 调用并保留测试覆盖。
+- 剩余风险：完整 pytest 为 `240 passed, 7 failed`；7 项均为本任务前已存在或与本任务无关的签到、命令前缀、登录页面、goal 工作区守卫和玩家详情断言失败，未修改其行为。全仓 Ruff 仍有 24 项既有违规；目标文件 Ruff 已通过。资源 repository/generation、动态缓存和 state 目录的最终归位留待 Task 4-6。
+- 下一步：执行 Checkpoint 1，集中复查 Task 1-3 的路径引用、启动顺序和回归证据。
 
 ## Checkpoint 1：集中检查路径切换
 

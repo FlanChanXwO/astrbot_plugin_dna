@@ -378,6 +378,13 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     assert account_service.max_bind_count == 7
     assert account_service.default_auto_sign_enabled is True
 
+    from src.infrastructure import RuntimeDataLayout
+
+    layout = RuntimeDataLayout(tmp_path)
+    admin_alias_service = runtime.services["admin_alias_service"]
+    assert admin_alias_service.custom_path == layout.char_alias_path
+    assert admin_alias_service.weapon_custom_path == layout.weapon_alias_path
+
     privacy_service = runtime.services["privacy_service"]
     assert privacy_service.allow_mention_query is False
 

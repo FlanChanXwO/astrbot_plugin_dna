@@ -11,6 +11,10 @@ STATE_DIR_NAME = "state"
 RESOURCES_DIR_NAME = "resources"
 CACHE_DIR_NAME = "cache"
 BACKUPS_DIR_NAME = "backups"
+ALIASES_DIR_NAME = "aliases"
+CHAR_ALIAS_FILE_NAME = "char.json"
+WEAPON_ALIAS_FILE_NAME = "weapon.json"
+ID2NAME_FILE_NAME = "id2name.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +53,30 @@ class RuntimeDataLayout:
         return self.data_dir / STATE_DIR_NAME
 
     @property
+    def aliases_dir(self) -> Path:
+        """角色和武器运行期别名目录。"""
+
+        return self.state_dir / ALIASES_DIR_NAME
+
+    @property
+    def char_alias_path(self) -> Path:
+        """角色别名运行期文件。"""
+
+        return self.aliases_dir / CHAR_ALIAS_FILE_NAME
+
+    @property
+    def weapon_alias_path(self) -> Path:
+        """武器别名运行期文件。"""
+
+        return self.aliases_dir / WEAPON_ALIAS_FILE_NAME
+
+    @property
+    def id2name_path(self) -> Path:
+        """角色和武器 ID 到名称的运行期索引文件。"""
+
+        return self.aliases_dir / ID2NAME_FILE_NAME
+
+    @property
     def resources_dir(self) -> Path:
         """公共资源仓库与 generation 目录。"""
 
@@ -68,11 +96,15 @@ class RuntimeDataLayout:
 
 
 __all__ = [
+    "ALIASES_DIR_NAME",
     "BACKUPS_DIR_NAME",
     "CACHE_DIR_NAME",
+    "CHAR_ALIAS_FILE_NAME",
     "DATABASE_DIR_NAME",
     "DATABASE_FILE_NAME",
+    "ID2NAME_FILE_NAME",
     "RESOURCES_DIR_NAME",
     "STATE_DIR_NAME",
+    "WEAPON_ALIAS_FILE_NAME",
     "RuntimeDataLayout",
 ]
