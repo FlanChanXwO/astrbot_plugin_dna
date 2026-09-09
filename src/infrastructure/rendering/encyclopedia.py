@@ -195,6 +195,7 @@ async def _draw_stamina_card_view(
             "foreground": image_data_uri(STAMINA_TEXT_PATH / "fg.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
             "footer_text": "DNA",
+            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "bar_background": image_data_uri(STAMINA_TEXT_PATH / "bar_bg2.png"),
