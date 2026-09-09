@@ -326,7 +326,7 @@
 - 验证证据：先运行 TDD Red，目标 suite 以 `33 passed, 4 failed` 证明缺口；实现后运行相同 focused suite 为 `37 passed, 1 warning`；覆盖 `ICON.png`、真实 `日常.png`、未登记 icon、无 snapshot completeness、Help 实际 key 和 `textures` 文档示例。`compileall -q`、定向 `ruff check`、`git diff --check` 和受影响 Python 文件 LSP diagnostics 均通过。
 - 剩余风险：完整 pytest 的既有宿主端口、ignored fixture、旧资源 checkout/T2I 环境失败仍留给后续统一复核；Help 的字体仍需 verified snapshot 或显式供给，bootstrap 只保证规格保留的 logo/小图标。最终发布包仍需 Task 16 按最终提交重新测量。
 
-## Task 16 — 最终发布包测量与证据收口 `[pending]`
+## Task 16 — 最终发布包测量与证据收口 `[completed]`
 
 **目标**：按真实市场提交方式生成最终插件包，记录体积、构成和阈值结论，确保没有完整大字体副本或私有文件。
 
@@ -334,10 +334,10 @@
 
 **验收**：包可复现；字节数/MiB 明确；`<=8 MiB` 或有理由的 `<=12 MiB`，且 `<16 MiB`；最大剩余文件列出并说明保留理由；静态路径与测试证据附在 task 记录。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：以插件提交 `71f7bef` 为输入，使用仓库现有可验证的最接近市场提交方式 `git archive --format=zip --prefix=astrbot_plugin_dnaby/ 71f7bef` 生成保守 source archive。仓库没有专用市场打包脚本或已确认的服务端排除规则，因此没有臆造过滤条件；归档只包含 `git ls-files`，不包含工作树缓存、`.git` 或 ignored 文件。
+- 验证证据：归档包含 543 个文件，压缩包 `3,326,076 bytes / 3.171993 MiB`，ZIP 成员压缩总量 `3,202,576 bytes / 3.054214 MiB`，未压缩总量 `6,064,222 bytes / 5.783293 MiB`，同时满足 `<=8 MiB`、`<=12 MiB` 和 `<16 MiB`。同一提交重复生成归档结果逐字节一致，SHA-256 为 `7ae9897ef99739b3aedd43af9f1a39d6960dcffe8aefbe9c53312c6457d6d943`。最大运行期保留文件为 `src/utils/texture2d/bg.jpg`（408,490 bytes）、`avatar_title_bg.png`（340,740 bytes）和 `bg2.jpg`（232,350 bytes），均属于 Task 11 保留的少量 bootstrap 装饰；`ICON.png`/`logo.png` 各 117,194 bytes 为品牌资源。其余较大的 `goal-*/tasks.md` 与测试 fixture 是保守 source archive 的开发记录/测试内容，不是运行期资源。归档无 `.env`、`.git`、`__pycache__`、`.venv`、已删除字体/大型纹理根或实际凭据内容；Task 15A 相关回归为 `58 passed, 1 warning`，并已有 compileall、ruff、LSP diagnostics 与静态路径审计证据。
+- 剩余风险：仓库没有可本地确认的官方市场后端过滤规则，实际市场端若排除开发文档/测试文件，最终包只会更小；本记录采用保守上界而非未经证实的市场过滤模型。资源仓库和 editor worktree 仍需按两仓库先行顺序交付，最终整体完成性留给 Task 17 终审。
+- 下一步建议：执行 Task 17，从规格完成定义逐项复核资源仓库、运行期 snapshot/降级、同步刷新、文档、测试、回滚和发布证据。
 
 ## Task 17 — Goal 终审与完成登记 `[pending]`
 
