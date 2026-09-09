@@ -35,7 +35,16 @@ from ..notices.target_service import (
     TargetMutationResult,
     TargetMutationStatus,
 )
-from .contracts import UNSET, AdminApiResponse, AdminError, AdminErrorCode
+from .contracts import (
+    UNSET,
+    AdminApiResponse,
+    AdminError,
+    AdminErrorCode,
+    AdminPage,
+    AdminPagination,
+    paginate_items,
+)
+from .membership import MembershipScanPage, MembershipScanResult
 
 TaskSnapshot = SchedulerTaskSnapshot
 
@@ -472,6 +481,46 @@ class AdminApiService:
             )
         )
 
+    async def list_targets_page(
+        self,
+        task_id: str | None,
+        pagination: AdminPagination,
+    ) -> AdminApiResponse[AdminPage[TaskTarget]]:
+        """按任务过滤后分页投递目标，并支持目标字段搜索。"""
+
+        if not isinstance(pagination, AdminPagination):
+            return _failure(AdminErrorCode.VALIDATION, "分页参数无效")
+        full_response = await self.list_targets(task_id)
+        if not full_response.ok:
+            return AdminApiResponse(
+                ok=False,
+                data=None,
+                error=full_response.error,
+                headers=dict(full_response.headers),
+            )
+        targets = full_response.data or ()
+        search = pagination.search.casefold()
+        matching_targets = tuple(
+            target
+            for target in targets
+            if not search
+            or any(
+                search in str(value or "").casefold()
+                for value in (
+                    target.id,
+                    target.subscription_type,
+                    target.unified_msg_origin,
+                    target.user_id,
+                    target.group_id,
+                    target.bot_id,
+                    target.user_type,
+                    target.uid,
+                    target.provenance,
+                )
+            )
+        )
+        return AdminApiResponse.success(paginate_items(matching_targets, pagination))
+
     async def _find_target(
         self,
         key: tuple[str, str, str],
@@ -638,8 +687,27 @@ class AdminApiService:
     async def membership_capability(self) -> AdminApiResponse[Any]:
         return await self._membership_action("capability_response")
 
-    async def scan_members(self, user_id: str) -> AdminApiResponse[Any]:
-        return await self._membership_action("scan_user", user_id)
+    async def scan_members(
+        self,
+        user_id: str,
+        pagination: AdminPagination | None = None,
+    ) -> AdminApiResponse[Any]:
+        result = await self._membership_action("scan_user", user_id)
+        if pagination is None or not result.data:
+            return result
+        if not isinstance(pagination, AdminPagination):
+            return _failure(AdminErrorCode.VALIDATION, "分页参数无效")
+        if not isinstance(result.data, MembershipScanResult):
+            return _failure(AdminErrorCode.INTERNAL, "成员服务返回结果无效")
+        page = MembershipScanPage.from_scan(result.data, pagination)
+        if result.ok:
+            return AdminApiResponse.success(page)
+        return AdminApiResponse(
+            ok=False,
+            data=page,
+            error=result.error,
+            headers=dict(result.headers),
+        )
 
     async def cleanup_member_group(
         self,
