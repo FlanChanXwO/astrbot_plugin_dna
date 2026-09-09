@@ -10,11 +10,14 @@
     <style>
       :root {
         color-scheme: dark;
-        --ink: #f4efe7;
-        --muted: #bab3ac;
-        --accent: #e8cfab;
-        --surface: #19191d;
-        --line: rgba(232, 207, 171, 0.22);
+        --ink: #edeae2;
+        --muted: #8c8982;
+        --accent: #c4a062;
+        --accent-light: #dfc48e;
+        --surface: #202020;
+        --input-bg: #272727;
+        --border-color: #383838;
+        --line: rgba(196, 160, 98, 0.22);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
         font-synthesis: none;
       }
@@ -27,7 +30,7 @@
         display: flex;
         flex-direction: column;
         color: var(--ink);
-        background: #141316;
+        background: #18181a;
         isolation: isolate;
       }
       button, input { font: inherit; }
@@ -96,10 +99,10 @@
         width: 408px;
         max-width: 100%;
         padding: 30px 32px 32px;
-        background: linear-gradient(145deg, rgba(37, 32, 33, 0.96), rgba(19, 20, 24, 0.97));
-        border: 1px solid var(--line);
-        border-radius: 20px;
-        box-shadow: 0 24px 72px rgba(0, 0, 0, 0.24);
+        background: #202020;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        box-shadow: 0 24px 72px rgba(0, 0, 0, 0.55);
       }
       .form-toolbar {
         min-height: 44px;
@@ -168,87 +171,99 @@
         display: flex;
         align-items: center;
         min-width: 0;
-        min-height: 52px;
-        border: 1px solid rgba(232, 207, 171, 0.26);
-        border-radius: 10px;
-        background: rgba(0, 0, 0, 0.18);
+        min-height: 50px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--input-bg);
         transition: border-color 180ms ease, background-color 180ms ease;
       }
       .input-shell:focus-within {
         border-color: var(--accent);
-        background: rgba(0, 0, 0, 0.28);
-        box-shadow: 0 0 0 3px rgba(232, 207, 171, 0.1);
+        background: #2c2c2c;
+        box-shadow: 0 0 0 2px rgba(196, 160, 98, 0.2);
       }
       .phone-prefix {
         flex: none;
         margin-left: 16px;
         padding-right: 14px;
-        border-right: 1px solid var(--line);
+        border-right: 1px solid #3e3e3e;
         font-size: 14px;
         color: var(--muted);
       }
       input {
         width: 100%;
         min-width: 0;
-        height: 50px;
+        height: 48px;
         padding: 12px 14px;
         color: var(--ink);
         background: transparent;
         border: 0;
-        border-radius: 10px;
+        border-radius: 8px;
         outline: none;
-        font-size: 16px;
+        font-size: 15px;
         line-height: 1.5;
       }
-      input::placeholder { color: #948e8a; opacity: 1; }
+      input::placeholder { color: #787878; opacity: 1; }
       input:-webkit-autofill {
         -webkit-text-fill-color: var(--ink);
-        box-shadow: 0 0 0 60px #282528 inset;
+        box-shadow: 0 0 0 60px #272727 inset;
         caret-color: var(--ink);
       }
       #verificationCode { letter-spacing: 0.16em; }
       #verificationCode::placeholder { letter-spacing: 0; }
+      .verification-divider {
+        display: block;
+        width: 1px;
+        height: 18px;
+        background: #424242;
+        flex: none;
+        margin: 0 4px;
+      }
       #getCodeBtn {
         flex: none;
-        min-width: 112px;
+        min-width: 90px;
         min-height: 44px;
-        margin-right: 3px;
-        padding: 10px 12px;
-        color: var(--accent);
+        padding: 0 14px;
+        color: var(--accent-light);
         background: transparent;
         border: 0;
-        border-radius: 7px;
+        border-radius: 0 8px 8px 0;
         font-size: 13px;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        transition: color 180ms ease;
       }
-      #getCodeBtn:hover:not(:disabled) { background: rgba(232, 207, 171, 0.08); }
-      #getCodeBtn:disabled { color: #827e7b; }
+      #getCodeBtn:hover:not(:disabled) { color: #ffffff; }
+      #getCodeBtn:disabled { color: #787878; }
       #loginBtn {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 12px;
         width: 100%;
-        min-height: 52px;
-        margin-top: 28px;
+        min-height: 50px;
+        margin-top: 26px;
         padding: 13px 18px;
-        color: #26201b;
-        background: var(--accent);
-        border: 1px solid transparent;
-        border-radius: 10px;
+        color: #17150f;
+        background: linear-gradient(135deg, var(--accent-light), var(--accent));
+        border: 0;
+        border-radius: 8px;
         font-size: 15px;
         font-weight: 650;
         letter-spacing: 0.12em;
-        transition: background-color 180ms ease, color 180ms ease;
+        box-shadow: 0 8px 20px rgba(196, 160, 98, 0.25);
+        transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
       }
       #loginBtn svg { width: 18px; height: 18px; }
-      #loginBtn:hover:not(:disabled) { background: #f4e0c4; }
-      #loginBtn:active:not(:disabled) { background: #d6b88f; }
+      #loginBtn:hover:not(:disabled) { background: #f4e0c4; transform: translateY(-1px); }
+      #loginBtn:active:not(:disabled) { background: var(--accent); transform: translateY(0); }
       #loginBtn:disabled {
-        color: #aaa097;
-        background: #433c36;
-        border-color: rgba(232, 207, 171, 0.09);
+        color: #787878;
+        background: #373737;
+        box-shadow: none;
+        border: 0;
+        cursor: not-allowed;
       }
       .form-status {
         margin: 16px 0 0;
@@ -295,7 +310,7 @@
       @media (max-width: 360px) {
         .form-panel { padding-inline: 20px; }
         h1 { font-size: 23px; }
-        #getCodeBtn { min-width: 104px; padding-inline: 8px; }
+        #getCodeBtn { min-width: 80px; padding-inline: 8px; }
       }
       @media (max-height: 520px) and (min-width: 721px) {
         .site-header { padding-top: max(20px, env(safe-area-inset-top)); }
@@ -357,6 +372,7 @@
             <div class="input-shell verification-group">
               <input type="text" id="verificationCode" name="verificationCode" required pattern="[0-9]{4}" maxlength="4"
                 autocomplete="one-time-code" inputmode="numeric" placeholder="四位验证码" />
+              <span class="verification-divider" aria-hidden="true"></span>
               <button type="button" id="getCodeBtn" disabled>获取验证码</button>
             </div>
           </div>
