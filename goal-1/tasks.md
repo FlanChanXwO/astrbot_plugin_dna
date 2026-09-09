@@ -34,12 +34,12 @@
 
 ## Checkpoint 1：集中检查路径切换
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：复查 Task 1-3 的 diff、引用和启动顺序；运行路径、持久化和别名相关测试。
-- 验证证据：
-- 发现问题与修复：
-- 剩余风险：
-- 下一步：
+- 验证证据：复查 `1ab4515..HEAD` 共 3 个 task commit，`git diff --check` 通过；LSP 引用确认 `AsyncDatabase.from_data_dir()` 调用点为 bootstrap、live 脚本和持久化测试，`RuntimeDataLayout` 已接入 bootstrap、数据库和别名模块；启动顺序保持为解析 layout、只读 `LegacyLayoutDetector.ensure_compatible()`、再创建数据库；路径、legacy、持久化、配置、别名和 Dashboard 测试共 `62 passed`；受影响源码 LSP 诊断为空。
+- 发现问题与修复：未发现 Task 1-3 范围内的新问题，未扩大修改范围。确认 `resource_generations`、顶层 `rendered`/`other`、旧状态文件和动态缓存引用仍属于后续 Task 4-6 的待迁移项；当前未将其误标为已完成。
+- 剩余风险：Task 4-6 尚未统一资源 repository/generation、缓存、state 和备份路径；全量 pytest 与全仓 Ruff 的既有失败已记录在 Task 3，不影响本 checkpoint 的路径/持久化/别名证据。
+- 下一步：执行 Task 4，切换公共资源 repository 与 generation 路径，同时保持 generation 校验、原子发布和 lease 边界。
 
 ## Task 4：切换公共资源 repository 与 generation 路径
 
