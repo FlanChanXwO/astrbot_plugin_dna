@@ -339,13 +339,28 @@
 - 剩余风险：仓库没有可本地确认的官方市场后端过滤规则，实际市场端若排除开发文档/测试文件，最终包只会更小；本记录采用保守上界而非未经证实的市场过滤模型。资源仓库和 editor worktree 仍需按两仓库先行顺序交付，最终整体完成性留给 Task 17 终审。
 - 下一步建议：执行 Task 17，从规格完成定义逐项复核资源仓库、运行期 snapshot/降级、同步刷新、文档、测试、回滚和发布证据。
 
-## Task 17 — Goal 终审与完成登记 `[pending]`
+## Task 17 — Goal 终审与完成登记 `[completed]`
 
 **类型**：终审。
 
 **检查**：从 C 端体验、代码质量、资源安全、manifest/generation、缓存刷新、无/有 snapshot、错误处理、测试覆盖、构建产物、文档和回滚角度进行最大范围复查。所有已知高风险问题必须修复或明确阻塞；确认 tasks.md 所有 task 已完成/阻塞并填写证据后，登记 goal 完成。
 
-- 实际检查：待填。
-- 验证证据：待填。
-- 阻塞/低风险事项：待填。
-- 最终报告要点：待填。
+- 实际检查：
+  - 逐项对照 2026-09-08 resource slimming spec 的完成定义：字体/大型纹理已外置，插件侧只保留代码、配置、模板、i18n、logo/help 小资源和显式 bootstrap；无 verified snapshot 时仍可启动并走 placeholder/简化渲染，完整 snapshot 优先；同步后的 generation/listener、请求级 lease、缓存失效和无需重启刷新已由 Task 07–10、14–15A 覆盖；README 已说明首次同步是推荐而非强制，并记录不完整资源语义和回滚方式。
+  - 三个交付工作区均干净：插件 `51a831c3bbdbb3d58b7061e5446ed1c5f1c3dd54`，资源仓库 `2e31eb3b7bb112e2a105d89cbf55fccc52dbd1f0`，编辑器 `66a3b85305805e97e0c0f0b3419f622616f9e371`；资源仓库 `resource_manifest.json` 为 `redeem-code-v1-resource-slimming-2026-09-08`，13 个 required dirs 和 127 个 file hashes 均存在且 SHA-256 全匹配。
+  - 在真实资源工作区上直接实例化 `RuntimeAssetResolver`，按 `_SNAPSHOT_ASSET_PATHS` 的固定及 wildcard 映射逐项选取非隐藏实际文件，28 个 snapshot key 均返回普通文件、`source=verified_snapshot`、`status=provided`、`incomplete=False`；无 snapshot/缺失资源的 bootstrap、missing、incomplete 和可见 fallback 证据由 Task 11、14、15A 的测试保留。
+  - 静态安全复查确认无 `gsuid_core`/`gsucore` import、无 tracked retired resource roots、无新增依赖、无凭据/缓存工作树文件；Help/logo bootstrap 仍是显式 allowlist，不递归发现本地资源。README 和 `docs/usage/resources.md` 同步描述资源清单、首次同步、无 snapshot 降级、成功同步后无需重启及资源发布顺序。
+  - 以本地准确的 AstrBot `v4.26.5` 源快照执行官方插件 loader lifecycle：成功完成 import、initialize、63 commands/handlers、17 tools、32 web APIs、4 background tasks、terminate/unbind/cleanup。Task 16 的保守 source archive 仍为 543 个文件、`3,326,076 bytes / 3.171993 MiB`，低于 `8 MiB`、`12 MiB` 和 `16 MiB` 三个阈值，且归档可复现。
+  - 回滚路径复查：资源仓库先合并/发布、插件后合并/发布的顺序已写入 task 记录和文档；未合并前保留三个 worktree/commit，可按提交顺序回退，不把资源仓库内容复制回插件包。
+- 验证证据：
+  - 资源清单与真实文件校验：`required_dirs=13`、`file_hashes=127`，缺失目录/文件和 hash mismatch 均为 0；真实 snapshot resolver smoke 输出 `verified_snapshot_keys=28`。
+  - 目标回归（显式指向当前资源 worktree）：`tests/test_goal5_task11_cleanup.py`、`test_goal5_asset_resolver.py`、`test_goal5_renderer_resolver_red.py`、`test_goal5_docs_audit.py`、`test_goal5_ci_contracts.py`、`test_goal3_resource_contract.py`、`test_goal3_resource_generations.py`、`test_goal3_resource_acceleration.py`、`test_goal5_loader_lifecycle.py` 共 `103 passed, 1 warning`。
+  - 跨仓库 Task 19 在显式资源仓库和编辑器 worktree 下通过：`1 passed, 1 warning`；编辑器 worktree 没有提交 `node_modules`，仅临时复用主编辑器 checkout 的既有 vitest 工具链，测试后已删除 symlink，未安装或引入依赖。
+  - `compileall`、变更文件定向 `ruff check`、`git diff --check` 和受影响文件 LSP diagnostics 通过；完整 `pytest` 实际为 `1036 passed, 1 skipped, 10 failed, 7 warnings, 3 subtests passed`，失败均已分类为既有端口占用/宿主环境、默认旧资源/编辑器 checkout、ignored fixture 缺失，或旧的 cache/help 断言，不属于本次资源瘦身回归。完整 `ruff check` 的 12 个违规也均位于本次未修改的既有源码/测试文件，定向 lint 已通过。
+- 阻塞/低风险事项：
+  - 资源仓库、编辑器和插件分支尚未 push/开 PR/合并；这是交付协调事项，不是本地实现阻塞。发布时必须先交付资源仓库，再交付插件，避免插件先发布后无法取得 verified snapshot。
+  - 编辑器 worktree 不包含 `node_modules`，遵守不新增依赖约束；跨仓库验证依赖现有主 checkout 工具链的临时 symlink，symlink 已清理。
+  - 完整 pytest/ruff 的上述环境性和历史基线失败保留原状，未通过修改无关测试、全仓格式化或新增隐式兜底来“修绿”；不影响 focused resource contract、loader lifecycle 和包体积验收。
+- 最终报告要点：
+  - Goal 5 的 17 个 task 全部完成；资源大文件外置、manifest/hash/generation 合同、renderer fallback/incomplete、无/有 snapshot、同步后无需重启、README、回滚顺序和发布包阈值均有实现与验证证据。
+  - 本轮未新增第三方依赖、CI、自动同步或拒绝启动 gate；保留资源仓库先行的发布前提，并将基线环境失败和本地分支未合并状态明确记录。
