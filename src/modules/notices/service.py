@@ -40,6 +40,7 @@ from .mh_cache import (
     MhSnapshotEnvelope,
     snapshot_fingerprint,
 )
+from .refresh_text import format_refresh_text
 from .target_service import (
     AnnouncementTargetService,
     TargetMutationStatus,
@@ -751,16 +752,13 @@ class NoticesService:
             if not matched_keys_ordered:
                 continue
 
-            lines = [messages.mh_refresh_title()]
-            for key in matched_keys_ordered:
-                type_name, _, mh_name = key.partition(":")
-                lines.append(messages.mh_list_item(type_name, mh_name or key))
+            refresh_text = format_refresh_text(matched_keys_ordered)
 
             at_target: str | list[str] | None = None
             if at_users:
                 at_target = at_users if len(at_users) > 1 else at_users[0]
 
-            if await self._invoke_push(origin, "\n".join(lines), at_user_id=at_target):
+            if await self._invoke_push(origin, refresh_text, at_user_id=at_target):
                 pushed += 1
 
         # 2. 全量文本密函订阅 (MH_TEXT_SUBSCRIBE)
