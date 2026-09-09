@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from ...utils.api.model import Mode, WeaponDetail
 from ...utils.image import get_mod_img, get_weapon_img
-from .assets import image_data_uri, pil_image_data_uri
+from .assets import pil_image_data_uri
 from .legacy_assets import DETAIL_TEXT_PATH
+from .legacy_assets import legacy_image_data_uri as image_data_uri
 
 TEXT_PATH = DETAIL_TEXT_PATH
 
