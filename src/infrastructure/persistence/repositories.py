@@ -102,6 +102,33 @@ class AccountBindingRepository:
         return list((await session.scalars(statement)).all())
 
     @staticmethod
+    async def list_auto_sign_candidates(
+        session: AsyncSession,
+    ) -> list[AccountBinding]:
+        """返回具备可用 App 凭据且开启自动签到的绑定。
+
+        只按非敏感状态筛选，不读取或返回任何凭据值。缺失凭据、已标记无效、
+        token/device code 为空的历史绑定不会进入计划任务，也不会被计为群签到失败。
+        """
+
+        statement = (
+            select(AccountBinding)
+            .join(
+                CredentialRecord,
+                (CredentialRecord.user_id == AccountBinding.user_id)
+                & (CredentialRecord.uid == AccountBinding.uid),
+            )
+            .where(
+                AccountBinding.auto_sign_enabled.is_(True),
+                CredentialRecord.app_status != "无效",
+                CredentialRecord.app_cookie != "",
+                CredentialRecord.app_device_code != "",
+            )
+            .order_by(AccountBinding.id)
+        )
+        return list((await session.scalars(statement)).all())
+
+    @staticmethod
     async def current(
         session: AsyncSession,
         *,
@@ -290,6 +317,25 @@ class CredentialRepository:
         record.app_status = status
         await session.flush()
         return record
+
+    @staticmethod
+    async def mark_app_invalid(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        uid: str,
+    ) -> bool:
+        """把已被上游明确判定失效的 App 凭据持久化为无效状态。"""
+
+        result = await session.execute(
+            update(CredentialRecord)
+            .where(
+                CredentialRecord.user_id == user_id,
+                CredentialRecord.uid == uid,
+            )
+            .values(app_status="无效")
+        )
+        return bool(getattr(result, "rowcount", 0) or 0)
 
     @staticmethod
     async def delete(

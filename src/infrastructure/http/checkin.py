@@ -11,7 +11,7 @@ import asyncio
 from typing import Any
 
 import aiohttp
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ...entry.event import EventActor
 from ...infrastructure.persistence import AsyncDatabase, CredentialRepository
@@ -29,6 +29,7 @@ from ...modules.checkin.contracts import (
 )
 from ...modules.player.contracts import RoleHeader
 from ...utils.constants.sign_bbs_mark import BBSMarkName
+from .app import AppTransportError, AppTransportFailureKind
 from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
 
@@ -42,6 +43,39 @@ def _error_kind(response: Any) -> CheckinFailureKind:
     if isinstance(code, int) and code >= 400:
         return CheckinFailureKind.STATUS
     return CheckinFailureKind.SERVER
+
+
+def _app_error(
+    error: AppTransportError,
+    *,
+    resource: str,
+) -> CheckinTransportError:
+    """Map the shared App transport failure into the check-in error contract.
+
+    Args:
+        error: Failure raised by the shared App REST transport.
+        resource: Safe check-in resource name used for diagnostics.
+
+    Returns:
+        A redacted check-in transport error with the most specific failure kind.
+    """
+
+    if error.status_code in (401, 403):
+        kind = CheckinFailureKind.CREDENTIAL
+    elif error.kind is AppTransportFailureKind.NETWORK:
+        kind = CheckinFailureKind.NETWORK
+    elif error.kind is AppTransportFailureKind.STATUS:
+        kind = CheckinFailureKind.STATUS
+    else:
+        kind = CheckinFailureKind.SERVER
+    return CheckinTransportError(
+        kind,
+        resource=resource,
+        detail=(
+            f"app transport kind={error.kind.value} "
+            f"status={error.status_code!r}"
+        ),
+    )
 
 
 def _response_data(response: Any, *, resource: str) -> Any:
@@ -96,7 +130,7 @@ class _SignCalendarRoleInfoProjection(_CheckinProjection):
 class _SignCalendarProjection(_CheckinProjection):
     todaySignin: bool | None = None
     userGoldNum: int | None = None
-    dayAward: list[_SignCalendarAwardProjection]
+    dayAward: list[_SignCalendarAwardProjection] = Field(default_factory=list)
     signinTime: int | None = None
     period: _SignCalendarPeriodProjection
     roleInfo: object | None = None
@@ -141,7 +175,8 @@ class DnaApiCheckinTransport:
         if (
             record is None
             or record.app_status == "无效"
-            or not record.has_app_credentials
+            or not record.app_cookie.strip()
+            or not record.app_device_code.strip()
         ):
             raise CheckinTransportError(
                 CheckinFailureKind.CREDENTIAL,
@@ -254,6 +289,8 @@ class DnaApiCheckinTransport:
             return self._sign_calendar(_response_data(response, resource="签到日历"))
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="签到日历") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="签到日历"
@@ -269,6 +306,12 @@ class DnaApiCheckinTransport:
             return SignStatus.DONE
         if getattr(response, "code", None) == 711:
             return SignStatus.SKIP
+        if is_credential_failure(response):
+            raise CheckinTransportError(
+                CheckinFailureKind.CREDENTIAL,
+                resource="游戏签到",
+                detail=f"api response code={getattr(response, 'code', None)!r}",
+            )
         return SignStatus.FAILED
 
     @staticmethod
@@ -278,6 +321,12 @@ class DnaApiCheckinTransport:
             or getattr(response, "code", None) == 10000
         ):
             return SignStatus.DONE
+        if is_credential_failure(response):
+            raise CheckinTransportError(
+                CheckinFailureKind.CREDENTIAL,
+                resource="社区签到",
+                detail=f"api response code={getattr(response, 'code', None)!r}",
+            )
         return SignStatus.FAILED
 
     @gated_transport_method
@@ -299,6 +348,8 @@ class DnaApiCheckinTransport:
             )
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="游戏签到") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="游戏签到"
@@ -326,6 +377,8 @@ class DnaApiCheckinTransport:
             return self._task_process(_response_data(response, resource="社区任务"))
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="社区任务") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="社区任务"
@@ -351,6 +404,8 @@ class DnaApiCheckinTransport:
             )
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="社区签到") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="社区签到"
@@ -385,6 +440,8 @@ class DnaApiCheckinTransport:
             return int(data.get("totalSignInDay", 0) or 0)
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="社区签到天数") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="社区签到天数"
@@ -414,6 +471,8 @@ class DnaApiCheckinTransport:
             )
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="角色列表信息") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="角色列表信息"
@@ -449,6 +508,8 @@ class DnaApiCheckinTransport:
             )
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="社区帖子") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="社区帖子"
@@ -477,6 +538,8 @@ class DnaApiCheckinTransport:
             return bool(getattr(response, "is_success", False))
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="社区帖子") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="社区帖子"
@@ -505,6 +568,8 @@ class DnaApiCheckinTransport:
             return bool(getattr(response, "is_success", False))
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="社区点赞") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="社区点赞"
@@ -531,6 +596,8 @@ class DnaApiCheckinTransport:
             return bool(getattr(response, "is_success", False))
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="社区分享") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="社区分享"
@@ -561,6 +628,8 @@ class DnaApiCheckinTransport:
             return bool(getattr(response, "is_success", False))
         except CheckinTransportError:
             raise
+        except AppTransportError as error:
+            raise _app_error(error, resource="社区回复") from None
         except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
             raise CheckinTransportError(
                 CheckinFailureKind.NETWORK, resource="社区回复"
