@@ -188,6 +188,7 @@ class GroupSignReport:
     failed: int
     summary_text: str
     detail_text: str = ""
+    mention_details: tuple[tuple[str, str], ...] = ()
     image_bytes: bytes | None = None
 
 

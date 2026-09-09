@@ -376,10 +376,15 @@ def build_runtime(
         chain: list[Any] = []
         if payload.image_bytes is not None:
             chain.append(AstrImage.fromBytes(payload.image_bytes))
-            if payload.detail_text:
-                chain.append(Plain(payload.detail_text))
         else:
             chain.append(Plain(payload.text))
+        if payload.detail_text:
+            chain.append(Plain(f"\n{payload.detail_text}"))
+        for user_id, detail in payload.mention_details:
+            chain.append(Plain("\n"))
+            chain.append(At(qq=str(user_id)))
+            if detail:
+                chain.append(Plain(detail))
         msg = MessageChain(chain=chain)
         try:
             res = context.send_message(origin, msg)
