@@ -93,7 +93,7 @@
   配置的每小时分钟触发并在当前小时快照有效时只推送一次；详情、
   渲染或目标发送失败时保留待重试目标，不发送标题 fallback。推送经注入闭包绑定
   `Context.send_message`，只有发送成功才落成功状态；文本/图片载荷分别映射为 Plain/Image 组件。
-- 资源状态：`src/modules/operations/` 只提供公共资源状态/下载；`panel_custom/` 是已移除
+- 资源状态与解析：`src/modules/operations/` 只提供公共资源状态/下载；`panel_custom/` 是已移除
   面板管理能力后的遗留目录，插件不读取、统计或删除其中内容。别名维护由
   `src/modules/admin/aliases.py` 提供角色和武器两类独立 custom 文件。
   资源更新经 `ResourceUpdateService` 调用 `ResourceSnapshotCoordinator`：Git cache 只执行
@@ -101,7 +101,10 @@
   `merge --ff-only FETCH_HEAD`，计算完整文件树 SHA-256，最后原子发布 `resource_generations/<sha>/`
   和带摘要的当前指针。候选校验包含 manifest 声明的文件哈希、路径安全和 PIL 图片解码。
   `下载全部资源` 把 Git/候选错误映射为可见错误，不自动覆盖本地修改；旧快照在失败时继续服务。
-  启动预热与该命令共享 single-flight，同步终止前会排空后台任务。
+  启动预热与该命令共享 single-flight，同步终止前会排空后台任务。`RuntimeAssetResolver` 对
+  renderer 暴露固定的 `verified_snapshot -> bootstrap allowlist -> placeholder/none` 优先级，
+  不扫描本地目录、不读取 candidate/Git checkout、不下载资源；解析结果带 `source/status/incomplete`
+  元数据，placeholder 不进入完整卡片缓存。
 - 更新历史不注册聊天命令，长期记录统一放在仓库根目录 `CHANGELOG.md`。
 - 资源：`src/infrastructure/resources/` 只通过参数列表调用 Git，规范 origin 固定为公共
   GitHub 资源仓库；首次 `main` 浅克隆，后续只执行 `fetch --no-tags origin main`，可用临时
@@ -111,11 +114,14 @@
   别名和资源状态视图。每次读取持有 generation lease；旧 generation 在最后一个 lease 释放后
   回收，重启只清理孤立 generation，不触碰 `panel_custom/`。生成 PNG 及 generation 内直出素材
   的安全副本仅在受控 `rendered/` 根登记给 AstrBot 事件期清理，并由 `RenderedFileStore` 保护
-  活动发送文件、清理过期孤儿。
+  活动发送文件、清理过期孤儿。generation 发布事件完成后无需重启，后续请求即可使用新快照；
+  已持有 lease 的活动渲染继续使用旧 generation，避免半途切换资源。
 - 图片下载：`src/utils/image_utils.py` 的 `ImageFetcher` 是 legacy 图片调用方共用的 HTTP/缓存
   边界；连接/超时、429、5xx 的重试、`Retry-After`、PIL 校验、同目录临时文件和原子替换均在
   此处完成。`download()` 只保留参数兼容入口；失败不写透明假图，已有文件复用前必须解码校验。
-- 资源分层：公共基础资源只来自 `resources/` 与已验证的 `resource_generations/`；legacy
+- 资源分层：完整字体、角色/武器/面板/日历/攻略等大型公共素材只来自已验证的
+  `resource_generations/`；插件源码仅保留明确登记的 bootstrap 资源（帮助数据/必要小图标、周报
+  小图标、`src/utils/texture2d/` 和数字贴图），而不是完整资源树。legacy
   `resource/`、`other/ann_card/` 等是插件数据目录内的运行期图片缓存/补充资源，
   `panel_custom/` 单独保存用户上传内容。账号私有资源不得进入公共资源仓库或 manifest。
 - 三仓边界：公共资源仓库只承载 manifest、素材、兑换码和 schema；GPL-3.0 编辑器仓库独立

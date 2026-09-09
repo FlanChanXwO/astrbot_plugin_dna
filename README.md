@@ -33,6 +33,13 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 3. 启动或重载 AstrBot，在 Dashboard 的插件列表中确认 `astrbot_plugin_dnaby` 已启用。
 4. 打开插件配置页，按需要设置登录、命令前缀和通知选项，然后发送 `kk帮助` 检查命令是否生效。
 
+> [!IMPORTANT]
+> 首次安装后，建议（但不是强制）让管理员先发送 `kk资源状态`，再发送 `kk下载全部资源`
+> 完成公共资源首次同步。没有已验证资源快照时插件仍可启动，但依赖公共素材的图片结果可能使用
+> `placeholder`/`fallback`，并标记为 `incomplete`，不要把这种结果当作完整卡片。同步成功后，后续
+> 请求无需重启插件即可使用新的资源 generation；正在生成的响应会继续使用开始读取时的旧 generation。
+> 资源仓库、快照校验和回滚边界见 [`docs/usage/resources.md`](docs/usage/resources.md)。
+
 当前文档以手动安装为准；如后续提供 AstrBot Marketplace 版本，请以仓库页面和市场页面显示的实际状态为准。
 
 ## 配置
@@ -122,7 +129,7 @@ DNAUID（二重螺旋）是面向 [AstrBot](https://github.com/AstrBotDevs/AstrB
 | --- | --- | --- |
 | `agent_tools.enabled` | `false` | 是否注册结构化查询工具；默认关闭，开启后需重载插件。 |
 
-首次使用图鉴、攻略或图片卡片时，公共资源可能尚未同步。管理员可以先发送 `kk资源状态` 查看状态，再发送 `kk下载全部资源` 触发同步；同步失败时请根据返回信息和 AstrBot 日志排查网络或资源配置。
+公共资源命令、快照状态、缺失资源处理和备份/回滚步骤见 [`docs/usage/resources.md`](docs/usage/resources.md)。
 
 ## 命令
 

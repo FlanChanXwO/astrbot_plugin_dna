@@ -150,6 +150,9 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 
 禁止插件直接消费资源投稿分支、镜像-only ref 或未进入 `main` 的 commit。资源仓库不放编辑器
 源码、依赖、构建产物、凭据或数据库；第三方素材也没有统一许可，发布前必须核对各自上游条款。
+资源仓库先行：资源仓库的 `main` 提交和 `resource_version` 是插件发布前置证据；插件自身没有把未验证候选
+自动发布成运行期资源的 CI 或后台同步承诺。启动预热只复用同一套校验边界，管理员仍应通过
+`资源状态`/`下载全部资源` 明确观察同步结果。
 
 ## 资源升级与迁移
 
@@ -160,6 +163,11 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 快照；快照保存完整文件树 SHA-256，`resource_generations/current.json` 同时保存 commit 和摘要。
 启动预热不阻塞插件初始化，管理员下载会等待同一同步任务；终止时会排空该任务。没有摘要的旧
 指针会在校验后补写；启动或下载过程不会删除/迁移面板图、数据库、订阅、公告或客户端更新状态。
+
+插件源码侧只保留 bootstrap allowlist；完整字体和大型纹理必须来自 verified snapshot。没有快照时
+插件可启动，但图片 renderer 可能返回 `placeholder`/`fallback`，并在 artifact 资源记录中标记
+`incomplete`；不要把该结果写成完整卡片缓存。新的 generation 发布后，generation listener 会让
+后续请求使用新资源，无需重启 AstrBot；活动渲染仍由 lease 保护，完成后旧 generation 才回收。
 
 ### 共享下载器旧缓存的一次性清理
 
@@ -186,7 +194,9 @@ O24 的只读结果（2026-08-30）为：生产插件 `cb9996dbb36ccaeaca483035c
 
 对错误资源在资源仓库创建 `git revert` PR，等待 Check 通过后合并；不 force-push、不删除坏
 commit、不把镜像内容直接提升为发布源。插件候选校验失败时继续提供上一份已验证 generation，
-成功回滚后再执行 admin `下载全部资源`。
+成功回滚后再执行 admin `下载全部资源`；如果插件代码也需要回滚，先固定兼容的资源 commit，
+再回滚插件 revision，避免代码与资源 manifest 跨版本不匹配。不要手工删除 current 指针或整个
+`resource_generations/` 目录来制造回滚成功。
 
 ### 编辑器 Worker
 

@@ -2,6 +2,8 @@
 
 角色、武器、图鉴、攻略、日历、字体和兑换码等资料由公共资源仓库提供。运行期资源统一位于
 AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` 下，不写入插件源码目录。
+插件源码只保留少量明确登记的 bootstrap 资源；完整字体、大型纹理和资料图片不应因为本地
+`resources/` Git 缓存存在就被直接使用，必须先进入已验证的资源快照。
 
 公共资源仓库：<https://github.com/FlanChanXwO/astrbot_plugin_dna_resources>
 
@@ -17,6 +19,23 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 
 资源快照和缓存都位于插件数据目录。检测到资源根目录、快照、指针或图片缓存是符号链接时，
 插件会停止本次读写，避免路径越出数据目录。
+
+## 资源边界与解析顺序
+
+运行期 renderer 只接收逻辑资源 key，不自行判断资源来自插件目录还是资源仓库。解析顺序固定为：
+
+1. **verified snapshot**：`resource_generations/<commit-sha>/` 中通过 manifest、路径安全、文件
+   SHA-256、字体文件头和图片解码校验的资源；`resource_generations/current.json` 只指向这类快照。
+2. **bootstrap**：插件内明确登记的少量基础资源，例如帮助数据/必要小图标、周报小图标、
+   `src/utils/texture2d/` 的装饰素材和 `texture.common.number.0` 至 `texture.common.number.10`。
+   bootstrap 不等于完整资料库，未登记的本地文件不会被递归发现或作为隐式 fallback。
+3. **placeholder/none**：没有可验证资源时返回可见的简化结果或缺失状态，并在渲染结果中保留
+   `incomplete` 标记。`placeholder` 不能写入完整卡片缓存，避免缺失资源被误当作成功快照。
+
+没有 verified snapshot 时，插件仍应完成初始化；帮助和不依赖公共素材的文字命令可以继续使用，
+依赖字体、头像、面板、日历、攻略或公告装饰的图片命令按自身 renderer 的语义降级。同步完成后，
+新的请求会使用新 generation，正在进行的渲染继续持有开始读取时的 generation lease，因此无需重启 AstrBot
+或插件来刷新资源。
 
 资源仓库根目录需要提供 `resource_manifest.json`。manifest 至少声明格式版本、资源版本和完整
 运行期目录，例如：
@@ -37,9 +56,9 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 
 ## 资源内容
 
-- `fonts/`：玩家和资料图片使用的字体。
-- `images/`：角色头像、武器、技能、魔之楔和立绘等图片。
-- `panel/`：角色详情使用的面板资源。
+- `fonts/`：玩家和资料图片使用的完整字体，来自 verified snapshot。
+- `images/`：角色头像、武器、技能、魔之楔和立绘等图片，来自 verified snapshot。
+- `panel/`：角色详情使用的面板资源，来自 verified snapshot。
 - `alias/`：角色和武器的默认别名。
 - `wiki/role/`、`wiki/weapon/`、`wiki/spirit/`：图鉴图片。
 - `guide/`：角色攻略图片。
@@ -47,8 +66,20 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 - `data/redeem_codes.json`：兑换码清单，命令只展示当前有效条目。
 
 资源根目录尚未准备好时，插件仍可以启动；需要图片的命令会返回 `placeholder` 或 `fallback`
-状态，图鉴和攻略命令会提示资源未找到。资源根目录存在但 manifest 不完整时，会明确报告
-同步错误，便于管理员修复资源。
+状态，图鉴和攻略命令会提示资源未找到，并保留 `incomplete` 结果标记。资源根目录存在但 manifest
+不完整、文件摘要不匹配或图片/字体校验失败时，会明确报告同步错误，便于管理员修复资源；插件不会
+把 candidate 或未校验的 Git checkout 当作运行期资源。
+
+## 首次安装与首次同步
+
+首次安装后，建议（但不是强制）管理员依次执行 `资源状态` 和 `下载全部资源`。首次同步的目标是
+把公共资源仓库 `main` 上的一个完整提交转成 verified snapshot，而不是只把 Git 工作树放在
+`resources/` 目录。同步完成后可再次执行 `资源状态`，确认 current generation、`resource_version`
+和校验摘要已经更新。
+
+首次同步不是插件安装的硬性前置条件，也不是对真实账号或生产数据的操作；网络不可用时可先使用
+bootstrap 和降级结果，修复网络后再同步。插件启动预热只会准备/校验受控资源，不会绕过 manifest
+或自动接受未验证的候选版本。
 
 ## 同步资源
 
@@ -57,9 +88,12 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 - `资源状态`：查看资源仓库、manifest、当前 generation 和最近一次同步状态。
 - `下载全部资源`：从规范仓库的 `main` 分支获取候选版本，完成校验后再发布新的资源快照。
 
-同步时会检查仓库来源、分支、目录布局、文件摘要、图片是否可解码以及资源索引。Git 不可用、
+同步时会检查仓库来源、分支、目录布局、文件摘要、字体文件头、图片是否可解码以及资源索引。Git 不可用、
 网络或 HTTP 状态异常、仓库状态不干净、候选版本不完整或校验失败时，命令会返回明确错误，并
 保留原来的资源快照。同步不会自动改走未校验的压缩包或其他来源。
+
+资源仓库先行：必须先把变更合并到规范 `main`，并通过资源契约检查；插件发布或使用新素材前应记录该
+资源 commit SHA 与 `resource_version`。插件不消费投稿分支、镜像-only ref 或编辑器工作树。
 
 默认 `resources.github_acceleration` 为 `off`，表示直连公共仓库；也可以选择 `edgeone`、`hk`、
 `gh_proxy`、`dpik` 或 `custom`。使用 `custom` 时，只填写不含凭据、查询参数和片段的 HTTP(S)
@@ -73,6 +107,10 @@ AstrBot 的插件数据目录 `StarTools.get_data_dir("astrbot_plugin_dnaby")` �
 资源更新成功后，新请求使用新的 generation；正在生成的图片会继续使用开始读取时的资源版本，
 旧 generation 会在没有活动读取后回收。重启时只恢复 current 指针指向的已校验快照，并清理资源
 同步产生的临时文件。
+
+如果新资源导致视觉或解析回归，先在资源仓库对错误提交创建 `git revert` PR，等待契约检查通过
+后合并 `main`，再执行 `下载全部资源`。候选校验失败时插件继续提供上一份 verified snapshot；
+不要手工替换 current 指针、把镜像内容直接提升为发布源，或通过删除整个资源目录来“回滚”。
 
 兑换码从 `data/redeem_codes.json` 读取，只有当前有效条目会由 `兑换码` 命令展示。玩家数据、玩家卡片、
 公告列表/详情/源图和密函快照等 `CacheManager` 内容缓存共用 `cache.ttl_hours`：`-1` 表示永久

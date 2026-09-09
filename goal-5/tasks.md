@@ -269,7 +269,7 @@
 - 新增修复 task：无。Task 11 变更没有引入资源路径、包体积或官方加载回归；跨仓 editor contract 失败留作资源仓库/editor 分支先行交付顺序的风险记录，不在本插件 task 内安装新依赖或修改其他仓库。
 - 剩余风险：仓库没有可在本地确认的官方市场后端过滤规则，3.140104 MiB 是包含开发文件的保守 source-archive 上界；最终仍需在 Task 16 按最终提交重新测量。完整 pytest 的 12 个非资源失败需要在宿主端口、ignored fixture、资源仓库/editor checkout 和既有测试基线恢复后复核；当前不应将其误报为本 task 全绿。资源仓库必须先于插件发布，editor worktree `codex/resource-texture-contract` 还缺独立 `node_modules/vitest`，未安装新依赖以保持环境不变。
 
-## Task 13 — README 与资源使用/维护文档同步 `[pending]`
+## Task 13 — README 与资源使用/维护文档同步 `[completed]`
 
 **目标**：同步首次安装“建议执行同步资源”提示和当前资源边界、降级语义、维护/回滚说明。
 
@@ -277,10 +277,10 @@
 
 **验收**：README `> [!IMPORTANT]` 明确建议、非强制；文档描述 verified snapshot/bootstrap/placeholder/incomplete、首次同步、无重启刷新、资源仓库先行和回滚；不承诺不存在的 CI 或自动同步。
 
-- 实际做了什么：待填。
-- 验证证据：待填。
-- 剩余风险：待填。
-- 下一步建议：待填。
+- 实际做了什么：在 `README.md` 安装步骤后加入 `> [!IMPORTANT]` 提示，明确首次安装后建议但不强制执行 `kk资源状态`/`kk下载全部资源`；说明无 verified snapshot 时仍可启动、图片结果可能是 `placeholder`/`fallback` 且标记 `incomplete`，同步成功后无需重启即可使用新 generation。更新 `docs/usage/resources.md`，补充 verified snapshot → bootstrap → placeholder/none 的解析顺序、本地 bootstrap 边界、首次同步、资源仓库 `main` 先行、校验失败保留旧快照和 `git revert` 回滚；同步在 `docs/dev/maintenance.md`、`docs/project/architecture.md` 中的发布前置、listener/lease 刷新和解析器职责。没有承诺不存在的 CI 自动发布或安装强制前置条件。
+- 验证证据：文档契约脚本确认重要提示、非强制措辞、同步命令、四类资源状态和无重启刷新说明均存在；`tests/test_goal5_docs_audit.py tests/test_goal5_ci_contracts.py` 为 `22 passed`，覆盖公开文档相对链接、README 链接、配置字段和内部残留；`git diff --check` 通过。仅修改文档与本 task 记录，未改变运行时代码或依赖。
+- 剩余风险：文档按当前插件/资源仓库契约描述行为；资源仓库与 editor 分支仍需按三仓顺序先行交付，真实运行期无 snapshot/完整 snapshot/同步刷新验证留给 Task 14，最终集中审计留给 Task 15–16。
+- 下一步建议：执行 Task 14，使用隔离 fixture 完成无 snapshot、完整 snapshot 和同步后无需重启刷新冒烟验证。
 
 ## Task 14 — 无 snapshot / 完整 snapshot / 同步刷新运行期验证 `[pending]`
 
