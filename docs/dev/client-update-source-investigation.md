@@ -38,7 +38,9 @@
 - VersionList primary/fallback 均返回 7 条记录，最新版本一致。
 - 最新目录 `1410193` 的 `PakFilesInfo.json` 为 941 bytes、4 条文件记录，去重合计 `3,841,495` bytes；`ResDiscreteInfo.json` 为 106 bytes，只有空的 `WindowsNoEditor` 列表。
 
-现实现用单一 `manifest_key=Android_ASTC` 解析两个 manifest，因此会错误拒绝真实 `ResDiscreteInfo.json`。实现期 provider config 必须分别表达 Pak 与 Res key，不能用静默跳过掩盖协议差异。
+当前 provider config 已分别表达 Pak 与 Res key，可按真实协议解析
+`ResDiscreteInfo.json`；维护时不得重新合并为单一 key，也不能用静默跳过掩盖
+协议差异。
 
 ### CN iOS App Store Source
 
@@ -84,3 +86,13 @@
 2. `AppStoreProviderConfig` 至少保存 `track_id` 与 `country`；只返回当前版本和稳定 revision，不承诺差分大小。
 3. T03 registry 仅登记本文件“本轮确认登记”的三个 Target/Source。
 4. T13 的 registry-driven smoke 必须复核所有登记 Source；任何新增 Target 必须先更新本调查证据。
+
+## 长期复核入口与传输边界
+
+运行 `python3 scripts/smoke_client_update_sources.py` 可按当前 registry 只读检查全部
+Source。该入口固定不传 baseline：manifest provider 只读取 `VersionList.json`，
+App Store provider 只读取公开 Lookup；不会读取完整补丁、写 state 或改订阅。
+
+CN PC 当前两个已验证端点均为 HTTP。现有结构校验只能证明响应符合预期 JSON
+契约，不能提供 TLS 来源认证或链路完整性。除非取得官方/一手证据并重新完成隔离
+只读核验，不得擅自把它们猜成 HTTPS，也不得用未验证镜像静默替代。

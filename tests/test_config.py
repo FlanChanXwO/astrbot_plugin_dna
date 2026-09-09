@@ -73,6 +73,9 @@ def test_client_update_targets_config_defaults_validation_and_schema():
     assert "channels" not in fields
     assert fields["targets"]["default"] == list(DEFAULT_CLIENT_UPDATE_TARGET_IDS)
     assert fields["targets"]["options"] == list(CLIENT_UPDATE_TARGETS)
+    assert fields["merge_forward"]["hint"] == (
+        "OneBot 平台是否将同轮多目标更新合并为转发消息"
+    )
 
 
 def test_typed_sign_in_config_has_no_feature_enable_switches():

@@ -244,7 +244,7 @@
       "merge_forward": {
         "type": "bool",
         "description": "客户端更新合并转发",
-        "hint": "OneBot 平台是否将同轮多渠道更新合并为转发消息",
+        "hint": "OneBot 平台是否将同轮多目标更新合并为转发消息",
         "default": true
       }
     }

@@ -410,7 +410,7 @@ class ClientUpdatesSettings(_SettingsModel):
     merge_forward: bool = Field(
         default=True,
         description="客户端更新合并转发",
-        json_schema_extra={"hint": "OneBot 平台是否将同轮多渠道更新合并为转发消息"},
+        json_schema_extra={"hint": "OneBot 平台是否将同轮多目标更新合并为转发消息"},
     )
 
 

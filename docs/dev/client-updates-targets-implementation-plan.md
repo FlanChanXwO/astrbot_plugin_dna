@@ -19,7 +19,7 @@
 - 旧 `channels` 配置不迁移并由 typed settings 明确拒绝；state v1/v2/v3 warning 后按空状态启动且不备份；旧 `platforms` 订阅元数据幂等清理为 `{}`。
 - history gap 是成功观察的降级状态，不是 contract error；不得伪造更新大小。
 - `commands.json` 和 `_conf_schema.json` 继续由脚本生成，不手工维护。
-- 保持精简测试布局：新增最多一个客户端更新专用测试文件，其余断言并入现有配置/命令测试。
+- 测试按 registry/transport、service、state、delivery、scheduler 与 smoke 边界拆分，配置和命令断言仍留在既有领域测试中。
 
 > 2026-09-08 的只读核验结论与本轮实际登记范围见 `docs/dev/client-update-source-investigation.md`。
 
@@ -34,7 +34,7 @@
 5. 整理最终 registry 数据：`target_id / display_name / region_id / ecosystem_id / platform / source_id`。
 6. 对无法验证的组合不注册，并在 PR 描述中列出“候选但未登记”的原因。
 
-建议新增长期只读检查脚本 `scripts/check_client_update_sources.py`。脚本只读取 registry 并检查当前版本，不修改 baseline、订阅或生产数据，也不下载完整补丁正文。
+长期只读检查脚本为 `scripts/smoke_client_update_sources.py`。脚本只读取 registry 并检查当前版本，不修改 baseline、订阅或生产数据，也不下载完整补丁正文。
 
 **验收**：每个最终 Source 至少能返回当前版本；每个 Target 都有现实发行依据并引用存在的平台一致 Source。
 
@@ -217,11 +217,8 @@
 
 ## 测试布局
 
-当前仓库已有 15 个顶层测试文件。此次只新增：
-
-- `tests/test_client_updates.py`
-
-集中覆盖 registry、transport/provider、service、state v4 reset、subscription metadata cleanup、history-gap。
+客户端更新测试按长期职责拆分：registry/transport/provider 与 history-gap、service、
+state v4、delivery、scheduler 和只读 smoke 各自保持独立文件，避免单一巨型测试文件。
 
 现有文件继续负责：
 

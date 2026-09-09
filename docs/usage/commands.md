@@ -19,8 +19,22 @@
 | 图鉴/攻略 | `dna菲娜图鉴` / `dna菲娜攻略` |
 | 签到 | `dna签到` |
 | 公共资源 | `dna资源状态` / `dna同步资源` |
+| 客户端更新查询 | `dna客户端更新` |
+| 订阅客户端更新 | `dna订阅客户端更新` |
+| 取消客户端更新订阅 | `dna取消订阅客户端更新` |
 
 具体角色名、别名、可选参数和管理员命令请直接查 `commands.json` 或帮助卡片。
+
+### 客户端更新命令
+
+三个客户端更新命令均为严格无参数形式。`dna客户端更新` 查询 Dashboard
+`client_updates.targets` 当前启用的全部 Target；订阅只保存当前群的订阅身份，
+不会固化平台筛选。插件重载后，所有有效订阅统一跟随新的 Target 配置。
+
+不要在命令后追加 `PC`、`安卓`、`iOS` 或 Target ID；这些 selector 不属于命令
+契约。Target 表示“区服 × 账号生态 × 平台”，而 Steam、TapTap、WeGame 等单纯
+下载入口并不自动形成新的账号生态或 Target。可选 Target 以 `_conf_schema.json`
+中的生成 options 为准。
 
 ## 功能分类
 
