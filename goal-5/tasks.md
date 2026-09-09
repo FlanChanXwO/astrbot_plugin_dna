@@ -295,15 +295,35 @@
 - 剩余风险：完整 snapshot 的视觉质量仍依赖资源仓库 `main` 的实际素材和外部 T2I/账号环境；当前已验证的是资源 manifest/fixture、resolver 和主要 renderer 降级/刷新契约，不宣称真实生产图片验收。资源仓库与 editor 分支仍需按三仓顺序交付；全 goal 的最终规格偏差、敏感信息、包体积和回滚集中审计留给 Task 15–16。
 - 下一步建议：执行 Task 15，集中检查运行期边界、文档/安全/回滚、三仓交付顺序和规格偏差。
 
-## Task 15 — 运行期、文档、安全与回滚集中检查 `[pending]`
+## Task 15 — 运行期、文档、安全与回滚集中检查 `[completed]`
 
 **类型**：集中检查-debug（Task 13–14）。
 
 **检查**：核对规格偏差、静态引用/死代码、依赖和敏感信息、运行期数据目录、并发/缓存/manifest 一致性、README/docs、回滚路径和两个仓库交付顺序；发现问题追加修复 task。
 
-- 实际检查：待填。
+- 实际检查：
+  - 复核规格完成定义与当前实现：已删除的 13 个字体/大型纹理本地根均不存在；生产源码没有 `gsuid_core`/`gsucore` import；旧文件名只保留在 `_SNAPSHOT_ASSET_PATHS`、sidecar 来源字符串、legacy 兼容常量和测试中。注入 resolver 后 renderer 不回读 legacy path，资源解析仍固定为 verified snapshot → 显式 bootstrap → placeholder/none。
+  - 复核运行期目录边界：新资源仓库、generation 指针、`rendered/`、`cache/`、数据库、订阅和公告状态均从 AstrBot 数据目录/数据库父目录派生；没有新增插件源码目录写入。旧 `RESOURCE_PATH.py` 兼容模块仍通过 AstrBot 全局数据根初始化历史子目录，但不写入源码树，列为低风险遗留边界。
+  - 复核并发、lease、listener、缓存和 manifest：single-flight、取消/失败可见性、generation lease/listener、placeholder 不进入完整缓存和 manifest 路径/hash 校验均已有 focused 覆盖；实现没有新增固定超时或静默成功回退。资源工作区 manifest 声明 13 个 required directories，127 个 file hash 均无缺失/不匹配/孤立项。
+  - 复核依赖、敏感信息和回滚：`requirements.txt`/构建依赖无 diff；tracked tree 没有 `.env`、Cookie/token、SQLite、日志或凭据内容，命中 `app_credentials_only`/`secret_cache` 仅为迁移文件名和测试名；每个迁移 task 保留独立 commit，可按资源仓库 → editor contract → 插件顺序交付或逐 commit revert。
+  - 复核文档和跨仓交付顺序：README 的首次同步提示明确为“建议、非强制”，资源使用文档描述 snapshot/placeholder/incomplete、无重启刷新和回滚；当前插件 `001ca7d`、资源仓库 `2e31eb3`、editor `66a3b85` 均位于独立干净 worktree，尚未 push/合并，发布仍需资源仓库先行。
+  - 发现两项同一根因的可执行缺口：Help 的 `texture.help.logo`、`texture.help.icon:*` 未进入 bootstrap allowlist，运行期 resolver 会把仓库中仍保留的 logo/帮助小图标解析为 `none/placeholder/incomplete`；`docs/usage/resources.md` 的 manifest 示例也遗漏已成为 runtime contract 的 `textures` 目录。
+- 验证证据：
+  - 使用显式 `DNA_RESOURCE_REPO=/Users/flanchan/Developer/Projects/GithubProjects/.worktrees/astrbot_plugin_dna_resources-resource-slimming-design` 运行资源/文档/清理/治理/解析器/资源契约 focused suite：`53 passed, 1 warning`；未设置该变量时的唯一失败是宿主默认旧资源 checkout 缺少 `schemas`/`textures`，已确认是环境选择问题而非插件实现失败。
+  - 变更运行时代码定向 `ruff check`、`git diff --check` 和 LSP diagnostics（bootstrap、manifest、generation、resolver、runtime_assets）均通过；资源 manifest 独立 SHA-256 核验通过。静态 smoke 明确复现上述 Help 缺口：`texture.help.logo`、`texture.help.icon:状态`、`font.help` 在无 snapshot 时均为 `none/missing/incomplete=True`，数字 bootstrap 仍按既有契约工作。
+- 新增修复 task：Task 15A（先修复 Help logo/必要小图标的显式 bootstrap 映射与 completeness 语义，再补齐文档 manifest 示例；必须 TDD Red → Green，并验证无 snapshot/full snapshot、docs、ruff、compile）。
+- 剩余风险：Task 15A 尚未完成；资源仓库和 editor 分支仍只存在本地 worktree，最终市场包需在 Task 16 重新测量；完整 pytest 的宿主端口、ignored fixture、旧 checkout/T2I 环境失败仍不应误报为资源目标全绿。
+
+## Task 15A — 修复 Help bootstrap 资源契约与 manifest 文档 `[pending]`
+
+**目标**：让规格明确保留的 `ICON.png`/Help 必要小图标在 resolver 模式下通过显式 bootstrap allowlist 工作，不因没有 verified snapshot 被误标 `incomplete`；同步修正资源 manifest 文档示例。
+
+**范围**：`src/bootstrap.py`、`src/infrastructure/resources/resolver.py`、Help 逻辑 key/测试、`docs/usage/resources.md` 和本 task 记录；不得递归扫描本地资源目录，不引入新依赖，不改变完整 snapshot 优先级。
+
+**验收**：TDD Red → Green 覆盖 logo、实际 Help icon filename、无 snapshot Help 资源记录和 completeness；显式 bootstrap 仍拒绝未登记路径；文档示例包含 `textures`；相关 pytest、compile、ruff 和 diff 检查通过。
+
+- 实际做了什么：待填。
 - 验证证据：待填。
-- 新增修复 task：待填（如无则写“无”）。
 - 剩余风险：待填。
 
 ## Task 16 — 最终发布包测量与证据收口 `[pending]`
