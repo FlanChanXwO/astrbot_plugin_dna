@@ -43,13 +43,13 @@
 
 ## Task 4：切换公共资源 repository 与 generation 路径
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：将资源工作树切到 `resources/repository/`，generation 切到 `resources/generations/`，保留 manifest 校验、原子发布和 lease。
 - 验收：全新数据目录同步并发布 generation；同步期间旧 generation 可读；新 repository `.git` 不触发 legacy guard。
-- 实际变更：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际变更：扩展 `RuntimeDataLayout`，统一提供 `resources/repository/`、`resources/generations/` 及 `current.json`、`last_sync.json`、`validation.json` 路径；资源 path helper 和兼容常量改为委托统一 layout；bootstrap 的 `ResourceSnapshotCoordinator` 与 `ResourceUpdateService` 改用新 repository/generation 路径。新增嵌套路径契约测试，并将新 repository `.git` 夹具改为由 layout 构造。未改动现有 manifest 校验、候选物化、原子指针发布和 lease 回收逻辑。
+- 验证证据：Red 阶段 `tests/test_runtime_data_layout.py -q` 为 `2 failed, 1 passed`，失败来自尚未实现的嵌套资源路径契约；Green 阶段 `tests/test_runtime_data_layout.py tests/test_legacy_layout.py tests/test_resources.py tests/test_config.py -q` 为 `50 passed`。注入 fake Git/validator 的 generation smoke 验证全新目录 clone、两次 generation 发布、`current.json` 指针、旧 lease 持有期间旧 generation 可读、释放后回收，以及 `resources/repository/.git` 不触发 legacy guard。完整 pytest 为 `241 passed, 7 failed`，失败仍是既有签到、命令前缀、登录页面、goal 工作区守卫和玩家详情断言；目标文件 Ruff、`compileall src tests`、`git diff --check` 通过；LSP 对受影响源码无诊断。
+- 剩余风险：Task 5-6 仍待迁移动态缓存、state 和备份路径；全仓 Ruff 的既有违规与完整 pytest 的 7 项既有失败未在本任务扩大范围内处理。资源 generation 仍由现有 validator 执行完整内容校验，真实远端同步需在部署环境验证。
+- 下一步：执行 Task 5，切换动态素材、API、渲染和媒体缓存路径。
 
 ## Task 5：切换动态素材、API、渲染和媒体缓存路径
 

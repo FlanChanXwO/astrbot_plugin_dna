@@ -66,19 +66,18 @@ def test_legacy_layout_detector_reports_each_known_old_path(
     assert not layout.cache_dir.exists() or relative_path.startswith("cache/")
 
 
-
 def test_legacy_layout_detector_allows_new_resource_repository_marker(
     tmp_path: Path,
 ) -> None:
     """新资源仓库位于 resources/repository，不被旧 resources/.git 规则误报。"""
 
     data_dir = tmp_path / "plugin-data"
-    (data_dir / "resources" / "repository" / ".git").mkdir(parents=True)
+    layout = RuntimeDataLayout(data_dir)
+    (layout.resource_repository_dir / ".git").mkdir(parents=True)
 
-    issues = LegacyLayoutDetector(RuntimeDataLayout(data_dir)).detect()
+    issues = LegacyLayoutDetector(layout).detect()
 
     assert issues == ()
-
 
 
 def test_legacy_layout_detector_allows_empty_new_layout_directories(
@@ -96,7 +95,7 @@ def test_legacy_layout_detector_allows_empty_new_layout_directories(
         layout.backups_dir,
     ):
         directory.mkdir(parents=True)
-    (layout.resources_dir / "repository" / ".git").mkdir(parents=True)
+    (layout.resource_repository_dir / ".git").mkdir(parents=True)
 
     assert LegacyLayoutDetector(layout).detect() == ()
 
@@ -118,7 +117,6 @@ def test_legacy_layout_detector_raises_migration_error_without_mutating_data(
     assert "resource" in str(caught.value)
     assert marker.read_text(encoding="utf-8") == "keep"
     assert not (data_dir / "db").exists()
-
 
 
 def test_build_runtime_rejects_legacy_layout_before_database_creation(

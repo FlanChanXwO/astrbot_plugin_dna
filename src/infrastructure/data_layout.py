@@ -15,6 +15,11 @@ ALIASES_DIR_NAME = "aliases"
 CHAR_ALIAS_FILE_NAME = "char.json"
 WEAPON_ALIAS_FILE_NAME = "weapon.json"
 ID2NAME_FILE_NAME = "id2name.json"
+RESOURCE_REPOSITORY_DIR_NAME = "repository"
+RESOURCE_GENERATIONS_DIR_NAME = "generations"
+RESOURCE_GENERATION_STATE_FILE_NAME = "current.json"
+RESOURCE_LAST_SYNC_STATE_FILE_NAME = "last_sync.json"
+RESOURCE_VALIDATION_STATE_FILE_NAME = "validation.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +88,36 @@ class RuntimeDataLayout:
         return self.data_dir / RESOURCES_DIR_NAME
 
     @property
+    def resource_repository_dir(self) -> Path:
+        """公共资源 Git 工作树目录。"""
+
+        return self.resources_dir / RESOURCE_REPOSITORY_DIR_NAME
+
+    @property
+    def resource_generations_dir(self) -> Path:
+        """已校验公共资源 generation 目录。"""
+
+        return self.resources_dir / RESOURCE_GENERATIONS_DIR_NAME
+
+    @property
+    def resource_generation_state_path(self) -> Path:
+        """当前公共资源 generation 指针文件。"""
+
+        return self.resource_generations_dir / RESOURCE_GENERATION_STATE_FILE_NAME
+
+    @property
+    def resource_last_sync_state_path(self) -> Path:
+        """最近一次公共资源同步状态文件。"""
+
+        return self.resource_generations_dir / RESOURCE_LAST_SYNC_STATE_FILE_NAME
+
+    @property
+    def resource_validation_state_path(self) -> Path:
+        """当前公共资源校验失败状态文件。"""
+
+        return self.resource_generations_dir / RESOURCE_VALIDATION_STATE_FILE_NAME
+
+    @property
     def cache_dir(self) -> Path:
         """可重建缓存目录。"""
 
@@ -104,6 +139,11 @@ __all__ = [
     "DATABASE_FILE_NAME",
     "ID2NAME_FILE_NAME",
     "RESOURCES_DIR_NAME",
+    "RESOURCE_GENERATIONS_DIR_NAME",
+    "RESOURCE_GENERATION_STATE_FILE_NAME",
+    "RESOURCE_LAST_SYNC_STATE_FILE_NAME",
+    "RESOURCE_REPOSITORY_DIR_NAME",
+    "RESOURCE_VALIDATION_STATE_FILE_NAME",
     "STATE_DIR_NAME",
     "WEAPON_ALIAS_FILE_NAME",
     "RuntimeDataLayout",

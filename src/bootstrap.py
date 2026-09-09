@@ -60,11 +60,7 @@ from .infrastructure.resources import (
     ResourceSnapshot,
     ResourceSnapshotCoordinator,
 )
-from .infrastructure.resources.paths import (
-    PLUGIN_NAME,
-    resource_generations_dir,
-    resource_repository_dir,
-)
+from .infrastructure.resources.paths import PLUGIN_NAME
 from .infrastructure.scheduler import SignPushPayload, SignScheduler
 from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
@@ -205,10 +201,10 @@ def build_runtime(
 
     custom_alias_path = runtime_data_layout.char_alias_path
     custom_weapon_alias_path = runtime_data_layout.weapon_alias_path
-    resource_cache_root = resource_repository_dir(runtime_data_layout.data_dir)
-    resource_generations_root = resource_generations_dir(runtime_data_layout.data_dir)
+    resource_repository_root = runtime_data_layout.resource_repository_dir
+    resource_generations_root = runtime_data_layout.resource_generations_dir
     resource_snapshots = ResourceSnapshotCoordinator(
-        resource_cache_root,
+        resource_repository_root,
         generations_root=resource_generations_root,
         acceleration_prefix=settings.resources.acceleration_prefix,
         custom_alias_path=custom_alias_path,
@@ -648,7 +644,7 @@ def build_runtime(
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
-        resource_root=resource_cache_root,
+        resource_root=resource_repository_root,
         resource_snapshots=resource_snapshots,
     )
     if services is not None and "resource_update_service" in services:
