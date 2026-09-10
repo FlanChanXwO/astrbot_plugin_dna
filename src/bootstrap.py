@@ -361,7 +361,7 @@ def build_runtime(
         player_transport
         or DnaApiPlayerTransport(runtime_database, request_gate=request_gate),
         privacy_service,
-        PlayerRenderer(rendered_root, player_resources),
+        PlayerRenderer(rendered_root, player_resources, asset_resolver=asset_resolver),
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,

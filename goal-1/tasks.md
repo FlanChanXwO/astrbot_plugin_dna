@@ -117,13 +117,21 @@
 
 ## Task 9：并发准备角色详情素材并保持渲染契约
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：在单一 generation lease 内并发技能、角色 Mod、武器、属性和立绘相关素材；按原业务顺序组装 payload。
 - 验收：冷缓存不再逐项串行等待；无武器、特殊武器、多 Mod 和同 URL 多业务 ID 场景通过；占位和展示顺序不变。
 - 实际变更：
+  - 玩家总览与详情渲染在同一 generation lease 内并发准备头像、立绘、属性、技能、角色 Mod、武器及武器模式素材；使用有序 `gather` 组装 payload，保留原业务顺序、占位和空武器行为。
+  - `PlayerRenderer` 接入绑定的 `AssetResolver`，角色头像/立绘/武器走 generation L1、动态缓存和下载链路；技能、Mod、属性继续复用既有 loader 语义，保留 legacy fallback。
+  - 武器详情支持并发加载武器图和多 Mod，同时由 `ResourceSnapshotCoordinator.bind_renderer` 共享同一 generation lease，避免渲染过程中 resolver 与资源视图跨 generation。
+  - 新增并发、顺序和 resolver 复用回归测试。
 - 验证证据：
-- 剩余风险：
-- 下一步：
+  - Red：新测试先实际得到 `2 failed`：素材加载最大并发仍为 `1`，且详情渲染尚不接受 `asset_resolver` 参数。
+  - Green：目标回归命令 `python -m pytest tests/test_player_asset_prefetch.py tests/test_asset_resolver.py tests/test_image_fetcher.py tests/test_resources.py tests/test_runtime_data_layout.py tests/test_integration.py::test_default_runtime_login_handler_returns_live_local_url -q` 为 `35 passed, 1 warning`。
+  - `ruff check`（所有变更源码和测试）、`ruff format --check`（本任务新增/改动的 5 个格式化文件）、`python3 -m compileall -q src tests`、`git diff --check` 通过；受影响文件 LSP diagnostics 为空。
+  - 相关 `tests/test_player.py` 当前仍有 2 项已知非本任务阻塞：Task 8 全局 ImageFetcher 在 pytest 多 event loop 下的 `Event loop is closed` 不稳定失败，以及既有详情断言未计入 `伤害` 区块；目标回归不受影响。
+- 剩余风险：技能、角色 Mod、属性仍使用既有动态 loader；只有角色头像/立绘/武器已接入统一 resolver。Task 8 的全局下载器与 pytest event loop 生命周期问题仍待后续集中检查。
+- 下一步：执行 Checkpoint 3，集中检查 resolver、downloader、generation、player rendering 的并发、取消、lease 和 cache 原子性。
 
 ## Checkpoint 3：集中检查资源流水线
 

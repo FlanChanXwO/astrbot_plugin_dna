@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -151,7 +152,7 @@ async def test_coordinator_binds_resolver_to_current_generation(tmp_path: Path) 
         tmp_path / "repository",
         generations_root=tmp_path / "generations",
     )
-    coordinator._current = ResourceSnapshot(  # noqa: SLF001 - 构造已验证快照夹具
+    coordinator._current = ResourceSnapshot(
         commit_sha="a" * 40,
         root=public,
         manifest=ResourceManifest(
@@ -171,4 +172,58 @@ async def test_coordinator_binds_resolver_to_current_generation(tmp_path: Path) 
         assert resolved.path == public_path
         assert resolved.source == "verified_snapshot"
 
-    assert coordinator._leases == {}  # noqa: SLF001 - lease 必须在 context 退出时释放
+    assert coordinator._leases == {}
+
+
+@pytest.mark.asyncio
+async def test_bind_renderer_shares_generation_lease_with_asset_resolver(
+    tmp_path: Path,
+) -> None:
+    """renderer 资源视图和图片 resolver 必须固定到同一个 generation lease。"""
+
+    from src.infrastructure.rendering import ResourceMap
+    from src.infrastructure.resources import (
+        EncyclopediaResourceStore,
+        ResourceManifest,
+        ResourceSnapshot,
+        ResourceSnapshotCoordinator,
+    )
+
+    public = tmp_path / "generation"
+    public_path = public / "images" / "role_avatar" / "101.png"
+    _write_image(public_path)
+    coordinator = ResourceSnapshotCoordinator(
+        tmp_path / "repository",
+        generations_root=tmp_path / "generations",
+    )
+    commit_sha = "b" * 40
+    coordinator._current = ResourceSnapshot(
+        commit_sha=commit_sha,
+        root=public,
+        manifest=ResourceManifest(
+            format_version=1,
+            required_dirs=("images",),
+            resource_version="test",
+        ),
+        player_resources=ResourceMap.from_root(public),
+        encyclopedia_resources=EncyclopediaResourceStore(),
+    )
+    base_resolver = AssetResolver(
+        dynamic_root=tmp_path / "cache" / "assets",
+        coordinator=coordinator,
+    )
+    renderer = SimpleNamespace(resources=None, asset_resolver=base_resolver)
+
+    with coordinator.bind_renderer(
+        renderer,
+        "player_resources",
+        asset_resolver_attr="asset_resolver",
+    ) as bound:
+        assert bound.resources is coordinator._current.player_resources
+        assert bound.asset_resolver.coordinator is None
+        assert bound.asset_resolver.snapshot_root == public
+        assert coordinator._leases == {commit_sha: 1}
+        resolved = await bound.asset_resolver.resolve("role_avatar", 101)
+        assert resolved.path == public_path
+
+    assert coordinator._leases == {}
