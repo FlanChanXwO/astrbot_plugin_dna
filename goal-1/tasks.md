@@ -165,13 +165,20 @@
 
 ## Task 11：全量验证与交付审查
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：运行相关测试、完整 pytest、ruff、compileall；检查 Git diff、旧路径残留、生成物和提交拆分。
 - 验收：所有可归属失败已修复或明确记录；不存在未验证的验收条件；保留用户已有无关改动。
 - 实际变更：
+  - 完成目标相关回归、全量测试、静态检查、LSP 诊断、旧路径/生成物和提交拆分审计；本任务未修改生产代码。
 - 验证证据：
+  - 使用项目 `.venv` 的 Python 3.12.13 运行资源流水线目标套件：`tests/test_asset_resolver.py`、`tests/test_image_fetcher.py`、`tests/test_player_asset_prefetch.py`、`tests/test_runtime_data_layout.py`、`tests/test_legacy_layout.py`、`tests/test_resources.py`，结果为 `58 passed, 1 warning`。
+  - 使用同一 `.venv` 运行完整 `pytest -q`，结果为 `267 passed, 6 failed, 1 warning`。6 项失败均已定位：两项自动签到旧语义断言、默认 runtime 登录终止时共享 `ImageFetcher`/`AsyncClient` 跨 pytest event loop 的生命周期错误、本地登录页旧标题断言、活动 goal 工作区守卫与当前 `goal-1/` 工作文件冲突，以及既有详情区块断言遗漏 `伤害`。基线 `e79ff6e` 的完整套件为 `250 passed, 5 failed, 1 warning`，前述非资源流水线失败均已在基线复现；跨 event loop 风险已在 Checkpoint 3 记录，目标资源套件未复现。
+  - `ruff check .`、`.venv/bin/python -m compileall -q src tests`、`git diff --check`（含 `e79ff6e..HEAD`）通过。`ruff format --check .` 仍报告基线中已有的 15 个文件；唯一命中的本任务变更 Python 文件 `src/modules/player/service.py` 在基线同样未通过格式检查，未为本任务扩大格式化范围。
+  - 受影响源码 LSP diagnostics 为空；`git status --short --branch` 清洁。`e79ff6e..HEAD` 仅包含预期的资源布局、resolver、下载器、渲染、测试、文档和 goal 记录变更；`commands.json`、`_conf_schema.json` 未被修改。旧路径命中仅限 legacy detector、迁移文档、显式兼容别名投影和既有测试夹具，新 bootstrap 路径已切换到新布局。
 - 剩余风险：
+  - 共享全局 `ImageFetcher` 的跨 event loop 生命周期问题仍需在后续统一生命周期治理时处理；本次不改变生产单 event loop 成功路径。签到、登录页标题、goal 工作区守卫和详情区块断言是基线/工作流问题，未归因于本 goal 的资源流水线。
 - 下一步：
+  - 执行 Checkpoint 4，逐项审计全部任务、验收标准、回滚说明和剩余风险；审计通过后结束 goal。
 
 ## Checkpoint 4：最终集中检查与停止条件
 
