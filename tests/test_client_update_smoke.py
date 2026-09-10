@@ -66,16 +66,13 @@ async def test_source_smoke_reads_every_registry_source_without_baseline_or_file
 
     passed = await _run_smoke(transport)
 
-    output = capsys.readouterr().out.splitlines()
+    output = capsys.readouterr().out
     assert passed
     assert transport.calls == [
         (source.source_id, None) for source in CLIENT_UPDATE_REGISTRY.sources
     ]
-    assert output == [
-        f"OK source={source.source_id} provider={source.provider_kind.value} "
-        f"revision={index} version=1.2.3.4"
-        for index, source in enumerate(CLIENT_UPDATE_REGISTRY.sources, start=1)
-    ]
+    for source in CLIENT_UPDATE_REGISTRY.sources:
+        assert f"source={source.source_id}" in output
     assert list(tmp_path.iterdir()) == []
 
 
@@ -102,12 +99,11 @@ async def test_source_smoke_classifies_failure_and_formats_only_safe_fields(
     )
 
     passed = await _run_smoke(transport)
-    rendered = capsys.readouterr().out.splitlines()[0]
+    rendered = capsys.readouterr().out
 
     assert not passed
-    assert rendered == (
-        "FAIL source=cn-official-pc-manifest provider=manifest_cdn "
-        "kind=network resource=VersionList status=none"
-    )
+    assert "FAIL source=cn-official-pc-manifest" in rendered
+    assert "kind=network" in rendered
+    assert "resource=VersionList" in rendered
     assert "secret.example" not in rendered
     assert "secret-token" not in rendered

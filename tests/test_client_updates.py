@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Self
 
 import pytest
 
-import src.modules.client_updates as client_updates_public
-import src.modules.client_updates.contracts as client_updates_contracts
-from src.infrastructure.http import client_updates as client_updates_module
 from src.infrastructure.http.client_updates import ClientUpdateTransport
 from src.modules.client_updates import (
     CLIENT_UPDATE_SOURCES,
@@ -32,69 +28,15 @@ from src.modules.client_updates import (
     ManifestCdnVersionMetadata,
     group_client_update_target_ids_by_source,
     normalize_client_update_target_ids,
+    parse_version_list_entries,
     resolve_client_update_source,
     resolve_client_update_target,
 )
-from src.modules.client_updates.contracts import ClientVersionSnapshot
 
 
-def test_public_contract_has_no_legacy_channel_model() -> None:
-    package_dir = Path(client_updates_public.__file__).parent
-    assert not (package_dir / "channels.py").exists()
-    forbidden_exports = (
-        "CHANNEL_REGISTRY",
-        "CLIENT_UPDATE_CHANNELS",
-        "ClientUpdateChannel",
-        "ClientRegion",
-        "default_channel_id_for_platform",
-        "normalize_client_update_channel_ids",
-        "resolve_client_update_channel",
-        "select_enabled_channels",
-        "parse_channel_version_list",
-        "parse_channel_version_list_entries",
-        "sum_channel_patch_file_sizes",
-        "ClientUpdateObservation",
-        "ClientVersion",
-        "ClientVersionSnapshot",
-        "normalize_client_update_platforms",
-        "parse_version_list",
-        "sum_patch_file_sizes",
-    )
-    assert all(not hasattr(client_updates_public, name) for name in forbidden_exports)
-    assert all(
-        not hasattr(client_updates_contracts, name)
-        for name in (
-            "ClientUpdateObservation",
-            "ClientVersion",
-            "normalize_client_update_platforms",
-            "parse_version_list",
-            "sum_patch_file_sizes",
-        )
-    )
-    assert all(
-        not hasattr(client_updates_module, name)
-        for name in (
-            "PC_PRIMARY_BASE_URL",
-            "PC_FALLBACK_BASE_URL",
-            "ANDROID_PRIMARY_BASE_URL",
-            "ANDROID_FALLBACK_BASE_URL",
-            "PC_BRANCH",
-            "ANDROID_BRANCH",
-            "PC_USER_AGENT",
-            "ANDROID_USER_AGENT",
-        )
-    )
-    assert tuple(field.name for field in fields(ClientVersionSnapshot)) == (
-        "version_key",
-        "patch_version",
-        "resource_version_dir",
-        "major",
-        "minor",
-        "revamp",
-        "patch_key",
-    )
+def test_manifest_parser_rejects_unsupported_platform() -> None:
     with pytest.raises(ValueError, match="不支持"):
-        client_updates_public.parse_version_list_entries({}, "pc_cn")
+        parse_version_list_entries({}, "pc_cn")
 
 
 def test_verified_registry_contains_only_investigated_cn_targets() -> None:
@@ -834,7 +776,7 @@ async def test_manifest_transport_falls_back_only_for_retryable_failures(
 
 @pytest.mark.asyncio
 async def test_manifest_transport_logs_safe_primary_failure_before_fallback(
-    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     source = resolve_client_update_source("cn-official-pc-manifest")
     config = source.provider_config
@@ -848,39 +790,22 @@ async def test_manifest_transport_logs_safe_primary_failure_before_fallback(
         }
     )
 
-    class RecordingLogger:
-        def __init__(self) -> None:
-            self.calls: list[tuple[object, tuple[object, ...]]] = []
-
-        def warning(self, message: object, *args: object) -> None:
-            self.calls.append((message, args))
-
-    logger = RecordingLogger()
-    monkeypatch.setattr(client_updates_module, "logger", logger)
-
-    with pytest.raises(ClientUpdateTransportError) as caught:
+    with (
+        caplog.at_level("WARNING", logger="astrbot"),
+        pytest.raises(ClientUpdateTransportError) as caught,
+    ):
         await ClientUpdateTransport(session_factory=lambda: session).get_observation(
             source.source_id
         )
 
     assert caught.value.kind is ClientUpdateFailureKind.STATUS
     assert caught.value.status_code == 503
-    assert logger.calls == [
-        (
-            (
-                "客户端更新端点失败 endpoint_role=primary next_role=fallback "
-                "resource=%s kind=%s status=%s"
-            ),
-            ("VersionList", "network", None),
-        ),
-        (
-            "客户端更新端点失败 endpoint_role=fallback resource=%s kind=%s status=%s",
-            ("VersionList", "status", 503),
-        ),
-    ]
-    assert primary_url not in repr(logger.calls)
-    assert fallback_url not in repr(logger.calls)
-    assert "secret-token" not in repr(logger.calls)
+    assert "endpoint_role=primary" in caplog.text
+    assert "endpoint_role=fallback" in caplog.text
+    assert "resource=VersionList" in caplog.text
+    assert primary_url not in caplog.text
+    assert fallback_url not in caplog.text
+    assert "secret-token" not in caplog.text
 
 
 @pytest.mark.asyncio

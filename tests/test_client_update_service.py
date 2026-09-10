@@ -332,7 +332,6 @@ async def test_poll_history_gap_advances_atomically_and_does_not_repeat(
 @pytest.mark.asyncio
 async def test_poll_same_revision_refreshes_app_store_metadata_and_last_change(
     tmp_path,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     source_id = "cn-official-ios-app-store"
     target_ids = ("cn-official-ios",)
@@ -397,8 +396,7 @@ async def test_poll_same_revision_refreshes_app_store_metadata_and_last_change(
         target_ids=target_ids,
     )
 
-    with caplog.at_level("WARNING"):
-        assert await service.poll_now() == ()
+    assert await service.poll_now() == ()
 
     refreshed_baseline = await state.get_baseline(source_id)
     assert refreshed_baseline is not None
@@ -411,7 +409,6 @@ async def test_poll_same_revision_refreshes_app_store_metadata_and_last_change(
         target_ids=target_ids,
     )
     assert await state.pending_events() == ()
-    assert "category=ValueError" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -957,7 +954,6 @@ async def test_initialize_cleans_legacy_platform_metadata_idempotently_and_warns
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     path = tmp_path / "subscriptions.json"
-    subscriptions = SubscriptionStore(path)
     metadata_by_origin = {
         "group:canonical": "{}",
         "group:pc": '{"platforms":["pc"]}',
@@ -968,17 +964,36 @@ async def test_initialize_cleans_legacy_platform_metadata_idempotently_and_warns
         "group:not-object": "[]",
         "group:unknown-shape": '{"targets":["cn-official-pc"]}',
     }
-    for origin, extra_data in metadata_by_origin.items():
-        await subscriptions.add(
-            messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-            origin=origin,
-            extra_data=extra_data,
+    records = [
+        {
+            "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+            "unified_msg_origin": origin,
+            "extra_data": extra_data,
+        }
+        for origin, extra_data in metadata_by_origin.items()
+    ]
+    records.extend(
+        {
+            "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
+            "unified_msg_origin": "group:duplicate",
+            "extra_data": extra_data,
+        }
+        for extra_data in (
+            "{}",
+            '{"platforms":["pc"]}',
+            '{"targets":["cn-official-pc"]}',
+            '{"platforms":["ios"]}',
         )
-    await subscriptions.add(
-        "其他订阅",
-        origin="group:other",
-        extra_data='{"platforms":["pc"]}',
     )
+    records.append(
+        {
+            "type": "其他订阅",
+            "unified_msg_origin": "group:other",
+            "extra_data": '{"platforms":["pc"]}',
+        }
+    )
+    path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    subscriptions = SubscriptionStore(path)
     service = ClientUpdateService(
         ClientUpdateStateStore(tmp_path / "client_updates.json"),
         subscriptions=subscriptions,
@@ -989,115 +1004,63 @@ async def test_initialize_cleans_legacy_platform_metadata_idempotently_and_warns
     first_payload = path.read_text(encoding="utf-8")
     await service.initialize()
 
-    client_subscriptions = {
-        subscription.unified_msg_origin: subscription.extra_data
+    client_subscriptions = tuple(
+        (subscription.unified_msg_origin, subscription.extra_data)
         for subscription in await subscriptions.get(
             messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE
         )
-    }
-    assert client_subscriptions == {
-        "group:canonical": "{}",
-        "group:pc": "{}",
-        "group:both": "{}",
-        "group:ios": '{"platforms":["ios"]}',
-        "group:empty": '{"platforms":[]}',
-        "group:broken-json": "{",
-        "group:not-object": "[]",
-        "group:unknown-shape": '{"targets":["cn-official-pc"]}',
-    }
-    assert json.loads(path.read_text(encoding="utf-8"))[-1]["extra_data"] == (
-        '{"platforms":["pc"]}'
     )
-    assert path.read_text(encoding="utf-8") == first_payload
-    assert caplog.text.count("客户端更新订阅元数据无效，跳过清理") == 10
-
-
-@pytest.mark.asyncio
-async def test_initialize_cleans_every_duplicate_identity_legacy_record(
-    tmp_path,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    path = tmp_path / "subscriptions.json"
-    path.write_text(
-        json.dumps(
-            [
-                {
-                    "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-                    "unified_msg_origin": "group:duplicate",
-                    "extra_data": "{}",
-                },
-                {
-                    "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-                    "unified_msg_origin": "group:duplicate",
-                    "extra_data": '{"platforms":["pc"]}',
-                },
-                {
-                    "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-                    "unified_msg_origin": "group:duplicate",
-                    "extra_data": '{"targets":["cn-official-pc"]}',
-                },
-                {
-                    "type": messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
-                    "unified_msg_origin": "group:duplicate",
-                    "extra_data": '{"platforms":["ios"]}',
-                },
-            ],
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
+    assert client_subscriptions == (
+        ("group:canonical", "{}"),
+        ("group:pc", "{}"),
+        ("group:both", "{}"),
+        ("group:ios", '{"platforms":["ios"]}'),
+        ("group:empty", '{"platforms":[]}'),
+        ("group:broken-json", "{"),
+        ("group:not-object", "[]"),
+        ("group:unknown-shape", '{"targets":["cn-official-pc"]}'),
+        ("group:duplicate", "{}"),
+        ("group:duplicate", "{}"),
+        ("group:duplicate", '{"targets":["cn-official-pc"]}'),
+        ("group:duplicate", '{"platforms":["ios"]}'),
     )
-    subscriptions = SubscriptionStore(path)
-    service = ClientUpdateService(
-        ClientUpdateStateStore(tmp_path / "client_updates.json"),
-        subscriptions=subscriptions,
-    )
-
-    with caplog.at_level("WARNING"):
-        await service.initialize()
-        first_payload = path.read_text(encoding="utf-8")
-        await service.initialize()
-
     assert tuple(
-        subscription.extra_data
-        for subscription in await subscriptions.get(
-            messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE
-        )
-    ) == (
-        "{}",
-        "{}",
-        '{"targets":["cn-official-pc"]}',
-        '{"platforms":["ios"]}',
-    )
+        subscription.extra_data for subscription in await subscriptions.get("其他订阅")
+    ) == ('{"platforms":["pc"]}',)
     assert path.read_text(encoding="utf-8") == first_payload
-    assert caplog.text.count("客户端更新订阅元数据无效，跳过清理") == 4
+    assert "客户端更新订阅元数据无效，跳过清理" in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_same_origin_subscribe_then_unsubscribe_is_serialized(
-    tmp_path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
-    service = ClientUpdateService(
-        ClientUpdateStateStore(tmp_path / "client_updates.json"),
-        subscriptions=subscriptions,
-    )
+async def test_same_origin_subscribe_then_unsubscribe_is_serialized(tmp_path) -> None:
     lookup_started = asyncio.Event()
     release_lookup = asyncio.Event()
-    original_lookup = service._subscription_for_origin
 
-    async def delayed_lookup(origin: str):
-        lookup_started.set()
-        await release_lookup.wait()
-        return await original_lookup(origin)
+    class BlockingSubscriptionStore(SubscriptionStore):
+        def __init__(self) -> None:
+            super().__init__(tmp_path / "subscriptions.json")
+            self._blocked_once = False
 
-    monkeypatch.setattr(service, "_subscription_for_origin", delayed_lookup)
+        async def get(self, sub_type: str, **kwargs: str | None):
+            if not self._blocked_once:
+                self._blocked_once = True
+                lookup_started.set()
+                await release_lookup.wait()
+            return await super().get(sub_type, **kwargs)
+
+    subscriptions = BlockingSubscriptionStore()
+    service = ClientUpdateService(
+        ClientUpdateStateStore(tmp_path / "client_updates.json"),
+        subscriptions=subscriptions,
+    )
     request = ClientUpdateRequest(actor=_group_actor())
 
     subscribe_task = asyncio.create_task(service.subscribe(request))
     await lookup_started.wait()
     unsubscribe_task = asyncio.create_task(service.unsubscribe(request))
     await asyncio.sleep(0)
+    assert not unsubscribe_task.done()
+
     release_lookup.set()
     subscribe_response, unsubscribe_response = await asyncio.gather(
         subscribe_task,

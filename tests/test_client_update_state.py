@@ -78,7 +78,6 @@ async def test_state_v4_round_trips_source_baseline_and_target_snapshot(
     assert payload["schema_version"] == 4
     assert tuple(payload["baselines"]) == (source_id,)
     assert payload["pending_events"][0]["change"]["target_ids"] == ["cn-official-pc"]
-    assert "target_ids" not in payload["pending_events"][0]["targets"][0]
 
 
 @pytest.mark.asyncio

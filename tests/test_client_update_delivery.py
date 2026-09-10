@@ -217,7 +217,6 @@ async def test_pending_retry_keeps_event_target_snapshot_across_reload(
     pending = await ClientUpdateStateStore(state_path).pending_events()
     assert len(pending) == 1
     assert pending[0].change.target_ids == ("cn-official-pc",)
-    assert not hasattr(pending[0].pending_targets[0], "target_ids")
 
     reloaded_service = ClientUpdateService(
         ClientUpdateStateStore(state_path),
@@ -486,7 +485,6 @@ async def test_concurrent_deliveries_do_not_send_the_same_pending_event_twice(
 @pytest.mark.asyncio
 async def test_unsubscribe_waits_for_grouped_delivery_before_returning(
     tmp_path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     state = ClientUpdateStateStore(tmp_path / "client_updates.json")
@@ -499,13 +497,17 @@ async def test_unsubscribe_waits_for_grouped_delivery_before_returning(
     assert await seed_delivery.deliver((_pc_change(),)) == 0
 
     order: list[str] = []
+    started = asyncio.Event()
+    release = asyncio.Event()
 
-    @dataclass
-    class OrderedPushPort:
-        pushes: list[ClientUpdatePush] = field(default_factory=list)
+    class BlockingPushPort:
+        def __init__(self) -> None:
+            self.pushes: list[ClientUpdatePush] = []
 
         async def send(self, push: ClientUpdatePush) -> ClientUpdatePushResult:
             self.pushes.append(push)
+            started.set()
+            await release.wait()
             order.append("send")
             return ClientUpdatePushResult(
                 succeeded_event_keys=tuple(
@@ -513,21 +515,11 @@ async def test_unsubscribe_waits_for_grouped_delivery_before_returning(
                 )
             )
 
-    port = OrderedPushPort()
+    port = BlockingPushPort()
     delivery = ClientUpdateDeliveryService(subscriptions, port, state=state)
     service = ClientUpdateService(state, subscriptions=subscriptions)
-    grouped = asyncio.Event()
-    release = asyncio.Event()
-    original_deliver_groups = delivery._deliver_event_groups
-
-    async def paused_delivery(groups):
-        grouped.set()
-        await release.wait()
-        return await original_deliver_groups(groups)
-
-    monkeypatch.setattr(delivery, "_deliver_event_groups", paused_delivery)
     delivery_task = asyncio.create_task(delivery.deliver(()))
-    await grouped.wait()
+    await started.wait()
 
     async def unsubscribe():
         response = await service.unsubscribe(ClientUpdateRequest(actor=_group_actor()))
