@@ -88,6 +88,15 @@ class _PartialFailureTransport:
     async def get_post_list(self, actor, uid, *, credential_user_id):
         return self.posts
 
+    async def get_post_detail(self, actor, uid, post, *, credential_user_id):
+        raise AssertionError("本回归场景不应执行浏览任务")
+
+    async def do_like(self, actor, uid, post, *, credential_user_id):
+        raise AssertionError("本回归场景不应执行点赞任务")
+
+    async def do_share(self, actor, uid, *, credential_user_id):
+        raise AssertionError("本回归场景不应执行分享任务")
+
     async def do_reply(self, actor, uid, post, *, credential_user_id):
         return False
 
