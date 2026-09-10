@@ -247,6 +247,10 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
         assert not (tmp_path / "resource").exists()
         assert not (tmp_path / "other").exists()
 
+        asset_resolver = runtime.services["asset_resolver"]
+        assert asset_resolver.dynamic_root == layout.cache_assets_dir
+        assert asset_resolver.coordinator is runtime.services["resource_snapshots"]
+
         subscriptions = runtime.services["subscriptions"]
         assert subscriptions.path == layout.subscriptions_path
         scheduler_registry = runtime.services["scheduler_registry"]

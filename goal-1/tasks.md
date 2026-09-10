@@ -82,13 +82,20 @@
 
 ## Task 7：实现 generation-first AssetResolver
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：引入素材类型映射和 L1/L2/下载决策；接入当前 generation lease；先覆盖头像、立绘和武器图。
 - 验收：L1 命中时零网络且不复制 L2；L1 缺失时命中 L2；双 miss 才下载；L1 损坏不被覆盖。
 - 实际变更：
+  - 新增 `src/infrastructure/resources/resolver.py`，统一解析 `role_avatar`、`role_paint`、`weapon` 三类素材。
+  - L1 读取当前已验证 generation 的公共路径；L2 使用 `cache/assets/{game_avatar,paint,weapon}` 的现有动态缓存契约；双 miss 才调用注入下载器，且下载目标仅为 L2。
+  - 对 L1/L2 做普通文件、路径边界和完整图片校验；损坏 L1 保持只读，损坏 L2 清理后再按需下载。
+  - `ResourceSnapshotCoordinator.bind_asset_resolver()` 在 generation lease 内固定当前快照；bootstrap 暴露 `asset_resolver` service，并允许测试/宿主注入替代实现。
 - 验证证据：
-- 剩余风险：
-- 下一步：
+  - Red：新增 bootstrap 集成断言前运行对应测试，因缺少 `asset_resolver` service 以 `KeyError` 失败；resolver 初始测试因模块不存在以 `ModuleNotFoundError` 失败。
+  - Green：`python -m pytest tests/test_asset_resolver.py tests/test_runtime_data_layout.py tests/test_resources.py -q`，`21 passed, 1 warning`。
+  - `ruff check`、`ruff format --check`、`python3 -m compileall`、`git diff --check` 通过；受影响源码和测试 LSP diagnostics 为空。
+- 剩余风险：Task 8 将替换当前 resolver 对 legacy `image_utils.download` 的默认调用，接入共享 client、URL 级合并和生命周期关闭；Task 9 前现有 renderer 仍直接使用旧图片入口，resolver 尚未成为渲染路径。
+- 下一步：执行 Task 8，改造共享自适应图片下载器。
 
 ## Task 8：改造共享自适应图片下载器
 

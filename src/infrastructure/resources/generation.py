@@ -1084,6 +1084,24 @@ class ResourceSnapshotCoordinator:
             yield resources
 
     @contextmanager
+    def bind_asset_resolver(
+        self,
+        *,
+        dynamic_root: str | Path,
+        downloader: Any = None,
+    ) -> Iterator[Any]:
+        """在当前 generation lease 内绑定请求级图片素材解析器。"""
+
+        from .resolver import AssetResolver
+
+        with self.optional_lease() as snapshot:
+            yield AssetResolver.from_snapshot(
+                snapshot,
+                dynamic_root=dynamic_root,
+                downloader=downloader,
+            )
+
+    @contextmanager
     def bind_renderer(self, renderer: Any, resource_attr: str) -> Iterator[Any]:
         """复制 renderer 并绑定一个持有 generation lease 的资源视图。"""
 

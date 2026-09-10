@@ -55,6 +55,7 @@ from .infrastructure.rendering import (
     ResourceMap,
 )
 from .infrastructure.resources import (
+    AssetResolver,
     EncyclopediaResourceStore,
     ResourceGenerationError,
     ResourceSnapshot,
@@ -215,6 +216,12 @@ def build_runtime(
         custom_alias_path=custom_alias_path,
         custom_weapon_alias_path=custom_weapon_alias_path,
     )
+    asset_resolver = AssetResolver(
+        coordinator=resource_snapshots,
+        dynamic_root=runtime_data_layout.cache_assets_dir,
+    )
+    if services is not None and "asset_resolver" in services:
+        asset_resolver = cast(AssetResolver, services["asset_resolver"])
 
     async def _notify_login(actor: Any, response: object) -> None:
         """把后台登录终态投递回发起登录的 AstrBot 会话。"""
@@ -735,6 +742,7 @@ def build_runtime(
         "admin_alias_service": admin_alias_service,
         "resource_update_service": resource_update_service,
         "resource_snapshots": resource_snapshots,
+        "asset_resolver": asset_resolver,
     }
 
     def _refresh_resource_views(snapshot: ResourceSnapshot) -> None:
