@@ -103,7 +103,7 @@
 - 范围：长生命周期 AsyncClient、动态容量、AIMD 退避、Retry-After、URL 级 inflight、不同 target fan-out、原子写入和 lifecycle hook。
 - 验收：同 URL 只产生一次真实请求；不同 URL 正常并发；失败和取消语义明确；stop/reload 无 client 或任务泄漏。
 - 实际变更：
-  - `ImageFetcher` 改为进程级默认共享的长生命周期 `AsyncClient`，新增 `start()/close()`，关闭期间拒绝新网络下载，等待 active 请求自然完成后释放 client，并支持 reload 后重新启动。
+  - `ImageFetcher` 改为每个 runtime 共享的长生命周期 `AsyncClient`，新增 `start()/close()`，关闭期间拒绝新网络下载，等待 active 请求自然完成后释放 client，并支持 reload 后重新启动；legacy `download()` 默认入口在 bootstrap 中指向当前 runtime 实例。
   - 新增不暴露给用户配置的条件并发容量：429 立即 AIMD 收缩，5xx/传输错误累计后收缩，连续健康请求逐步恢复；默认 HTTP 连接池内部硬上限为 64。
   - inflight key 改为完整 URL；共享任务只下载并校验一次 bytes，再向不同 target fan-out，各 target 继续使用临时文件校验和 `os.replace` 原子写入；单个 waiter 取消不会取消共享请求。
   - bootstrap 注入共享 `image_fetcher` 到 `AssetResolver`，挂接 lifecycle start/finalizer close；补充运行期 service、生命周期、并发、重试、Retry-After、失败、取消、drain/reload 回归测试。
@@ -129,8 +129,8 @@
   - Red：新测试先实际得到 `2 failed`：素材加载最大并发仍为 `1`，且详情渲染尚不接受 `asset_resolver` 参数。
   - Green：目标回归命令 `python -m pytest tests/test_player_asset_prefetch.py tests/test_asset_resolver.py tests/test_image_fetcher.py tests/test_resources.py tests/test_runtime_data_layout.py tests/test_integration.py::test_default_runtime_login_handler_returns_live_local_url -q` 为 `35 passed, 1 warning`。
   - `ruff check`（所有变更源码和测试）、`ruff format --check`（本任务新增/改动的 5 个格式化文件）、`python3 -m compileall -q src tests`、`git diff --check` 通过；受影响文件 LSP diagnostics 为空。
-  - 相关 `tests/test_player.py` 当前仍有 2 项已知非本任务阻塞：Task 8 全局 ImageFetcher 在 pytest 多 event loop 下的 `Event loop is closed` 不稳定失败，以及既有详情断言未计入 `伤害` 区块；目标回归不受影响。
-- 剩余风险：技能、角色 Mod、属性仍使用既有动态 loader；只有角色头像/立绘/武器已接入统一 resolver。Task 8 的全局下载器与 pytest event loop 生命周期问题仍待后续集中检查。
+  - 相关 `tests/test_player.py` 当时仍有 2 项已知非本任务阻塞：全局 ImageFetcher 在 pytest 多 event loop 下的 `Event loop is closed` 不稳定失败，以及既有详情断言未计入 `伤害` 区块；前一项已在 Checkpoint 4 为 runtime 生命周期修复，后一项仍是基线断言差异，目标回归不受影响。
+- 剩余风险：技能、角色 Mod、属性仍使用既有动态 loader；只有角色头像/立绘/武器已接入统一 resolver。runtime 下载器的 event loop 生命周期问题已在 Checkpoint 4 修复，进程级 legacy 入口仍保留兼容 fallback。
 - 下一步：执行 Checkpoint 3，集中检查 resolver、downloader、generation、player rendering 的并发、取消、lease 和 cache 原子性。
 
 ## Checkpoint 3：集中检查资源流水线
@@ -145,7 +145,7 @@
 - 发现问题与修复：
   - 将 `weapon_sections` 从提前等待改为与 header、hero、技能、角色魔之楔和属性图标共同进入一次 `asyncio.gather`；`gather` 返回值仍按原武器标题顺序组装，保留空武器和特殊武器行为。
   - 相关套件剩余失败：全局 `ImageFetcher`/`AsyncClient` 在 pytest 多 event loop 间复用导致的 `Event loop is closed`（玩家凭据测试及 runtime terminate）；既有详情测试未把 `伤害` 区块计入期望顺序；两项登录页面旧文案断言；以及活动 goal 工作区守卫与当前 `goal-1/` 工作文件冲突。均非本 checkpoint 的资源流水线回归。
-- 剩余风险：全局 legacy 图片入口的跨 event loop 生命周期问题仍待后续处理；登录页面断言和 goal 工作区守卫属于已有测试/工作流问题。资源流水线核心的 L1/L2 优先级、URL fan-out、取消排空、generation lease 和原子缓存写入已有目标测试覆盖。
+- 剩余风险：进程级 legacy 图片入口在未绑定 runtime 的独立调用场景仍保留兼容行为；runtime 生命周期的跨 event loop 复用问题已在 Checkpoint 4 修复。登录页面断言和 goal 工作区守卫属于已有测试/工作流问题。资源流水线核心的 L1/L2 优先级、URL fan-out、取消排空、generation lease 和原子缓存写入已有目标测试覆盖。
 - 下一步：执行 Task 10，补齐手动迁移文档与发布说明。
 
 ## Task 10：编写手动迁移文档与发布说明
@@ -169,21 +169,32 @@
 - 范围：运行相关测试、完整 pytest、ruff、compileall；检查 Git diff、旧路径残留、生成物和提交拆分。
 - 验收：所有可归属失败已修复或明确记录；不存在未验证的验收条件；保留用户已有无关改动。
 - 实际变更：
-  - 完成目标相关回归、全量测试、静态检查、LSP 诊断、旧路径/生成物和提交拆分审计；本任务未修改生产代码。
+  - 完成目标相关回归、全量测试、静态检查、LSP 诊断、旧路径/生成物和提交拆分审计。
+  - 审计发现 runtime 默认下载器跨 pytest event loop 复用连接池会在终止时失败；先加入 runtime 间下载器隔离回归测试并确认 Red，再让每个未显式注入下载器的 runtime 创建并持有自己的 `ImageFetcher`，保留注入服务的宿主/测试替换能力。
 - 验证证据：
-  - 使用项目 `.venv` 的 Python 3.12.13 运行资源流水线目标套件：`tests/test_asset_resolver.py`、`tests/test_image_fetcher.py`、`tests/test_player_asset_prefetch.py`、`tests/test_runtime_data_layout.py`、`tests/test_legacy_layout.py`、`tests/test_resources.py`，结果为 `58 passed, 1 warning`。
-  - 使用同一 `.venv` 运行完整 `pytest -q`，结果为 `267 passed, 6 failed, 1 warning`。6 项失败均已定位：两项自动签到旧语义断言、默认 runtime 登录终止时共享 `ImageFetcher`/`AsyncClient` 跨 pytest event loop 的生命周期错误、本地登录页旧标题断言、活动 goal 工作区守卫与当前 `goal-1/` 工作文件冲突，以及既有详情区块断言遗漏 `伤害`。基线 `e79ff6e` 的完整套件为 `250 passed, 5 failed, 1 warning`，前述非资源流水线失败均已在基线复现；跨 event loop 风险已在 Checkpoint 3 记录，目标资源套件未复现。
-  - `ruff check .`、`.venv/bin/python -m compileall -q src tests`、`git diff --check`（含 `e79ff6e..HEAD`）通过。`ruff format --check .` 仍报告基线中已有的 15 个文件；唯一命中的本任务变更 Python 文件 `src/modules/player/service.py` 在基线同样未通过格式检查，未为本任务扩大格式化范围。
-  - 受影响源码 LSP diagnostics 为空；`git status --short --branch` 清洁。`e79ff6e..HEAD` 仅包含预期的资源布局、resolver、下载器、渲染、测试、文档和 goal 记录变更；`commands.json`、`_conf_schema.json` 未被修改。旧路径命中仅限 legacy detector、迁移文档、显式兼容别名投影和既有测试夹具，新 bootstrap 路径已切换到新布局。
+  - Red：新增 `test_build_runtime_allocates_image_fetcher_per_runtime` 在项目 `.venv` 中实际因两个 runtime 复用同一 `ImageFetcher` 失败；Green 后该测试通过。
+  - 使用项目 `.venv` 的 Python 3.12.13 运行资源流水线目标套件：`tests/test_asset_resolver.py`、`tests/test_image_fetcher.py`、`tests/test_player_asset_prefetch.py`、`tests/test_runtime_data_layout.py`、`tests/test_legacy_layout.py`、`tests/test_resources.py`，结果为 `59 passed, 1 warning`。
+  - 使用同一 `.venv` 运行完整 `pytest -q`，结果为 `269 passed, 5 failed, 1 warning`。剩余失败为两项自动签到旧语义断言、本地登录页旧标题断言、活动 goal 工作区守卫与当前 `goal-1/` 工作文件冲突，以及既有详情区块断言遗漏 `伤害`；5 项均在基线 `e79ff6e` 的完整套件中复现（基线为 `250 passed, 5 failed, 1 warning`），未形成资源流水线新增失败。
+  - `ruff check .`、`.venv/bin/python -m compileall -q src tests`、`git diff --check`（含 `e79ff6e..HEAD`）通过。`ruff format --check .` 仍报告基线中已有的 15 个文件；本任务新增/修改的 `src/bootstrap.py` 与 `tests/test_runtime_data_layout.py` 已格式化，既有变更文件 `src/modules/player/service.py` 在基线同样未通过格式检查，未为本任务扩大范围。
+  - 受影响源码和测试 LSP diagnostics 为空；`git status --short --branch` 清洁。`e79ff6e..HEAD` 的提交按任务拆分，文件仅覆盖资源布局、resolver、下载器、渲染、测试、文档和 goal 记录；`commands.json`、`_conf_schema.json` 未被修改。旧路径命中仅限 legacy detector、迁移文档、显式兼容别名投影和既有测试夹具，新 bootstrap 路径已切换到新布局。
 - 剩余风险：
-  - 共享全局 `ImageFetcher` 的跨 event loop 生命周期问题仍需在后续统一生命周期治理时处理；本次不改变生产单 event loop 成功路径。签到、登录页标题、goal 工作区守卫和详情区块断言是基线/工作流问题，未归因于本 goal 的资源流水线。
+  - 进程级 legacy `download()` 兼容入口仍保留未绑定 runtime 的默认下载器；生产 bootstrap 已将其切换为 runtime 自有共享下载器，插件正常单事件循环路径已覆盖。手动迁移中的数据库双文件选择、别名冲突和 generation 兼容性仍由部署者依据备份确认，代码不自动迁移或回滚。
 - 下一步：
-  - 执行 Checkpoint 4，逐项审计全部任务、验收标准、回滚说明和剩余风险；审计通过后结束 goal。
+  - Checkpoint 4 已完成；goal 已具备结束条件。
 
 ## Checkpoint 4：最终集中检查与停止条件
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：对全部任务、验收标准、测试证据和回滚说明做逐项审计；只有证据完整才允许标记 goal 完成。
 - 验证证据：
+  - Task 1-6：`RuntimeDataLayout` 已统一 `db/`、`state/`、`resources/`、`cache/`、`backups/`；数据库为 `db/dna.sqlite3`；legacy detector 在数据库构造前只读 fail-fast，测试覆盖旧标记、空新布局和无迁移副作用。
+  - Task 7：`AssetResolver` 在 generation lease 中按角色头像、角色立绘、武器执行 L1 当前 generation → L2 动态缓存 → 网络下载，命中和损坏资源的优先级/只读边界由目标测试覆盖。
+  - Task 8：runtime 共享 `ImageFetcher` 已具备长生命周期 `httpx.AsyncClient`、动态并发、Retry-After/AIMD、完整 URL inflight 合并、不同 target fan-out、取消隔离、原子校验写入和 stop/reload drain；目标套件与 runtime 隔离回归均通过。
+  - Task 9：玩家角色详情素材在同一 generation lease 内并发准备，结果按原业务顺序组装，空武器、特殊武器、多 Mod、占位和错误语义测试通过。
+  - Task 10-11：手动迁移/回滚文档和 `Unreleased` 发布说明已完成；静态检查、LSP、全量 diff、旧路径分类、生成投影和提交拆分已审计。
+  - 代码提交序列为每个实施 task/修复独立提交，当前分支工作树清洁；未覆盖无关用户改动。
 - 未满足项：
+  - Goal 范围内无未满足项。完整套件仍保留 5 项基线/工作流失败，详见 Task 11；`ruff format --check .` 的 15 个既有格式问题也未扩大处理。它们不属于本 goal 的资源布局与流水线验收条件。
+  - 生产升级仍要求部署者先停机备份、人工迁移并按文档验证；这是已确认的 breaking-change 运维边界，不由代码自动完成。
 - 下一步：
+  - 全部任务和验收条件已有证据，goal 可标记完成；后续若需处理基线测试或 legacy 兼容入口，应另开独立任务。
