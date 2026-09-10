@@ -8,9 +8,18 @@ from pathlib import Path
 DATABASE_DIR_NAME = "db"
 DATABASE_FILE_NAME = "dna.sqlite3"
 STATE_DIR_NAME = "state"
+SUBSCRIPTIONS_FILE_NAME = "subscriptions.json"
+SCHEDULER_STATE_FILE_NAME = "scheduler.json"
+CLIENT_UPDATE_STATE_FILE_NAME = "client_update.json"
+ANNOUNCEMENTS_DIR_NAME = "announcements"
+ANNOUNCEMENT_SEEN_FILE_NAME = "seen.json"
+ANNOUNCEMENT_DELIVERY_FILE_NAME = "delivery.json"
 RESOURCES_DIR_NAME = "resources"
 CACHE_DIR_NAME = "cache"
 BACKUPS_DIR_NAME = "backups"
+BACKUP_DATABASE_DIR_NAME = "database"
+BACKUP_STATE_DIR_NAME = "state"
+CLIENT_UPDATE_MIGRATION_BACKUP_FILE_NAME = "client_update.json.v2.bak"
 ASSETS_DIR_NAME = "assets"
 API_CACHE_DIR_NAME = "api"
 RENDERED_CACHE_DIR_NAME = "rendered"
@@ -68,6 +77,42 @@ class RuntimeDataLayout:
         """订阅、调度、公告和别名等可恢复状态目录。"""
 
         return self.data_dir / STATE_DIR_NAME
+
+    @property
+    def subscriptions_path(self) -> Path:
+        """订阅持久化文件。"""
+
+        return self.state_dir / SUBSCRIPTIONS_FILE_NAME
+
+    @property
+    def scheduler_state_path(self) -> Path:
+        """内置调度状态文件。"""
+
+        return self.state_dir / SCHEDULER_STATE_FILE_NAME
+
+    @property
+    def announcements_dir(self) -> Path:
+        """公告已见与按目标投递状态目录。"""
+
+        return self.state_dir / ANNOUNCEMENTS_DIR_NAME
+
+    @property
+    def ann_state_path(self) -> Path:
+        """公告已见状态文件。"""
+
+        return self.announcements_dir / ANNOUNCEMENT_SEEN_FILE_NAME
+
+    @property
+    def ann_delivery_state_path(self) -> Path:
+        """公告按目标投递状态文件。"""
+
+        return self.announcements_dir / ANNOUNCEMENT_DELIVERY_FILE_NAME
+
+    @property
+    def client_update_state_path(self) -> Path:
+        """客户端更新基线与投递状态文件。"""
+
+        return self.state_dir / CLIENT_UPDATE_STATE_FILE_NAME
 
     @property
     def aliases_dir(self) -> Path:
@@ -213,16 +258,41 @@ class RuntimeDataLayout:
 
         return self.data_dir / BACKUPS_DIR_NAME
 
+    @property
+    def backups_database_dir(self) -> Path:
+        """人工数据库备份目录。"""
+
+        return self.backups_dir / BACKUP_DATABASE_DIR_NAME
+
+    @property
+    def backups_state_dir(self) -> Path:
+        """状态迁移原始文件备份目录。"""
+
+        return self.backups_dir / BACKUP_STATE_DIR_NAME
+
+    @property
+    def client_update_migration_backup_path(self) -> Path:
+        """客户端更新 State v2 迁移的原始字节备份文件。"""
+
+        return self.backups_state_dir / CLIENT_UPDATE_MIGRATION_BACKUP_FILE_NAME
+
 
 __all__ = [
     "ALIASES_DIR_NAME",
+    "ANNOUNCEMENT_DELIVERY_FILE_NAME",
+    "ANNOUNCEMENT_SEEN_FILE_NAME",
+    "ANNOUNCEMENTS_DIR_NAME",
     "ANN_CARD_DIR_NAME",
     "API_CACHE_DIR_NAME",
     "ASSETS_DIR_NAME",
+    "BACKUP_DATABASE_DIR_NAME",
+    "BACKUP_STATE_DIR_NAME",
     "BACKUPS_DIR_NAME",
     "CACHE_DIR_NAME",
     "CALENDAR_DIR_NAME",
     "CHAR_ALIAS_FILE_NAME",
+    "CLIENT_UPDATE_MIGRATION_BACKUP_FILE_NAME",
+    "CLIENT_UPDATE_STATE_FILE_NAME",
     "CUSTOM_DIR_NAME",
     "CUSTOM_PAINT_DIR_NAME",
     "DATABASE_DIR_NAME",
@@ -238,8 +308,10 @@ __all__ = [
     "RESOURCE_LAST_SYNC_STATE_FILE_NAME",
     "RESOURCE_REPOSITORY_DIR_NAME",
     "RESOURCE_VALIDATION_STATE_FILE_NAME",
+    "SCHEDULER_STATE_FILE_NAME",
     "SIGN_DIR_NAME",
     "STATE_DIR_NAME",
+    "SUBSCRIPTIONS_FILE_NAME",
     "USER_AVATAR_DIR_NAME",
     "WEAPON_ALIAS_FILE_NAME",
     "RuntimeDataLayout",

@@ -368,9 +368,7 @@ def build_runtime(
         resource_snapshots=resource_snapshots,
         rendered_root=rendered_root,
     )
-    subscriptions = SubscriptionStore(
-        runtime_data_layout.data_dir / "subscriptions.json"
-    )
+    subscriptions = SubscriptionStore(runtime_data_layout.subscriptions_path)
     deletion_coordinator = AccountDeletionCoordinator(runtime_database, subscriptions)
     membership_probe = AiocqhttpMembershipProbe(context=context)
     membership_service = MembershipService(
@@ -379,9 +377,7 @@ def build_runtime(
         membership_probe,
         deletion_coordinator=deletion_coordinator,
     )
-    scheduler_registry = SchedulerRegistry(
-        runtime_data_layout.data_dir / "scheduler_state.json"
-    )
+    scheduler_registry = SchedulerRegistry(runtime_data_layout.scheduler_state_path)
     checkin_renderer = CheckinRenderer(
         rendered_root,
         encyclopedia_resources,
@@ -494,9 +490,9 @@ def build_runtime(
         runtime_database,
         request_gate=request_gate,
     )
-    ann_state = AnnStateStore(runtime_data_layout.data_dir / "ann_state.json")
+    ann_state = AnnStateStore(runtime_data_layout.ann_state_path)
     ann_delivery_state = AnnDeliveryStateStore(
-        runtime_data_layout.data_dir / "ann_delivery_state.json",
+        runtime_data_layout.ann_delivery_state_path,
     )
 
     class _AnnouncementListSource:
@@ -588,7 +584,7 @@ def build_runtime(
             services["client_updates_transport"],
         )
     client_update_state = ClientUpdateStateStore(
-        runtime_data_layout.data_dir / "client_update_state.json",
+        runtime_data_layout.client_update_state_path,
     )
     if services is not None and "client_update_state" in services:
         client_update_state = cast(

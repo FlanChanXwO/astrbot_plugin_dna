@@ -63,13 +63,13 @@
 
 ## Task 6：迁移 state、aliases 与备份路径
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：迁移订阅、调度、公告、客户端更新、角色/武器别名和状态迁移备份；所有路径由统一 layout 注入。
 - 验收：状态可读写；别名命令、Dashboard 和 loadout 仍工作；备份写入 `backups/`，不在数据根产生旧旁车。
-- 实际变更：
-- 验证证据：
-- 剩余风险：
-- 下一步：
+- 实际变更：`RuntimeDataLayout` 新增 `state/subscriptions.json`、`state/scheduler.json`、`state/announcements/{seen,delivery}.json`、`state/client_update.json` 及 `backups/{database,state}/` 契约；bootstrap 将订阅、调度、公告和客户端更新状态统一注入这些路径，并继续注入 `state/aliases/{char,weapon}.json`；`ClientUpdateStateStore` 支持显式迁移备份路径，生产迁移原始字节写入 `backups/state/client_update.json.v2.bak`；公告服务的隐式投递状态路径改为与 `seen.json` 同目录的 `delivery.json`。
+- 验证证据：Task 6 Red 目标测试实际为 `4 failed, 5 passed`（缺少新布局属性）；Green `tests/test_runtime_data_layout.py -q` 为 `9 passed`；相关状态、公告、调度、Dashboard、别名和配置回归为 `98 passed, 1 warning`；完整 pytest 为 `250 passed, 5 failed`，失败仍为既有签到 2 项、登录集成 1 项、goal 工作区守卫 1 项、玩家详情 1 项，未新增本任务失败；目标源码 Ruff、格式、`compileall src tests`、`git diff --check` 通过；5 个受影响文件 LSP diagnostics 均为空。
+- 剩余风险：完整 pytest 的 5 项既有失败仍待后续任务/最终审查归属；`ClientUpdateStateStore` 的无显式参数构造仍保留同文件旁车默认值，仅生产 bootstrap 注入 `backups/state`，避免破坏独立调用方测试；未在本任务清理 legacy detector 中有意保留的旧路径标记或独立兼容 API 的可选 fallback。
+- 下一步：执行 Checkpoint 2，集中检查生产目录重构与全仓旧路径引用。
 
 ## Checkpoint 2：集中检查生产目录重构
 
