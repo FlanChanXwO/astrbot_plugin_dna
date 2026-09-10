@@ -1,5 +1,17 @@
 # 更新日志
 
+## v0.3.6 — 2026-09-10
+
+### 修复
+
+- 修复本群社区签到报告在社区主签到已经成功、但浏览、点赞、分享、回复等附加社区任务失败或发生网络异常时，仍把账号判定为失败并批量 `@` 的问题；群报告现在以社区主签到状态作为主要成功判定，附加任务的真实失败仍保留在整体自动任务结果中。（[#54](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/54)）
+
+### 维护
+
+- 精简 #54 的回归测试，复用现有签到测试设施，并保留“附加任务普通失败”和“主签到成功后附加任务发生 `CheckinTransportError`”两条历史回归场景，移除重复的独立群报告测试框架。（[#54](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/54)）
+
+**完整变更**：[`v0.3.5...v0.3.6`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.3.5...v0.3.6)
+
 ## v0.3.5 — 2026-09-09
 
 ### 修复
