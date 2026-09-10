@@ -59,7 +59,6 @@ async def test_state_v4_round_trips_source_baseline_and_target_snapshot(
         origin="group:123",
         uid="user-1",
         bot_id="bot-1",
-        target_ids=("cn-official-pc",),
     )
     path = tmp_path / "client_updates.json"
 
@@ -79,9 +78,7 @@ async def test_state_v4_round_trips_source_baseline_and_target_snapshot(
     assert payload["schema_version"] == 4
     assert tuple(payload["baselines"]) == (source_id,)
     assert payload["pending_events"][0]["change"]["target_ids"] == ["cn-official-pc"]
-    assert payload["pending_events"][0]["targets"][0]["target_ids"] == [
-        "cn-official-pc"
-    ]
+    assert "target_ids" not in payload["pending_events"][0]["targets"][0]
 
 
 @pytest.mark.asyncio
@@ -188,7 +185,6 @@ async def test_atomic_write_failure_restores_baseline_and_pending_memory(
     target = ClientUpdatePendingTarget(
         origin="group:123",
         uid="user-1",
-        target_ids=("cn-official-pc",),
     )
 
     def fail_replace(_self: Path, _target: Path) -> Path:

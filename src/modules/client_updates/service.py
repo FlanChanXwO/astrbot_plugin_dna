@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -20,6 +19,8 @@ from .contracts import (
     ClientUpdateStructureError,
     ClientUpdateTransport,
     ClientUpdateTransportError,
+    is_valid_client_update_subscription_metadata,
+    parse_legacy_client_update_platforms,
 )
 from .registry import (
     CLIENT_UPDATE_REGISTRY,
@@ -97,9 +98,6 @@ class ClientUpdateService:
                 messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
                 _clean_legacy_platform_metadata,
             )
-
-    async def terminate(self) -> None:
-        """生命周期对齐钩子；本服务没有独立后台资源。"""
 
     async def poll_now(self) -> tuple[ClientUpdateChange, ...]:
         """串行执行轮询，避免并发观察以旧 baseline 覆盖新结果。"""
@@ -430,23 +428,11 @@ def _validate_observation(
 def _has_legacy_platform_metadata(subscription: Subscription) -> bool:
     """识别可安全清理的旧平台列表；损坏或未知形状保持原样。"""
 
-    try:
-        payload = json.loads(subscription.extra_data)
-        if payload == {}:
-            return False
-        if (
-            not isinstance(payload, dict)
-            or set(payload) != {"platforms"}
-            or not isinstance(payload["platforms"], list)
-        ):
-            raise TypeError("客户端更新订阅元数据不是受支持的旧形状")
-    except (TypeError, json.JSONDecodeError) as error:
-        logger.warning(
-            "客户端更新订阅元数据无效，跳过清理（错误类型：%s）",
-            type(error).__name__,
-        )
-        return False
-    return True
+    if parse_legacy_client_update_platforms(subscription.extra_data) is not None:
+        return True
+    if not is_valid_client_update_subscription_metadata(subscription.extra_data):
+        logger.warning("客户端更新订阅元数据无效，跳过清理")
+    return False
 
 
 def _clean_legacy_platform_metadata(subscription: Subscription) -> Subscription:

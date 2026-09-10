@@ -389,7 +389,7 @@ def test_build_runtime_propagates_all_settings(tmp_path):
         "cn-official-pc",
     )
     assert client_update_service.initialize in runtime.lifecycle._start_hooks
-    assert client_update_service.terminate in runtime.lifecycle._stop_hooks
+    assert not hasattr(client_update_service, "terminate")
 
     notices_scheduler = runtime.services["notices_scheduler"]
     assert notices_scheduler.announcement_enabled is False

@@ -20,8 +20,8 @@ from .contracts import (
 )
 from .registry import (
     CLIENT_UPDATE_REGISTRY,
-    ClientUpdateRegistry,
     ClientUpdateProviderKind,
+    ClientUpdateRegistry,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,10 +74,9 @@ class ClientUpdateBaseline:
 
 @dataclass(frozen=True, slots=True)
 class ClientUpdatePendingTarget:
-    """事件创建时固定的消息目的地和其实际覆盖 Target。"""
+    """事件创建时固定的消息目的地。"""
 
     origin: str
-    target_ids: tuple[str, ...]
     uid: str = ""
     bot_id: str = ""
     delivered: bool = False
@@ -89,12 +88,8 @@ class ClientUpdatePendingTarget:
             raise TypeError("投递目标 uid 必须是字符串")
         if not isinstance(self.bot_id, str):
             raise TypeError("投递目标 bot_id 必须是字符串")
-        normalized_target_ids = _normalize_target_id_values(self.target_ids)
-        if not normalized_target_ids:
-            raise ValueError("投递目标必须包含至少一个 Target ID")
         if type(self.delivered) is not bool:
             raise TypeError("投递目标 delivered 必须是布尔值")
-        object.__setattr__(self, "target_ids", normalized_target_ids)
 
     @property
     def key(self) -> tuple[str, str]:
@@ -127,9 +122,6 @@ class ClientUpdatePendingEvent:
         keys = [target.key for target in normalized]
         if len(keys) != len(set(keys)):
             raise ValueError("一个事件不能重复记录同一投递目标")
-        expected_target_ids = self.change.target_ids
-        if any(target.target_ids != expected_target_ids for target in normalized):
-            raise ValueError("投递目标覆盖的 Target 必须与变化快照一致")
         object.__setattr__(self, "targets", normalized)
 
     @property
@@ -331,7 +323,6 @@ class ClientUpdateStateStore:
                 origin=item.origin,
                 uid=item.uid,
                 bot_id=item.bot_id,
-                target_ids=item.target_ids,
                 delivered=True,
             )
             previous = self._pending_events.copy()
@@ -640,7 +631,6 @@ def _pending_event_to_json(event: ClientUpdatePendingEvent) -> dict[str, Any]:
                 "origin": target.origin,
                 "uid": target.uid,
                 "bot_id": target.bot_id,
-                "target_ids": list(target.target_ids),
                 "status": target.status,
             }
             for target in event.targets
@@ -800,7 +790,6 @@ def _parse_pending_events(
                 _parse_pending_target(
                     item,
                     f"{context}.targets[{target_index}]",
-                    registry,
                 )
                 for target_index, item in enumerate(raw_targets)
             ),
@@ -816,7 +805,6 @@ def _parse_pending_events(
 def _parse_pending_target(
     value: object,
     context: str,
-    registry: ClientUpdateRegistry,
 ) -> ClientUpdatePendingTarget:
     entry = _require_mapping(value, context)
     status = _required(entry, "status", context)
@@ -826,10 +814,6 @@ def _parse_pending_target(
         origin=cast(str, _required(entry, "origin", context)),
         uid=cast(str, _required(entry, "uid", context)),
         bot_id=cast(str, _required(entry, "bot_id", context)),
-        target_ids=_normalize_target_ids(
-            _required(entry, "target_ids", context),
-            registry,
-        ),
         delivered=status == "delivered",
     )
 

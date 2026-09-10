@@ -320,7 +320,7 @@ async def test_poll_history_gap_advances_atomically_and_does_not_repeat(
         last_change=first_changes[0],
     )
     assert len(first_pending) == 1
-    assert first_pending[0].targets[0].target_ids == target_ids
+    assert first_pending[0].change.target_ids == target_ids
     assert second_changes == ()
     assert await state.pending_events() == first_pending
     assert [baseline.revision_id for _source, baseline in transport.calls] == [
@@ -961,6 +961,7 @@ async def test_initialize_cleans_legacy_platform_metadata_idempotently_and_warns
     metadata_by_origin = {
         "group:canonical": "{}",
         "group:pc": '{"platforms":["pc"]}',
+        "group:both": '{"platforms":["android","pc","pc"]}',
         "group:ios": '{"platforms":["ios"]}',
         "group:empty": '{"platforms":[]}',
         "group:broken-json": "{",
@@ -997,8 +998,9 @@ async def test_initialize_cleans_legacy_platform_metadata_idempotently_and_warns
     assert client_subscriptions == {
         "group:canonical": "{}",
         "group:pc": "{}",
-        "group:ios": "{}",
-        "group:empty": "{}",
+        "group:both": "{}",
+        "group:ios": '{"platforms":["ios"]}',
+        "group:empty": '{"platforms":[]}',
         "group:broken-json": "{",
         "group:not-object": "[]",
         "group:unknown-shape": '{"targets":["cn-official-pc"]}',
@@ -1007,7 +1009,7 @@ async def test_initialize_cleans_legacy_platform_metadata_idempotently_and_warns
         '{"platforms":["pc"]}'
     )
     assert path.read_text(encoding="utf-8") == first_payload
-    assert caplog.text.count("客户端更新订阅元数据无效，跳过清理") == 6
+    assert caplog.text.count("客户端更新订阅元数据无效，跳过清理") == 10
 
 
 @pytest.mark.asyncio
@@ -1064,10 +1066,10 @@ async def test_initialize_cleans_every_duplicate_identity_legacy_record(
         "{}",
         "{}",
         '{"targets":["cn-official-pc"]}',
-        "{}",
+        '{"platforms":["ios"]}',
     )
     assert path.read_text(encoding="utf-8") == first_payload
-    assert caplog.text.count("客户端更新订阅元数据无效，跳过清理") == 2
+    assert caplog.text.count("客户端更新订阅元数据无效，跳过清理") == 4
 
 
 @pytest.mark.asyncio

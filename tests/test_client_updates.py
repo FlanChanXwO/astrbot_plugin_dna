@@ -10,6 +10,7 @@ from typing import Any, Self
 import pytest
 
 import src.modules.client_updates as client_updates_public
+import src.modules.client_updates.contracts as client_updates_contracts
 from src.infrastructure.http import client_updates as client_updates_module
 from src.infrastructure.http.client_updates import ClientUpdateTransport
 from src.modules.client_updates import (
@@ -27,15 +28,14 @@ from src.modules.client_updates import (
     ClientUpdateSource,
     ClientUpdateTarget,
     ClientUpdateTransportError,
-    ClientVersionSnapshot,
     ManifestCdnProviderConfig,
     ManifestCdnVersionMetadata,
     group_client_update_target_ids_by_source,
-    normalize_client_update_platforms,
     normalize_client_update_target_ids,
     resolve_client_update_source,
     resolve_client_update_target,
 )
+from src.modules.client_updates.contracts import ClientVersionSnapshot
 
 
 def test_public_contract_has_no_legacy_channel_model() -> None:
@@ -53,8 +53,24 @@ def test_public_contract_has_no_legacy_channel_model() -> None:
         "parse_channel_version_list",
         "parse_channel_version_list_entries",
         "sum_channel_patch_file_sizes",
+        "ClientUpdateObservation",
+        "ClientVersion",
+        "ClientVersionSnapshot",
+        "normalize_client_update_platforms",
+        "parse_version_list",
+        "sum_patch_file_sizes",
     )
     assert all(not hasattr(client_updates_public, name) for name in forbidden_exports)
+    assert all(
+        not hasattr(client_updates_contracts, name)
+        for name in (
+            "ClientUpdateObservation",
+            "ClientVersion",
+            "normalize_client_update_platforms",
+            "parse_version_list",
+            "sum_patch_file_sizes",
+        )
+    )
     assert all(
         not hasattr(client_updates_module, name)
         for name in (
@@ -96,9 +112,6 @@ def test_verified_registry_contains_only_investigated_cn_targets() -> None:
         "cn-official-pc",
         "cn-official-android",
     )
-    with pytest.raises(ValueError, match="不支持"):
-        normalize_client_update_platforms([ClientPlatform.IOS])
-
     assert tuple(
         (
             target.target_id,
@@ -854,8 +867,10 @@ async def test_manifest_transport_logs_safe_primary_failure_before_fallback(
     assert caught.value.status_code == 503
     assert logger.calls == [
         (
-            "客户端更新端点失败 endpoint_role=primary next_role=fallback "
-            "resource=%s kind=%s status=%s",
+            (
+                "客户端更新端点失败 endpoint_role=primary next_role=fallback "
+                "resource=%s kind=%s status=%s"
+            ),
             ("VersionList", "network", None),
         ),
         (

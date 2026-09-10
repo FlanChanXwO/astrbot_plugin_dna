@@ -7,11 +7,11 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
-from types import MappingProxyType
 from typing import Protocol, cast
 
 from ...entry.event import EventActor
@@ -28,29 +28,55 @@ class ClientPlatform(StrEnum):
 
 
 _CLIENT_UPDATE_PLATFORM_ORDER = (ClientPlatform.PC, ClientPlatform.ANDROID)
+_LEGACY_CLIENT_UPDATE_PLATFORM_VALUES = frozenset(
+    platform.value for platform in _CLIENT_UPDATE_PLATFORM_ORDER
+)
 
 
-def normalize_client_update_platforms(
-    platforms: object,
-) -> tuple[ClientPlatform, ...]:
-    """把命令或配置传入的平台值归一为固定顺序且无重复的元组。"""
+def parse_legacy_client_update_platforms(
+    extra_data: str,
+) -> tuple[str, ...] | None:
+    """解析旧订阅的平台元数据；无效形状返回 ``None``。"""
 
-    if isinstance(platforms, (ClientPlatform, str)):
-        candidates = (platforms,)
-    else:
-        try:
-            candidates = tuple(platforms)  # type: ignore[arg-type]
-        except TypeError as error:
-            raise ValueError("客户端更新平台必须是可迭代值") from error
-    if not candidates:
-        raise ValueError("客户端更新至少需要选择一个平台")
+    try:
+        payload = json.loads(extra_data)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return _parse_legacy_client_update_platform_payload(payload)
 
-    selected = {ClientPlatform(platform) for platform in candidates}
-    unsupported = selected.difference(_CLIENT_UPDATE_PLATFORM_ORDER)
-    if unsupported:
-        raise ValueError("旧客户端更新请求不支持该平台")
+
+def is_valid_client_update_subscription_metadata(extra_data: str) -> bool:
+    """判断当前订阅元数据是否为中性空对象或合法旧平台形状。"""
+
+    try:
+        payload = json.loads(extra_data)
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return (
+        payload == {}
+        or _parse_legacy_client_update_platform_payload(payload) is not None
+    )
+
+
+def _parse_legacy_client_update_platform_payload(
+    payload: object,
+) -> tuple[str, ...] | None:
+    if not isinstance(payload, dict) or set(payload) != {"platforms"}:
+        return None
+    platforms = payload["platforms"]
+    if (
+        not isinstance(platforms, list)
+        or not platforms
+        or any(not isinstance(platform, str) for platform in platforms)
+    ):
+        return None
+    selected = set(platforms)
+    if not selected.issubset(_LEGACY_CLIENT_UPDATE_PLATFORM_VALUES):
+        return None
     return tuple(
-        platform for platform in _CLIENT_UPDATE_PLATFORM_ORDER if platform in selected
+        platform.value
+        for platform in _CLIENT_UPDATE_PLATFORM_ORDER
+        if platform.value in selected
     )
 
 
@@ -155,10 +181,6 @@ class ClientVersionSnapshot:
         """返回面向用户展示的四段版本号。"""
 
         return f"{self.major}.{self.minor}.{self.revamp}.{self.patch_key}"
-
-
-# 后续状态/服务代码使用更短的领域名时，保留一个语义明确的别名。
-ClientVersion = ClientVersionSnapshot
 
 
 ClientVersionOrderKey = int | str | tuple[int, ...]
@@ -282,28 +304,6 @@ class ClientSourceObservation:
         ):
             raise ValueError("added_size_bytes 必须是非负整数或 None")
         object.__setattr__(self, "observed_versions", versions)
-
-
-@dataclass(frozen=True, slots=True)
-class ClientUpdateObservation:
-    """一次 transport 成功读取的最新版本及新增补丁大小。"""
-
-    snapshot: ClientVersionSnapshot
-    patch_sizes: Mapping[int, int] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.snapshot, ClientVersionSnapshot):
-            raise TypeError("snapshot 必须是 ClientVersionSnapshot")
-        if not isinstance(self.patch_sizes, Mapping):
-            raise TypeError("patch_sizes 必须是补丁版本到字节数的映射")
-        normalized: dict[int, int] = {}
-        for patch_version, size_bytes in self.patch_sizes.items():
-            if type(patch_version) is not int or patch_version < 0:
-                raise ValueError("patch_sizes 的补丁版本号必须是非负整数")
-            if type(size_bytes) is not int or size_bytes < 0:
-                raise ValueError("patch_sizes 的大小必须是非负整数")
-            normalized[patch_version] = size_bytes
-        object.__setattr__(self, "patch_sizes", MappingProxyType(normalized))
 
 
 class ClientUpdateTransport(Protocol):
@@ -440,35 +440,6 @@ def _parse_version_list_entries(
     return tuple(versions)
 
 
-def parse_version_list(
-    payload: object,
-    platform: ClientPlatform | str,
-) -> ClientVersionSnapshot:
-    """校验并选择 VersionList 中数值上最新的一条版本记录。"""
-
-    versions = parse_version_list_entries(payload, platform)
-    return max(
-        versions, key=lambda version: (version.version_key, version.patch_version)
-    )
-
-
-def sum_patch_file_sizes(
-    platform: ClientPlatform | str,
-    pak_files_info: object,
-    res_discrete_info: object,
-) -> int:
-    """兼容旧 platform API，按平台默认 manifest key 计算补丁清单大小。"""
-
-    normalized_platform = _coerce_platform(platform)
-    manifest_key = _manifest_platform_key(normalized_platform)
-    return sum_manifest_patch_file_sizes(
-        manifest_key,
-        manifest_key,
-        pak_files_info,
-        res_discrete_info,
-    )
-
-
 def sum_manifest_patch_file_sizes(
     pak_manifest_key: str,
     res_manifest_key: str,
@@ -542,12 +513,6 @@ def _require_non_negative_int(
     return value
 
 
-def _manifest_platform_key(platform: ClientPlatform) -> str:
-    if platform is ClientPlatform.PC:
-        return "WindowsNoEditor"
-    return "Android_ASTC"
-
-
 def _manifest_entries(
     payload: object,
     platform_key: str,
@@ -580,18 +545,13 @@ __all__ = [
     "ClientSourceVersion",
     "ClientUpdateChange",
     "ClientUpdateFailureKind",
-    "ClientUpdateObservation",
     "ClientUpdateRequest",
     "ClientUpdateStructureError",
     "ClientUpdateTransport",
     "ClientUpdateTransportError",
-    "ClientVersion",
     "ClientVersionOrderKey",
     "ClientVersionSnapshot",
     "ManifestCdnVersionMetadata",
-    "normalize_client_update_platforms",
-    "parse_version_list",
     "parse_version_list_entries",
     "sum_manifest_patch_file_sizes",
-    "sum_patch_file_sizes",
 ]

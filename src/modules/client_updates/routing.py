@@ -6,12 +6,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Sequence
 
 from ...infrastructure.subscriptions import Subscription
-from .contracts import ClientUpdateChange
+from .contracts import (
+    ClientUpdateChange,
+    is_valid_client_update_subscription_metadata,
+)
 from .state import ClientUpdatePendingTarget
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,6 @@ def pending_targets_for_change(
             origin=subscription.unified_msg_origin,
             uid=subscription.uid,
             bot_id=subscription.bot_id,
-            target_ids=change.target_ids,
         )
         for subscription, routable in latest.values()
         if routable
@@ -55,23 +56,12 @@ def pending_targets_for_change(
 
 
 def _has_valid_metadata(subscription: Subscription) -> bool:
-    """接受 target-neutral `{}` 与待生命周期清理的精确旧 platforms 形状。"""
+    """接受 target-neutral `{}` 与合法的旧 platforms 形状。"""
 
-    try:
-        payload = json.loads(subscription.extra_data)
-        if not isinstance(payload, dict):
-            raise TypeError("订阅元数据必须是对象")
-        if payload != {} and (
-            set(payload) != {"platforms"} or not isinstance(payload["platforms"], list)
-        ):
-            raise TypeError("订阅元数据不是受支持的形状")
-    except (TypeError, json.JSONDecodeError) as error:
-        logger.warning(
-            "[dnaby][client_update] 订阅元数据无效，跳过投递（错误类型：%s）",
-            type(error).__name__,
-        )
-        return False
-    return True
+    if is_valid_client_update_subscription_metadata(subscription.extra_data):
+        return True
+    logger.warning("[dnaby][client_update] 订阅元数据无效，跳过投递")
+    return False
 
 
 __all__ = [

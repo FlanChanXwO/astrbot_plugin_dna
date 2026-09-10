@@ -226,7 +226,6 @@ class ClientUpdateDeliveryService:
                     origin=subscription.unified_msg_origin,
                     uid=subscription.uid,
                     bot_id=subscription.bot_id,
-                    target_ids=change.target_ids,
                 )
                 for subscription, routable in active.values()
                 if routable
@@ -266,7 +265,6 @@ class ClientUpdateDeliveryService:
                     origin=target.origin,
                     uid=target.uid,
                     bot_id=subscription.bot_id,
-                    target_ids=target.target_ids,
                 )
                 group_key = (
                     current_target.origin,

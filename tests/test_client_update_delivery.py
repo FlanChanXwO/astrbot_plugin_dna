@@ -15,12 +15,12 @@ from src.modules.client_updates import (
     ClientSourceVersion,
     ClientUpdateChange,
     ClientUpdateDeliveryService,
+    ClientUpdateProviderKind,
     ClientUpdatePush,
     ClientUpdatePushAdapter,
     ClientUpdatePushMessage,
     ClientUpdatePushResult,
     ClientUpdatePushTarget,
-    ClientUpdateProviderKind,
     ClientUpdateRegistry,
     ClientUpdateRequest,
     ClientUpdateService,
@@ -217,7 +217,7 @@ async def test_pending_retry_keeps_event_target_snapshot_across_reload(
     pending = await ClientUpdateStateStore(state_path).pending_events()
     assert len(pending) == 1
     assert pending[0].change.target_ids == ("cn-official-pc",)
-    assert pending[0].pending_targets[0].target_ids == ("cn-official-pc",)
+    assert not hasattr(pending[0].pending_targets[0], "target_ids")
 
     reloaded_service = ClientUpdateService(
         ClientUpdateStateStore(state_path),
@@ -331,16 +331,29 @@ async def test_only_failed_subscription_target_remains_pending_and_is_retried(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra_data",
+    (
+        '{"targets":["cn-official-pc"]}',
+        '{"platforms":[]}',
+        '{"platforms":["ios"]}',
+        '{"platforms":["invalid"]}',
+        '{"platforms":[1]}',
+        "{",
+        "[]",
+    ),
+)
 async def test_invalid_subscription_metadata_never_receives_or_keeps_pending(
     tmp_path,
     caplog: pytest.LogCaptureFixture,
+    extra_data: str,
 ) -> None:
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     state = ClientUpdateStateStore(tmp_path / "client_updates.json")
     await _add_subscription(
         subscriptions,
         "group:invalid",
-        extra_data='{"targets":["cn-official-pc"]}',
+        extra_data=extra_data,
     )
     port = _RecordingPushPort()
     delivery = ClientUpdateDeliveryService(subscriptions, port, state=state)
