@@ -1,5 +1,13 @@
 # 更新日志
 
+## [Unreleased]
+
+### 运行期数据与资源
+
+- 引入 generation-first 公共资源布局和 `AssetResolver`，动态素材按资源快照、动态缓存和网络下载顺序解析。
+- 运行期目录切换到 `db/`、`state/`、`resources/`、`cache/` 和 `backups/`；检测到旧数据布局时 fail-fast，要求管理员按文档人工迁移。
+- 不自动迁移、不双读旧布局，也不提供长期 legacy runtime layout fallback；仍未迁移的图片调用保留代码级兼容入口。
+
 ## v0.4.0 — 2026-09-11
 
 ### 新增
