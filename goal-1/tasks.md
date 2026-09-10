@@ -99,13 +99,21 @@
 
 ## Task 8：改造共享自适应图片下载器
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：长生命周期 AsyncClient、动态容量、AIMD 退避、Retry-After、URL 级 inflight、不同 target fan-out、原子写入和 lifecycle hook。
 - 验收：同 URL 只产生一次真实请求；不同 URL 正常并发；失败和取消语义明确；stop/reload 无 client 或任务泄漏。
 - 实际变更：
+  - `ImageFetcher` 改为进程级默认共享的长生命周期 `AsyncClient`，新增 `start()/close()`，关闭期间拒绝新网络下载，等待 active 请求自然完成后释放 client，并支持 reload 后重新启动。
+  - 新增不暴露给用户配置的条件并发容量：429 立即 AIMD 收缩，5xx/传输错误累计后收缩，连续健康请求逐步恢复；默认 HTTP 连接池内部硬上限为 64。
+  - inflight key 改为完整 URL；共享任务只下载并校验一次 bytes，再向不同 target fan-out，各 target 继续使用临时文件校验和 `os.replace` 原子写入；单个 waiter 取消不会取消共享请求。
+  - bootstrap 注入共享 `image_fetcher` 到 `AssetResolver`，挂接 lifecycle start/finalizer close；补充运行期 service、生命周期、并发、重试、Retry-After、失败、取消、drain/reload 回归测试。
 - 验证证据：
-- 剩余风险：
-- 下一步：
+  - Red：新增下载器测试先因 `ImageFetcherClosed` 尚不存在而收集失败；runtime 集成断言先因缺少 `image_fetcher` service 以 `KeyError` 失败。
+  - Green：`python -m pytest tests/test_image_fetcher.py -q` 为 `10 passed, 1 warning`；下载器、resolver、资源、runtime layout 和默认 lifecycle 集成回归合计 `32 passed, 1 warning`。
+  - 扩大到完整 `tests/test_integration.py` 后为 `48 passed, 2 failed`；两项失败均为既有的登录页面文案断言和 goal 工作区守卫，不由本任务改动引入。
+  - 受影响源码/测试 LSP diagnostics 为空；目标 Ruff、格式检查、`compileall -q src tests` 与 `git diff --check` 通过。
+- 剩余风险：现有 renderer 仍直接使用 legacy 图片入口，统一 resolver 和渲染前并发准备留给 Task 9；resolver 的独立调用仍保留 legacy fallback，但生产 bootstrap 已注入共享下载器。
+- 下一步：执行 Task 9，并在同一 generation lease 内并发准备角色详情素材。
 
 ## Task 9：并发准备角色详情素材并保持渲染契约
 

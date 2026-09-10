@@ -248,8 +248,15 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
         assert not (tmp_path / "other").exists()
 
         asset_resolver = runtime.services["asset_resolver"]
+        image_fetcher = runtime.services["image_fetcher"]
+        from src.utils import image_utils
+
         assert asset_resolver.dynamic_root == layout.cache_assets_dir
         assert asset_resolver.coordinator is runtime.services["resource_snapshots"]
+        assert asset_resolver.downloader is image_fetcher
+        assert image_fetcher is image_utils.get_default_image_fetcher()
+        assert runtime.lifecycle._start_hooks[0].__self__ is image_fetcher
+        assert runtime.lifecycle._finalizer_hooks[0].__self__ is image_fetcher
 
         subscriptions = runtime.services["subscriptions"]
         assert subscriptions.path == layout.subscriptions_path

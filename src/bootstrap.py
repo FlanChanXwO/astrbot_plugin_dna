@@ -104,6 +104,7 @@ from .modules.player.cache import (
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
+from .utils.image_utils import ImageFetcher
 from .utils.name_convert import configure_alias_storage
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
@@ -176,7 +177,12 @@ def build_runtime(
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()
     settings = DnabySettings.from_config(config)
-    from .utils import dna_api
+    from .utils import dna_api, image_utils
+
+    image_fetcher = image_utils.get_default_image_fetcher()
+    if services is not None and "image_fetcher" in services:
+        image_fetcher = cast(ImageFetcher, services["image_fetcher"])
+        image_utils.set_default_image_fetcher(image_fetcher)
 
     dna_api.configure_network(
         api_base_url=settings.network.api_base_url,
@@ -219,6 +225,7 @@ def build_runtime(
     asset_resolver = AssetResolver(
         coordinator=resource_snapshots,
         dynamic_root=runtime_data_layout.cache_assets_dir,
+        downloader=image_fetcher,
     )
     if services is not None and "asset_resolver" in services:
         asset_resolver = cast(AssetResolver, services["asset_resolver"])
@@ -743,6 +750,7 @@ def build_runtime(
         "resource_update_service": resource_update_service,
         "resource_snapshots": resource_snapshots,
         "asset_resolver": asset_resolver,
+        "image_fetcher": image_fetcher,
     }
 
     def _refresh_resource_views(snapshot: ResourceSnapshot) -> None:
@@ -788,6 +796,9 @@ def build_runtime(
     async def _stop_resource_views() -> None:
         """资源校验不持有后台任务，但需要与启动 hook 保持索引对齐。"""
 
+    async def _stop_image_fetcher() -> None:
+        """下载器在 finalizer 阶段关闭；此 hook 只保持生命周期索引对齐。"""
+
     if services is not None:
         resolved_services.update(services)
 
@@ -822,6 +833,7 @@ def build_runtime(
     )
     lifecycle = PluginLifecycle(
         start_hooks=(
+            image_fetcher.start,
             _initialize_resource_views,
             login_flow.start,
             client_update_service.initialize,
@@ -835,6 +847,7 @@ def build_runtime(
         # PluginLifecycle 会逆序执行，先取消 scheduler/监听任务，
         # 再运行 transport 和数据库 finalizer。
         stop_hooks=(
+            _stop_image_fetcher,
             _stop_resource_views,
             login_flow.stop,
             web.stop,
@@ -845,6 +858,7 @@ def build_runtime(
             agent_tools_lifecycle.stop,
         ),
         finalizer_hooks=(
+            image_fetcher.close,
             resource_update_service.stop,
             dna_api.close,
             runtime_database.dispose,
