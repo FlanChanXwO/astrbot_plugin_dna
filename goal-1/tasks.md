@@ -73,12 +73,12 @@
 
 ## Checkpoint 2：集中检查生产目录重构
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：运行持久化、调度、公告、Dashboard、资源和玩家测试；检查全仓旧路径引用、生成目录和迁移映射完整性。
-- 验证证据：
-- 发现问题与修复：
-- 剩余风险：
-- 下一步：
+- 验证证据：布局探针确认 `db/dna.sqlite3`、`state/{subscriptions,scheduler,client_update}.json`、`state/announcements/{seen,delivery}.json`、`state/aliases/{char,weapon}.json`、`resources/{repository,generations}`、`cache/{assets,api,rendered,media}` 和 `backups/{database,state}`；构造布局不创建数据根；legacy marker 共 23 项。持久化、调度、公告、Dashboard、资源、玩家、别名及布局回归合计 `103 passed, 1 failed, 1 warning`，唯一失败为既有 `tests/test_player.py::test_role_detail_renders_all_basic_sections_and_original_path` 的额外“伤害” section 断言；额外百科、渲染、登录媒体测试 `34 passed, 1 warning`；`ruff check src tests`、`compileall .`、`git diff --check` 通过；LSP 引用/影响面审计完成，受影响源码 diagnostics 为空。
+- 发现问题与修复：全仓旧路径命中均已分类：`legacy_layout.py` 中是启动门禁标记，CHANGELOG/Alembic/数据库与状态模块 docstring 是历史或迁移说明，别名与百科模块的旧文件名仅为独立 API 的可选 fallback，生产 bootstrap 已显式注入 `state/aliases`；资源 generation、cache namespace 和 state 注入均无遗漏。未发现需在本 checkpoint 修复的生产路径问题。
+- 剩余风险：既有玩家详情断言仍失败；`AdminAliasService`/`EncyclopediaResourceStore` 的独立调用默认 fallback 与 `src/utils/subscriptions.py` 的遗留全局兼容模块仍含旧命名，但没有活动 bootstrap 调用；后续任务仍需实现 AssetResolver、共享下载器、渲染并发、迁移文档和最终审查。
+- 下一步：执行 Task 7，实现 generation-first `AssetResolver`。
 
 ## Task 7：实现 generation-first AssetResolver
 
