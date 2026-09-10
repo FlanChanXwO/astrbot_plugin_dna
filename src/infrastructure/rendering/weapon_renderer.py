@@ -7,6 +7,7 @@ from ...utils.image import get_mod_img, get_weapon_img
 from .assets import pil_image_data_uri
 from .legacy_assets import DETAIL_TEXT_PATH
 from .legacy_assets import legacy_image_data_uri as image_data_uri
+from .runtime_assets import AssetResolverLike, resolved_image_data_uri, resource_record
 
 TEXT_PATH = DETAIL_TEXT_PATH
 
@@ -21,11 +22,42 @@ def _mode_quality(mode: Mode) -> int:
     return quality
 
 
-async def _mode_payload(mode: Mode, side: str) -> dict[str, object]:
+def _resolved_image(
+    resolver: AssetResolverLike,
+    logical_key: str,
+    *,
+    label: str,
+    resources: list[dict[str, str]] | None = None,
+    kind: str = "texture",
+) -> str:
+    """通过请求级 resolver 生成武器区块图片 URI。"""
+
+    uri, asset = resolved_image_data_uri(resolver, logical_key, label=label)
+    if resources is not None:
+        resources.append(resource_record(kind, logical_key, asset, source=logical_key))
+    return uri
+
+
+async def _mode_payload(
+    mode: Mode,
+    side: str,
+    *,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
     mode_id = getattr(mode, "id", -1)
     quality = _mode_quality(mode)
+    if asset_resolver is None:
+        background = image_data_uri(TEXT_PATH / f"mod/mod_{side}_{quality}.png")
+    else:
+        background = _resolved_image(
+            asset_resolver,
+            f"texture.detail.mod:{side}:{quality}",
+            label=f"mod-{side}-{quality}",
+            resources=resources,
+        )
     payload: dict[str, object] = {
-        "background": image_data_uri(TEXT_PATH / f"mod/mod_{side}_{quality}.png"),
+        "background": background,
         "icon": None,
         "level": None,
         "name": getattr(mode, "name", "") or "",
@@ -40,7 +72,16 @@ async def _mode_payload(mode: Mode, side: str) -> dict[str, object]:
     level = getattr(mode, "level", None)
     if name is None or icon is None or level is None:
         raise RuntimeError(f"武器 Mod {mode_id} 详情不完整")
-    payload["icon"] = pil_image_data_uri(await get_mod_img(mode_id, icon))
+    if asset_resolver is None:
+        payload["icon"] = pil_image_data_uri(await get_mod_img(mode_id, icon))
+    else:
+        payload["icon"] = _resolved_image(
+            asset_resolver,
+            f"image:mod:{mode_id}",
+            label=f"mod-{mode_id}",
+            resources=resources,
+            kind="mod_icon",
+        )
     payload["level"] = f"+{level}" if level > 0 else None
     return payload
 
@@ -61,12 +102,24 @@ def _mode_order(modes: list[Mode]) -> list[tuple[Mode, str]]:
 async def draw_weapon_detail_section(
     weapon_detail: WeaponDetail,
     title: str,
+    *,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
-    """保留旧函数签名，返回 HTML 模板使用的武器区块 payload。"""
+    """返回 HTML 模板使用的武器区块 payload。"""
 
     weapon_id = getattr(weapon_detail, "id", getattr(weapon_detail, "weapon_id", 0))
     weapon_icon = getattr(weapon_detail, "icon", "")
-    weapon_image = await get_weapon_img(weapon_id, weapon_icon)
+    if asset_resolver is None:
+        weapon_image = pil_image_data_uri(await get_weapon_img(weapon_id, weapon_icon))
+    else:
+        weapon_image = _resolved_image(
+            asset_resolver,
+            f"image:weapon:{weapon_id}",
+            label=f"weapon-{weapon_id}",
+            resources=resources,
+            kind="weapon_icon",
+        )
     attr = getattr(weapon_detail, "attribute", None)
     atk = getattr(attr, "atk", 0) if attr else 0
     crd = getattr(attr, "crd", 0.0) if attr else 0.0
@@ -84,20 +137,57 @@ async def draw_weapon_detail_section(
         ("攻击速度", f"{speed:.0%}", "icon14.png"),
         ("触发率", f"{trigger:.0%}", "icon15.png"),
     )
-    attributes = [
-        {
-            "icon": image_data_uri(TEXT_PATH / f"icons/{icon_name}"),
-            "label": label,
-            "value": value,
-        }
-        for label, value, icon_name in attr_specs
-    ]
+    if asset_resolver is None:
+        attributes = [
+            {
+                "icon": image_data_uri(TEXT_PATH / f"icons/{icon_name}"),
+                "label": label,
+                "value": value,
+            }
+            for label, value, icon_name in attr_specs
+        ]
+        attribute_background = image_data_uri(TEXT_PATH / "weapon_attr.png")
+        weapon_background = image_data_uri(TEXT_PATH / "weapon_bg.png")
+    else:
+        attributes = [
+            {
+                "icon": _resolved_image(
+                    asset_resolver,
+                    f"texture.detail.icon:{icon_name}",
+                    label=f"weapon-attribute-{icon_name}",
+                    resources=resources,
+                ),
+                "label": label,
+                "value": value,
+            }
+            for label, value, icon_name in attr_specs
+        ]
+        attribute_background = _resolved_image(
+            asset_resolver,
+            "texture.detail.weapon_attr",
+            label="weapon-attribute-background",
+            resources=resources,
+        )
+        weapon_background = _resolved_image(
+            asset_resolver,
+            "texture.detail.weapon_bg",
+            label="weapon-background",
+            resources=resources,
+        )
     raw_modes = getattr(weapon_detail, "modes", [])
-    modes = [await _mode_payload(mode, side) for mode, side in _mode_order(raw_modes)]
+    modes = [
+        await _mode_payload(
+            mode,
+            side,
+            asset_resolver=asset_resolver,
+            resources=resources,
+        )
+        for mode, side in _mode_order(raw_modes)
+    ]
     return {
-        "attribute_background": image_data_uri(TEXT_PATH / "weapon_attr.png"),
+        "attribute_background": attribute_background,
         "attributes": attributes,
-        "icon": pil_image_data_uri(weapon_image),
+        "icon": weapon_image,
         "level": getattr(weapon_detail, "level", 0),
         "modes": modes,
         "name": getattr(weapon_detail, "name", ""),
@@ -105,6 +195,6 @@ async def draw_weapon_detail_section(
             weapon_detail, "skillLevel", getattr(weapon_detail, "skill_level", 0)
         ),
         "title": title,
-        "weapon_background": image_data_uri(TEXT_PATH / "weapon_bg.png"),
+        "weapon_background": weapon_background,
         "width": 1000,
     }

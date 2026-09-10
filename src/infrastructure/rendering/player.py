@@ -73,6 +73,8 @@ from .runtime_assets import (
     AssetResolverLike,
     render_runtime_card,
     resolve_runtime_asset,
+    resolved_font_data_uri,
+    resolved_image_data_uri,
     resource_record,
     resources_incomplete,
 )
@@ -87,6 +89,40 @@ _RENDERER = HtmlRenderer()
 # ---------------------------------------------------------------------------
 
 
+def _resolved_image(
+    resolver: AssetResolverLike,
+    logical_key: str,
+    *,
+    label: str,
+    resources: list[dict[str, str]] | None = None,
+    kind: str = "texture",
+) -> str:
+    """通过 resolver 生成模板 URI，并把状态写入当前卡片 sidecar。"""
+
+    uri, asset = resolved_image_data_uri(
+        resolver,
+        logical_key,
+        label=label,
+    )
+    if resources is not None:
+        resources.append(resource_record(kind, logical_key, asset, source=logical_key))
+    return uri
+
+
+def _resolved_font(
+    resolver: AssetResolverLike,
+    logical_key: str,
+    *,
+    resources: list[dict[str, str]] | None = None,
+) -> str:
+    """通过 resolver 生成模板字体 URI，并保留字体的完整性状态。"""
+
+    uri, asset = resolved_font_data_uri(resolver, logical_key)
+    if resources is not None:
+        resources.append(resource_record("font", logical_key, asset, source=logical_key))
+    return uri
+
+
 class ItemTemp(BaseModel):
     type: Literal["role", "weapon"]
     id: int
@@ -98,28 +134,61 @@ class ItemTemp(BaseModel):
     unlocked: bool = False
 
 
-async def _item_payload(item: ItemTemp) -> dict[str, object]:
-    if item.type == "role":
-        image = await get_avatar_img(item.id, item.icon)
-        element = await get_attr_img(pic_url=item.element_icon)
+async def _item_payload(
+    item: ItemTemp,
+    *,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
+    if asset_resolver is None:
+        if item.type == "role":
+            image = await get_avatar_img(item.id, item.icon)
+            element = await get_attr_img(pic_url=item.element_icon)
+        else:
+            image = await get_weapon_img(item.id, item.icon)
+            element = await get_weapon_attr_img(pic_url=item.element_icon)
+        image_uri = pil_image_data_uri(image)
+        element_uri = pil_image_data_uri(
+            element.resize((element.width // 2, element.height // 2))
+        )
     else:
-        image = await get_weapon_img(item.id, item.icon)
-        element = await get_weapon_attr_img(pic_url=item.element_icon)
+        image_uri = _resolved_image(
+            asset_resolver,
+            f"image:{'role_avatar' if item.type == 'role' else 'weapon'}:{item.id}",
+            label=f"{item.type}-{item.id}",
+            resources=resources,
+            kind="role_avatar" if item.type == "role" else "weapon_icon",
+        )
+        # 属性图标属于 API 动态小资源，当前不在 verified snapshot 中；resolver
+        # 模式只能请求显式 key，缺失时由统一占位与 resource_record 标记不完整。
+        element_uri = _resolved_image(
+            asset_resolver,
+            f"image:{'role' if item.type == 'role' else 'weapon'}_element:{item.id}",
+            label=f"{item.type}-element-{item.id}",
+            resources=resources,
+            kind="role_element" if item.type == "role" else "weapon_element",
+        )
 
     # 仅当条目已解锁且命座等级大于 0 时才显示命座徽章，0 命或未解锁不渲染徽章
     grade_level = item.grade_level
-    grade_uri = (
-        pil_image_data_uri(get_grade_img(grade_level))
-        if item.unlocked and grade_level is not None and grade_level > 0
-        else None
-    )
+    grade_uri = None
+    if item.unlocked and grade_level is not None and grade_level > 0:
+        if asset_resolver is None:
+            grade_uri = pil_image_data_uri(get_grade_img(grade_level))
+        else:
+            grade_key = f"texture.common.number.{max(0, min(grade_level, 10))}"
+            grade_uri = _resolved_image(
+                asset_resolver,
+                grade_key,
+                label=f"grade-{grade_level}",
+                resources=resources,
+                kind="grade",
+            )
 
     return {
-        "element": pil_image_data_uri(
-            element.resize((element.width // 2, element.height // 2))
-        ),
+        "element": element_uri,
         "grade": grade_uri,
-        "image": pil_image_data_uri(image),
+        "image": image_uri,
         "level": item.level,
         "name": item.name,
         "type": item.type,
@@ -132,11 +201,37 @@ async def _section_payload(
     title: str,
     show_none: bool,
     background_path: Path,
+    *,
+    asset_resolver: AssetResolverLike | None = None,
+    background_key: str | None = None,
+    resources: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     visible = items if show_none else [item for item in items if item.unlocked]
+    if asset_resolver is None:
+        background = image_data_uri(background_path)
+    else:
+        if background_key is None:
+            raise ValueError(f"resolver 模式缺少区块背景 key: {title}")
+        background = _resolved_image(
+            asset_resolver,
+            background_key,
+            label=title,
+            resources=resources,
+        )
     return {
-        "background": image_data_uri(background_path),
-        "items": list(await asyncio.gather(*(_item_payload(item) for item in visible))),
+        "background": background,
+        "items": list(
+            await asyncio.gather(
+                *(
+                    _item_payload(
+                        item,
+                        asset_resolver=asset_resolver,
+                        resources=resources,
+                    )
+                    for item in visible
+                )
+            )
+        ),
         "title": title,
     }
 
@@ -147,6 +242,8 @@ async def _draw_role_overview_card(
     show_none: bool = True,
     uid_hidden: bool = False,
     hero_background_path: Path | None = None,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
 ) -> bytes:
     role_chars = getattr(role_show, "roleChars", getattr(role_show, "role_chars", []))
     close_weapons = getattr(
@@ -247,13 +344,31 @@ async def _draw_role_overview_card(
 
     sections = [
         await _section_payload(
-            role_items, "角色信息", show_none, ROLE_TEXT_PATH / "bg" / "bg1.png"
+            role_items,
+            "角色信息",
+            show_none,
+            ROLE_TEXT_PATH / "bg" / "bg1.png",
+            asset_resolver=asset_resolver,
+            background_key="texture.role.bg1" if asset_resolver is not None else None,
+            resources=resources,
         ),
         await _section_payload(
-            close_items, "近战武器", show_none, ROLE_TEXT_PATH / "bg" / "bg5.png"
+            close_items,
+            "近战武器",
+            show_none,
+            ROLE_TEXT_PATH / "bg" / "bg5.png",
+            asset_resolver=asset_resolver,
+            background_key="texture.role.bg5" if asset_resolver is not None else None,
+            resources=resources,
         ),
         await _section_payload(
-            lang_items, "远程武器", show_none, ROLE_TEXT_PATH / "bg" / "bg4.png"
+            lang_items,
+            "远程武器",
+            show_none,
+            ROLE_TEXT_PATH / "bg" / "bg4.png",
+            asset_resolver=asset_resolver,
+            background_key="texture.role.bg4" if asset_resolver is not None else None,
+            resources=resources,
         ),
     ]
     section_counts = [
@@ -264,25 +379,92 @@ async def _draw_role_overview_card(
         70 + 320 * math.ceil(count / 5) for count in section_counts if count
     )
 
-    return await _RENDERER.render(
-        "cards/role_info.html.j2",
-        {
-            "achievements": achievements,
+    if asset_resolver is None:
+        card_assets = {
             "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNA",
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
-            "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "info_bar": image_data_uri(ROLE_TEXT_PATH / "info_bar.png"),
             "div_background": image_data_uri(ROLE_TEXT_PATH / "div_bg.png"),
             "item_foreground": image_data_uri(ROLE_TEXT_PATH / "item_fg.png"),
             "item_mask": image_data_uri(ROLE_TEXT_PATH / "item_mask.png"),
-            "sections": sections,
             "title_background": image_data_uri(
                 hero_background_path or ROLE_TEXT_PATH / "title_bg.jpg"
             ),
             "title_mask": image_data_uri(ROLE_TEXT_PATH / "title_mask.png"),
+        }
+    else:
+        card_assets = {
+            "background": _resolved_image(
+                asset_resolver,
+                "texture.common.bg1",
+                label="overview-background",
+                resources=resources,
+            ),
+            "font": _resolved_font(
+                asset_resolver,
+                "font.primary_ttf",
+                resources=resources,
+            ),
+            "footer_image": _resolved_image(
+                asset_resolver,
+                "texture.common.footer",
+                label="overview-footer",
+                resources=resources,
+            ),
+            "header_background": _resolved_image(
+                asset_resolver,
+                "texture.common.avatar_title_bg",
+                label="overview-header",
+                resources=resources,
+            ),
+            "info_bar": _resolved_image(
+                asset_resolver,
+                "texture.role.info_bar",
+                label="overview-info",
+                resources=resources,
+            ),
+            "div_background": _resolved_image(
+                asset_resolver,
+                "texture.role.div_bg",
+                label="overview-divider",
+                resources=resources,
+            ),
+            "item_foreground": _resolved_image(
+                asset_resolver,
+                "texture.role.item_fg",
+                label="overview-item",
+                resources=resources,
+            ),
+            "item_mask": _resolved_image(
+                asset_resolver,
+                "texture.role.item_mask",
+                label="overview-mask",
+                resources=resources,
+            ),
+            "title_background": _resolved_image(
+                asset_resolver,
+                "texture.role.title_bg",
+                label="overview-title",
+                resources=resources,
+            ),
+            "title_mask": _resolved_image(
+                asset_resolver,
+                "texture.role.title_mask",
+                label="overview-title-mask",
+                resources=resources,
+            ),
+        }
+
+    return await _RENDERER.render(
+        "cards/role_info.html.j2",
+        {
+            "achievements": achievements,
+            **card_assets,
+            "footer_text": "DNA",
+            "header": header,
+            "sections": sections,
             "height": height,
             "width": 1200,
         },
@@ -300,6 +482,8 @@ async def draw_role_info_card_core(
     ev_stub: EventContext | None = None,
     avatar_user_id: str | None = None,
     hero_background_path: Path | None = None,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
 ) -> bytes:
     ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
     return await _draw_role_overview_card(
@@ -308,6 +492,8 @@ async def draw_role_info_card_core(
         show_none=show_none,
         uid_hidden=uid_hidden,
         hero_background_path=hero_background_path,
+        asset_resolver=asset_resolver,
+        resources=resources,
     )
 
 
@@ -361,46 +547,109 @@ def _get_attr_val(attr: Any, camel: str, snake: str) -> Any:
     return getattr(attr, camel.lower(), "")
 
 
-def _attribute_payload(role_detail: Any) -> list[dict[str, str]]:
+def _attribute_payload(
+    role_detail: Any,
+    *,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
+) -> list[dict[str, str]]:
     attr = getattr(role_detail, "attribute", None)
-    return [
-        {
-            "background": image_data_uri(
+    payload = []
+    for index, (camel, snake, label, icon_name) in enumerate(ATTR_SPECS):
+        if asset_resolver is None:
+            background = image_data_uri(
                 DETAIL_TEXT_PATH / f"prop_info_bar{1 if index % 2 == 0 else 2}.png"
-            ),
-            "icon": image_data_uri(DETAIL_TEXT_PATH / "icons" / icon_name),
-            "label": label,
-            "value": _format_attribute(_get_attr_val(attr, camel, snake)),
-        }
-        for index, (camel, snake, label, icon_name) in enumerate(ATTR_SPECS)
-    ]
+            )
+            icon = image_data_uri(DETAIL_TEXT_PATH / "icons" / icon_name)
+        else:
+            background = _resolved_image(
+                asset_resolver,
+                f"texture.detail.prop_info_bar{1 if index % 2 == 0 else 2}",
+                label=f"attribute-{label}",
+                resources=resources,
+            )
+            icon = _resolved_image(
+                asset_resolver,
+                f"texture.detail.icon:{icon_name}",
+                label=f"attribute-icon-{icon_name}",
+                resources=resources,
+            )
+        payload.append(
+            {
+                "background": background,
+                "icon": icon,
+                "label": label,
+                "value": _format_attribute(_get_attr_val(attr, camel, snake)),
+            }
+        )
+    return payload
 
 
-async def _skill_payload(role_detail: Any) -> list[dict[str, object]]:
+async def _skill_payload(
+    role_detail: Any,
+    *,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
+) -> list[dict[str, object]]:
     char_id = getattr(role_detail, "charId", getattr(role_detail, "char_id", 0))
     skills = getattr(role_detail, "skills", [])
-    return [
-        {
-            "icon": pil_image_data_uri(
+    payload: list[dict[str, object]] = []
+    for index, skill in enumerate(skills[:3]):
+        skill_name = getattr(skill, "skillName", getattr(skill, "skill_name", ""))
+        if asset_resolver is None:
+            icon = pil_image_data_uri(
                 await get_skill_img(
                     char_id,
-                    getattr(skill, "skillName", getattr(skill, "skill_name", "")),
+                    skill_name,
                     getattr(skill, "icon", ""),
                 )
-            ),
-            "level": skill.level,
-            "name": getattr(skill, "skillName", getattr(skill, "skill_name", "")),
-        }
-        for skill in skills[:3]
-    ]
+            )
+        else:
+            skill_id = getattr(
+                skill,
+                "skillId",
+                getattr(skill, "skill_id", index),
+            )
+            # 技能图标不是已同步的固定大资源；resolver 模式只能消费显式
+            # snapshot key，缺失时返回占位并记录 incomplete，不能回读旧缓存。
+            icon = _resolved_image(
+                asset_resolver,
+                f"image:skill:{char_id}:{skill_id}",
+                label=f"skill-{char_id}-{skill_id}",
+                resources=resources,
+                kind="skill_icon",
+            )
+        payload.append(
+            {
+                "icon": icon,
+                "level": skill.level,
+                "name": skill_name,
+            }
+        )
+    return payload
 
 
-async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
+async def _mode_payload(
+    mode: Any,
+    position: str,
+    *,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
     quality = getattr(mode, "quality", None) or 1
-    payload: dict[str, object] = {
-        "background": image_data_uri(
+    if asset_resolver is None:
+        background = image_data_uri(
             DETAIL_TEXT_PATH / f"mod/mod_{position}_{quality}.png"
-        ),
+        )
+    else:
+        background = _resolved_image(
+            asset_resolver,
+            f"texture.detail.mod:{position}:{quality}",
+            label=f"mod-{position}-{quality}",
+            resources=resources,
+        )
+    payload: dict[str, object] = {
+        "background": background,
         "icon": None,
         "level": None,
         "name": getattr(mode, "name", "") or "",
@@ -408,23 +657,50 @@ async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
     }
     mode_id = getattr(mode, "id", -1)
     if mode_id != -1:
-        payload["icon"] = pil_image_data_uri(
-            await get_mod_img(mode_id, getattr(mode, "icon", ""))
-        )
+        if asset_resolver is None:
+            payload["icon"] = pil_image_data_uri(
+                await get_mod_img(mode_id, getattr(mode, "icon", ""))
+            )
+        else:
+            payload["icon"] = _resolved_image(
+                asset_resolver,
+                f"image:mod:{mode_id}",
+                label=f"mod-{mode_id}",
+                resources=resources,
+                kind="mod_icon",
+            )
         level = getattr(mode, "level", 0)
         payload["level"] = f"+{level}" if level else None
     return payload
 
 
-async def _role_modes_payload(modes: list[Any]) -> list[dict[str, object]]:
+async def _role_modes_payload(
+    modes: list[Any],
+    *,
+    asset_resolver: AssetResolverLike | None = None,
+    resources: list[dict[str, str]] | None = None,
+) -> list[dict[str, object]]:
     padded = list(modes) + [Mode(id=-1) for _ in range(max(0, 9 - len(modes)))]
     order = tuple((index, "left") for index in (0, 2, 4, 6)) + tuple(
         (index, "right") for index in (1, 3, 7, 5)
     )
     payload = [
-        await _mode_payload(padded[index], position) for index, position in order
+        await _mode_payload(
+            padded[index],
+            position,
+            asset_resolver=asset_resolver,
+            resources=resources,
+        )
+        for index, position in order
     ]
-    payload.append(await _mode_payload(padded[8], "center"))
+    payload.append(
+        await _mode_payload(
+            padded[8],
+            "center",
+            asset_resolver=asset_resolver,
+            resources=resources,
+        )
+    )
     return payload
 
 
@@ -432,6 +708,8 @@ async def _hero_payload(
     char_id: str,
     role_detail: Any,
     custom_panel: Path | None = None,
+    paint_path: Path | None = None,
+    resolver_mode: bool = False,
 ) -> tuple[Path | None, dict[str, str]]:
     role_panel = None
     if custom_panel is not None and custom_panel.is_file():
@@ -468,7 +746,18 @@ async def _hero_payload(
         panel = Image.composite(panel, Image.new("RGBA", panel_size), bottom_mask)
         return original_path, {"image": pil_image_data_uri(panel), "kind": "panel"}
 
-    image = await get_paint_img(char_id, getattr(role_detail, "paint", ""))
+    if paint_path is not None:
+        try:
+            with Image.open(paint_path) as source:
+                image = source.convert("RGBA")
+        except (OSError, ValueError, Image.DecompressionBombError):
+            image = Image.new("RGBA", (1056, 1056))
+    elif resolver_mode:
+        # resolver 模式不允许回读旧运行期素材目录；缺少立绘时让上层记录
+        # incomplete，并在当前卡片中使用内存占位。
+        image = Image.new("RGBA", (1056, 1056))
+    else:
+        image = await get_paint_img(char_id, getattr(role_detail, "paint", ""))
     paint = image.convert("RGBA").resize((1056, 1056), Image.Resampling.LANCZOS)
     panel = Image.new("RGBA", (1000, 850))
     panel.alpha_composite(paint, (-280, -100))
@@ -487,6 +776,9 @@ async def _draw_role_detail_card(
     damage_calc_response: DNAApiResp[CharacterCalculateData] | None = None,
     uid_hidden: bool = False,
     custom_panel: Path | None = None,
+    asset_resolver: AssetResolverLike | None = None,
+    paint_path: Path | None = None,
+    resources: list[dict[str, str]] | None = None,
 ) -> tuple[bytes, Path | None]:
     damage = None
     if damage_calc_response is not None:
@@ -507,10 +799,21 @@ async def _draw_role_detail_card(
         ("远程武器", ranged_weapon),
     ):
         if weapon is not None:
-            weapon_sections.append(await draw_weapon_detail_section(weapon, title))
+            weapon_sections.append(
+                await draw_weapon_detail_section(
+                    weapon,
+                    title,
+                    asset_resolver=asset_resolver,
+                    resources=resources,
+                )
+            )
 
     original_path, hero = await _hero_payload(
-        char_id, role_detail, custom_panel=custom_panel
+        char_id,
+        role_detail,
+        custom_panel=custom_panel,
+        paint_path=paint_path,
+        resolver_mode=asset_resolver is not None,
     )
     header = await build_profile_header(
         ctx,
@@ -543,57 +846,158 @@ async def _draw_role_detail_card(
         else []
     )
     grade_total = 7 if grade_level >= 7 else 6
-    grades = [
-        {
-            "background": image_data_uri(
+    grades = []
+    for index in range(1, grade_total + 1):
+        if asset_resolver is None:
+            grade_background = image_data_uri(
                 DETAIL_TEXT_PATH
                 / ("grade_1.png" if index <= grade_level else "grade_0.png")
-            ),
-            "icon": pil_image_data_uri(get_grade_img(index)),
-            "index": index,
-            "left": 50 + (index - 1) * (375 // (grade_total - 1)),
-            "unlocked": index <= grade_level,
+            )
+            grade_icon = pil_image_data_uri(get_grade_img(index))
+        else:
+            grade_background = _resolved_image(
+                asset_resolver,
+                f"texture.detail.grade_{1 if index <= grade_level else 0}",
+                label=f"grade-background-{index}",
+                resources=resources,
+            )
+            grade_icon = _resolved_image(
+                asset_resolver,
+                f"texture.common.number.{max(0, min(index, 10))}",
+                label=f"grade-number-{index}",
+                resources=resources,
+                kind="grade",
+            )
+        grades.append(
+            {
+                "background": grade_background,
+                "icon": grade_icon,
+                "index": index,
+                "left": 50 + (index - 1) * (375 // (grade_total - 1)),
+                "unlocked": index <= grade_level,
+            }
+        )
+    if asset_resolver is None:
+        detail_assets = {
+            "background": image_data_uri(COMMON_PATH / "bg2.jpg"),
+            "divider": image_data_uri(COMMON_PATH / "div.png"),
+            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
+            "point": image_data_uri(DETAIL_TEXT_PATH / "point.png"),
+            "profile_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
+            "skill_background": image_data_uri(DETAIL_TEXT_PATH / "skill_bg.png"),
         }
-        for index in range(1, grade_total + 1)
-    ]
+    else:
+        detail_assets = {
+            "background": _resolved_image(
+                asset_resolver,
+                "texture.common.bg2",
+                label="detail-background",
+                resources=resources,
+            ),
+            "divider": _resolved_image(
+                asset_resolver,
+                "texture.common.div",
+                label="detail-divider",
+                resources=resources,
+            ),
+            "font": _resolved_font(
+                asset_resolver,
+                "font.primary_ttf",
+                resources=resources,
+            ),
+            "footer_image": _resolved_image(
+                asset_resolver,
+                "texture.common.footer",
+                label="detail-footer",
+                resources=resources,
+            ),
+            "point": _resolved_image(
+                asset_resolver,
+                "texture.detail.point",
+                label="detail-point",
+                resources=resources,
+            ),
+            "profile_background": _resolved_image(
+                asset_resolver,
+                "texture.common.avatar_title_bg",
+                label="detail-profile",
+                resources=resources,
+            ),
+            "skill_background": _resolved_image(
+                asset_resolver,
+                "texture.detail.skill_bg",
+                label="detail-skill",
+                resources=resources,
+            ),
+        }
+
     card = await _RENDERER.render(
         "cards/role_detail.html.j2",
         {
-            "attributes": _attribute_payload(role_detail),
-            "background": image_data_uri(COMMON_PATH / "bg2.jpg"),
-            "divider": image_data_uri(COMMON_PATH / "div.png"),
+            **detail_assets,
+            "attributes": _attribute_payload(
+                role_detail,
+                asset_resolver=asset_resolver,
+                resources=resources,
+            ),
             "damage": damage,
-            "element_icon": pil_image_data_uri(
-                await get_attr_img(
-                    char_id,
-                    getattr(
-                        role_detail,
-                        "elementIcon",
-                        getattr(role_detail, "element_icon", ""),
-                    ),
+            "element_icon": (
+                pil_image_data_uri(
+                    await get_attr_img(
+                        char_id,
+                        getattr(
+                            role_detail,
+                            "elementIcon",
+                            getattr(role_detail, "element_icon", ""),
+                        ),
+                    )
+                )
+                if asset_resolver is None
+                else _resolved_image(
+                    asset_resolver,
+                    f"image:role_element:{char_id}",
+                    label=f"role-element-{char_id}",
+                    resources=resources,
+                    kind="role_element",
                 )
             ),
-            "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "grades": grades,
             "header": header,
             "hero": hero,
-            "point": image_data_uri(DETAIL_TEXT_PATH / "point.png"),
-            "profile_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "role": {
                 "grade": grade_level,
-                "grade_icon": pil_image_data_uri(get_grade_img(grade_level))
-                if grade_level > 0
-                else None,
+                "grade_icon": (
+                    pil_image_data_uri(get_grade_img(grade_level))
+                    if asset_resolver is None and grade_level > 0
+                    else (
+                        _resolved_image(
+                            asset_resolver,
+                            f"texture.common.number.{max(0, min(grade_level, 10))}",
+                            label="role-grade-number",
+                            resources=resources,
+                            kind="grade",
+                        )
+                        if asset_resolver is not None and grade_level > 0
+                        else None
+                    )
+                ),
                 "level": role_detail.level,
                 "name": char_name,
                 "weapon_mastery": " / ".join(
                     str(tag).strip() for tag in weapon_masteries if tag
                 ),
             },
-            "role_modes": await _role_modes_payload(getattr(role_detail, "modes", [])),
-            "skills": await _skill_payload(role_detail),
-            "skill_background": image_data_uri(DETAIL_TEXT_PATH / "skill_bg.png"),
+            "role_modes": await _role_modes_payload(
+                getattr(role_detail, "modes", []),
+                asset_resolver=asset_resolver,
+                resources=resources,
+            ),
+            "skills": await _skill_payload(
+                role_detail,
+                asset_resolver=asset_resolver,
+                resources=resources,
+            ),
             "weapon_sections": weapon_sections,
             "width": 1000,
         },
@@ -929,43 +1333,6 @@ class PlayerRenderer:
             or any(asset.incomplete for _, asset in role_assets)
             or any(asset.incomplete for _, asset in weapon_assets)
         )
-        if resolver_assets_incomplete:
-            image_bytes = render_runtime_card(
-                overview.role_name,
-                (
-                    f"UID {'***' if uid_hidden else uid}",
-                    f"等级: {_text_value(overview.level)}",
-                    *(
-                        f"{item.param_key}: {item.param_value}"
-                        for item in overview.params
-                    ),
-                ),
-                font_asset=font_asset,
-                image_assets=(*role_assets, *weapon_assets),
-            )
-        else:
-            image_bytes = await draw_role_info_card_core(
-                overview,
-                uid_hidden=uid_hidden,
-                show_none=show_unowned,
-                ev_stub=ev_stub,
-                avatar_user_id=target_user_id
-                or (actor.user_id if actor is not None else uid),
-                hero_background_path=hero_background,
-            )
-        lines = [
-            overview.role_name,
-            f"UID {'***' if uid_hidden else uid}",
-            f"等级: {_text_value(overview.level)}",
-        ]
-        lines.extend(
-            f"{item.param_key}: {item.param_value}" for item in overview.params
-        )
-        sections = [
-            {"name": "角色信息", "items": len(overview.role_chars)},
-            {"name": "近战武器", "items": len(overview.close_weapons)},
-            {"name": "远程武器", "items": len(overview.ranged_weapons)},
-        ]
         if self.asset_resolver is not None:
             resources = [
                 resource_record(
@@ -995,44 +1362,82 @@ class PlayerRenderer:
             )
         else:
             resources = [self._font_resource()]
-            if isinstance(self.resources, ResourceMap):
-                # panel 是可回退的装饰性 hero 背景：图集缺失时渲染仍完整（回退本地
-                # title_bg），因此用 fallback 而非 placeholder，不使整卡被判 incomplete。
+
+        if resolver_assets_incomplete:
+            image_bytes = render_runtime_card(
+                overview.role_name,
+                (
+                    f"UID {'***' if uid_hidden else uid}",
+                    f"等级: {_text_value(overview.level)}",
+                    *(
+                        f"{item.param_key}: {item.param_value}"
+                        for item in overview.params
+                    ),
+                ),
+                font_asset=font_asset,
+                image_assets=(*role_assets, *weapon_assets),
+            )
+        else:
+            image_bytes = await draw_role_info_card_core(
+                overview,
+                uid_hidden=uid_hidden,
+                show_none=show_unowned,
+                ev_stub=ev_stub,
+                avatar_user_id=target_user_id
+                or (actor.user_id if actor is not None else uid),
+                hero_background_path=hero_background,
+                asset_resolver=self.asset_resolver,
+                resources=resources,
+            )
+        lines = [
+            overview.role_name,
+            f"UID {'***' if uid_hidden else uid}",
+            f"等级: {_text_value(overview.level)}",
+        ]
+        lines.extend(
+            f"{item.param_key}: {item.param_value}" for item in overview.params
+        )
+        sections = [
+            {"name": "角色信息", "items": len(overview.role_chars)},
+            {"name": "近战武器", "items": len(overview.close_weapons)},
+            {"name": "远程武器", "items": len(overview.ranged_weapons)},
+        ]
+        if self.asset_resolver is None and isinstance(self.resources, ResourceMap):
+            # panel 是可回退的装饰性 hero 背景：图集缺失时渲染仍完整（回退本地
+            # title_bg），因此用 fallback 而非 placeholder，不使整卡被判 incomplete。
+            resources.append(
+                {
+                    "kind": "panel_background",
+                    "status": "provided" if hero_background is not None else "fallback",
+                    "source": (
+                        f"panel/{hero_background.name}"
+                        if hero_background is not None
+                        else "panel/"
+                    ),
+                }
+            )
+            for role in overview.role_chars:
+                if self.resources.root is not None:
+                    status = self.resources.get_avatar_status(role.char_id)
+                else:
+                    status = "legacy_download"
                 resources.append(
                     {
-                        "kind": "panel_background",
-                        "status": (
-                            "provided" if hero_background is not None else "fallback"
-                        ),
-                        "source": (
-                            f"panel/{hero_background.name}"
-                            if hero_background is not None
-                            else "panel/"
-                        ),
+                        "kind": "role_avatar",
+                        "key": str(role.char_id),
+                        "status": status,
+                        "source": f"images/role_avatar/{role.char_id}.png",
                     }
                 )
-                for role in overview.role_chars:
-                    if self.resources.root is not None:
-                        status = self.resources.get_avatar_status(role.char_id)
-                    else:
-                        status = "legacy_download"
-                    resources.append(
-                        {
-                            "kind": "role_avatar",
-                            "key": str(role.char_id),
-                            "status": status,
-                            "source": f"images/role_avatar/{role.char_id}.png",
-                        }
-                    )
-                for weapon in weapon_items:
-                    resources.append(
-                        {
-                            "kind": "weapon_icon",
-                            "key": str(weapon.weapon_id),
-                            "status": "legacy_download",
-                            "source": f"images/weapon/{weapon.weapon_id}.png",
-                        }
-                    )
+            for weapon in weapon_items:
+                resources.append(
+                    {
+                        "kind": "weapon_icon",
+                        "key": str(weapon.weapon_id),
+                        "status": "legacy_download",
+                        "source": f"images/weapon/{weapon.weapon_id}.png",
+                    }
+                )
         return self._write(
             image_bytes, lines=lines, resources=resources, sections=sections
         )
@@ -1146,6 +1551,30 @@ class PlayerRenderer:
             or paint_asset.incomplete
             or panel_asset.incomplete
         )
+        if self.asset_resolver is not None:
+            resources = [
+                resource_record(
+                    "font",
+                    "font.primary_ttf",
+                    font_asset,
+                    source="fonts/dna_fonts.ttf",
+                ),
+                resource_record(
+                    "role_paint",
+                    str(detail.char_id),
+                    paint_asset,
+                    source=f"images/role_paint/{detail.char_id}.png",
+                ),
+                resource_record(
+                    "original_panel",
+                    str(detail.char_id),
+                    panel_asset,
+                    source=f"panel/{detail.char_id}.png",
+                ),
+            ]
+        else:
+            resources = [self._font_resource()]
+
         if resolver_assets_incomplete:
             card_bytes = render_runtime_card(
                 char_name,
@@ -1173,7 +1602,16 @@ class PlayerRenderer:
                 ranged_weapon=ranged_weapon,
                 damage_calc_response=damage_response,
                 uid_hidden=uid_hidden,
-                custom_panel=custom_panel,
+                custom_panel=(
+                    panel_asset.path
+                    if self.asset_resolver is not None
+                    else custom_panel
+                ),
+                asset_resolver=self.asset_resolver,
+                paint_path=(
+                    paint_asset.path if self.asset_resolver is not None else None
+                ),
+                resources=resources,
             )
         lines = [
             detail.char_name,
@@ -1212,48 +1650,25 @@ class PlayerRenderer:
         if damage_data is not None:
             sections.append({"name": "伤害", "items": len(damage_data.skills)})
 
-        if self.asset_resolver is not None:
-            resources = [
-                resource_record(
-                    "font",
-                    "font.primary_ttf",
-                    font_asset,
-                    source="fonts/dna_fonts.ttf",
-                ),
-                resource_record(
-                    "role_paint",
-                    str(detail.char_id),
-                    paint_asset,
-                    source=f"images/role_paint/{detail.char_id}.png",
-                ),
-                resource_record(
-                    "original_panel",
-                    str(detail.char_id),
-                    panel_asset,
-                    source=f"panel/{detail.char_id}.png",
-                ),
-            ]
-        else:
-            resources = [self._font_resource()]
-            if isinstance(self.resources, ResourceMap):
-                resources.append(
-                    {
-                        "kind": "role_paint",
-                        "key": str(detail.char_id),
-                        "status": self.resources.get_paint_status(detail.char_id),
-                        "source": f"images/role_paint/{detail.char_id}.png",
-                    }
-                )
-                resources.append(
-                    {
-                        "kind": "original_panel",
-                        "key": str(detail.char_id),
-                        "status": self.resources.get_panel_status(detail.char_id),
-                        "source": f"panel/{detail.char_id}.png",
-                    }
-                )
-                if original_path is None:
-                    original_path = custom_panel
+        if self.asset_resolver is None and isinstance(self.resources, ResourceMap):
+            resources.append(
+                {
+                    "kind": "role_paint",
+                    "key": str(detail.char_id),
+                    "status": self.resources.get_paint_status(detail.char_id),
+                    "source": f"images/role_paint/{detail.char_id}.png",
+                }
+            )
+            resources.append(
+                {
+                    "kind": "original_panel",
+                    "key": str(detail.char_id),
+                    "status": self.resources.get_panel_status(detail.char_id),
+                    "source": f"panel/{detail.char_id}.png",
+                }
+            )
+            if original_path is None:
+                original_path = custom_panel
 
         return self._write(
             card_bytes,

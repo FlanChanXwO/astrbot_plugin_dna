@@ -53,7 +53,7 @@ def test_bootstrap_allowlist_points_to_retained_small_texture_tree() -> None:
     expected_keys = number_keys | help_keys | {"texture.help.logo"}
 
     assert set(bootstrap._BOOTSTRAP_ALLOWLIST) == expected_keys
-    assert bootstrap._BOOTSTRAP_ALLOWLIST["texture.help.logo"] == PROJECT_ROOT / "ICON.png"
+    assert bootstrap._BOOTSTRAP_ALLOWLIST["texture.help.logo"] == PROJECT_ROOT / "logo.png"
     assert all(
         bootstrap._BOOTSTRAP_ALLOWLIST[key]
         == PROJECT_ROOT / "src/utils/texture2d" / "number" / f"{key.rsplit('.', 1)[1]}.png"

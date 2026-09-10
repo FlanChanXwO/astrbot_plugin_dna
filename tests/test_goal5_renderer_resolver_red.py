@@ -1,8 +1,8 @@
 """Task 07 主要渲染器资源解析接入的 Red 契约。
 
-这些测试刻意只替换 legacy/T2I 绘制函数，验证渲染器本身是否把请求级资源解析器
-传递到字体、纹理、角色/武器/面板和帮助资源边界；不会把网络或真实 T2I 服务带入
-资源瘦身的最小回归。
+这些测试只替换动态下载与 T2I 边界，保留本地 Jinja 模板渲染，验证渲染器是否把请求级
+资源解析器传递到字体、纹理、角色/武器/面板和帮助资源边界；不会把网络或真实 T2I
+服务带入资源瘦身的最小回归。
 """
 
 from __future__ import annotations
@@ -43,10 +43,14 @@ from src.modules.encyclopedia.contracts import (
 )
 from src.modules.notices.contracts import AnnBlock, AnnDetail, AnnPost, AnnSnapshot
 from src.modules.player.contracts import (
+    Mode,
     RoleAttribute,
     RoleDetail,
     RoleItem,
     RoleOverview,
+    RoleSkill,
+    WeaponAttribute,
+    WeaponDetail,
     WeaponItem,
 )
 
@@ -70,10 +74,35 @@ class RecordingResolver:
         )
 
 
+@dataclass
+class CompleteResolver:
+    """返回同一组可读测试素材，模拟已校验的 snapshot。"""
+
+    image_path: Path
+    font_path: Path
+
+    def __post_init__(self) -> None:
+        self.calls: list[str] = []
+
+    def resolve(self, logical_key: str) -> ResolvedAsset:
+        self.calls.append(logical_key)
+        return ResolvedAsset(
+            path=self.font_path if logical_key.startswith("font.") else self.image_path,
+            source="verified_snapshot",
+            status="provided",
+            incomplete=False,
+        )
+
+
 def _jpeg_bytes() -> bytes:
     buffer = BytesIO()
     Image.new("RGB", (32, 24), (240, 240, 240)).save(buffer, format="JPEG")
     return buffer.getvalue()
+
+
+class _FakeT2IRenderer:
+    async def render_custom_template(self, **_: object) -> bytes:
+        return _jpeg_bytes()
 
 
 def _overview_fixture() -> RoleOverview:
@@ -161,6 +190,167 @@ async def test_player_overview_uses_resolver_for_role_and_weapon_and_refreshes_s
         "generation-a",
         "generation-b",
     }
+
+
+@pytest.mark.asyncio
+async def test_player_overview_complete_snapshot_uses_resolved_template_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """完整 snapshot 也必须由真实模板消费，而不能绕回已删除的 legacy 路径。"""
+
+    async def fake_header(*_: object, **__: object) -> dict[str, object]:
+        return {}
+
+    async def forbidden_dynamic_image(*_: object, **__: object) -> Image.Image:
+        raise AssertionError("resolver 模式不应读取动态图片缓存")
+
+    def forbidden_runtime_card(*_: object, **__: object) -> bytes:
+        raise AssertionError("完整 snapshot 不应退化为 runtime card")
+
+    monkeypatch.setattr(player_module._RENDERER, "_t2i", _FakeT2IRenderer())
+    monkeypatch.setattr(player_module, "build_profile_header", fake_header)
+    monkeypatch.setattr(player_module, "get_avatar_img", forbidden_dynamic_image)
+    monkeypatch.setattr(player_module, "get_weapon_img", forbidden_dynamic_image)
+    monkeypatch.setattr(player_module, "get_attr_img", forbidden_dynamic_image)
+    monkeypatch.setattr(player_module, "get_weapon_attr_img", forbidden_dynamic_image)
+    monkeypatch.setattr(player_module, "render_runtime_card", forbidden_runtime_card)
+
+    resolver = CompleteResolver(
+        image_path=player_module.COMMON_PATH / "bg1.jpg",
+        font_path=player_module.COMMON_PATH / "bg1.jpg",
+    )
+    renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())
+    _attach_resolver(renderer, resolver)
+
+    rendered = await renderer.render_overview(_overview_fixture(), uid="1234567890123")
+
+    assert rendered.incomplete is False
+    assert set(resolver.calls) >= {
+        "texture.common.bg1",
+        "texture.common.footer",
+        "texture.role.bg1",
+        "texture.role.bg4",
+        "texture.role.bg5",
+        "image:role_element:101",
+        "image:weapon_element:201",
+    }
+
+
+@pytest.mark.asyncio
+async def test_player_detail_complete_snapshot_uses_resolved_template_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """完整详情卡应解析静态布局纹理、等级纹理和面板，而非直接读旧目录。"""
+
+    async def fake_header(*_: object, **__: object) -> dict[str, object]:
+        return {}
+
+    async def fake_attr(*_: object, **__: object) -> Image.Image:
+        return Image.new("RGBA", (64, 64), (20, 40, 60, 255))
+
+    def forbidden_runtime_card(*_: object, **__: object) -> bytes:
+        raise AssertionError("完整 snapshot 不应退化为 runtime card")
+
+    monkeypatch.setattr(player_module._RENDERER, "_t2i", _FakeT2IRenderer())
+    monkeypatch.setattr(player_module, "build_profile_header", fake_header)
+    monkeypatch.setattr(player_module, "get_attr_img", fake_attr)
+    monkeypatch.setattr(player_module, "render_runtime_card", forbidden_runtime_card)
+
+    resolver = CompleteResolver(
+        image_path=player_module.COMMON_PATH / "bg1.jpg",
+        font_path=player_module.COMMON_PATH / "bg1.jpg",
+    )
+    renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())
+    _attach_resolver(renderer, resolver)
+    detail = RoleDetail(
+        attribute=RoleAttribute(),
+        char_id=101,
+        char_name="角色甲",
+        level=80,
+        grade_level=3,
+    )
+    weapon = WeaponDetail(
+        attribute=WeaponAttribute(atk=777, crd=0.1, cri=1.5, speed=0.2, trigger=0.3),
+        element_name="近战",
+        icon="weapon://201",
+        weapon_id=201,
+        level=80,
+        modes=[
+            Mode(id=3001, icon="mode://1", quality=3, name="武器楔", level=2),
+        ],
+        name="近战甲",
+        skill_level=5,
+    )
+
+    rendered = await renderer.render_detail(
+        detail,
+        weapons=[("近战武器", weapon)],
+        uid="1234567890123",
+    )
+
+    assert rendered.incomplete is False
+    assert set(resolver.calls) >= {
+        "texture.common.bg2",
+        "texture.common.div",
+        "texture.common.footer",
+        "texture.detail.grade_0",
+        "texture.detail.grade_1",
+        "texture.detail.point",
+        "texture.detail.skill_bg",
+        "texture.detail.weapon_attr",
+        "texture.detail.weapon_bg",
+        "texture.detail.mod:left:3",
+        "image:mod:3001",
+        "image:weapon:201",
+    }
+
+
+@pytest.mark.asyncio
+async def test_player_detail_resolver_owns_dynamic_skill_and_element_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """snapshot 详情不应回读技能/属性的旧运行期缓存目录。"""
+
+    async def fake_header(*_: object, **__: object) -> dict[str, object]:
+        return {}
+
+    async def forbidden_dynamic_image(*_: object, **__: object) -> Image.Image:
+        raise AssertionError("resolver 模式不应读取动态图片缓存")
+
+    def forbidden_runtime_card(*_: object, **__: object) -> bytes:
+        raise AssertionError("完整 snapshot 不应退化为 runtime card")
+
+    monkeypatch.setattr(player_module._RENDERER, "_t2i", _FakeT2IRenderer())
+    monkeypatch.setattr(player_module, "build_profile_header", fake_header)
+    monkeypatch.setattr(player_module, "get_attr_img", forbidden_dynamic_image)
+    monkeypatch.setattr(player_module, "get_skill_img", forbidden_dynamic_image)
+    monkeypatch.setattr(player_module, "render_runtime_card", forbidden_runtime_card)
+
+    resolver = CompleteResolver(
+        image_path=player_module.COMMON_PATH / "bg1.jpg",
+        font_path=player_module.COMMON_PATH / "bg1.jpg",
+    )
+    renderer = PlayerRenderer(tmp_path / "rendered", ResourceMap())
+    _attach_resolver(renderer, resolver)
+    detail = RoleDetail(
+        attribute=RoleAttribute(),
+        char_id=101,
+        char_name="角色甲",
+        element_icon="element://fire",
+        skills=[RoleSkill(skill_id=501, skill_name="燃烧", icon="skill://501")],
+        level=80,
+        grade_level=3,
+    )
+
+    rendered = await renderer.render_detail(
+        detail,
+        weapons=[],
+        uid="1234567890123",
+    )
+
+    assert rendered.incomplete is False
+    assert "image:role_element:101" in resolver.calls
+    assert "image:skill:101:501" in resolver.calls
 
 
 @pytest.mark.asyncio

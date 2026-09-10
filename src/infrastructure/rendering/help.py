@@ -18,7 +18,6 @@ from .legacy_assets import (
     HELP_FOOTER_PATH,
     HELP_ICON_DIR,
     HELP_ITEM_PATH,
-    PLUGIN_ICON_PATH,
 )
 from .legacy_assets import (
     legacy_font_data_uri as font_data_uri,
@@ -34,6 +33,10 @@ from .runtime_assets import (
     resource_record,
 )
 from .spec import RenderSpec
+
+BACKGROUND_PATH = HELP_BACKGROUND_PATH
+ICON_DIR = HELP_ICON_DIR
+PLUGIN_ICON_PATH = Path(__file__).parents[3] / "logo.png"
 
 if TYPE_CHECKING:
     from ...entry.commands import CommandRegistry, PermissionName
@@ -118,7 +121,7 @@ def _iter_help_lines(plugin_help: dict[str, Any], prefix: str = "dna"):
 
 
 def _find_icon(name: str) -> Path:
-    icon_dir = HELP_ICON_DIR
+    icon_dir = ICON_DIR
     if alias := _ICON_ALIASES.get(name):
         return icon_dir / alias
     exact = icon_dir / f"{name}.png"
@@ -317,7 +320,7 @@ async def get_help(
         )
         lines = []
     if asset_resolver is None:
-        background_uri = image_data_uri(HELP_BACKGROUND_PATH)
+        background_uri = image_data_uri(BACKGROUND_PATH)
         banner_uri = image_data_uri(HELP_BANNER_PATH)
         cag_uri = image_data_uri(HELP_CAG_PATH)
         footer_uri = image_data_uri(HELP_FOOTER_PATH)

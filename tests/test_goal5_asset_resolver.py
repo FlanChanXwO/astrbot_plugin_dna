@@ -53,6 +53,7 @@ def test_renderer_texture_keys_map_to_real_snapshot_files(tmp_path: Path) -> Non
         "texture.help.cag": "textures/help/cag_bg.png",
         "texture.help.item": "textures/help/item.png",
         "texture.common.footer": "textures/common/footer.png",
+        "texture.common.number.6": "textures/common/number/6.png",
     }
     root = tmp_path / "generation"
     for relative in expected.values():
@@ -221,6 +222,24 @@ def test_snapshot_asset_mapping_rejects_unsafe_paths(
         _resolver(snapshot_assets={"font.primary_ttf": relative_path})
 
 
+def test_bootstrap_resolver_rejects_symlinked_parent(tmp_path: Path) -> None:
+    outside_root = tmp_path / "outside"
+    outside_file = _write(outside_root / "font.ttf", b"outside")
+    bootstrap_root = tmp_path / "bootstrap"
+    bootstrap_root.symlink_to(outside_root, target_is_directory=True)
+
+    resolver = _resolver(
+        bootstrap_allowlist={"font.help": bootstrap_root / outside_file.name},
+    )
+
+    resolved = resolver.resolve("font.help")
+
+    assert resolved.path is None
+    assert resolved.source == "none"
+    assert resolved.status == "missing"
+    assert resolved.incomplete is True
+
+
 def test_snapshot_resolver_rejects_symlink_root_and_asset(tmp_path: Path) -> None:
     """解析器不能跟随 generation 根或文件符号链接读取外部内容。"""
 
@@ -272,7 +291,8 @@ def test_empty_snapshot_keeps_existing_coordinator_context_contract(
     with coordinator.optional_lease() as snapshot:
         assert snapshot is None
     with coordinator.bind_resource("player_resources") as resources:
-        assert resources is None
+        assert resources.root is None
+        assert resources.role_avatars == {}
 
     renderer = object()
     with coordinator.bind_renderer(renderer, "player_resources") as bound:

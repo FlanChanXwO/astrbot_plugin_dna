@@ -283,7 +283,12 @@ async def _draw_stamina_card(
             "current": current,
             "icon": pil_image_data_uri(
                 tint_image(
-                    Image.open(STAMINA_TEXT_PATH / f"icon{index}.png"), (240, 230, 140)
+                    open_legacy_image(
+                        STAMINA_TEXT_PATH / f"icon{index}.png",
+                        size=(96, 96),
+                        label=f"stamina-{index}",
+                    ),
+                    (240, 230, 140),
                 ),
             ),
             "name": name,
@@ -720,8 +725,12 @@ class CalendarContent(BaseModel):
 def _calendar_background(height: int) -> Image.Image:
     """按旧 PIL 的中心裁剪规则生成最终画布背景。"""
 
-    with Image.open(CALENDAR_TEXT_PATH / "bg.jpg") as opened:
-        return crop_center_img(opened.convert("RGBA"), 1200, height)
+    opened = open_legacy_image(
+        CALENDAR_TEXT_PATH / "bg.jpg",
+        size=(1200, max(750, height)),
+        label="calendar-bg",
+    )
+    return crop_center_img(opened, 1200, height)
 
 
 async def _load_banner(height: int) -> str:

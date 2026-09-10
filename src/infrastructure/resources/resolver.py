@@ -107,8 +107,12 @@ class RuntimeAssetResolver:
         if path.is_symlink() or not path.is_file():
             return None
         try:
-            path.resolve(strict=True)
+            resolved_path = path.resolve(strict=True)
         except (OSError, RuntimeError):
+            return None
+        # allowlist 没有可供推导的仓库根，必须拒绝父目录符号链接，避免
+        # 看似固定的 bootstrap 路径被替换后越界读取任意外部文件。
+        if resolved_path != path.absolute():
             return None
         return path
 
