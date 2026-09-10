@@ -17,10 +17,11 @@ from typing import Any, Protocol
 from astrbot.api import logger
 from astrbot.api.web import request
 from pydantic import BaseModel, Field
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, Response
 
 from ...entry.response import LoginResponse, PlainTextResponse
 from ...infrastructure.config.settings import LoginSettings
+from ...infrastructure.http import captcha_proxy
 from ...infrastructure.http.login_media import (
     LOGIN_MEDIA_VIDEO_ROUTE,
     LoginMediaService,
@@ -30,7 +31,7 @@ from ...infrastructure.rendering.qr import render_qr_code
 from ...infrastructure.resources.generation import ResourceSnapshotCoordinator
 from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 from ...utils.api.auth import create_device_code
-from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES
+from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES, TEMP_PATH
 from . import messages
 from .contracts import (
     AccountActor,
@@ -143,6 +144,8 @@ class LoginFlowCoordinator:
         self._session_lock = asyncio.Lock()
         self._started = False
         self._external_transport = external_transport
+        # 验证码反代入口；测试中可替换为假实现，避免真实外呼。
+        self._captcha_forward = captcha_proxy.forward
         if settings.transport == "local":
             self.local_server = local_server or LocalLoginServer(
                 self._routes(),
@@ -516,10 +519,71 @@ class LoginFlowCoordinator:
         session.completed.set()
         return {"success": True}
 
+    async def _captcha_proxy(
+        self,
+        host: str,
+        path: str,
+        *,
+        raw_request: Any,
+    ) -> Response:
+        """验证码反代路由：仅转发白名单上游，注入 Android 画像。
+
+        248 的判别发生在浏览器发往 ``*.alicaptcha.com`` 的 HTTP User-Agent
+        平台标识；页面 JS 与 Service Worker 会把这些请求改写到本路由，
+        由这里完成换头转发。需要 raw_request 以获得未解码的 query string。
+        """
+
+        try:
+            async with captcha_proxy.new_http_client() as client:
+                result = await self._captcha_forward(
+                    host,
+                    path,
+                    raw_request.query_string,
+                    raw_request.method,
+                    raw_request.headers,
+                    await raw_request.read(),
+                    client=client,
+                )
+        except captcha_proxy.CaptchaProxyError:
+            return Response(status_code=502)
+        if result is None:
+            return Response(status_code=404)
+        return Response(
+            content=result.body,
+            status_code=result.status,
+            headers={"Content-Type": result.content_type},
+        )
+
+    @staticmethod
+    def _service_worker() -> Response:
+        """提供验证码 Service Worker；禁缓存以便发版立即生效。"""
+
+        source = (TEMP_PATH / "sw.js").read_text(encoding="utf-8")
+        return Response(
+            source,
+            media_type="text/javascript",
+            headers={
+                "Cache-Control": "no-cache",
+                "Service-Worker-Allowed": f"{ROUTE_PREFIX}/",
+            },
+        )
+
     def _routes(self) -> list[Route]:
-        """只注册 App 登录页面、短信和提交路由。"""
+        """注册 App 登录页、短信/提交以及验证码反代相关路由。"""
 
         return [
+            (
+                f"{ROUTE_PREFIX}/sw.js",
+                self._service_worker,
+                ["GET"],
+                "验证码 Service Worker",
+            ),
+            (
+                f"{ROUTE_PREFIX}/alicap/{{host}}/{{path:.*}}",
+                self._captcha_proxy,
+                ["GET", "POST"],
+                "验证码反代",
+            ),
             (
                 f"{ROUTE_PREFIX}/dna/i/{{auth}}",
                 self._login_page,
