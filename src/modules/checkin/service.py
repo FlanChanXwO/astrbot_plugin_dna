@@ -409,17 +409,23 @@ class CheckinService:
             )
 
         game_status = await self._run_game(actor, uid, credential_user_id, snapshot)
-        (
-            bbs_status,
-            community_sign_status,
-            community_lines,
-            error,
-        ) = await self._run_community(
-            actor,
-            uid,
-            credential_user_id,
-            snapshot,
-        )
+        try:
+            (
+                bbs_status,
+                community_sign_status,
+                community_lines,
+                error,
+            ) = await self._run_community(
+                actor,
+                uid,
+                credential_user_id,
+                snapshot,
+            )
+        except CheckinTransportError:
+            # 社区主签到已经完成后，附加任务仍可能抛出 transport 异常。
+            # 先保存已完成进度，批量群报告才能恢复真实的主签到状态。
+            await self._save_snapshot(snapshot)
+            raise
         await self._save_snapshot(snapshot)
 
         game_detail_lines = (messages.sign_detail_status(game_status),)
@@ -567,7 +573,32 @@ class CheckinService:
                         result.resource,
                     )
                     continue
-                if isinstance(result, CheckinOutcome):
+                if isinstance(result, CheckinTransportError):
+                    snapshot = await self._load_snapshot(binding.uid)
+                    recovered_game_status = (
+                        SignStatus.SKIP
+                        if self._game_complete(snapshot)
+                        else SignStatus.FAILED
+                    )
+                    recovered_community_sign_status = None
+                    if (
+                        "bbs_sign" in self.community_tasks
+                        and snapshot.bbs_sign >= BBS_SIGN_TARGET
+                    ):
+                        recovered_community_sign_status = SignStatus.SKIP
+                    outcome = CheckinOutcome(
+                        game_status=recovered_game_status,
+                        bbs_status=SignStatus.FAILED,
+                        community_sign_status=recovered_community_sign_status,
+                    )
+                    failed += 1
+                    logger.warning(
+                        "自动签到 transport 失败 kind=%s user=%s resource=%s",
+                        result.kind.value,
+                        binding.user_id,
+                        result.resource,
+                    )
+                elif isinstance(result, CheckinOutcome):
                     outcome = result
                     if result.success:
                         success += 1
