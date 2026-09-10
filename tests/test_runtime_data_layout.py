@@ -284,6 +284,39 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
         await database.dispose()
 
 
+@pytest.mark.asyncio
+async def test_build_runtime_allocates_image_fetcher_per_runtime(
+    tmp_path: Path,
+) -> None:
+    """每个 runtime 拥有自己的共享图片下载器，避免跨事件循环复用 client。"""
+
+    from src.bootstrap import build_runtime
+    from src.utils import image_utils
+
+    first_database = AsyncDatabase(tmp_path / "first.sqlite3")
+    second_database = AsyncDatabase(tmp_path / "second.sqlite3")
+    first_runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {},
+        database=first_database,
+    )
+    second_runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {},
+        database=second_database,
+    )
+
+    try:
+        first_fetcher = first_runtime.services["image_fetcher"]
+        second_fetcher = second_runtime.services["image_fetcher"]
+
+        assert first_fetcher is not second_fetcher
+        assert second_fetcher is image_utils.get_default_image_fetcher()
+    finally:
+        await first_database.dispose()
+        await second_database.dispose()
+
+
 def test_resource_path_helpers_use_nested_resource_layout(tmp_path: Path) -> None:
     """资源路径 helper 与 RuntimeDataLayout 使用同一嵌套目录契约。"""
 

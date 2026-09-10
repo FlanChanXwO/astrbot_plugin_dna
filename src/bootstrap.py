@@ -179,10 +179,12 @@ def build_runtime(
     settings = DnabySettings.from_config(config)
     from .utils import dna_api, image_utils
 
-    image_fetcher = image_utils.get_default_image_fetcher()
     if services is not None and "image_fetcher" in services:
         image_fetcher = cast(ImageFetcher, services["image_fetcher"])
-        image_utils.set_default_image_fetcher(image_fetcher)
+    else:
+        # runtime 必须拥有自己的 client，避免重载或测试切换事件循环后复用旧连接池。
+        image_fetcher = ImageFetcher()
+    image_utils.set_default_image_fetcher(image_fetcher)
 
     dna_api.configure_network(
         api_base_url=settings.network.api_base_url,
