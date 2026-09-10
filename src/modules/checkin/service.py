@@ -276,10 +276,10 @@ class CheckinService:
         uid: str,
         credential_user_id: str,
         snapshot: CheckinSnapshot,
-    ) -> tuple[SignStatus, tuple[str, ...], str]:
-        """执行启用的社区任务，返回稳定状态、逐任务文案和可见错误。"""
+    ) -> tuple[SignStatus, SignStatus | None, tuple[str, ...], str]:
+        """执行社区任务，并单独返回群报告使用的社区签到主状态。"""
         if self._community_complete(snapshot):
-            return SignStatus.SKIP, (), ""
+            return SignStatus.SKIP, SignStatus.SKIP, (), ""
         task_process = await self.transport.get_task_process(
             actor,
             uid,
@@ -287,6 +287,7 @@ class CheckinService:
         )
         lines: list[str] = []
         error = ""
+        community_sign_status: SignStatus | None = None
         posts: tuple[CommunityPost, ...] | None = None
 
         tasks = tuple(
@@ -295,7 +296,7 @@ class CheckinService:
             if task.mark_name in self.community_tasks
         )
         if not tasks:
-            return SignStatus.FAILED, (), messages.CHECKIN_TASKS_EMPTY
+            return SignStatus.FAILED, None, (), messages.CHECKIN_TASKS_EMPTY
 
         for task in tasks:
             mark_name = task.mark_name
@@ -305,10 +306,16 @@ class CheckinService:
             count = getattr(snapshot, mark_name)
             if task.complete_times >= task.times:
                 setattr(snapshot, mark_name, max(count, task.times))
-                lines.append(f"{label}: {messages.sign_status(SignStatus.DONE)}")
+                status = SignStatus.DONE
+                if mark_name == "bbs_sign":
+                    community_sign_status = status
+                lines.append(f"{label}: {messages.sign_status(status)}")
                 continue
             if count >= target:
-                lines.append(f"{label}: {messages.sign_status(SignStatus.SKIP)}")
+                status = SignStatus.SKIP
+                if mark_name == "bbs_sign":
+                    community_sign_status = status
+                lines.append(f"{label}: {messages.sign_status(status)}")
                 continue
 
             if mark_name == "bbs_sign":
@@ -319,6 +326,7 @@ class CheckinService:
                 )
                 if status is SignStatus.DONE:
                     snapshot.bbs_sign = BBS_SIGN_TARGET
+                community_sign_status = status
                 lines.append(f"{label}: {messages.sign_status(status)}")
                 continue
 
@@ -378,10 +386,10 @@ class CheckinService:
 
         completed = self._community_complete(snapshot)
         if error:
-            return SignStatus.FAILED, tuple(lines), error
+            return SignStatus.FAILED, community_sign_status, tuple(lines), error
         if completed:
-            return SignStatus.DONE, tuple(lines), ""
-        return SignStatus.FAILED, tuple(lines), ""
+            return SignStatus.DONE, community_sign_status, tuple(lines), ""
+        return SignStatus.FAILED, community_sign_status, tuple(lines), ""
 
     async def _sign_one(
         self,
@@ -397,10 +405,16 @@ class CheckinService:
                 detail_lines=(messages.CHECKIN_ALREADY,),
                 game_detail_lines=(messages.sign_detail_status(SignStatus.SKIP),),
                 community_detail_lines=(messages.sign_detail_status(SignStatus.SKIP),),
+                community_sign_status=SignStatus.SKIP,
             )
 
         game_status = await self._run_game(actor, uid, credential_user_id, snapshot)
-        bbs_status, community_lines, error = await self._run_community(
+        (
+            bbs_status,
+            community_sign_status,
+            community_lines,
+            error,
+        ) = await self._run_community(
             actor,
             uid,
             credential_user_id,
@@ -422,6 +436,7 @@ class CheckinService:
             error=error,
             game_detail_lines=game_detail_lines,
             community_detail_lines=community_lines,
+            community_sign_status=community_sign_status,
         )
 
     async def manual_sign(self, request: CheckinCommandRequest):
@@ -598,20 +613,29 @@ class CheckinService:
         return result.summary
 
     @staticmethod
+    def _group_report_status(
+        outcome: CheckinOutcome,
+        report_type: str,
+    ) -> SignStatus:
+        if report_type == "game":
+            return outcome.game_status
+        return outcome.community_sign_status or outcome.bbs_status
+
+    @classmethod
     def _group_detail_lines(
+        cls,
         outcome: CheckinOutcome,
         report_type: str,
     ) -> tuple[str, ...]:
-        if report_type == "game":
-            lines = outcome.game_detail_lines
-            status = outcome.game_status
-        else:
-            lines = outcome.community_detail_lines
-            status = outcome.bbs_status
-            if outcome.error:
-                lines = (*lines, messages.sign_detail_error(outcome.error))
+        status = cls._group_report_status(outcome, report_type)
         if status in (SignStatus.DONE, SignStatus.SKIP):
             return ()
+        if report_type == "game":
+            lines = outcome.game_detail_lines
+        else:
+            lines = outcome.community_detail_lines
+            if outcome.error:
+                lines = (*lines, messages.sign_detail_error(outcome.error))
         if not lines:
             lines = (messages.sign_detail_status(status),)
         return tuple(lines)
@@ -621,9 +645,9 @@ class CheckinService:
         report_type: str,
         results: tuple[tuple[str, CheckinOutcome], ...],
     ) -> GroupSignReport:
-        status_attr = "game_status" if report_type == "game" else "bbs_status"
         success = sum(
-            getattr(outcome, status_attr) in (SignStatus.DONE, SignStatus.SKIP)
+            self._group_report_status(outcome, report_type)
+            in (SignStatus.DONE, SignStatus.SKIP)
             for _user_id, outcome in results
         )
         failed = len(results) - success
