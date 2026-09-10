@@ -89,18 +89,36 @@ async def test_role_detail_prefetches_independent_assets_concurrently_and_preser
 
     probe = _ConcurrencyProbe()
     captured: dict[str, object] = {}
+    active_categories: dict[str, int] = {}
+    cross_category_overlap = False
+
+    async def categorized_image(
+        category: str,
+        color: str,
+        size: tuple[int, int],
+    ) -> Image.Image:
+        nonlocal cross_category_overlap
+        active_categories[category] = active_categories.get(category, 0) + 1
+        if active_categories.get("paint", 0) and active_categories.get("weapon", 0):
+            cross_category_overlap = True
+        try:
+            return await probe.image(color, size)
+        finally:
+            active_categories[category] -= 1
+            if active_categories[category] == 0:
+                del active_categories[category]
 
     async def fake_skill(*_args: object, **_kwargs: object) -> Image.Image:
-        return await probe.image("red", (128, 128))
+        return await categorized_image("skill", "red", (128, 128))
 
     async def fake_mod(*_args: object, **_kwargs: object) -> Image.Image:
-        return await probe.image("green", (128, 128))
+        return await categorized_image("mod", "green", (128, 128))
 
     async def fake_weapon(*_args: object, **_kwargs: object) -> Image.Image:
-        return await probe.image("blue", (256, 256))
+        return await categorized_image("weapon", "blue", (256, 256))
 
     async def fake_paint(*_args: object, **_kwargs: object) -> Image.Image:
-        return await probe.image("purple", (1320, 1320))
+        return await categorized_image("paint", "purple", (1320, 1320))
 
     async def fake_attr(*_args: object, **_kwargs: object) -> Image.Image:
         return await probe.image("yellow", (128, 128))
@@ -136,6 +154,7 @@ async def test_role_detail_prefetches_independent_assets_concurrently_and_preser
     )
 
     assert probe.maximum > 1
+    assert cross_category_overlap
     assert [item["name"] for item in captured["skills"]] == [
         "技能0",
         "技能1",

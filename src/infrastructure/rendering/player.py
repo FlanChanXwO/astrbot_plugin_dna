@@ -650,17 +650,15 @@ async def _draw_role_detail_card(
         ("近战武器", close_weapon),
         ("远程武器", ranged_weapon),
     ]
-    weapon_sections = list(
-        await asyncio.gather(
-            *(
-                draw_weapon_detail_section(
-                    weapon,
-                    title,
-                    image_loader=image_loader,
-                )
-                for title, weapon in weapon_inputs
-                if weapon is not None
+    weapon_sections_coro = asyncio.gather(
+        *(
+            draw_weapon_detail_section(
+                weapon,
+                title,
+                image_loader=image_loader,
             )
+            for title, weapon in weapon_inputs
+            if weapon is not None
         )
     )
 
@@ -708,12 +706,14 @@ async def _draw_role_detail_card(
         ),
     )
     (
+        weapon_sections,
         hero_result,
         header,
         role_modes,
         skills,
         element_icon,
     ) = await asyncio.gather(
+        weapon_sections_coro,
         hero_coro,
         header_coro,
         role_modes_coro,

@@ -135,12 +135,18 @@
 
 ## Checkpoint 3：集中检查资源流水线
 
-- 状态：[ ]
+- 状态：[x]
 - 范围：运行 resolver、downloader、generation、player rendering 的完整相关测试；复查并发取消、lease 和 cache 原子性。
 - 验证证据：
+  - Red：新增跨类别并发断言实际失败（`cross_category_overlap == False`），定位到武器区块在详情渲染中先完整 `await`，尚未与立绘、技能和其他素材重叠准备。
+  - Green：修复后 `tests/test_player_asset_prefetch.py` 为 `2 passed, 1 warning`；resolver、downloader、资源同步与新增渲染回归合计 `25 passed, 1 warning`。
+  - 扩展相关套件（resolver、downloader、resources、runtime layout、legacy layout、player rendering、integration）为 `94 passed, 5 failed, 1 warning`；失败均已定位并记录，未发现资源解析、下载器取消/排空、generation lease 或缓存原子写入的新失败。
+  - `ruff check`、`ruff format --check`、`python3 -m compileall -q src tests`、`git diff --check` 通过；受影响源码和测试 LSP diagnostics 为空。
 - 发现问题与修复：
-- 剩余风险：
-- 下一步：
+  - 将 `weapon_sections` 从提前等待改为与 header、hero、技能、角色魔之楔和属性图标共同进入一次 `asyncio.gather`；`gather` 返回值仍按原武器标题顺序组装，保留空武器和特殊武器行为。
+  - 相关套件剩余失败：全局 `ImageFetcher`/`AsyncClient` 在 pytest 多 event loop 间复用导致的 `Event loop is closed`（玩家凭据测试及 runtime terminate）；既有详情测试未把 `伤害` 区块计入期望顺序；两项登录页面旧文案断言；以及活动 goal 工作区守卫与当前 `goal-1/` 工作文件冲突。均非本 checkpoint 的资源流水线回归。
+- 剩余风险：全局 legacy 图片入口的跨 event loop 生命周期问题仍待后续处理；登录页面断言和 goal 工作区守卫属于已有测试/工作流问题。资源流水线核心的 L1/L2 优先级、URL fan-out、取消排空、generation lease 和原子缓存写入已有目标测试覆盖。
+- 下一步：执行 Task 10，补齐手动迁移文档与发布说明。
 
 ## Task 10：编写手动迁移文档与发布说明
 
