@@ -12,6 +12,8 @@ from src.infrastructure.persistence import (
 from src.infrastructure.rendering import CheckinRenderer
 from src.infrastructure.resources import EncyclopediaResourceStore
 from src.modules.checkin.contracts import (
+    CheckinFailureKind,
+    CheckinTransportError,
     CommunityPost,
     CommunityTask,
     DayAward,
@@ -90,12 +92,20 @@ class _PartialFailureTransport:
         return False
 
 
-@pytest.mark.asyncio
-async def test_group_report_does_not_mention_when_only_reply_task_fails(
-    tmp_path: Path,
-) -> None:
-    """社区签到成功后，附加回复失败不计群失败，也不应触发 @。"""
+class _TransportErrorAfterCommunitySignTransport(_PartialFailureTransport):
+    """社区签到成功后，回复接口抛出 transport 异常。"""
 
+    async def do_reply(self, actor, uid, post, *, credential_user_id):
+        raise CheckinTransportError(
+            CheckinFailureKind.NETWORK,
+            resource="社区回复",
+        )
+
+
+async def _service_with_binding(
+    tmp_path: Path,
+    transport: _PartialFailureTransport,
+) -> tuple[AsyncDatabase, CheckinService]:
     database = AsyncDatabase(tmp_path / "checkin.sqlite3")
     await database.create_schema_for_tests()
     async with database.transaction() as session:
@@ -116,7 +126,7 @@ async def test_group_report_does_not_mention_when_only_reply_task_fails(
 
     service = CheckinService(
         database,
-        _PartialFailureTransport(),
+        transport,
         PrivacyService(database, allow_mention_query=True),
         CheckinRenderer(
             tmp_path / "rendered",
@@ -124,6 +134,41 @@ async def test_group_report_does_not_mention_when_only_reply_task_fails(
         ),
         community_tasks=("bbs_sign", "bbs_reply"),
         group_report=True,
+    )
+    return database, service
+
+
+@pytest.mark.asyncio
+async def test_group_report_does_not_mention_when_only_reply_task_fails(
+    tmp_path: Path,
+) -> None:
+    """社区签到成功后，附加回复失败不计群失败，也不应触发 @。"""
+
+    database, service = await _service_with_binding(tmp_path, _PartialFailureTransport())
+
+    report = await service.auto_sign_report()
+    community_report = next(
+        item
+        for item in report.group_reports["group-1"]
+        if item.report_type == "community"
+    )
+
+    assert community_report.success == 1
+    assert community_report.failed == 0
+    assert community_report.mention_details == ()
+
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_group_report_preserves_community_sign_when_reply_transport_raises(
+    tmp_path: Path,
+) -> None:
+    """社区签到成功后，回复 transport 异常也不应计群失败或触发 @。"""
+
+    database, service = await _service_with_binding(
+        tmp_path,
+        _TransportErrorAfterCommunitySignTransport(),
     )
 
     report = await service.auto_sign_report()
