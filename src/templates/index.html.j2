@@ -122,32 +122,6 @@
         font-size: 13px;
         letter-spacing: 0.12em;
       }
-      .media-controls { display: flex; gap: 8px; margin-right: -8px; }
-      .media-toggle {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        padding: 0;
-        color: var(--muted);
-        background: transparent;
-        border: 1px solid transparent;
-        border-radius: 50%;
-        transition: color 180ms ease, background-color 180ms ease;
-      }
-      .media-toggle:hover, .media-toggle:focus-visible {
-        color: var(--ink);
-        background: rgba(232, 207, 171, 0.09);
-      }
-      .media-toggle svg, .media-toggle img {
-        width: 20px;
-        height: 20px;
-        object-fit: contain;
-      }
-      .audio-toggle .sound-on { display: none; }
-      .audio-toggle[aria-pressed='true'] .sound-on { display: block; }
-      .audio-toggle[aria-pressed='true'] .sound-off { display: none; }
       .sr-only {
         position: absolute;
         width: 1px;
@@ -324,14 +298,11 @@
   </head>
   <body>
     <div class="scene" aria-hidden="true">
-      {% if login_media and login_media.video_url and login_media.audio_url %}
+      {% if login_media and login_media.video_url %}
       <video id="backgroundVideo" class="background-video" loop muted playsinline preload="none"
         disablepictureinpicture data-video-src="{{ login_media.video_url | e }}"></video>
       {% endif %}
     </div>
-    {% if login_media and login_media.video_url and login_media.audio_url %}
-    <audio id="backgroundAudio" loop preload="none" data-audio-src="{{ login_media.audio_url | e }}"></audio>
-    {% endif %}
     <header class="site-header">
       <img class="brand-title-logo" src="{{ title_logo | default(plugin_logo) }}" alt="狩月终端 Logo" />
       <div class="logo-text sr-only">狩月终端</div>
@@ -341,21 +312,6 @@
         <form id="loginForm">
           <div class="form-toolbar">
             <p class="form-eyebrow">皎皎角账号</p>
-            {% if login_media and login_media.video_url and login_media.audio_url %}
-            <div class="media-controls" role="group" aria-label="背景播放控制">
-              <button type="button" id="audioToggle" class="media-toggle audio-toggle" hidden
-                aria-label="开启音乐" title="开启音乐" aria-pressed="false">
-                {% if music_on_icon and music_off_icon %}
-                <img class="sound-on" src="{{ music_on_icon }}" alt="" aria-hidden="true" />
-                <img class="sound-off" src="{{ music_off_icon }}" alt="" aria-hidden="true" />
-                {% else %}
-                <svg class="sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4-6 5H2v6h3l6 5ZM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14" /></svg>
-                <svg class="sound-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4-6 5H2v6h3l6 5ZM16 9l6 6m0-6-6 6" /></svg>
-                {% endif %}
-                <span id="audioToggleLabel" class="sr-only">开启音乐</span>
-              </button>
-            </div>
-            {% endif %}
           </div>
           <h1 id="loginHeading">登录狩月终端</h1>
           <div class="input-group">
@@ -578,42 +534,23 @@
 
       function initLoginMedia() {
         const video = document.getElementById('backgroundVideo')
-        const audio = document.getElementById('backgroundAudio')
-        const audioToggle = document.getElementById('audioToggle')
-        const audioLabel = document.getElementById('audioToggleLabel')
-        if (!video || !audio || !audioToggle) return
+        if (!video) return
         const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-        let audioWanted = false
         let videoFailed = false
-        let audioFailed = false
         let pageHidden = document.hidden
-
-        function updateControls() {
-          const playing = !audio.paused && !audio.muted
-          const audioText = playing ? '静音' : '开启音乐'
-          audioToggle.setAttribute('aria-pressed', String(playing))
-          audioToggle.setAttribute('aria-label', audioText)
-          audioToggle.title = audioText
-          audioLabel.textContent = audioText
-        }
 
         async function syncMedia() {
           const disabled = reducedMotion.matches || videoFailed
-          audioToggle.hidden = disabled || audioFailed
           if (disabled || pageHidden) {
             video.pause()
-            audio.pause()
             if (disabled) {
               video.classList.remove('is-ready')
               // Releasing sources also stops downloads when reduced motion changes.
-              for (const media of [video, audio]) {
-                if (media.hasAttribute('src')) {
-                  media.removeAttribute('src')
-                  media.load()
-                }
+              if (video.hasAttribute('src')) {
+                video.removeAttribute('src')
+                video.load()
               }
             }
-            updateControls()
             return
           }
           if (!video.hasAttribute('src')) {
@@ -621,13 +558,6 @@
             video.src = video.dataset.videoSrc
           }
           try { await video.play() } catch { /* Keep the poster if autoplay fails. */ }
-          // A user gesture is required before loading the separate soundtrack.
-          if (audioWanted && !audioFailed && !pageHidden && !reducedMotion.matches && !videoFailed) {
-            if (!audio.hasAttribute('src')) audio.src = audio.dataset.audioSrc
-            audio.volume = 0.35
-            try { await audio.play() } catch { audioWanted = false }
-          } else audio.pause()
-          updateControls()
         }
 
         video.addEventListener('playing', function () {
@@ -636,36 +566,11 @@
             return
           }
           video.classList.add('is-ready')
-          updateControls()
         })
-        video.addEventListener('pause', updateControls)
         video.addEventListener('error', function () {
           if (!video.hasAttribute('src')) return
           videoFailed = true
-          audioWanted = false
           syncMedia()
-        })
-        audio.addEventListener('playing', function () {
-          if (pageHidden || reducedMotion.matches || !audioWanted) audio.pause()
-          updateControls()
-        })
-        audio.addEventListener('pause', updateControls)
-        audio.addEventListener('error', function () {
-          if (!audio.hasAttribute('src')) return
-          audioFailed = true
-          audioWanted = false
-          audioToggle.hidden = true
-          audio.pause()
-        })
-        audioToggle.addEventListener('click', async function () {
-          audioWanted = !audioWanted
-          // Start directly in the gesture, before awaiting the video play promise.
-          if (audioWanted) {
-            if (!audio.hasAttribute('src')) audio.src = audio.dataset.audioSrc
-            audio.volume = 0.35
-            try { await audio.play() } catch { audioWanted = false }
-          } else audio.pause()
-          updateControls()
         })
         document.addEventListener('visibilitychange', function () {
           pageHidden = document.hidden

@@ -15,15 +15,11 @@ from ..resources.generation import (
 )
 
 LOGIN_MEDIA_VIDEO_PATH = "/dna/login/media/background.mp4"
-LOGIN_MEDIA_AUDIO_PATH = "/dna/login/media/background.mp3"
 LOGIN_MEDIA_VIDEO_ROUTE = f"/astrbot_plugin_dna{LOGIN_MEDIA_VIDEO_PATH}"
-LOGIN_MEDIA_AUDIO_ROUTE = f"/astrbot_plugin_dna{LOGIN_MEDIA_AUDIO_PATH}"
 
 _VIDEO_RELATIVE_PATH = Path("videos/login/background.mp4")
-_AUDIO_RELATIVE_PATH = Path("audios/login/background.mp3")
 _MEDIA_DEFINITIONS: dict[str, tuple[Path, str]] = {
     "video": (_VIDEO_RELATIVE_PATH, "video/mp4"),
-    "audio": (_AUDIO_RELATIVE_PATH, "audio/mpeg"),
 }
 
 
@@ -32,13 +28,12 @@ class LoginMedia:
     """登录页可公开使用的媒体 URL；不包含资源 generation 的本地路径。"""
 
     video_url: str | None = None
-    audio_url: str | None = None
 
     @property
     def is_empty(self) -> bool:
         """返回是否没有可用的完整媒体包。"""
 
-        return self.video_url is None or self.audio_url is None
+        return self.video_url is None
 
 
 class _LeasedFileResponse(web.FileResponse):
@@ -85,7 +80,6 @@ class LoginMediaService:
         base = base_url.rstrip("/")
         return LoginMedia(
             video_url=f"{base}{LOGIN_MEDIA_VIDEO_PATH}",
-            audio_url=f"{base}{LOGIN_MEDIA_AUDIO_PATH}",
         )
 
     def file_response(
@@ -120,7 +114,7 @@ class LoginMediaService:
 
     @staticmethod
     def _media_paths(snapshot: ResourceSnapshot) -> dict[str, Path] | None:
-        """校验媒体成对存在、文件头合法且路径仍在 generation 根目录内。"""
+        """校验媒体存在、文件头合法且路径仍在 generation 根目录内。"""
 
         root = snapshot.root.resolve()
         paths: dict[str, Path] = {}
@@ -156,23 +150,10 @@ def _valid_media_header(media_kind: str, path: Path) -> bool:
             and len(brand) == 4
             and all(32 <= byte < 127 for byte in brand)
         )
-    if media_kind == "audio":
-        # 登录素材是 ID3 MP3；同时接受标准 MPEG audio frame sync，兼容无 ID3 的 MP3。
-        return (
-            (len(prefix) >= 10 and prefix[:3] == b"ID3")
-            or (
-                len(prefix) >= 2
-                and prefix[0] == 0xFF
-                and prefix[1] & 0xE0 == 0xE0
-                and prefix[1] & 0x06 != 0
-            )
-        )
     return False
 
 
 __all__ = [
-    "LOGIN_MEDIA_AUDIO_PATH",
-    "LOGIN_MEDIA_AUDIO_ROUTE",
     "LOGIN_MEDIA_VIDEO_PATH",
     "LOGIN_MEDIA_VIDEO_ROUTE",
     "LoginMedia",

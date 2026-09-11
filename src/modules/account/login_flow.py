@@ -22,7 +22,6 @@ from starlette.responses import HTMLResponse
 from ...entry.response import LoginResponse, PlainTextResponse
 from ...infrastructure.config.settings import LoginSettings
 from ...infrastructure.http.login_media import (
-    LOGIN_MEDIA_AUDIO_ROUTE,
     LOGIN_MEDIA_VIDEO_ROUTE,
     LoginMediaService,
 )
@@ -438,14 +437,6 @@ class LoginFlowCoordinator:
             enabled=self.settings.dynamic_background,
         )
 
-    def _login_audio(self):
-        """提供固定 MP3 路由，不接受调用方传入文件路径。"""
-
-        return self.login_media.file_response(
-            "audio",
-            enabled=self.settings.dynamic_background,
-        )
-
     async def _get_sms_code(self) -> dict[str, bool | str]:
         payload = await request.json(default=None)
         if not isinstance(payload, dict):
@@ -540,12 +531,6 @@ class LoginFlowCoordinator:
                 self._login_video,
                 ["GET"],
                 "App 登录动态视频背景",
-            ),
-            (
-                LOGIN_MEDIA_AUDIO_ROUTE,
-                self._login_audio,
-                ["GET"],
-                "App 登录背景音乐",
             ),
             (
                 f"{ROUTE_PREFIX}/dna/login",

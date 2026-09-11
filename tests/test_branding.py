@@ -29,11 +29,10 @@ def test_login_template_keeps_static_fallback_and_defers_media_loading():
     login_template = (ROOT / "src/templates/index.html.j2").read_text(encoding="utf-8")
 
     assert "login_media.video_url" in login_template
-    assert "login_media.audio_url" in login_template
+    assert "audio_url" not in login_template
     assert "prefers-reduced-motion: reduce" in login_template
-    assert 'aria-pressed="false"' in login_template
     assert "data-video-src" in login_template
-    assert "data-audio-src" in login_template
+    assert "data-audio-src" not in login_template
     assert "herobox-img.yingxiong.com/post/1748784746036602530.jpg" in login_template
 
 
@@ -75,9 +74,9 @@ def test_plugin_uses_single_root_logo_asset() -> None:
 
     title_logo_path = ROOT / "src/resources/textures/common/title_logo.png"
     assert title_logo_path.is_file()
-    assert (ROOT / "src/resources/textures/common/music_on.png").is_file()
-    assert (ROOT / "src/resources/textures/common/music_off.png").is_file()
+    assert not (ROOT / "src/resources/textures/common/music_on.png").exists()
+    assert not (ROOT / "src/resources/textures/common/music_off.png").exists()
     resource_code = (ROOT / "src/utils/resource/RESOURCE_PATH.py").read_text(encoding="utf-8")
     assert "title_logo" in resource_code
-    assert "music_on_icon" in resource_code
-    assert "music_off_icon" in resource_code
+    assert "music_on_icon" not in resource_code
+    assert "music_off_icon" not in resource_code

@@ -40,7 +40,7 @@ def _render(*, media: bool = True) -> tuple[str, _LoginParser]:
         auth="test-session",
         server_url="/test",
         login_media=(
-            {"video_url": "/media/background.mp4", "audio_url": "/media/background.mp3"}
+            {"video_url": "/media/background.mp4"}
             if media
             else None
         ),
@@ -50,25 +50,27 @@ def _render(*, media: bool = True) -> tuple[str, _LoginParser]:
     return page, parser
 
 
-def test_media_controls_are_inside_the_form_and_do_not_submit() -> None:
+def test_no_audio_or_playback_buttons_rendered_in_login_page() -> None:
     page, parser = _render()
-    assert "audioToggle" in parser.form_controls
-    control = parser.controls["audioToggle"]
-    assert control["type"] == "button"
-    assert control["aria-label"]
-    assert control["aria-pressed"] == "false"
-    assert "hidden" in control
+    assert "audioToggle" not in parser.form_controls
+    assert "audioToggle" not in parser.controls
+    assert "audioToggle" not in page
     assert "motionToggle" not in parser.controls
     assert "motionToggle" not in page
-    assert "暂停动态背景" not in page
+    assert "media-controls" not in page
+    assert "backgroundAudio" not in parser.controls
+    assert "backgroundAudio" not in page
+    assert "开启音乐" not in page
+    assert "静音" not in page
+    assert "audio_url" not in page
 
 
-def test_page_does_not_load_sdk_or_soundtrack_during_initial_parse() -> None:
+def test_page_renders_video_when_media_present_and_defers_loading() -> None:
     _, parser = _render()
     assert not parser.external_scripts
-    for identifier in ("backgroundVideo", "backgroundAudio"):
-        assert "src" not in parser.controls[identifier]
-        assert parser.controls[identifier]["preload"] == "none"
+    assert "backgroundVideo" in parser.controls
+    assert "src" not in parser.controls["backgroundVideo"]
+    assert parser.controls["backgroundVideo"]["preload"] == "none"
     assert "playsinline" in parser.controls["backgroundVideo"]
     assert "muted" in parser.controls["backgroundVideo"]
 

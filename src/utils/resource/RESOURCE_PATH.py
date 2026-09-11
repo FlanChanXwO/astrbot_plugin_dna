@@ -87,24 +87,6 @@ TITLE_LOGO_DATA_URI = (
     if TITLE_LOGO_PATH.exists()
     else PLUGIN_LOGO_DATA_URI
 )
-MUSIC_ON_PATH = (
-    Path(__file__).parents[2] / "resources" / "textures" / "common" / "music_on.png"
-)
-MUSIC_ON_DATA_URI = (
-    "data:image/png;base64,"
-    + base64.b64encode(MUSIC_ON_PATH.read_bytes()).decode("ascii")
-    if MUSIC_ON_PATH.exists()
-    else ""
-)
-MUSIC_OFF_PATH = (
-    Path(__file__).parents[2] / "resources" / "textures" / "common" / "music_off.png"
-)
-MUSIC_OFF_DATA_URI = (
-    "data:image/png;base64,"
-    + base64.b64encode(MUSIC_OFF_PATH.read_bytes()).decode("ascii")
-    if MUSIC_OFF_PATH.exists()
-    else ""
-)
 DNA_TEMPLATES = Environment(
     loader=FileSystemLoader(
         [
@@ -114,6 +96,4 @@ DNA_TEMPLATES = Environment(
 )
 DNA_TEMPLATES.globals["plugin_logo"] = PLUGIN_LOGO_DATA_URI
 DNA_TEMPLATES.globals["title_logo"] = TITLE_LOGO_DATA_URI
-DNA_TEMPLATES.globals["music_on_icon"] = MUSIC_ON_DATA_URI
-DNA_TEMPLATES.globals["music_off_icon"] = MUSIC_OFF_DATA_URI
 

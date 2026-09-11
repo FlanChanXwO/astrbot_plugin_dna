@@ -25,7 +25,7 @@
 
 - `general.command_prefixes`：聊天命令前缀；README 与示例默认使用 `dna`。
 - `login.transport`：登录接入方式；当前支持 `local`、`http_poll`、`sse`、`ws`。其他登录字段见 [账号登录](login.md)。
-- `login.dynamic_background`：控制内置 `local` 登录页的 MP4 动态背景与配套 MP3 音乐，默认开启；关闭后使用现有静态背景。音频没有独立开关，只在动态背景实际可用时启用。
+- `login.dynamic_background`：控制内置 `local` 登录页的 MP4 动态背景，默认开启；关闭后使用现有静态背景。
 - `ai.agent_tools_enabled`：控制是否注册 DNABY Agent Tools；修改后需要重载。见 [Agent Tools](agent-tools.md)。
 - `sign_in.*`：自动签到时间、并发和报告行为。用户自己的自动签到状态仍由账号状态/命令管理。
 - `notifications.*`：公告和密函检查/推送行为。
