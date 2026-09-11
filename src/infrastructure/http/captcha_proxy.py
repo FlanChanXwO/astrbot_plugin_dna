@@ -7,7 +7,8 @@ HTTP ``User-Agent`` 平台标识。页面 JS 无权修改该头（浏览器规�
 ``User-Agent`` 与 UA-CH 固定为官方 App 场景的 Android 画像后再转发上游。
 
 安全边界：只允许转发到白名单内的 alicaptcha 域名，不构成开放代理；除白名单
-安全头外不透传任何浏览器头；日志只记录错误类别，不记录 URL、请求体或响应体。
+安全头外不透传任何浏览器头；上游跳转只允许落到白名单主机；日志只记录错误类别，
+不记录 URL、请求体或响应体。
 """
 
 from __future__ import annotations
@@ -18,9 +19,15 @@ from dataclasses import dataclass
 import httpx
 from astrbot.api import logger
 
-# 与 transport.START_TIMEOUT_S 保持一致的外呼短超时约定：这些端点是用户
-# 交互链路（滑块/发码）的实时请求，失败应快速返回以便用户重试。
-PROXY_TIMEOUT_S = 10.0
+# 出站建连预算：TCP 建连到不可达主机时会一直等到操作系统默认超时（macOS 约
+# 75s），期间用户交互请求被白白挂起，因此沿用项目既有外呼的 10s 建连约定
+# （``transport.START_TIMEOUT_S``）作为接入上限。
+# 只限制建连、不限制读取：验证码请求由用户交互触发，上游响应较慢时应等待真实
+# 结果，而不是把慢响应在本地转换成本不存在的 502 假失败；用户关闭页面即可中止。
+PROXY_CONNECT_TIMEOUT_S = 10.0
+
+# 需要在本地重写 Location 的跳转状态码。
+REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 
 # 转发上游白名单：仅 Alicom 真实会话涉及的三台主机（fp-diag 实测覆盖集）。
 UPSTREAM_HOSTS: dict[str, str] = {
@@ -48,18 +55,52 @@ class CaptchaProxyError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class ProxyResult:
-    """上游响应的最小映射：状态码、内容类型与字节体。"""
+    """上游响应的最小映射：状态码、内容类型与字节体。
+
+    ``location`` 只可能在 ``status`` 属于 ``REDIRECT_STATUSES`` 时有值，且已经
+    过白名单校验并重写为本地同源反代地址；跳转目标不在白名单时为 ``None``，
+    由调用方明确拒绝而不是把请求链带出白名单。
+    """
 
     status: int
     content_type: str
     body: bytes
+    location: str | None = None
+
+
+def parse_proxy_target(
+    raw_path: str,
+    *,
+    prefix: str,
+) -> tuple[str, str, str] | None:
+    """把原始（未解码）请求路径拆成 ``(auth, host, raw_subpath)``。
+
+    只能用 aiohttp 收到的原始请求行：解码后的路径会把 ``%2F``、``%23`` 等
+    还原成字面字符，重新拼回上游 URL 时会截断或改写验证码参数。``prefix``
+    形如 ``/astrbot_plugin_dna/alicap/``；前缀缺失、缺段或段为空时返回
+    ``None``，由调用方明确拒绝，而不是转发一个来路不明的路径。
+
+    ``host`` 保持原始字节不做解码：白名单是固定 ASCII 域名，任何编码变体都
+    应当在白名单判定处被当作不匹配。
+    """
+
+    if not raw_path.startswith(prefix):
+        return None
+    auth, separator, remainder = raw_path[len(prefix) :].partition("/")
+    if not separator or not auth:
+        return None
+    host, separator, sub_path = remainder.partition("/")
+    if not separator or not host:
+        return None
+    return auth, host, sub_path
 
 
 def build_upstream_url(host: str, path: str, query: str) -> str | None:
     """拼接上游地址；host 不在白名单时返回 ``None``。
 
-    ``query`` 按原始字节级透传（由调用方给出未解码的 query string），
-    白名单域名以外的任何请求都不产生网络行为。
+    ``path`` 与 ``query`` 由调用方按原始字节给出（不经过 URL 解码），
+    ``httpx`` 会保留其中的百分号编码，实现字节级透传。白名单域名以外的任何
+    请求都不产生网络行为。
     """
 
     origin = UPSTREAM_HOSTS.get(host.strip().lower())
@@ -98,10 +139,52 @@ def build_forward_headers(
     return headers
 
 
-def new_http_client() -> httpx.AsyncClient:
-    """按项目统一惯例创建出站客户端（``trust_env=False`` 避免代理环境串扰）。"""
+def rewrite_redirect(
+    location: str,
+    *,
+    base: httpx.URL,
+    proxy_prefix: str,
+) -> str | None:
+    """校验上游 ``Location`` 并重写为本地同源反代地址。
 
-    return httpx.AsyncClient(timeout=PROXY_TIMEOUT_S, trust_env=False)
+    只接受解析后 host 落在 ``UPSTREAM_HOSTS``、协议为 https 且端口为默认 443
+    的绝对地址，相对跳转按 ``base`` 解析。目标不在白名单、协议或端口异常、原始
+    路径含非 ASCII 字节时返回 ``None``，由调用方拒绝，避免跟随跳转绕过 host
+    白名单。
+    """
+
+    if not location.strip():
+        return None
+    try:
+        target = base.join(location.strip())
+    except (httpx.InvalidURL, ValueError):
+        return None
+    host = (target.host or "").strip().lower()
+    # 白名单条目都是 443 上的规范 origin；同主机其它端口不在白名单内，
+    # 不能被同名主机的跳转悄悄带到别的服务。
+    if target.scheme != "https" or host not in UPSTREAM_HOSTS:
+        return None
+    if target.port not in (None, 443):
+        return None
+    try:
+        raw_path = target.raw_path.decode("ascii")
+    except UnicodeDecodeError:
+        return None
+    return f"{proxy_prefix}{host}{raw_path}"
+
+
+def new_http_client() -> httpx.AsyncClient:
+    """按项目统一惯例创建出站客户端（``trust_env=False`` 避免代理环境串扰）。
+
+    不跟随上游跳转：跟随会让上游把请求带到白名单之外的域名。跳转由
+    ``forward`` 校验后重写回本地反代，仍受同一份白名单约束。
+    """
+
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(PROXY_CONNECT_TIMEOUT_S, read=None),
+        trust_env=False,
+        follow_redirects=False,
+    )
 
 
 async def forward(
@@ -113,11 +196,13 @@ async def forward(
     body: bytes,
     *,
     client: httpx.AsyncClient,
+    proxy_prefix: str,
 ) -> ProxyResult | None:
     """把一次验证码请求转发到上游；host 非白名单时返回 ``None``。
 
     网络层错误（连接失败、超时等）统一抛 ``CaptchaProxyError``；上游返回的
-    HTTP 错误状态码本身属于有效响应，原样映射给调用方。
+    HTTP 错误状态码本身属于有效响应，原样映射给调用方。3xx 跳转只在目标仍属
+    白名单时重写为 ``proxy_prefix`` 下的本地地址，否则 ``location`` 为 ``None``。
     """
 
     url = build_upstream_url(host, path, query)
@@ -137,22 +222,36 @@ async def forward(
             type(error).__name__,
         )
         raise CaptchaProxyError("验证码服务网络错误") from error
+    location: str | None = None
+    if response.status_code in REDIRECT_STATUSES:
+        location = rewrite_redirect(
+            response.headers.get("Location", ""),
+            base=httpx.URL(url),
+            proxy_prefix=proxy_prefix,
+        )
+        if location is None:
+            # 只记录类别，不记录可能含签名的跳转地址。
+            logger.warning("验证码反代跳转目标不在白名单 kind=redirect")
     return ProxyResult(
         status=response.status_code,
         # httpx 已按 Content-Encoding 解码 body，这里只回传原始内容类型。
         content_type=response.headers.get("Content-Type", "application/octet-stream"),
         body=response.content,
+        location=location,
     )
 
 
 __all__ = [
     "ANDROID_USER_AGENT",
-    "PROXY_TIMEOUT_S",
+    "PROXY_CONNECT_TIMEOUT_S",
+    "REDIRECT_STATUSES",
     "UPSTREAM_HOSTS",
     "CaptchaProxyError",
     "ProxyResult",
     "build_forward_headers",
     "build_upstream_url",
+    "parse_proxy_target",
     "forward",
     "new_http_client",
+    "rewrite_redirect",
 ]

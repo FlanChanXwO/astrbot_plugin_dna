@@ -7,11 +7,18 @@
  * 实测依据见 DNA-analysis docs/login-248/10。
  *
  * 只透传安全头；UA/UA-CH/Cookie 一律由服务端决定（透传受限头会报错或穿帮）。
+ * 反代地址携带当前登录会话 auth：服务端只对仍然有效的会话转发，匿名或过期
+ * 会话不会产生任何上游流量，因此这里必须先解析出受控登录页的 auth。
  */
 'use strict';
 
-var ALICAP_HOST_SUFFIX = 'alicaptcha.com';
-var PROXY_PREFIX = '/astrbot_plugin_dna/alicap/';
+// 与服务端 UPSTREAM_HOSTS 保持一致，避免两套安全边界漂移。
+var ALICAP_HOSTS = [
+  'captcha.alicaptcha.com',
+  'captchabak.alicaptcha.com',
+  'static.alicaptcha.com',
+];
+var LOGIN_PAGE_RE = /\/dna\/i\/([^/?#]+)/;
 
 self.addEventListener('install', function () {
   self.skipWaiting();
@@ -20,6 +27,20 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(self.clients.claim());
 });
 
+// 从受控登录页 URL 解析出会话 auth 与插件基址。
+function sessionFromUrl(raw) {
+  if (typeof raw !== 'string') return null;
+  var match = LOGIN_PAGE_RE.exec(raw);
+  if (!match) return null;
+  return { auth: match[1], base: raw.slice(0, match.index) };
+}
+
+async function resolveSession(event) {
+  if (!event.clientId) return null;
+  var client = await self.clients.get(event.clientId);
+  return client ? sessionFromUrl(client.url) : null;
+}
+
 self.addEventListener('fetch', function (event) {
   var url;
   try {
@@ -27,10 +48,23 @@ self.addEventListener('fetch', function (event) {
   } catch (e) {
     return;
   }
-  if (!url.hostname.endsWith(ALICAP_HOST_SUFFIX)) return;
+  if (ALICAP_HOSTS.indexOf(url.hostname) === -1) return;
 
   event.respondWith((async function () {
-    var target = self.location.origin + PROXY_PREFIX + url.hostname + url.pathname + url.search;
+    var session;
+    try {
+      session = await resolveSession(event);
+    } catch (e) {
+      session = null;
+    }
+    if (!session) {
+      // 无法确认登录会话时不做任何改写，避免变成匿名单跳中继。
+      return new Response('captcha proxy requires an active login session', {
+        status: 403,
+      });
+    }
+    var target =
+      session.base + '/alicap/' + session.auth + '/' + url.hostname + url.pathname + url.search;
     var passHeaders = {};
     for (var k of ['accept', 'accept-language', 'content-type']) {
       var v = event.request.headers.get(k);

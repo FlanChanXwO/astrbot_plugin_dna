@@ -521,8 +521,6 @@ class LoginFlowCoordinator:
 
     async def _captcha_proxy(
         self,
-        host: str,
-        path: str,
         *,
         raw_request: Any,
     ) -> Response:
@@ -530,24 +528,51 @@ class LoginFlowCoordinator:
 
         248 的判别发生在浏览器发往 ``*.alicaptcha.com`` 的 HTTP User-Agent
         平台标识；页面 JS 与 Service Worker 会把这些请求改写到本路由，
-        由这里完成换头转发。需要 raw_request 以获得未解码的 query string。
+        由这里完成换头转发。
+
+        反代必须绑定到仍然有效的登录会话：这里是匿名可访问的路由，若只靠
+        固定 host 白名单，任何人都能用本机出口 IP 做固定目的地的出站中继。
+        子路径与 query 取自 aiohttp 原始请求行，而不是已解码的 match_info /
+        ``query_string``，否则 ``%23``、``+`` 这类编码会在重新拼 URL 时被改写。
         """
 
+        prefix = f"{ROUTE_PREFIX}/alicap/"
+        target = captcha_proxy.parse_proxy_target(
+            raw_request.rel_url.raw_path,
+            prefix=prefix,
+        )
+        if target is None:
+            return Response(status_code=404)
+        auth, host, sub_path = target
+        if self._find_session(auth) is None:
+            return Response(status_code=404)
+        # rel_url 以 encoded 方式保存原始请求目标；可直接取回未解码的 query。
+        query = raw_request.rel_url.raw_query_string
         try:
             async with captcha_proxy.new_http_client() as client:
                 result = await self._captcha_forward(
                     host,
-                    path,
-                    raw_request.query_string,
+                    sub_path,
+                    query,
                     raw_request.method,
                     raw_request.headers,
                     await raw_request.read(),
                     client=client,
+                    proxy_prefix=f"{prefix}{auth}/",
                 )
         except captcha_proxy.CaptchaProxyError:
             return Response(status_code=502)
         if result is None:
             return Response(status_code=404)
+        if result.location is not None:
+            # 白名单内的跳转：改写为同源反代地址，浏览器会带着会话继续代理。
+            return Response(
+                status_code=result.status,
+                headers={"Location": result.location},
+            )
+        if result.status in captcha_proxy.REDIRECT_STATUSES:
+            # 跳转目标不在白名单：不能下发一个没有 Location 的 3xx。
+            return Response(status_code=502)
         return Response(
             content=result.body,
             status_code=result.status,
@@ -579,7 +604,7 @@ class LoginFlowCoordinator:
                 "验证码 Service Worker",
             ),
             (
-                f"{ROUTE_PREFIX}/alicap/{{host}}/{{path:.*}}",
+                f"{ROUTE_PREFIX}/alicap/{{auth}}/{{host}}/{{path:.*}}",
                 self._captcha_proxy,
                 ["GET", "POST"],
                 "验证码反代",

@@ -360,12 +360,19 @@
       //      script/img src/sendBeacon，SW 未就绪或不支持（非安全上下文）时也可用；
       //   2. Service Worker（下方注册）——接管后覆盖所有请求（含 CSS/Worker），
       //      且对后续加载生效。两层命中同一反代路由，行为一致。
-      const ALICAP_HOST_SUFFIX = 'alicaptcha.com'
-      const ALICAP_PROXY_PREFIX = serverUrl + '/alicap/'
+      // 反代地址携带本次登录会话 auth：服务端只对仍然有效的会话转发，
+      // 匿名访问不会产生任何上游流量。
+      // 白名单与服务端 UPSTREAM_HOSTS 保持一致，避免两套边界漂移。
+      const ALICAP_HOSTS = new Set([
+        'captcha.alicaptcha.com',
+        'captchabak.alicaptcha.com',
+        'static.alicaptcha.com',
+      ])
+      const ALICAP_PROXY_PREFIX = serverUrl + '/alicap/' + sessionAuth + '/'
 
       function isAlicapUrl(value) {
         if (typeof value !== 'string' || !value) return false
-        try { return new URL(value, location.href).hostname.endsWith(ALICAP_HOST_SUFFIX) } catch { return false }
+        try { return ALICAP_HOSTS.has(new URL(value, location.href).hostname) } catch { return false }
       }
       function rewriteAlicapUrl(value) {
         const url = new URL(value, location.href)
