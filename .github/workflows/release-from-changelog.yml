@@ -1,4 +1,4 @@
-name: Release from Changelog
+name: 从更新日志同步发布说明
 
 on:
   push:
@@ -6,10 +6,12 @@ on:
       - main
     paths:
       - CHANGELOG.md
+      - scripts/ci/release_notes.py
+      - .github/workflows/release-from-changelog.yml
   workflow_dispatch:
     inputs:
       tag_prefix:
-        description: "可选的 tag 前缀；留空时使用 v"
+        description: "可选的标签前缀；留空时直接使用 vX.Y.Z"
         required: false
         default: ""
         type: string
@@ -25,14 +27,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: 检出仓库
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Parse Changelog
-        id: parse
+      - name: 生成全部版本发布说明
         env:
           TAG_PREFIX: ${{ inputs.tag_prefix }}
         shell: bash
@@ -41,10 +42,10 @@ jobs:
           python3 scripts/ci/release_notes.py \
             --changelog CHANGELOG.md \
             --tag-prefix "${TAG_PREFIX:-}" \
-            --output "$RUNNER_TEMP/release-notes.md" \
-            --github-output "$GITHUB_OUTPUT"
+            --all-output-dir "$RUNNER_TEMP/release-notes" \
+            --manifest "$RUNNER_TEMP/release-manifest.tsv"
 
-      - name: Authenticate GitHub CLI
+      - name: 登录 GitHub CLI
         env:
           GH_AUTH_VALUE: ${{ github.token }}
         shell: bash
@@ -52,45 +53,51 @@ jobs:
           set -euo pipefail
           printf '%s\n' "$GH_AUTH_VALUE" | gh auth login --hostname github.com --with-token
 
-      - name: Create or update GitHub Release
+      - name: 同步全部 GitHub Release
         env:
-          RELEASE_TAG: ${{ steps.parse.outputs.tag }}
-          RELEASE_NOTES_FILE: ${{ steps.parse.outputs.notes_file }}
+          RELEASE_MANIFEST: ${{ runner.temp }}/release-manifest.tsv
         shell: bash
         run: |
           set -euo pipefail
 
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "$RELEASE_TAG" \
-              --notes-file "$RELEASE_NOTES_FILE"
-            echo "Updated release $RELEASE_TAG"
-            exit 0
-          fi
+          latest=true
+          while IFS=$'\t' read -r release_tag release_notes_file; do
+            if [ -z "$release_tag" ]; then
+              continue
+            fi
+            if [ ! -s "$release_notes_file" ]; then
+              echo "版本 $release_tag 的发布说明为空。" >&2
+              exit 1
+            fi
 
-          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "$RELEASE_TAG" \
-              --notes-file "$RELEASE_NOTES_FILE"
-          else
-            gh release create "$RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" \
-              --title "$RELEASE_TAG" \
-              --notes-file "$RELEASE_NOTES_FILE"
-          fi
-          echo "Created release $RELEASE_TAG"
+            if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release edit "$release_tag" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$release_tag" \
+                --notes-file "$release_notes_file"
+              echo "已更新 Release $release_tag"
+            elif gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${release_tag}" >/dev/null 2>&1; then
+              gh release create "$release_tag" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$release_tag" \
+                --notes-file "$release_notes_file"
+              echo "已从现有标签创建 Release $release_tag"
+            elif [ "$latest" = true ]; then
+              gh release create "$release_tag" \
+                --repo "$GITHUB_REPOSITORY" \
+                --target "$GITHUB_SHA" \
+                --title "$release_tag" \
+                --notes-file "$release_notes_file"
+              echo "已为最新版本创建 Release $release_tag"
+            else
+              echo "历史版本 $release_tag 缺少对应 Git 标签，拒绝指向当前提交创建。" >&2
+              exit 1
+            fi
 
-      - name: Verify release body
-        env:
-          RELEASE_TAG: ${{ steps.parse.outputs.tag }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          body="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body // ""')"
-          if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
-            echo "Release $RELEASE_TAG 的正文为空。" >&2
-            exit 1
-          fi
+            body="$(gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" --json body --jq '.body // ""')"
+            if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+              echo "Release $release_tag 的正文为空。" >&2
+              exit 1
+            fi
+            latest=false
+          done < "$RELEASE_MANIFEST"

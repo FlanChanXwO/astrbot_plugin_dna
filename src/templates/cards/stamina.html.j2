@@ -4,25 +4,67 @@
 <style>
   @font-face { font-family: "DNAUnicode"; src: url("{{ font }}") format("woff2"); }
   .stamina-card { min-height: {{ height }}px; color: #fff; font-family: "DNAUnicode", sans-serif; }
-  .stamina-card__foreground { position: absolute; inset: 0; z-index: 1; width: 2000px; height: 1100px; }
+  .stamina-card__foreground { position: absolute; inset: 0; z-index: 1; width: 2000px; height: 1100px; pointer-events: none; }
   .stamina-card__divider { position: absolute; top: 300px; left: 80px; z-index: 2; }
   .stamina-card .dna-legacy-profile { position: absolute; top: 30px; left: -50px; z-index: 2; margin: 0; }
-  .stamina-card__notes { position: absolute; top: 400px; left: 80px; z-index: 2; display: grid; gap: 39px; width: 1078px; }
-  .stamina-card__note { position: relative; display: grid; grid-template-columns: 110px 1fr auto; gap: 20px; align-items: center; width: 1078px; height: 111px; padding: 0 30px; background: url("{{ bar_background }}") center/1078px 111px no-repeat; }
-  .stamina-card__note img { width: 70px; height: 70px; object-fit: contain; }
-  .stamina-card__note strong { font-size: 36px; }.stamina-card__note span { font-size: 36px; }
-  .stamina-card__track { height: 16px; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.25); }.stamina-card__value { height: 100%; background: #fff; }
-  .stamina-card__drafts { position: absolute; inset: 0; z-index: 2; }
-  .stamina-card__draft { position: absolute; left: 1400px; width: 573px; height: 76px; background: url("{{ draft_background }}") center/573px 76px no-repeat; }
+  .stamina-card__notes { position: absolute; top: 400px; left: 80px; z-index: 2; display: flex; flex-direction: column; gap: 39px; width: 1078px; }
+  .stamina-card__note { position: relative; width: 1078px; height: 111px; background: url("{{ bar_background }}") center/1078px 111px no-repeat; }
+  .stamina-card__icon { position: absolute; top: 20px; left: 30px; width: 70px; height: 70px; object-fit: contain; }
+  .stamina-card__note-header { position: absolute; top: 16px; left: 151px; width: 840px; display: flex; justify-content: space-between; align-items: center; line-height: 1; }
+  .stamina-card__name { font-size: 38px; font-weight: normal; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+  .stamina-card__count { font-size: 38px; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+  .stamina-card__track { position: absolute; top: 72px; left: 151px; width: 840px; height: 19px; overflow: hidden; border-radius: 9px; background: rgba(0, 0, 0, 0.2); }
+  .stamina-card__value { height: 100%; border-radius: 9px; background: #ffffff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.85); }
+  .stamina-card__drafts-container { position: absolute; bottom: 120px; right: 80px; z-index: 2; box-sizing: border-box; width: 629px; padding: 22px 28px 24px; background: rgba(18, 22, 34, 0.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1.5px solid rgba(255, 255, 255, 0.14); border-radius: 20px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.16); }
+  .stamina-card__drafts-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding: 0 4px; }
+  .stamina-card__drafts-title { display: flex; align-items: center; gap: 12px; }
+  .stamina-card__drafts-icon { width: 5px; height: 26px; border-radius: 3px; background: #6ee7b7; box-shadow: 0 0 10px rgba(110, 231, 183, 0.7); }
+  .stamina-card__drafts-title h3 { margin: 0; font-size: 32px; font-weight: normal; color: #ffffff; letter-spacing: 1px; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+  .stamina-card__drafts-count { font-size: 20px; color: #dfd2a1; background: rgba(223, 210, 161, 0.12); border: 1px solid rgba(223, 210, 161, 0.3); border-radius: 12px; padding: 3px 12px; font-weight: normal; }
+  .stamina-card__drafts { display: flex; flex-direction: column; gap: 12px; width: 573px; }
+  .stamina-card__draft { position: relative; width: 573px; height: 76px; background: url("{{ draft_background }}") center/573px 76px no-repeat; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.3)); }
   .stamina-card__draft img { position: absolute; top: 22px; left: 65px; width: 32px; height: 31px; }
-  .stamina-card__draft-name { position: absolute; top: 10px; left: 115px; margin: 0; font-size: 36px; line-height: 46px; }
-  .stamina-card__draft-state { position: absolute; top: 10px; right: 73px; margin: 0; font-size: 30px; line-height: 44px; }.stamina-card__draft.done .stamina-card__draft-state { color: #4caf50; }
-  .stamina-card__footer { position: absolute; bottom: 20px; left: 700px; z-index: 2; color: rgba(255,255,255,.8); font-size: 18px; }
+  .stamina-card__draft-name { position: absolute; top: 15px; left: 115px; margin: 0; font-size: 36px; line-height: 46px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+  .stamina-card__draft-state { position: absolute; top: 16px; right: 73px; margin: 0; font-size: 30px; line-height: 44px; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+  .stamina-card__draft.done .stamina-card__draft-state { color: #6ee7b7; font-weight: 500; text-shadow: 0 0 8px rgba(110,231,183,0.6); }
+  .stamina-card__footer { position: absolute; bottom: 20px; left: 470px; z-index: 2; width: 1060px; height: 40px; }
 </style>
 <img class="stamina-card__foreground" src="{{ foreground }}" alt="" />
 <img class="stamina-card__divider" src="{{ divider }}" alt="" />
 {{ legacy_profile_header(header, header_background) }}
-<section class="stamina-card__notes">{% for note in notes %}<article class="stamina-card__note">{% if note.icon %}<img src="{{ note.icon }}" alt="" />{% endif %}<div><strong>{{ note.name }}</strong><div class="stamina-card__track"><div class="stamina-card__value" style="width: {{ note.ratio * 100 }}%"></div></div></div><span>{{ note.current }}/{{ note.total }}</span></article>{% endfor %}</section>
-{% if drafts %}<section class="stamina-card__drafts">{% for draft in drafts %}<article class="stamina-card__draft{% if draft.done %} done{% endif %}" style="top:{{ 980 - loop.index * 100 }}px"><img src="{% if draft.done %}{{ success }}{% else %}{{ running }}{% endif %}" alt="" /><span class="stamina-card__draft-name">{{ draft.name }}</span><span class="stamina-card__draft-state">{{ draft.state }}</span></article>{% endfor %}</section>{% endif %}
-<p class="stamina-card__footer">Power By AstrBot &amp; Copyright 二重 螺旋</p>
+<section class="stamina-card__notes">
+  {% for note in notes %}
+  <article class="stamina-card__note">
+    {% if note.icon %}<img class="stamina-card__icon" src="{{ note.icon }}" alt="" />{% endif %}
+    <div class="stamina-card__note-header">
+      <strong class="stamina-card__name">{{ note.name }}</strong>
+      <span class="stamina-card__count">{{ note.current }}/{{ note.total }}</span>
+    </div>
+    <div class="stamina-card__track">
+      <div class="stamina-card__value" style="width: {{ note.ratio * 100 }}%"></div>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% if drafts %}
+<section class="stamina-card__drafts-container">
+  <header class="stamina-card__drafts-header">
+    <div class="stamina-card__drafts-title">
+      <span class="stamina-card__drafts-icon"></span>
+      <h3>锻造清单</h3>
+    </div>
+    <span class="stamina-card__drafts-count">进行中 {{ drafts|length }}</span>
+  </header>
+  <div class="stamina-card__drafts">
+    {% for draft in drafts %}
+    <article class="stamina-card__draft{% if draft.done %} done{% endif %}">
+      <img src="{% if draft.done %}{{ success }}{% else %}{{ running }}{% endif %}" alt="" />
+      <span class="stamina-card__draft-name">{{ draft.name }}</span>
+      <span class="stamina-card__draft-state">{{ draft.state }}</span>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+<img class="stamina-card__footer" src="{{ footer_image }}" alt="" />
 {% endcall %}

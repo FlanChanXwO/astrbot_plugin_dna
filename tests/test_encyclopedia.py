@@ -388,6 +388,96 @@ async def test_stamina_renderer_uses_legacy_dna_canvas(tmp_path: Path) -> None:
         assert image.getpixel((1900, 500)) != (25, 31, 48)
 
 
+def test_stamina_card_template_layout() -> None:
+    """日常便签卡片模板必须具备正确的进度条全宽结构和正向锻造列表。"""
+
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+    src_templates = Path(__file__).parents[1] / "src" / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(src_templates)),
+        autoescape=select_autoescape(
+            enabled_extensions=("html", "j2", "jinja", "jinja2"),
+            default_for_string=True,
+        ),
+    )
+    tmpl = env.get_template("cards/stamina.html.j2")
+    rendered = tmpl.render(
+        width=2000,
+        height=1100,
+        background="",
+        font="",
+        foreground="",
+        divider="",
+        header={"name": "测试玩家", "stats": []},
+        header_background="",
+        bar_background="",
+        success="",
+        running="",
+        draft_background="",
+        notes=[
+            {
+                "icon": "",
+                "name": "备忘手记",
+                "current": 320,
+                "total": 200,
+                "ratio": 1.0,
+            }
+        ],
+        drafts=[
+            {"done": True, "name": "排斥结晶", "state": "已完成"},
+            {"done": True, "name": "金砂", "state": "已完成"},
+        ],
+    )
+    # 进度条应有独立的名称与计数头部，轨道应横跨底部全宽
+    assert "stamina-card__note-header" in rendered
+    assert "stamina-card__name" in rendered
+    assert "stamina-card__count" in rendered
+    # 锻造列表不应使用倒序绝对定位 (980 - loop.index * 100)
+    assert 'style="top:880px"' not in rendered
+    assert 'style="top:780px"' not in rendered
+    # 底部版权应仿照卡片命令使用 footer_image 图片标签，而非纯文本 p 标签
+    assert '<img class="stamina-card__footer"' in rendered
+    assert '<p class="stamina-card__footer"' not in rendered
+    # 右侧锻造清单应有专属容器与标题
+    assert "stamina-card__drafts-container" in rendered
+    assert "锻造清单" in rendered
+
+
+@pytest.mark.asyncio
+async def test_stamina_card_view_payload_includes_footer_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """日常便签卡片视图上下文必须携带通用 footer_image 素材。"""
+    from src.infrastructure.rendering import encyclopedia as encyclopedia_module
+    from src.utils.session import EventContext
+
+    captured_context: dict[str, object] = {}
+
+    async def fake_render(template_name: str, context: dict[str, object], spec: object) -> bytes:
+        captured_context.update(context)
+        return b"fake-card"
+
+    monkeypatch.setattr(encyclopedia_module._RENDERER, "render", fake_render)
+
+    from src.modules.player.contracts import RoleHeader
+
+    ctx = EventContext(
+        bot_id="bot-1",
+        user_id="user-1",
+        group_id="group-1",
+    )
+    role = RoleHeader(role_id="role-1", role_name="资料玩家", level=55, params=[])
+    await encyclopedia_module._draw_stamina_card_view(
+        ctx=ctx,
+        role=role,
+        short_note=_short_note(),
+    )
+
+    assert "footer_image" in captured_context
+    assert str(captured_context["footer_image"]).startswith("data:image/png;base64,")
+
+
 @pytest.mark.asyncio
 async def test_typed_stamina_renderer_skips_legacy_model_revalidation(
     monkeypatch: pytest.MonkeyPatch,

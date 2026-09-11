@@ -90,7 +90,12 @@ async def _item_payload(item: ItemTemp) -> dict[str, object]:
         element = await get_attr_img(pic_url=item.element_icon)
     else:
         image = await get_weapon_img(item.id, item.icon)
-        element = await get_weapon_attr_img(pic_url=item.element_icon)
+        # 官方展柜数据可能暂未下发新武器的类型图标；该装饰资源缺失不应阻断整卡渲染。
+        element = (
+            await get_weapon_attr_img(pic_url=item.element_icon)
+            if item.element_icon
+            else None
+        )
 
     # 仅当条目已解锁且命座等级大于 0 时才显示命座徽章，0 命或未解锁不渲染徽章
     grade_level = item.grade_level
@@ -101,8 +106,12 @@ async def _item_payload(item: ItemTemp) -> dict[str, object]:
     )
 
     return {
-        "element": pil_image_data_uri(
-            element.resize((element.width // 2, element.height // 2))
+        "element": (
+            pil_image_data_uri(
+                element.resize((element.width // 2, element.height // 2))
+            )
+            if element is not None
+            else None
         ),
         "grade": grade_uri,
         "image": pil_image_data_uri(image),
