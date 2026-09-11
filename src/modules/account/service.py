@@ -141,7 +141,7 @@ class AccountService:
         normalized_url = url.strip()
         if not normalized_url:
             return PlainTextResponse(messages.LOGIN_EMPTY_URL)
-        return PlainTextResponse(messages.login_page(normalized_url))
+        return PlainTextResponse(messages.login_page(actor.user_id, normalized_url))
 
     async def login(
         self,

@@ -212,7 +212,7 @@ async def test_login_page_exposes_media_only_when_setting_and_snapshot_allow_it(
     try:
         login_response = await flow.begin(actor)
         async with aiohttp.ClientSession() as client, client.get(
-            login_response.text.removeprefix("登录地址：")
+            login_response.text.splitlines()[2].strip()
         ) as response:
             page = await response.text()
         assert 'id="backgroundVideo"' in page
@@ -239,7 +239,7 @@ async def test_login_page_exposes_media_only_when_setting_and_snapshot_allow_it(
     try:
         login_response = await static_flow.begin(actor)
         async with aiohttp.ClientSession() as client, client.get(
-            login_response.text.removeprefix("登录地址：")
+            login_response.text.splitlines()[2].strip()
         ) as response:
             page = await response.text()
         assert 'id="backgroundVideo"' not in page
