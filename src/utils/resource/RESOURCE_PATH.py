@@ -78,6 +78,15 @@ PLUGIN_LOGO_DATA_URI = (
     "data:image/png;base64,"
     + base64.b64encode(PLUGIN_LOGO_PATH.read_bytes()).decode("ascii")
 )
+TITLE_LOGO_PATH = (
+    Path(__file__).parents[2] / "resources" / "textures" / "common" / "title_logo.png"
+)
+TITLE_LOGO_DATA_URI = (
+    "data:image/png;base64,"
+    + base64.b64encode(TITLE_LOGO_PATH.read_bytes()).decode("ascii")
+    if TITLE_LOGO_PATH.exists()
+    else PLUGIN_LOGO_DATA_URI
+)
 DNA_TEMPLATES = Environment(
     loader=FileSystemLoader(
         [
@@ -86,3 +95,4 @@ DNA_TEMPLATES = Environment(
     )
 )
 DNA_TEMPLATES.globals["plugin_logo"] = PLUGIN_LOGO_DATA_URI
+DNA_TEMPLATES.globals["title_logo"] = TITLE_LOGO_DATA_URI

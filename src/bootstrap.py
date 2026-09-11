@@ -187,6 +187,18 @@ def build_runtime(
     if services is not None and "account_service" in services:
         account_service = cast(AccountService, services["account_service"])
 
+    custom_alias_path = runtime_database.path.parent / "alias_custom.json"
+    custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
+    resource_cache_root = resource_repository_dir(runtime_database.path.parent)
+    resource_generations_root = resource_generations_dir(runtime_database.path.parent)
+    resource_snapshots = ResourceSnapshotCoordinator(
+        resource_cache_root,
+        generations_root=resource_generations_root,
+        acceleration_prefix=settings.resources.acceleration_prefix,
+        custom_alias_path=custom_alias_path,
+        custom_weapon_alias_path=custom_weapon_alias_path,
+    )
+
     async def _notify_login(actor: Any, response: object) -> None:
         """把后台登录终态投递回发起登录的 AstrBot 会话。"""
 
@@ -230,6 +242,7 @@ def build_runtime(
             external_transport=external_login_transport,
             local_server=injected_login_server,
             notify=_notify_login,
+            resource_snapshots=resource_snapshots,
         )
     set_login_flow = getattr(account_service, "set_login_flow", None)
     if callable(set_login_flow):
@@ -237,17 +250,6 @@ def build_runtime(
     privacy_service = PrivacyService(
         runtime_database,
         allow_mention_query=settings.display.allow_mention_query,
-    )
-    custom_alias_path = runtime_database.path.parent / "alias_custom.json"
-    custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
-    resource_cache_root = resource_repository_dir(runtime_database.path.parent)
-    resource_generations_root = resource_generations_dir(runtime_database.path.parent)
-    resource_snapshots = ResourceSnapshotCoordinator(
-        resource_cache_root,
-        generations_root=resource_generations_root,
-        acceleration_prefix=settings.resources.acceleration_prefix,
-        custom_alias_path=custom_alias_path,
-        custom_weapon_alias_path=custom_weapon_alias_path,
     )
     # 构造期只接纳已由外部显式注入的 verified snapshot；重载时的 current
     # 指针和完整资源校验延后到异步生命周期，避免阻塞 AstrBot 插件加载线程。

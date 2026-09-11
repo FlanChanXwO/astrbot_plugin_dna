@@ -20,8 +20,22 @@ from src.infrastructure.config.settings import (
     DnabySettings,
     DNAConfig,
     DNASignConfig,
+    LoginSettings,
     SignInSettings,
 )
+
+
+def test_login_dynamic_background_defaults_to_enabled_and_is_in_schema():
+    settings = LoginSettings()
+    assert settings.dynamic_background is True
+
+    schema = generate_typed_schema()
+    field = schema["login"]["items"]["dynamic_background"]
+    assert field["type"] == "bool"
+    assert field["default"] is True
+    assert "配套音乐" not in field.get("hint", "")
+    assert "配套音乐" not in (LoginSettings.model_fields["dynamic_background"].json_schema_extra or {}).get("hint", "")
+    assert "MP4 动态背景" in field.get("hint", "")
 
 
 def test_schema_generation():

@@ -21,8 +21,13 @@ from starlette.responses import HTMLResponse
 
 from ...entry.response import LoginResponse, PlainTextResponse
 from ...infrastructure.config.settings import LoginSettings
+from ...infrastructure.http.login_media import (
+    LOGIN_MEDIA_VIDEO_ROUTE,
+    LoginMediaService,
+)
 from ...infrastructure.http.login_server import LocalLoginServer, Route
 from ...infrastructure.rendering.qr import render_qr_code
+from ...infrastructure.resources.generation import ResourceSnapshotCoordinator
 from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 from ...utils.api.auth import create_device_code
 from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES
@@ -127,11 +132,13 @@ class LoginFlowCoordinator:
         external_transport: LoginTransport | None = None,
         local_server: LocalLoginServer | None = None,
         notify: LoginNotifier | None = None,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.account_service = account_service
         self.settings = settings
         self.account_transport = account_transport
         self.notify = notify
+        self.login_media = LoginMediaService(resource_snapshots)
         self._sessions: dict[tuple[str, str, str | None], _LoginSession] = {}
         self._session_lock = asyncio.Lock()
         self._started = False
@@ -404,11 +411,16 @@ class LoginFlowCoordinator:
             return self._not_found_page()
         template = DNA_TEMPLATES.get_template("index.html.j2")
         base_url = self.public_url
+        login_media = self.login_media.resolve(
+            base_url,
+            enabled=self.settings.dynamic_background,
+        )
         return HTMLResponse(
             template.render(
                 server_url=base_url,
                 auth=auth,
                 userId=session.actor.user_id,
+                login_media=login_media,
             )
         )
 
@@ -416,6 +428,14 @@ class LoginFlowCoordinator:
     def _not_found_page() -> HTMLResponse:
         template = DNA_TEMPLATES.get_template("404.html.j2")
         return HTMLResponse(template.render(), status_code=404)
+
+    def _login_video(self):
+        """提供固定 MP4 路由，不接受调用方传入文件路径。"""
+
+        return self.login_media.file_response(
+            "video",
+            enabled=self.settings.dynamic_background,
+        )
 
     async def _get_sms_code(self) -> dict[str, bool | str]:
         payload = await request.json(default=None)
@@ -505,6 +525,12 @@ class LoginFlowCoordinator:
                 self._login_page,
                 ["GET"],
                 "App 登录页",
+            ),
+            (
+                LOGIN_MEDIA_VIDEO_ROUTE,
+                self._login_video,
+                ["GET"],
+                "App 登录动态视频背景",
             ),
             (
                 f"{ROUTE_PREFIX}/dna/login",

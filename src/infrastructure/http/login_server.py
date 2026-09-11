@@ -61,6 +61,8 @@ def _query_pairs(values: Any) -> list[tuple[str, Any]]:
 
 
 def _to_aiohttp_response(result: Any) -> web.StreamResponse:
+    if isinstance(result, web.StreamResponse):
+        return result
     if isinstance(result, Response):
         headers = {
             key: value
