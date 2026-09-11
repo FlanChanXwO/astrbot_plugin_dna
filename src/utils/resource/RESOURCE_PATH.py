@@ -96,4 +96,3 @@ DNA_TEMPLATES = Environment(
 )
 DNA_TEMPLATES.globals["plugin_logo"] = PLUGIN_LOGO_DATA_URI
 DNA_TEMPLATES.globals["title_logo"] = TITLE_LOGO_DATA_URI
-

@@ -96,3 +96,11 @@ def test_page_keeps_form_semantics_without_walkthrough_or_public_identifier() ->
     assert "backdrop-filter" not in page
     assert "prefers-reduced-motion: reduce" in page
     assert "visibilitychange" in page
+
+
+def test_captcha_loading_has_no_arbitrary_timeout_and_preserves_error_handlers() -> None:
+    page, _ = _render()
+    assert "15000" not in page
+    assert "clearTimeout" not in page
+    assert "script.onerror = fail" in page
+    assert "script.async = true" in page

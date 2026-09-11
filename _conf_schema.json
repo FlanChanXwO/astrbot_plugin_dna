@@ -80,7 +80,7 @@
       "dynamic_background": {
         "type": "bool",
         "description": "登录页动态背景",
-        "hint": "是否启用内置登录页的 MP4 动态背景和配套音乐；关闭后使用静态背景",
+        "hint": "是否启用内置登录页的 MP4 动态背景；关闭后使用静态背景",
         "default": true
       },
       "max_bind_count": {

@@ -111,7 +111,7 @@ class LoginSettings(_SettingsModel):
         default=True,
         description="登录页动态背景",
         json_schema_extra={
-            "hint": "是否启用内置登录页的 MP4 动态背景和配套音乐；关闭后使用静态背景",
+            "hint": "是否启用内置登录页的 MP4 动态背景；关闭后使用静态背景",
         },
     )
     max_bind_count: int = Field(

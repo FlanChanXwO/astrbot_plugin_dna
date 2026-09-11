@@ -425,11 +425,9 @@
         captchaPromise = new Promise((resolve, reject) => {
           const script = document.createElement('script')
           let settled = false
-          const timer = window.setTimeout(() => fail(), 15000)
           function fail() {
             if (settled) return
             settled = true
-            window.clearTimeout(timer)
             script.remove()
             reject(new Error('captcha unavailable'))
           }
@@ -451,7 +449,6 @@
                   .onReady(function () {
                     if (settled) return
                     settled = true
-                    window.clearTimeout(timer)
                     resolve(captcha)
                   })
                   .onNextReady(function () {})
