@@ -244,16 +244,69 @@
         border: 0;
         cursor: not-allowed;
       }
-      .form-status {
-        margin: 16px 0 0;
-        color: var(--muted);
-        font-size: 13px;
-        line-height: 1.65;
+      .toast-container {
+        position: fixed;
+        top: max(96px, calc(env(safe-area-inset-top) + 84px));
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+        width: max-content;
+        max-width: min(440px, calc(100vw - 32px));
+        padding: 0 16px;
+      }
+      .toast {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 20px;
+        background: #232226;
+        color: var(--ink);
+        border: 1px solid #3c3a42;
+        border-radius: 9999px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 2px 6px rgba(0, 0, 0, 0.4);
+        font-size: 14px;
+        line-height: 1.4;
+        letter-spacing: 0.02em;
+        opacity: 0;
+        transform: translateY(-10px) scale(0.96);
+        transition: opacity 220ms cubic-bezier(0.2, 0, 0, 1), transform 220ms cubic-bezier(0.2, 0, 0, 1), visibility 220ms;
+        visibility: hidden;
+        pointer-events: auto;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .toast.is-visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        visibility: visible;
+      }
+      .toast-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        width: 18px;
+        height: 18px;
+      }
+      .toast-icon svg {
+        width: 100%;
+        height: 100%;
+      }
+      .toast-message {
+        flex: 1;
+        min-width: 0;
         overflow-wrap: anywhere;
       }
-      .form-status:empty { display: none; }
-      .form-status[data-kind='error'] { color: #ffb4b9; }
-      .form-status[data-kind='success'] { color: #d7e7bd; }
+      .toast[data-kind='success'] { border-color: rgba(168, 217, 141, 0.45); }
+      .toast[data-kind='success'] .toast-icon { color: #a8d98d; }
+      .toast[data-kind='error'] { border-color: rgba(255, 123, 114, 0.5); }
+      .toast[data-kind='error'] .toast-icon { color: #ff7b72; }
+      .toast[data-kind='info'] { border-color: rgba(196, 160, 98, 0.45); }
+      .toast[data-kind='info'] .toast-icon { color: var(--accent); }
       @media (max-width: 720px) {
         .scene {
           inset: 0;
@@ -277,6 +330,13 @@
           justify-content: center;
           padding: 20px max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
         }
+        .toast-container {
+          top: max(76px, calc(env(safe-area-inset-top) + 60px));
+        }
+        .toast {
+          font-size: 13.5px;
+          padding: 9px 16px;
+        }
         .form-panel { width: 408px; padding: 22px 24px 26px; border-radius: 18px; }
         h1 { margin-bottom: 24px; font-size: 25px; }
         .input-group { margin-bottom: 18px; }
@@ -297,6 +357,12 @@
     </style>
   </head>
   <body>
+    <div class="toast-container">
+      <div id="formStatus" class="toast" role="status" aria-live="polite" aria-atomic="true">
+        <span id="toastIcon" class="toast-icon" aria-hidden="true"></span>
+        <span id="toastMessage" class="toast-message"></span>
+      </div>
+    </div>
     <div class="scene" aria-hidden="true">
       {% if login_media and login_media.video_url %}
       <video id="backgroundVideo" class="background-video" loop muted playsinline preload="none"
@@ -335,7 +401,6 @@
             <span id="loginBtnLabel">登录</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
           </button>
-          <p id="formStatus" class="form-status" role="status" aria-live="polite" aria-atomic="true"></p>
         </form>
       </section>
     </main>
@@ -347,6 +412,8 @@
       const loginForm = document.getElementById('loginForm')
       const getCodeBtn = document.getElementById('getCodeBtn')
       const formStatus = document.getElementById('formStatus')
+      const toastIcon = document.getElementById('toastIcon')
+      const toastMessage = document.getElementById('toastMessage')
       const serverUrl = {{ server_url | tojson }}
       const sessionAuth = {{ auth | tojson }}
       const captchaId = '114d4e96cc4536050c7efaeb7e4f3c8c'
@@ -423,9 +490,41 @@
       let isCaptchaLoading = false
       let captchaPromise = null
 
+      let toastGeneration = 0
+      const TOAST_ICONS = {
+        success: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="m6.5 10 2.5 2.5 4.5-5"/></svg>',
+        error: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="8"/><line x1="10" y1="6.5" x2="10" y2="10.5"/><line x1="10" y1="13.5" x2="10.01" y2="13.5"/></svg>',
+        info: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="8"/><line x1="10" y1="9.5" x2="10" y2="14.5"/><line x1="10" y1="6.5" x2="10.01" y2="6.5"/></svg>',
+      }
+
+      function hideToast() {
+        toastGeneration++
+        formStatus.classList.remove('is-visible')
+      }
+
+      formStatus.addEventListener('click', hideToast)
+
       function showMessage(message, kind = 'info') {
+        if (!message) {
+          hideToast()
+          return
+        }
+        const currentGen = ++toastGeneration
         formStatus.dataset.kind = kind
-        formStatus.textContent = message
+        if (toastIcon) {
+          toastIcon.innerHTML = TOAST_ICONS[kind] || TOAST_ICONS.info
+        }
+        if (toastMessage) {
+          toastMessage.textContent = message
+        } else {
+          formStatus.textContent = message
+        }
+        formStatus.classList.add('is-visible')
+        window.setTimeout(() => {
+          if (toastGeneration === currentGen) {
+            formStatus.classList.remove('is-visible')
+          }
+        }, 3500)
       }
 
       function updateLoginButton() {

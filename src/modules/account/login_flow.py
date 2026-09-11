@@ -233,10 +233,11 @@ class LoginFlowCoordinator:
                 )
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
             except Exception as error:  # noqa: BLE001
-                # 第三方适配器可能把服务端正文放进异常；仅记录类别，避免泄露凭据。
                 logger.error(
-                    "登录流程启动出现未预期异常 kind=%s",
+                    "登录流程启动出现未预期异常 kind=%s: %s",
                     type(error).__name__,
+                    error,
+                    exc_info=True,
                 )
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
 
@@ -265,7 +266,12 @@ class LoginFlowCoordinator:
             try:
                 qr_bytes = await render_qr_code(url)
             except Exception as error:  # noqa: BLE001
-                logger.error("登录二维码生成失败 kind=%s", type(error).__name__)
+                logger.error(
+                    "登录二维码生成失败 kind=%s: %s",
+                    type(error).__name__,
+                    error,
+                    exc_info=True,
+                )
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
             return LoginResponse(
                 text=messages.login_page(actor.user_id, url),
@@ -335,11 +341,11 @@ class LoginFlowCoordinator:
             )
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         except Exception as error:  # noqa: BLE001
-            # transport/第三方异常可能携带服务端正文或凭据；此处只记录类别，
-            # 具体协议错误已在各自 adapter 中转换为安全的分类错误。
             logger.error(
-                "登录流程等待出现未预期异常 kind=%s",
+                "登录流程等待出现未预期异常 kind=%s: %s",
                 type(error).__name__,
+                error,
+                exc_info=True,
             )
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         finally:
@@ -390,8 +396,10 @@ class LoginFlowCoordinator:
                 await result
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "登录完成通知失败 kind=%s",
+                "登录完成通知失败 kind=%s: %s",
                 type(error).__name__,
+                error,
+                exc_info=True,
             )
 
     def _find_session(self, auth: str) -> _LoginSession | None:
@@ -466,10 +474,11 @@ class LoginFlowCoordinator:
             )
             return {"success": False, "msg": messages.LOGIN_SERVICE_FAILED}
         except Exception as error:  # noqa: BLE001
-            # 短信服务异常可能包含响应正文；只保留异常类别供排查。
             logger.error(
-                "登录流程请求短信出现未预期异常 kind=%s",
+                "登录流程请求短信出现未预期异常 kind=%s: %s",
                 type(error).__name__,
+                error,
+                exc_info=True,
             )
             return {"success": False, "msg": messages.LOGIN_SERVICE_FAILED}
         if result is False:
@@ -503,8 +512,10 @@ class LoginFlowCoordinator:
             response = await self.account_service.login(session.actor, attempt)
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "登录流程认证出现未预期异常 kind=%s",
+                "登录流程认证出现未预期异常 kind=%s: %s",
                 type(error).__name__,
+                error,
+                exc_info=True,
             )
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         session.response = response
