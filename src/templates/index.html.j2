@@ -350,6 +350,73 @@
       const serverUrl = {{ server_url | tojson }}
       const sessionAuth = {{ auth | tojson }}
       const captchaId = '114d4e96cc4536050c7efaeb7e4f3c8c'
+
+      // ===== 验证码请求反代（248 修复）=====
+      // Windows 浏览器直连 alicaptcha 会因 HTTP User-Agent 平台标识被上游拒绝（248）。
+      // 浏览器规范禁止 JS 修改 User-Agent，因此把所有发往 *.alicaptcha.com 的请求
+      // 重写到插件同源的 /alicap/ 反代路由，由服务端注入 Android 画像后转发。
+      // 两层覆盖：
+      //   1. 页面内传输 hook（本块）——ct4.js 加载前同步安装，覆盖 fetch/XHR/
+      //      script/img src/sendBeacon，SW 未就绪或不支持（非安全上下文）时也可用；
+      //   2. Service Worker（下方注册）——接管后覆盖所有请求（含 CSS/Worker），
+      //      且对后续加载生效。两层命中同一反代路由，行为一致。
+      // 反代地址携带本次登录会话 auth：服务端只对仍然有效的会话转发，
+      // 匿名访问不会产生任何上游流量。
+      // 白名单与服务端 UPSTREAM_HOSTS 保持一致，避免两套边界漂移。
+      const ALICAP_HOSTS = new Set([
+        'captcha.alicaptcha.com',
+        'captchabak.alicaptcha.com',
+        'static.alicaptcha.com',
+      ])
+      const ALICAP_PROXY_PREFIX = serverUrl + '/alicap/' + sessionAuth + '/'
+
+      function isAlicapUrl(value) {
+        if (typeof value !== 'string' || !value) return false
+        try { return ALICAP_HOSTS.has(new URL(value, location.href).hostname) } catch { return false }
+      }
+      function rewriteAlicapUrl(value) {
+        const url = new URL(value, location.href)
+        return ALICAP_PROXY_PREFIX + url.hostname + url.pathname + url.search
+      }
+
+      const nativeFetch = window.fetch
+      if (nativeFetch) {
+        window.fetch = function (input, init) {
+          const url = typeof input === 'string' ? input : input && input.url
+          if (typeof url === 'string' && isAlicapUrl(url)) {
+            input = typeof input === 'string' ? rewriteAlicapUrl(url) : new Request(rewriteAlicapUrl(url), input)
+          }
+          return nativeFetch.call(this, input, init)
+        }
+      }
+      const nativeXhrOpen = XMLHttpRequest.prototype.open
+      XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+        return nativeXhrOpen.call(this, method, isAlicapUrl(url) ? rewriteAlicapUrl(url) : url, ...rest)
+      }
+      // 动态插入的脚本与图片通过 src 属性 setter 捕获。
+      for (const [proto, name] of [[HTMLScriptElement, 'src'], [HTMLImageElement, 'src']]) {
+        const descriptor = Object.getOwnPropertyDescriptor(proto.prototype, name)
+        if (descriptor && descriptor.set) {
+          Object.defineProperty(proto.prototype, name, {
+            configurable: true,
+            get: descriptor.get,
+            set(value) {
+              descriptor.set.call(this, isAlicapUrl(value) ? rewriteAlicapUrl(value) : value)
+            },
+          })
+        }
+      }
+      if (navigator.sendBeacon) {
+        const nativeSendBeacon = navigator.sendBeacon.bind(navigator)
+        navigator.sendBeacon = function (url, data) {
+          return nativeSendBeacon(isAlicapUrl(url) ? rewriteAlicapUrl(url) : url, data)
+        }
+      }
+
+      // Service Worker 仅在安全上下文（https 或 localhost）可用；注册失败静默降级到页面内 hook。
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register(serverUrl + '/sw.js').catch(() => {})
+      }
       let isSubmitting = false
       let isCodeCooldown = false
       let isSmsPending = false
