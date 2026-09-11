@@ -41,7 +41,6 @@ from .registry import (
     normalize_client_update_target_ids,
     resolve_client_update_source,
     resolve_client_update_target,
-    select_client_update_target_ids_by_platform,
 )
 from .service import (
     ClientUpdatePatchSizeError,
@@ -102,6 +101,5 @@ __all__ = [
     "parse_version_list_entries",
     "resolve_client_update_source",
     "resolve_client_update_target",
-    "select_client_update_target_ids_by_platform",
     "sum_manifest_patch_file_sizes",
 ]

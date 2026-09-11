@@ -15,7 +15,7 @@ from typing import Protocol
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from . import messages
 from .contracts import ClientUpdateChange
-from .registry import CLIENT_UPDATE_REGISTRY, ClientUpdateRegistry
+from .registry import ClientUpdateRegistry
 from .routing import active_subscriptions as _active_subscriptions
 from .state import (
     ClientUpdatePendingEvent,
@@ -113,11 +113,11 @@ class ClientUpdatePushPort(Protocol):
 
 
 class ClientUpdateDeliveryService:
-    """按有效订阅投递 Source 消息，并隔离每个目标的投递失败。
+    """按固定目标集合投递 Source 消息，并隔离每个目标的投递失败。
 
-    未注入 ``state`` 时，``deliver`` 保留框架无关 DTO seam 的即时投递语义，
-    供单元测试和其他调用方构造消息。bootstrap 会注入状态 store，此时每轮
-    投递都会先重试持久化 pending 事件，再为当前变化固定首次目标并投递。
+    ``state`` 是生产的唯一投递语义：每轮投递都会先重试持久化 pending 事件，
+    再为当前变化固定首次目标并投递。这里不再保留无状态的第二条路径，避免
+    调用方无意中绕过 pending 持久化。
     """
 
     def __init__(
@@ -125,17 +125,15 @@ class ClientUpdateDeliveryService:
         subscriptions: SubscriptionStore,
         push_port: ClientUpdatePushPort,
         *,
-        state: ClientUpdateStateStore | None = None,
+        state: ClientUpdateStateStore,
         registry: ClientUpdateRegistry | None = None,
     ) -> None:
-        resolved_registry = (
-            state.registry
-            if registry is None and state is not None
-            else registry or CLIENT_UPDATE_REGISTRY
-        )
+        if not isinstance(state, ClientUpdateStateStore):
+            raise TypeError("state 必须是 ClientUpdateStateStore")
+        resolved_registry = state.registry if registry is None else registry
         if not isinstance(resolved_registry, ClientUpdateRegistry):
             raise TypeError("registry 必须是 ClientUpdateRegistry")
-        if state is not None and state.registry != resolved_registry:
+        if state.registry != resolved_registry:
             raise ValueError("state 与 delivery 必须使用同一 ClientUpdateRegistry")
         self.subscriptions = subscriptions
         self.push_port = push_port
@@ -147,59 +145,18 @@ class ClientUpdateDeliveryService:
         }
 
     async def deliver(self, changes: Sequence[ClientUpdateChange]) -> int:
-        """投递变化；有状态运行时串行完成 pending 的发送与确认。"""
+        """投递变化；串行完成 pending 的发送与确认。"""
 
-        state = self.state
-        if state is None:
-            return await self._deliver_without_state(changes)
-        async with state.delivery_coordination_lock:
-            return await self._deliver_with_state(changes)
+        async with self.state.delivery_coordination_lock:
+            return await self._deliver(changes)
 
-    async def _deliver_without_state(
-        self,
-        changes: Sequence[ClientUpdateChange],
-    ) -> int:
-        """直接投递 DTO seam，不创建持久化事件。"""
-
-        ordered_changes = _order_changes(
-            changes,
-            self.registry,
-            self._source_order,
-        )
-        if not ordered_changes:
-            return 0
-
-        delivered = 0
-        subscriptions = await self._subscriptions()
-        active = _active_subscriptions(subscriptions)
-        for subscription, routable in active.values():
-            if not routable:
-                continue
-            push = _build_push(
-                ClientUpdatePushTarget(
-                    origin=subscription.unified_msg_origin,
-                    bot_id=subscription.bot_id,
-                ),
-                ordered_changes,
-                self.registry,
-            )
-            succeeded_event_keys = await self._send_push(push)
-            if succeeded_event_keys == frozenset(
-                message.event_key for message in push.messages
-            ):
-                delivered += 1
-        return delivered
-
-    async def _deliver_with_state(
+    async def _deliver(
         self,
         changes: Sequence[ClientUpdateChange],
     ) -> int:
         """按固定目标集合投递，并在每个目标成功后更新状态。"""
 
         state = self.state
-        if state is None:
-            raise RuntimeError("client update delivery state unavailable")
-
         ordered_changes = _order_changes(
             changes,
             self.registry,
@@ -240,9 +197,6 @@ class ClientUpdateDeliveryService:
 
     async def _deliver_pending_events(self) -> int:
         state = self.state
-        if state is None:
-            raise RuntimeError("client update delivery state unavailable")
-
         events = await state.pending_events()
         if not events:
             return 0
@@ -287,9 +241,6 @@ class ClientUpdateDeliveryService:
         """按目标合并同批事件，并逐事件标记成功。"""
 
         state = self.state
-        if state is None:
-            raise RuntimeError("client update delivery state unavailable")
-
         delivered = 0
         for target, pending_events in groups:
             push = _build_push(

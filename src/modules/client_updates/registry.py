@@ -239,18 +239,6 @@ class ClientUpdateRegistry:
             {source_id: tuple(ids) for source_id, ids in grouped.items()}
         )
 
-    def select_target_ids_by_platform(
-        self,
-        target_ids: object,
-        platform: ClientPlatform | str,
-    ) -> tuple[str, ...]:
-        normalized_platform = ClientPlatform(platform)
-        return tuple(
-            target_id
-            for target_id in self.normalize_target_ids(target_ids)
-            if self._targets_by_id[target_id].platform is normalized_platform
-        )
-
 
 CLIENT_UPDATE_REGISTRY = ClientUpdateRegistry(
     sources=(
@@ -347,13 +335,6 @@ def group_client_update_target_ids_by_source(
     return CLIENT_UPDATE_REGISTRY.group_target_ids_by_source(target_ids)
 
 
-def select_client_update_target_ids_by_platform(
-    target_ids: object,
-    platform: ClientPlatform | str,
-) -> tuple[str, ...]:
-    return CLIENT_UPDATE_REGISTRY.select_target_ids_by_platform(target_ids, platform)
-
-
 __all__ = [
     "CLIENT_UPDATE_REGISTRY",
     "CLIENT_UPDATE_SOURCES",
@@ -370,5 +351,4 @@ __all__ = [
     "normalize_client_update_target_ids",
     "resolve_client_update_source",
     "resolve_client_update_target",
-    "select_client_update_target_ids_by_platform",
 ]

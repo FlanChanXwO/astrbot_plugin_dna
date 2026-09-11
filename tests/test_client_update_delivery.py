@@ -145,6 +145,17 @@ def _group_actor(origin: str = "group:1") -> EventActor:
     )
 
 
+def test_delivery_requires_state_dependency(tmp_path) -> None:
+    """state 是唯一的生产投递语义，未注入时必须拒绝构造。"""
+
+    subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
+    port = _RecordingPushPort()
+
+    with pytest.raises(TypeError):
+        # 生产不存在无状态投递路径，构造期即应暴露缺失依赖。
+        ClientUpdateDeliveryService(subscriptions, port)  # type: ignore[call-arg]
+
+
 @pytest.mark.asyncio
 async def test_target_neutral_subscription_receives_source_message(tmp_path) -> None:
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
@@ -372,7 +383,11 @@ async def test_source_messages_use_registry_order_instead_of_change_platform(
     subscriptions = SubscriptionStore(tmp_path / "subscriptions.json")
     await _add_subscription(subscriptions, "group:1")
     port = _RecordingPushPort()
-    delivery = ClientUpdateDeliveryService(subscriptions, port)
+    delivery = ClientUpdateDeliveryService(
+        subscriptions,
+        port,
+        state=ClientUpdateStateStore(tmp_path / "client_updates.json"),
+    )
 
     assert await delivery.deliver((_ios_change(), _pc_change())) == 1
 
