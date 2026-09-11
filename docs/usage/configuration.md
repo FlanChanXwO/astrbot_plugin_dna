@@ -35,12 +35,15 @@
 ## 客户端更新 Target
 
 `client_updates.targets` 是客户端更新范围的唯一选择入口。一个 Target 表示
-“区服 × 账号生态 × 平台”的完整合法组合；底层 Source 只是读取版本的技术来源，
-不会作为用户配置项出现。可选值由代码 registry 生成到 `_conf_schema.json`，不要
-手工填写 URL、branch、manifest key 或未登记的 Target ID。
+玩家实际游玩的发行渠道（区服 × 发行渠道 × 平台）；底层 Source 是观察该渠道
+何时更新的技术来源，不会作为用户配置项出现。可选值由代码 registry 生成到
+`_conf_schema.json`，不要手工填写 URL、branch、manifest key 或未登记的
+Target ID。
 
-当前默认只启用国服官服 PC 与 Android；已验证的国服官服 iOS 可在 Dashboard
-中显式启用。修改 Target 后需要重载插件。重载后，所有有效客户端更新订阅统一
+当前默认只启用国服官服 PC 与 Android；已验证的国服 App Store iOS、B服
+PC / Android、好游快爆 Android，以及全球服独立客户端 PC、App Store iOS 可在
+Dashboard 中显式启用。例如只玩 B服，就只选择 B服 Target，官服渠道更新不会推送。
+修改 Target 后需要重载插件。重载后，所有有效客户端更新订阅统一
 使用当前配置；已经落盘等待投递的事件仍保留创建时的 Target 快照，不会被新配置
 改写。
 

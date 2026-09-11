@@ -1,12 +1,16 @@
 """公开客户端更新 Source 的只读 HTTP transport。
 
-只读取登记 provider 所需的 VersionList、补丁 manifest 或 App Store Lookup JSON；
-不下载补丁正文，也不把 URL、服务端原文或响应细节带入领域错误。
+只读取登记 provider 所需的 VersionList、补丁 manifest、Apple Lookup、B 站游戏
+中心或好游快爆详情页数据；不下载补丁正文，也不把 URL、服务端原文或响应细节
+带入领域错误。每个发行渠道的协议细节都封装在本模块的 Adapter 内，上层
+Module 不感知具体渠道。
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Self, cast
 
@@ -17,10 +21,12 @@ from ...modules.client_updates.contracts import (
     AppStoreVersionMetadata,
     ClientPlatform,
     ClientSourceObservation,
+    ClientSourceProviderMetadata,
     ClientSourceVersion,
     ClientUpdateFailureKind,
     ClientUpdateStructureError,
     ClientUpdateTransportError,
+    ClientVersionOrderKey,
     ClientVersionSnapshot,
     ManifestCdnVersionMetadata,
     parse_version_list_entries,
@@ -29,9 +35,11 @@ from ...modules.client_updates.contracts import (
 from ...modules.client_updates.registry import (
     CLIENT_UPDATE_REGISTRY,
     AppStoreProviderConfig,
+    BilibiliGameCenterProviderConfig,
     ClientUpdateProviderKind,
     ClientUpdateRegistry,
     ClientUpdateSource,
+    HykbProviderConfig,
     ManifestCdnProviderConfig,
 )
 from .concurrency import RequestConcurrencyGate
@@ -51,6 +59,9 @@ class _HttpxResponse:
 
     async def json(self, **_kwargs: object) -> object:
         return self._response.json()
+
+    async def text(self, **_kwargs: object) -> str:
+        return self._response.text
 
 
 class _HttpxRequestContext:
@@ -102,6 +113,23 @@ else:
 
 
 _APP_STORE_USER_AGENT = "AstrBot-DNA-Client-Update/1"
+_BILIBILI_GAMEINFO_URL = "https://line1-h5-pc-api.biligame.com/game/detail/gameinfo"
+_BILIBILI_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+_HYKB_DETAIL_URL = "https://m.3839.com/a/{0:d}.htm"
+_HYKB_USER_AGENT = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+    "AppleWebKit/605.1.15 Mobile/15E148"
+)
+_HYKB_DOWN_INFO_RE = re.compile(r"var downInfo = (\{.*?\}),", re.S)
+_HYKB_VERSION_RE = re.compile(r'<p class="sp2">\s*([^<\s][^<]*?)\s*</p>')
+_MD5_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
+_BILIBILI_ANDROID_PACKAGE = "com.hero.dna.bilibili"
+# Bilibili 渠道包下载文件名内嵌四段版本号（ezlx_1.6.186.1_...apk）；提取不到
+# 时不伪造版本号，version_text 保持 None。
+_BILIBILI_VERSION_RE = re.compile(r"_(\d+\.\d+\.\d+\.\d+)_")
 SessionFactory = Callable[[], Any]
 
 
@@ -145,15 +173,32 @@ class ClientUpdateTransport:
                     baseline,
                 )
 
+            if source.provider_kind is ClientUpdateProviderKind.APP_STORE:
+                config = source.provider_config
+                if not isinstance(config, AppStoreProviderConfig):
+                    raise _server_error("Source", "app store provider config mismatch")
+                return await self._get_app_store_observation(
+                    session,
+                    source,
+                    config,
+                    baseline,
+                )
+
+            if source.provider_kind is ClientUpdateProviderKind.BILIBILI_GAME_CENTER:
+                config = source.provider_config
+                if not isinstance(config, BilibiliGameCenterProviderConfig):
+                    raise _server_error("Source", "bilibili provider config mismatch")
+                return await self._get_bilibili_observation(
+                    session,
+                    source,
+                    config,
+                    baseline,
+                )
+
             config = source.provider_config
-            if not isinstance(config, AppStoreProviderConfig):
-                raise _server_error("Source", "app store provider config mismatch")
-            return await self._get_app_store_observation(
-                session,
-                source,
-                config,
-                baseline,
-            )
+            if not isinstance(config, HykbProviderConfig):
+                raise _server_error("Source", "hykb provider config mismatch")
+            return await self._get_hykb_observation(session, source, config, baseline)
 
     async def _get_manifest_observation(
         self,
@@ -165,14 +210,19 @@ class ClientUpdateTransport:
         version_payload, version_url = await self._get_json_with_fallback(
             session,
             primary_url=_version_url(config.primary_base_url, config.branch),
-            fallback_url=_version_url(config.fallback_base_url, config.branch),
+            fallback_url=(
+                _version_url(config.fallback_base_url, config.branch)
+                if config.fallback_base_url is not None
+                else None
+            ),
             user_agent=config.user_agent,
             resource="VersionList",
         )
         version_base_url = (
-            config.primary_base_url
-            if version_url == _version_url(config.primary_base_url, config.branch)
-            else config.fallback_base_url
+            config.fallback_base_url
+            if config.fallback_base_url is not None
+            and version_url == _version_url(config.fallback_base_url, config.branch)
+            else config.primary_base_url
         )
         versions = _parse_manifest_versions(version_payload, source)
         current = versions[-1]
@@ -234,11 +284,15 @@ class ClientUpdateTransport:
                 primary_url=_manifest_url(
                     base_url, config.branch, directory, "PakFilesInfo.json"
                 ),
-                fallback_url=_manifest_url(
-                    fallback_base_url,
-                    config.branch,
-                    directory,
-                    "PakFilesInfo.json",
+                fallback_url=(
+                    _manifest_url(
+                        fallback_base_url,
+                        config.branch,
+                        directory,
+                        "PakFilesInfo.json",
+                    )
+                    if fallback_base_url is not None and fallback_base_url != base_url
+                    else None
                 ),
                 user_agent=config.user_agent,
                 resource="PakFilesInfo",
@@ -248,11 +302,15 @@ class ClientUpdateTransport:
                 primary_url=_manifest_url(
                     base_url, config.branch, directory, "ResDiscreteInfo.json"
                 ),
-                fallback_url=_manifest_url(
-                    fallback_base_url,
-                    config.branch,
-                    directory,
-                    "ResDiscreteInfo.json",
+                fallback_url=(
+                    _manifest_url(
+                        fallback_base_url,
+                        config.branch,
+                        directory,
+                        "ResDiscreteInfo.json",
+                    )
+                    if fallback_base_url is not None and fallback_base_url != base_url
+                    else None
                 ),
                 user_agent=config.user_agent,
                 resource="ResDiscreteInfo",
@@ -283,20 +341,46 @@ class ClientUpdateTransport:
             accept_nonstandard_json_content_type=True,
         )
         current = _parse_app_store_version(payload, source, config)
-        unchanged = baseline is not None and baseline.revision_id == current.revision_id
-        return ClientSourceObservation(
-            current=current,
-            observed_versions=(current,),
-            history_complete=baseline is None or unchanged,
-            added_size_bytes=0 if unchanged else None,
+        return _single_revision_observation(current, baseline)
+
+    async def _get_bilibili_observation(
+        self,
+        session: Any,
+        source: ClientUpdateSource,
+        config: BilibiliGameCenterProviderConfig,
+        baseline: ClientSourceVersion | None,
+    ) -> ClientSourceObservation:
+        payload = await self._get_json(
+            session,
+            f"{_BILIBILI_GAMEINFO_URL}?game_base_id={config.game_base_id}",
+            user_agent=_BILIBILI_USER_AGENT,
+            resource="Bilibili 游戏中心",
         )
+        current = _parse_bilibili_gameinfo(payload, source)
+        return _single_revision_observation(current, baseline)
+
+    async def _get_hykb_observation(
+        self,
+        session: Any,
+        source: ClientUpdateSource,
+        config: HykbProviderConfig,
+        baseline: ClientSourceVersion | None,
+    ) -> ClientSourceObservation:
+        page = await self._get_text(
+            session,
+            _HYKB_DETAIL_URL.format(config.game_id),
+            user_agent=_HYKB_USER_AGENT,
+            resource="好游快爆页面",
+        )
+        current = _parse_hykb_detail(page, source, config)
+        return _single_revision_observation(current, baseline)
 
     async def _get_json_with_fallback(
         self,
         session: Any,
         *,
         primary_url: str,
-        fallback_url: str,
+        fallback_url: str | None,
         user_agent: str,
         resource: str,
     ) -> tuple[object, str]:
@@ -311,7 +395,8 @@ class ClientUpdateTransport:
                 primary_url,
             )
         except ClientUpdateTransportError as error:
-            if not _can_fallback(error):
+            # 没有登记可信 fallback 时直接暴露 primary 的真实错误，不做无谓重试。
+            if fallback_url is None or not _can_fallback(error):
                 raise
             logger.warning(
                 "客户端更新端点失败 endpoint_role=primary next_role=fallback "
@@ -347,6 +432,46 @@ class ClientUpdateTransport:
         resource: str,
         accept_nonstandard_json_content_type: bool = False,
     ) -> object:
+        async def decode(response: Any) -> object:
+            try:
+                if accept_nonstandard_json_content_type:
+                    # Apple Lookup 当前合法 JSON 使用 text/javascript；只跳过
+                    # MIME 门禁，后续 typed contract 仍严格校验响应结构。
+                    return await response.json(content_type=None)
+                return await response.json()
+            except (TypeError, ValueError, UnicodeError) as error:
+                raise _contract_error(resource, type(error).__name__) from None
+
+        return await self._request(session, url, user_agent, resource, decode)
+
+    async def _get_text(
+        self,
+        session: Any,
+        url: str,
+        *,
+        user_agent: str,
+        resource: str,
+    ) -> str:
+        async def decode(response: Any) -> str:
+            try:
+                text = await response.text()
+            except (TypeError, ValueError, UnicodeError) as error:
+                raise _contract_error(resource, type(error).__name__) from None
+            if not isinstance(text, str):
+                raise _contract_error(resource, "response text is not a string")
+            return text
+
+        result = await self._request(session, url, user_agent, resource, decode)
+        return cast(str, result)
+
+    async def _request(
+        self,
+        session: Any,
+        url: str,
+        user_agent: str,
+        resource: str,
+        decode: Callable[[Any], Awaitable[object]],
+    ) -> object:
         async def request() -> object:
             try:
                 async with session.get(
@@ -363,14 +488,7 @@ class ClientUpdateTransport:
                             status_code=status,
                             detail="response status is not successful",
                         )
-                    try:
-                        if accept_nonstandard_json_content_type:
-                            # Apple Lookup 当前合法 JSON 使用 text/javascript；只跳过
-                            # MIME 门禁，后续 typed contract 仍严格校验响应结构。
-                            return await response.json(content_type=None)
-                        return await response.json()
-                    except (TypeError, ValueError, UnicodeError) as error:
-                        raise _contract_error(resource, type(error).__name__) from None
+                    return await decode(response)
             except ClientUpdateTransportError:
                 raise
             except _NETWORK_ERRORS as error:
@@ -512,6 +630,126 @@ def _manifest_url(base_url: str, branch: str, directory: str, name: str) -> str:
 def _app_store_lookup_url(config: AppStoreProviderConfig) -> str:
     return (
         f"https://itunes.apple.com/lookup?id={config.track_id}&country={config.country}"
+    )
+
+
+def _single_revision_observation(
+    current: ClientSourceVersion,
+    baseline: ClientSourceVersion | None,
+) -> ClientSourceObservation:
+    """单 revision 发行渠道的 observation：历史始终只有当前一条。
+
+    变化发生时该渠道无法提供逐版本历史，因此标记 history gap、不提供更新大小。
+    """
+
+    unchanged = baseline is not None and baseline.revision_id == current.revision_id
+    return ClientSourceObservation(
+        current=current,
+        observed_versions=(current,),
+        history_complete=baseline is None or unchanged,
+        added_size_bytes=0 if unchanged else None,
+    )
+
+
+def _parse_bilibili_gameinfo(
+    payload: object,
+    source: ClientUpdateSource,
+) -> ClientSourceVersion:
+    """把 B 站游戏中心 gameinfo 响应归一化为 Source 版本。"""
+
+    try:
+        root = _require_mapping(payload, "Bilibili 游戏中心")
+        if root.get("code") != 0:
+            raise ClientUpdateStructureError("Bilibili gameinfo code must be 0")
+        data = _require_mapping(root.get("data"), "Bilibili data")
+        if source.platform is ClientPlatform.ANDROID:
+            download_url = _required_text(data.get("android_download_link"))
+            signature = _required_text(data.get("android_sign"))
+            package = _required_text(data.get("android_pkg_name"))
+            pkg_ver = data.get("android_pkg_ver")
+            if _MD5_HEX_RE.fullmatch(signature) is None:
+                raise ClientUpdateStructureError("Bilibili android_sign must be an MD5")
+            if type(pkg_ver) is not int or pkg_ver < 0:
+                raise ClientUpdateStructureError(
+                    "Bilibili android_pkg_ver must be a non-negative integer"
+                )
+            revision_id = signature
+            order_key: ClientVersionOrderKey | None = pkg_ver
+            metadata: ClientSourceProviderMetadata | None = None
+            if package != _BILIBILI_ANDROID_PACKAGE:
+                raise ClientUpdateStructureError("Bilibili package mismatch")
+        else:
+            download_url = _required_text(data.get("pc_download_link"))
+            # PC 安装器没有稳定的公开版本号；文件名本身已包含构建时间与哈希，
+            # 足以作为发行 revision。
+            revision_id = _installer_revision(download_url)
+            order_key = None
+            metadata = None
+        version_match = _BILIBILI_VERSION_RE.search(download_url)
+    except (ClientUpdateStructureError, TypeError, ValueError) as error:
+        raise _contract_error("Bilibili 游戏中心", type(error).__name__) from None
+    return ClientSourceVersion(
+        source_id=source.source_id,
+        version_text=version_match.group(1) if version_match is not None else None,
+        revision_id=revision_id,
+        order_key=order_key,
+        provider_metadata=metadata,
+    )
+
+
+def _installer_revision(download_url: str) -> str:
+    """从下载 URL 提取稳定的安装器名称作为 revision。"""
+
+    name = download_url.rsplit("/", 1)[-1]
+    if not name or not name.endswith((".exe", ".apk", ".zip")):
+        raise ClientUpdateStructureError("installer URL must end with a file name")
+    return name
+
+
+def _required_text(value: object) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ClientUpdateStructureError("required text field is empty")
+    return value
+
+
+def _parse_hykb_detail(
+    page: str,
+    source: ClientUpdateSource,
+    config: HykbProviderConfig,
+) -> ClientSourceVersion:
+    """把好游快爆详情页的 downInfo 与版本文本归一化为 Source 版本。"""
+
+    try:
+        info_match = _HYKB_DOWN_INFO_RE.search(page)
+        if info_match is None:
+            raise ClientUpdateStructureError("HYKB downInfo block is missing")
+        try:
+            info = json.loads(info_match.group(1))
+        except (TypeError, ValueError) as error:
+            raise ClientUpdateStructureError(
+                "HYKB downInfo is not valid JSON"
+            ) from error
+        entry = _require_mapping(info, "HYKB downInfo")
+        kb_id = _required_text(entry.get("kb_id"))
+        package = _required_text(entry.get("package"))
+        md5 = _required_text(entry.get("md5"))
+        _ = _required_text(entry.get("apkurl"))
+        if kb_id != str(config.game_id):
+            raise ClientUpdateStructureError("HYKB kb_id mismatch")
+        if package != config.expected_package:
+            raise ClientUpdateStructureError("HYKB package mismatch")
+        if _MD5_HEX_RE.fullmatch(md5) is None:
+            raise ClientUpdateStructureError("HYKB md5 must be hexadecimal MD5")
+        version_match = _HYKB_VERSION_RE.search(page)
+        version_text = version_match.group(1) if version_match else None
+    except (ClientUpdateStructureError, TypeError, ValueError) as error:
+        raise _contract_error("好游快爆页面", type(error).__name__) from None
+    return ClientSourceVersion(
+        source_id=source.source_id,
+        version_text=version_text,
+        revision_id=md5,
+        order_key=None,
+        provider_metadata=None,
     )
 
 

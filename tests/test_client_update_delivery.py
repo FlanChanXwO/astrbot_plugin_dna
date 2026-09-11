@@ -42,17 +42,17 @@ def _shared_source_registry() -> ClientUpdateRegistry:
         sources=(source,),
         targets=(
             ClientUpdateTarget(
-                target_id="cn-official-ios",
+                target_id="cn-app-store-ios",
                 region_id="cn",
-                ecosystem_id="official",
+                distribution_id="official",
                 platform=ClientPlatform.IOS,
                 source_id=source.source_id,
                 display_name="国服官服 iOS",
             ),
             ClientUpdateTarget(
-                target_id="global-official-ios",
+                target_id="global-app-store-ios-fixture",
                 region_id="global",
-                ecosystem_id="official",
+                distribution_id="official",
                 platform=ClientPlatform.IOS,
                 source_id=source.source_id,
                 display_name="全球服官服 iOS",
@@ -99,7 +99,7 @@ def _pc_change(*, previous: str = "100", current: str = "101") -> ClientUpdateCh
 def _ios_change(*, previous: str = "1", current: str = "2") -> ClientUpdateChange:
     return _change(
         "cn-official-ios-app-store",
-        ("cn-official-ios",),
+        ("cn-app-store-ios",),
         previous=previous,
         current=current,
     )
@@ -194,7 +194,7 @@ async def test_delivery_uses_the_injected_registry_for_custom_sources(tmp_path) 
         (
             _change(
                 "shared-source",
-                ("cn-official-ios", "global-official-ios"),
+                ("cn-app-store-ios", "global-app-store-ios-fixture"),
                 previous="1",
                 current="2",
             ),
@@ -204,8 +204,8 @@ async def test_delivery_uses_the_injected_registry_for_custom_sources(tmp_path) 
     assert delivered == 1
     assert port.pushes[0].messages[0].source_id == "shared-source"
     assert port.pushes[0].messages[0].target_ids == (
-        "cn-official-ios",
-        "global-official-ios",
+        "cn-app-store-ios",
+        "global-app-store-ios-fixture",
     )
 
 
@@ -232,10 +232,10 @@ async def test_pending_retry_keeps_event_target_snapshot_across_reload(
     reloaded_service = ClientUpdateService(
         ClientUpdateStateStore(state_path),
         subscriptions=SubscriptionStore(subscription_path),
-        target_ids=("cn-official-ios",),
+        target_ids=("cn-app-store-ios",),
     )
     await reloaded_service.initialize()
-    assert reloaded_service.target_ids == ("cn-official-ios",)
+    assert reloaded_service.target_ids == ("cn-app-store-ios",)
 
     reloaded_port = _RecordingPushPort()
     reloaded_delivery = ClientUpdateDeliveryService(
@@ -397,7 +397,7 @@ async def test_source_messages_use_registry_order_instead_of_change_platform(
     ]
     assert [message.target_ids for message in port.pushes[0].messages] == [
         ("cn-official-pc",),
-        ("cn-official-ios",),
+        ("cn-app-store-ios",),
     ]
 
 
@@ -431,7 +431,7 @@ async def test_onebot_merge_failure_falls_back_to_independent_source_messages() 
             ClientUpdatePushMessage(
                 event_key="cn-official-ios-app-store:1:2",
                 source_id="cn-official-ios-app-store",
-                target_ids=("cn-official-ios",),
+                target_ids=("cn-app-store-ios",),
                 text="iOS update",
             ),
         ),
@@ -586,8 +586,8 @@ async def test_partial_text_success_marks_only_successful_event_and_retries_fail
     assert await state.pending_events() == ()
     assert len(sent_texts) == 3
     assert "国服官服 PC" in sent_texts[0]
-    assert "国服官服 iOS" in sent_texts[1]
-    assert "国服官服 iOS" in sent_texts[2]
+    assert "国服 App Store iOS" in sent_texts[1]
+    assert "国服 App Store iOS" in sent_texts[2]
 
 
 @pytest.mark.asyncio
@@ -622,7 +622,7 @@ async def test_onebot_forward_success_confirms_every_event_without_text_fallback
             ClientUpdatePushMessage(
                 event_key="cn-official-ios-app-store:1:2",
                 source_id="cn-official-ios-app-store",
-                target_ids=("cn-official-ios",),
+                target_ids=("cn-app-store-ios",),
                 text="iOS update",
             ),
         ),
@@ -666,7 +666,7 @@ async def test_onebot_forward_exception_reports_each_text_result() -> None:
             ClientUpdatePushMessage(
                 event_key="cn-official-ios-app-store:1:2",
                 source_id="cn-official-ios-app-store",
-                target_ids=("cn-official-ios",),
+                target_ids=("cn-app-store-ios",),
                 text="iOS update",
             ),
         ),

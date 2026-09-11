@@ -52,14 +52,14 @@ def test_client_update_targets_config_defaults_validation_and_schema():
     assert ClientUpdatesSettings().targets == list(DEFAULT_CLIENT_UPDATE_TARGET_IDS)
     assert ClientUpdatesSettings(
         targets=[
-            "cn-official-ios",
+            "cn-app-store-ios",
             "cn-official-pc",
-            "cn-official-ios",
+            "cn-app-store-ios",
         ]
-    ).targets == ["cn-official-ios", "cn-official-pc"]
+    ).targets == ["cn-app-store-ios", "cn-official-pc"]
 
     with pytest.raises(ValidationError, match="已注册的 Target ID"):
-        ClientUpdatesSettings(targets=["global-official-pc"])
+        ClientUpdatesSettings(targets=["global-unknown-pc"])
 
     with pytest.raises(
         ValidationError,
@@ -322,9 +322,9 @@ def test_build_runtime_propagates_all_settings(tmp_path):
         },
         "client_updates": {
             "targets": [
-                "cn-official-ios",
+                "cn-app-store-ios",
                 "cn-official-pc",
-                "cn-official-ios",
+                "cn-app-store-ios",
             ],
         },
         "notifications": {
@@ -355,7 +355,7 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     assert runtime.settings.notifications.secret_push_minute == 17
     assert runtime.settings.notifications.secret_retry_interval_seconds == 2
     assert runtime.settings.client_updates.targets == [
-        "cn-official-ios",
+        "cn-app-store-ios",
         "cn-official-pc",
     ]
 
@@ -385,7 +385,7 @@ def test_build_runtime_propagates_all_settings(tmp_path):
 
     client_update_service = runtime.services["client_update_service"]
     assert client_update_service.target_ids == (
-        "cn-official-ios",
+        "cn-app-store-ios",
         "cn-official-pc",
     )
     assert client_update_service.initialize in runtime.lifecycle._start_hooks

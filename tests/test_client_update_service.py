@@ -92,17 +92,17 @@ def _shared_source_registry() -> ClientUpdateRegistry:
         sources=(source,),
         targets=(
             ClientUpdateTarget(
-                target_id="cn-official-ios",
+                target_id="cn-app-store-ios",
                 region_id="cn",
-                ecosystem_id="official",
+                distribution_id="official",
                 platform=ClientPlatform.IOS,
                 source_id=source.source_id,
                 display_name="国服官服 iOS",
             ),
             ClientUpdateTarget(
-                target_id="global-official-ios",
+                target_id="global-app-store-ios-fixture",
                 region_id="global",
-                ecosystem_id="official",
+                distribution_id="official",
                 platform=ClientPlatform.IOS,
                 source_id=source.source_id,
                 display_name="全球服官服 iOS",
@@ -129,7 +129,7 @@ async def test_query_observes_shared_source_once_and_never_writes_state() -> Non
     service = ClientUpdateService(
         state,
         transport=transport,
-        target_ids=("cn-official-ios", "global-official-ios"),
+        target_ids=("cn-app-store-ios", "global-app-store-ios-fixture"),
         registry=registry,
     )
 
@@ -334,7 +334,7 @@ async def test_poll_same_revision_refreshes_app_store_metadata_and_last_change(
     tmp_path,
 ) -> None:
     source_id = "cn-official-ios-app-store"
-    target_ids = ("cn-official-ios",)
+    target_ids = ("cn-app-store-ios",)
     previous = _source_version(
         source_id,
         "6470771372:1.5.0",
@@ -796,7 +796,7 @@ async def test_poll_observes_shared_source_once() -> None:
     service = ClientUpdateService(
         state,
         transport=transport,
-        target_ids=("cn-official-ios", "global-official-ios"),
+        target_ids=("cn-app-store-ios", "global-app-store-ios-fixture"),
         registry=registry,
     )
 
@@ -841,23 +841,23 @@ async def test_custom_registry_poll_persists_source_and_target_snapshot(
             }
         ),
         subscriptions=subscriptions,
-        target_ids=("cn-official-ios", "global-official-ios"),
+        target_ids=("cn-app-store-ios", "global-app-store-ios-fixture"),
     )
 
     changes = await service.poll_now()
 
     assert len(changes) == 1
     assert changes[0].target_ids == (
-        "cn-official-ios",
-        "global-official-ios",
+        "cn-app-store-ios",
+        "global-app-store-ios-fixture",
     )
     reloaded = ClientUpdateStateStore(state_path, registry=registry)
     assert (await reloaded.get_baseline(source_id)).version == current
     pending = await reloaded.pending_events()
     assert len(pending) == 1
     assert pending[0].change.target_ids == (
-        "cn-official-ios",
-        "global-official-ios",
+        "cn-app-store-ios",
+        "global-app-store-ios-fixture",
     )
 
 
@@ -891,11 +891,11 @@ async def test_subscribe_writes_target_neutral_metadata_and_survives_reload(
     reloaded = ClientUpdateService(
         ClientUpdateStateStore(tmp_path / "reloaded_state.json"),
         subscriptions=SubscriptionStore(tmp_path / "subscriptions.json"),
-        target_ids=("cn-official-ios",),
+        target_ids=("cn-app-store-ios",),
     )
     await reloaded.initialize()
 
-    assert reloaded.target_ids == ("cn-official-ios",)
+    assert reloaded.target_ids == ("cn-app-store-ios",)
     reloaded_subscriptions = await reloaded.subscriptions.get(
         messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE
     )
@@ -1070,3 +1070,193 @@ async def test_same_origin_subscribe_then_unsubscribe_is_serialized(tmp_path) ->
     assert subscribe_response.text == messages.CLIENT_UPDATE_SUBSCRIBED_RETRY
     assert unsubscribe_response.text == messages.CLIENT_UPDATE_UNSUBSCRIBED
     assert await subscriptions.get(messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE) == ()
+
+
+def _installer_version(source_id: str, revision_id: str) -> ClientSourceVersion:
+    """无公开版本号的安装包型 Source 版本（如 B服 PC 安装器）。"""
+
+    return ClientSourceVersion(
+        source_id=source_id,
+        version_text=None,
+        revision_id=revision_id,
+        order_key=None,
+    )
+
+
+def _observation(
+    current: ClientSourceVersion,
+    *,
+    history_complete: bool,
+    added_size_bytes: int | None,
+) -> ClientSourceObservation:
+    return ClientSourceObservation(
+        current=current,
+        observed_versions=(current,),
+        history_complete=history_complete,
+        added_size_bytes=added_size_bytes,
+    )
+
+
+@pytest.mark.asyncio
+async def test_poll_separates_official_and_bilibili_revision_streams() -> None:
+    """官服与 B服发行节奏不同：各自 Source 变化只产生自己的 change。"""
+
+    official_source = "cn-official-android-astc-manifest"
+    bilibili_source = "cn-bilibili-android-release"
+    state = _ReadOnlyState(
+        baselines={
+            official_source: ClientUpdateBaseline(
+                version=_source_version(official_source, "100"),
+                observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+            ),
+            bilibili_source: ClientUpdateBaseline(
+                version=_installer_version(bilibili_source, "installer-a"),
+                observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+            ),
+        }
+    )
+    transport = _Transport(
+        {
+            official_source: _observation(
+                _source_version(official_source, "101"),
+                history_complete=True,
+                added_size_bytes=32,
+            ),
+            bilibili_source: _observation(
+                _installer_version(bilibili_source, "installer-a"),
+                history_complete=True,
+                added_size_bytes=0,
+            ),
+        }
+    )
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        target_ids=("cn-official-android", "cn-bilibili-android"),
+    )
+
+    changes = await service.poll_now()
+
+    assert [change.source_id for change in changes] == [official_source]
+    assert changes[0].target_ids == ("cn-official-android",)
+    assert {source_id for source_id, _ in transport.calls} == {
+        official_source,
+        bilibili_source,
+    }
+
+    # 第二次轮询：官服稳定、B服安装器变化，只产生 B服 change。
+    state.baselines[official_source] = ClientUpdateBaseline(
+        version=_source_version(official_source, "101"),
+        observed_at=datetime(2026, 9, 9, tzinfo=UTC),
+    )
+    transport.calls.clear()
+    transport.observations[official_source] = _observation(
+        _source_version(official_source, "101"),
+        history_complete=True,
+        added_size_bytes=0,
+    )
+    transport.observations[bilibili_source] = _observation(
+        _installer_version(bilibili_source, "installer-b"),
+        history_complete=False,
+        added_size_bytes=None,
+    )
+
+    changes = await service.poll_now()
+
+    assert [change.source_id for change in changes] == [bilibili_source]
+    assert changes[0].target_ids == ("cn-bilibili-android",)
+
+
+@pytest.mark.asyncio
+async def test_bilibili_only_config_never_reads_official_source() -> None:
+    """只订阅 B服时，官服 Source 不会被读取，官服变化也不会产生推送事件。"""
+
+    bilibili_source = "cn-bilibili-android-release"
+    state = _ReadOnlyState(
+        baselines={
+            bilibili_source: ClientUpdateBaseline(
+                version=_installer_version(bilibili_source, "installer-a"),
+                observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+            )
+        }
+    )
+    transport = _Transport(
+        {
+            "cn-official-android-astc-manifest": _observation(
+                _source_version("cn-official-android-astc-manifest", "999"),
+                history_complete=True,
+                added_size_bytes=1024,
+            ),
+            bilibili_source: _observation(
+                _installer_version(bilibili_source, "installer-a"),
+                history_complete=True,
+                added_size_bytes=0,
+            ),
+        }
+    )
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        target_ids=("cn-bilibili-android",),
+    )
+
+    changes = await service.poll_now()
+
+    assert changes == ()
+    assert [source_id for source_id, _ in transport.calls] == [bilibili_source]
+
+    transport.observations[bilibili_source] = _observation(
+        _installer_version(bilibili_source, "installer-b"),
+        history_complete=False,
+        added_size_bytes=None,
+    )
+    state.baselines[bilibili_source] = ClientUpdateBaseline(
+        version=_installer_version(bilibili_source, "installer-a"),
+        observed_at=datetime(2026, 9, 9, tzinfo=UTC),
+    )
+    changes = await service.poll_now()
+    assert [change.target_ids for change in changes] == [("cn-bilibili-android",)]
+
+
+@pytest.mark.asyncio
+async def test_query_reports_opaque_revision_without_version_or_none_text() -> None:
+    """无公开版本号的发行渠道：变化可见，消息不显示 None 或伪造版本号。"""
+
+    source_id = "cn-bilibili-pc-release"
+    state = _ReadOnlyState(
+        baselines={
+            source_id: ClientUpdateBaseline(
+                version=_installer_version(source_id, "installer-a"),
+                observed_at=datetime(2026, 9, 8, tzinfo=UTC),
+            )
+        }
+    )
+    transport = _Transport(
+        {
+            source_id: _observation(
+                _installer_version(source_id, "installer-b"),
+                history_complete=False,
+                added_size_bytes=None,
+            )
+        }
+    )
+    service = ClientUpdateService(
+        state,
+        transport=transport,
+        target_ids=("cn-bilibili-pc",),
+    )
+
+    response = await service.query(
+        ClientUpdateRequest(
+            actor=EventActor(
+                user_id="user-1",
+                bot_id="bot-1",
+                unified_msg_origin="private:user-1",
+            )
+        )
+    )
+
+    assert "国服 B服 PC" in response.text
+    assert "发行包" in response.text
+    assert "None" not in response.text
+    assert state.writes == 0

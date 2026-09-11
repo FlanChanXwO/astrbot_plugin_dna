@@ -15,6 +15,7 @@ from src.modules.client_updates import (
     DEFAULT_CLIENT_UPDATE_TARGET_IDS,
     AppStoreProviderConfig,
     AppStoreVersionMetadata,
+    BilibiliGameCenterProviderConfig,
     ClientPlatform,
     ClientSourceObservation,
     ClientSourceVersion,
@@ -24,6 +25,7 @@ from src.modules.client_updates import (
     ClientUpdateSource,
     ClientUpdateTarget,
     ClientUpdateTransportError,
+    HykbProviderConfig,
     ManifestCdnProviderConfig,
     ManifestCdnVersionMetadata,
     group_client_update_target_ids_by_source,
@@ -39,16 +41,26 @@ def test_manifest_parser_rejects_unsupported_platform() -> None:
         parse_version_list_entries({}, "pc_cn")
 
 
-def test_verified_registry_contains_only_investigated_cn_targets() -> None:
+def test_verified_registry_contains_only_observed_distribution_targets() -> None:
     assert tuple(CLIENT_UPDATE_TARGETS) == (
         "cn-official-pc",
         "cn-official-android",
-        "cn-official-ios",
+        "cn-app-store-ios",
+        "cn-bilibili-pc",
+        "cn-bilibili-android",
+        "cn-hykb-android",
+        "global-standalone-pc",
+        "global-app-store-ios",
     )
     assert tuple(CLIENT_UPDATE_SOURCES) == (
         "cn-official-pc-manifest",
         "cn-official-android-astc-manifest",
         "cn-official-ios-app-store",
+        "cn-bilibili-pc-release",
+        "cn-bilibili-android-release",
+        "cn-hykb-android-release",
+        "global-standalone-pc-manifest",
+        "global-app-store-ios",
     )
     assert DEFAULT_CLIENT_UPDATE_TARGET_IDS == (
         "cn-official-pc",
@@ -58,7 +70,7 @@ def test_verified_registry_contains_only_investigated_cn_targets() -> None:
         (
             target.target_id,
             target.region_id,
-            target.ecosystem_id,
+            target.distribution_id,
             target.platform,
             target.source_id,
         )
@@ -79,11 +91,46 @@ def test_verified_registry_contains_only_investigated_cn_targets() -> None:
             "cn-official-android-astc-manifest",
         ),
         (
-            "cn-official-ios",
+            "cn-app-store-ios",
             "cn",
-            "official",
+            "app-store",
             ClientPlatform.IOS,
             "cn-official-ios-app-store",
+        ),
+        (
+            "cn-bilibili-pc",
+            "cn",
+            "bilibili",
+            ClientPlatform.PC,
+            "cn-bilibili-pc-release",
+        ),
+        (
+            "cn-bilibili-android",
+            "cn",
+            "bilibili",
+            ClientPlatform.ANDROID,
+            "cn-bilibili-android-release",
+        ),
+        (
+            "cn-hykb-android",
+            "cn",
+            "hykb",
+            ClientPlatform.ANDROID,
+            "cn-hykb-android-release",
+        ),
+        (
+            "global-standalone-pc",
+            "global",
+            "standalone",
+            ClientPlatform.PC,
+            "global-standalone-pc-manifest",
+        ),
+        (
+            "global-app-store-ios",
+            "global",
+            "app-store",
+            ClientPlatform.IOS,
+            "global-app-store-ios",
         ),
     )
 
@@ -114,6 +161,43 @@ def test_verified_registry_contains_only_investigated_cn_targets() -> None:
     assert ios.provider_kind is ClientUpdateProviderKind.APP_STORE
     assert ios.provider_config == AppStoreProviderConfig(
         track_id=6470771372, country="cn"
+    )
+
+    bilibili_pc = resolve_client_update_source("cn-bilibili-pc-release")
+    assert bilibili_pc.provider_kind is ClientUpdateProviderKind.BILIBILI_GAME_CENTER
+    assert bilibili_pc.provider_config == BilibiliGameCenterProviderConfig(
+        game_base_id=111799
+    )
+
+    bilibili_android = resolve_client_update_source("cn-bilibili-android-release")
+    assert bilibili_android.platform is ClientPlatform.ANDROID
+    assert bilibili_android.provider_config == BilibiliGameCenterProviderConfig(
+        game_base_id=111015
+    )
+
+    hykb = resolve_client_update_source("cn-hykb-android-release")
+    assert hykb.provider_kind is ClientUpdateProviderKind.HYKB
+    assert hykb.provider_config == HykbProviderConfig(
+        game_id=158909,
+        expected_package="com.hero.dna.gf",
+    )
+
+    global_pc = resolve_client_update_source("global-standalone-pc-manifest")
+    assert global_pc.provider_kind is ClientUpdateProviderKind.MANIFEST_CDN
+    assert isinstance(global_pc.provider_config, ManifestCdnProviderConfig)
+    assert global_pc.provider_config.primary_base_url == (
+        "https://pan01-2.oss-ap-northeast-1.aliyuncs.com"
+    )
+    # 全球服只有一个已验证的可信端点，不伪造 fallback。
+    assert global_pc.provider_config.fallback_base_url is None
+    assert global_pc.provider_config.branch == (
+        "Patches/FinalPatch/Global/Default/WindowsNoEditor/PC_OBT_Global_Pub"
+    )
+
+    global_ios = resolve_client_update_source("global-app-store-ios")
+    assert global_ios.provider_kind is ClientUpdateProviderKind.APP_STORE
+    assert global_ios.provider_config == AppStoreProviderConfig(
+        track_id=6744096826, country="us"
     )
 
 
@@ -149,7 +233,7 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
     target = ClientUpdateTarget(
         target_id="cn-official-pc",
         region_id="cn",
-        ecosystem_id="official",
+        distribution_id="official",
         platform=ClientPlatform.PC,
         source_id=source.source_id,
         display_name="国服官服 PC",
@@ -161,7 +245,7 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
     duplicate_identity = ClientUpdateTarget(
         target_id="cn-official-pc-alias",
         region_id="cn",
-        ecosystem_id="official",
+        distribution_id="official",
         platform=ClientPlatform.PC,
         source_id=source.source_id,
         display_name="重复身份",
@@ -172,7 +256,7 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
     ambiguous_name = ClientUpdateTarget(
         target_id="cn-other-pc",
         region_id="cn",
-        ecosystem_id="other",
+        distribution_id="other",
         platform=ClientPlatform.PC,
         source_id=source.source_id,
         display_name=target.display_name,
@@ -186,7 +270,7 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
     missing_source_target = ClientUpdateTarget(
         target_id="cn-official-pc-missing-source",
         region_id="cn",
-        ecosystem_id="missing-source",
+        distribution_id="missing-source",
         platform=ClientPlatform.PC,
         source_id="missing-source",
         display_name="缺失 Source",
@@ -197,7 +281,7 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
     mismatched_target = ClientUpdateTarget(
         target_id="cn-official-android",
         region_id="cn",
-        ecosystem_id="official",
+        distribution_id="official",
         platform=ClientPlatform.ANDROID,
         source_id=source.source_id,
         display_name="国服官服 Android",
@@ -215,7 +299,7 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
     foreign_target = ClientUpdateTarget(
         target_id="foreign-target",
         region_id="cn",
-        ecosystem_id="foreign",
+        distribution_id="foreign",
         platform=ClientPlatform.PC,
         source_id=source.source_id,
         display_name="未登记目标",
@@ -228,14 +312,14 @@ def test_registry_rejects_duplicate_identity_and_platform_mismatch() -> None:
 
 def test_registry_normalizes_and_groups_targets_by_source() -> None:
     assert normalize_client_update_target_ids(
-        ["cn-official-ios", "cn-official-pc", "cn-official-ios"]
-    ) == ("cn-official-ios", "cn-official-pc")
+        ["cn-app-store-ios", "cn-official-pc", "cn-app-store-ios"]
+    ) == ("cn-app-store-ios", "cn-official-pc")
 
     grouped = group_client_update_target_ids_by_source(
-        ["cn-official-ios", "cn-official-pc", "cn-official-android"]
+        ["cn-app-store-ios", "cn-official-pc", "cn-official-android"]
     )
     assert grouped == {
-        "cn-official-ios-app-store": ("cn-official-ios",),
+        "cn-official-ios-app-store": ("cn-app-store-ios",),
         "cn-official-pc-manifest": ("cn-official-pc",),
         "cn-official-android-astc-manifest": ("cn-official-android",),
     }
@@ -317,6 +401,13 @@ class _FakeResponse:
     async def json(self, **_kwargs: object) -> object:
         if isinstance(self.payload, BaseException):
             raise self.payload
+        return self.payload
+
+    async def text(self, **_kwargs: object) -> str:
+        if isinstance(self.payload, BaseException):
+            raise self.payload
+        if not isinstance(self.payload, str):
+            raise TypeError("payload is not text")
         return self.payload
 
 
@@ -882,3 +973,282 @@ async def test_manifest_transport_rejects_baseline_from_another_source() -> None
             source.source_id,
             baseline=_source_version("cn-official-android-astc-manifest", "100"),
         )
+
+
+def test_registry_allows_distinct_distributions_on_same_region_and_platform() -> None:
+    """Target 身份是 region × distribution × platform：不同发行渠道必须共存。"""
+
+    def source(source_id: str) -> ClientUpdateSource:
+        return ClientUpdateSource(
+            source_id=source_id,
+            platform=ClientPlatform.ANDROID,
+            provider_kind=ClientUpdateProviderKind.MANIFEST_CDN,
+            provider_config=ManifestCdnProviderConfig(
+                primary_base_url="https://primary.invalid",
+                fallback_base_url=None,
+                branch="Patches/Test",
+                pak_manifest_key="Android_ASTC",
+                res_manifest_key="WindowsNoEditor",
+                user_agent="test-agent",
+            ),
+        )
+
+    sources = tuple(
+        source(f"cn-{distribution}-android-release")
+        for distribution in ("official", "bilibili", "hykb")
+    )
+    targets = tuple(
+        ClientUpdateTarget(
+            target_id=f"cn-{distribution}-android",
+            region_id="cn",
+            distribution_id=distribution,
+            platform=ClientPlatform.ANDROID,
+            source_id=f"cn-{distribution}-android-release",
+            display_name=f"渠道 {distribution}",
+        )
+        for distribution in ("official", "bilibili", "hykb")
+    )
+    registry = ClientUpdateRegistry(sources, targets)
+    assert tuple(registry.targets_by_id) == (
+        "cn-official-android",
+        "cn-bilibili-android",
+        "cn-hykb-android",
+    )
+
+    duplicate = ClientUpdateTarget(
+        target_id="cn-official-android-alias",
+        region_id="cn",
+        distribution_id="official",
+        platform=ClientPlatform.ANDROID,
+        source_id="cn-official-android-release",
+        display_name="重复渠道",
+    )
+    with pytest.raises(ValueError, match="Target 组合"):
+        ClientUpdateRegistry(sources, (*targets, duplicate))
+
+
+def test_manifest_provider_config_allows_missing_verified_fallback() -> None:
+    base = ManifestCdnProviderConfig(
+        primary_base_url="https://primary.invalid",
+        fallback_base_url=None,
+        branch="Patches/Test",
+        pak_manifest_key="WindowsNoEditor",
+        res_manifest_key="WindowsNoEditor",
+        user_agent="test-agent",
+    )
+    assert base.fallback_base_url is None
+
+    with pytest.raises(ValueError, match="fallback"):
+        ManifestCdnProviderConfig(
+            primary_base_url="https://primary.invalid",
+            fallback_base_url="https://primary.invalid",
+            branch="Patches/Test",
+            pak_manifest_key="WindowsNoEditor",
+            res_manifest_key="WindowsNoEditor",
+            user_agent="test-agent",
+        )
+
+
+@pytest.mark.asyncio
+async def test_manifest_transport_without_fallback_surfaces_primary_error() -> None:
+    source = resolve_client_update_source("global-standalone-pc-manifest")
+    config = source.provider_config
+    assert isinstance(config, ManifestCdnProviderConfig)
+    assert config.fallback_base_url is None
+    version_url = f"{config.primary_base_url}/{config.branch}/VersionList.json"
+    session = _FakeSession({version_url: OSError("unreachable")})
+
+    with pytest.raises(ClientUpdateTransportError) as caught:
+        await ClientUpdateTransport(session_factory=lambda: session).get_observation(
+            source.source_id
+        )
+
+    assert caught.value.kind is ClientUpdateFailureKind.NETWORK
+    assert [request.url for request in session.requests] == [version_url]
+
+
+_BILIBILI_ANDROID_PAYLOAD = {
+    "code": 0,
+    "message": "成功",
+    "data": {
+        "game_base_id": 111015,
+        "android_game_status": 0,
+        "android_download_link": (
+            "https://pkg.biligame.com/games/ezlx_1.6.186.1_20260827_062204_13b21.apk"
+        ),
+        "android_sign": "df68b18e1dd1c9c0c900c01987e25a52",
+        "android_pkg_name": "com.hero.dna.bilibili",
+        "android_pkg_ver": 18,
+        "android_pkg_size": 1872077064,
+    },
+}
+
+_BILIBILI_PC_PAYLOAD = {
+    "code": 0,
+    "message": "成功",
+    "data": {
+        "game_base_id": 111799,
+        "pc_game_status": 0,
+        "pc_download_link": (
+            "https://pkg.biligame.com/games/"
+            "ezlxPCb_bilibili_20260828_015851daedd81c35991766409406854d95f6fdb25b777c.exe"
+        ),
+    },
+}
+
+
+def _bilibili_url(game_base_id: int) -> str:
+    return (
+        "https://line1-h5-pc-api.biligame.com/game/detail/gameinfo"
+        f"?game_base_id={game_base_id}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_bilibili_android_transport_uses_apk_sign_as_revision() -> None:
+    source = resolve_client_update_source("cn-bilibili-android-release")
+    session = _FakeSession(
+        {_bilibili_url(111015): _FakeResponse(200, _BILIBILI_ANDROID_PAYLOAD)}
+    )
+
+    observation = await ClientUpdateTransport(
+        session_factory=lambda: session
+    ).get_observation(source.source_id)
+
+    assert observation.current.revision_id == "df68b18e1dd1c9c0c900c01987e25a52"
+    assert observation.current.version_text == "1.6.186.1"
+    assert observation.current.order_key == 18
+    assert observation.history_complete is True
+
+    again = await ClientUpdateTransport(
+        session_factory=lambda: _FakeSession(
+            {_bilibili_url(111015): _FakeResponse(200, _BILIBILI_ANDROID_PAYLOAD)}
+        )
+    ).get_observation(source.source_id, baseline=observation.current)
+    assert again.history_complete is True
+    assert again.added_size_bytes == 0
+
+
+@pytest.mark.asyncio
+async def test_bilibili_pc_transport_tracks_installer_identity_without_version() -> (
+    None
+):
+    source = resolve_client_update_source("cn-bilibili-pc-release")
+    url = _bilibili_url(111799)
+    transport = ClientUpdateTransport(
+        session_factory=lambda: _FakeSession(
+            {url: _FakeResponse(200, _BILIBILI_PC_PAYLOAD)}
+        )
+    )
+
+    observation = await transport.get_observation(source.source_id)
+
+    expected_revision = (
+        "ezlxPCb_bilibili_20260828_015851daedd81c35991766409406854d95f6fdb25b777c.exe"
+    )
+    assert observation.current.revision_id == expected_revision
+    assert observation.current.version_text is None
+    assert observation.current.order_key is None
+
+    updated_link = "https://pkg.biligame.com/games/ezlxPCb_bilibili_20260910_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.exe"
+    updated_payload = {
+        "code": 0,
+        "data": {
+            **{**_BILIBILI_PC_PAYLOAD["data"], "pc_download_link": updated_link},
+        },
+    }
+    changed = await ClientUpdateTransport(
+        session_factory=lambda: _FakeSession({url: _FakeResponse(200, updated_payload)})
+    ).get_observation(source.source_id, baseline=observation.current)
+    assert changed.current.revision_id != observation.current.revision_id
+    assert changed.history_complete is False
+    assert changed.added_size_bytes is None
+
+
+@pytest.mark.asyncio
+async def test_bilibili_transport_rejects_bad_code_and_malformed_sign() -> None:
+    source = resolve_client_update_source("cn-bilibili-android-release")
+    url = _bilibili_url(111015)
+    bad_code = _FakeSession({url: _FakeResponse(200, {"code": -1, "data": {}})})
+
+    with pytest.raises(ClientUpdateTransportError) as caught:
+        await ClientUpdateTransport(session_factory=lambda: bad_code).get_observation(
+            source.source_id
+        )
+    assert caught.value.kind is ClientUpdateFailureKind.CONTRACT
+
+    payload = {
+        "code": 0,
+        "data": {
+            **{**_BILIBILI_ANDROID_PAYLOAD["data"], "android_sign": "not-a-md5"},
+        },
+    }
+    with pytest.raises(ClientUpdateTransportError) as caught:
+        await ClientUpdateTransport(
+            session_factory=lambda: _FakeSession({url: _FakeResponse(200, payload)})
+        ).get_observation(source.source_id)
+    assert caught.value.kind is ClientUpdateFailureKind.CONTRACT
+
+
+_HYKB_PAGE = (
+    "<html><body>"
+    '<p class="sp2">1.6.186.1</p>'
+    "<script>"
+    "    var downInfo = {"
+    '"kb_id":"158909",'
+    '"apkurl":"https:\\\\/\\\\/sj.71acg.com\\\\/release\\\\/hykb\\\\/202608\\\\/20260827gf18_254.apk",'
+    '"package":"com.hero.dna.gf",'
+    '"appname":"二重螺旋(官服)",'
+    '"md5":"9383e221690de1d983878bbb0ecceb4d"},'
+    "</script>"
+    "</body></html>"
+)
+
+
+@pytest.mark.asyncio
+async def test_hykb_transport_uses_apk_md5_as_revision() -> None:
+    source = resolve_client_update_source("cn-hykb-android-release")
+    url = "https://m.3839.com/a/158909.htm"
+    session = _FakeSession({url: _FakeResponse(200, _HYKB_PAGE)})
+
+    observation = await ClientUpdateTransport(
+        session_factory=lambda: session
+    ).get_observation(source.source_id)
+
+    assert observation.current.revision_id == "9383e221690de1d983878bbb0ecceb4d"
+    assert observation.current.version_text == "1.6.186.1"
+    assert observation.current.order_key is None
+    assert observation.history_complete is True
+
+    unchanged = await ClientUpdateTransport(
+        session_factory=lambda: _FakeSession({url: _FakeResponse(200, _HYKB_PAGE)})
+    ).get_observation(source.source_id, baseline=observation.current)
+    assert unchanged.history_complete is True
+    assert unchanged.added_size_bytes == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "page",
+    [
+        "<html><body>无下载信息</body></html>",
+        (
+            "<html><body><script>var downInfo = {"
+            '"kb_id":"158909",'
+            '"apkurl":"https:\\\\/\\\\/sj.71acg.com\\\\/x.apk",'
+            '"package":"com.other.game",'
+            '"md5":"9383e221690de1d983878bbb0ecceb4d"},'
+            "</script></body></html>"
+        ),
+    ],
+)
+async def test_hykb_transport_rejects_malformed_or_wrong_package(page: str) -> None:
+    source = resolve_client_update_source("cn-hykb-android-release")
+    url = "https://m.3839.com/a/158909.htm"
+
+    with pytest.raises(ClientUpdateTransportError) as caught:
+        await ClientUpdateTransport(
+            session_factory=lambda: _FakeSession({url: _FakeResponse(200, page)})
+        ).get_observation(source.source_id)
+
+    assert caught.value.kind is ClientUpdateFailureKind.CONTRACT

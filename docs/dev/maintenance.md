@@ -34,15 +34,20 @@
 
 ## 客户端更新 Source
 
-客户端更新使用两层身份：Target 表达用户侧“区服 × 账号生态 × 平台”，Source
-表达版本读取协议。新增 Target 前必须同时确认现实发行、账号/服务器语义和稳定
-只读 Source；下载页面或商店入口本身不足以证明应新增 Target。Source 的固定协议
-参数集中在 `src/modules/client_updates/registry.py`，不要把某次版本号、条数或
-响应大小等瞬时观察结果写入长期文档。
+客户端更新使用两层身份：Target 表达玩家订阅的发行渠道（区服 × 发行渠道
+× 平台），Source 表达一个可独立观察的 release stream。Source 的唯一共享
+准则是发布事件使用同一 revision 序列且发布时间一致；游戏内容、安装包内容、
+版本号或“同属官服”都不能作为共享 Source 的依据。新增 Target 前必须先确认
+稳定只读 Source；下载页面或商店入口本身不足以证明应新增 Target。Source 的
+固定协议参数集中在 `src/modules/client_updates/registry.py`，不要把某次
+版本号、条数或响应大小等瞬时观察结果写入长期文档。
 
 Manifest Source 的 `PakFilesInfo.json` 和 `ResDiscreteInfo.json` key 是 registry
-配置的一部分，两个 key 不一定相同；App Store Source 只读取 Apple Lookup 的
-当前版本，不复用 manifest 的补丁历史或大小计算。
+配置的一部分，两个 key 不一定相同；`fallback_base_url` 只在存在已验证镜像时
+填写。App Store Source 只读取 Apple Lookup 的当前版本。B 站与好游快爆 Source
+没有逐版本历史，以渠道 APK MD5 或安装器文件名作为 revision，不提供更新大小，
+部分渠道没有公开版本号。账号登录生态如果其他模块需要，应在那里独立建模，
+不并入客户端更新 Target。
 
 长期只读检查入口：
 
@@ -50,11 +55,13 @@ Manifest Source 的 `PakFilesInfo.json` 和 `ResDiscreteInfo.json` key 是 regis
 python3 scripts/smoke_client_update_sources.py
 ```
 
-工具按 registry 检查全部 Source，只读取 manifest Source 的 `VersionList.json`
-或 App Store Lookup。它固定不传 baseline，因此不会读取版本补丁 manifest、下载
-完整补丁、建立 baseline、修改订阅或写入插件运行数据。任一 Source 失败时退出码
-非零；输出只包含 Source ID、provider、版本或 typed 失败分类。HTTP fallback 日志
-使用 `endpoint_role=primary/fallback`，不得加入 URL、响应正文或凭据。
+工具按 registry 检查全部 Source，读取 manifest Source 的 `VersionList.json`、
+App Store Lookup、B 站 gameinfo 或好游快爆详情页。它固定不传 baseline，因此
+不会读取版本补丁 manifest、下载完整补丁、建立 baseline、修改订阅或写入插件
+运行数据。任一 Source 失败时退出码非零；输出包含 Source ID、provider、绑定的
+Target、当前 revision 与展示版本（渠道没有公开版本号时显示 `none`）或 typed
+失败分类。HTTP fallback 日志使用 `endpoint_role=primary/fallback`，不得加入
+URL、响应正文或凭据。
 
 ### HTTP 完整性边界
 

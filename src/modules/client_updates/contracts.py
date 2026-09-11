@@ -236,19 +236,27 @@ ClientSourceProviderMetadata = ManifestCdnVersionMetadata | AppStoreVersionMetad
 
 @dataclass(frozen=True, slots=True)
 class ClientSourceVersion:
-    """一个不携带 Target、区服或账号生态的 Source 版本。"""
+    """一个不携带 Target 或发行渠道身份的 Source 版本。
+
+    ``version_text`` 是可选的展示版本号；安装包型发行渠道（例如 B服 PC
+    安装器、渠道 APK）不一定提供语义版本，变化判定只依赖 ``revision_id``。
+    """
 
     source_id: str
-    version_text: str
+    version_text: str | None
     revision_id: str
     order_key: ClientVersionOrderKey | None = None
     provider_metadata: ClientSourceProviderMetadata | None = None
 
     def __post_init__(self) -> None:
-        for field_name in ("source_id", "version_text", "revision_id"):
+        for field_name in ("source_id", "revision_id"):
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} 必须是非空字符串")
+        if self.version_text is not None and (
+            not isinstance(self.version_text, str) or not self.version_text.strip()
+        ):
+            raise ValueError("version_text 必须是非空字符串或 None")
 
         order_key = self.order_key
         if order_key is not None:

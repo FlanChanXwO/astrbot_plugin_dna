@@ -38,6 +38,11 @@ async def _run_smoke(
         registry = CLIENT_UPDATE_REGISTRY
     passed = True
     for source in registry.sources:
+        targets = ",".join(
+            target.target_id
+            for target in registry.targets
+            if target.source_id == source.source_id
+        )
         try:
             observation = await transport.get_observation(source.source_id)
         except ClientUpdateTransportError as error:
@@ -45,13 +50,15 @@ async def _run_smoke(
             status = "none" if error.status_code is None else str(error.status_code)
             print(
                 f"FAIL source={source.source_id} provider={source.provider_kind.value} "
-                f"kind={error.kind.value} resource={error.resource} status={status}"
+                f"targets={targets} kind={error.kind.value} "
+                f"resource={error.resource} status={status}"
             )
         else:
+            version = observation.current.version_text
             print(
                 f"OK source={source.source_id} provider={source.provider_kind.value} "
-                f"revision={observation.current.revision_id} "
-                f"version={observation.current.version_text}"
+                f"targets={targets} revision={observation.current.revision_id} "
+                f"version={version if version is not None else 'none'}"
             )
     return passed
 

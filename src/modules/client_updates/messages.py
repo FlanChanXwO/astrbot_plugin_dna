@@ -47,7 +47,7 @@ def format_current(
     return (
         f"{_DETECTED_PREFIX}\n"
         f"目标：{_format_target_names(target_names)}\n"
-        f"当前版本：{version.version_text}\n"
+        f"当前版本：{_version_text_label(version.version_text)}\n"
         "上次版本：暂无；新增更新：暂无可比较大小"
     )
 
@@ -61,7 +61,7 @@ def format_no_change(
     return (
         f"{_DETECTED_PREFIX}\n"
         f"目标：{_format_target_names(target_names)}\n"
-        f"当前版本：{version.version_text}\n"
+        f"当前版本：{_version_text_label(version.version_text)}\n"
         "新增更新：暂无"
     )
 
@@ -88,9 +88,25 @@ def format_change(
     return (
         f"{_DETECTED_PREFIX}更新\n"
         f"目标：{_format_target_names(names)}\n"
-        f"版本：{change.previous.version_text} → {change.current.version_text}\n"
+        f"版本：{_change_version_line(change)}\n"
         f"新增更新：{added_size}"
     )
+
+
+def _version_text_label(version_text: str | None) -> str:
+    """无公开版本号的发行渠道按安装包标识跟踪，不伪造版本号。"""
+
+    if version_text is not None:
+        return version_text
+    return "暂无公开版本号（按发行包标识跟踪）"
+
+
+def _change_version_line(change: ClientUpdateChange) -> str:
+    previous = change.previous.version_text
+    current = change.current.version_text
+    if previous is not None and current is not None:
+        return f"{previous} → {current}"
+    return "发行包已更新（该渠道不提供公开版本号）"
 
 
 def format_size(size_bytes: int) -> str:

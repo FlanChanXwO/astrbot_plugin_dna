@@ -238,7 +238,12 @@
         "options": [
           "cn-official-pc",
           "cn-official-android",
-          "cn-official-ios"
+          "cn-app-store-ios",
+          "cn-bilibili-pc",
+          "cn-bilibili-android",
+          "cn-hykb-android",
+          "global-standalone-pc",
+          "global-app-store-ios"
         ]
       },
       "merge_forward": {

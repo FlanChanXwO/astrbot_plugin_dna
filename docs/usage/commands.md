@@ -32,9 +32,10 @@
 不会固化平台筛选。插件重载后，所有有效订阅统一跟随新的 Target 配置。
 
 不要在命令后追加 `PC`、`安卓`、`iOS` 或 Target ID；这些 selector 不属于命令
-契约。Target 表示“区服 × 账号生态 × 平台”，而 Steam、TapTap、WeGame 等单纯
-下载入口并不自动形成新的账号生态或 Target。可选 Target 以 `_conf_schema.json`
-中的生成 options 为准。
+契约。Target 表示“区服 × 发行渠道 × 平台”，玩家只订阅自己实际游玩的渠道：
+只配 B服 Target 就只在 B服更新时推送，官服更新不会误推。TapTap、WeGame、
+Steam 等渠道只有接入真实可观察的发行 Source 后才会成为可选 Target。可选
+Target 以 `_conf_schema.json` 中的生成 options 为准。
 
 ## 功能分类
 

@@ -683,9 +683,12 @@ def _parse_version(
         context,
         registry,
     )
+    version_text = _required(entry, "version_text", context)
+    if version_text is not None and not isinstance(version_text, str):
+        raise TypeError(f"{context}.version_text must be a string or null")
     return ClientSourceVersion(
         source_id=source_id,
-        version_text=cast(str, _required(entry, "version_text", context)),
+        version_text=cast(str | None, version_text),
         revision_id=cast(str, _required(entry, "revision_id", context)),
         order_key=order_key,
         provider_metadata=metadata,
