@@ -104,3 +104,11 @@ def test_captcha_loading_has_no_arbitrary_timeout_and_preserves_error_handlers()
     assert "clearTimeout" not in page
     assert "script.onerror = fail" in page
     assert "script.async = true" in page
+
+
+def test_status_messages_use_toast_presentation() -> None:
+    page, parser = _render()
+    assert "toast" in page
+    assert "toast" in parser.controls["formStatus"]["class"]
+    assert "formStatus" not in parser.form_controls
+    assert parser.controls["formStatus"]["aria-live"] == "polite"
