@@ -7,6 +7,9 @@
     <meta name="referrer" content="no-referrer" />
     <title>狩月终端 登录</title>
     <link rel="icon" href="{{ plugin_logo }}" type="image/png" />
+    {% if login_media and login_media.video_url %}
+    <link rel="preload" href="{{ login_media.video_url | e }}" as="video" type="video/mp4" />
+    {% endif %}
     <style>
       :root {
         color-scheme: dark;
@@ -62,9 +65,22 @@
         object-fit: cover;
         object-position: 50% 35%;
         opacity: 0;
-        transition: opacity 240ms ease;
       }
       .background-video.is-ready { opacity: 1; }
+      .media-boot-cover {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        background: #18181a;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: none;
+        transition: opacity 120ms ease, visibility 120ms ease;
+      }
+      .media-boot-cover.is-hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
       .site-header {
         display: flex;
         justify-content: center;
@@ -357,6 +373,9 @@
     </style>
   </head>
   <body>
+    {% if login_media and login_media.video_url %}
+    <div id="mediaBootCover" class="media-boot-cover" aria-hidden="true"></div>
+    {% endif %}
     <div class="toast-container">
       <div id="formStatus" class="toast" role="status" aria-live="polite" aria-atomic="true">
         <span id="toastIcon" class="toast-icon" aria-hidden="true"></span>
@@ -365,8 +384,8 @@
     </div>
     <div class="scene" aria-hidden="true">
       {% if login_media and login_media.video_url %}
-      <video id="backgroundVideo" class="background-video" loop muted playsinline preload="none"
-        disablepictureinpicture data-video-src="{{ login_media.video_url | e }}"></video>
+      <video id="backgroundVideo" class="background-video" autoplay loop muted playsinline preload="auto"
+        disablepictureinpicture src="{{ login_media.video_url | e }}"></video>
       {% endif %}
     </div>
     <header class="site-header">
@@ -698,42 +717,51 @@
       function initLoginMedia() {
         const video = document.getElementById('backgroundVideo')
         if (!video) return
+        const bootCover = document.getElementById('mediaBootCover')
         const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
         let videoFailed = false
         let pageHidden = document.hidden
 
-        async function syncMedia() {
-          const disabled = reducedMotion.matches || videoFailed
-          if (disabled || pageHidden) {
-            video.pause()
-            if (disabled) {
-              video.classList.remove('is-ready')
-              // Releasing sources also stops downloads when reduced motion changes.
-              if (video.hasAttribute('src')) {
-                video.removeAttribute('src')
-                video.load()
-              }
-            }
-            return
-          }
-          if (!video.hasAttribute('src')) {
-            video.muted = true
-            video.src = video.dataset.videoSrc
-          }
-          try { await video.play() } catch { /* Keep the poster if autoplay fails. */ }
+        function revealFallback() {
+          video.classList.remove('is-ready')
+          if (bootCover) bootCover.classList.add('is-hidden')
         }
 
-        video.addEventListener('playing', function () {
-          if (pageHidden || reducedMotion.matches || videoFailed) {
+        function revealDynamic() {
+          if (pageHidden || reducedMotion.matches || videoFailed) return
+          video.classList.add('is-ready')
+          if (!bootCover) return
+          // 先让已进入 playing 的视频完成一帧绘制，再揭开首屏，避免静态图闪现。
+          window.requestAnimationFrame(() => bootCover.classList.add('is-hidden'))
+        }
+
+        async function syncMedia() {
+          const disabled = reducedMotion.matches || videoFailed
+          if (disabled) {
+            video.pause()
+            revealFallback()
+            return
+          }
+          if (pageHidden) {
             video.pause()
             return
           }
-          video.classList.add('is-ready')
-        })
+          video.muted = true
+          try {
+            await video.play()
+            if (!video.paused && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+              revealDynamic()
+            }
+          } catch {
+            videoFailed = true
+            revealFallback()
+          }
+        }
+
+        video.addEventListener('playing', revealDynamic)
         video.addEventListener('error', function () {
-          if (!video.hasAttribute('src')) return
           videoFailed = true
-          syncMedia()
+          revealFallback()
         })
         document.addEventListener('visibilitychange', function () {
           pageHidden = document.hidden
