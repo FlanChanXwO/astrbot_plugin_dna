@@ -215,7 +215,12 @@ async def test_login_page_start_and_cancel_are_framework_free(database):
         LoginAttempt.from_sms("13800138000", "1234"),
     )
 
-    assert page_response.text == "登录地址：https://login.test/session"
+    assert page_response.text == (
+        "[二重螺旋] 您的id为【user-1】\n"
+        "请复制地址到浏览器打开\n"
+        " https://login.test/session\n"
+        "登录地址10分钟内有效"
+    )
     assert cancelled_response.text == "登录已取消"
     assert transport.actors == [_actor()]
 

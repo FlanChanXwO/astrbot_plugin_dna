@@ -268,22 +268,14 @@ class LoginFlowCoordinator:
                 logger.error("登录二维码生成失败 kind=%s", type(error).__name__)
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
             return LoginResponse(
-                text=(
-                    f"[二重螺旋] 您的id为【{actor.user_id}】\n"
-                    "请扫描下方二维码获取登录地址，并复制地址到浏览器打开\n"
-                ),
+                text=messages.login_page(actor.user_id, url),
                 qr_bytes=qr_bytes,
                 forward=forward,
                 need_at=bool(actor.group_id),
             )
         if self.settings.tencent_docs:
             url = f"https://docs.qq.com/scenario/link.html?url={url}"
-            text = (
-                f"[二重螺旋] 您的id为【{actor.user_id}】\n"
-                "请复制地址到浏览器打开\n"
-                f" {url}\n"
-                "登录地址10分钟内有效"
-            )
+            text = messages.login_page(actor.user_id, url)
             return LoginResponse(
                 text=text,
                 forward=forward,
@@ -291,10 +283,10 @@ class LoginFlowCoordinator:
             )
         if forward:
             return LoginResponse(
-                text=messages.login_page(url),
+                text=messages.login_page(actor.user_id, url),
                 forward=True,
             )
-        return PlainTextResponse(messages.login_page(url))
+        return PlainTextResponse(messages.login_page(actor.user_id, url))
 
     async def _start_transport(self, actor: AccountActor, auth: str) -> str:
         if self.settings.transport == "local":

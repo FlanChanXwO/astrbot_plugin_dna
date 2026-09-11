@@ -30,7 +30,7 @@
     "not_logged_in": "当前并未登录",
     "logout_success": "成功退出登录",
     "credentials_empty": "当前没有已保存的登录凭据！",
-    "login_page": "登录地址：{url}",
+    "login_page": "[二重螺旋] 您的id为【{user_id}】\n请复制地址到浏览器打开\n {url}\n登录地址10分钟内有效",
     "login_success_header": "登录成功，已为您绑定以下角色：",
     "unnamed_role": "未命名角色",
     "login_role_line": "- 名字：{name}，UID：{uid}",
