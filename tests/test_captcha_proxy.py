@@ -161,13 +161,20 @@ def test_forward_headers_fill_safe_defaults() -> None:
 
 
 @pytest.mark.asyncio
-async def test_new_http_client_keeps_connect_budget_and_no_read_deadline() -> None:
-    """沿用项目既有建连约定，但不给上游读取设置人为截止时间。"""
+async def test_new_http_client_keeps_connect_budget_only() -> None:
+    """只给建连设预算，读取/写入/连接池等待都不设人为截止。
+
+    ``httpx.Timeout(10.0, read=None)`` 会给 write 与 pool 也设置 10s，与
+    “只限建连”的语义不符：请求体较大或连接池等待时会凭空失败。
+    """
 
     async with captcha_proxy.new_http_client() as client:
         assert client.follow_redirects is False
-        assert client.timeout.connect == captcha_proxy.PROXY_CONNECT_TIMEOUT_S
-        assert client.timeout.read is None
+        timeout = client.timeout
+        assert timeout.connect == captcha_proxy.PROXY_CONNECT_TIMEOUT_S
+        assert timeout.read is None
+        assert timeout.write is None
+        assert timeout.pool is None
 
 
 @pytest.mark.asyncio

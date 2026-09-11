@@ -22,8 +22,9 @@ from astrbot.api import logger
 # 出站建连预算：TCP 建连到不可达主机时会一直等到操作系统默认超时（macOS 约
 # 75s），期间用户交互请求被白白挂起，因此沿用项目既有外呼的 10s 建连约定
 # （``transport.START_TIMEOUT_S``）作为接入上限。
-# 只限制建连、不限制读取：验证码请求由用户交互触发，上游响应较慢时应等待真实
-# 结果，而不是把慢响应在本地转换成本不存在的 502 假失败；用户关闭页面即可中止。
+# 只限制建连，读取/写入/连接池等待都不设截止：验证码请求由用户交互触发，上游
+# 响应较慢时应等待真实结果，而不是把慢响应在本地转换成本不存在的 502 假失败；
+# 用户关闭页面即可中止。
 PROXY_CONNECT_TIMEOUT_S = 10.0
 
 # 需要在本地重写 Location 的跳转状态码。
@@ -176,12 +177,21 @@ def rewrite_redirect(
 def new_http_client() -> httpx.AsyncClient:
     """按项目统一惯例创建出站客户端（``trust_env=False`` 避免代理环境串扰）。
 
+    超时只作用于建连：其余阶段（read/write/pool）必须显式设为 ``None``。
+    ``httpx.Timeout(10.0, read=None)`` 会把 write 与 pool 也置为 10s，与“只限
+    建连”的语义不符，会让较大请求体上传或连接池等待凭空失败。
+
     不跟随上游跳转：跟随会让上游把请求带到白名单之外的域名。跳转由
     ``forward`` 校验后重写回本地反代，仍受同一份白名单约束。
     """
 
     return httpx.AsyncClient(
-        timeout=httpx.Timeout(PROXY_CONNECT_TIMEOUT_S, read=None),
+        timeout=httpx.Timeout(
+            connect=PROXY_CONNECT_TIMEOUT_S,
+            read=None,
+            write=None,
+            pool=None,
+        ),
         trust_env=False,
         follow_redirects=False,
     )
