@@ -1,5 +1,25 @@
 # 更新日志
 
+## v0.4.0 — 2026-09-11
+
+### 新增
+
+- 重做内置登录页视觉与媒体体验：加入可配置的静音动态背景、移动端居中布局与「狩月终端」标题标识，并在资源缺失、加载失败或开启减少动态效果时自动回退到静态背景。（[#49](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/49)）
+- 支持 Windows PC 浏览器直接完成验证码登录：内置 `*.alicaptcha.com` 白名单反代，将验证码会话请求转换为已验证可用的 Android UA 画像，并通过 Service Worker 与页面内 hook 覆盖安全上下文和局域网 HTTP 场景。（[#56](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/56)）
+- 登录页状态提示改为悬浮 Toast，区分成功、失败和处理中状态，避免表单高度随状态文本变化而跳动；同时补充未预期异常的错误详情与堆栈日志。（[#60](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/60)）
+
+### 修复
+
+- 修复角色概览中武器 `elementIcon` 缺失时整张卡片渲染失败的问题；该装饰图标现在按可选字段处理，其余武器信息继续正常展示。（[#57](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/57)）
+- 统一全部登录链路的登录提示文案，普通直链、外置 transport、腾讯文档、二维码、fallback 与 legacy 路径均复用同一 formatter，避免不同配置下提示内容漂移。（[#59](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/59)）
+- 移除验证码 SDK 人为设置的 15 秒固定加载超时，改由真实脚本加载错误、SDK 错误与初始化异常决定失败，避免弱网环境下提前误判登录失败。（[#49](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/49)）
+
+### 文档
+
+- 更新登录与配置文档，补充动态背景配置及 PC / 手机浏览器直接验证码登录说明。（[#49](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/49)、[#56](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/56)）
+
+**完整变更**：[`v0.3.6...v0.4.0`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.3.6...v0.4.0)
+
 ## v0.3.6 — 2026-09-10
 
 ### 修复
