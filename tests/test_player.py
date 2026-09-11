@@ -448,6 +448,39 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(
 
 
 @pytest.mark.asyncio
+async def test_role_overview_allows_weapon_without_element_icon(tmp_path: Path) -> None:
+    """武器类型图标缺失时仍应渲染总览卡，而不是让整张卡片失败。"""
+
+    _preseed_legacy_assets()
+    overview = _overview_fixture()
+    overview.close_weapons[0].element_icon = ""
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(overview, _detail_fixture(), _weapon_fixture())
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        show_unowned_roles=True,
+    )
+
+    response = await service.role_overview(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+    )
+
+    assert isinstance(response, ImageResponse)
+    artifact = read_rendered_artifact(Path(response.image))
+    assert any(
+        item["kind"] == "weapon_icon" and item["key"] == "201"
+        for item in artifact.metadata["dnaby.resources"]
+    )
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_refresh_info_card_only_fetches_overview(tmp_path: Path) -> None:
     """基本信息卡片刷新不能误触发角色详情链路。"""
 
