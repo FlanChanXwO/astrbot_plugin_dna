@@ -38,7 +38,6 @@ __all__ = [
     "get_default_image_fetcher",
     "get_event_avatar",
     "get_qrcode_base64",
-    "set_default_image_fetcher",
     "tint_image",
 ]
 
@@ -612,13 +611,6 @@ def get_default_image_fetcher() -> ImageFetcher:
     """返回进程内共享的默认图片下载器。"""
 
     return _DEFAULT_IMAGE_FETCHER
-
-
-def set_default_image_fetcher(fetcher: ImageFetcher) -> None:
-    """替换默认下载器，供 runtime 注入测试或宿主生命周期实例。"""
-
-    global _DEFAULT_IMAGE_FETCHER
-    _DEFAULT_IMAGE_FETCHER = fetcher
 
 
 def _resolve_download_target(path: Path, name: str) -> Path:

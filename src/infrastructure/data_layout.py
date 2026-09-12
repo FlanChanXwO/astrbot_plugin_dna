@@ -24,8 +24,6 @@ RENDERED_CACHE_DIR_NAME = "rendered"
 MEDIA_CACHE_DIR_NAME = "media"
 GAME_AVATAR_DIR_NAME = "game_avatar"
 USER_AVATAR_DIR_NAME = "user_avatar"
-CUSTOM_DIR_NAME = "custom"
-CUSTOM_PAINT_DIR_NAME = "custom_paint"
 SIGN_DIR_NAME = "sign"
 ANN_CARD_DIR_NAME = "ann_card"
 CALENDAR_DIR_NAME = "calendar"
@@ -197,18 +195,6 @@ class RuntimeDataLayout:
         return self.cache_assets_dir / USER_AVATAR_DIR_NAME
 
     @property
-    def cache_custom_dir(self) -> Path:
-        """自定义素材缓存目录。"""
-
-        return self.cache_assets_dir / CUSTOM_DIR_NAME
-
-    @property
-    def cache_custom_paint_dir(self) -> Path:
-        """自定义立绘缓存目录。"""
-
-        return self.cache_custom_dir / CUSTOM_PAINT_DIR_NAME
-
-    @property
     def cache_api_dir(self) -> Path:
         """外部 API 响应缓存目录。"""
 
@@ -252,7 +238,7 @@ class RuntimeDataLayout:
 
     @property
     def backups_dir(self) -> Path:
-        """状态迁移和客户端更新等备份目录。"""
+        """运行期人工备份根目录。"""
 
         return self.data_dir / BACKUPS_DIR_NAME
 
@@ -277,8 +263,6 @@ __all__ = [
     "CALENDAR_DIR_NAME",
     "CHAR_ALIAS_FILE_NAME",
     "CLIENT_UPDATE_STATE_FILE_NAME",
-    "CUSTOM_DIR_NAME",
-    "CUSTOM_PAINT_DIR_NAME",
     "DATABASE_DIR_NAME",
     "DATABASE_FILE_NAME",
     "GAME_AVATAR_DIR_NAME",

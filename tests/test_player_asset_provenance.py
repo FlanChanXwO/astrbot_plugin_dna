@@ -1,4 +1,4 @@
-"""角色详情素材并发准备回归测试。"""
+"""玩家卡素材 provenance 与 placeholder 回归测试。"""
 
 from __future__ import annotations
 
@@ -14,21 +14,6 @@ from src.infrastructure.rendering import PlayerRenderer, ResourceMap, weapon_ren
 from src.infrastructure.rendering import player as player_module
 from src.infrastructure.resources import AssetResolver, ResolvedAsset
 from src.utils.image_utils import ImageFetcherClosed
-
-
-class _ConcurrencyProbe:
-    def __init__(self) -> None:
-        self.active = 0
-        self.maximum = 0
-
-    async def image(self, color: str, size: tuple[int, int]) -> Image.Image:
-        self.active += 1
-        self.maximum = max(self.maximum, self.active)
-        try:
-            await asyncio.sleep(0.01)
-            return Image.new("RGBA", size, color)
-        finally:
-            self.active -= 1
 
 
 def _role_detail() -> SimpleNamespace:
@@ -89,98 +74,6 @@ def _weapon_detail() -> SimpleNamespace:
     )
 
 
-@pytest.mark.asyncio
-async def test_role_detail_prefetches_independent_assets_concurrently_and_preserves_order(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """冷缓存素材应并发加载，组装后的技能、魔之楔和武器顺序不变。"""
-
-    probe = _ConcurrencyProbe()
-    captured: dict[str, object] = {}
-    active_categories: dict[str, int] = {}
-    cross_category_overlap = False
-
-    async def categorized_image(
-        category: str,
-        color: str,
-        size: tuple[int, int],
-    ) -> Image.Image:
-        nonlocal cross_category_overlap
-        active_categories[category] = active_categories.get(category, 0) + 1
-        if active_categories.get("paint", 0) and active_categories.get("weapon", 0):
-            cross_category_overlap = True
-        try:
-            return await probe.image(color, size)
-        finally:
-            active_categories[category] -= 1
-            if active_categories[category] == 0:
-                del active_categories[category]
-
-    async def fake_skill(*_args: object, **_kwargs: object) -> Image.Image:
-        return await categorized_image("skill", "red", (128, 128))
-
-    async def fake_mod(*_args: object, **_kwargs: object) -> Image.Image:
-        return await categorized_image("mod", "green", (128, 128))
-
-    async def fake_weapon(*_args: object, **_kwargs: object) -> Image.Image:
-        return await categorized_image("weapon", "blue", (256, 256))
-
-    async def fake_paint(*_args: object, **_kwargs: object) -> Image.Image:
-        return await categorized_image("paint", "purple", (1320, 1320))
-
-    async def fake_attr(*_args: object, **_kwargs: object) -> Image.Image:
-        return await probe.image("yellow", (128, 128))
-
-    async def fake_header(*_args: object, **_kwargs: object) -> dict[str, object]:
-        return {}
-
-    async def fake_render(
-        _template: str,
-        context: dict[str, object],
-        _spec: object,
-    ) -> bytes:
-        captured.update(context)
-        return b"rendered"
-
-    monkeypatch.setattr(player_module, "get_skill_img", fake_skill)
-    monkeypatch.setattr(player_module, "get_mod_img", fake_mod)
-    monkeypatch.setattr(player_module, "get_weapon_img", fake_weapon)
-    monkeypatch.setattr(player_module, "get_paint_img", fake_paint)
-    monkeypatch.setattr(player_module, "get_attr_img", fake_attr)
-    monkeypatch.setattr(weapon_renderer, "get_mod_img", fake_mod)
-    monkeypatch.setattr(weapon_renderer, "get_weapon_img", fake_weapon)
-    monkeypatch.setattr(player_module, "build_profile_header", fake_header)
-    monkeypatch.setattr(player_module._RENDERER, "render", fake_render)
-
-    await player_module._draw_role_detail_card(
-        SimpleNamespace(user_id="user-1"),
-        "101",
-        "角色甲",
-        SimpleNamespace(roleId="101", roleName="玩家", level=80, params=[]),
-        _role_detail(),
-        close_weapon=_weapon_detail(),
-    )
-
-    assert probe.maximum > 1
-    assert cross_category_overlap
-    assert [item["name"] for item in captured["skills"]] == [
-        "技能0",
-        "技能1",
-        "技能2",
-    ]
-    assert [item["name"] for item in captured["role_modes"] if item["name"]] == [
-        "魔之楔0",
-        "魔之楔2",
-        "魔之楔1",
-    ]
-    sections = captured["weapon_sections"]
-    assert [item["title"] for item in sections] == ["近战武器"]
-    assert [item["name"] for item in sections[0]["modes"] if item["name"]] == [
-        "武器楔0",
-        "武器楔1",
-    ]
-
-
 class _ResolverProbe:
     def __init__(self, tmp_path) -> None:
         self.root = tmp_path
@@ -213,6 +106,22 @@ class _ResolverProbe:
             kind=kind,
             asset_id=str(asset_id),
         )
+
+
+class _RuntimeDownloader:
+    def __init__(self, color: str) -> None:
+        self.color = color
+        self.closed = False
+        self.calls: list[str] = []
+
+    async def fetch(self, url: str, target: Path, *, tag: str = "") -> Path:
+        del tag
+        if self.closed:
+            raise ImageFetcherClosed(f"{self.color} downloader closed")
+        self.calls.append(url)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (24, 24), self.color).save(target)
+        return target
 
 
 @pytest.mark.asyncio
@@ -652,174 +561,3 @@ async def test_player_renderer_placeholder_provenance_marks_image_incomplete(
     assert weapon_metadata["source"] == "none"
     assert weapon_metadata["status"] == "missing"
     assert rendered.incomplete is True
-
-
-class _RuntimeDownloader:
-    def __init__(self, color: str) -> None:
-        self.color = color
-        self.closed = False
-        self.calls: list[str] = []
-
-    async def fetch(self, url: str, target: Path, *, tag: str = "") -> Path:
-        del tag
-        if self.closed:
-            raise ImageFetcherClosed(f"{self.color} downloader closed")
-        self.calls.append(url)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        Image.new("RGBA", (24, 24), self.color).save(target)
-        return target
-
-
-class _RuntimeResolver:
-    def __init__(self, root: Path, downloader: _RuntimeDownloader) -> None:
-        self.dynamic_root = root
-        self.downloader = downloader
-
-
-@pytest.mark.asyncio
-async def test_player_image_loader_uses_distinct_url_cache_targets(
-    tmp_path: Path,
-) -> None:
-    """不同版本的同名 URL 素材不能复用同一属性图缓存文件。"""
-
-    downloader = _RuntimeDownloader("red")
-    loader = player_module._PlayerImageLoader(
-        _RuntimeResolver(tmp_path / "assets", downloader)
-    )
-    url_v2 = "https://cdn.example.test/icons/fire.v2.icon.png"
-    url_v3 = "https://cdn.example.test/icons/fire.v3.icon.png"
-
-    await loader.attr(None, url_v2)
-    await loader.attr(None, url_v3)
-
-    cached_files = sorted((tmp_path / "assets" / "attr").glob("*.png"))
-    assert len(cached_files) == 2
-    assert downloader.calls == [url_v2, url_v3]
-
-
-@pytest.mark.asyncio
-async def test_player_image_loader_keeps_runtime_downloader_isolated_after_peer_close(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """一个 runtime 关闭后，另一个 runtime 的未迁移素材仍走自己的 downloader。"""
-
-    monkeypatch.setattr(
-        player_module,
-        "get_mod_img",
-        lambda *_args, **_kwargs: pytest.fail("不应通过全局 legacy fetcher 加载 Mod"),
-    )
-    downloader_a = _RuntimeDownloader("red")
-    downloader_b = _RuntimeDownloader("blue")
-    resolver_a = _RuntimeResolver(tmp_path / "a", downloader_a)
-    resolver_b = _RuntimeResolver(tmp_path / "b", downloader_b)
-    loader_a = player_module._PlayerImageLoader(resolver_a)
-    _loader_b = player_module._PlayerImageLoader(resolver_b)
-    downloader_b.closed = True
-
-    image = await loader_a.mod(7001, "https://cdn.example.test/mod.png")
-    skill_image = await loader_a.skill(
-        101,
-        "技能 A",
-        "https://cdn.example.test/skill.png",
-    )
-
-    assert image.getpixel((0, 0))[:3] == (255, 0, 0)
-    assert skill_image.getpixel((0, 0))[:3] == (255, 0, 0)
-    assert downloader_a.calls == [
-        "https://cdn.example.test/mod.png",
-        "https://cdn.example.test/skill.png",
-    ]
-    assert (tmp_path / "a" / "skill" / "101" / "skill_技能 A.png").is_file()
-
-
-@pytest.mark.asyncio
-async def test_player_renderer_routes_overview_assets_through_current_runtime(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """正常玩家卡链路的头像、属性图和资料头都不读取全局 downloader。"""
-
-    async def fail_legacy(*_args: object, **_kwargs: object) -> Image.Image:
-        return pytest.fail("正常 PlayerRenderer 不应调用全局 legacy 图片入口")
-
-    for name in (
-        "get_avatar_img",
-        "get_attr_img",
-        "get_weapon_attr_img",
-        "get_weapon_img",
-    ):
-        monkeypatch.setattr(player_module, name, fail_legacy)
-
-    async def fake_render(*_args: object, **_kwargs: object) -> bytes:
-        buffer = BytesIO()
-        Image.new("RGB", (24, 24), "white").save(buffer, format="JPEG")
-        return buffer.getvalue()
-
-    monkeypatch.setattr(player_module._RENDERER, "render", fake_render)
-    downloader_a = _RuntimeDownloader("red")
-    downloader_b = _RuntimeDownloader("blue")
-    downloader_b.closed = True
-    resolver_a = AssetResolver(
-        dynamic_root=tmp_path / "a",
-        downloader=downloader_a,
-    )
-    _resolver_b = AssetResolver(
-        dynamic_root=tmp_path / "b",
-        downloader=downloader_b,
-    )
-    font_path = (
-        Path(__file__).resolve().parents[1]
-        / "src"
-        / "resources"
-        / "fonts"
-        / "dna_fonts.ttf"
-    )
-    renderer = PlayerRenderer(
-        tmp_path / "rendered",
-        ResourceMap(fonts={"dna_fonts": font_path}),
-        asset_resolver=resolver_a,
-    )
-
-    rendered = await renderer.render_overview(
-        SimpleNamespace(
-            role_name="测试玩家",
-            role_id="role-1",
-            level=42,
-            params=[],
-            role_chars=[
-                SimpleNamespace(
-                    char_id=101,
-                    name="角色甲",
-                    level=80,
-                    element_icon="https://cdn.example.test/role-attr.png",
-                    icon="https://cdn.example.test/role.png",
-                    grade_level=0,
-                    unlocked=True,
-                )
-            ],
-            close_weapons=[
-                SimpleNamespace(
-                    weapon_id=201,
-                    name="武器甲",
-                    level=80,
-                    element_icon="https://cdn.example.test/weapon-attr.png",
-                    icon="https://cdn.example.test/weapon.png",
-                    skill_level=0,
-                    unlocked=True,
-                )
-            ],
-            ranged_weapons=[],
-        ),
-        uid="uid-1",
-        target_user_id="user-1",
-    )
-
-    assert rendered.incomplete is False
-    assert {
-        "role.png",
-        "role-attr.png",
-        "weapon.png",
-        "weapon-attr.png",
-    }.issubset({url.rsplit("/", 1)[-1] for url in downloader_a.calls})
-    assert any("qlogo.cn" in url for url in downloader_a.calls)

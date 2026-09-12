@@ -2,7 +2,7 @@
 
 路径由 :class:`RuntimeDataLayout` 统一计算；本模块只定义路径和模板对象，
 不在导入时创建运行期目录或文件。公共资源与动态缓存的最终分层由基础设施
-资源流水线负责，本模块暂时保留旧素材常量供现有渲染调用方迁移。
+资源流水线负责，本模块只保留现有调用方仍使用的兼容投影。
 """
 
 from __future__ import annotations
@@ -30,13 +30,6 @@ def _default_data_dir() -> Path:
 RUNTIME_DATA_LAYOUT = RuntimeDataLayout.from_data_dir(_default_data_dir())
 MAIN_PATH = RUNTIME_DATA_LAYOUT.data_dir
 
-# 配置文件（已并入 AstrBotConfig，保留路径定义便于回看）
-CONFIG_PATH = MAIN_PATH / "config.json"
-SIGN_CONFIG_PATH = MAIN_PATH / "sign_config.json"
-
-# 用户数据保存文件
-PLAYER_PATH = MAIN_PATH / "players"
-
 # 动态游戏素材统一写入 cache/assets；游戏头像和事件用户头像分开保存。
 RESOURCE_PATH = RUNTIME_DATA_LAYOUT.cache_assets_dir
 AVATAR_PATH = RUNTIME_DATA_LAYOUT.cache_game_avatar_dir  # 游戏角色头像
@@ -55,10 +48,6 @@ ALIAS_PATH = RUNTIME_DATA_LAYOUT.aliases_dir
 CHAR_ALIAS_PATH = RUNTIME_DATA_LAYOUT.char_alias_path
 WEAPON_ALIAS_PATH = RUNTIME_DATA_LAYOUT.weapon_alias_path
 
-# 自定义背景图也属于可重建的动态素材缓存。
-CUSTOM_PATH = RUNTIME_DATA_LAYOUT.cache_custom_dir
-CUSTOM_PAINT_PATH = RUNTIME_DATA_LAYOUT.cache_custom_paint_dir  # 自定义立绘
-
 # 其他媒体缓存统一写入 cache/media。
 OTHER_PATH = RUNTIME_DATA_LAYOUT.cache_media_dir
 SIGN_PATH = RUNTIME_DATA_LAYOUT.cache_sign_dir
@@ -69,10 +58,9 @@ LOGIN_QR_PATH = RUNTIME_DATA_LAYOUT.cache_login_qr_dir
 # 设置 Jinja2 环境
 TEMP_PATH = Path(__file__).parents[1].parent / "templates"
 PLUGIN_LOGO_PATH = Path(__file__).parents[3] / "logo.png"
-PLUGIN_LOGO_DATA_URI = (
-    "data:image/png;base64,"
-    + base64.b64encode(PLUGIN_LOGO_PATH.read_bytes()).decode("ascii")
-)
+PLUGIN_LOGO_DATA_URI = "data:image/png;base64," + base64.b64encode(
+    PLUGIN_LOGO_PATH.read_bytes()
+).decode("ascii")
 TITLE_LOGO_PATH = (
     Path(__file__).parents[2] / "resources" / "textures" / "common" / "title_logo.png"
 )

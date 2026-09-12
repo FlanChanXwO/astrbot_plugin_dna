@@ -34,6 +34,9 @@ LEGACY_PATHS = (
     "sign_config.json",
     "resources/.git",
     "cache/player_data",
+    "cache/player_card",
+    "cache/mh",
+    "cache/announcement",
 )
 
 
@@ -65,6 +68,21 @@ def test_legacy_layout_detector_reports_each_known_old_path(
     assert not layout.db_dir.exists()
     assert not layout.state_dir.exists()
     assert not layout.cache_dir.exists() or relative_path.startswith("cache/")
+
+
+def test_legacy_layout_detector_reports_broken_symlink_marker(
+    tmp_path: Path,
+) -> None:
+    """断开的旧缓存符号链接也必须阻止启动。"""
+
+    data_dir = tmp_path / "plugin-data"
+    marker = data_dir / "cache" / "player_card"
+    marker.parent.mkdir(parents=True)
+    marker.symlink_to(data_dir / "missing-player-card")
+
+    issues = LegacyLayoutDetector(RuntimeDataLayout(data_dir)).detect()
+
+    assert [issue.relative_path for issue in issues] == ["cache/player_card"]
 
 
 def test_legacy_layout_detector_allows_new_resource_repository_marker(

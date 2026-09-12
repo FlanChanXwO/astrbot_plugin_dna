@@ -88,10 +88,6 @@ def test_runtime_data_layout_exposes_cache_scopes_without_legacy_roots(
     assert layout.cache_assets_dir == data_dir / "cache" / "assets"
     assert layout.cache_game_avatar_dir == data_dir / "cache" / "assets" / "game_avatar"
     assert layout.cache_user_avatar_dir == data_dir / "cache" / "assets" / "user_avatar"
-    assert layout.cache_custom_dir == data_dir / "cache" / "assets" / "custom"
-    assert layout.cache_custom_paint_dir == (
-        data_dir / "cache" / "assets" / "custom" / "custom_paint"
-    )
     assert layout.cache_api_dir == data_dir / "cache" / "api"
     assert layout.cache_rendered_dir == data_dir / "cache" / "rendered"
     assert layout.cache_media_dir == data_dir / "cache" / "media"
@@ -109,8 +105,6 @@ def test_resource_path_projection_uses_split_asset_and_media_scopes() -> None:
         ANN_CARD_PATH,
         AVATAR_PATH,
         CALENDAR_PATH,
-        CUSTOM_PAINT_PATH,
-        CUSTOM_PATH,
         LOGIN_QR_PATH,
         OTHER_PATH,
         RESOURCE_PATH,
@@ -123,8 +117,6 @@ def test_resource_path_projection_uses_split_asset_and_media_scopes() -> None:
     assert RESOURCE_PATH == layout.cache_assets_dir
     assert AVATAR_PATH == layout.cache_game_avatar_dir
     assert USER_AVATAR_PATH == layout.cache_user_avatar_dir
-    assert CUSTOM_PATH == layout.cache_custom_dir
-    assert CUSTOM_PAINT_PATH == layout.cache_custom_paint_dir
     assert OTHER_PATH == layout.cache_media_dir
     assert SIGN_PATH == layout.cache_sign_dir
     assert ANN_CARD_PATH == layout.cache_ann_card_dir

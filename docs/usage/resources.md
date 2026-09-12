@@ -27,9 +27,10 @@
 | `state/` | 订阅、调度、公告投递、客户端更新和别名等需要恢复的状态；别名文件位于 `state/aliases/`。 |
 | `resources/repository/` | `dna-resource` 的工作树。 |
 | `resources/generations/` | 经过校验的公共资源 generation 及其 current、同步和校验状态。 |
-| `cache/assets/` | 游戏素材、用户头像和自定义素材等可重建动态缓存。 |
+| `cache/assets/` | 游戏素材和用户头像等可重建动态缓存。 |
 | `cache/api/`、`cache/rendered/`、`cache/media/` | API 响应、渲染产物以及签到、公告、日历和登录二维码等媒体缓存。 |
-| `backups/database/`、`backups/state/` | 人工迁移或状态迁移时保留的备份。 |
+| `backups/` | 管理员人工迁移或维护时保留的备份根目录。 |
+| `backups/database/` | 数据库人工备份。 |
 
 公共资源的当前 generation 是已校验的发布物，不应当当作普通缓存删除后再手工拼装。动态素材、API 响应、渲染产物和媒体文件均可在需要时重新获取或生成；同步后新请求会使用新的 generation，旧动态副本不会自动清理，也不会覆盖公共资源快照。
 
@@ -75,7 +76,7 @@
 | `scheduler_state.json` | `state/scheduler.json` | 保留调度状态。 |
 | `ann_state.json` | `state/announcements/seen.json` | 保留公告已见状态。 |
 | `ann_delivery_state.json` | `state/announcements/delivery.json` | 保留公告投递状态。 |
-| `client_update_state.json` | `state/client_update.json` | 保留客户端更新基线和投递状态；状态迁移产生的原始备份可放在 `backups/state/`。 |
+| `client_update_state.json` | `state/client_update.json` | 保留客户端更新基线和投递状态。 |
 | `resource/alias/char_alias.json` | `state/aliases/char.json` | 只迁移用户自定义项，避免覆盖新版本内置别名。 |
 | `resource/alias/weapon_alias.json` | `state/aliases/weapon.json` | 只迁移用户自定义项，避免覆盖新版本内置别名。 |
 | `alias_custom.json` | `state/aliases/char.json` | 旧文件若存在，合并其用户自定义角色别名；不要把两个 JSON 文件直接拼接。 |
@@ -88,7 +89,7 @@
 | `rendered/` | `cache/rendered/` | 可选迁移渲染产物；不迁移也不会丢失业务状态。 |
 | `other/` | `cache/media/` | 可选迁移其他媒体；其中 `sign/`、`ann_card/`、`calendar/` 分别对应新目录下的同名子目录。 |
 | `login_qr/` | `cache/media/login_qr/` | 临时登录二维码，可不迁移。 |
-| `custom/` | `cache/assets/custom/` | 可选迁移自定义素材；`custom/custom_paint/` 对应 `cache/assets/custom/custom_paint/`。 |
+| `custom/` | 无目标 | 自定义素材功能已移除，不迁移到新布局；升级前如有需要仅保留在人工备份中。 |
 | `cache/player_data/` | `cache/api/player_data/` | 可选迁移 API 缓存内容。 |
 | `cache/player_card/` | `cache/rendered/player_card/` | 可选迁移玩家卡渲染缓存。 |
 | `cache/mh/` | `cache/api/mh/` | 可选迁移密函 API 缓存。 |
