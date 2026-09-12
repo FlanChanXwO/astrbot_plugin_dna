@@ -41,7 +41,6 @@ ATTR_PATH = RESOURCE_PATH / "attr"  # 属性
 MOD_PATH = RESOURCE_PATH / "mod"  # mod
 WEAPON_ATTR_PATH = RESOURCE_PATH / "weapon_attr"  # 武器属性
 WEEKLY_ITEM_PATH = RESOURCE_PATH / "weekly_item"  # 周报资源图标
-ID2NAME_PATH = RUNTIME_DATA_LAYOUT.id2name_path
 
 # 运行期别名统一放在 state/aliases，角色和武器文件名是稳定契约。
 ALIAS_PATH = RUNTIME_DATA_LAYOUT.aliases_dir

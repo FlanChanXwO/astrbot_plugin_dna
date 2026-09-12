@@ -45,7 +45,6 @@ def test_runtime_data_layout_exposes_new_production_paths_without_side_effects(
     assert layout.aliases_dir == data_dir / "state" / "aliases"
     assert layout.char_alias_path == data_dir / "state" / "aliases" / "char.json"
     assert layout.weapon_alias_path == data_dir / "state" / "aliases" / "weapon.json"
-    assert layout.id2name_path == data_dir / "state" / "aliases" / "id2name.json"
     assert layout.resources_dir == data_dir / "resources"
     assert layout.resource_repository_dir == data_dir / "resources" / "repository"
     assert layout.resource_generations_dir == data_dir / "resources" / "generations"

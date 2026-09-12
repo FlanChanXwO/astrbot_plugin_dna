@@ -31,7 +31,6 @@ LOGIN_QR_DIR_NAME = "login_qr"
 ALIASES_DIR_NAME = "aliases"
 CHAR_ALIAS_FILE_NAME = "char.json"
 WEAPON_ALIAS_FILE_NAME = "weapon.json"
-ID2NAME_FILE_NAME = "id2name.json"
 RESOURCE_REPOSITORY_DIR_NAME = "repository"
 RESOURCE_GENERATIONS_DIR_NAME = "generations"
 RESOURCE_GENERATION_STATE_FILE_NAME = "current.json"
@@ -127,12 +126,6 @@ class RuntimeDataLayout:
         """武器别名运行期文件。"""
 
         return self.aliases_dir / WEAPON_ALIAS_FILE_NAME
-
-    @property
-    def id2name_path(self) -> Path:
-        """角色和武器 ID 到名称的运行期索引文件。"""
-
-        return self.aliases_dir / ID2NAME_FILE_NAME
 
     @property
     def resources_dir(self) -> Path:
@@ -266,7 +259,6 @@ __all__ = [
     "DATABASE_DIR_NAME",
     "DATABASE_FILE_NAME",
     "GAME_AVATAR_DIR_NAME",
-    "ID2NAME_FILE_NAME",
     "LOGIN_QR_DIR_NAME",
     "MEDIA_CACHE_DIR_NAME",
     "RENDERED_CACHE_DIR_NAME",

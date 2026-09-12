@@ -8,7 +8,6 @@ from ...utils.resource.RESOURCE_PATH import (  # noqa: F401
     CALENDAR_PATH,
     CHAR_ALIAS_PATH,
     DNA_TEMPLATES,
-    ID2NAME_PATH,
     LOGIN_QR_PATH,
     MAIN_PATH,
     MOD_PATH,

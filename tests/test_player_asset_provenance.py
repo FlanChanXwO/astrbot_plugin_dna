@@ -12,6 +12,7 @@ from PIL import Image
 
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap, weapon_renderer
 from src.infrastructure.rendering import player as player_module
+from src.infrastructure.rendering.player_image_loader import PlayerImageLoader
 from src.infrastructure.resources import AssetResolver, ResolvedAsset
 from src.utils.image_utils import ImageFetcherClosed
 
@@ -180,7 +181,7 @@ async def test_role_detail_uses_one_bound_asset_resolver_for_snapshot_assets(
         SimpleNamespace(roleId="101", roleName="玩家", level=80, params=[]),
         _role_detail(),
         close_weapon=_weapon_detail(),
-        asset_resolver=resolver,
+        image_loader=PlayerImageLoader(resolver),
     )
 
     assert ("role_paint", "101", "https://cdn.example.test/paint.png") in resolver.calls

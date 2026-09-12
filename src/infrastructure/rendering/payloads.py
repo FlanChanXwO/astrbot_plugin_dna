@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import httpx
 from PIL import Image
@@ -13,6 +13,9 @@ from ...utils.image_utils import get_event_avatar
 from ...utils.resource.RESOURCE_PATH import USER_AVATAR_PATH
 from ...utils.session import EventContext
 from .assets import image_data_uri, pil_image_data_uri
+
+if TYPE_CHECKING:
+    from ..resources.resolver import AssetDownloader
 
 TEXTURE_PATH = Path(__file__).parents[2] / "resources" / "textures" / "common"
 
@@ -33,6 +36,7 @@ async def build_profile_header(
     stats: list[tuple[str, str]] | None = None,
     avatar_user_id: str | None = None,
     uid_hidden: bool = False,
+    downloader: AssetDownloader | None = None,
     image_loader: ProfileImageLoader | None = None,
 ) -> dict[str, object]:
     """保留原头像选择语义，返回可安全交给模板的资料头 payload。
@@ -47,7 +51,11 @@ async def build_profile_header(
         original_at = ctx.at
         ctx.at = avatar_user_id or ""
         try:
-            avatar = await get_event_avatar(ctx, avatar_path=USER_AVATAR_PATH)
+            avatar = await get_event_avatar(
+                ctx,
+                avatar_path=USER_AVATAR_PATH,
+                downloader=downloader,
+            )
         except (httpx.HTTPError, OSError, TypeError, ValueError):
             avatar = await get_avatar_img("5101")
         finally:

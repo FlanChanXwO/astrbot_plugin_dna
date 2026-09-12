@@ -6,7 +6,6 @@ import asyncio
 import math
 import random
 from collections.abc import Mapping
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
@@ -191,7 +190,6 @@ async def _draw_role_overview_card(
     uid_hidden: bool = False,
     hero_background_path: Path | None = None,
     *,
-    asset_resolver: Any | None = None,
     image_loader: PlayerImageLoader | None = None,
 ) -> bytes:
     role_chars = getattr(role_show, "roleChars", getattr(role_show, "role_chars", []))
@@ -281,8 +279,6 @@ async def _draw_role_overview_card(
         if getattr(item, "paramKey", getattr(item, "param_key", ""))
         in ("总活跃天数", "游戏时长")
     ]
-    if image_loader is None and asset_resolver is not None:
-        image_loader = PlayerImageLoader(asset_resolver)
     header_coro = build_profile_header(
         ctx,
         getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
@@ -362,7 +358,6 @@ async def draw_role_info_card_core(
     avatar_user_id: str | None = None,
     hero_background_path: Path | None = None,
     *,
-    asset_resolver: Any | None = None,
     image_loader: PlayerImageLoader | None = None,
 ) -> bytes:
     ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
@@ -372,7 +367,6 @@ async def draw_role_info_card_core(
         show_none=show_none,
         uid_hidden=uid_hidden,
         hero_background_path=hero_background_path,
-        asset_resolver=asset_resolver,
         image_loader=image_loader,
     )
 
@@ -588,7 +582,6 @@ async def _draw_role_detail_card(
     uid_hidden: bool = False,
     custom_panel: Path | None = None,
     *,
-    asset_resolver: Any | None = None,
     image_loader: PlayerImageLoader | None = None,
 ) -> tuple[bytes, Path | None]:
     damage = None
@@ -604,9 +597,6 @@ async def _draw_role_detail_card(
             damage_calc_response,
         )
 
-    image_loader = image_loader or (
-        PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
-    )
     weapon_inputs = [
         ("同律武器", con_weapon),
         ("近战武器", close_weapon),
@@ -941,10 +931,6 @@ class PlayerRenderer:
         self.resources = resources
         self.asset_resolver = asset_resolver
 
-    @contextmanager
-    def _asset_resolver_context(self):
-        yield self.asset_resolver
-
     def _font(self, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         font_path = getattr(self.resources, "font_path", None)
         return load_runtime_font(font_path, size)
@@ -1046,25 +1032,22 @@ class PlayerRenderer:
             else None
         )
         resolved_assets: tuple[ResolvedAsset, ...] = ()
-        with self._asset_resolver_context() as asset_resolver:
-            image_loader = (
-                PlayerImageLoader(asset_resolver)
-                if asset_resolver is not None
-                else None
-            )
-            image_bytes = await draw_role_info_card_core(
-                overview,
-                uid_hidden=uid_hidden,
-                show_none=show_unowned,
-                ev_stub=ev_stub,
-                avatar_user_id=target_user_id
-                or (actor.user_id if actor is not None else uid),
-                hero_background_path=hero_background,
-                asset_resolver=asset_resolver,
-                image_loader=image_loader,
-            )
-            if image_loader is not None:
-                resolved_assets = image_loader.resolved_assets
+        asset_resolver = self.asset_resolver
+        image_loader = (
+            PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
+        )
+        image_bytes = await draw_role_info_card_core(
+            overview,
+            uid_hidden=uid_hidden,
+            show_none=show_unowned,
+            ev_stub=ev_stub,
+            avatar_user_id=target_user_id
+            or (actor.user_id if actor is not None else uid),
+            hero_background_path=hero_background,
+            image_loader=image_loader,
+        )
+        if image_loader is not None:
+            resolved_assets = image_loader.resolved_assets
         lines = [
             overview.role_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -1215,29 +1198,26 @@ class PlayerRenderer:
             custom_panel = self.resources.original_panel(detail.char_id)
 
         resolved_assets: tuple[ResolvedAsset, ...] = ()
-        with self._asset_resolver_context() as asset_resolver:
-            image_loader = (
-                PlayerImageLoader(asset_resolver)
-                if asset_resolver is not None
-                else None
-            )
-            card_bytes, original_path = await _draw_role_detail_card(
-                ctx,
-                char_id,
-                char_name,
-                role_show,
-                detail,
-                con_weapon=con_weapon,
-                close_weapon=close_weapon,
-                ranged_weapon=ranged_weapon,
-                damage_calc_response=damage_response,
-                uid_hidden=uid_hidden,
-                custom_panel=custom_panel,
-                asset_resolver=asset_resolver,
-                image_loader=image_loader,
-            )
-            if image_loader is not None:
-                resolved_assets = image_loader.resolved_assets
+        asset_resolver = self.asset_resolver
+        image_loader = (
+            PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
+        )
+        card_bytes, original_path = await _draw_role_detail_card(
+            ctx,
+            char_id,
+            char_name,
+            role_show,
+            detail,
+            con_weapon=con_weapon,
+            close_weapon=close_weapon,
+            ranged_weapon=ranged_weapon,
+            damage_calc_response=damage_response,
+            uid_hidden=uid_hidden,
+            custom_panel=custom_panel,
+            image_loader=image_loader,
+        )
+        if image_loader is not None:
+            resolved_assets = image_loader.resolved_assets
         lines = [
             detail.char_name,
             f"UID {'***' if uid_hidden else uid}",

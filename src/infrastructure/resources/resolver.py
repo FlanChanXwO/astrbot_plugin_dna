@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, cast
 
 from PIL import Image
 
@@ -34,10 +33,6 @@ class AssetDownloader(Protocol):
         """把一个 URL 写入目标缓存文件。"""
 
 
-DownloadCallable: TypeAlias = Callable[[str, Path], Awaitable[Path | None]]
-Downloader: TypeAlias = AssetDownloader | DownloadCallable
-
-
 @dataclass(frozen=True, slots=True)
 class ResolvedAsset:
     """一个素材请求的解析结果及其来源元数据。"""
@@ -59,7 +54,7 @@ class _AssetSpec:
     cache_filename: str
 
 
-_ASSET_SPECS: dict[str, _AssetSpec] = {
+_ASSET_SPECS: dict[AssetKind, _AssetSpec] = {
     "role_avatar": _AssetSpec(
         snapshot_template="images/role_avatar/{id}.png",
         cache_directory="game_avatar",
@@ -97,11 +92,11 @@ def _normalize_identifier(asset_id: str | int) -> str:
     return identifier
 
 
-def _normalize_kind(kind: str) -> str:
+def _normalize_kind(kind: AssetKind) -> AssetKind:
     normalized = str(kind).strip()
     if normalized not in _ASSET_SPECS:
         raise ValueError(f"不支持的图片素材类型: {kind!r}")
-    return normalized
+    return cast(AssetKind, normalized)
 
 
 def _verified_file(root: Path | None, relative_path: str) -> Path | None:
@@ -161,7 +156,7 @@ class AssetResolver:
         dynamic_root: str | Path,
         snapshot_root: str | Path | None = None,
         coordinator: ResourceSnapshotCoordinator | None = None,
-        downloader: Downloader | None = None,
+        downloader: AssetDownloader | None = None,
     ) -> None:
         self.dynamic_root = _absolute_path(dynamic_root)
         assert self.dynamic_root is not None
@@ -175,7 +170,7 @@ class AssetResolver:
         snapshot: object | None,
         *,
         dynamic_root: str | Path,
-        downloader: Downloader | None = None,
+        downloader: AssetDownloader | None = None,
     ) -> AssetResolver:
         """从一个已持有的 generation snapshot 创建请求级 resolver。"""
 
@@ -186,7 +181,7 @@ class AssetResolver:
             downloader=downloader,
         )
 
-    def cache_path(self, kind: str, asset_id: str | int) -> Path:
+    def cache_path(self, kind: AssetKind, asset_id: str | int) -> Path:
         """返回指定素材的 L2 目标，不创建目录。"""
 
         normalized_kind = _normalize_kind(kind)
@@ -202,7 +197,7 @@ class AssetResolver:
 
     async def resolve(
         self,
-        kind: str,
+        kind: AssetKind,
         asset_id: str | int,
         *,
         url: str | None = None,
@@ -232,7 +227,7 @@ class AssetResolver:
     async def _resolve_with_snapshot(
         self,
         snapshot_root: Path | None,
-        kind: str,
+        kind: AssetKind,
         identifier: str,
         *,
         url: str | None,
@@ -275,7 +270,7 @@ class AssetResolver:
     def _result(
         path: Path | None,
         source: AssetSource,
-        kind: str,
+        kind: AssetKind,
         identifier: str,
     ) -> ResolvedAsset:
         return ResolvedAsset(
@@ -320,19 +315,18 @@ class AssetResolver:
         except OSError as exc:
             raise AssetResolutionError("无法清理损坏的动态素材缓存") from exc
 
-    async def _download_to_target(self, url: str, target: Path, kind: str) -> None:
+    async def _download_to_target(
+        self,
+        url: str,
+        target: Path,
+        kind: AssetKind,
+    ) -> None:
         downloader = self.downloader
         if downloader is None:
-            from ...utils.image_utils import download
-
-            await download(url, target.parent, target.name, tag=f"[DNA-{kind}]")
-            return
-
-        fetch = getattr(downloader, "fetch", None)
-        if callable(fetch):
-            await fetch(url, target, tag=f"[DNA-{kind}]")
-            return
-        await downloader(url, target)  # type: ignore[operator]
+            raise AssetResolutionError(
+                f"素材网络下载需要 runtime AssetDownloader: {kind}:{target.name}"
+            )
+        await downloader.fetch(url, target, tag=f"[DNA-{kind}]")
 
 
 __all__ = [

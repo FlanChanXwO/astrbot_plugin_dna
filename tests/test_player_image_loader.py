@@ -39,6 +39,21 @@ class _RuntimeResolver:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("asset_id", ("", "   "))
+async def test_player_image_loader_rejects_empty_cache_components(
+    tmp_path: Path,
+    asset_id: str,
+) -> None:
+    """空或全空白素材 ID 不能生成无效的动态缓存文件名。"""
+
+    downloader = _RuntimeDownloader("red")
+    loader = PlayerImageLoader(_RuntimeResolver(tmp_path / "assets", downloader))
+
+    with pytest.raises(ValueError, match="动态素材标识不能是路径段"):
+        await loader.attr(asset_id, "https://cdn.example.test/attr.png")
+
+
+@pytest.mark.asyncio
 async def test_player_image_loader_uses_distinct_url_cache_targets(
     tmp_path: Path,
 ) -> None:

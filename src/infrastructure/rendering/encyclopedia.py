@@ -48,6 +48,7 @@ from ...utils.resource.RESOURCE_PATH import CALENDAR_PATH, WEEKLY_ITEM_PATH
 from ...utils.session import EventContext, Sender
 from ...utils.utils import get_using_id, is_peek_blocked, is_uid_hidden
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
@@ -120,6 +121,7 @@ async def _draw_stamina_card_view(
     short_note: PlayerShortNote,
     uid_hidden: bool = False,
     bg_path: Path | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     """直接从便签/角色头部 DTO 构造模板输入。"""
 
@@ -136,6 +138,7 @@ async def _draw_stamina_card_view(
         stats=other_info,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
     )
     raw_notes = [
         (
@@ -216,6 +219,7 @@ async def _draw_stamina_card(
     short_note_info: DNARoleShortNoteRes,
     uid_hidden: bool = False,
     bg_path: Path | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     """组装 legacy 便签 payload；typed DTO 走最小 view 分支。"""
 
@@ -223,7 +227,12 @@ async def _draw_stamina_card(
         short_note_info, PlayerShortNote
     ):
         return await _draw_stamina_card_view(
-            ctx, role_show, short_note_info, uid_hidden=uid_hidden, bg_path=bg_path
+            ctx,
+            role_show,
+            short_note_info,
+            uid_hidden=uid_hidden,
+            bg_path=bg_path,
+            downloader=downloader,
         )
 
     other_info = [
@@ -239,6 +248,7 @@ async def _draw_stamina_card(
         stats=other_info,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
     )
 
     raw_notes = [
@@ -324,8 +334,9 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
         if short_note is None:
             raise ValueError("缺少 short_note_info 参数")
         uid_hidden = bool(kwargs.get("uid_hidden", False))
+        downloader = kwargs.get("downloader")
         return await _draw_stamina_card(
-            ctx, role_show, short_note, uid_hidden=uid_hidden
+            ctx, role_show, short_note, uid_hidden=uid_hidden, downloader=downloader
         )
     elif len(args) >= 2:
         short_note = args[0]
@@ -337,8 +348,9 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
             user_id=kwargs.get("avatar_user_id", "0")
         )
         uid_hidden = bool(kwargs.get("uid_hidden", False))
+        downloader = kwargs.get("downloader")
         raw_bytes = await _draw_stamina_card(
-            ctx, role_show, short_note, uid_hidden=uid_hidden
+            ctx, role_show, short_note, uid_hidden=uid_hidden, downloader=downloader
         )
         return Image.open(BytesIO(raw_bytes)).convert("RGBA")
     else:
@@ -395,7 +407,10 @@ def weekly_item_display_name(name: str) -> str:
 
 
 async def _weekly_item_payload(
-    item, item_assets: dict[int, Image.Image | Path] | None = None
+    item,
+    item_assets: dict[int, Image.Image | Path] | None = None,
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> dict[str, object]:
     item_id = getattr(item, "item_id", getattr(item, "itemId", 0))
     item_name = getattr(item, "item_name", getattr(item, "itemName", ""))
@@ -419,7 +434,11 @@ async def _weekly_item_payload(
         else:
             try:
                 img = await download_pic_from_url(
-                    WEEKLY_ITEM_PATH, item_icon, size=(105, 105), name=name
+                    WEEKLY_ITEM_PATH,
+                    item_icon,
+                    size=(105, 105),
+                    name=name,
+                    downloader=downloader,
                 )
                 icon = pil_image_data_uri(img)
             except (OSError, httpx.HTTPError):
@@ -443,6 +462,7 @@ async def _draw_weekly_report_card_view(
     week_type: int = 1,
     uid_hidden: bool = False,
     item_assets: dict[int, Image.Image | Path] | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     """直接从周报领域 DTO 构造模板输入。"""
 
@@ -459,11 +479,19 @@ async def _draw_weekly_report_card_view(
         stats=other_info,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
     )
     category_items = await asyncio.gather(
         *(
             asyncio.gather(
-                *(_weekly_item_payload(item, item_assets) for item in category.items)
+                *(
+                    _weekly_item_payload(
+                        item,
+                        item_assets,
+                        downloader=downloader,
+                    )
+                    for item in category.items
+                )
             )
             for category in report.categories
         )
@@ -506,6 +534,7 @@ async def _draw_weekly_report_card(
     week_type: int = 1,
     uid_hidden: bool = False,
     item_assets: dict[int, Image.Image | Path] | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     if isinstance(role_show, RoleHeader) and isinstance(report, WeeklyReport):
         return await _draw_weekly_report_card_view(
@@ -515,6 +544,7 @@ async def _draw_weekly_report_card(
             week_type=week_type,
             uid_hidden=uid_hidden,
             item_assets=item_assets,
+            downloader=downloader,
         )
 
     other_info = [
@@ -530,11 +560,19 @@ async def _draw_weekly_report_card(
         stats=other_info,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
     )
     category_items = await asyncio.gather(
         *(
             asyncio.gather(
-                *(_weekly_item_payload(item, item_assets) for item in category.items)
+                *(
+                    _weekly_item_payload(
+                        item,
+                        item_assets,
+                        downloader=downloader,
+                    )
+                    for item in category.items
+                )
             )
             for category in report.categories
         )
@@ -580,6 +618,7 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
         week_type = int(kwargs.get("week_type", 1))
         uid_hidden = bool(kwargs.get("uid_hidden", False))
         item_assets = kwargs.get("item_assets")
+        downloader = kwargs.get("downloader")
         return await _draw_weekly_report_card(
             ctx,
             role_show,
@@ -587,6 +626,7 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
             week_type=week_type,
             uid_hidden=uid_hidden,
             item_assets=item_assets,
+            downloader=downloader,
         )
     elif len(args) >= 2:
         report = args[0]
@@ -600,6 +640,7 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
         week_type = int(kwargs.get("week_type", 1))
         uid_hidden = bool(kwargs.get("uid_hidden", False))
         item_assets = kwargs.get("item_assets")
+        downloader = kwargs.get("downloader")
         raw_bytes = await _draw_weekly_report_card(
             ctx,
             role_show,
@@ -607,6 +648,7 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
             week_type=week_type,
             uid_hidden=uid_hidden,
             item_assets=item_assets,
+            downloader=downloader,
         )
         return Image.open(BytesIO(raw_bytes)).convert("RGBA")
     else:
@@ -822,11 +864,20 @@ def _event_payload(cont: CalendarContent, now: datetime) -> dict[str, object]:
     return payload
 
 
-async def _event_image(cont: CalendarContent) -> str | None:
+async def _event_image(
+    cont: CalendarContent,
+    *,
+    downloader: AssetDownloader | None = None,
+) -> str | None:
     if not cont.pic:
         return None
     if "http" in cont.pic:
-        image = await download_pic_from_url(CALENDAR_PATH, cont.pic, size=(100, 100))
+        image = await download_pic_from_url(
+            CALENDAR_PATH,
+            cont.pic,
+            size=(100, 100),
+            downloader=downloader,
+        )
         return pil_image_data_uri(image)
     pic_path = CALENDAR_TEXT_PATH / cont.pic
     return image_data_uri(pic_path) if pic_path.exists() else None
@@ -836,6 +887,8 @@ async def _draw_calendar_card_bytes(
     content: list[CalendarContent],
     calendar_assets: Mapping[str, Image.Image | Path] | None = None,
     now: datetime | None = None,
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     if now is None:
         now = datetime.now(SHANGHAI_TZ)
@@ -851,7 +904,7 @@ async def _draw_calendar_card_bytes(
             else:
                 event["icon"] = str(asset)
         else:
-            event["icon"] = await _event_image(item)
+            event["icon"] = await _event_image(item, downloader=downloader)
         events.append(event)
 
     height = 880 + 170 * ((len(events) + 1) // 2)
@@ -883,10 +936,17 @@ async def draw_calendar_card(
     content: list[CalendarContent],
     calendar_assets: Mapping[str, Image.Image | Path] | None = None,
     now: datetime | None = None,
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> Image.Image:
     """兼容旧调用者返回 Pillow 图像；运行期 renderer 使用 raw bytes 边界。"""
 
-    raw_bytes = await _draw_calendar_card_bytes(content, calendar_assets, now)
+    raw_bytes = await _draw_calendar_card_bytes(
+        content,
+        calendar_assets,
+        now,
+        downloader=downloader,
+    )
     return Image.open(BytesIO(raw_bytes)).convert("RGBA")
 
 
@@ -1047,10 +1107,15 @@ class EncyclopediaRenderer:
     """生成百科/便签/周报/日历卡片的运行期 PNG。"""
 
     def __init__(
-        self, output_dir: str | Path, resources: EncyclopediaResourceStore
+        self,
+        output_dir: str | Path,
+        resources: EncyclopediaResourceStore,
+        *,
+        downloader: AssetDownloader | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
+        self.downloader = downloader
 
     def _font_resource(self) -> dict[str, str]:
         return {
@@ -1227,7 +1292,11 @@ class EncyclopediaRenderer:
             else actor.unified_msg_origin,
         )
         image_bytes = await _draw_stamina_card(
-            ctx, role_show, short_note, uid_hidden=uid_hidden
+            ctx,
+            role_show,
+            short_note,
+            uid_hidden=uid_hidden,
+            downloader=self.downloader,
         )
 
         rougelike_count = getattr(
@@ -1386,6 +1455,7 @@ class EncyclopediaRenderer:
             report,
             week_type=report_week_type,
             uid_hidden=uid_hidden,
+            downloader=self.downloader,
         )
 
         lines = [
@@ -1462,7 +1532,9 @@ class EncyclopediaRenderer:
             for event in snapshot.events
         ]
         image_bytes = await _draw_calendar_card_bytes(
-            contents, calendar_assets=self.resources.calendar_assets
+            contents,
+            calendar_assets=self.resources.calendar_assets,
+            downloader=self.downloader,
         )
         lines = ["二重螺旋 · 活动日历"]
         for event in snapshot.events:

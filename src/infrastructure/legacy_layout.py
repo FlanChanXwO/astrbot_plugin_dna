@@ -111,15 +111,8 @@ class LegacyLayoutDetector:
             raise LegacyLayoutError(issues)
 
 
-def ensure_no_legacy_layout(layout: RuntimeDataLayout | str | Path) -> None:
-    """校验运行期数据根可用于新布局。"""
-
-    LegacyLayoutDetector(layout).ensure_compatible()
-
-
 __all__ = [
     "LegacyLayoutDetector",
     "LegacyLayoutError",
     "LegacyLayoutIssue",
-    "ensure_no_legacy_layout",
 ]

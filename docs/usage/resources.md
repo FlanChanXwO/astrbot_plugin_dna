@@ -81,7 +81,6 @@
 | `resource/alias/weapon_alias.json` | `state/aliases/weapon.json` | 只迁移用户自定义项，避免覆盖新版本内置别名。 |
 | `alias_custom.json` | `state/aliases/char.json` | 旧文件若存在，合并其用户自定义角色别名；不要把两个 JSON 文件直接拼接。 |
 | `weapon_alias_custom.json` | `state/aliases/weapon.json` | 旧文件若存在，合并其用户自定义武器别名。 |
-| `resource/id2name.json` | `state/aliases/id2name.json` | 迁移后仍由资源/别名逻辑校验；无法确认格式时保留备份并重新生成。 |
 | `resource/avatar/` | `cache/assets/game_avatar/` | 可选迁移；这是动态游戏头像缓存，不是公共资源 generation。 |
 | `resource/weapon/`、`resource/paint/`、`resource/skill/`、`resource/attr/`、`resource/mod/`、`resource/weapon_attr/`、`resource/weekly_item/` | `cache/assets/<对应目录>/` | 可选迁移动态素材；只复制目录内容，不要把它们当作已校验公共快照。 |
 | `resource_generations/` | `resources/generations/` | 可复制整个 generation 树，但启动后必须执行 `dna资源状态` 验证；校验失败时恢复备份并重新同步，不要手工改 current 指针。 |

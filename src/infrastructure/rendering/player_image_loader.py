@@ -32,7 +32,6 @@ def _placeholder(size: tuple[int, int]) -> Image.Image:
 
 def _load_resolved_image(
     path: Path,
-    placeholder_size: tuple[int, int],
 ) -> Image.Image | None:
     """读取 resolver 已验证的路径，并在解码失败时保留现有占位语义。"""
 
@@ -93,7 +92,7 @@ async def _resolve_image(
     asset = resolved
     if asset.path is None:
         return PreparedImage(_placeholder(placeholder_size), asset)
-    image = _load_resolved_image(asset.path, placeholder_size)
+    image = _load_resolved_image(asset.path)
     if image is None:
         return PreparedImage(
             _placeholder(placeholder_size), _missing_asset(kind, asset_id)
@@ -142,7 +141,8 @@ class PlayerImageLoader:
 
         component = str(value).strip()
         if (
-            component in {".", ".."}
+            not component
+            or component in {".", ".."}
             or "/" in component
             or "\\" in component
             or "\x00" in component
@@ -222,7 +222,7 @@ class PlayerImageLoader:
             return _placeholder(placeholder_size)
 
         self._validate_runtime_target(target)
-        image = _load_resolved_image(target, placeholder_size)
+        image = _load_resolved_image(target)
         if image is not None:
             self._remember(
                 ResolvedAsset(
@@ -246,11 +246,7 @@ class PlayerImageLoader:
 
         try:
             self._validate_runtime_target(target)
-            fetch = getattr(downloader, "fetch", None)
-            if callable(fetch):
-                await fetch(url, target, tag=f"[DNA-{kind}]")
-            else:
-                await downloader(url, target)
+            await downloader.fetch(url, target, tag=f"[DNA-{kind}]")
             self._validate_runtime_target(target)
         except (OSError, httpx.HTTPError):
             if optional:
@@ -259,7 +255,7 @@ class PlayerImageLoader:
             self._remember(asset)
             return _placeholder(placeholder_size)
 
-        image = _load_resolved_image(target, placeholder_size)
+        image = _load_resolved_image(target)
         if image is None:
             if optional:
                 return _placeholder(placeholder_size)

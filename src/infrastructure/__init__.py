@@ -5,7 +5,6 @@ from .legacy_layout import (
     LegacyLayoutDetector,
     LegacyLayoutError,
     LegacyLayoutIssue,
-    ensure_no_legacy_layout,
 )
 from .scheduler_state import (
     BUILTIN_SCHEDULER_TASK_IDS,
@@ -41,7 +40,6 @@ __all__ = [
     "SchedulerTaskSnapshot",
     "SchedulerTaskState",
     "SchedulerTaskUnavailable",
-    "ensure_no_legacy_layout",
     "normalize_scheduler_schedule",
     "parse_scheduler_schedule",
 ]

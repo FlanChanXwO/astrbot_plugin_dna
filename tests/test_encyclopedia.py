@@ -14,6 +14,7 @@ from PIL import Image
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
+from src.infrastructure.rendering import encyclopedia as encyclopedia_module
 from src.infrastructure.rendering.artifact_store import read_rendered_artifact
 from src.infrastructure.rendering.encyclopedia import EncyclopediaRenderer
 from src.infrastructure.resources.encyclopedia import (
@@ -37,6 +38,7 @@ from src.modules.encyclopedia.contracts import (
 from src.modules.encyclopedia.service import EncyclopediaService
 from src.modules.player.contracts import RoleAchievement, RoleOverview
 from src.modules.privacy import PrivacyService
+from src.utils import image as image_module
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 UID = "1234567890123"
@@ -265,6 +267,72 @@ def _resources(tmp_path: Path) -> EncyclopediaResourceStore:
     )
 
 
+@pytest.mark.asyncio
+async def test_encyclopedia_renderers_keep_runtime_image_fetchers_isolated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """关闭 runtime B 后，runtime A 的日历图片仍使用自己的 downloader。"""
+
+    class RuntimeDownloader:
+        def __init__(self, color: str) -> None:
+            self.color = color
+            self.closed = False
+            self.calls: list[str] = []
+
+        async def fetch(self, url: str, target: Path, *, tag: str = "") -> Path:
+            del tag
+            if self.closed:
+                raise RuntimeError(f"{self.color} downloader 已关闭")
+            self.calls.append(url)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            Image.new("RGBA", (24, 24), self.color).save(target)
+            return target
+
+    async def fail_global_download(*_args: object, **_kwargs: object) -> Path:
+        return pytest.fail("正常 Encyclopedia runtime 不应调用 global downloader")
+
+    async def fake_render(*_args: object, **_kwargs: object) -> bytes:
+        output = BytesIO()
+        Image.new("RGB", (24, 24), "white").save(output, format="JPEG")
+        return output.getvalue()
+
+    monkeypatch.setattr(encyclopedia_module, "CALENDAR_PATH", tmp_path / "calendar")
+    monkeypatch.setattr(encyclopedia_module._RENDERER, "render", fake_render)
+    monkeypatch.setattr(
+        image_module,
+        "download",
+        fail_global_download,
+    )
+    snapshot = CalendarSnapshot(
+        events=(
+            CalendarEvent(
+                title="网络活动",
+                pic="https://cdn.example.test/calendar.png",
+            ),
+        ),
+    )
+    downloader_a = RuntimeDownloader("red")
+    downloader_b = RuntimeDownloader("blue")
+    renderer_a = EncyclopediaRenderer(
+        tmp_path / "rendered-a",
+        EncyclopediaResourceStore(),
+        downloader=downloader_a,
+    )
+    renderer_b = EncyclopediaRenderer(
+        tmp_path / "rendered-b",
+        EncyclopediaResourceStore(),
+        downloader=downloader_b,
+    )
+
+    await renderer_b.render_calendar(snapshot)
+    downloader_b.closed = True
+    await renderer_a.render_calendar(snapshot)
+
+    assert downloader_b.calls == ["https://cdn.example.test/calendar.png"]
+    assert downloader_a.calls == ["https://cdn.example.test/calendar.png"]
+
+
 def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(
     tmp_path: Path,
 ) -> None:
@@ -454,7 +522,9 @@ async def test_stamina_card_view_payload_includes_footer_image(
 
     captured_context: dict[str, object] = {}
 
-    async def fake_render(template_name: str, context: dict[str, object], spec: object) -> bytes:
+    async def fake_render(
+        template_name: str, context: dict[str, object], spec: object
+    ) -> bytes:
         captured_context.update(context)
         return b"fake-card"
 
@@ -671,6 +741,7 @@ async def test_calendar_is_global_and_ignores_mention_privacy(tmp_path: Path) ->
         PrivacyService(database, allow_mention_query=False),
         EncyclopediaRenderer(tmp_path / "rendered", resources),
         resources,
+        rendered_root=tmp_path / "rendered",
     )
     response = await service.calendar(
         EncyclopediaRequest(
@@ -696,6 +767,7 @@ def _service(
         EncyclopediaRenderer(tmp_path / "rendered", resources),
         resources,
         guide_providers=("all",),
+        rendered_root=tmp_path / "rendered",
     )
 
 

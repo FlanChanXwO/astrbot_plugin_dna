@@ -19,13 +19,16 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 from astrbot.api import logger
 from PIL import Image
 
 from .session import EventContext
+
+if TYPE_CHECKING:
+    from ..infrastructure.resources.resolver import AssetDownloader
 
 __all__ = [
     "ImageFetchError",
@@ -641,17 +644,22 @@ async def download(
     path: Path,
     name: str,
     tag: str = "",
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> Path:
     """下载 url 到 ``path/name``，保留 legacy 调用方的参数形状。"""
 
     target = _resolve_download_target(path, name)
-    return await get_default_image_fetcher().fetch(url, target, tag=tag)
+    fetcher = get_default_image_fetcher() if downloader is None else downloader
+    return await fetcher.fetch(url, target, tag=tag)
 
 
 async def get_event_avatar(
     ev: EventContext,
     avatar_path: Path,
     size: int = 640,
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> Image.Image:
     """获取事件用户头像（QQ 头像源），缓存到 avatar_path。
 
@@ -662,7 +670,7 @@ async def get_event_avatar(
     name = f"avatar_{uid}.png"
     target = avatar_path / name
     url = f"https://q1.qlogo.cn/g?b=qq&nk={uid}&s={size}"
-    await download(url, avatar_path, name, tag="[DNA-avatar]")
+    await download(url, avatar_path, name, tag="[DNA-avatar]", downloader=downloader)
     img = Image.open(target).convert("RGBA")
     return img.resize((size, size), Image.Resampling.LANCZOS)
 

@@ -391,7 +391,11 @@ def build_runtime(
             request_gate=request_gate,
         ),
         privacy_service,
-        EncyclopediaRenderer(rendered_root, encyclopedia_resources),
+        EncyclopediaRenderer(
+            rendered_root,
+            encyclopedia_resources,
+            downloader=image_fetcher,
+        ),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
         resource_snapshots=resource_snapshots,
@@ -410,6 +414,7 @@ def build_runtime(
     checkin_renderer = CheckinRenderer(
         rendered_root,
         encyclopedia_resources,
+        downloader=image_fetcher,
     )
     checkin_service = CheckinService(
         runtime_database,
@@ -463,6 +468,7 @@ def build_runtime(
         simple_image=settings.notifications.secret_simple_image,
         cache_manager=cache_manager,
         request_gate=request_gate,
+        downloader=image_fetcher,
     )
 
     async def _push_notice(
