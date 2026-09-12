@@ -134,48 +134,6 @@ async def test_corrupt_l1_is_not_overwritten_and_valid_l2_wins(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
-async def test_coordinator_binds_resolver_to_current_generation(tmp_path: Path) -> None:
-    """解析器通过 coordinator context 固定当前 generation。"""
-
-    from src.infrastructure.rendering import ResourceMap
-    from src.infrastructure.resources import (
-        EncyclopediaResourceStore,
-        ResourceManifest,
-        ResourceSnapshot,
-        ResourceSnapshotCoordinator,
-    )
-
-    public = tmp_path / "generation"
-    public_path = public / "images" / "role_avatar" / "101.png"
-    _write_image(public_path)
-    coordinator = ResourceSnapshotCoordinator(
-        tmp_path / "repository",
-        generations_root=tmp_path / "generations",
-    )
-    coordinator._current = ResourceSnapshot(
-        commit_sha="a" * 40,
-        root=public,
-        manifest=ResourceManifest(
-            format_version=1,
-            required_dirs=("images",),
-            resource_version="test",
-        ),
-        player_resources=ResourceMap.from_root(public),
-        encyclopedia_resources=EncyclopediaResourceStore(),
-    )
-
-    with coordinator.bind_asset_resolver(
-        dynamic_root=tmp_path / "cache" / "assets",
-        downloader=_RecordingDownloader(),
-    ) as resolver:
-        resolved = await resolver.resolve("role_avatar", 101)
-        assert resolved.path == public_path
-        assert resolved.source == "verified_snapshot"
-
-    assert coordinator._leases == {}
-
-
-@pytest.mark.asyncio
 async def test_bind_renderer_shares_generation_lease_with_asset_resolver(
     tmp_path: Path,
 ) -> None:

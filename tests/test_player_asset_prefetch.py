@@ -12,7 +12,7 @@ from PIL import Image
 
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap, weapon_renderer
 from src.infrastructure.rendering import player as player_module
-from src.infrastructure.resources import AssetResolver
+from src.infrastructure.resources import AssetResolver, ResolvedAsset
 from src.utils.image_utils import ImageFetcherClosed
 
 
@@ -198,13 +198,21 @@ class _ResolverProbe:
     async def resolve(
         self,
         kind: str,
-        asset_id: str | int | None = None,
+        asset_id: str | int,
         *,
         url: str | None = None,
-    ):
+    ) -> ResolvedAsset:
         key = (kind, str(asset_id))
         self.calls.append((kind, str(asset_id), url))
-        return SimpleNamespace(path=self.paths.get(key))
+        path = self.paths.get(key)
+        return ResolvedAsset(
+            path=path,
+            source="dynamic_cache" if path is not None else "none",
+            status="provided" if path is not None else "missing",
+            incomplete=path is None,
+            kind=kind,
+            asset_id=str(asset_id),
+        )
 
 
 @pytest.mark.asyncio
@@ -666,6 +674,27 @@ class _RuntimeResolver:
     def __init__(self, root: Path, downloader: _RuntimeDownloader) -> None:
         self.dynamic_root = root
         self.downloader = downloader
+
+
+@pytest.mark.asyncio
+async def test_player_image_loader_uses_distinct_url_cache_targets(
+    tmp_path: Path,
+) -> None:
+    """不同版本的同名 URL 素材不能复用同一属性图缓存文件。"""
+
+    downloader = _RuntimeDownloader("red")
+    loader = player_module._PlayerImageLoader(
+        _RuntimeResolver(tmp_path / "assets", downloader)
+    )
+    url_v2 = "https://cdn.example.test/icons/fire.v2.icon.png"
+    url_v3 = "https://cdn.example.test/icons/fire.v3.icon.png"
+
+    await loader.attr(None, url_v2)
+    await loader.attr(None, url_v3)
+
+    cached_files = sorted((tmp_path / "assets" / "attr").glob("*.png"))
+    assert len(cached_files) == 2
+    assert downloader.calls == [url_v2, url_v3]
 
 
 @pytest.mark.asyncio

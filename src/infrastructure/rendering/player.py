@@ -8,9 +8,11 @@ import random
 from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import httpx
 from PIL import Image, ImageFont, ImageOps
@@ -117,28 +119,6 @@ def _missing_asset(kind: str, asset_id: str | int) -> ResolvedAsset:
     )
 
 
-def _coerce_resolved_asset(
-    resolved: object,
-    kind: str,
-    asset_id: str | int,
-) -> ResolvedAsset:
-    """兼容测试替身，同时让正式 resolver 结果保持原始 provenance。"""
-
-    if isinstance(resolved, ResolvedAsset):
-        return resolved
-    path = getattr(resolved, "path", resolved)
-    if path is None:
-        return _missing_asset(kind, asset_id)
-    return ResolvedAsset(
-        path=Path(path),
-        source="dynamic_cache",
-        status="provided",
-        incomplete=False,
-        kind=kind,
-        asset_id=str(asset_id),
-    )
-
-
 async def _resolve_image(
     asset_resolver: Any,
     kind: str,
@@ -158,7 +138,9 @@ async def _resolve_image(
         return PreparedImage(
             _placeholder(placeholder_size), _missing_asset(kind, asset_id)
         )
-    asset = _coerce_resolved_asset(resolved, kind, asset_id)
+    if not isinstance(resolved, ResolvedAsset):
+        raise TypeError("AssetResolver.resolve 必须返回 ResolvedAsset")
+    asset = resolved
     if asset.path is None:
         return PreparedImage(_placeholder(placeholder_size), asset)
     image = _load_resolved_image(asset.path, placeholder_size)
@@ -462,7 +444,12 @@ class _PlayerImageLoader:
     def _url_asset_id(url: str | None) -> str:
         if not url:
             raise ValueError("素材 ID 和 URL 不能同时为空")
-        return url.rsplit("/", 1)[-1].split(".", 1)[0]
+        parsed = urlsplit(url)
+        if not parsed.path:
+            raise ValueError("素材 URL 缺少路径")
+        # URL basename 可能在不同目录、版本或 query 下重复；属性图没有稳定
+        # upstream ID 时使用完整 URL 的稳定摘要，避免不同素材共用同一 L2 文件。
+        return sha256(url.encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------------------

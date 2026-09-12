@@ -20,7 +20,6 @@ from src.infrastructure.resources import (
     resource_repository_dir,
     resource_validation_state_path,
 )
-from src.modules.client_updates.state import ClientUpdateStateStore
 
 
 def test_runtime_data_layout_exposes_new_production_paths_without_side_effects(
@@ -62,54 +61,7 @@ def test_runtime_data_layout_exposes_new_production_paths_without_side_effects(
     assert layout.cache_dir == data_dir / "cache"
     assert layout.backups_dir == data_dir / "backups"
     assert layout.backups_database_dir == data_dir / "backups" / "database"
-    assert layout.backups_state_dir == data_dir / "backups" / "state"
-    assert layout.client_update_migration_backup_path == (
-        data_dir / "backups" / "state" / "client_update.json.v2.bak"
-    )
     assert not data_dir.exists()
-
-
-def test_client_update_state_store_accepts_explicit_migration_backup_path(
-    tmp_path: Path,
-) -> None:
-    """状态迁移备份可由统一布局注入，且不落在状态文件旁车。"""
-
-    layout = RuntimeDataLayout(tmp_path / "plugin-data")
-    store = ClientUpdateStateStore(
-        layout.client_update_state_path,
-        migration_backup_path=layout.client_update_migration_backup_path,
-    )
-
-    assert store.path == layout.client_update_state_path
-    assert store.migration_backup_path == layout.client_update_migration_backup_path
-    assert store.migration_backup_path.parent == layout.backups_state_dir
-    assert not (
-        layout.client_update_state_path.parent / "client_update.json.v2.bak"
-    ).exists()
-
-
-@pytest.mark.asyncio
-async def test_client_update_state_migration_writes_backup_under_backups_state(
-    tmp_path: Path,
-) -> None:
-    """State v2 迁移保留原始字节，但备份不污染 state 目录。"""
-
-    layout = RuntimeDataLayout(tmp_path / "plugin-data")
-    raw_state = b'{"schema_version": 2, "baselines": {}, "pending_events": []}'
-    layout.client_update_state_path.parent.mkdir(parents=True)
-    layout.client_update_state_path.write_bytes(raw_state)
-
-    store = ClientUpdateStateStore(
-        layout.client_update_state_path,
-        migration_backup_path=layout.client_update_migration_backup_path,
-    )
-    await store.load()
-
-    assert layout.client_update_migration_backup_path.read_bytes() == raw_state
-    assert layout.client_update_state_path.exists()
-    assert not (
-        layout.client_update_state_path.parent / "client_update.json.v2.bak"
-    ).exists()
 
 
 def test_runtime_data_layout_from_data_dir_accepts_string_path(
@@ -269,10 +221,6 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
         assert notices_service.ann_delivery_state.path == layout.ann_delivery_state_path
         client_update_state = runtime.services["client_update_state"]
         assert client_update_state.path == layout.client_update_state_path
-        assert (
-            client_update_state.migration_backup_path
-            == layout.client_update_migration_backup_path
-        )
 
         for old_path in (
             tmp_path / "subscriptions.json",

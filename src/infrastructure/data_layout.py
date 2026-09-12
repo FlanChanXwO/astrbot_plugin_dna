@@ -18,8 +18,6 @@ RESOURCES_DIR_NAME = "resources"
 CACHE_DIR_NAME = "cache"
 BACKUPS_DIR_NAME = "backups"
 BACKUP_DATABASE_DIR_NAME = "database"
-BACKUP_STATE_DIR_NAME = "state"
-CLIENT_UPDATE_MIGRATION_BACKUP_FILE_NAME = "client_update.json.v2.bak"
 ASSETS_DIR_NAME = "assets"
 API_CACHE_DIR_NAME = "api"
 RENDERED_CACHE_DIR_NAME = "rendered"
@@ -264,34 +262,20 @@ class RuntimeDataLayout:
 
         return self.backups_dir / BACKUP_DATABASE_DIR_NAME
 
-    @property
-    def backups_state_dir(self) -> Path:
-        """状态迁移原始文件备份目录。"""
-
-        return self.backups_dir / BACKUP_STATE_DIR_NAME
-
-    @property
-    def client_update_migration_backup_path(self) -> Path:
-        """客户端更新 State v2 迁移的原始字节备份文件。"""
-
-        return self.backups_state_dir / CLIENT_UPDATE_MIGRATION_BACKUP_FILE_NAME
-
 
 __all__ = [
     "ALIASES_DIR_NAME",
+    "ANNOUNCEMENTS_DIR_NAME",
     "ANNOUNCEMENT_DELIVERY_FILE_NAME",
     "ANNOUNCEMENT_SEEN_FILE_NAME",
-    "ANNOUNCEMENTS_DIR_NAME",
     "ANN_CARD_DIR_NAME",
     "API_CACHE_DIR_NAME",
     "ASSETS_DIR_NAME",
-    "BACKUP_DATABASE_DIR_NAME",
-    "BACKUP_STATE_DIR_NAME",
     "BACKUPS_DIR_NAME",
+    "BACKUP_DATABASE_DIR_NAME",
     "CACHE_DIR_NAME",
     "CALENDAR_DIR_NAME",
     "CHAR_ALIAS_FILE_NAME",
-    "CLIENT_UPDATE_MIGRATION_BACKUP_FILE_NAME",
     "CLIENT_UPDATE_STATE_FILE_NAME",
     "CUSTOM_DIR_NAME",
     "CUSTOM_PAINT_DIR_NAME",

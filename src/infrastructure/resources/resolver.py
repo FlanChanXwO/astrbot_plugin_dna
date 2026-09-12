@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
@@ -50,37 +49,6 @@ class ResolvedAsset:
     kind: str = ""
     asset_id: str = ""
 
-    @property
-    def logical_key(self) -> str:
-        """返回不包含绝对路径的稳定逻辑 key。"""
-
-        if not self.kind or not self.asset_id:
-            return ""
-        return f"image:{self.kind}:{self.asset_id}"
-
-    @property
-    def layer(self) -> str:
-        """返回便于观测的 L1/L2/网络层名称。"""
-
-        return {
-            "verified_snapshot": "L1",
-            "dynamic_cache": "L2",
-            "download": "network",
-            "none": "none",
-        }[self.source]
-
-    @property
-    def is_l1(self) -> bool:
-        return self.source == "verified_snapshot"
-
-    @property
-    def is_l2(self) -> bool:
-        return self.source == "dynamic_cache"
-
-    @property
-    def was_downloaded(self) -> bool:
-        return self.source == "download"
-
 
 @dataclass(frozen=True, slots=True)
 class _AssetSpec:
@@ -109,15 +77,6 @@ _ASSET_SPECS: dict[str, _AssetSpec] = {
     ),
 }
 
-_KIND_ALIASES = {
-    "avatar": "role_avatar",
-    "role-avatar": "role_avatar",
-    "paint": "role_paint",
-    "role-paint": "role_paint",
-    "weapon_icon": "weapon",
-    "weapon-icon": "weapon",
-}
-
 
 def _absolute_path(path: str | Path | None) -> Path | None:
     if path is None:
@@ -139,27 +98,10 @@ def _normalize_identifier(asset_id: str | int) -> str:
 
 
 def _normalize_kind(kind: str) -> str:
-    normalized = str(kind).strip().casefold()
-    normalized = _KIND_ALIASES.get(normalized, normalized)
+    normalized = str(kind).strip()
     if normalized not in _ASSET_SPECS:
         raise ValueError(f"不支持的图片素材类型: {kind!r}")
     return normalized
-
-
-def _parse_logical_request(kind: str, asset_id: str | int | None) -> tuple[str, str]:
-    """接受类型+ID，也接受 ``image:<kind>:<id>`` 逻辑 key。"""
-
-    if asset_id is not None:
-        return _normalize_kind(kind), _normalize_identifier(asset_id)
-
-    raw = str(kind).strip()
-    parts = raw.split(":", 2)
-    if len(parts) == 3 and parts[0] in {"image", "asset"}:
-        return _normalize_kind(parts[1]), _normalize_identifier(parts[2])
-    parts = raw.split("/", 2)
-    if len(parts) == 2:
-        return _normalize_kind(parts[0]), _normalize_identifier(parts[1])
-    raise ValueError("素材请求必须同时提供类型和 ID，或使用 image:<kind>:<id>")
 
 
 def _verified_file(root: Path | None, relative_path: str) -> Path | None:
@@ -210,33 +152,21 @@ class AssetResolver:
     """按当前 generation → 动态缓存 → 网络下载解析图片素材。
 
     当传入 ``coordinator`` 时，每次 ``resolve`` 都会在 coordinator 的
-    ``optional_lease`` 内读取 L1；调用方也可以使用 ``bind`` 把多个素材请求
-    固定在同一个 generation lease 中。L1 始终只读，下载结果只写入 L2。
+    ``optional_lease`` 内读取 L1。L1 始终只读，下载结果只写入 L2。
     """
 
     def __init__(
         self,
         *,
-        dynamic_root: str | Path | None = None,
-        cache_root: str | Path | None = None,
+        dynamic_root: str | Path,
         snapshot_root: str | Path | None = None,
         coordinator: ResourceSnapshotCoordinator | None = None,
-        resource_snapshots: ResourceSnapshotCoordinator | None = None,
         downloader: Downloader | None = None,
     ) -> None:
-        if dynamic_root is not None and cache_root is not None:
-            if _absolute_path(dynamic_root) != _absolute_path(cache_root):
-                raise ValueError("dynamic_root 与 cache_root 不能指向不同目录")
-        resolved_dynamic_root = dynamic_root if dynamic_root is not None else cache_root
-        if resolved_dynamic_root is None:
-            raise TypeError("AssetResolver 需要 dynamic_root")
-        if coordinator is not None and resource_snapshots is not None:
-            raise ValueError("coordinator 与 resource_snapshots 只能提供一个")
-
-        self.dynamic_root = _absolute_path(resolved_dynamic_root)
+        self.dynamic_root = _absolute_path(dynamic_root)
         assert self.dynamic_root is not None
         self.snapshot_root = _absolute_path(snapshot_root)
-        self.coordinator = coordinator or resource_snapshots
+        self.coordinator = coordinator
         self.downloader = downloader
 
     @classmethod
@@ -256,12 +186,6 @@ class AssetResolver:
             downloader=downloader,
         )
 
-    @property
-    def l2_root(self) -> Path:
-        """返回动态游戏素材缓存根目录。"""
-
-        return self.dynamic_root
-
     def cache_path(self, kind: str, asset_id: str | int) -> Path:
         """返回指定素材的 L2 目标，不创建目录。"""
 
@@ -276,39 +200,17 @@ class AssetResolver:
             )
         )
 
-    def snapshot_path(self, kind: str, asset_id: str | int) -> Path:
-        """返回指定素材在 generation 内的相对路径投影。"""
-
-        normalized_kind = _normalize_kind(kind)
-        identifier = _normalize_identifier(asset_id)
-        return Path(
-            _ASSET_SPECS[normalized_kind].snapshot_template.format(id=identifier),
-        )
-
-    @contextmanager
-    def bind(self) -> Iterator[AssetResolver]:
-        """固定一个请求期 generation lease，供多个素材读取共同使用。"""
-
-        if self.coordinator is None:
-            yield self
-            return
-        with self.coordinator.optional_lease() as snapshot:
-            yield AssetResolver.from_snapshot(
-                snapshot,
-                dynamic_root=self.dynamic_root,
-                downloader=self.downloader,
-            )
-
     async def resolve(
         self,
         kind: str,
-        asset_id: str | int | None = None,
+        asset_id: str | int,
         *,
         url: str | None = None,
     ) -> ResolvedAsset:
         """解析一个素材；本地双 miss 且有 URL 时才提交网络下载。"""
 
-        normalized_kind, identifier = _parse_logical_request(kind, asset_id)
+        normalized_kind = _normalize_kind(kind)
+        identifier = _normalize_identifier(asset_id)
         if self.coordinator is None:
             return await self._resolve_with_snapshot(
                 self.snapshot_root,
@@ -326,32 +228,6 @@ class AssetResolver:
                 identifier,
                 url=url,
             )
-
-    async def resolve_asset(
-        self,
-        kind: str,
-        asset_id: str | int | None = None,
-        *,
-        url: str | None = None,
-    ) -> ResolvedAsset:
-        """``resolve`` 的语义别名，方便调用方表达素材请求。"""
-
-        return await self.resolve(kind, asset_id, url=url)
-
-    async def resolve_role_avatar(
-        self, char_id: str | int, url: str | None = None
-    ) -> ResolvedAsset:
-        return await self.resolve("role_avatar", char_id, url=url)
-
-    async def resolve_role_paint(
-        self, char_id: str | int, url: str | None = None
-    ) -> ResolvedAsset:
-        return await self.resolve("role_paint", char_id, url=url)
-
-    async def resolve_weapon(
-        self, weapon_id: str | int, url: str | None = None
-    ) -> ResolvedAsset:
-        return await self.resolve("weapon", weapon_id, url=url)
 
     async def _resolve_with_snapshot(
         self,
