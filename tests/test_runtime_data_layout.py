@@ -224,14 +224,17 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
     """默认 runtime 不再把 rendered 或 typed cache 写到数据根。"""
 
     from src.bootstrap import build_runtime
+    from src.utils import image_utils
 
+    default_fetcher = image_utils.get_default_image_fetcher()
+    layout = RuntimeDataLayout(tmp_path)
     database = AsyncDatabase(tmp_path / "dna.sqlite3")
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *_args: None),
         {},
         database=database,
+        runtime_data_layout=layout,
     )
-    layout = RuntimeDataLayout(tmp_path)
 
     try:
         assert runtime.services["rendered_root"] == layout.cache_rendered_dir
@@ -249,12 +252,11 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
 
         asset_resolver = runtime.services["asset_resolver"]
         image_fetcher = runtime.services["image_fetcher"]
-        from src.utils import image_utils
-
         assert asset_resolver.dynamic_root == layout.cache_assets_dir
         assert asset_resolver.coordinator is runtime.services["resource_snapshots"]
         assert asset_resolver.downloader is image_fetcher
-        assert image_fetcher is image_utils.get_default_image_fetcher()
+        assert image_utils.get_default_image_fetcher() is default_fetcher
+        assert image_fetcher is not default_fetcher
         assert runtime.lifecycle._start_hooks[0].__self__ is image_fetcher
         assert runtime.lifecycle._finalizer_hooks[0].__self__ is image_fetcher
 
@@ -285,6 +287,78 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
 
 
 @pytest.mark.asyncio
+async def test_build_runtime_uses_explicit_layout_for_injected_nested_database(
+    tmp_path: Path,
+) -> None:
+    """注入 ``data/db/dna.sqlite3`` 时，运行期目录仍由显式 data root 决定。"""
+
+    from src.bootstrap import build_runtime
+
+    layout = RuntimeDataLayout(tmp_path / "plugin-data")
+    database = AsyncDatabase(layout.database_path)
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {},
+        database=database,
+        runtime_data_layout=layout,
+    )
+
+    try:
+        assert runtime.services["rendered_root"] == layout.cache_rendered_dir
+        assert runtime.services["cache_manager"].root == layout.cache_dir
+        assert runtime.services["subscriptions"].path == layout.subscriptions_path
+        assert runtime.services["asset_resolver"].dynamic_root == (
+            layout.cache_assets_dir
+        )
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_build_runtime_infers_only_standard_database_layout(
+    tmp_path: Path,
+) -> None:
+    """标准 ``db/dna.sqlite3`` 路径仍可兼容推导 data root。"""
+
+    from src.bootstrap import build_runtime
+
+    layout = RuntimeDataLayout(tmp_path / "plugin-data")
+    database = AsyncDatabase(layout.database_path)
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {},
+        database=database,
+    )
+
+    try:
+        assert runtime.services["rendered_root"] == layout.cache_rendered_dir
+        assert runtime.services["subscriptions"].path == layout.subscriptions_path
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_build_runtime_requires_layout_for_nonstandard_injected_database(
+    tmp_path: Path,
+) -> None:
+    """自定义注入数据库不能让 runtime 静默猜错数据根目录。"""
+
+    from src.bootstrap import build_runtime
+
+    database = AsyncDatabase(tmp_path / "custom.sqlite3")
+
+    try:
+        with pytest.raises(ValueError, match="runtime_data_layout"):
+            build_runtime(
+                SimpleNamespace(register_web_api=lambda *_args: None),
+                {},
+                database=database,
+            )
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_build_runtime_allocates_image_fetcher_per_runtime(
     tmp_path: Path,
 ) -> None:
@@ -293,17 +367,22 @@ async def test_build_runtime_allocates_image_fetcher_per_runtime(
     from src.bootstrap import build_runtime
     from src.utils import image_utils
 
+    default_fetcher = image_utils.get_default_image_fetcher()
+    first_layout = RuntimeDataLayout(tmp_path / "first-data")
+    second_layout = RuntimeDataLayout(tmp_path / "second-data")
     first_database = AsyncDatabase(tmp_path / "first.sqlite3")
     second_database = AsyncDatabase(tmp_path / "second.sqlite3")
     first_runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *_args: None),
         {},
         database=first_database,
+        runtime_data_layout=first_layout,
     )
     second_runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *_args: None),
         {},
         database=second_database,
+        runtime_data_layout=second_layout,
     )
 
     try:
@@ -311,7 +390,9 @@ async def test_build_runtime_allocates_image_fetcher_per_runtime(
         second_fetcher = second_runtime.services["image_fetcher"]
 
         assert first_fetcher is not second_fetcher
-        assert second_fetcher is image_utils.get_default_image_fetcher()
+        assert image_utils.get_default_image_fetcher() is default_fetcher
+        assert first_fetcher is not default_fetcher
+        assert second_fetcher is not default_fetcher
     finally:
         await first_database.dispose()
         await second_database.dispose()

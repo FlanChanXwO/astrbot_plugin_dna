@@ -29,7 +29,11 @@ from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
-from .infrastructure.data_layout import RuntimeDataLayout
+from .infrastructure.data_layout import (
+    DATABASE_DIR_NAME,
+    DATABASE_FILE_NAME,
+    RuntimeDataLayout,
+)
 from .infrastructure.http import (
     ClientUpdateTransport as DnaApiClientUpdateTransport,
 )
@@ -105,7 +109,6 @@ from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
 from .utils.image_utils import ImageFetcher
-from .utils.name_convert import configure_alias_storage
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
 
@@ -153,6 +156,7 @@ def build_runtime(
     command_registry: CommandRegistry | None = None,
     *,
     database: AsyncDatabase | None = None,
+    runtime_data_layout: RuntimeDataLayout | None = None,
     account_transport: AccountTransport | None = None,
     player_transport: PlayerTransport | None = None,
     encyclopedia_transport: EncyclopediaTransport | None = None,
@@ -164,28 +168,40 @@ def build_runtime(
 ) -> PluginRuntime:
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
 
-    runtime_data_layout: RuntimeDataLayout | None = None
-    if database is None:
-        from astrbot.api.star import StarTools
+    if runtime_data_layout is None:
+        if database is None:
+            from astrbot.api.star import StarTools
 
-        runtime_data_layout = RuntimeDataLayout.from_data_dir(
-            StarTools.get_data_dir(PLUGIN_NAME),
-        )
-        # 必须先完成只读旧布局检测，再进入任何会创建数据库或运行期目录的阶段。
-        LegacyLayoutDetector(runtime_data_layout).ensure_compatible()
+            runtime_data_layout = RuntimeDataLayout.from_data_dir(
+                StarTools.get_data_dir(PLUGIN_NAME),
+            )
+        else:
+            database_path = Path(database.path)
+            if (
+                database_path.name != DATABASE_FILE_NAME
+                or database_path.parent.name != DATABASE_DIR_NAME
+            ):
+                raise ValueError(
+                    "注入 database 时必须同时提供 runtime_data_layout；"
+                    "只有标准 db/dna.sqlite3 路径支持兼容推导"
+                )
+            runtime_data_layout = RuntimeDataLayout.from_data_dir(
+                database_path.parent.parent,
+            )
+
+    # 必须先完成只读旧布局检测，再进入任何会创建数据库或运行期目录的阶段。
+    LegacyLayoutDetector(runtime_data_layout).ensure_compatible()
 
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()
     settings = DnabySettings.from_config(config)
-    from .utils import dna_api, image_utils
+    from .utils import dna_api
 
     if services is not None and "image_fetcher" in services:
         image_fetcher = cast(ImageFetcher, services["image_fetcher"])
     else:
         # runtime 必须拥有自己的 client，避免重载或测试切换事件循环后复用旧连接池。
         image_fetcher = ImageFetcher()
-    image_utils.set_default_image_fetcher(image_fetcher)
-
     dna_api.configure_network(
         api_base_url=settings.network.api_base_url,
         proxy_url=settings.network.proxy_url,
@@ -199,10 +215,7 @@ def build_runtime(
             raise RuntimeError("运行期数据布局尚未解析")
         runtime_database = AsyncDatabase.from_data_dir(runtime_data_layout.data_dir)
     if runtime_data_layout is None:
-        runtime_data_layout = RuntimeDataLayout.from_data_dir(
-            runtime_database.path.parent,
-        )
-    configure_alias_storage(runtime_data_layout)
+        raise RuntimeError("运行期数据布局尚未解析")
     resolved_account_transport = account_transport or DnaApiAccountTransport()
     account_service = AccountService(
         runtime_database,

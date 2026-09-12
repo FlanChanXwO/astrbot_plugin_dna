@@ -208,6 +208,50 @@ async def test_rate_limit_honors_retry_after_and_shrinks_capacity(
 
 
 @pytest.mark.asyncio
+async def test_close_wakes_long_retry_after_without_cancelling_http_request(
+    tmp_path: Path,
+) -> None:
+    """关闭时应唤醒 Retry-After 等待，并清理共享任务与 client。"""
+
+    url = "https://cdn.example.test/long-retry.png"
+    client = _FakeClient(
+        [_response(url, b"busy", status_code=429, headers={"Retry-After": "86400"})]
+    )
+    sleep_started = asyncio.Event()
+    release_sleep = asyncio.Event()
+
+    async def blocking_sleep(_delay: float) -> None:
+        sleep_started.set()
+        await release_sleep.wait()
+
+    fetcher = ImageFetcher(
+        client_factory=_ClientFactory([client]),
+        sleep=blocking_sleep,
+    )
+    fetch_task = asyncio.create_task(fetcher.fetch(url, tmp_path / "long-retry.png"))
+    await sleep_started.wait()
+
+    close_task = asyncio.create_task(fetcher.close())
+    try:
+        await asyncio.wait_for(asyncio.shield(close_task), timeout=0.2)
+    except TimeoutError:
+        # 当前实现会卡在注入的 Retry-After sleep；释放测试睡眠仅用于清理，
+        # 断言本身要求 close 能被关闭信号唤醒。
+        release_sleep.set()
+        await asyncio.gather(fetch_task, return_exceptions=True)
+        await close_task
+        pytest.fail("close 不应等待完整 Retry-After sleep")
+
+    with pytest.raises(ImageFetcherClosed):
+        await fetch_task
+
+    assert client.calls == [url]
+    assert client.closed
+    assert fetcher.active_requests == 0
+    assert fetcher.inflight_count == 0
+
+
+@pytest.mark.asyncio
 async def test_healthy_requests_recover_capacity(tmp_path: Path) -> None:
     """连续健康请求逐步恢复容量，但不超过内部上限。"""
 

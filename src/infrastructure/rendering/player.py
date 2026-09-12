@@ -12,6 +12,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
 
+import httpx
 from PIL import Image, ImageFont, ImageOps
 from pydantic import BaseModel
 
@@ -51,6 +52,7 @@ from ...utils.image import (
 )
 from ...utils.session import EventContext
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from ..resources.resolver import ResolvedAsset
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
@@ -76,11 +78,14 @@ def _placeholder(size: tuple[int, int]) -> Image.Image:
     return Image.new("RGBA", size)
 
 
-def _load_resolved_image(path: Path, placeholder_size: tuple[int, int]) -> Image.Image:
+def _load_resolved_image(
+    path: Path,
+    placeholder_size: tuple[int, int],
+) -> Image.Image | None:
     """读取 resolver 已验证的路径，并在解码失败时保留现有占位语义。"""
 
     if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
-        return _placeholder(placeholder_size)
+        return None
     try:
         with Image.open(path) as image:
             image.verify()
@@ -88,7 +93,50 @@ def _load_resolved_image(path: Path, placeholder_size: tuple[int, int]) -> Image
             image.load()
             return image.convert("RGBA")
     except (OSError, SyntaxError, ValueError, Image.DecompressionBombError):
-        return _placeholder(placeholder_size)
+        return None
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedImage:
+    """一次图片解析的图像与 provenance 配对结果。"""
+
+    image: Image.Image
+    asset: ResolvedAsset
+
+
+def _missing_asset(kind: str, asset_id: str | int) -> ResolvedAsset:
+    """建立与透明占位图对应的缺失素材结果。"""
+
+    return ResolvedAsset(
+        path=None,
+        source="none",
+        status="missing",
+        incomplete=True,
+        kind=kind,
+        asset_id=str(asset_id),
+    )
+
+
+def _coerce_resolved_asset(
+    resolved: object,
+    kind: str,
+    asset_id: str | int,
+) -> ResolvedAsset:
+    """兼容测试替身，同时让正式 resolver 结果保持原始 provenance。"""
+
+    if isinstance(resolved, ResolvedAsset):
+        return resolved
+    path = getattr(resolved, "path", resolved)
+    if path is None:
+        return _missing_asset(kind, asset_id)
+    return ResolvedAsset(
+        path=Path(path),
+        source="dynamic_cache",
+        status="provided",
+        incomplete=False,
+        kind=kind,
+        asset_id=str(asset_id),
+    )
 
 
 async def _resolve_image(
@@ -97,7 +145,7 @@ async def _resolve_image(
     asset_id: str | int,
     url: str | None,
     placeholder_size: tuple[int, int],
-) -> Image.Image:
+) -> PreparedImage:
     """从当前 generation/L2 解析一张可用于本次渲染的图片。"""
 
     try:
@@ -106,12 +154,19 @@ async def _resolve_image(
             asset_id,
             url=url or None,
         )
-    except (OSError, SyntaxError, ValueError):
-        return _placeholder(placeholder_size)
-    resolved_path = getattr(resolved, "path", resolved)
-    if resolved_path is None:
-        return _placeholder(placeholder_size)
-    return _load_resolved_image(Path(resolved_path), placeholder_size)
+    except (OSError, httpx.HTTPError, SyntaxError, ValueError):
+        return PreparedImage(
+            _placeholder(placeholder_size), _missing_asset(kind, asset_id)
+        )
+    asset = _coerce_resolved_asset(resolved, kind, asset_id)
+    if asset.path is None:
+        return PreparedImage(_placeholder(placeholder_size), asset)
+    image = _load_resolved_image(asset.path, placeholder_size)
+    if image is None:
+        return PreparedImage(
+            _placeholder(placeholder_size), _missing_asset(kind, asset_id)
+        )
+    return PreparedImage(image, asset)
 
 
 class _PlayerImageLoader:
@@ -119,12 +174,182 @@ class _PlayerImageLoader:
 
     def __init__(self, asset_resolver: Any | None) -> None:
         self.asset_resolver = asset_resolver
+        self._resolved_assets: dict[tuple[str, str], ResolvedAsset] = {}
+
+    @property
+    def resolved_assets(self) -> tuple[ResolvedAsset, ...]:
+        """返回本次渲染实际解析过的素材结果。"""
+
+        return tuple(
+            self._resolved_assets[key] for key in sorted(self._resolved_assets)
+        )
+
+    def _remember(self, asset: ResolvedAsset) -> None:
+        self._resolved_assets[(asset.kind, asset.asset_id)] = asset
+
+    async def _resolved_image(
+        self,
+        kind: str,
+        asset_id: str | int,
+        url: str | None,
+        placeholder_size: tuple[int, int],
+    ) -> Image.Image:
+        prepared = await _resolve_image(
+            self.asset_resolver,
+            kind,
+            asset_id,
+            url,
+            placeholder_size,
+        )
+        self._remember(prepared.asset)
+        return prepared.image
+
+    @staticmethod
+    def _cache_component(value: str | int) -> str:
+        """校验动态素材标识并保留既有缓存文件名契约。"""
+
+        component = str(value).strip()
+        if (
+            component in {".", ".."}
+            or "/" in component
+            or "\\" in component
+            or "\x00" in component
+        ):
+            raise ValueError("动态素材标识不能是路径段")
+        return component
+
+    def _validate_runtime_target(self, target: Path) -> None:
+        """校验未纳入 AssetResolver 类型表的动态素材仍在 L2 根目录内。"""
+
+        root = Path(self.asset_resolver.dynamic_root)
+        if root.is_symlink():
+            raise OSError("动态素材缓存根目录不能是符号链接")
+        if root.exists() and not root.is_dir():
+            raise OSError("动态素材缓存根目录不是目录")
+        try:
+            relative = target.relative_to(root)
+        except ValueError as exc:
+            raise OSError("动态素材目标越出缓存根目录") from exc
+        cursor = root
+        for part in relative.parts[:-1]:
+            cursor /= part
+            if cursor.is_symlink():
+                raise OSError("动态素材缓存目录不能是符号链接")
+        if target.is_symlink():
+            raise OSError("动态素材缓存目标不能是符号链接")
+
+    def _runtime_target(
+        self,
+        kind: str,
+        asset_id: str | int,
+        *,
+        secondary_id: str | int | None = None,
+    ) -> Path | None:
+        root = getattr(self.asset_resolver, "dynamic_root", None)
+        if root is None:
+            return None
+        root = Path(root)
+        identifier = self._cache_component(asset_id)
+        if kind == "skill":
+            if secondary_id is None:
+                raise ValueError("技能素材缺少角色 ID")
+            return (
+                root
+                / "skill"
+                / self._cache_component(secondary_id)
+                / f"skill_{identifier}.png"
+            )
+        if kind == "user_avatar":
+            return root / "user_avatar" / f"avatar_{identifier}.png"
+        if kind == "mod":
+            return root / "mod" / f"mod_{identifier}.png"
+        if kind == "attr":
+            return root / "attr" / f"attr_{identifier}.png"
+        if kind == "weapon_attr":
+            return root / "weapon_attr" / f"attr_{identifier}.png"
+        raise ValueError(f"不支持的 runtime 图片素材类型: {kind!r}")
+
+    async def _runtime_image(
+        self,
+        kind: str,
+        asset_id: str | int,
+        url: str | None,
+        placeholder_size: tuple[int, int],
+        *,
+        secondary_id: str | int | None = None,
+        optional: bool = False,
+    ) -> Image.Image:
+        target = self._runtime_target(
+            kind,
+            asset_id,
+            secondary_id=secondary_id,
+        )
+        if target is None:
+            asset = _missing_asset(kind, asset_id)
+            self._remember(asset)
+            return _placeholder(placeholder_size)
+
+        self._validate_runtime_target(target)
+        image = _load_resolved_image(target, placeholder_size)
+        if image is not None:
+            self._remember(
+                ResolvedAsset(
+                    path=target,
+                    source="dynamic_cache",
+                    status="provided",
+                    incomplete=False,
+                    kind=kind,
+                    asset_id=str(asset_id),
+                )
+            )
+            return image
+
+        downloader = getattr(self.asset_resolver, "downloader", None)
+        if not url or downloader is None:
+            if optional:
+                return _placeholder(placeholder_size)
+            asset = _missing_asset(kind, asset_id)
+            self._remember(asset)
+            return _placeholder(placeholder_size)
+
+        try:
+            self._validate_runtime_target(target)
+            fetch = getattr(downloader, "fetch", None)
+            if callable(fetch):
+                await fetch(url, target, tag=f"[DNA-{kind}]")
+            else:
+                await downloader(url, target)
+            self._validate_runtime_target(target)
+        except (OSError, httpx.HTTPError):
+            if optional:
+                return _placeholder(placeholder_size)
+            asset = _missing_asset(kind, asset_id)
+            self._remember(asset)
+            return _placeholder(placeholder_size)
+
+        image = _load_resolved_image(target, placeholder_size)
+        if image is None:
+            if optional:
+                return _placeholder(placeholder_size)
+            asset = _missing_asset(kind, asset_id)
+            self._remember(asset)
+            return _placeholder(placeholder_size)
+        self._remember(
+            ResolvedAsset(
+                path=target,
+                source="download",
+                status="provided",
+                incomplete=False,
+                kind=kind,
+                asset_id=str(asset_id),
+            )
+        )
+        return image
 
     async def avatar(self, char_id: str | int, url: str | None) -> Image.Image:
         if self.asset_resolver is None:
             return await get_avatar_img(char_id, url)
-        return await _resolve_image(
-            self.asset_resolver,
+        return await self._resolved_image(
             "role_avatar",
             char_id,
             url,
@@ -134,8 +359,7 @@ class _PlayerImageLoader:
     async def paint(self, char_id: str | int, url: str | None) -> Image.Image:
         if self.asset_resolver is None:
             return await get_paint_img(char_id, url)
-        image = await _resolve_image(
-            self.asset_resolver,
+        image = await self._resolved_image(
             "role_paint",
             char_id,
             url,
@@ -146,8 +370,7 @@ class _PlayerImageLoader:
     async def weapon(self, weapon_id: str | int, url: str | None) -> Image.Image:
         if self.asset_resolver is None:
             return await get_weapon_img(weapon_id, url)
-        image = await _resolve_image(
-            self.asset_resolver,
+        image = await self._resolved_image(
             "weapon",
             weapon_id,
             url,
@@ -156,7 +379,90 @@ class _PlayerImageLoader:
         return image.resize((256, 256))
 
     async def mod(self, mod_id: str | int, url: str | None) -> Image.Image:
-        return await get_mod_img(mod_id, url)
+        if self.asset_resolver is None:
+            return await get_mod_img(mod_id, url)
+        return await self._runtime_image("mod", mod_id, url, (256, 256))
+
+    async def skill(
+        self,
+        char_id: str | int,
+        skill_name: str,
+        url: str | None,
+    ) -> Image.Image:
+        if self.asset_resolver is None:
+            return await get_skill_img(char_id, skill_name, url)
+        return await self._runtime_image(
+            "skill",
+            skill_name.strip(),
+            url,
+            (128, 128),
+            secondary_id=char_id,
+        )
+
+    async def attr(
+        self,
+        attr_id: str | int | None,
+        url: str | None,
+        *,
+        optional: bool = False,
+    ) -> Image.Image:
+        if self.asset_resolver is None:
+            return await get_attr_img(attr_id, url)
+        identifier = attr_id
+        if identifier is None:
+            identifier = self._url_asset_id(url)
+        return await self._runtime_image(
+            "attr",
+            identifier,
+            url,
+            (128, 128),
+            optional=optional,
+        )
+
+    async def weapon_attr(
+        self,
+        attr_id: str | int | None,
+        url: str | None,
+        *,
+        optional: bool = False,
+    ) -> Image.Image:
+        if self.asset_resolver is None:
+            return await get_weapon_attr_img(attr_id, url)
+        identifier = attr_id
+        if identifier is None:
+            identifier = self._url_asset_id(url)
+        return await self._runtime_image(
+            "weapon_attr",
+            identifier,
+            url,
+            (128, 128),
+            optional=optional,
+        )
+
+    async def user_avatar(self, user_id: str) -> Image.Image:
+        if self.asset_resolver is None:
+            raise RuntimeError("legacy loader 不负责 user avatar")
+        url = f"https://q1.qlogo.cn/g?b=qq&nk={user_id}&s=640"
+        image = await self._runtime_image(
+            "user_avatar",
+            user_id,
+            url,
+            (640, 640),
+        )
+        asset_key = ("user_avatar", str(user_id))
+        asset = self._resolved_assets.get(asset_key)
+        if asset is not None and asset.incomplete:
+            # 用户头像是资料头的可选增强；失败时沿用默认角色头像，并让最终
+            # provenance 只描述实际绘入卡片的 fallback，避免一次头像失败阻断整卡缓存。
+            self._resolved_assets.pop(asset_key, None)
+            return await self.avatar("5101", None)
+        return image
+
+    @staticmethod
+    def _url_asset_id(url: str | None) -> str:
+        if not url:
+            raise ValueError("素材 ID 和 URL 不能同时为空")
+        return url.rsplit("/", 1)[-1].split(".", 1)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +495,17 @@ async def _item_payload(
         # 与武器分支同理：官方展柜可能暂未下发新角色的类型图标，
         # 该装饰资源缺失不应阻断整卡渲染。
         element_coro = (
-            get_attr_img(pic_url=item.element_icon) if item.element_icon else None
+            (
+                get_attr_img(pic_url=item.element_icon)
+                if image_loader is None
+                else image_loader.attr(
+                    None,
+                    item.element_icon,
+                    optional=True,
+                )
+            )
+            if item.element_icon
+            else None
         )
     else:
         image_coro = (
@@ -199,7 +515,15 @@ async def _item_payload(
         )
         # 官方展柜数据可能暂未下发新武器的类型图标；该装饰资源缺失不应阻断整卡渲染。
         element_coro = (
-            get_weapon_attr_img(pic_url=item.element_icon)
+            (
+                get_weapon_attr_img(pic_url=item.element_icon)
+                if image_loader is None
+                else image_loader.weapon_attr(
+                    None,
+                    item.element_icon,
+                    optional=True,
+                )
+            )
             if item.element_icon
             else None
         )
@@ -262,6 +586,7 @@ async def _draw_role_overview_card(
     hero_background_path: Path | None = None,
     *,
     asset_resolver: Any | None = None,
+    image_loader: _PlayerImageLoader | None = None,
 ) -> bytes:
     role_chars = getattr(role_show, "roleChars", getattr(role_show, "role_chars", []))
     close_weapons = getattr(
@@ -350,7 +675,8 @@ async def _draw_role_overview_card(
         if getattr(item, "paramKey", getattr(item, "param_key", ""))
         in ("总活跃天数", "游戏时长")
     ]
-    image_loader = _PlayerImageLoader(asset_resolver)
+    if image_loader is None and asset_resolver is not None:
+        image_loader = _PlayerImageLoader(asset_resolver)
     header_coro = build_profile_header(
         ctx,
         getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
@@ -359,6 +685,7 @@ async def _draw_role_overview_card(
         stats=header_stats,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        image_loader=image_loader,
     )
     sections_coro = asyncio.gather(
         _section_payload(
@@ -430,6 +757,7 @@ async def draw_role_info_card_core(
     hero_background_path: Path | None = None,
     *,
     asset_resolver: Any | None = None,
+    image_loader: _PlayerImageLoader | None = None,
 ) -> bytes:
     ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
     return await _draw_role_overview_card(
@@ -439,6 +767,7 @@ async def draw_role_info_card_core(
         uid_hidden=uid_hidden,
         hero_background_path=hero_background_path,
         asset_resolver=asset_resolver,
+        image_loader=image_loader,
     )
 
 
@@ -509,13 +838,19 @@ def _attribute_payload(role_detail: Any) -> list[dict[str, str]]:
 
 async def _skill_payload(
     role_detail: Any,
+    *,
+    image_loader: _PlayerImageLoader | None = None,
 ) -> list[dict[str, object]]:
     char_id = getattr(role_detail, "charId", getattr(role_detail, "char_id", 0))
     skills = getattr(role_detail, "skills", [])
 
     async def build_skill(skill: Any) -> dict[str, object]:
         name = getattr(skill, "skillName", getattr(skill, "skill_name", ""))
-        image = await get_skill_img(char_id, name, getattr(skill, "icon", ""))
+        image = await (
+            get_skill_img(char_id, name, getattr(skill, "icon", ""))
+            if image_loader is None
+            else image_loader.skill(char_id, name, getattr(skill, "icon", ""))
+        )
         return {
             "icon": pil_image_data_uri(image),
             "level": skill.level,
@@ -525,7 +860,12 @@ async def _skill_payload(
     return list(await asyncio.gather(*(build_skill(skill) for skill in skills[:3])))
 
 
-async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
+async def _mode_payload(
+    mode: Any,
+    position: str,
+    *,
+    image_loader: _PlayerImageLoader | None = None,
+) -> dict[str, object]:
     quality = getattr(mode, "quality", None) or 1
     payload: dict[str, object] = {
         "background": image_data_uri(
@@ -539,14 +879,22 @@ async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
     mode_id = getattr(mode, "id", -1)
     if mode_id != -1:
         payload["icon"] = pil_image_data_uri(
-            await get_mod_img(mode_id, getattr(mode, "icon", ""))
+            await (
+                get_mod_img(mode_id, getattr(mode, "icon", ""))
+                if image_loader is None
+                else image_loader.mod(mode_id, getattr(mode, "icon", ""))
+            )
         )
         level = getattr(mode, "level", 0)
         payload["level"] = f"+{level}" if level else None
     return payload
 
 
-async def _role_modes_payload(modes: list[Any]) -> list[dict[str, object]]:
+async def _role_modes_payload(
+    modes: list[Any],
+    *,
+    image_loader: _PlayerImageLoader | None = None,
+) -> list[dict[str, object]]:
     padded = list(modes) + [Mode(id=-1) for _ in range(max(0, 9 - len(modes)))]
     order = tuple((index, "left") for index in (0, 2, 4, 6)) + tuple(
         (index, "right") for index in (1, 3, 7, 5)
@@ -556,7 +904,14 @@ async def _role_modes_payload(modes: list[Any]) -> list[dict[str, object]]:
     ]
     return list(
         await asyncio.gather(
-            *(_mode_payload(mode, position) for mode, position in ordered_modes)
+            *(
+                _mode_payload(
+                    mode,
+                    position,
+                    image_loader=image_loader,
+                )
+                for mode, position in ordered_modes
+            )
         )
     )
 
@@ -628,6 +983,7 @@ async def _draw_role_detail_card(
     custom_panel: Path | None = None,
     *,
     asset_resolver: Any | None = None,
+    image_loader: _PlayerImageLoader | None = None,
 ) -> tuple[bytes, Path | None]:
     damage = None
     if damage_calc_response is not None:
@@ -642,7 +998,7 @@ async def _draw_role_detail_card(
             damage_calc_response,
         )
 
-    image_loader = (
+    image_loader = image_loader or (
         _PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
     )
     weapon_inputs = [
@@ -688,6 +1044,7 @@ async def _draw_role_detail_card(
         ],
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        image_loader=image_loader,
     )
     hero_coro = _hero_payload(
         char_id,
@@ -695,15 +1052,24 @@ async def _draw_role_detail_card(
         custom_panel=custom_panel,
         image_loader=image_loader,
     )
-    role_modes_coro = _role_modes_payload(getattr(role_detail, "modes", []))
-    skills_coro = _skill_payload(role_detail)
-    element_coro = get_attr_img(
-        char_id,
-        getattr(
-            role_detail,
-            "elementIcon",
-            getattr(role_detail, "element_icon", ""),
-        ),
+    role_modes_coro = _role_modes_payload(
+        getattr(role_detail, "modes", []),
+        image_loader=image_loader,
+    )
+    skills_coro = _skill_payload(role_detail, image_loader=image_loader)
+    element_icon_url = getattr(
+        role_detail,
+        "elementIcon",
+        getattr(role_detail, "element_icon", ""),
+    )
+    element_coro = (
+        get_attr_img(char_id, element_icon_url)
+        if image_loader is None
+        else image_loader.attr(
+            char_id,
+            element_icon_url,
+            optional=True,
+        )
     )
     (
         weapon_sections,
@@ -1003,6 +1369,18 @@ class PlayerRenderer:
             else "",
         }
 
+    @staticmethod
+    def _asset_resource(asset: ResolvedAsset) -> dict[str, str]:
+        """把 resolver 的实际结果投影为渲染 artifact metadata。"""
+
+        metadata_kind = "weapon_icon" if asset.kind == "weapon" else asset.kind
+        return {
+            "kind": metadata_kind,
+            "key": asset.asset_id,
+            "status": asset.status,
+            "source": asset.source,
+        }
+
     def _write(
         self,
         image_bytes: bytes,
@@ -1011,6 +1389,7 @@ class PlayerRenderer:
         resources: list[dict[str, str]],
         sections: list[dict[str, Any]],
         original_image_path: Path | None = None,
+        resolved_assets: tuple[ResolvedAsset, ...] = (),
     ) -> RenderedPlayerImage:
         inspection = inspect_image(image_bytes, media_type="image/jpeg")
         artifact = RenderedArtifact.from_bytes(
@@ -1036,9 +1415,8 @@ class PlayerRenderer:
             sections=tuple(sections),
             temporary=True,
             original_image_path=original_image_path,
-            incomplete=any(
-                resource.get("status") == "placeholder" for resource in resources
-            ),
+            incomplete=any(asset.incomplete for asset in resolved_assets)
+            or any(resource.get("status") == "placeholder" for resource in resources),
             sidecar=Path(response.sidecar) if response.sidecar is not None else None,
             manifest=Path(response.manifest) if response.manifest is not None else None,
             media_type=artifact.media_type,
@@ -1070,7 +1448,13 @@ class PlayerRenderer:
             if isinstance(self.resources, ResourceMap)
             else None
         )
+        resolved_assets: tuple[ResolvedAsset, ...] = ()
         with self._asset_resolver_context() as asset_resolver:
+            image_loader = (
+                _PlayerImageLoader(asset_resolver)
+                if asset_resolver is not None
+                else None
+            )
             image_bytes = await draw_role_info_card_core(
                 overview,
                 uid_hidden=uid_hidden,
@@ -1080,7 +1464,10 @@ class PlayerRenderer:
                 or (actor.user_id if actor is not None else uid),
                 hero_background_path=hero_background,
                 asset_resolver=asset_resolver,
+                image_loader=image_loader,
             )
+            if image_loader is not None:
+                resolved_assets = image_loader.resolved_assets
         lines = [
             overview.role_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -1111,30 +1498,38 @@ class PlayerRenderer:
                     ),
                 }
             )
-            for role in overview.role_chars:
-                if self.resources.root is not None:
-                    status = self.resources.get_avatar_status(role.char_id)
-                else:
-                    status = "legacy_download"
-                resources.append(
-                    {
-                        "kind": "role_avatar",
-                        "key": str(role.char_id),
-                        "status": status,
-                        "source": f"images/role_avatar/{role.char_id}.png",
-                    }
-                )
-            for weapon in list(overview.close_weapons) + list(overview.ranged_weapons):
-                resources.append(
-                    {
-                        "kind": "weapon_icon",
-                        "key": str(weapon.weapon_id),
-                        "status": "legacy_download",
-                        "source": f"images/weapon/{weapon.weapon_id}.png",
-                    }
-                )
+            if self.asset_resolver is None:
+                for role in overview.role_chars:
+                    if self.resources.root is not None:
+                        status = self.resources.get_avatar_status(role.char_id)
+                    else:
+                        status = "legacy_download"
+                    resources.append(
+                        {
+                            "kind": "role_avatar",
+                            "key": str(role.char_id),
+                            "status": status,
+                            "source": f"images/role_avatar/{role.char_id}.png",
+                        }
+                    )
+                for weapon in list(overview.close_weapons) + list(
+                    overview.ranged_weapons
+                ):
+                    resources.append(
+                        {
+                            "kind": "weapon_icon",
+                            "key": str(weapon.weapon_id),
+                            "status": "legacy_download",
+                            "source": f"images/weapon/{weapon.weapon_id}.png",
+                        }
+                    )
+        resources.extend(self._asset_resource(asset) for asset in resolved_assets)
         return self._write(
-            image_bytes, lines=lines, resources=resources, sections=sections
+            image_bytes,
+            lines=lines,
+            resources=resources,
+            sections=sections,
+            resolved_assets=resolved_assets,
         )
 
     async def render_overview_legacy(
@@ -1222,7 +1617,13 @@ class PlayerRenderer:
         if isinstance(self.resources, ResourceMap):
             custom_panel = self.resources.original_panel(detail.char_id)
 
+        resolved_assets: tuple[ResolvedAsset, ...] = ()
         with self._asset_resolver_context() as asset_resolver:
+            image_loader = (
+                _PlayerImageLoader(asset_resolver)
+                if asset_resolver is not None
+                else None
+            )
             card_bytes, original_path = await _draw_role_detail_card(
                 ctx,
                 char_id,
@@ -1236,7 +1637,10 @@ class PlayerRenderer:
                 uid_hidden=uid_hidden,
                 custom_panel=custom_panel,
                 asset_resolver=asset_resolver,
+                image_loader=image_loader,
             )
+            if image_loader is not None:
+                resolved_assets = image_loader.resolved_assets
         lines = [
             detail.char_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -1276,24 +1680,27 @@ class PlayerRenderer:
 
         resources = [self._font_resource()]
         if isinstance(self.resources, ResourceMap):
-            resources.append(
-                {
-                    "kind": "role_paint",
-                    "key": str(detail.char_id),
-                    "status": self.resources.get_paint_status(detail.char_id),
-                    "source": f"images/role_paint/{detail.char_id}.png",
-                }
-            )
+            if self.asset_resolver is None:
+                resources.append(
+                    {
+                        "kind": "role_paint",
+                        "key": str(detail.char_id),
+                        "status": self.resources.get_paint_status(detail.char_id),
+                        "source": f"images/role_paint/{detail.char_id}.png",
+                    }
+                )
+            panel_used = original_path is not None
             resources.append(
                 {
                     "kind": "original_panel",
                     "key": str(detail.char_id),
-                    "status": self.resources.get_panel_status(detail.char_id),
-                    "source": f"panel/{detail.char_id}.png",
+                    "status": "provided" if panel_used else "fallback",
+                    "source": (
+                        f"panel/{detail.char_id}.png" if panel_used else "panel/"
+                    ),
                 }
             )
-            if original_path is None:
-                original_path = custom_panel
+        resources.extend(self._asset_resource(asset) for asset in resolved_assets)
 
         return self._write(
             card_bytes,
@@ -1301,6 +1708,7 @@ class PlayerRenderer:
             resources=resources,
             sections=sections,
             original_image_path=original_path,
+            resolved_assets=resolved_assets,
         )
 
     async def render_detail_legacy(

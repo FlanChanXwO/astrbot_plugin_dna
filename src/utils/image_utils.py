@@ -261,6 +261,7 @@ class ImageFetcher:
         self._client: Any | None = None
         self._starting = False
         self._closing = False
+        self._closing_event = asyncio.Event()
         self._accepting = True
         self._closed = False
 
@@ -332,6 +333,7 @@ class ImageFetcher:
                 self._capacity.reset()
             self._accepting = True
             self._closed = False
+            self._closing_event.clear()
             self._starting = True
         try:
             await self._get_client()
@@ -368,6 +370,7 @@ class ImageFetcher:
                 claimed_closing = True
                 self._accepting = False
                 self._closed = True
+                self._closing_event.set()
                 while self._starting or self._active_tasks:
                     await self._condition.wait()
                 client = self._client
@@ -433,7 +436,7 @@ class ImageFetcher:
                     )
                     slot_released = True
                     congestion = None
-                    await self._sleep(float(2**attempt))
+                    await self._wait_for_retry(float(2**attempt))
                     continue
 
                 if response.status_code == 429:
@@ -453,7 +456,9 @@ class ImageFetcher:
                     )
                     slot_released = True
                     congestion = None
-                    await self._sleep(delay if delay is not None else float(2**attempt))
+                    await self._wait_for_retry(
+                        delay if delay is not None else float(2**attempt)
+                    )
                     continue
 
                 if 300 <= response.status_code < 400:
@@ -471,6 +476,28 @@ class ImageFetcher:
                     )
 
         raise ImageFetchError("图片下载未完成")
+
+    async def _wait_for_retry(self, delay: float) -> None:
+        """等待退避或关闭信号，避免 stop 被 Retry-After 长时间阻塞。"""
+
+        if self._closing_event.is_set():
+            raise ImageFetcherClosed("图片下载器已停止")
+
+        sleep_task = asyncio.create_task(self._sleep(delay))
+        closing_task = asyncio.create_task(self._closing_event.wait())
+        try:
+            done, _ = await asyncio.wait(
+                (sleep_task, closing_task),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if closing_task in done and closing_task.result():
+                raise ImageFetcherClosed("图片下载器已停止")
+            await sleep_task
+        finally:
+            for task in (sleep_task, closing_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(sleep_task, closing_task, return_exceptions=True)
 
     async def _release_capacity(
         self,

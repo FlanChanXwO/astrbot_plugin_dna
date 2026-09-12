@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Protocol
 
 import httpx
+from PIL import Image
 
 from ...utils.image import get_avatar_img
 from ...utils.image_utils import get_event_avatar
@@ -13,6 +15,13 @@ from ...utils.session import EventContext
 from .assets import image_data_uri, pil_image_data_uri
 
 TEXTURE_PATH = Path(__file__).parents[2] / "resources" / "textures" / "common"
+
+
+class ProfileImageLoader(Protocol):
+    """资料头所需的请求期用户头像加载边界。"""
+
+    async def user_avatar(self, user_id: str) -> Image.Image:
+        """使用当前 runtime 的图片下载器读取用户头像。"""
 
 
 async def build_profile_header(
@@ -24,6 +33,7 @@ async def build_profile_header(
     stats: list[tuple[str, str]] | None = None,
     avatar_user_id: str | None = None,
     uid_hidden: bool = False,
+    image_loader: ProfileImageLoader | None = None,
 ) -> dict[str, object]:
     """保留原头像选择语义，返回可安全交给模板的资料头 payload。
 
@@ -31,14 +41,17 @@ async def build_profile_header(
     的既有回退，不会替代 HTML/T2I 渲染失败后的错误处理。
     """
 
-    original_at = ctx.at
-    ctx.at = avatar_user_id or ""
-    try:
-        avatar = await get_event_avatar(ctx, avatar_path=USER_AVATAR_PATH)
-    except (httpx.HTTPError, OSError, TypeError, ValueError):
-        avatar = await get_avatar_img("5101")
-    finally:
-        ctx.at = original_at
+    if image_loader is not None:
+        avatar = await image_loader.user_avatar(avatar_user_id or ctx.user_id)
+    else:
+        original_at = ctx.at
+        ctx.at = avatar_user_id or ""
+        try:
+            avatar = await get_event_avatar(ctx, avatar_path=USER_AVATAR_PATH)
+        except (httpx.HTTPError, OSError, TypeError, ValueError):
+            avatar = await get_avatar_img("5101")
+        finally:
+            ctx.at = original_at
 
     return {
         "avatar": pil_image_data_uri(avatar),
