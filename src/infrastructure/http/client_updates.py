@@ -123,7 +123,7 @@ _HYKB_USER_AGENT = (
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
     "AppleWebKit/605.1.15 Mobile/15E148"
 )
-_HYKB_DOWN_INFO_RE = re.compile(r"var downInfo = (\{.*?\}),", re.S)
+_HYKB_DOWN_INFO_RE = re.compile(r"var downInfo = (\{.*?\}),", re.DOTALL)
 _HYKB_VERSION_RE = re.compile(r'<p class="sp2">\s*([^<\s][^<]*?)\s*</p>')
 _MD5_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
 _BILIBILI_ANDROID_PACKAGE = "com.hero.dna.bilibili"
@@ -539,7 +539,7 @@ def _source_version_from_snapshot(
     return ClientSourceVersion(
         source_id=source_id,
         version_text=snapshot.version_text,
-        revision_id=str(snapshot.version_key),
+        revision_id=_manifest_revision_id(snapshot),
         order_key=(snapshot.version_key, snapshot.patch_version),
         provider_metadata=ManifestCdnVersionMetadata(
             version_key=snapshot.version_key,
@@ -547,6 +547,12 @@ def _source_version_from_snapshot(
             resource_version_dir=snapshot.resource_version_dir,
         ),
     )
+
+
+def _manifest_revision_id(snapshot: ClientVersionSnapshot) -> str:
+    """返回同时区分 VersionList key 与补丁目录的 manifest 身份。"""
+
+    return f"{snapshot.version_key}:{snapshot.patch_version}"
 
 
 def _find_revision_index(

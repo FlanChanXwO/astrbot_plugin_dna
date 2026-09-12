@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Self
 
 import pytest
@@ -19,10 +20,13 @@ from src.modules.client_updates import (
     ClientPlatform,
     ClientSourceObservation,
     ClientSourceVersion,
+    ClientUpdateBaseline,
     ClientUpdateFailureKind,
     ClientUpdateProviderKind,
     ClientUpdateRegistry,
+    ClientUpdateService,
     ClientUpdateSource,
+    ClientUpdateStateStore,
     ClientUpdateTarget,
     ClientUpdateTransportError,
     HykbProviderConfig,
@@ -469,12 +473,12 @@ def _manifest(key: str, name: str, size: int) -> dict[str, object]:
     }
 
 
-def _source_version(source_id: str, revision_id: str) -> ClientSourceVersion:
-    number = int(revision_id)
+def _manifest_source_version(source_id: str, version_key: str) -> ClientSourceVersion:
+    number = int(version_key)
     return ClientSourceVersion(
         source_id=source_id,
         version_text=f"1.6.{number}.1",
-        revision_id=revision_id,
+        revision_id=f"{number}:{number}",
         order_key=(number, number),
         provider_metadata=ManifestCdnVersionMetadata(
             version_key=number,
@@ -482,6 +486,52 @@ def _source_version(source_id: str, revision_id: str) -> ClientSourceVersion:
             resource_version_dir=None,
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_manifest_same_version_key_with_changed_patch_version_is_update(
+    tmp_path,
+) -> None:
+    source = resolve_client_update_source("cn-official-pc-manifest")
+    config = source.provider_config
+    assert isinstance(config, ManifestCdnProviderConfig)
+    version_url = f"{config.primary_base_url}/{config.branch}/VersionList.json"
+    session = _FakeSession(
+        {
+            version_url: _FakeResponse(
+                200,
+                _version_list({"1510203": _version_entry(1510203, 203)}),
+            )
+        }
+    )
+    transport = ClientUpdateTransport(session_factory=lambda: session)
+    previous_observation = await transport.get_observation(source.source_id)
+    state = ClientUpdateStateStore(tmp_path / "client_updates.json")
+    await state.save_baseline(
+        ClientUpdateBaseline(
+            version=previous_observation.current,
+            observed_at=datetime(2026, 9, 12, tzinfo=UTC),
+        )
+    )
+    session.routes[version_url] = _FakeResponse(
+        200,
+        _version_list({"1510203": _version_entry(1510999, 999)}),
+    )
+
+    changes = await ClientUpdateService(
+        state,
+        transport=transport,
+        target_ids=("cn-official-pc",),
+    ).poll_now()
+
+    assert len(changes) == 1
+    change = changes[0]
+    assert change is not None
+    assert change.previous != change.current
+    assert change.current.revision_id == "1510203:1510999"
+    assert change.history_complete is False
+    assert change.added_size_bytes is None
+    assert [request.url for request in session.requests] == [version_url, version_url]
 
 
 @pytest.mark.asyncio
@@ -514,10 +564,10 @@ async def test_manifest_transport_sums_continuous_history_records() -> None:
     observation = await ClientUpdateTransport(
         session_factory=lambda: _FakeSession(routes)
     ).get_observation(
-        source.source_id, baseline=_source_version(source.source_id, "100")
+        source.source_id, baseline=_manifest_source_version(source.source_id, "100")
     )
 
-    assert observation.current.revision_id == "102"
+    assert observation.current.revision_id == "102:102"
     assert observation.history_complete is True
     assert observation.added_size_bytes == 32
 
@@ -553,15 +603,15 @@ async def test_manifest_transport_reads_only_real_sparse_history_records() -> No
     observation = await ClientUpdateTransport(
         session_factory=lambda: session
     ).get_observation(
-        source.source_id, baseline=_source_version(source.source_id, "100")
+        source.source_id, baseline=_manifest_source_version(source.source_id, "100")
     )
 
     assert isinstance(observation, ClientSourceObservation)
-    assert observation.current.revision_id == "103"
+    assert observation.current.revision_id == "103:103"
     assert tuple(version.revision_id for version in observation.observed_versions) == (
-        "100",
-        "102",
-        "103",
+        "100:100",
+        "102:102",
+        "103:103",
     )
     assert observation.history_complete is True
     assert observation.added_size_bytes == 52
@@ -593,10 +643,10 @@ async def test_manifest_transport_marks_baseline_outside_window_as_history_gap()
     observation = await ClientUpdateTransport(
         session_factory=lambda: session
     ).get_observation(
-        source.source_id, baseline=_source_version(source.source_id, "100")
+        source.source_id, baseline=_manifest_source_version(source.source_id, "100")
     )
 
-    assert observation.current.revision_id == "103"
+    assert observation.current.revision_id == "103:103"
     assert observation.history_complete is False
     assert observation.added_size_bytes is None
     assert len(session.requests) == 1
@@ -630,7 +680,7 @@ async def test_manifest_transport_handles_large_sparse_revision_span() -> None:
     baseline = ClientSourceVersion(
         source_id=source.source_id,
         version_text="1.6.201.1",
-        revision_id="1042001",
+        revision_id="1042001:2001",
         order_key=(1042001, 2001),
         provider_metadata=ManifestCdnVersionMetadata(
             version_key=1042001,
@@ -643,7 +693,7 @@ async def test_manifest_transport_handles_large_sparse_revision_span() -> None:
         session_factory=lambda: session
     ).get_observation(source.source_id, baseline=baseline)
 
-    assert observation.current.revision_id == "1510198"
+    assert observation.current.revision_id == "1510198:2198"
     assert observation.added_size_bytes == 15
     assert len(session.requests) == 3
 
@@ -677,7 +727,7 @@ async def test_android_manifest_uses_version_key_directory_and_separate_keys() -
     baseline = ClientSourceVersion(
         source_id=source.source_id,
         version_text="1.6.201.1",
-        revision_id="5001",
+        revision_id="5001:201",
         order_key=(5001, 201),
         provider_metadata=ManifestCdnVersionMetadata(
             version_key=5001,
@@ -690,6 +740,7 @@ async def test_android_manifest_uses_version_key_directory_and_separate_keys() -
         session_factory=lambda: session
     ).get_observation(source.source_id, baseline=baseline)
 
+    assert observation.current.revision_id == "5002:202"
     assert observation.added_size_bytes == 42
     assert {
         request.url for request in session.requests if "Info.json" in request.url
@@ -861,7 +912,7 @@ async def test_manifest_transport_falls_back_only_for_retryable_failures(
         session_factory=lambda: session
     ).get_observation(source.source_id)
 
-    assert observation.current.revision_id == "100"
+    assert observation.current.revision_id == "100:100"
     assert [request.url for request in session.requests] == [primary_url, fallback_url]
 
 
@@ -956,7 +1007,7 @@ async def test_manifest_transport_classifies_corrupt_manifest_as_contract_failur
     with pytest.raises(ClientUpdateTransportError) as caught:
         await ClientUpdateTransport(session_factory=lambda: session).get_observation(
             source.source_id,
-            baseline=_source_version(source.source_id, "100"),
+            baseline=_manifest_source_version(source.source_id, "100"),
         )
 
     assert caught.value.kind is ClientUpdateFailureKind.CONTRACT
@@ -971,7 +1022,9 @@ async def test_manifest_transport_rejects_baseline_from_another_source() -> None
             session_factory=lambda: _FakeSession({})
         ).get_observation(
             source.source_id,
-            baseline=_source_version("cn-official-android-astc-manifest", "100"),
+            baseline=_manifest_source_version(
+                "cn-official-android-astc-manifest", "100"
+            ),
         )
 
 
@@ -1154,7 +1207,8 @@ async def test_bilibili_pc_transport_tracks_installer_identity_without_version()
     updated_payload = {
         "code": 0,
         "data": {
-            **{**_BILIBILI_PC_PAYLOAD["data"], "pc_download_link": updated_link},
+            **_BILIBILI_PC_PAYLOAD["data"],
+            "pc_download_link": updated_link,
         },
     }
     changed = await ClientUpdateTransport(
@@ -1180,7 +1234,8 @@ async def test_bilibili_transport_rejects_bad_code_and_malformed_sign() -> None:
     payload = {
         "code": 0,
         "data": {
-            **{**_BILIBILI_ANDROID_PAYLOAD["data"], "android_sign": "not-a-md5"},
+            **_BILIBILI_ANDROID_PAYLOAD["data"],
+            "android_sign": "not-a-md5",
         },
     }
     with pytest.raises(ClientUpdateTransportError) as caught:
