@@ -61,6 +61,8 @@ def _query_pairs(values: Any) -> list[tuple[str, Any]]:
 
 
 def _to_aiohttp_response(result: Any) -> web.StreamResponse:
+    if isinstance(result, web.StreamResponse):
+        return result
     if isinstance(result, Response):
         headers = {
             key: value
@@ -158,6 +160,12 @@ class LocalLoginServer:
     def _make_route_handler(
         self, handler: Callable[..., Any]
     ) -> Callable[[web.Request], Any]:
+        # 声明了 raw_request 参数的 handler（如验证码反代）需要 aiohttp 原生请求，
+        # 以获得未解码的请求路径、query、原始 headers 与请求体。这类 handler 自行
+        # 从原始请求行解析参数，因此只接收 raw_request，不再注入已解码的
+        # match_info，避免两套来源产生分歧。
+        wants_raw = "raw_request" in inspect.signature(handler).parameters
+
         async def route_handler(request: web.Request) -> web.StreamResponse:
             adapter = _AioHttpRequest(request)
             plugin_request = PluginRequest(
@@ -165,8 +173,13 @@ class LocalLoginServer:
                 path_params=dict(request.match_info),
                 plugin_name="astrbot_plugin_dna",
             )
+            kwargs: dict[str, Any]
+            if wants_raw:
+                kwargs = {"raw_request": request}
+            else:
+                kwargs = dict(request.match_info)
             with bind_request_context(plugin_request):
-                result = handler(**dict(request.match_info))
+                result = handler(**kwargs)
                 if inspect.isawaitable(result):
                     result = await result
             return _to_aiohttp_response(result)

@@ -37,10 +37,10 @@ LOGIN_TOKEN_EMPTY = get_tip("account.login_token_empty")
 UNNAMED_ROLE = get_tip("account.unnamed_role")
 
 
-def login_page(url: str) -> str:
-    """返回登录页地址；地址由 transport 负责生成临时会话。"""
+def login_page(user_id: str, url: str) -> str:
+    """返回统一登录提示；地址由 transport 负责生成临时会话。"""
 
-    return get_tip("account.login_page", url=url)
+    return get_tip("account.login_page", user_id=user_id, url=url)
 
 
 def login_success(roles: Iterable[RoleInfo]) -> str:

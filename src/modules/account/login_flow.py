@@ -17,15 +17,21 @@ from typing import Any, Protocol
 from astrbot.api import logger
 from astrbot.api.web import request
 from pydantic import BaseModel, Field
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, Response
 
 from ...entry.response import LoginResponse, PlainTextResponse
 from ...infrastructure.config.settings import LoginSettings
+from ...infrastructure.http import captcha_proxy
+from ...infrastructure.http.login_media import (
+    LOGIN_MEDIA_VIDEO_ROUTE,
+    LoginMediaService,
+)
 from ...infrastructure.http.login_server import LocalLoginServer, Route
 from ...infrastructure.rendering.qr import render_qr_code
+from ...infrastructure.resources.generation import ResourceSnapshotCoordinator
 from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 from ...utils.api.auth import create_device_code
-from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES
+from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES, TEMP_PATH
 from . import messages
 from .contracts import (
     AccountActor,
@@ -127,15 +133,19 @@ class LoginFlowCoordinator:
         external_transport: LoginTransport | None = None,
         local_server: LocalLoginServer | None = None,
         notify: LoginNotifier | None = None,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.account_service = account_service
         self.settings = settings
         self.account_transport = account_transport
         self.notify = notify
+        self.login_media = LoginMediaService(resource_snapshots)
         self._sessions: dict[tuple[str, str, str | None], _LoginSession] = {}
         self._session_lock = asyncio.Lock()
         self._started = False
         self._external_transport = external_transport
+        # 验证码反代入口；测试中可替换为假实现，避免真实外呼。
+        self._captcha_forward = captcha_proxy.forward
         if settings.transport == "local":
             self.local_server = local_server or LocalLoginServer(
                 self._routes(),
@@ -223,10 +233,11 @@ class LoginFlowCoordinator:
                 )
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
             except Exception as error:  # noqa: BLE001
-                # 第三方适配器可能把服务端正文放进异常；仅记录类别，避免泄露凭据。
                 logger.error(
-                    "登录流程启动出现未预期异常 kind=%s",
+                    "登录流程启动出现未预期异常 kind=%s: %s",
                     type(error).__name__,
+                    error,
+                    exc_info=True,
                 )
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
 
@@ -255,25 +266,22 @@ class LoginFlowCoordinator:
             try:
                 qr_bytes = await render_qr_code(url)
             except Exception as error:  # noqa: BLE001
-                logger.error("登录二维码生成失败 kind=%s", type(error).__name__)
+                logger.error(
+                    "登录二维码生成失败 kind=%s: %s",
+                    type(error).__name__,
+                    error,
+                    exc_info=True,
+                )
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
             return LoginResponse(
-                text=(
-                    f"[二重螺旋] 您的id为【{actor.user_id}】\n"
-                    "请扫描下方二维码获取登录地址，并复制地址到浏览器打开\n"
-                ),
+                text=messages.login_page(actor.user_id, url),
                 qr_bytes=qr_bytes,
                 forward=forward,
                 need_at=bool(actor.group_id),
             )
         if self.settings.tencent_docs:
             url = f"https://docs.qq.com/scenario/link.html?url={url}"
-            text = (
-                f"[二重螺旋] 您的id为【{actor.user_id}】\n"
-                "请复制地址到浏览器打开\n"
-                f" {url}\n"
-                "登录地址10分钟内有效"
-            )
+            text = messages.login_page(actor.user_id, url)
             return LoginResponse(
                 text=text,
                 forward=forward,
@@ -281,10 +289,10 @@ class LoginFlowCoordinator:
             )
         if forward:
             return LoginResponse(
-                text=messages.login_page(url),
+                text=messages.login_page(actor.user_id, url),
                 forward=True,
             )
-        return PlainTextResponse(messages.login_page(url))
+        return PlainTextResponse(messages.login_page(actor.user_id, url))
 
     async def _start_transport(self, actor: AccountActor, auth: str) -> str:
         if self.settings.transport == "local":
@@ -333,11 +341,11 @@ class LoginFlowCoordinator:
             )
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         except Exception as error:  # noqa: BLE001
-            # transport/第三方异常可能携带服务端正文或凭据；此处只记录类别，
-            # 具体协议错误已在各自 adapter 中转换为安全的分类错误。
             logger.error(
-                "登录流程等待出现未预期异常 kind=%s",
+                "登录流程等待出现未预期异常 kind=%s: %s",
                 type(error).__name__,
+                error,
+                exc_info=True,
             )
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         finally:
@@ -388,8 +396,10 @@ class LoginFlowCoordinator:
                 await result
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "登录完成通知失败 kind=%s",
+                "登录完成通知失败 kind=%s: %s",
                 type(error).__name__,
+                error,
+                exc_info=True,
             )
 
     def _find_session(self, auth: str) -> _LoginSession | None:
@@ -404,11 +414,16 @@ class LoginFlowCoordinator:
             return self._not_found_page()
         template = DNA_TEMPLATES.get_template("index.html.j2")
         base_url = self.public_url
+        login_media = self.login_media.resolve(
+            base_url,
+            enabled=self.settings.dynamic_background,
+        )
         return HTMLResponse(
             template.render(
                 server_url=base_url,
                 auth=auth,
                 userId=session.actor.user_id,
+                login_media=login_media,
             )
         )
 
@@ -416,6 +431,14 @@ class LoginFlowCoordinator:
     def _not_found_page() -> HTMLResponse:
         template = DNA_TEMPLATES.get_template("404.html.j2")
         return HTMLResponse(template.render(), status_code=404)
+
+    def _login_video(self):
+        """提供固定 MP4 路由，不接受调用方传入文件路径。"""
+
+        return self.login_media.file_response(
+            "video",
+            enabled=self.settings.dynamic_background,
+        )
 
     async def _get_sms_code(self) -> dict[str, bool | str]:
         payload = await request.json(default=None)
@@ -451,10 +474,11 @@ class LoginFlowCoordinator:
             )
             return {"success": False, "msg": messages.LOGIN_SERVICE_FAILED}
         except Exception as error:  # noqa: BLE001
-            # 短信服务异常可能包含响应正文；只保留异常类别供排查。
             logger.error(
-                "登录流程请求短信出现未预期异常 kind=%s",
+                "登录流程请求短信出现未预期异常 kind=%s: %s",
                 type(error).__name__,
+                error,
+                exc_info=True,
             )
             return {"success": False, "msg": messages.LOGIN_SERVICE_FAILED}
         if result is False:
@@ -488,23 +512,117 @@ class LoginFlowCoordinator:
             response = await self.account_service.login(session.actor, attempt)
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "登录流程认证出现未预期异常 kind=%s",
+                "登录流程认证出现未预期异常 kind=%s: %s",
                 type(error).__name__,
+                error,
+                exc_info=True,
             )
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         session.response = response
         session.completed.set()
         return {"success": True}
 
+    async def _captcha_proxy(
+        self,
+        *,
+        raw_request: Any,
+    ) -> Response:
+        """验证码反代路由：仅转发白名单上游，注入 Android 画像。
+
+        248 的判别发生在浏览器发往 ``*.alicaptcha.com`` 的 HTTP User-Agent
+        平台标识；页面 JS 与 Service Worker 会把这些请求改写到本路由，
+        由这里完成换头转发。
+
+        反代必须绑定到仍然有效的登录会话：这里是匿名可访问的路由，若只靠
+        固定 host 白名单，任何人都能用本机出口 IP 做固定目的地的出站中继。
+        子路径与 query 取自 aiohttp 原始请求行，而不是已解码的 match_info /
+        ``query_string``，否则 ``%23``、``+`` 这类编码会在重新拼 URL 时被改写。
+        """
+
+        prefix = f"{ROUTE_PREFIX}/alicap/"
+        target = captcha_proxy.parse_proxy_target(
+            raw_request.rel_url.raw_path,
+            prefix=prefix,
+        )
+        if target is None:
+            return Response(status_code=404)
+        auth, host, sub_path = target
+        if self._find_session(auth) is None:
+            return Response(status_code=404)
+        # rel_url 以 encoded 方式保存原始请求目标；可直接取回未解码的 query。
+        query = raw_request.rel_url.raw_query_string
+        try:
+            async with captcha_proxy.new_http_client() as client:
+                result = await self._captcha_forward(
+                    host,
+                    sub_path,
+                    query,
+                    raw_request.method,
+                    raw_request.headers,
+                    await raw_request.read(),
+                    client=client,
+                    proxy_prefix=f"{prefix}{auth}/",
+                )
+        except captcha_proxy.CaptchaProxyError:
+            return Response(status_code=502)
+        if result is None:
+            return Response(status_code=404)
+        if result.location is not None:
+            # 白名单内的跳转：改写为同源反代地址，浏览器会带着会话继续代理。
+            return Response(
+                status_code=result.status,
+                headers={"Location": result.location},
+            )
+        if result.status in captcha_proxy.REDIRECT_STATUSES:
+            # 跳转目标不在白名单：不能下发一个没有 Location 的 3xx。
+            return Response(status_code=502)
+        return Response(
+            content=result.body,
+            status_code=result.status,
+            headers={"Content-Type": result.content_type},
+        )
+
+    @staticmethod
+    def _service_worker() -> Response:
+        """提供验证码 Service Worker；禁缓存以便发版立即生效。"""
+
+        source = (TEMP_PATH / "sw.js").read_text(encoding="utf-8")
+        return Response(
+            source,
+            media_type="text/javascript",
+            headers={
+                "Cache-Control": "no-cache",
+                "Service-Worker-Allowed": f"{ROUTE_PREFIX}/",
+            },
+        )
+
     def _routes(self) -> list[Route]:
-        """只注册 App 登录页面、短信和提交路由。"""
+        """注册 App 登录页、短信/提交以及验证码反代相关路由。"""
 
         return [
+            (
+                f"{ROUTE_PREFIX}/sw.js",
+                self._service_worker,
+                ["GET"],
+                "验证码 Service Worker",
+            ),
+            (
+                f"{ROUTE_PREFIX}/alicap/{{auth}}/{{host}}/{{path:.*}}",
+                self._captcha_proxy,
+                ["GET", "POST"],
+                "验证码反代",
+            ),
             (
                 f"{ROUTE_PREFIX}/dna/i/{{auth}}",
                 self._login_page,
                 ["GET"],
                 "App 登录页",
+            ),
+            (
+                LOGIN_MEDIA_VIDEO_ROUTE,
+                self._login_video,
+                ["GET"],
+                "App 登录动态视频背景",
             ),
             (
                 f"{ROUTE_PREFIX}/dna/login",

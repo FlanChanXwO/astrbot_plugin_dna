@@ -159,6 +159,8 @@ class CheckinOutcome:
     # 群报告直接消费两类结构化详情，避免从 detail_lines 反向推断业务归属。
     game_detail_lines: tuple[str, ...] = ()
     community_detail_lines: tuple[str, ...] = ()
+    # 群社区报告以社区签到本身为主要状态；附加任务失败仍保留在 bbs_status/详情中。
+    community_sign_status: SignStatus | None = None
 
     @property
     def success(self) -> bool:

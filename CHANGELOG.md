@@ -1,5 +1,45 @@
 # 更新日志
 
+## v0.4.0 — 2026-09-11
+
+### 新增
+
+- 重做内置登录页视觉与媒体体验：加入可配置的静音动态背景、移动端居中布局与「狩月终端」标题标识，并在资源缺失、加载失败或开启减少动态效果时自动回退到静态背景。（[#49](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/49)）
+- 支持 Windows PC 浏览器直接完成验证码登录：内置 `*.alicaptcha.com` 白名单反代，将验证码会话请求转换为已验证可用的 Android UA 画像，并通过 Service Worker 与页面内 hook 覆盖安全上下文和局域网 HTTP 场景。（[#56](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/56)）
+- 登录页状态提示改为悬浮 Toast，区分成功、失败和处理中状态，避免表单高度随状态文本变化而跳动；同时补充未预期异常的错误详情与堆栈日志。（[#60](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/60)）
+
+### 修复
+
+- 修复角色概览中武器 `elementIcon` 缺失时整张卡片渲染失败的问题；该装饰图标现在按可选字段处理，其余武器信息继续正常展示。（[#57](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/57)）
+- 统一全部登录链路的登录提示文案，普通直链、外置 transport、腾讯文档、二维码、fallback 与 legacy 路径均复用同一 formatter，避免不同配置下提示内容漂移。（[#59](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/59)）
+- 移除验证码 SDK 人为设置的 15 秒固定加载超时，改由真实脚本加载错误、SDK 错误与初始化异常决定失败，避免弱网环境下提前误判登录失败。（[#49](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/49)）
+
+### 文档
+
+- 更新登录与配置文档，补充动态背景配置及 PC / 手机浏览器直接验证码登录说明。（[#49](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/49)、[#56](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/56)）
+
+**完整变更**：[`v0.3.6...v0.4.0`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.3.6...v0.4.0)
+
+## v0.3.6 — 2026-09-10
+
+### 修复
+
+- 修复本群社区签到报告在社区主签到已经成功、但浏览、点赞、分享、回复等附加社区任务失败或发生网络异常时，仍把账号判定为失败并批量 `@` 的问题；群报告现在以社区主签到状态作为主要成功判定，附加任务的真实失败仍保留在整体自动任务结果中。（[#54](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/54)）
+
+### 维护
+
+- 精简 #54 的回归测试，复用现有签到测试设施，并保留“附加任务普通失败”和“主签到成功后附加任务发生 `CheckinTransportError`”两条历史回归场景，移除重复的独立群报告测试框架。（[#54](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/54)）
+
+**完整变更**：[`v0.3.5...v0.3.6`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.3.5...v0.3.6)
+
+## v0.3.5 — 2026-09-09
+
+### 修复
+
+- 修复“日常/每日”卡片的布局与视觉问题：进度条重新对齐底图凹槽并消除挤压、截断和双轨重影；锻造清单改为自顶向下排列的独立容器，避免内容坠入角色区域；底部品牌标识统一使用卡片页脚图片。（[#53](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/53)）
+
+**完整变更**：[`v0.3.4...v0.3.5`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.3.4...v0.3.5)
+
 ## v0.3.4 — 2026-09-09
 
 ### 修复

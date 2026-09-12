@@ -107,6 +107,13 @@ class LoginSettings(_SettingsModel):
         description="转发消息登录",
         json_schema_extra={"hint": "是否将登录链接转换为转发消息"},
     )
+    dynamic_background: bool = Field(
+        default=True,
+        description="登录页动态背景",
+        json_schema_extra={
+            "hint": "是否启用内置登录页的 MP4 动态背景；关闭后使用静态背景",
+        },
+    )
     max_bind_count: int = Field(
         default=2,
         ge=0,
