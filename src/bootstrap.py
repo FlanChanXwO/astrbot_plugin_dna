@@ -572,7 +572,7 @@ def build_runtime(
         client_update_state,
         transport=resolved_client_updates_transport,
         subscriptions=subscriptions,
-        channels=tuple(settings.client_updates.channels),
+        target_ids=tuple(settings.client_updates.targets),
     )
     if services is not None and "client_update_service" in services:
         client_update_service = cast(
@@ -793,6 +793,7 @@ def build_runtime(
         start_hooks=(
             _initialize_resource_views,
             login_flow.start,
+            client_update_service.initialize,
             web.initialize,
             cache_maintenance.start,
             sign_scheduler.start,
@@ -800,8 +801,8 @@ def build_runtime(
             client_updates_scheduler.start,
             agent_tools_lifecycle.start,
         ),
-        # stop_hooks 与 start_hooks 按阶段对齐；PluginLifecycle 会逆序执行，
-        # 先取消 scheduler/监听任务，再运行 transport 和数据库 finalizer。
+        # PluginLifecycle 会逆序执行，先取消 scheduler/监听任务，
+        # 再运行 transport 和数据库 finalizer。
         stop_hooks=(
             _stop_resource_views,
             login_flow.stop,

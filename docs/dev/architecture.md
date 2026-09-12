@@ -44,6 +44,7 @@
 | 玩家/图鉴 | `src/modules/player/`、`src/modules/encyclopedia/`、相关 rendering 与资源代码 |
 | 数据库 | `src/infrastructure/persistence/`、`alembic/versions/`、`tests/test_persistence.py` |
 | 推送/调度 | `src/infrastructure/subscriptions/`、scheduler 相关模块、对应领域测试 |
+| 客户端更新 | `src/modules/client_updates/registry.py`、`src/infrastructure/http/client_updates.py` |
 | Dashboard | `src/entry/admin_web.py`、`src/entry/web.py`、`pages/dashboard/` |
 | Agent Tools | `src/entry/agent_tools/`、`src/modules/agent_tools/`、`tests/test_agent_tools.py` |
 

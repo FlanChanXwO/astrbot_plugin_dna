@@ -22,9 +22,9 @@ from pydantic import (
     model_validator,
 )
 
-from ...modules.client_updates.channels import (
-    CLIENT_UPDATE_CHANNELS,
-    normalize_client_update_channel_ids,
+from ...modules.client_updates.registry import (
+    DEFAULT_CLIENT_UPDATE_TARGET_IDS,
+    normalize_client_update_target_ids,
 )
 from ..resources.acceleration import (
     GithubAccelerationMode,
@@ -36,10 +36,10 @@ from .legacy import (
     DNA_CONFIG_SECTION,
     DNA_PREFIX,
     DNA_SIGN_CONFIG_SECTION,
-    DNAConfig,
-    DNASignConfig,
     LEGACY_DNA_CONFIG_SECTION,
     LEGACY_DNA_SIGN_CONFIG_SECTION,
+    DNAConfig,
+    DNASignConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -376,7 +376,7 @@ class SignInSettings(_SettingsModel):
 
 
 class ClientUpdatesSettings(_SettingsModel):
-    """客户端更新轮询、渠道和投递配置。"""
+    """客户端更新轮询、Target 和投递配置。"""
 
     enabled: bool = Field(
         default=True,
@@ -389,26 +389,35 @@ class ClientUpdatesSettings(_SettingsModel):
         description="客户端更新检查间隔",
         json_schema_extra={"hint": "客户端更新定时检查间隔（分钟），必须为正整数"},
     )
-    channels: list[str] = Field(
-        default_factory=lambda: list(CLIENT_UPDATE_CHANNELS),
-        description="客户端更新渠道",
+    targets: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_CLIENT_UPDATE_TARGET_IDS),
+        description="客户端更新目标",
         json_schema_extra={
-            "hint": "只能选择代码 registry 中的固定渠道 ID，不填写 URL、branch 或 manifest key"
+            "hint": "只能选择代码 registry 中的固定 Target ID，不填写 URL、branch 或 manifest key"
         },
     )
 
-    @field_validator("channels", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def _normalize_channels(cls, value: Any) -> list[str]:
+    def _reject_removed_channels(cls, value: Any) -> Any:
+        if isinstance(value, Mapping) and "channels" in value:
+            raise ValueError(
+                "client_updates.channels 已移除，请改用 client_updates.targets"
+            )
+        return value
+
+    @field_validator("targets", mode="before")
+    @classmethod
+    def _normalize_targets(cls, value: Any) -> list[str]:
         try:
-            return list(normalize_client_update_channel_ids(value))
+            return list(normalize_client_update_target_ids(value))
         except (TypeError, ValueError) as error:
-            raise ValueError("客户端更新渠道必须全部是已注册的渠道 ID") from error
+            raise ValueError("客户端更新目标必须全部是已注册的 Target ID") from error
 
     merge_forward: bool = Field(
         default=True,
         description="客户端更新合并转发",
-        json_schema_extra={"hint": "OneBot 平台是否将同轮多渠道更新合并为转发消息"},
+        json_schema_extra={"hint": "OneBot 平台是否将同轮多目标更新合并为转发消息"},
     )
 
 

@@ -233,23 +233,29 @@
         "hint": "客户端更新定时检查间隔（分钟），必须为正整数",
         "default": 60
       },
-      "channels": {
+      "targets": {
         "type": "list",
-        "description": "客户端更新渠道",
-        "hint": "只能选择代码 registry 中的固定渠道 ID，不填写 URL、branch 或 manifest key",
+        "description": "客户端更新目标",
+        "hint": "只能选择代码 registry 中的固定 Target ID，不填写 URL、branch 或 manifest key",
         "default": [
-          "pc_cn",
-          "android_astc_cn"
+          "cn-official-pc",
+          "cn-official-android"
         ],
         "options": [
-          "pc_cn",
-          "android_astc_cn"
+          "cn-official-pc",
+          "cn-official-android",
+          "cn-app-store-ios",
+          "cn-bilibili-pc",
+          "cn-bilibili-android",
+          "cn-hykb-android",
+          "global-standalone-pc",
+          "global-app-store-ios"
         ]
       },
       "merge_forward": {
         "type": "bool",
         "description": "客户端更新合并转发",
-        "hint": "OneBot 平台是否将同轮多渠道更新合并为转发消息",
+        "hint": "OneBot 平台是否将同轮多目标更新合并为转发消息",
         "default": true
       }
     }
