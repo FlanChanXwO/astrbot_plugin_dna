@@ -349,7 +349,7 @@ def _validate_image_decodability(path: Path) -> None:
             image.verify()
         with Image.open(path) as image:
             image.load()
-    except (OSError, SyntaxError, ValueError) as exc:
+    except (OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
         raise ResourceGenerationError(f"资源候选图片不可解码: {path.name}") from exc
 
 
@@ -1084,12 +1084,48 @@ class ResourceSnapshotCoordinator:
             yield resources
 
     @contextmanager
-    def bind_renderer(self, renderer: Any, resource_attr: str) -> Iterator[Any]:
-        """复制 renderer 并绑定一个持有 generation lease 的资源视图。"""
+    def bind_renderer(
+        self,
+        renderer: Any,
+        resource_attr: str,
+        *,
+        asset_resolver_attr: str | None = None,
+    ) -> Iterator[Any]:
+        """在同一 generation lease 内绑定资源视图和可选图片 resolver。"""
 
-        with self.bind_resource(resource_attr) as resources:
+        from .resolver import AssetResolver
+
+        with self.optional_lease() as snapshot:
+            if snapshot is None:
+                resources = self._empty_resource_view(resource_attr)
+            else:
+                try:
+                    resources = getattr(snapshot, resource_attr)
+                except AttributeError as exc:
+                    raise ResourceGenerationError(
+                        f"资源 generation 视图字段无效: {resource_attr}"
+                    ) from exc
+
             bound = copy(renderer)
             bound.resources = resources
+            if asset_resolver_attr is not None:
+                base_resolver = getattr(renderer, asset_resolver_attr, None)
+                if base_resolver is not None:
+                    dynamic_root = getattr(base_resolver, "dynamic_root", None)
+                    if dynamic_root is None:
+                        raise ResourceGenerationError(
+                            "renderer 的 asset resolver 缺少 dynamic_root: "
+                            f"{asset_resolver_attr}"
+                        )
+                    setattr(
+                        bound,
+                        asset_resolver_attr,
+                        AssetResolver.from_snapshot(
+                            snapshot,
+                            dynamic_root=dynamic_root,
+                            downloader=getattr(base_resolver, "downloader", None),
+                        ),
+                    )
             yield bound
 
     def _release(self, commit_sha: str) -> None:

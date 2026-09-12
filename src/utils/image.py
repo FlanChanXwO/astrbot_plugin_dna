@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 from astrbot.api import logger
 from PIL import Image, ImageDraw, ImageOps
 
+from . import image_utils
 from .image_utils import (
     ImageFetchError,
     crop_center_img,
@@ -18,10 +20,14 @@ from .resource.RESOURCE_PATH import (
     MOD_PATH,
     PAINT_PATH,
     SKILL_PATH,
+    USER_AVATAR_PATH,
     WEAPON_ATTR_PATH,
     WEAPON_PATH,
 )
 from .session import EventContext
+
+if TYPE_CHECKING:
+    from ..infrastructure.resources.resolver import AssetDownloader
 
 ICON = Path(__file__).parent.parent.parent / "logo.png"
 TEXT_PATH = Path(__file__).parent / "texture2d"
@@ -115,13 +121,21 @@ async def download_pic_from_url(
     pic_url: str,
     size: tuple[int, int] | None = None,
     name: str | None = None,
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> Image.Image:
     path.mkdir(parents=True, exist_ok=True)
 
     if name is None:
         name = pic_url.split("/")[-1]
     _path = path / name
-    _ = await download(pic_url, path, name, tag="[DNA]")
+    _ = await image_utils.download(
+        pic_url,
+        path,
+        name,
+        tag="[DNA]",
+        downloader=downloader,
+    )
 
     img = Image.open(_path)
     if size:
@@ -328,7 +342,7 @@ async def get_avatar_title_img(
     else:
         ev.at = ""  # 清空 at，确保获取发送者自己的头像
     try:
-        avatar = await get_event_avatar(ev, avatar_path=AVATAR_PATH)
+        avatar = await get_event_avatar(ev, avatar_path=USER_AVATAR_PATH)
     except (httpx.HTTPError, OSError, TypeError, ValueError):
         avatar = await get_avatar_img("5101")
     finally:

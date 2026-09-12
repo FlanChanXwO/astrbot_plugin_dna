@@ -3,11 +3,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from collections.abc import Callable
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from astrbot.api import logger
-from astrbot.api.star import StarTools
 from astrbot.api.web import request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse
@@ -26,7 +24,7 @@ from ...utils.msgs.notify import (
     send_dna_notify,
     send_dna_text,
 )
-from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES
+from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES, LOGIN_QR_PATH
 from ...utils.segments import MessageSegment
 from ...utils.session import EventContext, Sender
 from . import messages
@@ -133,11 +131,7 @@ async def send_login(sender: Sender, ctx: EventContext, url: str) -> None:
     if DNAConfig.get_config("DNAQRLogin").data:
         # 二维码 helper 保留旧 path 参数；文件名使用摘要，避免外部 user_id 逃出运行期目录。
         qr_name = hashlib.sha256(ctx.user_id.encode("utf-8")).hexdigest()
-        path = (
-            Path(StarTools.get_data_dir("astrbot_plugin_dna"))
-            / "login_qr"
-            / f"{qr_name}.gif"
-        )
+        path = LOGIN_QR_PATH / f"{qr_name}.gif"
         path.parent.mkdir(parents=True, exist_ok=True)
         qr_items = [
             MessageSegment.text(messages.login_page(ctx.user_id, url)),

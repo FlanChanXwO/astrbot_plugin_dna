@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 import tempfile
 from collections.abc import Awaitable, Callable
@@ -18,7 +19,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 from astrbot.api import logger
@@ -26,13 +27,18 @@ from PIL import Image
 
 from .session import EventContext
 
+if TYPE_CHECKING:
+    from ..infrastructure.resources.resolver import AssetDownloader
+
 __all__ = [
     "ImageFetchError",
     "ImageFetcher",
+    "ImageFetcherClosed",
     "change_ev_image_to_bytes",
     "convert_img",
     "crop_center_img",
     "download",
+    "get_default_image_fetcher",
     "get_event_avatar",
     "get_qrcode_base64",
     "tint_image",
@@ -87,6 +93,10 @@ class ImageFetchError(OSError):
     """图片下载、缓存校验或原子写入失败。"""
 
 
+class ImageFetcherClosed(ImageFetchError):
+    """下载器已停止，不再接纳新的网络下载。"""
+
+
 def _validate_image_file(path: Path) -> None:
     """完整解码图片，避免把 HTML、空响应或损坏文件当作缓存成功。"""
 
@@ -95,8 +105,20 @@ def _validate_image_file(path: Path) -> None:
             image.verify()
         with Image.open(path) as image:
             image.load()
-    except (OSError, SyntaxError, ValueError) as exc:
+    except (OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
         raise ImageFetchError(f"图片不可解码: {path.name}") from exc
+
+
+def _validate_image_bytes(content: bytes) -> None:
+    """在 URL 共享任务中先校验一次响应，避免把坏内容 fan-out 到缓存。"""
+
+    try:
+        with Image.open(BytesIO(content)) as image:
+            image.verify()
+        with Image.open(BytesIO(content)) as image:
+            image.load()
+    except (OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
+        raise ImageFetchError("图片响应不是可解码图片") from exc
 
 
 def _retry_after_seconds(headers: Any) -> float | None:
@@ -130,25 +152,248 @@ def _download_error_label(error: OSError | httpx.HTTPError) -> str:
     return type(error).__name__
 
 
+class _AdaptiveCapacity:
+    """按请求结果动态调整的内部 HTTP 并发容量。"""
+
+    _WEAK_CONGESTION_THRESHOLD = 2
+    _HEALTHY_REQUEST_WINDOW = 4
+
+    def __init__(
+        self,
+        *,
+        initial: int,
+        minimum: int,
+        maximum: int,
+    ) -> None:
+        self._minimum = minimum
+        self._maximum = maximum
+        self._initial = initial
+        self._capacity = initial
+        self._active = 0
+        self._healthy_requests = 0
+        self._weak_congestion = 0
+        self._condition = asyncio.Condition()
+
+    @property
+    def capacity(self) -> int:
+        return self._capacity
+
+    @property
+    def active(self) -> int:
+        return self._active
+
+    async def acquire(self) -> None:
+        async with self._condition:
+            while self._active >= self._capacity:
+                await self._condition.wait()
+            self._active += 1
+
+    async def release(
+        self,
+        *,
+        success: bool = False,
+        congestion: str | None = None,
+    ) -> None:
+        async with self._condition:
+            if self._active <= 0:
+                raise RuntimeError("图片下载并发槽位释放次数不匹配")
+            self._active -= 1
+            if congestion == "strong":
+                self._capacity = max(self._minimum, self._capacity // 2)
+                self._healthy_requests = 0
+                self._weak_congestion = 0
+            elif congestion == "weak":
+                self._healthy_requests = 0
+                self._weak_congestion += 1
+                if self._weak_congestion >= self._WEAK_CONGESTION_THRESHOLD:
+                    self._capacity = max(self._minimum, self._capacity // 2)
+                    self._weak_congestion = 0
+            elif success:
+                self._weak_congestion = 0
+                self._healthy_requests += 1
+                if self._healthy_requests >= self._HEALTHY_REQUEST_WINDOW:
+                    self._capacity = min(self._maximum, self._capacity + 1)
+                    self._healthy_requests = 0
+            self._condition.notify_all()
+
+    def reset(self) -> None:
+        if self._active:
+            raise RuntimeError("不能在图片请求进行时重置并发容量")
+        self._capacity = self._initial
+        self._healthy_requests = 0
+        self._weak_congestion = 0
+
+
 class ImageFetcher:
-    """带图片完整性校验和并发合并的运行期下载器。"""
+    """带生命周期、动态并发、URL 合并和原子校验的运行期图片下载器。"""
 
     _MAX_ATTEMPTS = 3
+    _MIN_CAPACITY = 1
+    _DEFAULT_INITIAL_CAPACITY = 8
+    _MAX_CAPACITY = 64
 
     def __init__(
         self,
         *,
         client_factory: Callable[[], Any] | None = None,
         sleep: Callable[[float], Awaitable[None]] | None = None,
+        initial_capacity: int = _DEFAULT_INITIAL_CAPACITY,
+        max_capacity: int = _MAX_CAPACITY,
     ) -> None:
+        # 仅作为内部连接数安全边界，避免无限扩大 client 连接池；不暴露为用户配置。
+        maximum = min(self._MAX_CAPACITY, int(max_capacity))
+        initial = int(initial_capacity)
+        if maximum < self._MIN_CAPACITY:
+            raise ValueError("图片下载并发上限必须至少为 1")
+        if not self._MIN_CAPACITY <= initial <= maximum:
+            raise ValueError("图片下载初始并发必须位于有效上限内")
+
         self._client_factory = client_factory or self._build_client
         self._sleep = sleep or asyncio.sleep
-        self._inflight: dict[tuple[str, Path], asyncio.Task[Path]] = {}
-        self._inflight_lock = asyncio.Lock()
+        self._max_capacity = maximum
+        self._capacity = _AdaptiveCapacity(
+            initial=initial,
+            minimum=self._MIN_CAPACITY,
+            maximum=maximum,
+        )
+        self._inflight: dict[str, asyncio.Task[bytes]] = {}
+        self._active_tasks: set[asyncio.Task[bytes]] = set()
+        self._condition = asyncio.Condition()
+        self._client_lock = asyncio.Lock()
+        self._client: Any | None = None
+        self._starting = False
+        self._closing = False
+        self._close_task: asyncio.Task[None] | None = None
+        self._closing_event = asyncio.Event()
+        self._accepting = True
+        self._closed = False
+
+    @property
+    def capacity(self) -> int:
+        """当前允许的 HTTP 并发容量，供运行期观测和测试使用。"""
+
+        return self._capacity.capacity
+
+    @property
+    def active_requests(self) -> int:
+        """当前占用 HTTP 并发槽位的请求数。"""
+
+        return self._capacity.active
+
+    @property
+    def inflight_count(self) -> int:
+        """当前按 URL 合并的共享下载任务数。"""
+
+        return len(self._inflight)
+
+    def _build_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            follow_redirects=False,
+            timeout=30,
+            limits=httpx.Limits(
+                max_connections=self._max_capacity,
+                max_keepalive_connections=self._max_capacity,
+            ),
+        )
+
+    async def _get_client(self) -> Any:
+        async with self._client_lock:
+            if self._client is None:
+                client = self._client_factory()
+                if inspect.isawaitable(client):
+                    client = await client
+                self._client = client
+            return self._client
 
     @staticmethod
-    def _build_client() -> httpx.AsyncClient:
-        return httpx.AsyncClient(follow_redirects=False, timeout=30)
+    async def _close_client(client: Any | None) -> None:
+        if client is None:
+            return
+        close = getattr(client, "aclose", None)
+        if not callable(close):
+            close = getattr(client, "close", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+            return
+        exit_context = getattr(client, "__aexit__", None)
+        if callable(exit_context):
+            result = exit_context(None, None, None)
+            if inspect.isawaitable(result):
+                await result
+
+    async def start(self) -> None:
+        """启动下载器并预先创建长生命周期 HTTP client。"""
+
+        async with self._condition:
+            while self._closing:
+                await self._condition.wait()
+            if self._accepting and not self._closed:
+                if self._client is not None:
+                    return
+            else:
+                self._capacity.reset()
+            self._accepting = True
+            self._closed = False
+            self._closing_event.clear()
+            self._starting = True
+        try:
+            await self._get_client()
+        except BaseException:
+            async with self._condition:
+                self._starting = False
+                self._accepting = False
+                self._closed = True
+                self._condition.notify_all()
+            raise
+        async with self._condition:
+            self._starting = False
+            self._condition.notify_all()
+
+    async def _close_impl(self) -> None:
+        """完成完整关闭流程；由 ``close`` 在独立 task 中托管。"""
+
+        client: Any | None = None
+        try:
+            async with self._condition:
+                while self._starting or self._active_tasks:
+                    await self._condition.wait()
+                client = self._client
+                self._client = None
+                self._inflight.clear()
+            await self._close_client(client)
+        finally:
+            async with self._condition:
+                self._closing = False
+                self._condition.notify_all()
+
+    async def close(self) -> None:
+        """拒绝新下载，等待 active HTTP 自然结束后关闭共享 client。"""
+
+        async with self._condition:
+            close_task = self._close_task
+            if close_task is None or close_task.done():
+                if (
+                    self._closed
+                    and self._client is None
+                    and not self._starting
+                    and not self._active_tasks
+                ):
+                    return
+                self._closing = True
+                self._accepting = False
+                self._closed = True
+                self._closing_event.set()
+                close_task = asyncio.create_task(self._close_impl())
+                self._close_task = close_task
+
+        try:
+            await asyncio.shield(close_task)
+        except asyncio.CancelledError:
+            # cleanup task 不受调用方取消影响；清理完成后仍把原取消交回调用方。
+            await asyncio.shield(close_task)
+            raise
 
     @staticmethod
     def _is_retryable_status(status_code: int) -> bool:
@@ -183,21 +428,48 @@ class ImageFetcher:
         if not url.startswith(("http://", "https://")):
             raise ImageFetchError("图片 URL 必须使用 HTTP(S)")
 
-        async with self._client_factory() as client:
-            for attempt in range(self._MAX_ATTEMPTS):
+        client = await self._get_client()
+        for attempt in range(self._MAX_ATTEMPTS):
+            await self._capacity.acquire()
+            congestion: str | None = None
+            healthy = False
+            slot_released = False
+            try:
                 try:
                     response = await client.get(url, follow_redirects=False)
                 except httpx.TransportError:
+                    congestion = "weak"
                     if attempt == self._MAX_ATTEMPTS - 1:
                         raise
-                    await self._sleep(float(2**attempt))
+                    await self._release_capacity(
+                        success=False,
+                        congestion=congestion,
+                    )
+                    slot_released = True
+                    congestion = None
+                    await self._wait_for_retry(float(2**attempt))
                     continue
+
+                if response.status_code == 429:
+                    congestion = "strong"
+                elif 500 <= response.status_code <= 599:
+                    congestion = "weak"
+                else:
+                    healthy = True
 
                 if self._is_retryable_status(response.status_code):
                     if attempt == self._MAX_ATTEMPTS - 1:
                         response.raise_for_status()
                     delay = _retry_after_seconds(response.headers)
-                    await self._sleep(delay if delay is not None else float(2**attempt))
+                    await self._release_capacity(
+                        success=False,
+                        congestion=congestion,
+                    )
+                    slot_released = True
+                    congestion = None
+                    await self._wait_for_retry(
+                        delay if delay is not None else float(2**attempt)
+                    )
                     continue
 
                 if 300 <= response.status_code < 400:
@@ -205,14 +477,58 @@ class ImageFetcher:
                 response.raise_for_status()
                 if not response.content:
                     raise ImageFetchError("图片响应为空")
+                _validate_image_bytes(response.content)
                 return response.content
+            finally:
+                if not slot_released:
+                    await self._release_capacity(
+                        success=healthy,
+                        congestion=congestion,
+                    )
 
         raise ImageFetchError("图片下载未完成")
 
+    async def _wait_for_retry(self, delay: float) -> None:
+        """等待退避或关闭信号，避免 stop 被 Retry-After 长时间阻塞。"""
+
+        if self._closing_event.is_set():
+            raise ImageFetcherClosed("图片下载器已停止")
+
+        sleep_task = asyncio.create_task(self._sleep(delay))
+        closing_task = asyncio.create_task(self._closing_event.wait())
+        try:
+            done, _ = await asyncio.wait(
+                (sleep_task, closing_task),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if closing_task in done and closing_task.result():
+                raise ImageFetcherClosed("图片下载器已停止")
+            await sleep_task
+        finally:
+            for task in (sleep_task, closing_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(sleep_task, closing_task, return_exceptions=True)
+
+    async def _release_capacity(
+        self,
+        *,
+        success: bool,
+        congestion: str | None,
+    ) -> None:
+        # 共享任务不应因单个 waiter 取消而遗留并发槽位。
+        await asyncio.shield(
+            self._capacity.release(success=success, congestion=congestion)
+        )
+
     @staticmethod
     def _write_atomically(target: Path, content: bytes) -> None:
+        if target.is_symlink() or (target.exists() and not target.is_file()):
+            raise ImageFetchError(f"图片缓存目标不是普通文件: {target}")
         if target.parent.is_symlink():
             raise ImageFetchError("图片缓存目录不能是符号链接")
+        if target.parent.exists() and not target.parent.is_dir():
+            raise ImageFetchError("图片缓存目录不是目录")
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.parent.is_symlink():
             raise ImageFetchError("图片缓存目录不能是符号链接")
@@ -228,70 +544,85 @@ class ImageFetcher:
                 temporary_path = Path(temporary_file.name)
                 temporary_file.write(content)
             _validate_image_file(temporary_path)
+            if target.is_symlink() or (target.exists() and not target.is_file()):
+                raise ImageFetchError(f"图片缓存目标不是普通文件: {target}")
             os.replace(temporary_path, target)
             temporary_path = None
         finally:
             if temporary_path is not None and temporary_path.exists():
                 temporary_path.unlink()
 
-    async def _fetch_to_target(self, url: str, target: Path, tag: str) -> Path:
+    async def _run_shared_download(
+        self,
+        url: str,
+        target_name: str,
+        tag: str,
+    ) -> bytes:
+        current_task = asyncio.current_task()
         try:
-            if self._is_valid_cached_image(target):
-                return target
-            self._remove_invalid_cached_file(target)
             content = await self._download_content(url)
-            self._write_atomically(target, content)
         except (OSError, httpx.HTTPError) as exc:
             logger.warning(
-                f"{tag} 下载失败: {target.name} ({_download_error_label(exc)})"
+                f"{tag} 下载失败: {target_name} ({_download_error_label(exc)})"
             )
             raise
-        logger.info(f"{tag} 下载完成: {target.name} ({len(content)}B)")
-        return target
-
-    async def _run_shared_fetch(
-        self,
-        key: tuple[str, Path],
-        url: str,
-        target: Path,
-        tag: str,
-    ) -> Path:
-        try:
-            return await self._fetch_to_target(url, target, tag)
+        else:
+            logger.info(f"{tag} 下载完成: {target_name} ({len(content)}B)")
+            return content
         finally:
-            current_task = asyncio.current_task()
-            async with self._inflight_lock:
-                if current_task is not None and self._inflight.get(key) is current_task:
-                    del self._inflight[key]
+            async with self._condition:
+                if current_task is not None and self._inflight.get(url) is current_task:
+                    del self._inflight[url]
+                if current_task is not None:
+                    self._active_tasks.discard(current_task)
+                self._condition.notify_all()
 
     @staticmethod
-    def _observe_task(task: asyncio.Task[Path]) -> None:
+    def _observe_task(task: asyncio.Task[bytes]) -> None:
         """取消所有等待者后仍消费共享任务异常，避免后台任务泄漏告警。"""
 
         if not task.cancelled():
             task.exception()
 
     async def fetch(self, url: str, target: Path, tag: str = "") -> Path:
-        """下载并校验图片；相同 URL 与目标路径的并发请求共享一个任务。"""
+        """下载并校验图片；相同 URL 的不同目标共享一个任务。"""
 
         target = Path(target)
         if self._is_valid_cached_image(target):
             return target
+        self._remove_invalid_cached_file(target)
 
-        key = (url, target.resolve())
-        async with self._inflight_lock:
-            task = self._inflight.get(key)
+        async with self._condition:
+            if not self._accepting:
+                raise ImageFetcherClosed("图片下载器已停止")
+            task = self._inflight.get(url)
             if task is None or task.done():
                 task = asyncio.create_task(
-                    self._run_shared_fetch(key, url, target, tag)
+                    self._run_shared_download(url, target.name, tag)
                 )
                 task.add_done_callback(self._observe_task)
-                self._inflight[key] = task
+                self._inflight[url] = task
+                self._active_tasks.add(task)
+
         # 单个调用方取消时不应连带取消仍被其他调用方使用的下载任务。
-        return await asyncio.shield(task)
+        content = await asyncio.shield(task)
+        try:
+            self._write_atomically(target, content)
+        except (OSError, httpx.HTTPError) as exc:
+            logger.warning(
+                f"{tag} 缓存写入失败: {target.name} ({_download_error_label(exc)})"
+            )
+            raise
+        return target
 
 
 _DEFAULT_IMAGE_FETCHER = ImageFetcher()
+
+
+def get_default_image_fetcher() -> ImageFetcher:
+    """返回进程内共享的默认图片下载器。"""
+
+    return _DEFAULT_IMAGE_FETCHER
 
 
 def _resolve_download_target(path: Path, name: str) -> Path:
@@ -322,17 +653,22 @@ async def download(
     path: Path,
     name: str,
     tag: str = "",
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> Path:
     """下载 url 到 ``path/name``，保留 legacy 调用方的参数形状。"""
 
     target = _resolve_download_target(path, name)
-    return await _DEFAULT_IMAGE_FETCHER.fetch(url, target, tag=tag)
+    fetcher = get_default_image_fetcher() if downloader is None else downloader
+    return await fetcher.fetch(url, target, tag=tag)
 
 
 async def get_event_avatar(
     ev: EventContext,
     avatar_path: Path,
     size: int = 640,
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> Image.Image:
     """获取事件用户头像（QQ 头像源），缓存到 avatar_path。
 
@@ -343,7 +679,7 @@ async def get_event_avatar(
     name = f"avatar_{uid}.png"
     target = avatar_path / name
     url = f"https://q1.qlogo.cn/g?b=qq&nk={uid}&s={size}"
-    await download(url, avatar_path, name, tag="[DNA-avatar]")
+    await download(url, avatar_path, name, tag="[DNA-avatar]", downloader=downloader)
     img = Image.open(target).convert("RGBA")
     return img.resize((size, size), Image.Resampling.LANCZOS)
 

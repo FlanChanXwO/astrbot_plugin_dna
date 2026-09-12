@@ -36,7 +36,9 @@ def test_login_dynamic_background_defaults_to_enabled_and_is_in_schema():
     assert field["type"] == "bool"
     assert field["default"] is True
     assert "配套音乐" not in field.get("hint", "")
-    assert "配套音乐" not in (LoginSettings.model_fields["dynamic_background"].json_schema_extra or {}).get("hint", "")
+    assert "配套音乐" not in (
+        LoginSettings.model_fields["dynamic_background"].json_schema_extra or {}
+    ).get("hint", "")
     assert "MP4 动态背景" in field.get("hint", "")
 
 
@@ -349,9 +351,16 @@ def test_build_runtime_propagates_all_settings(tmp_path):
             "secret_retry_interval_seconds": 2,
         },
     }
+    from src.infrastructure import RuntimeDataLayout
+
     db = AsyncDatabase(tmp_path / "test.sqlite3")
     context = SimpleNamespace(register_web_api=lambda *args: None)
-    runtime = build_runtime(context, config_dict, database=db)
+    runtime = build_runtime(
+        context,
+        config_dict,
+        database=db,
+        runtime_data_layout=RuntimeDataLayout(tmp_path),
+    )
 
     # 1. 验证 settings 字段
     assert runtime.settings.login.max_bind_count == 7
@@ -377,6 +386,11 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     account_service = runtime.services["account_service"]
     assert account_service.max_bind_count == 7
     assert account_service.default_auto_sign_enabled is True
+
+    layout = RuntimeDataLayout(tmp_path)
+    admin_alias_service = runtime.services["admin_alias_service"]
+    assert admin_alias_service.custom_path == layout.char_alias_path
+    assert admin_alias_service.weapon_custom_path == layout.weapon_alias_path
 
     privacy_service = runtime.services["privacy_service"]
     assert privacy_service.allow_mention_query is False

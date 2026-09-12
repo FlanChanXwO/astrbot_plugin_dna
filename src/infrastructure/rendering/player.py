@@ -49,6 +49,7 @@ from ...utils.image import (
 )
 from ...utils.session import EventContext
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from ..resources.resolver import ResolvedAsset
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
@@ -56,6 +57,7 @@ from .damage_renderer import draw_role_damage_section
 from .fonts import load_runtime_font
 from .image_inspector import inspect_image
 from .payloads import build_profile_header
+from .player_image_loader import PlayerImageLoader
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
 from .weapon_renderer import draw_weapon_detail_section
@@ -84,22 +86,57 @@ class ItemTemp(BaseModel):
     unlocked: bool = False
 
 
-async def _item_payload(item: ItemTemp) -> dict[str, object]:
+async def _item_payload(
+    item: ItemTemp,
+    *,
+    image_loader: PlayerImageLoader | None = None,
+) -> dict[str, object]:
     if item.type == "role":
-        image = await get_avatar_img(item.id, item.icon)
+        image_coro = (
+            get_avatar_img(item.id, item.icon)
+            if image_loader is None
+            else image_loader.avatar(item.id, item.icon)
+        )
         # 与武器分支同理：官方展柜可能暂未下发新角色的类型图标，
         # 该装饰资源缺失不应阻断整卡渲染。
-        element = (
-            await get_attr_img(pic_url=item.element_icon) if item.element_icon else None
-        )
-    else:
-        image = await get_weapon_img(item.id, item.icon)
-        # 官方展柜数据可能暂未下发新武器的类型图标；该装饰资源缺失不应阻断整卡渲染。
-        element = (
-            await get_weapon_attr_img(pic_url=item.element_icon)
+        element_coro = (
+            (
+                get_attr_img(pic_url=item.element_icon)
+                if image_loader is None
+                else image_loader.attr(
+                    None,
+                    item.element_icon,
+                    optional=True,
+                )
+            )
             if item.element_icon
             else None
         )
+    else:
+        image_coro = (
+            get_weapon_img(item.id, item.icon)
+            if image_loader is None
+            else image_loader.weapon(item.id, item.icon)
+        )
+        # 官方展柜数据可能暂未下发新武器的类型图标；该装饰资源缺失不应阻断整卡渲染。
+        element_coro = (
+            (
+                get_weapon_attr_img(pic_url=item.element_icon)
+                if image_loader is None
+                else image_loader.weapon_attr(
+                    None,
+                    item.element_icon,
+                    optional=True,
+                )
+            )
+            if item.element_icon
+            else None
+        )
+    if element_coro is None:
+        image = await image_coro
+        element = None
+    else:
+        image, element = await asyncio.gather(image_coro, element_coro)
 
     # 仅当条目已解锁且命座等级大于 0 时才显示命座徽章，0 命或未解锁不渲染徽章
     grade_level = item.grade_level
@@ -131,11 +168,17 @@ async def _section_payload(
     title: str,
     show_none: bool,
     background_path: Path,
+    *,
+    image_loader: PlayerImageLoader | None = None,
 ) -> dict[str, object]:
     visible = items if show_none else [item for item in items if item.unlocked]
     return {
         "background": image_data_uri(background_path),
-        "items": list(await asyncio.gather(*(_item_payload(item) for item in visible))),
+        "items": list(
+            await asyncio.gather(
+                *(_item_payload(item, image_loader=image_loader) for item in visible)
+            )
+        ),
         "title": title,
     }
 
@@ -146,6 +189,8 @@ async def _draw_role_overview_card(
     show_none: bool = True,
     uid_hidden: bool = False,
     hero_background_path: Path | None = None,
+    *,
+    image_loader: PlayerImageLoader | None = None,
 ) -> bytes:
     role_chars = getattr(role_show, "roleChars", getattr(role_show, "role_chars", []))
     close_weapons = getattr(
@@ -234,7 +279,7 @@ async def _draw_role_overview_card(
         if getattr(item, "paramKey", getattr(item, "param_key", ""))
         in ("总活跃天数", "游戏时长")
     ]
-    header = await build_profile_header(
+    header_coro = build_profile_header(
         ctx,
         getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
         getattr(role_show, "roleName", getattr(role_show, "role_name", "")),
@@ -242,19 +287,32 @@ async def _draw_role_overview_card(
         stats=header_stats,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        image_loader=image_loader,
     )
-
-    sections = [
-        await _section_payload(
-            role_items, "角色信息", show_none, ROLE_TEXT_PATH / "bg" / "bg1.png"
+    sections_coro = asyncio.gather(
+        _section_payload(
+            role_items,
+            "角色信息",
+            show_none,
+            ROLE_TEXT_PATH / "bg" / "bg1.png",
+            image_loader=image_loader,
         ),
-        await _section_payload(
-            close_items, "近战武器", show_none, ROLE_TEXT_PATH / "bg" / "bg5.png"
+        _section_payload(
+            close_items,
+            "近战武器",
+            show_none,
+            ROLE_TEXT_PATH / "bg" / "bg5.png",
+            image_loader=image_loader,
         ),
-        await _section_payload(
-            lang_items, "远程武器", show_none, ROLE_TEXT_PATH / "bg" / "bg4.png"
+        _section_payload(
+            lang_items,
+            "远程武器",
+            show_none,
+            ROLE_TEXT_PATH / "bg" / "bg4.png",
+            image_loader=image_loader,
         ),
-    ]
+    )
+    header, sections = await asyncio.gather(header_coro, sections_coro)
     section_counts = [
         len(items) if show_none else sum(item.unlocked for item in items)
         for items in (role_items, close_items, lang_items)
@@ -299,6 +357,8 @@ async def draw_role_info_card_core(
     ev_stub: EventContext | None = None,
     avatar_user_id: str | None = None,
     hero_background_path: Path | None = None,
+    *,
+    image_loader: PlayerImageLoader | None = None,
 ) -> bytes:
     ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
     return await _draw_role_overview_card(
@@ -307,6 +367,7 @@ async def draw_role_info_card_core(
         show_none=show_none,
         uid_hidden=uid_hidden,
         hero_background_path=hero_background_path,
+        image_loader=image_loader,
     )
 
 
@@ -375,26 +436,36 @@ def _attribute_payload(role_detail: Any) -> list[dict[str, str]]:
     ]
 
 
-async def _skill_payload(role_detail: Any) -> list[dict[str, object]]:
+async def _skill_payload(
+    role_detail: Any,
+    *,
+    image_loader: PlayerImageLoader | None = None,
+) -> list[dict[str, object]]:
     char_id = getattr(role_detail, "charId", getattr(role_detail, "char_id", 0))
     skills = getattr(role_detail, "skills", [])
-    return [
-        {
-            "icon": pil_image_data_uri(
-                await get_skill_img(
-                    char_id,
-                    getattr(skill, "skillName", getattr(skill, "skill_name", "")),
-                    getattr(skill, "icon", ""),
-                )
-            ),
+
+    async def build_skill(skill: Any) -> dict[str, object]:
+        name = getattr(skill, "skillName", getattr(skill, "skill_name", ""))
+        image = await (
+            get_skill_img(char_id, name, getattr(skill, "icon", ""))
+            if image_loader is None
+            else image_loader.skill(char_id, name, getattr(skill, "icon", ""))
+        )
+        return {
+            "icon": pil_image_data_uri(image),
             "level": skill.level,
-            "name": getattr(skill, "skillName", getattr(skill, "skill_name", "")),
+            "name": name,
         }
-        for skill in skills[:3]
-    ]
+
+    return list(await asyncio.gather(*(build_skill(skill) for skill in skills[:3])))
 
 
-async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
+async def _mode_payload(
+    mode: Any,
+    position: str,
+    *,
+    image_loader: PlayerImageLoader | None = None,
+) -> dict[str, object]:
     quality = getattr(mode, "quality", None) or 1
     payload: dict[str, object] = {
         "background": image_data_uri(
@@ -408,29 +479,49 @@ async def _mode_payload(mode: Any, position: str) -> dict[str, object]:
     mode_id = getattr(mode, "id", -1)
     if mode_id != -1:
         payload["icon"] = pil_image_data_uri(
-            await get_mod_img(mode_id, getattr(mode, "icon", ""))
+            await (
+                get_mod_img(mode_id, getattr(mode, "icon", ""))
+                if image_loader is None
+                else image_loader.mod(mode_id, getattr(mode, "icon", ""))
+            )
         )
         level = getattr(mode, "level", 0)
         payload["level"] = f"+{level}" if level else None
     return payload
 
 
-async def _role_modes_payload(modes: list[Any]) -> list[dict[str, object]]:
+async def _role_modes_payload(
+    modes: list[Any],
+    *,
+    image_loader: PlayerImageLoader | None = None,
+) -> list[dict[str, object]]:
     padded = list(modes) + [Mode(id=-1) for _ in range(max(0, 9 - len(modes)))]
     order = tuple((index, "left") for index in (0, 2, 4, 6)) + tuple(
         (index, "right") for index in (1, 3, 7, 5)
     )
-    payload = [
-        await _mode_payload(padded[index], position) for index, position in order
+    ordered_modes = [(padded[index], position) for index, position in order] + [
+        (padded[8], "center")
     ]
-    payload.append(await _mode_payload(padded[8], "center"))
-    return payload
+    return list(
+        await asyncio.gather(
+            *(
+                _mode_payload(
+                    mode,
+                    position,
+                    image_loader=image_loader,
+                )
+                for mode, position in ordered_modes
+            )
+        )
+    )
 
 
 async def _hero_payload(
     char_id: str,
     role_detail: Any,
     custom_panel: Path | None = None,
+    *,
+    image_loader: PlayerImageLoader | None = None,
 ) -> tuple[Path | None, dict[str, str]]:
     role_panel = None
     if custom_panel is not None and custom_panel.is_file():
@@ -467,7 +558,11 @@ async def _hero_payload(
         panel = Image.composite(panel, Image.new("RGBA", panel_size), bottom_mask)
         return original_path, {"image": pil_image_data_uri(panel), "kind": "panel"}
 
-    image = await get_paint_img(char_id, getattr(role_detail, "paint", ""))
+    image = await (
+        get_paint_img(char_id, getattr(role_detail, "paint", ""))
+        if image_loader is None
+        else image_loader.paint(char_id, getattr(role_detail, "paint", ""))
+    )
     paint = image.convert("RGBA").resize((1056, 1056), Image.Resampling.LANCZOS)
     panel = Image.new("RGBA", (1000, 850))
     panel.alpha_composite(paint, (-280, -100))
@@ -486,6 +581,8 @@ async def _draw_role_detail_card(
     damage_calc_response: DNAApiResp[CharacterCalculateData] | None = None,
     uid_hidden: bool = False,
     custom_panel: Path | None = None,
+    *,
+    image_loader: PlayerImageLoader | None = None,
 ) -> tuple[bytes, Path | None]:
     damage = None
     if damage_calc_response is not None:
@@ -499,19 +596,35 @@ async def _draw_role_detail_card(
             damage_build,
             damage_calc_response,
         )
-    weapon_sections = []
-    for title, weapon in (
+
+    weapon_inputs = [
         ("同律武器", con_weapon),
         ("近战武器", close_weapon),
         ("远程武器", ranged_weapon),
-    ):
-        if weapon is not None:
-            weapon_sections.append(await draw_weapon_detail_section(weapon, title))
-
-    original_path, hero = await _hero_payload(
-        char_id, role_detail, custom_panel=custom_panel
+    ]
+    weapon_sections_coro = asyncio.gather(
+        *(
+            draw_weapon_detail_section(
+                weapon,
+                title,
+                image_loader=image_loader,
+            )
+            for title, weapon in weapon_inputs
+            if weapon is not None
+        )
     )
-    header = await build_profile_header(
+
+    role_attribute = getattr(role_detail, "attribute", None)
+    weapon_masteries = (
+        getattr(
+            role_attribute,
+            "weaponTags",
+            getattr(role_attribute, "weapon_tags", []),
+        )
+        if role_attribute is not None
+        else []
+    )
+    header_coro = build_profile_header(
         ctx,
         getattr(role_show, "roleId", getattr(role_show, "role_id", "")),
         getattr(role_show, "roleName", getattr(role_show, "role_name", "")),
@@ -527,19 +640,52 @@ async def _draw_role_detail_card(
         ],
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        image_loader=image_loader,
     )
+    hero_coro = _hero_payload(
+        char_id,
+        role_detail,
+        custom_panel=custom_panel,
+        image_loader=image_loader,
+    )
+    role_modes_coro = _role_modes_payload(
+        getattr(role_detail, "modes", []),
+        image_loader=image_loader,
+    )
+    skills_coro = _skill_payload(role_detail, image_loader=image_loader)
+    element_icon_url = getattr(
+        role_detail,
+        "elementIcon",
+        getattr(role_detail, "element_icon", ""),
+    )
+    element_coro = (
+        get_attr_img(char_id, element_icon_url)
+        if image_loader is None
+        else image_loader.attr(
+            char_id,
+            element_icon_url,
+            optional=True,
+        )
+    )
+    (
+        weapon_sections,
+        hero_result,
+        header,
+        role_modes,
+        skills,
+        element_icon,
+    ) = await asyncio.gather(
+        weapon_sections_coro,
+        hero_coro,
+        header_coro,
+        role_modes_coro,
+        skills_coro,
+        element_coro,
+    )
+    original_path, hero = hero_result
+
     grade_level = getattr(
         role_detail, "gradeLevel", getattr(role_detail, "grade_level", 0)
-    )
-    role_attribute = getattr(role_detail, "attribute", None)
-    weapon_masteries = (
-        getattr(
-            role_attribute,
-            "weaponTags",
-            getattr(role_attribute, "weapon_tags", []),
-        )
-        if role_attribute is not None
-        else []
     )
     grade_total = 7 if grade_level >= 7 else 6
     grades = [
@@ -562,16 +708,7 @@ async def _draw_role_detail_card(
             "background": image_data_uri(COMMON_PATH / "bg2.jpg"),
             "divider": image_data_uri(COMMON_PATH / "div.png"),
             "damage": damage,
-            "element_icon": pil_image_data_uri(
-                await get_attr_img(
-                    char_id,
-                    getattr(
-                        role_detail,
-                        "elementIcon",
-                        getattr(role_detail, "element_icon", ""),
-                    ),
-                )
-            ),
+            "element_icon": pil_image_data_uri(element_icon),
             "font": font_data_uri(FONT_ORIGIN_PATH),
             "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "grades": grades,
@@ -590,8 +727,8 @@ async def _draw_role_detail_card(
                     str(tag).strip() for tag in weapon_masteries if tag
                 ),
             },
-            "role_modes": await _role_modes_payload(getattr(role_detail, "modes", [])),
-            "skills": await _skill_payload(role_detail),
+            "role_modes": role_modes,
+            "skills": skills,
             "skill_background": image_data_uri(DETAIL_TEXT_PATH / "skill_bg.png"),
             "weapon_sections": weapon_sections,
             "width": 1000,
@@ -784,10 +921,15 @@ class PlayerRenderer:
     """生成角色总览与详情卡片的运行期 T2I 图片。"""
 
     def __init__(
-        self, output_dir: str | Path, resources: EncyclopediaResourceStore | ResourceMap
+        self,
+        output_dir: str | Path,
+        resources: EncyclopediaResourceStore | ResourceMap,
+        *,
+        asset_resolver: Any | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
+        self.asset_resolver = asset_resolver
 
     def _font(self, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         font_path = getattr(self.resources, "font_path", None)
@@ -810,6 +952,18 @@ class PlayerRenderer:
             else "",
         }
 
+    @staticmethod
+    def _asset_resource(asset: ResolvedAsset) -> dict[str, str]:
+        """把 resolver 的实际结果投影为渲染 artifact metadata。"""
+
+        metadata_kind = "weapon_icon" if asset.kind == "weapon" else asset.kind
+        return {
+            "kind": metadata_kind,
+            "key": asset.asset_id,
+            "status": asset.status,
+            "source": asset.source,
+        }
+
     def _write(
         self,
         image_bytes: bytes,
@@ -818,6 +972,7 @@ class PlayerRenderer:
         resources: list[dict[str, str]],
         sections: list[dict[str, Any]],
         original_image_path: Path | None = None,
+        resolved_assets: tuple[ResolvedAsset, ...] = (),
     ) -> RenderedPlayerImage:
         inspection = inspect_image(image_bytes, media_type="image/jpeg")
         artifact = RenderedArtifact.from_bytes(
@@ -843,9 +998,8 @@ class PlayerRenderer:
             sections=tuple(sections),
             temporary=True,
             original_image_path=original_image_path,
-            incomplete=any(
-                resource.get("status") == "placeholder" for resource in resources
-            ),
+            incomplete=any(asset.incomplete for asset in resolved_assets)
+            or any(resource.get("status") == "placeholder" for resource in resources),
             sidecar=Path(response.sidecar) if response.sidecar is not None else None,
             manifest=Path(response.manifest) if response.manifest is not None else None,
             media_type=artifact.media_type,
@@ -877,6 +1031,11 @@ class PlayerRenderer:
             if isinstance(self.resources, ResourceMap)
             else None
         )
+        resolved_assets: tuple[ResolvedAsset, ...] = ()
+        asset_resolver = self.asset_resolver
+        image_loader = (
+            PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
+        )
         image_bytes = await draw_role_info_card_core(
             overview,
             uid_hidden=uid_hidden,
@@ -885,7 +1044,10 @@ class PlayerRenderer:
             avatar_user_id=target_user_id
             or (actor.user_id if actor is not None else uid),
             hero_background_path=hero_background,
+            image_loader=image_loader,
         )
+        if image_loader is not None:
+            resolved_assets = image_loader.resolved_assets
         lines = [
             overview.role_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -916,30 +1078,38 @@ class PlayerRenderer:
                     ),
                 }
             )
-            for role in overview.role_chars:
-                if self.resources.root is not None:
-                    status = self.resources.get_avatar_status(role.char_id)
-                else:
-                    status = "legacy_download"
-                resources.append(
-                    {
-                        "kind": "role_avatar",
-                        "key": str(role.char_id),
-                        "status": status,
-                        "source": f"images/role_avatar/{role.char_id}.png",
-                    }
-                )
-            for weapon in list(overview.close_weapons) + list(overview.ranged_weapons):
-                resources.append(
-                    {
-                        "kind": "weapon_icon",
-                        "key": str(weapon.weapon_id),
-                        "status": "legacy_download",
-                        "source": f"images/weapon/{weapon.weapon_id}.png",
-                    }
-                )
+            if self.asset_resolver is None:
+                for role in overview.role_chars:
+                    if self.resources.root is not None:
+                        status = self.resources.get_avatar_status(role.char_id)
+                    else:
+                        status = "legacy_download"
+                    resources.append(
+                        {
+                            "kind": "role_avatar",
+                            "key": str(role.char_id),
+                            "status": status,
+                            "source": f"images/role_avatar/{role.char_id}.png",
+                        }
+                    )
+                for weapon in list(overview.close_weapons) + list(
+                    overview.ranged_weapons
+                ):
+                    resources.append(
+                        {
+                            "kind": "weapon_icon",
+                            "key": str(weapon.weapon_id),
+                            "status": "legacy_download",
+                            "source": f"images/weapon/{weapon.weapon_id}.png",
+                        }
+                    )
+        resources.extend(self._asset_resource(asset) for asset in resolved_assets)
         return self._write(
-            image_bytes, lines=lines, resources=resources, sections=sections
+            image_bytes,
+            lines=lines,
+            resources=resources,
+            sections=sections,
+            resolved_assets=resolved_assets,
         )
 
     async def render_overview_legacy(
@@ -1027,6 +1197,11 @@ class PlayerRenderer:
         if isinstance(self.resources, ResourceMap):
             custom_panel = self.resources.original_panel(detail.char_id)
 
+        resolved_assets: tuple[ResolvedAsset, ...] = ()
+        asset_resolver = self.asset_resolver
+        image_loader = (
+            PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
+        )
         card_bytes, original_path = await _draw_role_detail_card(
             ctx,
             char_id,
@@ -1039,7 +1214,10 @@ class PlayerRenderer:
             damage_calc_response=damage_response,
             uid_hidden=uid_hidden,
             custom_panel=custom_panel,
+            image_loader=image_loader,
         )
+        if image_loader is not None:
+            resolved_assets = image_loader.resolved_assets
         lines = [
             detail.char_name,
             f"UID {'***' if uid_hidden else uid}",
@@ -1079,24 +1257,27 @@ class PlayerRenderer:
 
         resources = [self._font_resource()]
         if isinstance(self.resources, ResourceMap):
-            resources.append(
-                {
-                    "kind": "role_paint",
-                    "key": str(detail.char_id),
-                    "status": self.resources.get_paint_status(detail.char_id),
-                    "source": f"images/role_paint/{detail.char_id}.png",
-                }
-            )
+            if self.asset_resolver is None:
+                resources.append(
+                    {
+                        "kind": "role_paint",
+                        "key": str(detail.char_id),
+                        "status": self.resources.get_paint_status(detail.char_id),
+                        "source": f"images/role_paint/{detail.char_id}.png",
+                    }
+                )
+            panel_used = original_path is not None
             resources.append(
                 {
                     "kind": "original_panel",
                     "key": str(detail.char_id),
-                    "status": self.resources.get_panel_status(detail.char_id),
-                    "source": f"panel/{detail.char_id}.png",
+                    "status": "provided" if panel_used else "fallback",
+                    "source": (
+                        f"panel/{detail.char_id}.png" if panel_used else "panel/"
+                    ),
                 }
             )
-            if original_path is None:
-                original_path = custom_panel
+        resources.extend(self._asset_resource(asset) for asset in resolved_assets)
 
         return self._write(
             card_bytes,
@@ -1104,6 +1285,7 @@ class PlayerRenderer:
             resources=resources,
             sections=sections,
             original_image_path=original_path,
+            resolved_assets=resolved_assets,
         )
 
     async def render_detail_legacy(

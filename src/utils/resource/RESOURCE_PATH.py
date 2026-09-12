@@ -1,83 +1,65 @@
+"""运行期资源路径兼容投影。
+
+路径由 :class:`RuntimeDataLayout` 统一计算；本模块只定义路径和模板对象，
+不在导入时创建运行期目录或文件。公共资源与动态缓存的最终分层由基础设施
+资源流水线负责，本模块只保留现有调用方仍使用的兼容投影。
+"""
+
+from __future__ import annotations
+
 import base64
 import os
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-# 数据根目录：data/plugin_data/astrbot_plugin_dna
-# （可用环境变量 DNABY_DATA_DIR 覆盖，测试用）
-if os.environ.get("DNABY_DATA_DIR"):
-    MAIN_PATH = Path(os.environ["DNABY_DATA_DIR"])
-else:
+from ...infrastructure.data_layout import RuntimeDataLayout
+
+
+def _default_data_dir() -> Path:
+    """解析测试或 AstrBot 提供的插件运行期数据根。"""
+
+    if data_dir := os.environ.get("DNABY_DATA_DIR"):
+        return Path(data_dir)
+
     from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-    MAIN_PATH = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_dna"
+    return Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_dna"
 
-# 配置文件（已并入 AstrBotConfig，保留路径定义便于回看）
-CONFIG_PATH = MAIN_PATH / "config.json"
-SIGN_CONFIG_PATH = MAIN_PATH / "sign_config.json"
 
-# 用户数据保存文件
-PLAYER_PATH = MAIN_PATH / "players"
+RUNTIME_DATA_LAYOUT = RuntimeDataLayout.from_data_dir(_default_data_dir())
+MAIN_PATH = RUNTIME_DATA_LAYOUT.data_dir
 
-# 游戏素材
-RESOURCE_PATH = MAIN_PATH / "resource"
-AVATAR_PATH = RESOURCE_PATH / "avatar"  # 头像
+# 动态游戏素材统一写入 cache/assets；游戏头像和事件用户头像分开保存。
+RESOURCE_PATH = RUNTIME_DATA_LAYOUT.cache_assets_dir
+AVATAR_PATH = RUNTIME_DATA_LAYOUT.cache_game_avatar_dir  # 游戏角色头像
+USER_AVATAR_PATH = RUNTIME_DATA_LAYOUT.cache_user_avatar_dir  # 事件用户头像
 WEAPON_PATH = RESOURCE_PATH / "weapon"  # 武器
 PAINT_PATH = RESOURCE_PATH / "paint"  # 立绘
 SKILL_PATH = RESOURCE_PATH / "skill"  # 技能
 ATTR_PATH = RESOURCE_PATH / "attr"  # 属性
 MOD_PATH = RESOURCE_PATH / "mod"  # mod
 WEAPON_ATTR_PATH = RESOURCE_PATH / "weapon_attr"  # 武器属性
-WEEKLY_ITEM_PATH = RESOURCE_PATH / "weekly_item"  # 周报资源图标
-ID2NAME_PATH = RESOURCE_PATH / "id2name.json"  # id2name.json
-# 别名
-ALIAS_PATH = RESOURCE_PATH / "alias"
-CHAR_ALIAS_PATH = ALIAS_PATH / "char_alias.json"  # char_alias.json
-WEAPON_ALIAS_PATH = ALIAS_PATH / "weapon_alias.json"  # weapon_alias.json
+WEEKLY_ITEM_PATH = RUNTIME_DATA_LAYOUT.cache_weekly_item_dir  # 周报资源图标
 
-# 自定义背景图
-CUSTOM_PATH = MAIN_PATH / "custom"
-CUSTOM_PAINT_PATH = CUSTOM_PATH / "custom_paint"  # 自定义立绘
+# 运行期别名统一放在 state/aliases，角色和武器文件名是稳定契约。
+ALIAS_PATH = RUNTIME_DATA_LAYOUT.aliases_dir
+CHAR_ALIAS_PATH = RUNTIME_DATA_LAYOUT.char_alias_path
+WEAPON_ALIAS_PATH = RUNTIME_DATA_LAYOUT.weapon_alias_path
 
-# 其他的素材
-OTHER_PATH = MAIN_PATH / "other"
-SIGN_PATH = OTHER_PATH / "sign"
-ANN_CARD_PATH = OTHER_PATH / "ann_card"
-CALENDAR_PATH = OTHER_PATH / "calendar"
-
-
-def init_dir():
-    for i in [
-        MAIN_PATH,
-        SIGN_PATH,
-        ANN_CARD_PATH,
-        PLAYER_PATH,
-        RESOURCE_PATH,
-        AVATAR_PATH,
-        WEAPON_PATH,
-        PAINT_PATH,
-        SKILL_PATH,
-        ATTR_PATH,
-        MOD_PATH,
-        WEEKLY_ITEM_PATH,
-        CUSTOM_PATH,
-        CUSTOM_PAINT_PATH,
-        ALIAS_PATH,
-    ]:
-        i.mkdir(parents=True, exist_ok=True)
-
-
-init_dir()
-
+# 其他媒体缓存统一写入 cache/media。
+OTHER_PATH = RUNTIME_DATA_LAYOUT.cache_media_dir
+SIGN_PATH = RUNTIME_DATA_LAYOUT.cache_sign_dir
+ANN_CARD_PATH = RUNTIME_DATA_LAYOUT.cache_ann_card_dir
+CALENDAR_PATH = RUNTIME_DATA_LAYOUT.cache_calendar_dir
+LOGIN_QR_PATH = RUNTIME_DATA_LAYOUT.cache_login_qr_dir
 
 # 设置 Jinja2 环境
 TEMP_PATH = Path(__file__).parents[1].parent / "templates"
 PLUGIN_LOGO_PATH = Path(__file__).parents[3] / "logo.png"
-PLUGIN_LOGO_DATA_URI = (
-    "data:image/png;base64,"
-    + base64.b64encode(PLUGIN_LOGO_PATH.read_bytes()).decode("ascii")
-)
+PLUGIN_LOGO_DATA_URI = "data:image/png;base64," + base64.b64encode(
+    PLUGIN_LOGO_PATH.read_bytes()
+).decode("ascii")
 TITLE_LOGO_PATH = (
     Path(__file__).parents[2] / "resources" / "textures" / "common" / "title_logo.png"
 )

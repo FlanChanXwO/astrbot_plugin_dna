@@ -27,7 +27,8 @@ async def test_database_uses_new_async_sqlite_file_and_does_not_touch_legacy_db(
 
     database = AsyncDatabase.from_data_dir(tmp_path)
     try:
-        assert database.path == (tmp_path / "dnaby.sqlite3").resolve()
+        assert database.path == (tmp_path / "db" / "dna.sqlite3").resolve()
+        assert database.path.parent.is_dir()
         assert database.url == f"sqlite+aiosqlite:///{database.path}"
         assert database.path != legacy_path.resolve()
         assert legacy_path.read_bytes() == legacy_bytes
