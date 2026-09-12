@@ -37,6 +37,7 @@ async def build_profile_header(
     avatar_user_id: str | None = None,
     uid_hidden: bool = False,
     downloader: AssetDownloader | None = None,
+    avatar_path: Path | None = None,
     image_loader: ProfileImageLoader | None = None,
 ) -> dict[str, object]:
     """保留原头像选择语义，返回可安全交给模板的资料头 payload。
@@ -53,7 +54,7 @@ async def build_profile_header(
         try:
             avatar = await get_event_avatar(
                 ctx,
-                avatar_path=USER_AVATAR_PATH,
+                avatar_path=(USER_AVATAR_PATH if avatar_path is None else avatar_path),
                 downloader=downloader,
             )
         except (httpx.HTTPError, OSError, TypeError, ValueError):

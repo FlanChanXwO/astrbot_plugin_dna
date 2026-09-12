@@ -395,6 +395,7 @@ def build_runtime(
             rendered_root,
             encyclopedia_resources,
             downloader=image_fetcher,
+            runtime_data_layout=runtime_data_layout,
         ),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
@@ -415,6 +416,7 @@ def build_runtime(
         rendered_root,
         encyclopedia_resources,
         downloader=image_fetcher,
+        runtime_data_layout=runtime_data_layout,
     )
     checkin_service = CheckinService(
         runtime_database,
@@ -469,6 +471,7 @@ def build_runtime(
         cache_manager=cache_manager,
         request_gate=request_gate,
         downloader=image_fetcher,
+        runtime_data_layout=runtime_data_layout,
     )
 
     async def _push_notice(

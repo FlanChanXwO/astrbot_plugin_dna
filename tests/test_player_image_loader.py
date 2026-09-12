@@ -10,6 +10,9 @@ import pytest
 from PIL import Image
 
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap
+from src.infrastructure.rendering import (
+    player_image_loader as player_image_loader_module,
+)
 from src.infrastructure.rendering import player as player_module
 from src.infrastructure.rendering.player_image_loader import PlayerImageLoader
 from src.infrastructure.resources import AssetResolver
@@ -32,12 +35,6 @@ class _RuntimeDownloader:
         return target
 
 
-class _RuntimeResolver:
-    def __init__(self, root: Path, downloader: _RuntimeDownloader) -> None:
-        self.dynamic_root = root
-        self.downloader = downloader
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("asset_id", ("", "   "))
 async def test_player_image_loader_rejects_empty_cache_components(
@@ -47,7 +44,9 @@ async def test_player_image_loader_rejects_empty_cache_components(
     """空或全空白素材 ID 不能生成无效的动态缓存文件名。"""
 
     downloader = _RuntimeDownloader("red")
-    loader = PlayerImageLoader(_RuntimeResolver(tmp_path / "assets", downloader))
+    loader = PlayerImageLoader(
+        AssetResolver(dynamic_root=tmp_path / "assets", downloader=downloader)
+    )
 
     with pytest.raises(ValueError, match="动态素材标识不能是路径段"):
         await loader.attr(asset_id, "https://cdn.example.test/attr.png")
@@ -60,7 +59,9 @@ async def test_player_image_loader_uses_distinct_url_cache_targets(
     """不同版本的同名 URL 素材不能复用同一属性图缓存文件。"""
 
     downloader = _RuntimeDownloader("red")
-    loader = PlayerImageLoader(_RuntimeResolver(tmp_path / "assets", downloader))
+    loader = PlayerImageLoader(
+        AssetResolver(dynamic_root=tmp_path / "assets", downloader=downloader)
+    )
     url_v2 = "https://cdn.example.test/icons/fire.v2.icon.png"
     url_v3 = "https://cdn.example.test/icons/fire.v3.icon.png"
 
@@ -80,14 +81,14 @@ async def test_player_image_loader_keeps_runtime_downloader_isolated_after_peer_
     """一个 runtime 关闭后，另一个 runtime 的未迁移素材仍走自己的 downloader。"""
 
     monkeypatch.setattr(
-        player_module,
+        player_image_loader_module,
         "get_mod_img",
         lambda *_args, **_kwargs: pytest.fail("不应通过全局 legacy fetcher 加载 Mod"),
     )
     downloader_a = _RuntimeDownloader("red")
     downloader_b = _RuntimeDownloader("blue")
-    resolver_a = _RuntimeResolver(tmp_path / "a", downloader_a)
-    resolver_b = _RuntimeResolver(tmp_path / "b", downloader_b)
+    resolver_a = AssetResolver(dynamic_root=tmp_path / "a", downloader=downloader_a)
+    resolver_b = AssetResolver(dynamic_root=tmp_path / "b", downloader=downloader_b)
     loader_a = PlayerImageLoader(resolver_a)
     _loader_b = PlayerImageLoader(resolver_b)
     downloader_b.closed = True

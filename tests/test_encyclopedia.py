@@ -13,6 +13,7 @@ from PIL import Image
 
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from src.infrastructure import RuntimeDataLayout
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from src.infrastructure.rendering import encyclopedia as encyclopedia_module
 from src.infrastructure.rendering.artifact_store import read_rendered_artifact
@@ -38,7 +39,7 @@ from src.modules.encyclopedia.contracts import (
 from src.modules.encyclopedia.service import EncyclopediaService
 from src.modules.player.contracts import RoleAchievement, RoleOverview
 from src.modules.privacy import PrivacyService
-from src.utils import image as image_module
+from src.utils import image_utils
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 UID = "1234567890123"
@@ -297,11 +298,10 @@ async def test_encyclopedia_renderers_keep_runtime_image_fetchers_isolated(
         Image.new("RGB", (24, 24), "white").save(output, format="JPEG")
         return output.getvalue()
 
-    monkeypatch.setattr(encyclopedia_module, "CALENDAR_PATH", tmp_path / "calendar")
     monkeypatch.setattr(encyclopedia_module._RENDERER, "render", fake_render)
     monkeypatch.setattr(
-        image_module,
-        "download",
+        image_utils.get_default_image_fetcher(),
+        "fetch",
         fail_global_download,
     )
     snapshot = CalendarSnapshot(
@@ -318,11 +318,13 @@ async def test_encyclopedia_renderers_keep_runtime_image_fetchers_isolated(
         tmp_path / "rendered-a",
         EncyclopediaResourceStore(),
         downloader=downloader_a,
+        runtime_data_layout=RuntimeDataLayout(tmp_path / "runtime-a"),
     )
     renderer_b = EncyclopediaRenderer(
         tmp_path / "rendered-b",
         EncyclopediaResourceStore(),
         downloader=downloader_b,
+        runtime_data_layout=RuntimeDataLayout(tmp_path / "runtime-b"),
     )
 
     await renderer_b.render_calendar(snapshot)

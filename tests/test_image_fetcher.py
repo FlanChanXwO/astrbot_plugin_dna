@@ -388,6 +388,42 @@ async def test_close_drains_active_requests_and_rejects_new_work(
 
 
 @pytest.mark.asyncio
+async def test_cancelled_close_finishes_cleanup_and_propagates_cancellation(
+    tmp_path: Path,
+) -> None:
+    """取消 close 等待时仍必须完成清理，并把取消重新交给调用方。"""
+
+    url = "https://cdn.example.test/cancelled-close.png"
+    client = _FakeClient()
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def blocking_handler(request_url: str) -> httpx.Response:
+        started.set()
+        await release.wait()
+        return _response(request_url, _png_bytes())
+
+    client.handler = blocking_handler
+    fetcher = ImageFetcher(client_factory=_ClientFactory([client]), sleep=_no_sleep)
+    target = tmp_path / "cancelled-close.png"
+    fetch_task = asyncio.create_task(fetcher.fetch(url, target))
+    await started.wait()
+
+    close_task = asyncio.create_task(fetcher.close())
+    await asyncio.sleep(0)
+    close_task.cancel()
+    release.set()
+
+    assert await fetch_task == target
+    with pytest.raises(asyncio.CancelledError):
+        await close_task
+
+    assert client.closed
+    assert fetcher.active_requests == 0
+    assert fetcher.inflight_count == 0
+
+
+@pytest.mark.asyncio
 async def test_restart_after_close_creates_new_client(tmp_path: Path) -> None:
     """stop/reload 后可重新启动并创建新的长生命周期 client。"""
 

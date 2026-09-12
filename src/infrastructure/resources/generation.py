@@ -349,7 +349,7 @@ def _validate_image_decodability(path: Path) -> None:
             image.verify()
         with Image.open(path) as image:
             image.load()
-    except (OSError, SyntaxError, ValueError) as exc:
+    except (OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
         raise ResourceGenerationError(f"资源候选图片不可解码: {path.name}") from exc
 
 

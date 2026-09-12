@@ -263,6 +263,7 @@ class ImageFetcher:
         self._client: Any | None = None
         self._starting = False
         self._closing = False
+        self._close_task: asyncio.Task[None] | None = None
         self._closing_event = asyncio.Event()
         self._accepting = True
         self._closed = False
@@ -350,17 +351,29 @@ class ImageFetcher:
             self._starting = False
             self._condition.notify_all()
 
-    async def close(self) -> None:
-        """拒绝新下载，等待 active HTTP 自然结束后关闭共享 client。"""
+    async def _close_impl(self) -> None:
+        """完成完整关闭流程；由 ``close`` 在独立 task 中托管。"""
 
-        claimed_closing = False
         client: Any | None = None
         try:
             async with self._condition:
-                if self._closing:
-                    while self._closing:
-                        await self._condition.wait()
-                    return
+                while self._starting or self._active_tasks:
+                    await self._condition.wait()
+                client = self._client
+                self._client = None
+                self._inflight.clear()
+            await self._close_client(client)
+        finally:
+            async with self._condition:
+                self._closing = False
+                self._condition.notify_all()
+
+    async def close(self) -> None:
+        """拒绝新下载，等待 active HTTP 自然结束后关闭共享 client。"""
+
+        async with self._condition:
+            close_task = self._close_task
+            if close_task is None or close_task.done():
                 if (
                     self._closed
                     and self._client is None
@@ -369,22 +382,18 @@ class ImageFetcher:
                 ):
                     return
                 self._closing = True
-                claimed_closing = True
                 self._accepting = False
                 self._closed = True
                 self._closing_event.set()
-                while self._starting or self._active_tasks:
-                    await self._condition.wait()
-                client = self._client
-                self._client = None
-                self._inflight.clear()
-            # shield 让调用方取消 close 时，底层 client 仍能完成释放。
-            await asyncio.shield(self._close_client(client))
-        finally:
-            if claimed_closing:
-                async with self._condition:
-                    self._closing = False
-                    self._condition.notify_all()
+                close_task = asyncio.create_task(self._close_impl())
+                self._close_task = close_task
+
+        try:
+            await asyncio.shield(close_task)
+        except asyncio.CancelledError:
+            # cleanup task 不受调用方取消影响；清理完成后仍把原取消交回调用方。
+            await asyncio.shield(close_task)
+            raise
 
     @staticmethod
     def _is_retryable_status(status_code: int) -> bool:

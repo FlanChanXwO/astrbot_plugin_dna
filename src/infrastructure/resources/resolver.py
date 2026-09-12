@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, cast
 from PIL import Image
 
 if TYPE_CHECKING:
-    from .generation import ResourceSnapshotCoordinator
+    from .generation import ResourceSnapshot, ResourceSnapshotCoordinator
 
 
 AssetKind: TypeAlias = Literal["role_avatar", "role_paint", "weapon"]
@@ -167,14 +167,14 @@ class AssetResolver:
     @classmethod
     def from_snapshot(
         cls,
-        snapshot: object | None,
+        snapshot: ResourceSnapshot | None,
         *,
         dynamic_root: str | Path,
         downloader: AssetDownloader | None = None,
     ) -> AssetResolver:
         """从一个已持有的 generation snapshot 创建请求级 resolver。"""
 
-        root = None if snapshot is None else getattr(snapshot, "root", None)
+        root = None if snapshot is None else snapshot.root
         return cls(
             snapshot_root=root,
             dynamic_root=dynamic_root,

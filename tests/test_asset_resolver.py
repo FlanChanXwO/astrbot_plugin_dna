@@ -8,6 +8,8 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
+from src.infrastructure.resources import ResourceGenerationError
+from src.infrastructure.resources import generation as generation_module
 from src.infrastructure.resources.resolver import AssetResolver
 
 
@@ -28,6 +30,24 @@ class _RecordingDownloader:
 def _write_image(path: Path, color: str = "red") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (32, 32), color).save(path)
+
+
+def test_generation_image_decompression_bomb_is_resource_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pillow 解压炸弹必须落入 generation 的统一资源异常边界。"""
+
+    path = tmp_path / "candidate.png"
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 4)
+
+    def raise_bomb(*_args: object, **_kwargs: object) -> None:
+        raise Image.DecompressionBombError("too large")
+
+    monkeypatch.setattr(generation_module.Image, "open", raise_bomb)
+
+    with pytest.raises(ResourceGenerationError, match="资源候选图片不可解码"):
+        generation_module._validate_image_decodability(path)
 
 
 @pytest.mark.asyncio

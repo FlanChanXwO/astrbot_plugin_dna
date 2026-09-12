@@ -13,7 +13,7 @@ from PIL import Image
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap, weapon_renderer
 from src.infrastructure.rendering import player as player_module
 from src.infrastructure.rendering.player_image_loader import PlayerImageLoader
-from src.infrastructure.resources import AssetResolver, ResolvedAsset
+from src.infrastructure.resources import AssetResolver
 from src.utils.image_utils import ImageFetcherClosed
 
 
@@ -75,40 +75,6 @@ def _weapon_detail() -> SimpleNamespace:
     )
 
 
-class _ResolverProbe:
-    def __init__(self, tmp_path) -> None:
-        self.root = tmp_path
-        self.calls: list[tuple[str, str, str | None]] = []
-        self.paths = {
-            ("role_paint", "101"): self._write("paint.png", "purple"),
-            ("weapon", "201"): self._write("weapon.png", "blue"),
-        }
-
-    def _write(self, name: str, color: str):
-        path = self.root / name
-        Image.new("RGBA", (32, 32), color).save(path)
-        return path
-
-    async def resolve(
-        self,
-        kind: str,
-        asset_id: str | int,
-        *,
-        url: str | None = None,
-    ) -> ResolvedAsset:
-        key = (kind, str(asset_id))
-        self.calls.append((kind, str(asset_id), url))
-        path = self.paths.get(key)
-        return ResolvedAsset(
-            path=path,
-            source="dynamic_cache" if path is not None else "none",
-            status="provided" if path is not None else "missing",
-            incomplete=path is None,
-            kind=kind,
-            asset_id=str(asset_id),
-        )
-
-
 class _RuntimeDownloader:
     def __init__(self, color: str) -> None:
         self.color = color
@@ -132,7 +98,6 @@ async def test_role_detail_uses_one_bound_asset_resolver_for_snapshot_assets(
 ) -> None:
     """角色立绘和武器图应从当前 lease 绑定的统一 resolver 读取。"""
 
-    resolver = _ResolverProbe(tmp_path)
     monkeypatch.setattr(
         player_module,
         "get_paint_img",
@@ -174,6 +139,20 @@ async def test_role_detail_uses_one_bound_asset_resolver_for_snapshot_assets(
         lambda *_args, **_kwargs: asyncio.sleep(0, result=b"rendered"),
     )
 
+    generation_root = tmp_path / "generation"
+    paint_path = generation_root / "images" / "role_paint" / "101.png"
+    weapon_path = generation_root / "images" / "weapon" / "201.png"
+    paint_path.parent.mkdir(parents=True)
+    weapon_path.parent.mkdir(parents=True)
+    Image.new("RGBA", (32, 32), "purple").save(paint_path)
+    Image.new("RGBA", (32, 32), "blue").save(weapon_path)
+    downloader = _RuntimeDownloader("gray")
+    resolver = AssetResolver(
+        snapshot_root=generation_root,
+        dynamic_root=tmp_path / "cache" / "assets",
+        downloader=downloader,
+    )
+
     await player_module._draw_role_detail_card(
         SimpleNamespace(user_id="user-1"),
         "101",
@@ -184,8 +163,8 @@ async def test_role_detail_uses_one_bound_asset_resolver_for_snapshot_assets(
         image_loader=PlayerImageLoader(resolver),
     )
 
-    assert ("role_paint", "101", "https://cdn.example.test/paint.png") in resolver.calls
-    assert ("weapon", "201", "https://cdn.example.test/weapon.png") in resolver.calls
+    assert "https://cdn.example.test/paint.png" not in downloader.calls
+    assert "https://cdn.example.test/weapon.png" not in downloader.calls
 
 
 @pytest.mark.asyncio

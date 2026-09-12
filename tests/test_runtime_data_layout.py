@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image
 
 from src.infrastructure import RuntimeDataLayout
 from src.infrastructure.cache import CacheManager
@@ -87,6 +89,7 @@ def test_runtime_data_layout_exposes_cache_scopes_without_legacy_roots(
     assert layout.cache_assets_dir == data_dir / "cache" / "assets"
     assert layout.cache_game_avatar_dir == data_dir / "cache" / "assets" / "game_avatar"
     assert layout.cache_user_avatar_dir == data_dir / "cache" / "assets" / "user_avatar"
+    assert layout.cache_weekly_item_dir == data_dir / "cache" / "assets" / "weekly_item"
     assert layout.cache_api_dir == data_dir / "cache" / "api"
     assert layout.cache_rendered_dir == data_dir / "cache" / "rendered"
     assert layout.cache_media_dir == data_dir / "cache" / "media"
@@ -109,6 +112,7 @@ def test_resource_path_projection_uses_split_asset_and_media_scopes() -> None:
         RESOURCE_PATH,
         SIGN_PATH,
         USER_AVATAR_PATH,
+        WEEKLY_ITEM_PATH,
     )
 
     layout = RuntimeDataLayout.from_data_dir(os.environ["DNABY_DATA_DIR"])
@@ -121,6 +125,72 @@ def test_resource_path_projection_uses_split_asset_and_media_scopes() -> None:
     assert ANN_CARD_PATH == layout.cache_ann_card_dir
     assert LOGIN_QR_PATH == layout.cache_login_qr_dir
     assert CALENDAR_PATH == layout.cache_calendar_dir
+    assert WEEKLY_ITEM_PATH == layout.cache_weekly_item_dir
+
+
+@pytest.mark.asyncio
+async def test_build_runtime_renderer_uses_explicit_layout_for_media_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """runtime renderer 的媒体下载必须写入注入布局，而不是模块级默认目录。"""
+
+    from src.bootstrap import build_runtime
+    from src.infrastructure.rendering import encyclopedia as encyclopedia_module
+    from src.modules.encyclopedia.contracts import CalendarEvent, CalendarSnapshot
+    from src.utils.resource.RESOURCE_PATH import CALENDAR_PATH
+
+    class RuntimeDownloader:
+        async def start(self) -> None:
+            return None
+
+        async def close(self) -> None:
+            return None
+
+        async def fetch(
+            self,
+            url: str,
+            target: Path,
+            *,
+            tag: str = "",
+        ) -> Path:
+            del url, tag
+            target.parent.mkdir(parents=True, exist_ok=True)
+            Image.new("RGBA", (8, 8), "green").save(target)
+            return target
+
+    async def fake_render(*_args: object, **_kwargs: object) -> bytes:
+        output = BytesIO()
+        Image.new("RGB", (8, 8), "white").save(output, format="JPEG")
+        return output.getvalue()
+
+    layout = RuntimeDataLayout(tmp_path / "runtime-b")
+    database = AsyncDatabase(layout.database_path)
+    downloader = RuntimeDownloader()
+    runtime = build_runtime(
+        SimpleNamespace(register_web_api=lambda *_args: None),
+        {},
+        database=database,
+        runtime_data_layout=layout,
+        services={"image_fetcher": downloader},
+    )
+    target_name = f"runtime-layout-{tmp_path.name}.png"
+    snapshot = CalendarSnapshot(
+        events=(
+            CalendarEvent(
+                title="自定义布局活动",
+                pic=f"https://cdn.example.test/{target_name}",
+            ),
+        ),
+    )
+    monkeypatch.setattr(encyclopedia_module._RENDERER, "render", fake_render)
+    try:
+        renderer = runtime.services["encyclopedia_service"].renderer
+        await renderer.render_calendar(snapshot)
+        assert (layout.cache_calendar_dir / target_name).is_file()
+        assert not (CALENDAR_PATH / target_name).exists()
+    finally:
+        await database.dispose()
 
 
 @pytest.mark.asyncio

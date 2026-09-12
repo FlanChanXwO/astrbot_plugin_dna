@@ -24,6 +24,7 @@ RENDERED_CACHE_DIR_NAME = "rendered"
 MEDIA_CACHE_DIR_NAME = "media"
 GAME_AVATAR_DIR_NAME = "game_avatar"
 USER_AVATAR_DIR_NAME = "user_avatar"
+WEEKLY_ITEM_DIR_NAME = "weekly_item"
 SIGN_DIR_NAME = "sign"
 ANN_CARD_DIR_NAME = "ann_card"
 CALENDAR_DIR_NAME = "calendar"
@@ -188,6 +189,12 @@ class RuntimeDataLayout:
         return self.cache_assets_dir / USER_AVATAR_DIR_NAME
 
     @property
+    def cache_weekly_item_dir(self) -> Path:
+        """周报物品图标缓存目录。"""
+
+        return self.cache_assets_dir / WEEKLY_ITEM_DIR_NAME
+
+    @property
     def cache_api_dir(self) -> Path:
         """外部 API 响应缓存目录。"""
 
@@ -273,6 +280,7 @@ __all__ = [
     "STATE_DIR_NAME",
     "SUBSCRIPTIONS_FILE_NAME",
     "USER_AVATAR_DIR_NAME",
+    "WEEKLY_ITEM_DIR_NAME",
     "WEAPON_ALIAS_FILE_NAME",
     "RuntimeDataLayout",
 ]

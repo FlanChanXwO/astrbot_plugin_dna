@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
@@ -21,7 +20,7 @@ from ...utils.image import (
     get_weapon_attr_img,
     get_weapon_img,
 )
-from ..resources.resolver import ResolvedAsset
+from ..resources.resolver import AssetResolver, ResolvedAsset
 
 
 def _placeholder(size: tuple[int, int]) -> Image.Image:
@@ -69,7 +68,7 @@ def _missing_asset(kind: str, asset_id: str | int) -> ResolvedAsset:
 
 
 async def _resolve_image(
-    asset_resolver: Any,
+    asset_resolver: AssetResolver,
     kind: str,
     asset_id: str | int,
     url: str | None,
@@ -103,7 +102,7 @@ async def _resolve_image(
 class PlayerImageLoader:
     """为玩家卡统一封装 L1/L2 图片解析与 legacy 动态素材入口。"""
 
-    def __init__(self, asset_resolver: Any | None) -> None:
+    def __init__(self, asset_resolver: AssetResolver | None) -> None:
         self.asset_resolver = asset_resolver
         self._resolved_assets: dict[tuple[str, str], ResolvedAsset] = {}
 
@@ -177,10 +176,9 @@ class PlayerImageLoader:
         *,
         secondary_id: str | int | None = None,
     ) -> Path | None:
-        root = getattr(self.asset_resolver, "dynamic_root", None)
-        if root is None:
+        if self.asset_resolver is None:
             return None
-        root = Path(root)
+        root = self.asset_resolver.dynamic_root
         identifier = self._cache_component(asset_id)
         if kind == "skill":
             if secondary_id is None:
@@ -236,7 +234,7 @@ class PlayerImageLoader:
             )
             return image
 
-        downloader = getattr(self.asset_resolver, "downloader", None)
+        downloader = self.asset_resolver.downloader
         if not url or downloader is None:
             if optional:
                 return _placeholder(placeholder_size)

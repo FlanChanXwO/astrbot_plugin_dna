@@ -38,6 +38,7 @@ from ...utils.api.model import DNARoleForToolInstanceInfo
 from ...utils.image_utils import download
 from ...utils.resource.RESOURCE_PATH import ANN_CARD_PATH
 from ..http.concurrency import RequestConcurrencyGate
+from ..data_layout import RuntimeDataLayout
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
@@ -229,12 +230,17 @@ async def _load_qr_code(
     *,
     request_gate: RequestConcurrencyGate | None = None,
     downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image | None:
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size={size}x{size}&data={quote_plus(url)}"
+    ann_card_cache_dir = (
+        ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+    )
+    qr_cache_dir = ann_card_cache_dir / "qr"
     try:
         if request_gate is None:
             image = await _fetch_image(
-                QR_CACHE_PATH,
+                qr_cache_dir,
                 qr_url,
                 name=_cache_name("qr", url, size),
                 downloader=downloader,
@@ -242,7 +248,7 @@ async def _load_qr_code(
         else:
             image = await request_gate.run(
                 lambda: _fetch_image(
-                    QR_CACHE_PATH,
+                    qr_cache_dir,
                     qr_url,
                     name=_cache_name("qr", url, size),
                     downloader=downloader,
@@ -290,13 +296,17 @@ async def _load_preview(
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
     downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image | None:
     if not url:
         return None
     try:
+        preview_cache_dir = (
+            ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+        ) / "preview"
         if cache_manager is None:
             image = await _fetch_image(
-                PREVIEW_CACHE_PATH,
+                preview_cache_dir,
                 url,
                 name=_cache_name("preview", url),
                 request_gate=request_gate,
@@ -329,10 +339,14 @@ async def _load_detail_image(
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
     downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image:
     if cache_manager is None:
+        detail_cache_dir = (
+            ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+        ) / "detail"
         image = await _fetch_image(
-            DETAIL_CACHE_PATH,
+            detail_cache_dir,
             url,
             name=_cache_name("detail", url),
             downloader=downloader,
@@ -470,6 +484,7 @@ async def draw_ann_list_img(
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
     downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> bytes | str:
     """以 HTML/T2I 渲染包含全部公告的索引卡。"""
 
@@ -498,6 +513,8 @@ async def draw_ann_list_img(
                 kwargs["request_gate"] = request_gate
             if downloader is not None:
                 kwargs["downloader"] = downloader
+            if ann_card_cache_dir is not None:
+                kwargs["ann_card_cache_dir"] = ann_card_cache_dir
             preview = await _load_preview(
                 preview_url, card_width, image_height, **kwargs
             )
@@ -554,6 +571,7 @@ async def _detail_blocks_payload(
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
     downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> list[dict[str, str]]:
     content_width = ANN_WIDTH - ANN_PADDING * 2
 
@@ -565,6 +583,8 @@ async def _detail_blocks_payload(
             kwargs["request_gate"] = request_gate
         if downloader is not None:
             kwargs["downloader"] = downloader
+        if ann_card_cache_dir is not None:
+            kwargs["ann_card_cache_dir"] = ann_card_cache_dir
         return await _load_detail_image(value, content_width, **kwargs)
 
     image_values = [value for kind, value in blocks if kind != "text"]
@@ -611,6 +631,7 @@ async def draw_ann_detail_card(
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
     downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> bytes | list[bytes]:
     """使用 HTML/T2I 渲染已解析的公告正文卡片。"""
 
@@ -621,12 +642,15 @@ async def draw_ann_detail_card(
         qr_kwargs["request_gate"] = request_gate
     if downloader is not None:
         qr_kwargs["downloader"] = downloader
+    if ann_card_cache_dir is not None:
+        qr_kwargs["ann_card_cache_dir"] = ann_card_cache_dir
     qr_image = await qr_loader(get_post_url(post_id), **qr_kwargs)
     block_payload = await _detail_blocks_payload(
         blocks,
         cache_manager=cache_manager,
         request_gate=request_gate,
         downloader=downloader,
+        ann_card_cache_dir=ann_card_cache_dir,
     )
     font, font_fallback = unicode_font_data_uris(
         UNICODE_ORIGIN_PATH,
@@ -660,6 +684,7 @@ async def draw_ann_detail_img(
     post_id: int | str,
     *,
     is_check_time: bool = False,
+    ann_card_cache_dir: Path | None = None,
 ) -> bytes | str | list[bytes]:
     post_id = str(post_id)
     posts = await fetch_ann_list(prefer_cache=True)
@@ -686,7 +711,13 @@ async def draw_ann_detail_img(
 
     subject = str(detail.get("postTitle") or pick_subject(matched))
     time_text = format_post_time(detail.get("postTime") or matched.get("postTime"))
-    return await draw_ann_detail_card(post_id, subject, blocks, time_text=time_text)
+    return await draw_ann_detail_card(
+        post_id,
+        subject,
+        blocks,
+        time_text=time_text,
+        ann_card_cache_dir=ann_card_cache_dir,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -716,6 +747,7 @@ class NoticesRenderer:
         cache_manager: CacheManager | None = None,
         request_gate: RequestConcurrencyGate | None = None,
         downloader: AssetDownloader | None = None,
+        runtime_data_layout: RuntimeDataLayout | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
@@ -723,6 +755,11 @@ class NoticesRenderer:
         self.cache_manager = cache_manager
         self.request_gate = request_gate
         self.downloader = downloader
+        self.ann_card_cache_dir = (
+            ANN_CARD_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_ann_card_dir
+        )
 
     @staticmethod
     def list_cache_key(snapshot: AnnSnapshot) -> str:
@@ -967,6 +1004,7 @@ class NoticesRenderer:
             cache_manager=self.cache_manager,
             request_gate=self.request_gate,
             downloader=self.downloader,
+            ann_card_cache_dir=self.ann_card_cache_dir,
         )
         if not isinstance(image_bytes, bytes):
             raise TypeError("公告列表 legacy 绘制失败")
@@ -1036,6 +1074,7 @@ class NoticesRenderer:
                     blocks,
                     time_text=getattr(detail, "time", ""),
                     downloader=self.downloader,
+                    ann_card_cache_dir=self.ann_card_cache_dir,
                 )
             else:
                 raw_result = await draw_ann_detail_card(
@@ -1046,6 +1085,7 @@ class NoticesRenderer:
                     cache_manager=self.cache_manager,
                     request_gate=self.request_gate,
                     downloader=self.downloader,
+                    ann_card_cache_dir=self.ann_card_cache_dir,
                 )
             raw_pages = raw_result if isinstance(raw_result, list) else [raw_result]
             if not raw_pages:
