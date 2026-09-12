@@ -87,7 +87,11 @@ class ItemTemp(BaseModel):
 async def _item_payload(item: ItemTemp) -> dict[str, object]:
     if item.type == "role":
         image = await get_avatar_img(item.id, item.icon)
-        element = await get_attr_img(pic_url=item.element_icon)
+        # 与武器分支同理：官方展柜可能暂未下发新角色的类型图标，
+        # 该装饰资源缺失不应阻断整卡渲染。
+        element = (
+            await get_attr_img(pic_url=item.element_icon) if item.element_icon else None
+        )
     else:
         image = await get_weapon_img(item.id, item.icon)
         # 官方展柜数据可能暂未下发新武器的类型图标；该装饰资源缺失不应阻断整卡渲染。

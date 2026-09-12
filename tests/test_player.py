@@ -481,6 +481,39 @@ async def test_role_overview_allows_weapon_without_element_icon(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
+async def test_role_overview_allows_role_without_element_icon(tmp_path: Path) -> None:
+    """角色类型图标缺失时仍应渲染总览卡，而不是让整张卡片失败。"""
+
+    _preseed_legacy_assets()
+    overview = _overview_fixture()
+    overview.role_chars[0].element_icon = ""
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(overview, _detail_fixture(), _weapon_fixture())
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        show_unowned_roles=True,
+    )
+
+    response = await service.role_overview(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+    )
+
+    assert isinstance(response, ImageResponse)
+    artifact = read_rendered_artifact(Path(response.image))
+    assert any(
+        item["kind"] == "role_avatar" and item["key"] == "101"
+        for item in artifact.metadata["dnaby.resources"]
+    )
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_refresh_info_card_only_fetches_overview(tmp_path: Path) -> None:
     """基本信息卡片刷新不能误触发角色详情链路。"""
 
@@ -1104,3 +1137,64 @@ async def test_role_overview_records_panel_background_and_passes_hero_path(
         and item["source"] == expected_source
         for item in overview.resources
     )
+
+
+def _protagonist_overview(*, male: bool) -> RoleOverview:
+    """构造只拥有单侧性别的账号概览；玩家不可能同时拥有男女主角。"""
+
+    prefix = "男主" if male else "女主"
+    return RoleOverview(
+        role_id="role-1",
+        role_name="测试玩家",
+        level=80,
+        role_chars=[
+            RoleItem(
+                char_id=160101 if male else 1601,
+                char_eid=f"char-eid-{prefix}光",
+                element_icon="element://light",
+                icon="role://light",
+                level=80,
+                name=f"{prefix}-光",
+                grade_level=6,
+                unlocked=True,
+            ),
+            RoleItem(
+                char_id=120101 if male else 1201,
+                char_eid=f"char-eid-{prefix}暗",
+                element_icon="element://dark",
+                icon="role://dark",
+                level=80,
+                name=f"{prefix}-暗",
+                grade_level=6,
+                unlocked=True,
+            ),
+        ],
+    )
+
+
+def test_protagonist_aliases_follow_owned_gender() -> None:
+    """性别未知的主角称呼按玩家实际拥有的席位解析，而不是写死女主。"""
+
+    female = _protagonist_overview(male=False)
+    male = _protagonist_overview(male=True)
+
+    assert PlayerService._find_role(female, "主角").name == "女主-光"
+    assert PlayerService._find_role(male, "主角").name == "男主-光"
+    assert PlayerService._find_role(female, "光主").name == "女主-光"
+    assert PlayerService._find_role(male, "光主").name == "男主-光"
+    assert PlayerService._find_role(female, "暗主").name == "女主-暗"
+    assert PlayerService._find_role(male, "暗主").name == "男主-暗"
+
+
+def test_protagonist_aliases_never_conflate_genders() -> None:
+    """同名主角素材不同，男女必须解析到各自的规范名与 char_id。"""
+
+    female = _protagonist_overview(male=False)
+    male = _protagonist_overview(male=True)
+
+    for alias in ("主角", "光主", "暗主"):
+        female_role = PlayerService._find_role(female, alias)
+        male_role = PlayerService._find_role(male, alias)
+        assert female_role is not None and male_role is not None
+        assert female_role.name != male_role.name
+        assert female_role.char_id != male_role.char_id

@@ -35,8 +35,8 @@ from .contracts import (
     WeaponItem,
 )
 
+# 性别明确的主角称呼直接映射到规范名。
 _MASTER_ALIASES = {
-    "主角": "女主-光",
     "女主": "女主-光",
     "女主光": "女主-光",
     "男主": "男主-光",
@@ -47,6 +47,16 @@ _MASTER_ALIASES = {
     "主角男": "男主-光",
     "主角（女）": "女主-光",
     "主角（男）": "男主-光",
+}
+
+# 性别未知的主角称呼：每个称呼对应男女两个席位，按玩家实际拥有的那一方解析。
+# 玩家只会拥有单侧性别（选定性别后不可更换），因此这里不需要猜测。
+# 男女同名但立绘、头像与模型不同，所以必须解析到各自的规范名与 char_id，不能合并。
+# 元组按优先级排列，末尾元素是未拥有时的回退值（沿用历史上以女主为默认的行为）。
+_MASTER_AMBIGUOUS_ALIASES: dict[str, tuple[str, ...]] = {
+    "主角": ("女主-光", "男主-光"),
+    "光主": ("女主-光", "男主-光"),
+    "暗主": ("女主-暗", "男主-暗"),
 }
 
 
@@ -450,9 +460,30 @@ class PlayerService:
         return result.overview, result.response
 
     @staticmethod
+    def _resolve_master_alias(overview: RoleOverview, normalized: str) -> str | None:
+        """把性别未知的主角称呼解析为玩家实际拥有的席位。
+
+        玩家只会拥有男主或女主中的一方，因此优先取已解锁的席位；
+        两侧都未拥有（例如未绑定或等级不足）时回退到优先级最高的默认值。
+        """
+
+        candidates = _MASTER_AMBIGUOUS_ALIASES.get(normalized)
+        if candidates is None:
+            return None
+        owned = {item.name for item in overview.role_chars if item.unlocked}
+        for name in candidates:
+            if name in owned:
+                return name
+        return candidates[0]
+
+    @staticmethod
     def _find_role(overview: RoleOverview, input_name: str) -> RoleItem | None:
         normalized = input_name.strip()
-        target_name = _MASTER_ALIASES.get(normalized, normalized)
+        target_name = _MASTER_ALIASES.get(normalized)
+        if target_name is None:
+            target_name = PlayerService._resolve_master_alias(overview, normalized)
+        if target_name is None:
+            target_name = normalized
         exact = next(
             (item for item in overview.role_chars if item.name == target_name),
             None,
@@ -650,7 +681,9 @@ class PlayerService:
                 error.kind.value,
                 error.resource,
             )
-            damage = DamageCalculation.failure(messages.transport_error(error.kind.value))
+            damage = DamageCalculation.failure(
+                messages.transport_error(error.kind.value)
+            )
         if damage.data is None:
             # 上游失败正文不得进入图片或 PNG 文本元数据。
             damage = DamageCalculation.failure(messages.PLAYER_DAMAGE_FAILED)
@@ -996,7 +1029,6 @@ class PlayerService:
         if self.cache is not None:
             await self.cache.invalidate_overview_card(target_user_id, uid)
         return PlainTextResponse(messages.PLAYER_INFO_CARD_CACHE_CLEARED)
-
 
     async def refresh_role(
         self,
