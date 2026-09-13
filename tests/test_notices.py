@@ -389,7 +389,8 @@ async def test_ann_detail_image_failure_returns_fixed_text(
 
     assert isinstance(response, PlainTextResponse)
     assert response.text == messages.ANN_DETAIL_FAILED
-    assert response.need_at is True
+    # 同步命令回复不再自行 @ 调用者，回复装饰交由 AstrBot 平台层。
+    assert response.need_at is False
     await database.dispose()
 
 

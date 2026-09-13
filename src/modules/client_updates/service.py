@@ -290,22 +290,13 @@ class ClientUpdateService:
 
         actor = request.actor
         if actor is None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
         if not actor.group_id:
-            return PlainTextResponse(messages.CLIENT_UPDATE_GROUP_ONLY, need_at=True)
+            return PlainTextResponse(messages.CLIENT_UPDATE_GROUP_ONLY)
         if not actor.unified_msg_origin:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
         if self.subscriptions is None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE)
 
         existing = await self._subscription_for_origin(actor.unified_msg_origin)
         await self.subscriptions.add(
@@ -322,41 +313,23 @@ class ClientUpdateService:
 
         failed_platforms = await self._initialize_missing_baselines(request.platforms)
         if existing is not None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED)
         if failed_platforms:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_SUBSCRIBED_RETRY,
-                need_at=True,
-            )
-        return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED, need_at=True)
+            return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED_RETRY)
+        return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED)
 
     async def unsubscribe(self, request: ClientUpdateRequest) -> PlainTextResponse:
         """取消当前群的客户端更新订阅。"""
 
         actor = request.actor
         if actor is None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
         if not actor.group_id:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_GROUP_UNSUB_ONLY,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_GROUP_UNSUB_ONLY)
         if not actor.unified_msg_origin:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
         if self.subscriptions is None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE)
 
         deleted = await self.subscriptions.delete(
             messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,
@@ -366,11 +339,8 @@ class ClientUpdateService:
         # 取消后即刻移除所有历史 pending，重新订阅不能补发旧事件。
         await self.state.remove_target(actor.unified_msg_origin, uid="")
         if not deleted:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
-                need_at=True,
-            )
-        return PlainTextResponse(messages.CLIENT_UPDATE_UNSUBSCRIBED, need_at=True)
+            return PlainTextResponse(messages.CLIENT_UPDATE_NOT_SUBSCRIBED)
+        return PlainTextResponse(messages.CLIENT_UPDATE_UNSUBSCRIBED)
 
     async def _subscription_for_origin(self, origin: str) -> Subscription | None:
         subscriptions = self.subscriptions

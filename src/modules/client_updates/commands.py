@@ -38,19 +38,16 @@ def _admin_group_guard(
     unsubscribe: bool,
 ) -> PlainTextResponse | None:
     if request.actor is None:
-        return PlainTextResponse(
-            messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-            need_at=True,
-        )
+        return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
     if request.permission != "admin":
-        return PlainTextResponse(messages.CLIENT_UPDATE_ADMIN_ONLY, need_at=True)
+        return PlainTextResponse(messages.CLIENT_UPDATE_ADMIN_ONLY)
     if not request.actor.group_id:
         message = (
             messages.CLIENT_UPDATE_GROUP_UNSUB_ONLY
             if unsubscribe
             else messages.CLIENT_UPDATE_GROUP_ONLY
         )
-        return PlainTextResponse(message, need_at=True)
+        return PlainTextResponse(message)
     return None
 
 
@@ -69,7 +66,7 @@ def _request(
 ) -> ClientUpdateRequest | PlainTextResponse:
     selected = _platforms(parameters.get("platform"))
     if selected is None:
-        return PlainTextResponse(messages.CLIENT_UPDATE_PLATFORM_INVALID, need_at=True)
+        return PlainTextResponse(messages.CLIENT_UPDATE_PLATFORM_INVALID)
     return ClientUpdateRequest(actor=request.actor, platforms=selected)
 
 
