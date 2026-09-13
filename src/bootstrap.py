@@ -415,7 +415,8 @@ def build_runtime(
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,
-        refresh_send_card=settings.cache.refresh_send_card,
+        refresh_send_info_card=settings.cache.refresh_send_info_card,
+        refresh_send_role_panel=settings.cache.refresh_send_role_panel,
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,

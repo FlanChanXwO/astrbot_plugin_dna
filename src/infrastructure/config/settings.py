@@ -265,10 +265,15 @@ class CacheSettings(_SettingsModel):
             "hint": "-1 表示永久缓存；0 表示禁用持久缓存；正整数表示缓存有效小时数"
         },
     )
-    refresh_send_card: bool = Field(
+    refresh_send_info_card: bool = Field(
+        default=True,
+        description="刷新后发送基础卡片",
+        json_schema_extra={"hint": "主动刷新基础信息卡片后是否发送新的基础卡片图片"},
+    )
+    refresh_send_role_panel: bool = Field(
         default=True,
         description="刷新后发送角色面板",
-        json_schema_extra={"hint": "主动刷新单个角色后是否发送新的角色面板图片"},
+        json_schema_extra={"hint": "主动刷新单个角色面板后是否发送新的角色面板图片"},
     )
 
 
@@ -816,9 +821,23 @@ def _consume_typed_group(
                 _record_assignment(result, assignments, "network", field, value, source)
             continue
 
-        if group_name == "cache" and field in _REMOVED_CACHE_FIELDS:
-            _discard_migrated_field(group_name, field, source)
-            continue
+        if group_name == "cache":
+            if field in _REMOVED_CACHE_FIELDS:
+                _discard_migrated_field(group_name, field, source)
+                continue
+            if field == "refresh_send_card":
+                # 旧 refresh_send_card 对用户公开的语义是“刷新后发送角色面板”；
+                # 历史实现误同时控制基础卡片，该 bug 不固化为兼容行为，
+                # 因此旧值只迁移到角色面板开关，基础卡片开关保持默认。
+                _record_assignment(
+                    result,
+                    assignments,
+                    "cache",
+                    "refresh_send_role_panel",
+                    value,
+                    f"{source}（旧 refresh_send_card）",
+                )
+                continue
         _record_assignment(result, assignments, group_name, field, value, source)
 
 

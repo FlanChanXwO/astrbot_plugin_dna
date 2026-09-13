@@ -545,6 +545,80 @@ async def test_refresh_info_card_only_fetches_overview(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_refresh_send_switches_are_independent_info_off_panel_on(
+    tmp_path: Path,
+) -> None:
+    """info=false 只抑制基础卡片图片，panel=true 的角色面板不受影响。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        refresh_send_info_card=False,
+        refresh_send_role_panel=True,
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "角色甲", "weapon_name_1": "近战甲"},
+    )
+
+    info_response = await service.refresh_info_card(request)
+    panel_response = await service.refresh_role(request)
+
+    assert isinstance(info_response, PlainTextResponse)
+    assert info_response.text == messages.PLAYER_INFO_CARD_REFRESHED
+    assert isinstance(panel_response, ChainResponse)
+    assert isinstance(panel_response.components[0], PlainTextResponse)
+    assert panel_response.components[0].text == messages.PLAYER_ROLE_REFRESHED.format(
+        name="角色甲"
+    )
+    assert isinstance(panel_response.components[1], ImageResponse)
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_send_switches_are_independent_info_on_panel_off(
+    tmp_path: Path,
+) -> None:
+    """panel=false 只抑制角色面板图片，info=true 仍发送基础卡片。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        refresh_send_info_card=True,
+        refresh_send_role_panel=False,
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "角色甲", "weapon_name_1": "近战甲"},
+    )
+
+    info_response = await service.refresh_info_card(request)
+    panel_response = await service.refresh_role(request)
+
+    assert isinstance(info_response, ChainResponse)
+    assert isinstance(info_response.components[1], ImageResponse)
+    assert isinstance(panel_response, PlainTextResponse)
+    assert panel_response.text == messages.PLAYER_ROLE_REFRESHED.format(name="角色甲")
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_clear_info_card_cache_preserves_overview_data_and_detail_cards(
     tmp_path: Path,
 ) -> None:
@@ -684,15 +758,6 @@ async def test_role_detail_renders_all_basic_sections_and_original_path(
         item["kind"] == "original_panel" and item["status"] == "provided"
         for item in resources
     )
-    original_response = await service.original_image(
-        PlayerCommandRequest(
-            actor=EventActor("user-1", "bot-1"),
-            target_user_id=None,
-            reply_id="message-detail",
-        ),
-    )
-    assert isinstance(original_response, PlainTextResponse)
-    assert original_response.text == messages.PLAYER_ORIGINAL_UNSUPPORTED
     await database.dispose()
 
 
@@ -971,35 +1036,6 @@ async def test_role_detail_exposes_con_weapon_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_original_image_reports_unsupported_without_public_delivery_id(
-    tmp_path: Path,
-) -> None:
-    """没有发送后消息 ID 时，原图命令必须显式报告未支持。"""
-
-    database = await _database_with_binding(tmp_path)
-    service = PlayerService(
-        database,
-        FixturePlayerTransport(
-            _overview_fixture(), _detail_fixture(), _weapon_fixture()
-        ),
-        PrivacyService(database),
-        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
-    )
-
-    response = await service.original_image(
-        PlayerCommandRequest(
-            actor=EventActor("user-1", "bot-1"),
-            target_user_id=None,
-            reply_id="message-101",
-        ),
-    )
-
-    assert isinstance(response, PlainTextResponse)
-    assert response.text == messages.PLAYER_ORIGINAL_UNSUPPORTED
-    await database.dispose()
-
-
-@pytest.mark.asyncio
 async def test_player_query_errors_are_visible_and_typed(tmp_path: Path) -> None:
     """无绑定和无引用属于可诊断文本，不得伪造空图片或静默成功。"""
 
@@ -1017,14 +1053,8 @@ async def test_player_query_errors_are_visible_and_typed(tmp_path: Path) -> None
     response = await service.role_overview(
         PlayerCommandRequest(actor=EventActor("user-1", "bot-1"), target_user_id=None),
     )
-    original_response = await service.original_image(
-        PlayerCommandRequest(actor=EventActor("user-1", "bot-1"), target_user_id=None),
-    )
-
     assert isinstance(response, PlainTextResponse)
     assert response.text == "当前未绑定账号，请先登录"
-    assert isinstance(original_response, PlainTextResponse)
-    assert "引用" in original_response.text
     await database.dispose()
 
 

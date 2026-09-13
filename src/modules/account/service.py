@@ -22,9 +22,11 @@ from .contracts import (
     AccountTransport,
     AccountTransportError,
     LoginAttempt,
+    LoginChannel,
     LoginCredentials,
     LoginResult,
     RoleInfo,
+    TransportErrorKind,
 )
 
 _UID_PATTERN = re.compile(r"^\d{13}$")
@@ -437,24 +439,80 @@ class AccountService:
         )
 
     async def credentials(self, actor: AccountActor) -> PlainTextResponse:
-        """查询凭据状态摘要，不返回任何原始敏感值。"""
+        """私聊返回当前用户的真实凭证；群聊只提示私聊获取，绝不泄露。"""
 
+        if actor.group_id is not None:
+            return PlainTextResponse(messages.CREDENTIAL_GROUP_HINT)
         async with self.database.session() as session:
             records = await CredentialRepository.list(
                 session,
                 user_id=actor.user_id,
             )
-        if not records:
+        # 可返回的凭证必须是完整 token；只有设备码/refresh token 的残缺记录
+        # 不能当作「已保存凭证」输出，否则会向用户展示空值。
+        revealable = [
+            (record.uid, record.app_cookie)
+            for record in records
+            if record.app_cookie.strip()
+        ]
+        if not revealable:
             return PlainTextResponse(messages.CREDENTIALS_EMPTY)
-        return PlainTextResponse(
-            messages.credential_summary(
-                (
-                    record.uid,
-                    record.has_app_credentials,
-                )
-                for record in records
-            ),
+        return PlainTextResponse(messages.credential_reveal(revealable))
+
+    async def check_credentials(self, actor: AccountActor) -> PlainTextResponse:
+        """通过 typed transport 的权威鉴权链路实时验证当前 UID 凭据。
+
+        三态语义：上游明确判定凭据失效才报告「已失效」；网络/服务端失败
+        报告「暂时无法验证」且不修改任何持久化状态。
+        """
+
+        async with self.database.session() as session:
+            binding = await AccountBindingRepository.current(
+                session,
+                user_id=actor.user_id,
+            )
+            if binding is None:
+                return PlainTextResponse(messages.NOT_LOGGED_IN)
+            record = await CredentialRepository.get(
+                session,
+                user_id=actor.user_id,
+                uid=binding.uid,
+            )
+        # 构造有效 App 凭据至少需要 token 和设备码；refresh token / d_num
+        # 是否存在不决定「token 是否存在」。
+        if (
+            record is None
+            or not record.app_cookie.strip()
+            or not record.app_device_code.strip()
+        ):
+            return PlainTextResponse(messages.NOT_LOGGED_IN)
+        credentials = LoginCredentials(
+            channel=LoginChannel.APP,
+            token=record.app_cookie,
+            dev_code=record.app_device_code,
+            d_num=record.app_d_num,
+            refresh_token=record.app_refresh_token,
         )
+        try:
+            await self.transport.authenticate_credentials(credentials)
+        except AccountTransportError as error:
+            if error.kind is TransportErrorKind.CREDENTIAL:
+                # 只有上游明确判定凭据失效才持久化无效状态；
+                # 网络/服务端失败不属于凭据失效，不修改 CredentialRecord。
+                async with self.database.transaction() as session:
+                    await CredentialRepository.mark_app_invalid(
+                        session,
+                        user_id=actor.user_id,
+                        uid=binding.uid,
+                    )
+                return PlainTextResponse(messages.CREDENTIAL_CHECK_INVALID)
+            logger.warning(
+                "凭证检查未完成 kind=%s uid=%s",
+                error.kind.value,
+                binding.uid,
+            )
+            return PlainTextResponse(messages.CREDENTIAL_CHECK_INDETERMINATE)
+        return PlainTextResponse(messages.CREDENTIAL_CHECK_VALID)
 
 
 __all__ = ["AccountService", "parse_login_attempt"]

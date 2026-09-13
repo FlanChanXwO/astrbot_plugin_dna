@@ -5,25 +5,25 @@ from collections.abc import AsyncIterator
 import pytest
 import pytest_asyncio
 
-from src.infrastructure.http.account import (
-    AccountTransportError,
-    DnaApiAccountTransport,
-    TransportErrorKind,
-)
+from src.infrastructure.http.account import DnaApiAccountTransport
 from src.infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
     CredentialRepository,
 )
+from src.modules.account import messages
 from src.modules.account.contracts import (
     AccountActor,
+    AccountTransportError,
     LoginAttempt,
     LoginChannel,
     LoginCredentials,
     LoginResult,
     RoleInfo,
+    TransportErrorKind,
 )
 from src.modules.account.service import AccountService, parse_login_attempt
+from src.utils.constants.constants import DNA_GAME_ID
 
 
 @pytest_asyncio.fixture
@@ -47,6 +47,19 @@ class FakeAccountTransport:
         self.page_url = page_url
         self.attempts: list[LoginAttempt] = []
         self.actors: list[AccountActor] = []
+        self.checked_credentials: list[LoginCredentials] = []
+
+    async def authenticate_credentials(
+        self,
+        credentials: LoginCredentials,
+    ) -> LoginResult:
+        """记录并按构造结果验证已保存凭据，模拟实时上游校验。"""
+
+        self.checked_credentials.append(credentials)
+        if isinstance(self.outcome, AccountTransportError):
+            raise self.outcome
+        assert isinstance(self.outcome, LoginResult)
+        return self.outcome
 
     async def begin_login(self, actor: AccountActor) -> str:
         self.actors.append(actor)
@@ -311,30 +324,270 @@ async def test_bind_switch_delete_logout_lifecycle_uses_normalized_records(datab
 
 
 @pytest.mark.asyncio
-async def test_credential_query_returns_status_summary_not_raw_tokens(database):
-    """凭据查询只返回可用状态，不把 token/cookie 作为用户响应。"""
-    app_cookie = "cookie-query-task10"
-    refresh_token = "refresh-query-task10"
+async def test_get_credential_reveals_token_only_in_private_chat(database):
+    """获取凭证：私聊返回真实凭证，群聊只返回提示且绝不泄露凭证。"""
+    app_cookie = "cookie-secret-task10"
     async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            is_active=True,
+        )
         await CredentialRepository.add(
             session,
             user_id="user-1",
             uid="1234567890123",
             app_cookie=app_cookie,
             app_device_code="device-query-task10",
-            app_refresh_token=refresh_token,
+            app_refresh_token="refresh-query-task10",
             app_status="",
         )
 
     service = AccountService(
         database, FakeAccountTransport(LoginResult.cancelled()), max_bind_count=2
     )
-    response = await service.credentials(_actor())
 
-    assert "1234567890123" in response.text
-    assert "App 凭据：已保存" in response.text
-    assert app_cookie not in response.text
-    assert refresh_token not in response.text
+    private_response = await service.credentials(
+        AccountActor(user_id="user-1", bot_id="bot-1", group_id=None)
+    )
+    assert "1234567890123" in private_response.text
+    assert app_cookie in private_response.text
+
+    group_response = await service.credentials(_actor())
+    assert app_cookie not in group_response.text
+    assert "私聊" in group_response.text
+
+
+@pytest.mark.asyncio
+async def test_check_credentials_reports_valid_state(database):
+    """typed transport 实时校验成功时报告凭证有效，不修改任何状态。"""
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            is_active=True,
+        )
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            app_cookie="cookie-check",
+            app_device_code="device-check",
+            app_status="",
+        )
+
+    transport = FakeAccountTransport(LoginResult.cancelled())
+    service = AccountService(database, transport, max_bind_count=2)
+    response = await service.check_credentials(_actor())
+
+    assert len(transport.checked_credentials) == 1
+    assert transport.checked_credentials[0].token == "cookie-check"
+    assert transport.checked_credentials[0].dev_code == "device-check"
+    assert "有效" in response.text
+    assert "失效" not in response.text
+    assert "cookie-check" not in response.text
+    async with database.session() as session:
+        record = await CredentialRepository.get(
+            session, user_id="user-1", uid="1234567890123"
+        )
+    assert record is not None
+    assert record.app_status != "无效"
+
+
+@pytest.mark.asyncio
+async def test_check_credentials_persists_invalid_only_when_upstream_confirms(database):
+    """只有上游明确判定凭据失效才写回无效状态并要求重新登录。"""
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            is_active=True,
+        )
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            app_cookie="cookie-check",
+            app_device_code="device-check",
+            app_status="",
+        )
+
+    transport = FakeAccountTransport(
+        AccountTransportError(TransportErrorKind.CREDENTIAL, detail="upstream invalid")
+    )
+    service = AccountService(database, transport, max_bind_count=2)
+    response = await service.check_credentials(_actor())
+
+    assert "失效" in response.text
+    assert "dna登录" in response.text
+    async with database.session() as session:
+        record = await CredentialRepository.get(
+            session, user_id="user-1", uid="1234567890123"
+        )
+    assert record is not None
+    assert record.app_status == "无效"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kind",
+    [TransportErrorKind.NETWORK, TransportErrorKind.STATUS, TransportErrorKind.SERVER],
+)
+async def test_check_credentials_reports_indeterminate_for_non_credential_failures(
+    database, kind
+):
+    """网络/状态码/服务端失败均不得判定为凭据失效，也不修改任何持久化状态。"""
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            is_active=True,
+        )
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            app_cookie="cookie-check",
+            app_device_code="device-check",
+            app_status="",
+        )
+
+    transport = FakeAccountTransport(AccountTransportError(kind, detail="not credential"))
+    service = AccountService(database, transport, max_bind_count=2)
+    response = await service.check_credentials(_actor())
+
+    assert "暂时无法验证" in response.text
+    assert "失效" not in response.text
+    assert "重新登录" not in response.text
+    async with database.session() as session:
+        record = await CredentialRepository.get(
+            session, user_id="user-1", uid="1234567890123"
+        )
+    assert record is not None
+    assert record.app_status != "无效"
+
+
+@pytest.mark.asyncio
+async def test_check_credentials_requires_complete_app_credentials(database):
+    """空 token 的残缺记录（只有设备码/refresh_token）不可用于校验。"""
+    for cookie in ("", "  "):
+        async with database.transaction() as session:
+            # save_app 是 upsert，覆盖上一轮残留的同 UID 记录。
+            await CredentialRepository.save_app(
+                session,
+                user_id="user-1",
+                uid="1234567890123",
+                token=cookie,
+                device_code="device-only",
+                refresh_token="refresh-only",
+            )
+
+        service = AccountService(database, FakeAccountTransport(None), max_bind_count=2)
+        response = await service.check_credentials(_actor())
+        assert response.text == messages.NOT_LOGGED_IN
+
+
+@pytest.mark.asyncio
+async def test_get_credential_skips_records_without_token(database):
+    """只有设备码/refresh_token 的记录不输出空凭证；无可返回凭证时空回复。"""
+    async with database.transaction() as session:
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid="123456789010",
+            app_cookie="",
+            app_device_code="device-only",
+            app_refresh_token="refresh-only",
+        )
+
+    service = AccountService(database, FakeAccountTransport(None), max_bind_count=2)
+
+    private = AccountActor(user_id="user-1", bot_id="bot-1", group_id=None)
+    response = await service.credentials(private)
+    assert response.text == messages.CREDENTIALS_EMPTY
+
+
+@pytest.mark.asyncio
+async def test_real_transport_boundary_classifies_credential_and_network_failures(
+    monkeypatch,
+):
+    """真实 DnaApiAccountTransport 边界：实时角色列表校验 + 四类错误分类。"""
+    from src.infrastructure.http.account import DnaApiAccountTransport
+
+    # src.utils 导出的 dna_api 就是 DNAApi 单例实例，transport 内部同样按属性访问。
+    from src.utils import dna_api
+    from src.utils.api.request_util import DNAApiResp
+
+    transport = DnaApiAccountTransport()
+    credentials = LoginCredentials(
+        channel=LoginChannel.APP,
+        token="token-real",
+        dev_code="device-real",
+    )
+    calls: list[tuple[str, str]] = []
+
+    async def fake_get_app_role_list(token: str, dev_code: str):
+        calls.append((token, dev_code))
+        return outcomes.pop(0)
+
+    def login_log_probe(*args, **kwargs):  # pragma: no cover - 不应被调用
+        raise AssertionError("凭证检查不得走 login_log 缓存路径")
+
+    outcomes = [
+        DNAApiResp.ok(
+            {
+                "roles": [
+                    {
+                        "gameId": DNA_GAME_ID,
+                        "gameName": "二重螺旋",
+                        "showVoList": [
+                            {
+                                "roleId": "1234567890123",
+                                "roleBoundId": "bound-1",
+                                "roleName": "角色甲",
+                                "isDefault": 1,
+                                "headUrl": "https://avatar.test/1.png",
+                                "level": 42,
+                                "roleRegisterTime": "2026-01-01 00:00:00",
+                                "boundType": 0,
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        DNAApiResp.err("token已失效", code=200),
+        DNAApiResp.err("服务暂时不可用", code=500),
+    ]
+    monkeypatch.setattr(dna_api, "get_app_role_list", fake_get_app_role_list)
+    monkeypatch.setattr(dna_api, "login_log", login_log_probe)
+
+    valid = await transport.authenticate_credentials(credentials)
+    assert valid.roles and valid.roles[0].uid == "1234567890123"
+
+    with pytest.raises(AccountTransportError) as credential_error:
+        await transport.authenticate_credentials(credentials)
+    assert credential_error.value.kind is TransportErrorKind.CREDENTIAL
+
+    with pytest.raises(AccountTransportError) as status_error:
+        await transport.authenticate_credentials(credentials)
+    # 5xx 业务失败按既有边界归类为 STATUS，不属于凭据失效。
+    assert status_error.value.kind is TransportErrorKind.STATUS
+
+    async def network_failure(token: str, dev_code: str):
+        raise OSError("network unreachable")
+
+    monkeypatch.setattr(dna_api, "get_app_role_list", network_failure)
+    with pytest.raises(AccountTransportError) as network_error:
+        await transport.authenticate_credentials(credentials)
+    assert network_error.value.kind is TransportErrorKind.NETWORK
+
+    # 每次校验都实时调用角色列表接口，且从未触达 login_log 缓存路径。
+    assert len(calls) == 3
 
 
 @pytest.mark.asyncio

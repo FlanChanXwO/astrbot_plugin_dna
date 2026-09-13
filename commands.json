@@ -12,18 +12,6 @@
     "use_case": "src.modules.help.help_use_case"
   },
   {
-    "id": "account_token_login",
-    "pattern": "^dna(?:token登录|登录token)\\s*(?P<arg>.*)$",
-    "group": "账号管理",
-    "name": "token登录",
-    "description": "使用 App token 登录，不输出原始凭据",
-    "examples": [
-      "dnatoken登录<token>"
-    ],
-    "permission": "user",
-    "use_case": "src.modules.account.commands.account_token_login_use_case"
-  },
-  {
     "id": "account_login",
     "pattern": "^dna(?:登录|登陆|登入|登龙|login)\\s*(?P<arg>.*)$",
     "group": "账号管理",
@@ -98,15 +86,28 @@
   },
   {
     "id": "account_credentials",
-    "pattern": "^dna(?:获取ck|获取CK|获取Token|获取token|获取TOKEN)$",
+    "pattern": "^dna(?:获取ck|获取CK|获取凭证|获取Token|获取token|获取TOKEN)$",
     "group": "账号管理",
-    "name": "获取凭据状态",
-    "description": "查看当前登录账号的凭据状态（严格脱敏）",
+    "name": "获取凭证",
+    "description": "私聊返回当前账号凭证；群聊不输出凭证",
     "examples": [
+      "dna获取凭证",
       "dna获取ck"
     ],
     "permission": "user",
     "use_case": "src.modules.account.commands.account_credentials_use_case"
+  },
+  {
+    "id": "account_check_credentials",
+    "pattern": "^dna检查凭证$",
+    "group": "账号管理",
+    "name": "检查凭证",
+    "description": "验证凭证状态（有效/失效/暂时无法验证）",
+    "examples": [
+      "dna检查凭证"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.account.commands.account_check_credentials_use_case"
   },
   {
     "id": "role_info_card",
@@ -144,18 +145,6 @@
     ],
     "permission": "user",
     "use_case": "src.modules.player.commands.player_clear_info_card_cache_use_case"
-  },
-  {
-    "id": "refresh_admin_role_card",
-    "pattern": "^dna刷新(?P<uid>\\d+)的(?P<char_name>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板$",
-    "group": "角色信息",
-    "name": "刷新指定角色面板",
-    "description": "管理员按游戏 UID 刷新角色面板",
-    "examples": [
-      "dna刷新123456的角色名面板"
-    ],
-    "permission": "admin",
-    "use_case": "src.modules.player.commands.player_refresh_admin_role_use_case"
   },
   {
     "id": "refresh_role_card",
@@ -216,18 +205,6 @@
     ],
     "permission": "user",
     "use_case": "src.modules.player.commands.player_role_detail_use_case"
-  },
-  {
-    "id": "role_original_image",
-    "pattern": "^dna原图$",
-    "group": "角色信息",
-    "name": "角色原图（暂不支持）",
-    "description": "当前平台暂不支持通过引用获取角色原图",
-    "examples": [
-      "dna原图"
-    ],
-    "permission": "user",
-    "use_case": "src.modules.player.commands.player_original_image_use_case"
   },
   {
     "id": "privacy_enable_peek_personal",
@@ -500,7 +477,8 @@
     "name": "角色/武器列表",
     "description": "查看全部角色或武器列表",
     "examples": [
-      "dna角色列表"
+      "dna角色列表",
+      "dna武器列表"
     ],
     "permission": "user",
     "use_case": "src.modules.encyclopedia.commands.alias_all_list_use_case"

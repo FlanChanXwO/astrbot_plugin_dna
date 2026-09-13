@@ -522,6 +522,37 @@ def test_legacy_nested_and_flat_config_migration():
     assert settings.sign_in.default_auto_sign_enabled is True
 
 
+def test_legacy_refresh_send_card_migrates_to_role_panel_only():
+    """旧 cache.refresh_send_card 只迁移到角色面板开关，不固化到基础卡片。"""
+    from src.infrastructure.config.settings import DnabySettings, migrate_config_dict
+
+    legacy = {"cache": {"refresh_send_card": False}}
+    migrated = migrate_config_dict(legacy)
+    assert migrated["cache"]["refresh_send_role_panel"] is False
+    assert "refresh_send_card" not in migrated["cache"]
+    assert "refresh_send_info_card" not in migrated["cache"]
+
+    settings = DnabySettings.from_config(legacy)
+    assert settings.cache.refresh_send_role_panel is False
+    assert settings.cache.refresh_send_info_card is True
+
+
+def test_refresh_send_switches_are_independent_config_fields():
+    """基础卡片与角色面板的发送开关是两个互不影响的字段。"""
+    from src.infrastructure.config.settings import DnabySettings
+
+    settings = DnabySettings.from_config(
+        {
+            "cache": {
+                "refresh_send_info_card": False,
+                "refresh_send_role_panel": True,
+            }
+        }
+    )
+    assert settings.cache.refresh_send_info_card is False
+    assert settings.cache.refresh_send_role_panel is True
+
+
 def test_config_migration_rejects_malformed_known_sections():
     from src.infrastructure.config.settings import migrate_config_dict
 

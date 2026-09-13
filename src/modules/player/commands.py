@@ -24,7 +24,6 @@ CLEAR_ROLE_PATTERN = rf"^清理(?P<char_name>{PATTERN})面板缓存$"
 CLEAR_ALL_ROLE_PATTERN = r"^清理全部角色缓存$"
 REFRESH_INFO_CARD_PATTERN = r"^刷新(?:基本信息)?卡片缓存$"
 CLEAR_INFO_CARD_PATTERN = r"^(?:清理|删除)(?:基本信息)?卡片缓存$"
-REFRESH_ADMIN_ROLE_PATTERN = rf"^刷新(?P<uid>\d+)的(?P<char_name>{PATTERN})面板$"
 
 
 def _service(request: CommandRequest) -> PlayerService | PlainTextResponse:
@@ -122,17 +121,6 @@ async def player_role_detail_use_case(
     return await service.role_detail(_player_request(request, parameters))
 
 
-async def player_original_image_use_case(
-    request: CommandRequest,
-    _registry: CommandRegistry,
-    **parameters: Any,
-):
-    service = _service(request)
-    if isinstance(service, PlainTextResponse):
-        return service
-    return await service.original_image(_player_request(request, parameters))
-
-
 async def player_refresh_role_use_case(
     request: CommandRequest,
     _registry: CommandRegistry,
@@ -156,22 +144,6 @@ async def player_refresh_all_roles_use_case(
     if not callable(operation):
         return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
     return await operation(_player_request(request, parameters))
-
-
-async def player_refresh_admin_role_use_case(
-    request: CommandRequest,
-    _registry: CommandRegistry,
-    **parameters: Any,
-):
-    if request.permission != "admin":
-        return PlainTextResponse(messages.PLAYER_ADMIN_ONLY)
-    service = _refresh_service(request)
-    if isinstance(service, PlainTextResponse):
-        return service
-    return await service.refresh_role(
-        _player_request(request, parameters),
-        uid=str(parameters.get("uid", "")),
-    )
 
 
 async def player_clear_all_cache_use_case(
@@ -235,16 +207,6 @@ COMMAND_SPECS = (
         use_case=cast(Any, player_clear_info_card_cache_use_case),
     ),
     CommandSpec(
-        id="refresh_admin_role_card",
-        pattern=REFRESH_ADMIN_ROLE_PATTERN,
-        group="角色信息",
-        name="刷新指定角色面板",
-        description="管理员按游戏 UID 刷新角色面板",
-        examples=("刷新123456的角色名面板",),
-        permission="admin",
-        use_case=cast(Any, player_refresh_admin_role_use_case),
-    ),
-    CommandSpec(
         id="refresh_role_card",
         pattern=REFRESH_ROLE_PATTERN,
         group="角色信息",
@@ -295,17 +257,6 @@ COMMAND_SPECS = (
         use_case=cast(Any, player_role_detail_use_case),
         mention_policy="query",
     ),
-    CommandSpec(
-        id="role_original_image",
-        pattern=r"^原图$",
-        group="角色信息",
-        name="角色原图（暂不支持）",
-        description="当前平台暂不支持通过引用获取角色原图",
-        examples=("原图",),
-        permission="user",
-        use_case=cast(Any, player_original_image_use_case),
-        mention_policy="query",
-    ),
 )
 
 
@@ -315,7 +266,6 @@ __all__ = [
     "CLEAR_ROLE_PATTERN",
     "COMMAND_SPECS",
     "PATTERN",
-    "REFRESH_ADMIN_ROLE_PATTERN",
     "REFRESH_ALL_ROLE_PATTERN",
     "REFRESH_INFO_CARD_PATTERN",
     "REFRESH_ROLE_PATTERN",
@@ -323,8 +273,6 @@ __all__ = [
     "player_clear_all_cache_use_case",
     "player_clear_info_card_cache_use_case",
     "player_clear_role_cache_use_case",
-    "player_original_image_use_case",
-    "player_refresh_admin_role_use_case",
     "player_refresh_all_roles_use_case",
     "player_refresh_info_card_use_case",
     "player_refresh_role_use_case",

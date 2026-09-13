@@ -20,8 +20,8 @@
   .help-card__items { position: absolute; top: 119px; left: 45px; width: 1960px; }
   .help-card__item { position: absolute; width: 490px; height: 175px; overflow: hidden; background: url("{{ item_background }}") center/490px 175px no-repeat; }
   .help-card__item-icon { position: absolute; top: 12px; left: 6px; width: 150px; height: 150px; object-fit: contain; }
-  .help-card__item-name { position: absolute; top: 67px; left: 156px; margin: 0; color: #fff; font-size: 38px; line-height: 38px; white-space: nowrap; transform: translateY(-50%); }
-  .help-card__item-example { position: absolute; top: 116px; left: 156px; margin: 0; color: #cecece; font-size: 26px; line-height: 26px; white-space: nowrap; transform: translateY(-50%); }
+  .help-card__item-name { position: absolute; top: 67px; left: 156px; right: 12px; margin: 0; color: #fff; font-size: 38px; line-height: 38px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: translateY(-50%); }
+  .help-card__item-example { position: absolute; top: 116px; left: 156px; right: 12px; margin: 0; color: #cecece; font-size: 26px; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: translateY(-50%); }
   .help-card__footer { position: relative; display: block; width: 1060px; height: 40px; margin: 32px auto 40px; }
 </style>
 {% if banner %}<img class="help-card__banner" src="{{ banner }}" alt="" />{% endif %}
