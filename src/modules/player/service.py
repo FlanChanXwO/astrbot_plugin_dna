@@ -137,7 +137,7 @@ class PlayerService:
         return self.resource_snapshots.bind_renderer(
             self.renderer,
             "player_resources",
-            asset_resolver_attr="asset_resolver",
+            asset_resolver=self.renderer.asset_resolver,
         )
 
     async def _resolve_uid(

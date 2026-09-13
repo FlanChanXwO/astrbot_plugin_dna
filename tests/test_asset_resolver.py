@@ -195,7 +195,7 @@ async def test_bind_renderer_shares_generation_lease_with_asset_resolver(
     with coordinator.bind_renderer(
         renderer,
         "player_resources",
-        asset_resolver_attr="asset_resolver",
+        asset_resolver=base_resolver,
     ) as bound:
         assert bound.resources is coordinator._current.player_resources
         assert bound.asset_resolver.coordinator is None

@@ -22,6 +22,7 @@ from uuid import uuid4
 from PIL import Image
 
 from .encyclopedia import EncyclopediaResourceStore
+from .resolver import AssetResolver
 from .git import (
     DEFAULT_RESOURCE_REMOTE,
     GitRunner,
@@ -1089,11 +1090,9 @@ class ResourceSnapshotCoordinator:
         renderer: Any,
         resource_attr: str,
         *,
-        asset_resolver_attr: str | None = None,
+        asset_resolver: AssetResolver | None = None,
     ) -> Iterator[Any]:
         """在同一 generation lease 内绑定资源视图和可选图片 resolver。"""
-
-        from .resolver import AssetResolver
 
         with self.optional_lease() as snapshot:
             if snapshot is None:
@@ -1108,24 +1107,12 @@ class ResourceSnapshotCoordinator:
 
             bound = copy(renderer)
             bound.resources = resources
-            if asset_resolver_attr is not None:
-                base_resolver = getattr(renderer, asset_resolver_attr, None)
-                if base_resolver is not None:
-                    dynamic_root = getattr(base_resolver, "dynamic_root", None)
-                    if dynamic_root is None:
-                        raise ResourceGenerationError(
-                            "renderer 的 asset resolver 缺少 dynamic_root: "
-                            f"{asset_resolver_attr}"
-                        )
-                    setattr(
-                        bound,
-                        asset_resolver_attr,
-                        AssetResolver.from_snapshot(
-                            snapshot,
-                            dynamic_root=dynamic_root,
-                            downloader=getattr(base_resolver, "downloader", None),
-                        ),
-                    )
+            if asset_resolver is not None:
+                bound.asset_resolver = AssetResolver.from_snapshot(
+                    snapshot,
+                    dynamic_root=asset_resolver.dynamic_root,
+                    downloader=asset_resolver.downloader,
+                )
             yield bound
 
     def _release(self, commit_sha: str) -> None:

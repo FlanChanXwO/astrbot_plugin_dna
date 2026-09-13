@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...entry.commands import COMMAND_GROUP_ORDER
 from ...version import PLUGIN_VERSION
-from .legacy_assets import (
+from .static_assets import (
     HELP_BACKGROUND_PATH,
     HELP_BANNER_PATH,
     HELP_CAG_PATH,
@@ -19,10 +19,10 @@ from .legacy_assets import (
     HELP_ICON_DIR,
     HELP_ITEM_PATH,
 )
-from .legacy_assets import (
+from .static_assets import (
     legacy_font_data_uri as font_data_uri,
 )
-from .legacy_assets import (
+from .static_assets import (
     legacy_image_data_uri as image_data_uri,
 )
 from .renderer import HtmlRenderer
