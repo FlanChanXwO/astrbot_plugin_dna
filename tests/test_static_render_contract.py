@@ -440,3 +440,25 @@ def test_static_open_image_writes_records(tmp_path: Path) -> None:
         records=missing_records,
     )
     assert missing_records[0]["incomplete"] == "true"
+
+
+def test_static_open_image_corrupt_file_records_incomplete(tmp_path: Path) -> None:
+    """文件存在但解码失败时，资源记录同样必须暴露 incomplete。"""
+
+    snapshot = tmp_path / "gen"
+    broken = snapshot / "textures" / "sign" / "broken.png"
+    broken.parent.mkdir(parents=True)
+    # 合法 PNG 头但内容损坏，模拟磁盘/注入导致的坏文件。
+    broken.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+    records: list[dict[str, str]] = []
+    image = static_open_image(
+        StaticAssetResolver(snapshot_root=snapshot),
+        "textures/sign/broken.png",
+        size=(4, 4),
+        label="签到",
+        key="texture.sign.broken",
+        records=records,
+    )
+    assert image.size == (4, 4)
+    assert records[0]["incomplete"] == "true"
+    assert records[0]["source"] == "none"

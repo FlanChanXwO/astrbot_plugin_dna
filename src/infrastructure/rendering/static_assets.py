@@ -291,8 +291,8 @@ def static_open_image(
 ) -> Image.Image:
     """按 snapshot 相对路径读取 PIL 图片；缺失或损坏时返回占位图。
 
-    传入 ``key`` 与 ``records`` 时同步写入资源记录，保证 placeholder 参与
-    ``resources_incomplete()`` 判定，不留静默降级。
+    传入 ``key`` 与 ``records`` 时同步写入资源记录；先解码后记录，文件存在
+    但损坏同样按 placeholder 记为 incomplete，不留静默降级。
     """
 
     asset = (
@@ -300,17 +300,25 @@ def static_open_image(
         if resolver is not None
         else ResolvedStaticAsset(None, "none", True)
     )
-    if key is not None and records is not None:
-        records.append(static_record(key, asset, resource_path=relative))
+    image: Image.Image | None = None
     if asset.path is not None:
         try:
             with Image.open(asset.path) as opened:
                 image = opened.convert("RGBA")
             if resize and image.size != size:
                 image = image.resize(size, Image.Resampling.LANCZOS)
-            return image
         except (OSError, ValueError, Image.DecompressionBombError):
-            pass
+            image = None
+    if key is not None and records is not None:
+        records.append(
+            static_record(
+                key,
+                asset if image is not None else ResolvedStaticAsset(None, "none", True),
+                resource_path=relative,
+            )
+        )
+    if image is not None:
+        return image
     return placeholder_image(size, label)
 
 

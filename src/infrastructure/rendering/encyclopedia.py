@@ -1221,7 +1221,7 @@ async def draw_calendar_card(
 
 async def draw_calendar_img(ctx: EventContext):
     # legacy 便捷入口没有 resolver 上下文，静态素材统一走 placeholder 降级。
-    static_asset_resolver: object | None = None
+    static_asset_resolver: StaticAssetResolver | None = None
     static_records: list[dict[str, str]] | None = None
     activity_res = await dna_api.get_activity_info()
     activity_list = (

@@ -61,6 +61,7 @@ from .player_image_loader import PlayerImageLoader
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
 from .static_assets import (
+    StaticAssetResolver,
     static_font_data_uri,
     static_image_data_uri,
     static_record,
@@ -73,7 +74,7 @@ _RENDERER = HtmlRenderer()
 def _static_image(
     key: str,
     relative: str,
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     static_records: list[dict[str, str]] | None,
     *,
     label: str = "角色卡",
@@ -87,7 +88,7 @@ def _static_image(
 
 
 def _static_font(
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     static_records: list[dict[str, str]] | None,
 ) -> str:
     """解析主字体；缺失时返回空 URI 交给 CSS fallback。"""
@@ -202,7 +203,7 @@ async def _section_payload(
     background_relative: str,
     *,
     image_loader: PlayerImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     visible = items if show_none else [item for item in items if item.unlocked]
@@ -230,7 +231,7 @@ async def _draw_role_overview_card(
     hero_background_path: Path | None = None,
     *,
     image_loader: PlayerImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     role_chars = getattr(role_show, "roleChars", getattr(role_show, "role_chars", []))
@@ -442,7 +443,7 @@ async def draw_role_info_card_core(
     hero_background_path: Path | None = None,
     *,
     image_loader: PlayerImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
@@ -511,7 +512,7 @@ def _get_attr_val(attr: Any, camel: str, snake: str) -> Any:
 def _attribute_payload(
     role_detail: Any,
     *,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, str]]:
     attr = getattr(role_detail, "attribute", None)
@@ -569,7 +570,7 @@ async def _mode_payload(
     position: str,
     *,
     image_loader: PlayerImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     quality = getattr(mode, "quality", None) or 1
@@ -603,7 +604,7 @@ async def _role_modes_payload(
     modes: list[Any],
     *,
     image_loader: PlayerImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, object]]:
     padded = list(modes) + [Mode(id=-1) for _ in range(max(0, 9 - len(modes)))]
@@ -694,7 +695,7 @@ async def _draw_role_detail_card(
     custom_panel: Path | None = None,
     *,
     image_loader: PlayerImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> tuple[bytes, Path | None]:
     damage = None

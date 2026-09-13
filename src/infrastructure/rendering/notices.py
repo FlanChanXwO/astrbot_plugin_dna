@@ -63,7 +63,6 @@ from .static_assets import (
 
 if TYPE_CHECKING:
     from ...infrastructure.cache import CacheManager
-    from .static_assets import StaticAssetResolver
 
 _RENDERER = HtmlRenderer()
 OFFICIAL_AVATAR_RELATIVE = "textures/ann/dna_official_avatar.jpeg"
