@@ -1086,7 +1086,9 @@ async def test_auto_sign_report_builds_only_requested_group_reports(
 
     rendered: list[str] = []
 
-    async def render(text: str, *, theme: str = "blue") -> bytes:
+    async def render(
+        text: str, *, theme: str = "blue", **_kwargs: object
+    ) -> bytes:
         rendered.append(theme)
         return f"image:{theme}".encode()
 
@@ -1128,7 +1130,9 @@ async def test_auto_sign_report_renders_group_images_only_when_enabled(
     database = await _database_with_binding(tmp_path)
     rendered: list[tuple[str, str]] = []
 
-    async def render(text: str, *, theme: str = "blue") -> bytes:
+    async def render(
+        text: str, *, theme: str = "blue", **_kwargs: object
+    ) -> bytes:
         rendered.append((text, theme))
         return f"image:{theme}".encode()
 

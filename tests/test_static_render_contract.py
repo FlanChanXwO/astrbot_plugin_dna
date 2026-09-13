@@ -310,8 +310,10 @@ def test_case3_request_keeps_generation_across_switch(tmp_path) -> None:
         assert pinned_b.generation_id == "b" * 40
 
 
-def test_missing_static_assets_force_incomplete(tmp_path) -> None:
+def test_missing_static_assets_force_incomplete(tmp_path, monkeypatch) -> None:
     """任一正式静态素材缺失都必须让渲染结果 incomplete=True。"""
+
+    _stub_avatar(monkeypatch)
 
     generation = _build_snapshot(tmp_path / "gen", generation="a" * 40)
     # 构造素材缺口：签到条、密函类型图标、日历 banner、周报品质角标。
