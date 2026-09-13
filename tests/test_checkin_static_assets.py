@@ -40,6 +40,26 @@ def _snapshot(tmp_path: Path) -> Path:
     return snapshot
 
 
+def _stub_avatar(monkeypatch) -> None:
+    """屏蔽头像下载，避免测试间共享的 httpx 连接池跨事件循环复用。"""
+
+    from PIL import Image
+
+    import src.infrastructure.rendering.payloads as payloads
+
+    async def _fake_event_avatar(*_args, **_kwargs):
+        return Image.new("RGBA", (16, 16), (90, 120, 200, 255))
+
+    monkeypatch.setattr(payloads, "get_event_avatar", _fake_event_avatar)
+    import src.utils.image as image_utils
+
+    async def _fake_avatar_img(*_args, **_kwargs):
+        return Image.new("RGBA", (16, 16), (60, 160, 90, 255))
+
+    monkeypatch.setattr(payloads, "get_avatar_img", _fake_avatar_img)
+    monkeypatch.setattr(image_utils, "get_avatar_img", _fake_avatar_img)
+
+
 def _calendar_data() -> CheckinCalendarData:
     return CheckinCalendarData(
         calendar=SignCalendar(
@@ -57,7 +77,10 @@ def _calendar_data() -> CheckinCalendarData:
     )
 
 
-def test_checkin_calendar_renders_from_verified_snapshot(tmp_path: Path) -> None:
+def test_checkin_calendar_renders_from_verified_snapshot(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _stub_avatar(monkeypatch)
     resolver = StaticAssetResolver(
         snapshot_root=_snapshot(tmp_path),
         bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
@@ -82,7 +105,10 @@ def test_checkin_calendar_renders_from_verified_snapshot(tmp_path: Path) -> None
     assert "font.dna_fonts" in keys
 
 
-def test_checkin_calendar_falls_back_without_snapshot(tmp_path: Path) -> None:
+def test_checkin_calendar_falls_back_without_snapshot(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _stub_avatar(monkeypatch)
     renderer = CheckinRenderer(tmp_path / "rendered", EncyclopediaResourceStore())
     rendered = asyncio.run(
         renderer.render_calendar(

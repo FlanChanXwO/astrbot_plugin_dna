@@ -115,13 +115,36 @@ def _make_coordinator_with_snapshot(
     return coordinator
 
 
+def _stub_avatar(monkeypatch) -> None:
+    """屏蔽头像下载，避免测试间共享的 httpx 连接池跨事件循环复用。"""
+
+    from PIL import Image
+
+    import src.infrastructure.rendering.payloads as payloads
+
+    async def _fake_event_avatar(*_args, **_kwargs):
+        return Image.new("RGBA", (16, 16), (90, 120, 200, 255))
+
+    monkeypatch.setattr(payloads, "get_event_avatar", _fake_event_avatar)
+    import src.utils.image as image_utils
+
+    async def _fake_avatar_img(*_args, **_kwargs):
+        return Image.new("RGBA", (16, 16), (60, 160, 90, 255))
+
+    monkeypatch.setattr(payloads, "get_avatar_img", _fake_avatar_img)
+    monkeypatch.setattr(image_utils, "get_avatar_img", _fake_avatar_img)
+
+
 def _actor() -> SimpleNamespace:
     return SimpleNamespace(
         user_id="10000", bot_id="bot", group_id="", unified_msg_origin=""
     )
 
 
-def test_case1_full_snapshot_renders_core_cards_incomplete_false(tmp_path) -> None:
+def test_case1_full_snapshot_renders_core_cards_incomplete_false(
+    tmp_path, monkeypatch
+) -> None:
+    _stub_avatar(monkeypatch)
     generation = _build_snapshot(tmp_path / "gen-a", generation="a" * 40)
     resolver = StaticAssetResolver(
         snapshot_root=generation,
@@ -207,7 +230,10 @@ def test_case1_full_snapshot_renders_core_cards_incomplete_false(tmp_path) -> No
     assert calendar_bytes
 
 
-def test_case2_without_snapshot_falls_back_incomplete(tmp_path) -> None:
+def test_case2_without_snapshot_falls_back_incomplete(
+    tmp_path, monkeypatch
+) -> None:
+    _stub_avatar(monkeypatch)
     resolver = StaticAssetResolver(bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR)
     checkin_renderer = CheckinRenderer(
         tmp_path / "rendered-checkin", EncyclopediaResourceStore()
