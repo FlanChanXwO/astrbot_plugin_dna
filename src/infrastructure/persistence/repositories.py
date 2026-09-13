@@ -338,6 +338,36 @@ class CredentialRepository:
         return bool(getattr(result, "rowcount", 0) or 0)
 
     @staticmethod
+    async def set_app_status_if_credentials_match(
+        session: AsyncSession,
+        *,
+        user_id: str,
+        uid: str,
+        token: str,
+        device_code: str,
+        status: str,
+    ) -> bool:
+        """仅在凭据仍是本次实际验证的那一份时更新 app_status。
+
+        实时验证存在「读取 → 网络请求 → 写回」窗口；期间用户可能重新登录
+        覆盖 token。写回必须绑定本次验证的 token/device_code，防止旧检查
+        结果覆盖新登录状态。rowcount 为 0 表示凭据已变化，调用方不得把
+        旧检查结论当作当前状态。
+        """
+
+        result = await session.execute(
+            update(CredentialRecord)
+            .where(
+                CredentialRecord.user_id == user_id,
+                CredentialRecord.uid == uid,
+                CredentialRecord.app_cookie == token,
+                CredentialRecord.app_device_code == device_code,
+            )
+            .values(app_status=status)
+        )
+        return bool(getattr(result, "rowcount", 0) or 0)
+
+    @staticmethod
     async def delete(
         session: AsyncSession,
         *,

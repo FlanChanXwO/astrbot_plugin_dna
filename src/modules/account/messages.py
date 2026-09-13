@@ -30,6 +30,10 @@ UID_DELETE_ALL_SUCCESS = get_tip("account.uid_delete_all_success")
 NOT_LOGGED_IN = get_tip("account.not_logged_in")
 LOGOUT_SUCCESS = get_tip("account.logout_success")
 CREDENTIALS_EMPTY = get_tip("account.credentials_empty")
+CREDENTIAL_GROUP_HINT = get_tip("account.credential_group_hint")
+CREDENTIAL_CHECK_VALID = get_tip("account.credential_check_valid")
+CREDENTIAL_CHECK_INVALID = get_tip("account.credential_check_invalid")
+CREDENTIAL_CHECK_INDETERMINATE = get_tip("account.credential_check_indeterminate")
 LEGACY_COMPLETE_ERROR = get_tip("account.legacy_complete_error")
 LEGACY_ROLE_ERROR = get_tip("account.legacy_role_error")
 LOGIN_APP_ONLY = get_tip("account.login_app_only")
@@ -99,13 +103,14 @@ def binding_list(bindings: Iterable[tuple[str, bool]]) -> str:
     return "\n".join(lines)
 
 
-def credential_summary(records: Iterable[tuple[str, bool]]) -> str:
-    """渲染 App 凭据状态，不接收原始 token/cookie。"""
+def credential_reveal(records: Iterable[tuple[str, str]]) -> str:
+    """私聊凭证视图：只面向调用者本人，包含真实凭据值。"""
 
-    lines: list[str] = []
-    for uid, has_app in records:
-        lines.append(get_tip("account.credential_summary_uid", uid=uid))
-        lines.append(credential_status(has_app))
+    lines = [get_tip("account.credential_reveal_header")]
+    lines.extend(
+        get_tip("account.credential_reveal_line", uid=uid, credential=credential)
+        for uid, credential in records
+    )
     return "\n".join(lines)
 
 
@@ -113,6 +118,10 @@ __all__ = [
     "ACCOUNT_CONTEXT_UNAVAILABLE",
     "ACCOUNT_SERVICE_UNAVAILABLE",
     "CREDENTIALS_EMPTY",
+    "CREDENTIAL_CHECK_INDETERMINATE",
+    "CREDENTIAL_CHECK_INVALID",
+    "CREDENTIAL_CHECK_VALID",
+    "CREDENTIAL_GROUP_HINT",
     "INVALID_LOGIN_INPUT",
     "LEGACY_COMPLETE_ERROR",
     "LEGACY_ROLE_ERROR",
@@ -139,8 +148,8 @@ __all__ = [
     "UID_SWITCH_SUCCESS",
     "UNNAMED_ROLE",
     "binding_list",
+    "credential_reveal",
     "credential_status",
-    "credential_summary",
     "legacy_login_success",
     "login_page",
     "login_success",

@@ -6,9 +6,7 @@ from ...infrastructure.i18n import get_tip, get_tip_template
 
 PLAYER_CONTEXT_UNAVAILABLE = get_tip("player.context_unavailable")
 PLAYER_SERVICE_UNAVAILABLE = get_tip("player.service_unavailable")
-PLAYER_UID_INVALID = get_tip("player.uid_invalid")
 PLAYER_PEEK_BLOCKED = get_tip("player.peek_blocked")
-PLAYER_ORIGINAL_UNSUPPORTED = get_tip("player.original_unsupported")
 PLAYER_DAMAGE_FAILED = get_tip("player.damage_failed")
 PLAYER_CACHE_STALE = get_tip("player.cache_stale")
 PLAYER_CACHE_REFRESHED = get_tip("player.cache_refreshed")
@@ -19,7 +17,6 @@ PLAYER_ALL_ROLE_CACHE_CLEARED = get_tip("player.all_role_cache_cleared")
 PLAYER_ROLE_CACHE_CLEARED = get_tip_template("player.role_cache_cleared")
 PLAYER_ROLE_REFRESHED = get_tip_template("player.role_refreshed")
 PLAYER_ALL_REFRESHED = get_tip_template("player.all_refreshed")
-PLAYER_ADMIN_ONLY = get_tip("player.admin_only")
 PLAYER_REFRESH_SELF_ONLY = get_tip("player.refresh_self_only")
 PLAYER_OVERVIEW_NOT_FOUND = get_tip("player.overview_not_found")
 PLAYER_ROLE_NOT_FOUND = get_tip("player.role_not_found")
@@ -90,7 +87,6 @@ def damage_weapon_level_unsupported(label: str, name: str, level: int) -> str:
 
 
 __all__ = [
-    "PLAYER_ADMIN_ONLY",
     "PLAYER_ALL_REFRESHED",
     "PLAYER_ALL_ROLE_CACHE_CLEARED",
     "PLAYER_CACHE_CLEARED",
@@ -101,7 +97,6 @@ __all__ = [
     "PLAYER_DETAIL_NOT_FOUND",
     "PLAYER_INFO_CARD_CACHE_CLEARED",
     "PLAYER_INFO_CARD_REFRESHED",
-    "PLAYER_ORIGINAL_UNSUPPORTED",
     "PLAYER_OVERVIEW_NOT_FOUND",
     "PLAYER_PEEK_BLOCKED",
     "PLAYER_REFRESH_SELF_ONLY",
@@ -110,7 +105,6 @@ __all__ = [
     "PLAYER_ROLE_NOT_UNLOCKED",
     "PLAYER_ROLE_REFRESHED",
     "PLAYER_SERVICE_UNAVAILABLE",
-    "PLAYER_UID_INVALID",
     "PLAYER_WEAPON_CONFLICT",
     "PLAYER_WEAPON_DETAIL_NOT_FOUND",
     "PLAYER_WEAPON_NOT_FOUND",

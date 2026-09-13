@@ -225,8 +225,6 @@ COMMON_PATH = BOOTSTRAP_TEXTURE_ROOT
 
 HELP_FONT_PATH = RESOURCE_ROOT / "fonts" / "MiSansVF.woff2"
 
-HELP_DATA = RESOURCE_ROOT / "help" / "help.json"
-HELP_DATA_FALLBACK = RESOURCE_ROOT / "help.json"
 HELP_ICON_DIR = RESOURCE_ROOT / "help" / "icon_path"
 HELP_BACKGROUND_PATH = RESOURCE_ROOT / "textures" / "help" / "bg.jpg"
 HELP_BANNER_PATH = RESOURCE_ROOT / "textures" / "help" / "banner_bg.jpg"
@@ -391,8 +389,6 @@ __all__ = [
     "HELP_BACKGROUND_PATH",
     "HELP_BANNER_PATH",
     "HELP_CAG_PATH",
-    "HELP_DATA",
-    "HELP_DATA_FALLBACK",
     "HELP_FONT_PATH",
     "HELP_FOOTER_PATH",
     "HELP_ICON_DIR",

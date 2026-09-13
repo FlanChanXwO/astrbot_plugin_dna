@@ -31,7 +31,7 @@
 - `notifications.*`：公告和密函检查/推送行为。
 - `client_updates.*`：客户端更新检查周期、Target 与消息行为。
 - `resources.*`：公共资源同步传输设置。见 [公共资源](resources.md)。
-- `cache.*`：玩家、公告等内容缓存和主动刷新行为。
+- `cache.*`：玩家、公告等内容缓存和主动刷新行为。基础卡片与角色面板的「刷新后是否发送图片」由 `cache.refresh_send_info_card` 与 `cache.refresh_send_role_panel` 两个独立开关控制，互不影响；旧配置 `refresh_send_card` 只会迁移到角色面板开关。
 
 ## 客户端更新 Target
 

@@ -82,27 +82,6 @@ async def account_logout_use_case(
     return await _call(request, "logout")
 
 
-async def account_token_login_use_case(
-    request: CommandRequest,
-    _registry: CommandRegistry,
-    **parameters: Any,
-) -> PlainTextResponse:
-    """执行显式 token 登录；凭据仍只进入 App 登录事务。"""
-
-    target = _service_and_actor(request)
-    if isinstance(target, PlainTextResponse):
-        return target
-    service, actor = target
-    argument = str(parameters.get("arg", "")).strip()
-    try:
-        attempt = parse_login_attempt(argument)
-    except ValueError:
-        return PlainTextResponse(messages.INVALID_LOGIN_INPUT)
-    if attempt.mode != "token":
-        return PlainTextResponse(messages.INVALID_LOGIN_INPUT)
-    return await service.login(actor, attempt)
-
-
 async def account_bind_use_case(
     request: CommandRequest,
     _registry: CommandRegistry,
@@ -158,22 +137,22 @@ async def account_credentials_use_case(
     _registry: CommandRegistry,
     **_parameters: Any,
 ) -> PlainTextResponse:
-    """查询凭据状态摘要。"""
+    """私聊返回真实凭证；群聊只提示私聊获取。"""
 
     return await _call(request, "credentials")
 
 
+async def account_check_credentials_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **_parameters: Any,
+) -> PlainTextResponse:
+    """验证凭证状态，不返回任何凭证内容。"""
+
+    return await _call(request, "check_credentials")
+
+
 COMMAND_SPECS = (
-    CommandSpec(
-        id="account_token_login",
-        pattern=r"^(?:token登录|登录token)\s*(?P<arg>.*)$",
-        group="账号管理",
-        name="token登录",
-        description="使用 App token 登录，不输出原始凭据",
-        examples=("token登录<token>",),
-        permission="user",
-        use_case=account_token_login_use_case,
-    ),
     CommandSpec(
         id="account_login",
         pattern=r"^(?:登录|登陆|登入|登龙|login)\s*(?P<arg>.*)$",
@@ -236,13 +215,23 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="account_credentials",
-        pattern=r"^(?:获取ck|获取CK|获取Token|获取token|获取TOKEN)$",
+        pattern=r"^(?:获取ck|获取CK|获取凭证|获取Token|获取token|获取TOKEN)$",
         group="账号管理",
-        name="获取凭据状态",
-        description="查看当前登录账号的凭据状态（严格脱敏）",
-        examples=("获取ck",),
+        name="获取凭证",
+        description="私聊返回当前账号凭证；群聊不输出凭证",
+        examples=("获取凭证", "获取ck"),
         permission="user",
         use_case=account_credentials_use_case,
+    ),
+    CommandSpec(
+        id="account_check_credentials",
+        pattern=r"^检查凭证$",
+        group="账号管理",
+        name="检查凭证",
+        description="验证凭证状态（有效/失效/暂时无法验证）",
+        examples=("检查凭证",),
+        permission="user",
+        use_case=account_check_credentials_use_case,
     ),
 )
 
@@ -250,6 +239,7 @@ COMMAND_SPECS = (
 __all__ = [
     "COMMAND_SPECS",
     "account_bind_use_case",
+    "account_check_credentials_use_case",
     "account_credentials_use_case",
     "account_delete_all_use_case",
     "account_delete_use_case",
@@ -257,5 +247,4 @@ __all__ = [
     "account_login_use_case",
     "account_logout_use_case",
     "account_switch_use_case",
-    "account_token_login_use_case",
 ]

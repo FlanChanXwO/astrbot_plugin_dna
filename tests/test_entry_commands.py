@@ -50,7 +50,6 @@ def test_explicit_registry_loads_only_implemented_commands():
 
     assert [spec.id for spec in COMMAND_REGISTRY] == [
         "help",
-        "account_token_login",
         "account_login",
         "account_logout",
         "account_switch",
@@ -58,16 +57,15 @@ def test_explicit_registry_loads_only_implemented_commands():
         "account_delete",
         "account_list",
         "account_credentials",
+        "account_check_credentials",
         "role_info_card",
         "refresh_info_card_cache",
         "clear_info_card_cache",
-        "refresh_admin_role_card",
         "refresh_role_card",
         "refresh_all_role_cards",
         "clear_role_cache",
         "clear_player_cache",
         "role_detail_card",
-        "role_original_image",
         "privacy_enable_peek_personal",
         "privacy_disable_peek_personal",
         "privacy_enable_uid_hidden",
@@ -134,6 +132,32 @@ def test_client_update_commands_are_strictly_parameterless():
         assert registry.match(text).command.id == command_id
         assert registry.match(f"{text} PC") is None
         assert registry.match(f"{text} cn-official-pc") is None
+
+
+def test_removed_command_entries_are_not_registered():
+    """废弃命令入口必须彻底删除，不得以隐藏方式继续注册。"""
+
+    for removed_id in (
+        "account_token_login",
+        "role_original_image",
+        "refresh_admin_role_card",
+    ):
+        with pytest.raises(KeyError):
+            COMMAND_REGISTRY.get(removed_id)
+
+    # 废弃入口的触发文本不再命中任何 DNA 命令。
+    for removed_text in (
+        "dna原图",
+        "dnatoken登录abc123",
+        "dna token登录abc123",
+        "dna刷新1234567890123的菲娜面板",
+    ):
+        assert COMMAND_REGISTRY.match(removed_text) is None
+
+    # token 登录能力仍由 dna登录<token> 承载。
+    matched = COMMAND_REGISTRY.match("dna登录eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0")
+    assert matched is not None
+    assert matched.command.id == "account_login"
 
 
 def test_registry_rejects_invalid_permission_and_duplicate_loading():
@@ -351,7 +375,6 @@ def test_commands_manifest_is_generated_from_registry():
     assert manifest == manifest_records(COMMAND_REGISTRY)
     assert {item["id"] for item in manifest} == {
         "help",
-        "account_token_login",
         "account_login",
         "account_logout",
         "account_switch",
@@ -359,16 +382,15 @@ def test_commands_manifest_is_generated_from_registry():
         "account_delete",
         "account_list",
         "account_credentials",
+        "account_check_credentials",
         "role_info_card",
         "refresh_info_card_cache",
         "clear_info_card_cache",
-        "refresh_admin_role_card",
         "refresh_role_card",
         "refresh_all_role_cards",
         "clear_role_cache",
         "clear_player_cache",
         "role_detail_card",
-        "role_original_image",
         "privacy_enable_peek_personal",
         "privacy_disable_peek_personal",
         "privacy_enable_uid_hidden",
@@ -561,16 +583,60 @@ async def test_plugin_handles_multiple_prefixes_dynamically():
     assert "资源状态" in res_kk[0][1]
 
 
-@pytest.mark.asyncio
-async def test_help_card_examples_adapt_to_matched_prefix():
-    """当用户使用特定的前缀（例如 dna帮助）触发时，帮助卡片显示对应的前缀。"""
-    from src.infrastructure.rendering.help import _help_sections, _load_help_data
+def test_help_card_examples_adapt_to_matched_prefix():
+    """当用户使用特定前缀（例如 kk）触发时，帮助卡片示例显示对应前缀。"""
+    from src.infrastructure.rendering.help import _registry_help_sections
 
-    plugin_help = _load_help_data()
-    sections_dna = _help_sections(plugin_help, prefix="dna")
-    first_item = sections_dna[0]["items"][0]
-    assert first_item["example"].startswith("dna")
+    registry = load_command_registry(prefix="kk")
+    sections = _registry_help_sections(registry, "user", "kk")
+    first_item = sections[0]["items"][0]
+    assert first_item["example"].startswith("kk")
 
-    sections_empty = _help_sections(plugin_help, prefix="")
+    registry_empty = load_command_registry(prefix="")
+    sections_empty = _registry_help_sections(registry_empty, "user", "")
     first_item_empty = sections_empty[0]["items"][0]
     assert not first_item_empty["example"].startswith("dna")
+
+
+def test_help_presentation_covers_every_visible_command_with_existing_icon():
+    """帮助可见命令必须有显式 presentation 配置、存在的图标，且不落通用图标。"""
+    from pathlib import Path
+
+    from src.infrastructure.rendering.help import _registry_help_sections
+    from src.infrastructure.rendering.help_presentation import (
+        HELP_GROUP_DESCRIPTIONS,
+        HELP_GROUP_ORDER,
+        HELP_PRESENTATION,
+    )
+    from src.infrastructure.rendering.static_assets import HELP_ICON_DIR
+
+    icon_dir = Path(HELP_ICON_DIR)
+    generic_icon = "通用.png"
+    for spec in COMMAND_REGISTRY:
+        entry = HELP_PRESENTATION.get(spec.id)
+        assert entry is not None, f"命令 {spec.id} 缺少帮助 presentation 配置"
+        assert entry.group in HELP_GROUP_ORDER
+        assert (icon_dir / entry.icon).exists(), f"命令 {spec.id} 图标缺失: {entry.icon}"
+        assert entry.icon != generic_icon, f"命令 {spec.id} 不应使用通用图标兜底"
+    for group in HELP_GROUP_ORDER:
+        assert group in HELP_GROUP_DESCRIPTIONS
+
+    # 普通用户帮助分组为 10 个业务分组；管理员仅追加管理分组。
+    user_sections = _registry_help_sections(COMMAND_REGISTRY, "user", "dna")
+    admin_sections = _registry_help_sections(COMMAND_REGISTRY, "admin", "dna")
+    user_groups = [section["name"] for section in user_sections]
+    admin_groups = [section["name"] for section in admin_sections]
+    assert len(user_groups) == 10
+    assert len(admin_groups) == len(user_groups) + 3
+    assert admin_groups[: len(user_groups)] == user_groups
+
+    # 基础卡片与角色面板必须分离展示，废弃命令不再出现。
+    assert "基础卡片" in user_groups
+    assert "角色面板" in user_groups
+    admin_items = {
+        item["name"] for section in admin_sections for item in section["items"]
+    }
+    for removed in ("token登录", "角色原图（暂不支持）", "刷新指定角色面板"):
+        assert removed not in admin_items
+    for required in ("获取凭证", "检查凭证"):
+        assert required in admin_items

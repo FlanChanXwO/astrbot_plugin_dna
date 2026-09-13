@@ -46,7 +46,13 @@
     "login_app_only": "当前仅支持 App 登录",
     "login_token_empty": "token不能为空",
     "legacy_login_success_header": "登录成功, 已为您绑定以下角色:",
-    "legacy_login_role_line": "- 名字: {name}"
+    "legacy_login_role_line": "- 名字: {name}",
+    "credential_group_hint": "凭证属于敏感信息，请私聊 Bot 使用「dna获取凭证」。",
+    "credential_reveal_header": "以下是你当前保存的登录凭证，请妥善保管，不要泄露给任何人：",
+    "credential_reveal_line": "UID {uid}：{credential}",
+    "credential_check_valid": "凭证状态：有效",
+    "credential_check_invalid": "凭证状态：已失效，请使用「dna登录」重新登录。",
+    "credential_check_indeterminate": "暂时无法验证凭证状态，请稍后重试。"
   },
   "checkin": {
     "context_unavailable": "签到查询上下文不可用",
@@ -196,9 +202,7 @@
   "player": {
     "context_unavailable": "玩家查询上下文不可用",
     "service_unavailable": "玩家查询服务不可用",
-    "uid_invalid": "未登录或登录已失效，请重新登录",
     "peek_blocked": "该用户开启了防偷窥，无法查看其游戏信息",
-    "original_unsupported": "当前平台暂不支持通过引用获取角色原图",
     "damage_failed": "伤害计算暂不可用，请稍后再试",
     "damage_config_missing": "官方 H5 缺少{name}的伤害配置",
     "damage_not_open": "官方 H5 暂未开放{name}的伤害计算",
@@ -213,7 +217,6 @@
     "role_cache_cleared": "角色【{name}】缓存已清理",
     "role_refreshed": "角色【{name}】面板已刷新",
     "all_refreshed": "角色面板刷新完成：成功 {success} 个，失败 {failed} 个",
-    "admin_only": "该命令仅限管理员使用",
     "refresh_self_only": "普通用户只能刷新自己的角色面板",
     "overview_not_found": "角色列表信息未找到，请检查账号是否有效",
     "role_not_found": "角色未找到，请检查角色名是否正确",

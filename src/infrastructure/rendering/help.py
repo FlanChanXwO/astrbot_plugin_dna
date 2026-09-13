@@ -1,23 +1,29 @@
-"""帮助卡片 HTML/T2I 渲染器。"""
+"""帮助卡片 HTML/T2I 渲染器。
+
+展示分组、展示名、图标和排序全部来自 ``help_presentation`` 的
+command id 显式映射；业务 registry 只负责确定当前调用者可见的命令集合。
+静态资产经 StaticAssetResolver 解析，缓存连同资源完整性记录一起保存。
+"""
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ...entry.commands import COMMAND_GROUP_ORDER
 from ...version import PLUGIN_VERSION
-from .assets import font_data_uri, image_data_uri
+from .help_presentation import (
+    HELP_GROUP_DESCRIPTIONS,
+    HELP_GROUP_ORDER,
+    display_rank,
+    get_presentation,
+)
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
 from .static_assets import (
     HELP_BACKGROUND_PATH,
     HELP_BANNER_PATH,
     HELP_CAG_PATH,
-    HELP_DATA,
-    HELP_DATA_FALLBACK,
     HELP_FONT_PATH,
     HELP_FOOTER_PATH,
     HELP_ICON_DIR,
@@ -28,8 +34,6 @@ from .static_assets import (
     static_record,
 )
 
-BACKGROUND_PATH = HELP_BACKGROUND_PATH
-ICON_DIR = HELP_ICON_DIR
 PLUGIN_ICON_PATH = Path(__file__).parents[3] / "logo.png"
 
 if TYPE_CHECKING:
@@ -41,15 +45,14 @@ HELP_FOOTER_HEIGHT = 40
 HELP_FOOTER_MARGIN_TOP = 32
 HELP_FOOTER_MARGIN_BOTTOM = 40
 _RENDERER = HtmlRenderer()
-_ICON_ALIASES = {
-    # GScore 依赖目录遍历顺序处理部分命中；显式固定两个无同名文件的歧义项。
-    "基本信息卡片": "基本信息.png",
-    "查看UID列表": "UID.png",
-}
+
+
 def _legacy_image_uri(path: Path, label: str) -> str:
     """无 resolver 兼容路径的本地读取；素材缺失时退回 placeholder。"""
 
     try:
+        from .assets import image_data_uri
+
         return image_data_uri(path)
     except (OSError, ValueError):
         from .static_assets import static_image_data_uri
@@ -61,6 +64,8 @@ def _legacy_font_uri(path: Path) -> str:
     """无 resolver 兼容路径的字体读取；缺失时交给 CSS fallback。"""
 
     try:
+        from .assets import font_data_uri
+
         return font_data_uri(path)
     except (OSError, ValueError):
         return ""
@@ -98,14 +103,6 @@ def invalidate_help_cache() -> None:
     _HELP_CACHE.clear()
 
 
-def _load_help_data() -> dict[str, Any]:
-    if not HELP_DATA.exists() and HELP_DATA_FALLBACK.exists():
-        with HELP_DATA_FALLBACK.open("r", encoding="utf-8") as file:
-            return json.load(file)
-    with HELP_DATA.open("r", encoding="utf-8") as file:
-        return json.load(file)
-
-
 def _format_example(eg: str, prefix: str = "dna") -> str:
     if not eg:
         return ""
@@ -137,124 +134,47 @@ def _with_unsubscribe_example(examples: list[str], description: str) -> list[str
     return examples
 
 
-def _help_display_name(command_id: str, name: str) -> str:
-    """避免把密函推送时间窗口设置误解成独立订阅。"""
-
-    if command_id == "mh_subscribe_cycle":
-        return "设置密函推送时间"
-    return name
-
-
-def _iter_help_lines(plugin_help: dict[str, Any], prefix: str = "dna"):
-    """生成保持旧分组和示例语义的帮助条目 payload。"""
-    for group_name, group_data in plugin_help.items():
-        yield {"is_group": True, "name": group_name, "example": ""}
-        for item in group_data.get("data", []):
-            yield {
-                "is_group": False,
-                "name": item.get("name", ""),
-                "example": _format_example(item.get("eg", ""), prefix=prefix),
-            }
-
-
-def _find_icon(name: str) -> Path:
-    icon_dir = ICON_DIR
-    if alias := _ICON_ALIASES.get(name):
-        return icon_dir / alias
-    exact = icon_dir / f"{name}.png"
-    if exact.exists():
-        return exact
-    for path in icon_dir.glob("*.png"):
-        if path.stem in name:
-            return path
-    return icon_dir / "通用.png"
-
-
 def _help_icon_uri(
-    name: str,
+    icon: str,
     asset_resolver: StaticAssetResolver | None,
     resource_records: list[dict[str, str]] | None = None,
 ) -> str:
-    """按帮助命令名称解析图标；图标是显式 bootstrap，不外置。"""
+    """按 presentation 显式声明的图标名解析；图标是显式 bootstrap，不外置。"""
 
-    path = _find_icon(name)
+    path = HELP_ICON_DIR / icon
     if asset_resolver is None:
-        return _legacy_image_uri(path, name)
-    key = f"texture.help.icon:{path.name}"
-    uri, asset = static_key_image_data_uri(asset_resolver, key, label=name)
+        return _legacy_image_uri(path, icon)
+    key = f"texture.help.icon:{icon}"
+    uri, asset = static_key_image_data_uri(asset_resolver, key, label=icon)
     if resource_records is not None:
         resource_records.append(
             static_record(
                 key,
                 asset,
-                resource_path=f"textures/help/icon/{path.name}",
+                resource_path=f"textures/help/icon/{icon}",
             ),
         )
     return uri
-
-
-def _help_sections(
-    plugin_help: dict[str, Any],
-    prefix: str = "dna",
-    *,
-    asset_resolver: StaticAssetResolver | None = None,
-    resource_records: list[dict[str, str]] | None = None,
-) -> list[dict[str, Any]]:
-    """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
-    sections: list[dict[str, Any]] = []
-    for name in _ordered_group_names(plugin_help):
-        value = plugin_help[name]
-        items = []
-        for command in value.get("data", []):
-            item_name = str(command.get("name", ""))
-            items.append(
-                {
-                    "example": _format_example(
-                        str(command.get("eg", "")), prefix=prefix
-                    ),
-                    "icon": _help_icon_uri(
-                        item_name,
-                        asset_resolver,
-                        resource_records,
-                    ),
-                    "name": item_name,
-                }
-            )
-        rows = max(1, (len(items) + 3) // 4)
-        sections.append(
-            {
-                "description": str(value.get("desc", "")),
-                "height": 140 + rows * 175,
-                "items": items,
-                "name": name,
-            },
-        )
-    return sections
 
 
 def _registry_help_sections(
     registry: CommandRegistry,
     permission: PermissionName,
     prefix: str,
-    plugin_help: dict[str, Any],
     *,
     asset_resolver: StaticAssetResolver | None = None,
     resource_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
-    """以 registry 为命令唯一来源，同时沿用资源文件中的分组说明和图标。"""
+    """以 registry 为命令唯一来源、presentation 为展示事实源构造卡片数据。"""
 
-    descriptions = {
-        name: str(value.get("desc", ""))
-        for name, value in plugin_help.items()
-        if isinstance(value, dict)
-    }
-    grouped: dict[str, list[dict[str, Any]]] = {}
+    grouped: dict[str, list[tuple[int, dict[str, Any]]]] = {}
     configured_prefixes = tuple(
         sorted(
             (prefix for prefix in registry.prefixes if prefix), key=len, reverse=True
         ),
     )
     for spec in registry.visible_specs(permission):
+        presentation = get_presentation(spec.id)
         examples = []
         for example in spec.examples:
             for configured_prefix in configured_prefixes:
@@ -263,22 +183,23 @@ def _registry_help_sections(
                     break
             examples.append(example)
         examples = _with_unsubscribe_example(examples, spec.description)
-        grouped.setdefault(spec.group, []).append(
-            {
-                "example": _format_example(" / ".join(examples), prefix=prefix),
-                "icon": _help_icon_uri(
-                    spec.name,
-                    asset_resolver,
-                    resource_records,
-                ),
-                "name": _help_display_name(spec.id, spec.name),
-            },
+        item = {
+            "example": _format_example(" / ".join(examples), prefix=prefix),
+            "icon": _help_icon_uri(
+                presentation.icon,
+                asset_resolver,
+                resource_records,
+            ),
+            "name": presentation.name,
+        }
+        grouped.setdefault(presentation.group, []).append(
+            (display_rank(spec.id), item),
         )
     sections = [
         {
-            "description": descriptions.get(group, ""),
+            "description": HELP_GROUP_DESCRIPTIONS.get(group, ""),
             "height": 140 + max(1, (len(items) + 3) // 4) * 175,
-            "items": items,
+            "items": [item for _rank, item in sorted(items)],
             "name": group,
         }
         for group in _ordered_group_names(grouped)
@@ -290,7 +211,7 @@ def _registry_help_sections(
 def _ordered_group_names(grouped: dict[str, object]) -> list[str]:
     """按产品约定排序帮助分组，未知分组接在已知分组之后。"""
 
-    preferred = {name: index for index, name in enumerate(COMMAND_GROUP_ORDER)}
+    preferred = {name: index for index, name in enumerate(HELP_GROUP_ORDER)}
     first_seen = {name: index for index, name in enumerate(grouped)}
     return sorted(
         grouped,
@@ -298,14 +219,10 @@ def _ordered_group_names(grouped: dict[str, object]) -> list[str]:
     )
 
 
-def _card_height(sections: list[dict[str, Any]], lines: list[dict[str, Any]]) -> int:
+def _card_height(sections: list[dict[str, Any]]) -> int:
     """根据实际分组行数计算画布高度，给 footer 留出安全间距。"""
 
-    if sections:
-        content_bottom = HELP_TOP + sum(int(section["height"]) for section in sections)
-    else:
-        rows = max(1, (len(lines) + 3) // 4)
-        content_bottom = 900 + rows * 175
+    content_bottom = HELP_TOP + sum(int(section["height"]) for section in sections)
     return (
         content_bottom
         + HELP_FOOTER_MARGIN_TOP
@@ -317,52 +234,36 @@ def _card_height(sections: list[dict[str, Any]], lines: list[dict[str, Any]]) ->
 async def get_help(
     prefix: str = "dna",
     *,
-    registry: CommandRegistry | None = None,
+    registry: CommandRegistry,
     permission: PermissionName = "user",
     version: str = PLUGIN_VERSION,
     asset_resolver: StaticAssetResolver | None = None,
     resource_records: list[dict[str, str]] | None = None,
 ) -> bytes:
-    """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
+    """使用 HTML 模板绘制帮助卡片，按调用者权限展示普通/管理员分组。"""
 
     cache_key = (
-        (
-            registry,
-            prefix,
-            permission,
-            version,
-            help_cache_generation_id(asset_resolver),
-        )
-        if registry is not None
-        else None
+        registry,
+        prefix,
+        permission,
+        version,
+        help_cache_generation_id(asset_resolver),
     )
-    cached = _HELP_CACHE.get(cache_key) if cache_key is not None else None
+    cached = _HELP_CACHE.get(cache_key)
     if cached is not None:
         if resource_records is not None:
             resource_records.extend(cached.resources)
         return cached.payload
 
-    plugin_help = _load_help_data()
-    if registry is None:
-        sections = _help_sections(
-            plugin_help,
-            prefix=prefix,
-            asset_resolver=asset_resolver,
-            resource_records=resource_records,
-        )
-        lines = list(_iter_help_lines(plugin_help, prefix=prefix))
-    else:
-        sections = _registry_help_sections(
-            registry,
-            permission,
-            prefix,
-            plugin_help,
-            asset_resolver=asset_resolver,
-            resource_records=resource_records,
-        )
-        lines = []
+    sections = _registry_help_sections(
+        registry,
+        permission,
+        prefix,
+        asset_resolver=asset_resolver,
+        resource_records=resource_records,
+    )
     if asset_resolver is None:
-        background_uri = _legacy_image_uri(BACKGROUND_PATH, "help-background")
+        background_uri = _legacy_image_uri(HELP_BACKGROUND_PATH, "help-background")
         banner_uri = _legacy_image_uri(HELP_BANNER_PATH, "help-banner")
         cag_uri = _legacy_image_uri(HELP_CAG_PATH, "help-cag")
         footer_uri = _legacy_image_uri(HELP_FOOTER_PATH, "footer")
@@ -405,12 +306,12 @@ async def get_help(
         "background": background_uri,
         "banner": banner_uri,
         "cag_background": cag_uri,
-        "card_height": _card_height(sections, lines),
+        "card_height": _card_height(sections),
         "font": font_uri,
         "footer": footer_uri,
         "icon": icon_uri,
         "item_background": item_uri,
-        "lines": lines,
+        "lines": [],
         "sections": sections,
         "subtitle": "穿过寒夜，去往有你的春天。",
         "version": version,
@@ -423,11 +324,10 @@ async def get_help(
         quality=85,
     )
     payload = await _RENDERER.render("cards/help.html.j2", template_data, spec)
-    if cache_key is not None:
-        _HELP_CACHE[cache_key] = CachedHelp(
-            payload,
-            tuple(resource_records) if resource_records is not None else (),
-        )
+    _HELP_CACHE[cache_key] = CachedHelp(
+        payload,
+        tuple(resource_records) if resource_records is not None else (),
+    )
     return payload
 
 

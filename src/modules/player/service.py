@@ -111,7 +111,8 @@ class PlayerService:
         show_unowned_roles: bool = True,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache: PlayerCache | None = None,
-        refresh_send_card: bool = True,
+        refresh_send_info_card: bool = True,
+        refresh_send_role_panel: bool = True,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.database = database
@@ -121,7 +122,9 @@ class PlayerService:
         self.show_unowned_roles = show_unowned_roles
         self.resource_snapshots = resource_snapshots
         self.cache = cache
-        self.refresh_send_card = refresh_send_card
+        # 基础卡片与角色面板是两条独立功能线，发送开关互不读取。
+        self.refresh_send_info_card = refresh_send_info_card
+        self.refresh_send_role_panel = refresh_send_role_panel
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._overview_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
@@ -1009,7 +1012,7 @@ class PlayerService:
                 allow_cached=False,
             )
             notice = PlainTextResponse(messages.PLAYER_INFO_CARD_REFRESHED)
-            if not self.refresh_send_card:
+            if not self.refresh_send_info_card:
                 return notice
             return ChainResponse((notice, response))
 
@@ -1037,23 +1040,15 @@ class PlayerService:
     async def refresh_role(
         self,
         request: PlayerCommandRequest,
-        *,
-        uid: str | None = None,
     ):
         """强制刷新指定角色并返回新的完整卡片。"""
 
-        if uid is not None:
-            target_user_id = request.actor.user_id
-            refresh_uid = str(uid).strip()
-            if not refresh_uid:
-                return PlainTextResponse(messages.PLAYER_UID_INVALID)
-        else:
-            if request.target_user_id not in (None, request.actor.user_id):
-                return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
-            resolved = await self._resolve_uid(request, operation="refresh_role")
-            if isinstance(resolved, PlainTextResponse):
-                return resolved
-            target_user_id, refresh_uid = resolved
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        resolved = await self._resolve_uid(request, operation="refresh_role")
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, refresh_uid = resolved
 
         now = self._now()
         if self.cache is not None:
@@ -1088,7 +1083,7 @@ class PlayerService:
         notice = PlainTextResponse(
             messages.PLAYER_ROLE_REFRESHED.format(name=refreshed.role.name),
         )
-        if not self.refresh_send_card:
+        if not self.refresh_send_role_panel:
             return notice
         return ChainResponse((notice, response))
 
@@ -1243,11 +1238,6 @@ class PlayerService:
         target_user_id, uid = resolved
         await self.cache.invalidate_identity(target_user_id, uid)
         return PlainTextResponse(messages.PLAYER_ALL_ROLE_CACHE_CLEARED)
-
-    async def original_image(self, _request: PlayerCommandRequest):
-        """明确报告当前公开 AstrBot 结果边界不支持原图引用。"""
-
-        return PlainTextResponse(messages.PLAYER_ORIGINAL_UNSUPPORTED)
 
 
 __all__ = ["PlayerService"]

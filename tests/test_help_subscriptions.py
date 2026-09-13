@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from main import COMMAND_REGISTRY
-from src.infrastructure.rendering.help import _load_help_data, _registry_help_sections
+from src.infrastructure.rendering.help import _registry_help_sections
 
 
 def _help_items(permission: str) -> dict[str, str]:
@@ -11,7 +11,6 @@ def _help_items(permission: str) -> dict[str, str]:
         COMMAND_REGISTRY,
         permission,  # type: ignore[arg-type]
         "dna",
-        _load_help_data(),
     )
     return {
         str(item["name"]): str(item["example"])
@@ -23,7 +22,7 @@ def _help_items(permission: str) -> dict[str, str]:
 def test_user_help_shows_unsubscribe_examples_for_bidirectional_subscriptions() -> None:
     items = _help_items("user")
 
-    assert items["订阅/取消订阅密函"] == (
+    assert items["订阅/退订密函"] == (
         "dna订阅拆解密函 / dna取消订阅全部密函"
     )
     assert items["订阅密函图片"] == (
@@ -46,6 +45,6 @@ def test_admin_help_shows_unsubscribe_examples_for_checkin_subscriptions() -> No
         "dna订阅本群签到报告 / dna取消订阅本群签到报告"
     )
     assert items["订阅客户端更新"] == "dna订阅客户端更新"
-    assert items["取消订阅客户端更新"] == "dna取消订阅客户端更新"
+    assert items["退订客户端更新"] == "dna取消订阅客户端更新"
     assert items["订阅公告"] == "dna订阅公告"
     assert items["取消订阅公告"] == "dna取消订阅公告"
