@@ -8,6 +8,14 @@ from typing import TYPE_CHECKING, Any
 
 from ...entry.commands import COMMAND_GROUP_ORDER
 from ...version import PLUGIN_VERSION
+from .renderer import HtmlRenderer
+from .runtime_assets import (
+    AssetResolverLike,
+    resolved_font_data_uri,
+    resolved_image_data_uri,
+    resource_record,
+)
+from .spec import RenderSpec
 from .static_assets import (
     HELP_BACKGROUND_PATH,
     HELP_BANNER_PATH,
@@ -25,14 +33,6 @@ from .static_assets import (
 from .static_assets import (
     legacy_image_data_uri as image_data_uri,
 )
-from .renderer import HtmlRenderer
-from .runtime_assets import (
-    AssetResolverLike,
-    resolved_font_data_uri,
-    resolved_image_data_uri,
-    resource_record,
-)
-from .spec import RenderSpec
 
 BACKGROUND_PATH = HELP_BACKGROUND_PATH
 ICON_DIR = HELP_ICON_DIR
@@ -52,7 +52,23 @@ _ICON_ALIASES = {
     "基本信息卡片": "基本信息.png",
     "查看UID列表": "UID.png",
 }
-_HELP_CACHE: dict[tuple[object, str, str, str, int], bytes] = {}
+_HELP_CACHE: dict[tuple[object, str, str, str, object], bytes] = {}
+
+
+def help_cache_generation_id(asset_resolver: object) -> object:
+    """返回用于缓存键的稳定 generation 标识。
+
+    不能使用 ``id(asset_resolver)``：对象地址可能被复用，导致重载后的新
+    resolver 命中旧 generation 的缓存。有 generation 标识时用它；没有的
+    resolver 退化到对象身份，仅作为同对象内的一致性键。
+    """
+
+    if asset_resolver is None:
+        return None
+    generation_id = getattr(asset_resolver, "generation_id", None)
+    if isinstance(generation_id, str):
+        return generation_id
+    return ("identity", id(asset_resolver))
 
 
 def invalidate_help_cache() -> None:
@@ -295,7 +311,13 @@ async def get_help(
     """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
 
     cache_key = (
-        (registry, prefix, permission, version, id(asset_resolver))
+        (
+            registry,
+            prefix,
+            permission,
+            version,
+            help_cache_generation_id(asset_resolver),
+        )
         if registry is not None
         else None
     )

@@ -22,7 +22,6 @@ from uuid import uuid4
 from PIL import Image
 
 from .encyclopedia import EncyclopediaResourceStore
-from .resolver import AssetResolver
 from .git import (
     DEFAULT_RESOURCE_REMOTE,
     GitRunner,
@@ -37,6 +36,7 @@ from .paths import (
     RESOURCE_LAST_SYNC_STATE_NAME,
     RESOURCE_VALIDATION_STATE_NAME,
 )
+from .resolver import AssetResolver
 
 if TYPE_CHECKING:
     from ..rendering.player import ResourceMap
@@ -1085,6 +1085,19 @@ class ResourceSnapshotCoordinator:
             yield resources
 
     @contextmanager
+    def bind_static_asset_resolver(
+        self,
+        static_asset_resolver: Any,
+    ) -> Iterator[Any]:
+        """在同一 generation lease 内返回固定 generation 的静态资源解析器。"""
+
+        with self.optional_lease() as snapshot:
+            yield static_asset_resolver.pinned(
+                None if snapshot is None else snapshot.root,
+                generation_id=None if snapshot is None else snapshot.commit_sha,
+            )
+
+    @contextmanager
     def bind_renderer(
         self,
         renderer: Any,
@@ -1112,6 +1125,14 @@ class ResourceSnapshotCoordinator:
                     snapshot,
                     dynamic_root=asset_resolver.dynamic_root,
                     downloader=asset_resolver.downloader,
+                )
+            # renderer 若挂载了静态资源解析器，同样固定到本次 lease 的 generation，
+            # 保证一次渲染中动态角色图与静态纹理来自同一个 generation。
+            static_asset_resolver = getattr(renderer, "static_asset_resolver", None)
+            if static_asset_resolver is not None:
+                bound.static_asset_resolver = static_asset_resolver.pinned(
+                    None if snapshot is None else snapshot.root,
+                    generation_id=None if snapshot is None else snapshot.commit_sha,
                 )
             yield bound
 

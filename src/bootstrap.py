@@ -58,7 +58,10 @@ from .infrastructure.rendering import (
     RenderedFileStore,
     ResourceMap,
 )
-from .infrastructure.rendering.static_assets import StaticAssetResolver
+from .infrastructure.rendering.static_assets import (
+    BOOTSTRAP_TEXTURE_ROOT,
+    StaticAssetResolver,
+)
 from .infrastructure.resources import (
     AssetResolver,
     EncyclopediaResourceStore,
@@ -248,6 +251,7 @@ def build_runtime(
     static_asset_resolver = StaticAssetResolver(
         snapshot_root=None,
         coordinator=resource_snapshots,
+        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_ROOT,
         bootstrap_allowlist={
             "texture.help.logo": Path(__file__).parents[1] / "logo.png"
         },
@@ -495,6 +499,16 @@ def build_runtime(
         downloader=image_fetcher,
         runtime_data_layout=runtime_data_layout,
     )
+
+    # 四个正式 renderer 挂载静态资源解析器；bind_renderer 会在每次请求的
+    # generation lease 内生成固定 generation 的请求级副本，避免混用 generation。
+    for _renderer in (
+        player_service.renderer,
+        encyclopedia_service.renderer,
+        checkin_renderer,
+        notices_renderer,
+    ):
+        _renderer.static_asset_resolver = static_asset_resolver
 
     async def _push_notice(
         origin: str,
@@ -797,6 +811,9 @@ def build_runtime(
         "resource_snapshots": resource_snapshots,
         "asset_resolver": asset_resolver,
         "static_asset_resolver": static_asset_resolver,
+        "bind_static_asset_resolver": lambda: resource_snapshots.bind_static_asset_resolver(
+            static_asset_resolver
+        ),
         "image_fetcher": image_fetcher,
     }
 
