@@ -186,7 +186,7 @@ async def _send_image_response(event: Any, response: object) -> tuple[bool, str]
         components, has_image = _response_components(response)
     except (OSError, TypeError, ValueError) as error:
         logger.warning(
-            "[dnaby][agent_tools] 图片响应转换失败: %s",
+            "Agent Tool 图片响应转换失败: %s",
             type(error).__name__,
         )
         return False, "图片响应不可发送"
@@ -201,7 +201,7 @@ async def _send_image_response(event: Any, response: object) -> tuple[bool, str]
             await result
     except Exception as error:  # noqa: BLE001
         logger.warning(
-            "[dnaby][agent_tools] 图片发送失败: %s",
+            "Agent Tool 图片发送失败: %s",
             type(error).__name__,
         )
         return False, "图片发送失败"
@@ -257,7 +257,7 @@ class AgentQueryTool(FunctionTool):
             request = agent_request_from_context(context, parameters=kwargs)
         except (TypeError, ValueError) as error:
             logger.warning(
-                "[dnaby][agent_tools] 查询请求被拒绝: %s",
+                "Agent Tool 查询请求被拒绝: %s",
                 type(error).__name__,
             )
             return _result_json(
@@ -289,7 +289,7 @@ class AgentQueryTool(FunctionTool):
             # Agent 框架会把未处理异常和 traceback 回传给模型；这里只记录类型，
             # 对外保持固定 envelope，避免暴露本地路径、内部 URL 或实现细节。
             logger.warning(
-                "[dnaby][agent_tools] 查询执行失败: %s (%s)",
+                "Agent Tool 查询执行失败: %s (%s)",
                 self.query_name,
                 type(error).__name__,
             )

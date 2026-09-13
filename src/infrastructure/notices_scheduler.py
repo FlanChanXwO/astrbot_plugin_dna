@@ -129,7 +129,7 @@ class NoticesScheduler:
                 raise
             except Exception:  # noqa: BLE001
                 await self.registry.mark_error(task_id)
-                logger.warning(f"[dnaby][{_MH_PUSH_TASK_NAME}] 定时任务异常")
+                logger.warning("定时任务异常 task_id=%s", _MH_PUSH_TASK_NAME)
             else:
                 await self.registry.mark_running(task_id)
 
@@ -152,7 +152,7 @@ class NoticesScheduler:
                 raise
             except Exception:  # noqa: BLE001
                 await self.registry.mark_error(task_id)
-                logger.warning(f"[dnaby][{_ANN_POLL_TASK_NAME}] 定时任务异常")
+                logger.warning("定时任务异常 task_id=%s", _ANN_POLL_TASK_NAME)
             else:
                 await self.registry.mark_running(task_id)
 

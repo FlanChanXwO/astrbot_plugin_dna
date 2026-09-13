@@ -139,7 +139,7 @@ async def get_public_ip(host="127.127.127.127"):
             ip = r.text
             return ip
     except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
-        logger.warning(f"[DNA] 从 kurobbs 获取公网地址失败: {type(error).__name__}")
+        logger.warning("从 kurobbs 获取公网地址失败 error_type=%s", type(error).__name__)
 
     # 尝试从 ipify 获取 IP 地址
     try:
@@ -148,7 +148,7 @@ async def get_public_ip(host="127.127.127.127"):
             ip = r.json()["ip"]
             return ip
     except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
-        logger.warning(f"[DNA] 从 ipify 获取公网地址失败: {type(error).__name__}")
+        logger.warning("从 ipify 获取公网地址失败 error_type=%s", type(error).__name__)
 
     # 尝试从 httpbin.org 获取 IP 地址
     try:
@@ -157,7 +157,7 @@ async def get_public_ip(host="127.127.127.127"):
             ip = r.json()["origin"]
             return ip
     except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
-        logger.warning(f"[DNA] 从 httpbin 获取公网地址失败: {type(error).__name__}")
+        logger.warning("从 httpbin 获取公网地址失败 error_type=%s", type(error).__name__)
 
     return host
 

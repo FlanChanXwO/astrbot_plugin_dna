@@ -133,7 +133,7 @@ async def download_pic_from_url(
         pic_url,
         path,
         name,
-        tag="[DNA]",
+        tag="DNA",
         downloader=downloader,
     )
 
@@ -158,7 +158,7 @@ async def _download_optional_image(
             pic_url,
             path,
             name,
-            tag="[DNA]",
+            tag="DNA",
             downloader=downloader,
         )
     except (ImageFetchError, httpx.HTTPError):

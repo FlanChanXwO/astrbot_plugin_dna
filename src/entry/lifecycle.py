@@ -69,7 +69,7 @@ class PluginLifecycle:
         timings[f"{operation}.total"] = total
         self._last_timings = dict(timings)
         logger.debug(
-            "[dnaby][lifecycle] operation=%s total_seconds=%.6f phase_seconds=%s",
+            "operation=%s total_seconds=%.6f phase_seconds=%s",
             operation,
             total,
             {

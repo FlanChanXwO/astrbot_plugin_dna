@@ -232,7 +232,7 @@ async def _fetch_image(
             pic_url,
             path,
             file_name,
-            tag="[DNA]",
+            tag="DNA",
             downloader=downloader,
         )
 
@@ -261,7 +261,7 @@ async def _fetch_image_bytes(
                 pic_url,
                 target_dir,
                 file_name,
-                tag="[DNA]",
+                tag="DNA",
                 downloader=downloader,
             )
             return target.read_bytes()
@@ -874,7 +874,11 @@ async def draw_ann_detail_img(
         post_time = post_time_to_timestamp(detail.get("postTime"))
         now = int(time.time())
         logger.debug(
-            f"[DNA公告] {post_id} post_time={post_time} now={now} delta={now - post_time}"
+            "公告 post_id=%s post_time=%s now=%s delta=%s",
+            post_id,
+            post_time,
+            now,
+            now - post_time,
         )
         if post_time and post_time < now - 86400:
             return "该公告已过期"

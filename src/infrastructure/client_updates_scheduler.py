@@ -101,7 +101,8 @@ class ClientUpdatesScheduler:
             except Exception as error:  # noqa: BLE001
                 await self.registry.mark_error(CLIENT_UPDATE_TASK_ID)
                 logger.warning(
-                    f"[dnaby][{CLIENT_UPDATE_TASK_ID}] 定时任务异常 error_type=%s",
+                    "定时任务异常 task_id=%s error_type=%s",
+                    CLIENT_UPDATE_TASK_ID,
                     type(error).__name__,
                 )
             else:

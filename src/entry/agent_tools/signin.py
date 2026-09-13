@@ -241,7 +241,7 @@ class AgentSignTool(FunctionTool):
             raw_text = _raw_message(event)
         except (TypeError, ValueError) as error:
             logger.warning(
-                "[dnaby][agent_tools] 签到原始消息校验失败: %s",
+                "Agent Tool 签到原始消息校验失败: %s",
                 type(error).__name__,
             )
             return _failure(str(error))
@@ -261,7 +261,7 @@ class AgentSignTool(FunctionTool):
                 raise TypeError("签到幂等锁格式无效")
         except (TypeError, ValueError) as error:
             logger.warning(
-                "[dnaby][agent_tools] 签到幂等校验失败: %s",
+                "Agent Tool 签到幂等校验失败: %s",
                 type(error).__name__,
             )
             return _failure(str(error))
@@ -284,7 +284,7 @@ class AgentSignTool(FunctionTool):
                 )
             except Exception as error:  # noqa: BLE001
                 logger.warning(
-                    "[dnaby][agent_tools] 签到执行失败: %s",
+                    "Agent Tool 签到执行失败: %s",
                     type(error).__name__,
                 )
                 result = _failure("签到执行失败")
@@ -292,7 +292,7 @@ class AgentSignTool(FunctionTool):
                 self._store_result(setter, message_id, result)
             except Exception as error:  # noqa: BLE001
                 logger.warning(
-                    "[dnaby][agent_tools] 签到幂等结果记录失败: %s",
+                    "Agent Tool 签到幂等结果记录失败: %s",
                     type(error).__name__,
                 )
                 return _failure("签到结果无法完成幂等记录")

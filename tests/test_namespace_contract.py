@@ -51,10 +51,14 @@ def _iter_gate_paths() -> list[Path]:
         ".ini", ".cfg", ".toml", ".txt", ".sh", ".css",
     }
     skip_parts = {"__pycache__", ".pytest_cache", ".ruff_cache", "node_modules"}
+    gate_self = Path(__file__).resolve()
     return [
         p
         for p in paths
-        if p.suffix in text_suffixes and not (set(p.parts) & skip_parts)
+        if p.suffix in text_suffixes
+        and not (set(p.parts) & skip_parts)
+        # 本文件包含门禁模式定义本身，排除自检。
+        and p.resolve() != gate_self
     ]
 
 
@@ -173,13 +177,25 @@ def test_legacy_scheduler_migration_removed() -> None:
 
 
 def test_logger_messages_have_no_manual_prefixes() -> None:
-    """插件日志 message 不携带 [dnaby]/[dna] 或人工 subsystem 方括号前缀。"""
+    """插件日志 message 不携带 [dnaby]/[dna] 或人工 subsystem 方括号前缀。
+
+    只检查 ``logger.*`` 调用所在行（含跨行调用的首行与 message 字符串行），
+    不对普通代码的下标访问（如 ``snapshots[task_id]``）做方括号匹配。
+    """
 
     offenders: list[str] = []
     for path in _python_sources():
-        for lineno, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for lineno, line in enumerate(lines, start=1):
+            # 只检查 logger 调用行及其延续的字符串参数行。
+            if "logger." not in line:
+                stripped = line.strip()
+                if not (stripped.startswith('"') or stripped.startswith("f\"")):
+                    continue
+                # 字符串参数行必须紧跟 logger 调用，避免匹配普通代码。
+                previous = lines[lineno - 2].strip() if lineno >= 2 else ""
+                if not ("logger." in previous or previous.endswith(",")):
+                    continue
             if _LOG_PREFIX_PATTERN.search(line):
                 offenders.append(f"{path.relative_to(ROOT)}:{lineno}: {line.strip()}")
     assert offenders == [], "以下日志调用仍使用人工前缀:\n" + "\n".join(offenders)

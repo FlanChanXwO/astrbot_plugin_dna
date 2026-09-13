@@ -67,7 +67,7 @@ class CacheMaintenance:
                 raise
             except Exception as error:  # noqa: BLE001 - 后台清理必须记录真实失败并继续循环。
                 logger.warning(
-                    "[dna][cache] 缓存清理任务失败: %s",
+                    "缓存清理任务失败 error=%s",
                     type(error).__name__,
                 )
 

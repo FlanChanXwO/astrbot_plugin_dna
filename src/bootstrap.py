@@ -486,7 +486,11 @@ def build_runtime(
         except Exception as error:  # noqa: BLE001
             from astrbot.api import logger
 
-            logger.warning(f"[dnaby][push_sign] 推送至 {origin} 失败: {error}")
+            logger.warning(
+                "签到推送失败 origin=%s error=%s",
+                origin,
+                error,
+            )
 
     sign_scheduler = SignScheduler(
         checkin_service,
@@ -561,7 +565,9 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                f"[dnaby][push_notice] 推送至 {origin} 失败: {type(error).__name__}",
+                "公告推送失败 origin=%s error_type=%s",
+                origin,
+                type(error).__name__,
             )
             return False
 
@@ -622,7 +628,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                "[dnaby][client_update] 普通消息推送失败（错误类型：%s）",
+                "客户端更新普通消息推送失败 error_type=%s",
                 type(error).__name__,
             )
             return False
@@ -646,7 +652,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                "[dnaby][client_update] 合并转发推送失败（错误类型：%s）",
+                "客户端更新合并转发推送失败 error_type=%s",
                 type(error).__name__,
             )
             return False
@@ -856,7 +862,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                "[dnaby][resources] 当前 generation 校验失败，资源暂不可用；"
+                "当前 generation 校验失败，资源暂不可用；"
                 "可执行同步资源修复（%s）",
                 type(error).__name__,
             )
@@ -892,7 +898,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                "[dnaby] notifications.announcement_groups 已弃用；公告目标请在真实群聊中重新执行订阅命令。"
+                "notifications.announcement_groups 已弃用；公告目标请在真实群聊中重新执行订阅命令。"
             )
 
     _warn_deprecated_announcement_config()

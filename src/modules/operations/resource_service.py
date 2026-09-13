@@ -96,7 +96,7 @@ class ResourceUpdateService:
         except asyncio.CancelledError:
             return
         if error is not None:
-            logger.warning(f"[dnaby][resources] 共享资源同步任务失败: {error}")
+            logger.warning("共享资源同步任务失败 error=%s", error)
 
     async def sync_resources(self, _request: object):
         """同步全部公共资源（浅克隆或 ff-only 更新）。"""

@@ -679,7 +679,7 @@ async def get_event_avatar(
     name = f"avatar_{uid}.png"
     target = avatar_path / name
     url = f"https://q1.qlogo.cn/g?b=qq&nk={uid}&s={size}"
-    await download(url, avatar_path, name, tag="[DNA-avatar]", downloader=downloader)
+    await download(url, avatar_path, name, tag="DNA-avatar", downloader=downloader)
     img = Image.open(target).convert("RGBA")
     return img.resize((size, size), Image.Resampling.LANCZOS)
 

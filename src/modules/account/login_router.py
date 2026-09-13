@@ -87,7 +87,9 @@ async def page_login(sender: Sender, ctx: EventContext) -> None:
 
     base_url = DNAConfig.get_config("DNALoginUrl").data.strip()
     if base_url == "":
-        logger.warning(f"[DNA登录] 接入方式为 {transport_name} 但 DNALoginUrl 未配置")
+        logger.warning(
+            "登录接入方式为 %s 但 DNALoginUrl 未配置", transport_name
+        )
         await send_dna_notify(sender, ctx, "登录服务请求失败! 请稍后再试")
         return
     await page_login_other(sender, ctx, base_url)
@@ -179,7 +181,9 @@ async def page_login_other(sender: Sender, ctx: EventContext, url: str) -> None:
             group_id=ctx.group_id,
         )
     except TransportError as error:
-        logger.warning(f"[DNA登录] 外置 start 失败 user_id={ctx.user_id}: {error}")
+        logger.warning(
+            "外置登录服务 start 失败 user_id=%s error=%s", ctx.user_id, error
+        )
         await send_dna_notify(sender, ctx, "登录服务请求失败! 请稍后再试")
         return
 
@@ -190,7 +194,9 @@ async def page_login_other(sender: Sender, ctx: EventContext, url: str) -> None:
     try:
         result = await transport.listen(auth_token)
     except TransportError as error:
-        logger.warning(f"[DNA登录] 外置 listen 失败 user_id={ctx.user_id}: {error}")
+        logger.warning(
+            "外置登录服务 listen 失败 user_id=%s error=%s", ctx.user_id, error
+        )
         await send_dna_notify(sender, ctx, "登录服务请求失败! 请稍后再试")
         return
     finally:
@@ -204,15 +210,16 @@ async def page_login_other(sender: Sender, ctx: EventContext, url: str) -> None:
         return
     if result.status != "success":
         logger.warning(
-            f"[DNA登录] 外置 listen 返回失败状态 user_id={ctx.user_id} "
-            f"status={result.status}"
+            "外置登录服务 listen 返回失败状态 user_id=%s status=%s",
+            ctx.user_id,
+            result.status,
         )
         await send_dna_notify(sender, ctx, "登录服务请求失败! 请稍后再试")
         return
     token = result.token.strip()
     dev_code = result.dev_code.strip()
     if token == "" or dev_code == "":
-        logger.warning(f"[DNA登录] 外置返回成功但凭据为空 user_id={ctx.user_id}")
+        logger.warning("外置登录服务返回成功但凭据为空 user_id=%s", ctx.user_id)
         await send_dna_notify(sender, ctx, "登录服务请求失败! 请稍后再试")
         return
 
@@ -264,7 +271,7 @@ async def page_login_local(sender: Sender, ctx: EventContext, url: str) -> None:
         await dna_login_timeout(sender, ctx)
     except TypeError as error:
         cache.delete(login_auth)
-        logger.error(f"[DNA登录] user_id={ctx.user_id}: {error}")
+        logger.error("登录流程失败 user_id=%s error=%s", ctx.user_id, error)
         await send_dna_notify(sender, ctx, "登录服务请求失败! 请稍后再试")
 
 

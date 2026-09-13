@@ -244,7 +244,7 @@ class PlayerImageLoader:
 
         try:
             self._validate_runtime_target(target)
-            await downloader.fetch(url, target, tag=f"[DNA-{kind}]")
+            await downloader.fetch(url, target, tag=f"DNA-{kind}")
             self._validate_runtime_target(target)
         except (OSError, httpx.HTTPError):
             if optional:

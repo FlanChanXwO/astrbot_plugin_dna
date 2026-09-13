@@ -212,7 +212,9 @@ class DNAApi:
             return None
 
         dr = check_decrypt_dnum(credentials.d_num)
-        logger.debug(f"[DNA登录] 检查 App 凭据 uid={dna_user.uid} dr={dr}")
+        logger.debug(
+            "检查 App 凭据 uid=%s dr=%s", dna_user.uid, dr
+        )
         # if dr > 0:
         #     return dna_user
 
@@ -1032,17 +1034,17 @@ class DNAApi:
                 try:
                     raw_res["data"] = json.loads(raw_data)
                 except json.JSONDecodeError as error:
-                    logger.debug("[DNA] data 字段不是 JSON: %s", type(error).__name__)
+                    logger.debug("App response data 字段不是 JSON: %s", type(error).__name__)
 
             logger.debug(
-                "[DNA] App response url=%s code=%s success=%s",
+                "App response url=%s code=%s success=%s",
                 url,
                 raw_res.get("code"),
                 raw_res.get("success"),
             )
         else:
             logger.debug(
-                "[DNA] App response url=%s type=%s", url, type(raw_res).__name__
+                "App response url=%s type=%s", url, type(raw_res).__name__
             )
 
         try:

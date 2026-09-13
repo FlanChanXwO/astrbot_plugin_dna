@@ -180,7 +180,7 @@ class SignScheduler:
                 await self.registry.mark_error(task_id)
                 from astrbot.api import logger
 
-                logger.warning(f"[dnaby][{name}] 定时任务异常")
+                logger.warning("定时任务异常 task_id=%s", name)
             else:
                 await self.registry.mark_running(task_id)
             # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标分钟内重复触发
@@ -319,10 +319,14 @@ class SignScheduler:
             result = self._push(origin, payload)
             if inspect.isawaitable(result):
                 await result
-        except Exception:  # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             from astrbot.api import logger
 
-            logger.warning("[dnaby][sign_push] 推送失败")
+            logger.warning(
+                "签到推送失败 origin=%s error_type=%s",
+                origin,
+                type(error).__name__,
+            )
 
     @staticmethod
     def _group_payload(report: GroupSignReport) -> SignPushPayload:

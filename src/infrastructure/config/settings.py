@@ -636,7 +636,7 @@ def _record_proxy_component(
 
 def _discard_migrated_field(group: str, field: str, source: str) -> None:
     logger.warning(
-        "[dnaby][config] 丢弃已移除配置 %s.%s（来源 %s）",
+        "丢弃已移除配置 %s.%s（来源 %s）",
         group,
         field,
         source,
@@ -823,7 +823,7 @@ def _resolve_legacy_proxy(
 
     if local_value.strip():
         logger.warning(
-            "[dnaby][config] 检测到旧版按函数代理配置；该模式已废弃，为避免扩大代理范围，"
+            "检测到旧版按函数代理配置；该模式已废弃，为避免扩大代理范围，"
             "未自动迁移为统一代理，请重新配置 network.proxy_url"
         )
 
@@ -984,7 +984,7 @@ def _log_discarded_mh_config(raw: Mapping[str, Any]) -> None:
             if field in notifications:
                 locations.append(("notifications", field))
     for location, key in locations:
-        logger.warning("[dnaby][config] 丢弃已移除的全局密函配置 %s.%s", location, key)
+        logger.warning("丢弃已移除的全局密函配置 %s.%s", location, key)
 
 
 def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
@@ -996,7 +996,7 @@ def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
     for field in _REMOVED_CACHE_FIELDS:
         if field in cache:
             logger.warning(
-                "[dnaby][config] 丢弃已移除的缓存配置 cache.%s",
+                "丢弃已移除的缓存配置 cache.%s",
                 field,
             )
 
