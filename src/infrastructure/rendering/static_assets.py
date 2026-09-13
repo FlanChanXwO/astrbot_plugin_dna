@@ -4,7 +4,9 @@
 逻辑 key。保留这些常量只是为了兼容旧的独立 helper 和现有测试。
 """
 
-from pathlib import Path
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING, Literal
 
 from PIL import Image
 
@@ -30,6 +32,70 @@ from .runtime_assets import (
     resolved_font_data_uri,
     resolved_image_data_uri,
 )
+
+StaticAssetSource = Literal["verified_snapshot", "bootstrap", "none"]
+
+if TYPE_CHECKING:
+    from ..resources.generation import ResourceSnapshotCoordinator
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedStaticAsset:
+    """静态资源解析结果；与动态图片 AssetResolver 完全隔离。"""
+
+    path: Path | None
+    source: StaticAssetSource
+    incomplete: bool
+
+
+class StaticAssetResolver:
+    """按 verified generation → 显式 bootstrap → missing 解析静态资源。"""
+
+    def __init__(
+        self,
+        *,
+        snapshot_root: str | Path | None = None,
+        coordinator: ResourceSnapshotCoordinator | None = None,
+        bootstrap_allowlist: dict[str, str | Path] | None = None,
+        asset_paths: dict[str, str] | None = None,
+    ) -> None:
+        self.snapshot_root = (
+            None if snapshot_root is None else Path(snapshot_root).resolve()
+        )
+        self.coordinator = coordinator
+        self.bootstrap_allowlist = {
+            key: Path(value).resolve()
+            for key, value in (bootstrap_allowlist or {}).items()
+        }
+        self.asset_paths = dict(asset_paths or {})
+
+    @staticmethod
+    def _safe_relative(relative: str) -> PurePosixPath:
+        path = PurePosixPath(relative)
+        if (
+            path.is_absolute()
+            or not path.parts
+            or any(part in {"", ".", ".."} for part in path.parts)
+        ):
+            raise ValueError(f"静态资源路径不安全: {relative!r}")
+        return path
+
+    def resolve(self, logical_key: str) -> ResolvedStaticAsset:
+        if self.coordinator is not None:
+            snapshot = self.coordinator.current_snapshot
+            self.snapshot_root = None if snapshot is None else snapshot.root
+        relative = self.asset_paths.get(logical_key)
+        if relative is not None:
+            safe = self._safe_relative(relative)
+            if self.snapshot_root is not None:
+                candidate = self.snapshot_root.joinpath(*safe.parts)
+                if candidate.is_file() and not candidate.is_symlink():
+                    return ResolvedStaticAsset(candidate, "verified_snapshot", False)
+        bootstrap = self.bootstrap_allowlist.get(logical_key)
+        if bootstrap is not None and bootstrap.is_file() and not bootstrap.is_symlink():
+            return ResolvedStaticAsset(bootstrap, "bootstrap", False)
+        return ResolvedStaticAsset(None, "none", True)
+
 
 RESOURCE_ROOT = Path(__file__).parents[2] / "resources"
 RESOURCES_DIR = RESOURCE_ROOT
@@ -153,6 +219,7 @@ def open_legacy_image(
             return opened.convert("RGBA")
     except (OSError, ValueError, Image.DecompressionBombError):
         return placeholder_image(size, label)
+
 
 __all__ = [
     "ANN_TEXT_PATH",

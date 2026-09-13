@@ -43,11 +43,13 @@ async def help_use_case(
     if renderer is None:
         from ..infrastructure.rendering.help import get_help
 
-        bind_resolver = request.services.get("bind_resource_resolver")
+        static_resolver = request.services.get("static_asset_resolver")
+        bind_resolver = request.services.get("bind_static_asset_resolver")
         resolver_context = (
             bind_resolver() if callable(bind_resolver) else nullcontext(None)
         )
         with resolver_context as asset_resolver:
+            asset_resolver = asset_resolver or static_resolver
             payload = await get_help(
                 prefix=request.matched_prefix,
                 registry=registry,

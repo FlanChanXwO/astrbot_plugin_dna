@@ -58,6 +58,7 @@ from .infrastructure.rendering import (
     RenderedFileStore,
     ResourceMap,
 )
+from .infrastructure.rendering.static_assets import StaticAssetResolver
 from .infrastructure.resources import (
     AssetResolver,
     EncyclopediaResourceStore,
@@ -244,6 +245,26 @@ def build_runtime(
     )
     if services is not None and "asset_resolver" in services:
         asset_resolver = cast(AssetResolver, services["asset_resolver"])
+    static_asset_resolver = StaticAssetResolver(
+        snapshot_root=None,
+        coordinator=resource_snapshots,
+        bootstrap_allowlist={
+            "texture.help.logo": Path(__file__).parents[1] / "logo.png"
+        },
+        asset_paths={
+            "texture.help.background": "textures/help/bg.jpg",
+            "texture.help.banner": "textures/help/banner_bg.jpg",
+            "texture.help.cag": "textures/help/cag_bg.png",
+            "texture.help.item": "textures/help/item.png",
+            "texture.common.footer": "textures/common/footer.png",
+            "font.help": "fonts/MiSansVF.woff2",
+            "font.dna_fonts": "fonts/dna_fonts.ttf",
+        },
+    )
+    if services is not None and "static_asset_resolver" in services:
+        static_asset_resolver = cast(
+            StaticAssetResolver, services["static_asset_resolver"]
+        )
 
     async def _notify_login(actor: Any, response: object) -> None:
         """把后台登录终态投递回发起登录的 AstrBot 会话。"""
@@ -306,6 +327,7 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else None
     )
+    static_asset_resolver.snapshot_root = resource_root
     player_resources = (
         initial_resource_snapshot.player_resources
         if initial_resource_snapshot is not None
@@ -774,6 +796,7 @@ def build_runtime(
         "resource_update_service": resource_update_service,
         "resource_snapshots": resource_snapshots,
         "asset_resolver": asset_resolver,
+        "static_asset_resolver": static_asset_resolver,
         "image_fetcher": image_fetcher,
     }
 
@@ -796,6 +819,7 @@ def build_runtime(
         resolved_services["resource_root"] = snapshot.root
         resolved_services["player_resources"] = new_player_resources
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources
+        static_asset_resolver.snapshot_root = snapshot.root
 
     resource_snapshots.subscribe(_refresh_resource_views)
 
