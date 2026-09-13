@@ -570,9 +570,6 @@ _TARGET_CONFIG_GROUPS = (
     "resources",
     "cache",
 )
-_REMOVED_SIGN_IN_FIELDS = frozenset(
-    ("scheduled_enabled", "game_enabled", "community_enabled")
-)
 _REMOVED_NOTIFICATION_FIELDS = frozenset(
     (
         "announcement_ids",
@@ -662,9 +659,6 @@ def _consume_legacy_entry(
     if group == "notifications" and field in _REMOVED_NOTIFICATION_FIELDS:
         _discard_migrated_field(group, field, source)
         return
-    if group == "sign_in" and field in _REMOVED_SIGN_IN_FIELDS:
-        _discard_migrated_field(group, field, source)
-        return
     _record_assignment(result, assignments, group, field, value, source)
 
 
@@ -703,9 +697,7 @@ def _consume_typed_group(
             continue
 
         if group_name == "sign_in":
-            if field in _REMOVED_SIGN_IN_FIELDS:
-                _discard_migrated_field(group_name, field, source)
-            elif field == "enable_all_users":
+            if field == "enable_all_users":
                 _record_assignment(
                     result,
                     assignments,

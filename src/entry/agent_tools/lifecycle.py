@@ -90,7 +90,7 @@ class AgentToolsLifecycle:
                 await self._maybe_await(remove(name))
             except BaseException as error:  # noqa: BLE001
                 logger.warning(
-                    "Agent Tool 工具注销失败: %s (%s)",
+                    "Agent Tool 注销失败 tool=%s error_type=%s",
                     name,
                     type(error).__name__,
                 )

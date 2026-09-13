@@ -101,13 +101,12 @@ def test_typed_sign_in_config_has_no_feature_enable_switches():
     assert "community_enabled" not in SignInSettings.model_fields
 
 
-def test_deprecated_sign_enable_switches_are_ignored_on_upgrade():
-    """旧配置残留的关闭值不得阻止插件启动或重新关闭签到功能。"""
+def test_deprecated_sign_enable_switches_are_rejected_on_upgrade():
+    """v0.6 起零兼容：旧开关字段不再被识别或丢弃，直接显式失败。"""
 
-    settings = DNASettings.from_config(
-        {"sign_in": {"game_enabled": False, "community_enabled": False}},
-    )
-    assert settings.sign_in == SignInSettings()
+    for field in ("scheduled_enabled", "game_enabled", "community_enabled"):
+        with pytest.raises(ValidationError, match=field):
+            DNASettings.from_config({"sign_in": {field: False}})
 
 
 def test_schema_is_accepted_by_astrbot_config(tmp_path):
@@ -520,7 +519,7 @@ def test_legacy_nested_and_flat_config_migration():
 
 def test_legacy_refresh_send_card_migrates_to_role_panel_only():
     """旧 cache.refresh_send_card 只迁移到角色面板开关，不固化到基础卡片。"""
-    from src.infrastructure.config.settings import DnabySettings, migrate_config_dict
+    from src.infrastructure.config.settings import DNASettings, migrate_config_dict
 
     legacy = {"cache": {"refresh_send_card": False}}
     migrated = migrate_config_dict(legacy)
@@ -528,16 +527,16 @@ def test_legacy_refresh_send_card_migrates_to_role_panel_only():
     assert "refresh_send_card" not in migrated["cache"]
     assert "refresh_send_info_card" not in migrated["cache"]
 
-    settings = DnabySettings.from_config(legacy)
+    settings = DNASettings.from_config(legacy)
     assert settings.cache.refresh_send_role_panel is False
     assert settings.cache.refresh_send_info_card is True
 
 
 def test_refresh_send_switches_are_independent_config_fields():
     """基础卡片与角色面板的发送开关是两个互不影响的字段。"""
-    from src.infrastructure.config.settings import DnabySettings
+    from src.infrastructure.config.settings import DNASettings
 
-    settings = DnabySettings.from_config(
+    settings = DNASettings.from_config(
         {
             "cache": {
                 "refresh_send_info_card": False,

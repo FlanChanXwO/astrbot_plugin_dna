@@ -4,10 +4,11 @@
 
 - 旧 ``dnaby`` namespace 在当前工程代码中归零（历史记录仅保留在 CHANGELOG.md）；
 - Scheduler / Agent Tool / artifact metadata 全部使用 ``dna`` namespace；
-- 插件日志不再携带人工 ``[dnaby]`` / ``[dna]`` 或已知 subsystem 方括号前缀。
+- 插件日志 message 不允许以人工 ``[xxx]`` 方括号标签开头。
 
-规则：不禁止日志文案中所有 ``[`` ``]``（例如描述性中文标注），只针对
-人工 namespace 前缀与已知 subsystem 标签，避免脆弱测试。
+日志门禁规则：不禁止 message 正文中的 ``[`` ``]``（例如描述性中文标注或
+列表下标说明），只禁止 message 以方括号标签开头——插件来源由 AstrBot 平台层
+标识，message 应直接以事件描述开头。
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -25,14 +27,10 @@ GATE_FILES = ("main.py", "README.md", "AGENTS.md", "metadata.yaml", "alembic.ini
 # 旧 namespace 的所有大小写变体；word boundary 防止误伤无关英文单词。
 _DNABY_PATTERN = re.compile(r"dnaby", re.IGNORECASE)
 
-# 日志中禁止的人工前缀：旧 namespace、当前 namespace 以及已知 subsystem 标签。
-# 大小写不敏感，覆盖 [dnaby] / [dna] / [DNA登录] / [DNA WebSocket] 等变体。
-_LOG_PREFIX_PATTERN = re.compile(
-    r"\[(dnaby|dna)[\]_\-]|"
-    r"\[(resources|client_update|push_sign|push_notice|lifecycle|cache|config|"
-    r"agent_tools|sign_push|task_id)\]",
-    re.IGNORECASE,
-)
+# 日志 message 开头的人工方括号标签：``[任意内容]`` 后跟空白或直接接文字。
+# 只匹配 message 起始位置的标签，不限制标签内的具体词表，因此能覆盖
+# 未来新增的任意人工 subsystem 命名；message 正文中的方括号不受影响。
+_LOG_PREFIX_PATTERN = re.compile(r"^\s*f?\[[^\]]+\]", re.IGNORECASE)
 
 
 def _iter_gate_paths() -> list[Path]:
@@ -177,7 +175,7 @@ def test_legacy_scheduler_migration_removed() -> None:
 
 
 def test_logger_messages_have_no_manual_prefixes() -> None:
-    """插件日志 message 不携带 [dnaby]/[dna] 或人工 subsystem 方括号前缀。
+    """插件日志 message 不以人工 ``[xxx]`` 方括号标签开头。
 
     只检查 ``logger.*`` 调用所在行（含跨行调用的首行与 message 字符串行），
     不对普通代码的下标访问（如 ``snapshots[task_id]``）做方括号匹配。
@@ -196,9 +194,45 @@ def test_logger_messages_have_no_manual_prefixes() -> None:
                 previous = lines[lineno - 2].strip() if lineno >= 2 else ""
                 if not ("logger." in previous or previous.endswith(",")):
                     continue
-            if _LOG_PREFIX_PATTERN.search(line):
+            if _LOG_PREFIX_PATTERN.search(line.strip()):
                 offenders.append(f"{path.relative_to(ROOT)}:{lineno}: {line.strip()}")
     assert offenders == [], "以下日志调用仍使用人工前缀:\n" + "\n".join(offenders)
+
+
+@pytest.mark.parametrize(
+    "message",
+    (
+        "[dnaby] test",
+        "[dna] test",
+        "[DNA登录] test",
+        "[DNA WebSocket] test",
+        "[DNA公告] test",
+        "[订阅] test",
+        "[resources] test",
+        "[client_update] test",
+    ),
+)
+def test_manual_log_prefix_pattern_covers_known_prefixes(message: str) -> None:
+    """matcher 能覆盖已知人工前缀（含 namespace 与 subsystem 变体）。"""
+
+    assert _LOG_PREFIX_PATTERN.search(message), message
+
+
+@pytest.mark.parametrize(
+    "message",
+    (
+        # 正文中的合法方括号与列表下标不被误伤。
+        "定时任务异常 task_id=dna_sign_daily",
+        "丢弃已移除配置 cache.foo（来源 top-level）",
+        "公告详情 [置顶] 已解析",
+        "查询完成 result=[1, 2, 3]",
+        "推送失败 origin=platform:group:g1 [已重试]",
+    ),
+)
+def test_manual_log_prefix_pattern_does_not_match_body_brackets(message: str) -> None:
+    """message 正文中的方括号内容不属于人工前缀。"""
+
+    assert not _LOG_PREFIX_PATTERN.search(message), message
 
 
 def test_env_vars_use_dna_namespace() -> None:
