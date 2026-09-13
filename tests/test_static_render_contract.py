@@ -85,6 +85,9 @@ def _build_snapshot(root: Path, *, generation: str) -> Path:
     for name in ("bg", "banner_mask", "banner_frame", "event_bg", "bar", "time_icon"):
         _write_png(root / "calendar" / f"{name}.png")
     _write_jpeg(root / "calendar" / "bg.jpg")
+    webp_buffer = io.BytesIO()
+    Image.new("RGBA", (8, 8), (120, 90, 200, 255)).save(webp_buffer, format="WEBP")
+    (root / "calendar" / "banner_bg.webp").write_bytes(webp_buffer.getvalue())
     fonts = root / "fonts"
     fonts.mkdir(parents=True, exist_ok=True)
     (fonts / "dna_fonts.ttf").write_bytes(b"ttf")
@@ -228,14 +231,18 @@ def test_case1_full_snapshot_renders_core_cards_incomplete_false(
     # 活动日历
     from src.infrastructure.rendering.encyclopedia import CalendarContent
 
+    calendar_records: list[dict[str, str]] = []
     calendar_bytes = asyncio.run(
         _draw_calendar_card_bytes(
             [CalendarContent(title="活动", pic="", start_time="", end_time="")],
             static_asset_resolver=resolver,
-            static_records=[],
+            static_records=calendar_records,
         )
     )
     assert calendar_bytes
+    from src.infrastructure.rendering.runtime_assets import resources_incomplete
+
+    assert resources_incomplete(calendar_records) is False
 
 
 def test_case2_without_snapshot_falls_back_incomplete(
