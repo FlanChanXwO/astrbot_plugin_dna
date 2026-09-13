@@ -21,6 +21,7 @@ from src.entry.commands import (
 )
 from src.entry.event import EventActor
 from src.entry.response import PlainTextResponse, ResponseFactory
+from src.infrastructure import RuntimeDataLayout
 from src.infrastructure.config.settings import LoginSettings
 from src.infrastructure.persistence import AsyncDatabase, CredentialRecord
 from src.modules.account import login_flow as login_flow_module
@@ -70,12 +71,15 @@ class _Event:
 async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) -> None:
     """默认 local runtime 的 dna登录 必须立即返回可打开的登录链接。"""
 
-    database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
+    runtime_data_layout = RuntimeDataLayout(tmp_path)
+    runtime_data_layout.db_dir.mkdir(parents=True)
+    database = AsyncDatabase(runtime_data_layout.database_path)
     await database.create_schema_for_tests()
     runtime = build_runtime(
         _Context(),
         {"login": {"transport": "local", "port": 0}},
         database=database,
+        runtime_data_layout=runtime_data_layout,
     )
 
     class GeneratedLoginPlugin:

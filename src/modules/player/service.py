@@ -134,7 +134,11 @@ class PlayerService:
     def _renderer_context(self):
         if self.resource_snapshots is None:
             return nullcontext(self.renderer)
-        return self.resource_snapshots.bind_renderer(self.renderer, "player_resources")
+        return self.resource_snapshots.bind_renderer(
+            self.renderer,
+            "player_resources",
+            asset_resolver_attr="asset_resolver",
+        )
 
     async def _resolve_uid(
         self,

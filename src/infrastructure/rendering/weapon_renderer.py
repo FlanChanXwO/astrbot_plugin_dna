@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from typing import Protocol
+
+from PIL import Image
 
 from ...utils.api.model import Mode, WeaponDetail
 from ...utils.image import get_mod_img, get_weapon_img
 from .assets import image_data_uri, pil_image_data_uri
 
 TEXT_PATH = Path(__file__).parents[2] / "resources" / "textures" / "detail"
+
+
+class WeaponImageLoader(Protocol):
+    """武器区块所需的异步图片加载边界。"""
+
+    async def weapon(self, weapon_id: str | int, url: str | None) -> Image.Image:
+        """读取武器图。"""
+
+    async def mod(self, mod_id: str | int, url: str | None) -> Image.Image:
+        """读取武器 Mod 图。"""
 
 
 def _mode_quality(mode: Mode) -> int:
@@ -21,7 +35,12 @@ def _mode_quality(mode: Mode) -> int:
     return quality
 
 
-async def _mode_payload(mode: Mode, side: str) -> dict[str, object]:
+async def _mode_payload(
+    mode: Mode,
+    side: str,
+    *,
+    image_loader: WeaponImageLoader | None = None,
+) -> dict[str, object]:
     mode_id = getattr(mode, "id", -1)
     quality = _mode_quality(mode)
     payload: dict[str, object] = {
@@ -40,7 +59,12 @@ async def _mode_payload(mode: Mode, side: str) -> dict[str, object]:
     level = getattr(mode, "level", None)
     if name is None or icon is None or level is None:
         raise RuntimeError(f"武器 Mod {mode_id} 详情不完整")
-    payload["icon"] = pil_image_data_uri(await get_mod_img(mode_id, icon))
+    image = (
+        await get_mod_img(mode_id, icon)
+        if image_loader is None
+        else await image_loader.mod(mode_id, icon)
+    )
+    payload["icon"] = pil_image_data_uri(image)
     payload["level"] = f"+{level}" if level > 0 else None
     return payload
 
@@ -61,12 +85,29 @@ def _mode_order(modes: list[Mode]) -> list[tuple[Mode, str]]:
 async def draw_weapon_detail_section(
     weapon_detail: WeaponDetail,
     title: str,
+    *,
+    image_loader: WeaponImageLoader | None = None,
 ) -> dict[str, object]:
     """保留旧函数签名，返回 HTML 模板使用的武器区块 payload。"""
 
     weapon_id = getattr(weapon_detail, "id", getattr(weapon_detail, "weapon_id", 0))
     weapon_icon = getattr(weapon_detail, "icon", "")
-    weapon_image = await get_weapon_img(weapon_id, weapon_icon)
+    weapon_image_coro = (
+        get_weapon_img(weapon_id, weapon_icon)
+        if image_loader is None
+        else image_loader.weapon(weapon_id, weapon_icon)
+    )
+    raw_modes = getattr(weapon_detail, "modes", [])
+    mode_payloads_coro = asyncio.gather(
+        *(
+            _mode_payload(mode, side, image_loader=image_loader)
+            for mode, side in _mode_order(raw_modes)
+        )
+    )
+    weapon_image, modes = await asyncio.gather(
+        weapon_image_coro,
+        mode_payloads_coro,
+    )
     attr = getattr(weapon_detail, "attribute", None)
     atk = getattr(attr, "atk", 0) if attr else 0
     crd = getattr(attr, "crd", 0.0) if attr else 0.0
@@ -92,8 +133,6 @@ async def draw_weapon_detail_section(
         }
         for label, value, icon_name in attr_specs
     ]
-    raw_modes = getattr(weapon_detail, "modes", [])
-    modes = [await _mode_payload(mode, side) for mode, side in _mode_order(raw_modes)]
     return {
         "attribute_background": image_data_uri(TEXT_PATH / "weapon_attr.png"),
         "attributes": attributes,

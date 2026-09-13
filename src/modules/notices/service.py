@@ -90,7 +90,7 @@ class NoticesService:
         self.subscriptions = subscriptions
         self.ann_state = ann_state
         self.ann_delivery_state = ann_delivery_state or (
-            AnnDeliveryStateStore(ann_state.path.parent / "ann_delivery_state.json")
+            AnnDeliveryStateStore(ann_state.path.with_name("delivery.json"))
             if ann_state is not None
             else None
         )

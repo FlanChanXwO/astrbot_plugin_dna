@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 from astrbot.api import logger
 from PIL import Image, ImageDraw, ImageOps
 
+from . import image_utils
 from .image_utils import (
     ImageFetchError,
     crop_center_img,
@@ -18,10 +20,14 @@ from .resource.RESOURCE_PATH import (
     MOD_PATH,
     PAINT_PATH,
     SKILL_PATH,
+    USER_AVATAR_PATH,
     WEAPON_ATTR_PATH,
     WEAPON_PATH,
 )
 from .session import EventContext
+
+if TYPE_CHECKING:
+    from ..infrastructure.resources.resolver import AssetDownloader
 
 ICON = Path(__file__).parent.parent.parent / "logo.png"
 TEXT_PATH = Path(__file__).parent / "texture2d"
@@ -115,13 +121,21 @@ async def download_pic_from_url(
     pic_url: str,
     size: tuple[int, int] | None = None,
     name: str | None = None,
+    *,
+    downloader: AssetDownloader | None = None,
 ) -> Image.Image:
     path.mkdir(parents=True, exist_ok=True)
 
     if name is None:
         name = pic_url.split("/")[-1]
     _path = path / name
-    _ = await download(pic_url, path, name, tag="[DNA]")
+    _ = await image_utils.download(
+        pic_url,
+        path,
+        name,
+        tag="[DNA]",
+        downloader=downloader,
+    )
 
     img = Image.open(_path)
     if size:
@@ -130,11 +144,23 @@ async def download_pic_from_url(
     return img.convert("RGBA")
 
 
-async def _download_optional_image(path: Path, name: str, pic_url: str) -> bool:
+async def _download_optional_image(
+    path: Path,
+    name: str,
+    pic_url: str,
+    *,
+    downloader: AssetDownloader | None = None,
+) -> bool:
     """下载可退化卡片素材；失败只允许本次内存占位，不写假缓存。"""
 
     try:
-        await download(pic_url, path, name, tag="[DNA]")
+        await download(
+            pic_url,
+            path,
+            name,
+            tag="[DNA]",
+            downloader=downloader,
+        )
     except (ImageFetchError, httpx.HTTPError):
         # 角色卡已有明确的内存占位语义，严格图片链路仍直接使用 download()。
         return False
@@ -159,15 +185,26 @@ async def get_skill_img(
     return image
 
 
-async def get_avatar_img(char_id: str | int, pic_url: str | None = None) -> Image.Image:
-    char_avatar_dir = AVATAR_PATH
+async def get_avatar_img(
+    char_id: str | int,
+    pic_url: str | None = None,
+    *,
+    avatar_path: Path | None = None,
+    downloader: AssetDownloader | None = None,
+) -> Image.Image:
+    char_avatar_dir = AVATAR_PATH if avatar_path is None else Path(avatar_path)
     char_avatar_dir.mkdir(parents=True, exist_ok=True)
 
     name = f"avatar_{char_id}.png"
-    avatar_path = char_avatar_dir / name
-    if pic_url and not await _download_optional_image(char_avatar_dir, name, pic_url):
+    cached_avatar_path = char_avatar_dir / name
+    if pic_url and not await _download_optional_image(
+        char_avatar_dir,
+        name,
+        pic_url,
+        downloader=downloader,
+    ):
         return Image.new("RGBA", (256, 256))
-    image = _load_cached_image(avatar_path)
+    image = _load_cached_image(cached_avatar_path)
     if image is None:
         return Image.new("RGBA", (256, 256))
 
@@ -328,7 +365,7 @@ async def get_avatar_title_img(
     else:
         ev.at = ""  # 清空 at，确保获取发送者自己的头像
     try:
-        avatar = await get_event_avatar(ev, avatar_path=AVATAR_PATH)
+        avatar = await get_event_avatar(ev, avatar_path=USER_AVATAR_PATH)
     except (httpx.HTTPError, OSError, TypeError, ValueError):
         avatar = await get_avatar_img("5101")
     finally:

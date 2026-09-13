@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from ..data_layout import RuntimeDataLayout
 from .models import Base
 
 
@@ -43,7 +44,9 @@ class AsyncDatabase:
         cls, data_dir: str | Path, *, echo: bool = False
     ) -> AsyncDatabase:
         """从运行期 data 目录定位新数据库，不读取旧 `dnaby.db`。"""
-        return cls(Path(data_dir) / "dnaby.sqlite3", echo=echo)
+        database_path = RuntimeDataLayout.from_data_dir(data_dir).database_path
+        database_path.parent.mkdir(parents=True, exist_ok=True)
+        return cls(database_path, echo=echo)
 
     @asynccontextmanager
     async def session(self) -> AsyncIterator[AsyncSession]:
