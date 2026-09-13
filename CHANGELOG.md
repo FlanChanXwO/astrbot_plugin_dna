@@ -2,11 +2,36 @@
 
 ## [Unreleased]
 
-### 运行期数据与资源
+## v0.5.0 — 2026-09-14
 
-- 引入 generation-first 公共资源布局和 `AssetResolver`，动态素材按资源快照、动态缓存和网络下载顺序解析。
-- 运行期目录切换到 `db/`、`state/`、`resources/`、`cache/` 和 `backups/`；检测到旧数据布局时 fail-fast，要求管理员按文档人工迁移。
-- 不自动迁移、不双读旧布局，也不提供长期 legacy runtime layout fallback；仍未迁移的图片调用保留代码级兼容入口。
+### 新增
+
+- 客户端更新体系改为 Target / Source 注册表模型，覆盖国服官服 PC / Android / iOS、Bilibili PC / Android、好游快爆 Android，以及全球服独立客户端 PC / App Store iOS 共 8 个目标；同一 Source 每轮只观察一次，并补齐稀疏版本、同版本修订和 history-gap 恢复语义。（[#48](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/48)）
+- 新增 `dna检查凭证`，通过 typed `AccountTransport` 实时校验当前凭证并区分有效、失效与暂时无法验证；「获取ck / 获取Token」统一为「获取凭证」，仅允许私聊返回当前保存的真实 token，群聊不会泄露原始凭据。（[#65](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/65)）
+
+### 变更
+
+- 引入 generation-first 公共资源布局和 `AssetResolver`：运行期目录统一为 `db/`、`state/`、`resources/`、`cache/` 与 `backups/`，每个 runtime 独立持有下载器和资源解析器，角色图片、百科、签到与公告等链路统一按当前 generation 解析资源。（[#58](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/58)）
+- 将字体、角色/详情/签到/日常/周报/密函/公告/日历等大型静态渲染素材外置到 `dna-resource`，新增 `StaticAssetResolver`、generation lease 与 `incomplete` 降级语义；插件源码包由约 169 MiB 缩减至约 5 MiB。（[#50](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/50)）
+- 重组帮助菜单为普通用户 10 个分组、管理员追加 3 个管理分组；分组、展示名、图标与排序改用稳定 command id 显式映射，删除旧 `help.json` 数据源和中文命令名猜图标逻辑。（[#65](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/65)）
+- 客户端更新配置由 `client_updates.channels` 切换为 registry 驱动的 `client_updates.targets`，状态升级为 v4，并将查询、订阅与取消订阅命令收敛为无参数入口，目标选择统一交给配置。（[#48](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/48)）
+- `cache.refresh_send_card` 拆分为基础卡片与角色面板两个独立开关 `refresh_send_info_card` / `refresh_send_role_panel`，旧配置只迁移到角色面板开关。（[#65](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/65)）
+
+### 修复
+
+- 动态登录背景改为在 HTML 解析阶段直接预加载并自动播放，首屏等待视频进入播放状态后再揭开页面，避免首次打开先看到静态背景再切换视频；加载失败或减少动态效果时仍会回退静态背景。（[#62](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/62)）
+- `主角` / `光主` / `暗主` 按玩家实际拥有的男女主席位解析，修复男主账号无法使用通用主角称呼的问题；同时补齐角色 `elementIcon` 缺失时的空值保护，并删除已失效的 legacy 别名链路。（[#63](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/63)）
+- 同步命令不再自行插入针对当前命令用户的 `At`，普通回复重新交由 AstrBot 平台层处理 `reply_with_mention` / `reply_with_quote`；主动推送和明确业务目标的 `At` 保持原行为。（[#64](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/64)）
+- 凭证实时校验的状态写回绑定实际校验的 token 与 device code，避免检查期间重新登录后旧结果覆盖新凭证；成功校验会恢复历史误标的无效状态，网络与服务端异常不会误判为凭证失效。（[#65](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/65)）
+
+### 升级注意
+
+- 本版本的运行期资源布局存在破坏性调整：检测到旧数据布局时会 fail-fast，不自动迁移、不双读旧目录；升级前请按文档备份并人工迁移。已废弃的 `custom/` 自定义素材能力不再迁移。（[#58](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/58)）
+- 完整图片渲染现在依赖已验证的 `dna-resource` generation；升级后应执行一次 `dna同步资源`。未同步时文字命令仍可工作，图片命令会使用 placeholder 并标记为不完整。（[#50](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/50)）
+- `client_updates.channels` 不会自动迁移到 `client_updates.targets`，旧 state v1/v2/v3 也不会迁移；使用客户端更新订阅的管理员需要重新检查目标配置。（[#48](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/48)）
+- 删除独立 `token登录`、`dna原图` 占位命令以及管理员“刷新指定 UID 角色面板”命令；token 登录仍可通过 `dna登录<token>` 使用。（[#65](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/65)）
+
+**完整变更**：[`v0.4.0...v0.5.0`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.4.0...v0.5.0)
 
 ## v0.4.0 — 2026-09-11
 
