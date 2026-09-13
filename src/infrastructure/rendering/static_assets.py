@@ -152,6 +152,25 @@ class StaticAssetResolver:
             bootstrap_texture_dir=self.bootstrap_texture_dir,
         )._with_generation_id(generation_id or self.generation_id)
 
+    def listdir(self, relative: str) -> list[str]:
+        """列出 snapshot 内某静态目录的文件名；目录不存在时返回空列表。"""
+
+        safe = self._safe_relative(relative)
+        snapshot_root = self.snapshot_root
+        if snapshot_root is None and self.coordinator is not None:
+            snapshot = self.coordinator.current_snapshot
+            snapshot_root = None if snapshot is None else snapshot.root
+        if snapshot_root is None:
+            return []
+        directory = snapshot_root.joinpath(*safe.parts)
+        if not directory.is_dir():
+            return []
+        return sorted(
+            entry.name
+            for entry in directory.iterdir()
+            if entry.is_file() and not entry.is_symlink()
+        )
+
     def _with_generation_id(self, generation_id: str | None) -> StaticAssetResolver:
         self._generation_id = generation_id
         return self
@@ -240,6 +259,7 @@ def static_open_image(
     *,
     size: tuple[int, int],
     label: str,
+    resize: bool = True,
 ) -> Image.Image:
     """按 snapshot 相对路径读取 PIL 图片；缺失或损坏时返回占位图。"""
 
@@ -252,7 +272,7 @@ def static_open_image(
         try:
             with Image.open(asset.path) as opened:
                 image = opened.convert("RGBA")
-            if image.size != size:
+            if resize and image.size != size:
                 image = image.resize(size, Image.Resampling.LANCZOS)
             return image
         except (OSError, ValueError, Image.DecompressionBombError):
