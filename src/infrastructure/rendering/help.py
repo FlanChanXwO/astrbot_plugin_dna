@@ -52,7 +52,7 @@ _ICON_ALIASES = {
     "基本信息卡片": "基本信息.png",
     "查看UID列表": "UID.png",
 }
-_HELP_CACHE: dict[tuple[object, str, str, str], bytes] = {}
+_HELP_CACHE: dict[tuple[object, str, str, str, int], bytes] = {}
 
 
 def invalidate_help_cache() -> None:
@@ -156,7 +156,7 @@ def _help_icon_uri(
                 "texture",
                 key,
                 asset,
-                source=f"textures/help/icon/{path.name}",
+                resource_path=f"textures/help/icon/{path.name}",
             ),
         )
     return uri
@@ -295,9 +295,11 @@ async def get_help(
     """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
 
     cache_key = (
-        (registry, prefix, permission, version) if registry is not None else None
+        (registry, prefix, permission, version, id(asset_resolver))
+        if registry is not None
+        else None
     )
-    if asset_resolver is None and cache_key is not None and cache_key in _HELP_CACHE:
+    if cache_key is not None and cache_key in _HELP_CACHE:
         return _HELP_CACHE[cache_key]
 
     plugin_help = _load_help_data()
@@ -337,7 +339,7 @@ async def get_help(
             )
             if resource_records is not None:
                 resource_records.append(
-                    resource_record("texture", key, asset, source=path.as_posix()),
+                    resource_record("texture", key, asset, resource_path=path.as_posix()),
                 )
             return uri
 
@@ -349,7 +351,7 @@ async def get_help(
             )
             if resource_records is not None:
                 resource_records.append(
-                    resource_record("font", key, asset, source=path.as_posix()),
+                    resource_record("font", key, asset, resource_path=path.as_posix()),
                 )
             return uri
 
@@ -386,7 +388,7 @@ async def get_help(
         quality=85,
     )
     payload = await _RENDERER.render("cards/help.html.j2", template_data, spec)
-    if asset_resolver is None and cache_key is not None:
+    if cache_key is not None:
         _HELP_CACHE[cache_key] = payload
     return payload
 

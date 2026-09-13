@@ -66,7 +66,6 @@ from .paths import (
     resource_validation_state_path,
     resource_repository_dir,
 )
-from .resolver import ResolvedAsset, RuntimeAssetResolver
 
 __all__ = [
     "BUILTIN_GITHUB_ACCELERATION_PREFIXES",
@@ -108,7 +107,6 @@ __all__ = [
     "ResourceSyncResult",
     "ResourceSyncStatus",
     "ResourceSynchronizer",
-    "RuntimeAssetResolver",
     "accelerate_github_url",
     "build_git_instead_of_config",
     "default_resource_repository_dir",

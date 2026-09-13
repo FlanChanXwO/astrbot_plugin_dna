@@ -1,6 +1,6 @@
 """仅供无 resolver 兼容路径使用的本地资源常量。
 
-正常运行期 renderer 不应读取本模块中的大型资源；注入 RuntimeAssetResolver 后会走
+正常运行期 renderer 不应读取本模块中的大型资源；注入运行期资源解析器后会走
 逻辑 key。保留这些常量只是为了兼容旧的独立 helper 和现有测试。
 """
 

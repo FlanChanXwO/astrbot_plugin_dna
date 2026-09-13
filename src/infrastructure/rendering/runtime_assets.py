@@ -52,7 +52,7 @@ def resource_record(
     key: str,
     asset: ResolvedAsset,
     *,
-    source: str = "",
+    resource_path: str = "",
 ) -> dict[str, str]:
     """把 resolver 结果转换为 sidecar 使用的稳定资源记录。"""
 
@@ -66,8 +66,9 @@ def resource_record(
         "kind": kind,
         "key": key,
         "status": status,
-        "source": source,
+        "source": asset.source,
         "incomplete": "true" if asset.incomplete else "false",
+        "resource_path": resource_path,
     }
 
 
