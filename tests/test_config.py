@@ -19,7 +19,7 @@ from src.infrastructure.config.schema import (
 )
 from src.infrastructure.config.settings import (
     ClientUpdatesSettings,
-    DnabySettings,
+    DNASettings,
     DNAConfig,
     DNASignConfig,
     LoginSettings,
@@ -81,7 +81,7 @@ def test_client_update_targets_config_defaults_validation_and_schema():
         ValidationError,
         match=r"client_updates\.channels 已移除，请改用 client_updates\.targets",
     ):
-        DnabySettings.from_config(
+        DNASettings.from_config(
             {"client_updates": {"channels": ["pc_cn"]}},
         )
 
@@ -108,7 +108,7 @@ def test_typed_sign_in_config_has_no_feature_enable_switches():
 def test_deprecated_sign_enable_switches_are_ignored_on_upgrade():
     """旧配置残留的关闭值不得阻止插件启动或重新关闭签到功能。"""
 
-    settings = DnabySettings.from_config(
+    settings = DNASettings.from_config(
         {"sign_in": {"game_enabled": False, "community_enabled": False}},
     )
     assert settings.sign_in == SignInSettings()
@@ -151,17 +151,17 @@ def test_get_config_unknown_key_raises():
 
 
 def test_display_settings_supports_configurable_command_prefix():
-    settings = DnabySettings.from_config({"display": {"command_prefix": "dna"}})
+    settings = DNASettings.from_config({"display": {"command_prefix": "dna"}})
     assert settings.display.command_prefix == "dna"
     assert settings.display.command_prefixes == ["dna"]
 
-    multi_settings = DnabySettings.from_config(
+    multi_settings = DNASettings.from_config(
         {"display": {"command_prefixes": ["kk", "dna"]}}
     )
     assert multi_settings.display.command_prefixes == ["kk", "dna"]
     assert multi_settings.display.command_prefix == "kk"
 
-    default_settings = DnabySettings.from_config({})
+    default_settings = DNASettings.from_config({})
     assert default_settings.display.command_prefix == "dna"
     assert default_settings.display.command_prefixes == ["dna"]
 
@@ -176,7 +176,7 @@ def test_display_settings_rejects_invalid_prefix_values():
             DisplaySettings(command_prefixes=value)
 
     with pytest.raises(ValidationError):
-        DnabySettings.from_config({"display": {"command_prefix": {"prefix": "kk"}}})
+        DNASettings.from_config({"display": {"command_prefix": {"prefix": "kk"}}})
 
 
 def test_sign_time_string_format_and_rejects_invalid_values():
@@ -240,7 +240,7 @@ def test_all_config_items_resolve_from_typed_config():
             "show_unowned_roles": False,
         },
     }
-    settings = DnabySettings.from_config(config_dict)
+    settings = DNASettings.from_config(config_dict)
 
     # 验证 typed settings
     assert settings.login.url == "http://127.0.0.1:8000"
@@ -488,7 +488,7 @@ def test_numeric_config_fields_use_int_types():
 
 def test_legacy_nested_and_flat_config_migration():
     """手动/自动迁移：从 GsCore 旧版嵌套结构和扁平结构迁移到 typed 配置。"""
-    from src.infrastructure.config.settings import DnabySettings, migrate_config_dict
+    from src.infrastructure.config.settings import DNASettings, migrate_config_dict
 
     legacy_gscore = {
         LEGACY_DNA_CONFIG_SECTION: {
@@ -513,7 +513,7 @@ def test_legacy_nested_and_flat_config_migration():
     assert migrated["sign_in"]["default_auto_sign_enabled"] is True
     assert migrated["sign_in"]["private_report"] is True
 
-    settings = DnabySettings.from_config(legacy_gscore)
+    settings = DNASettings.from_config(legacy_gscore)
     assert settings.login.max_bind_count == 4
     assert settings.login.url == "http://login.local:8080"
     assert settings.display.command_prefix == "dna"

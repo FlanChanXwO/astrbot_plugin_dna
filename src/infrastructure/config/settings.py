@@ -1,7 +1,7 @@
 """v0.1 typed 配置定义。
 
 配置模型只描述插件自己的领域配置，不依赖 AstrBot 的事件、命令或
-``Context``。AstrBot 的嵌套字典在边界处通过 :meth:`DnabySettings.from_config`
+``Context``。AstrBot 的嵌套字典在边界处通过 :meth:`DNASettings.from_config`
 转换为这些模型，避免业务代码继续直接操作未类型化的配置字典。
 """
 
@@ -961,7 +961,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
     return result
 
 
-class DnabySettings(_SettingsModel):
+class DNASettings(_SettingsModel):
     """插件完整 typed 配置。"""
 
     general: GeneralSettings = Field(
@@ -1006,7 +1006,7 @@ class DnabySettings(_SettingsModel):
         return AgentToolsSettings(enabled=self.ai.agent_tools_enabled)
 
     @classmethod
-    def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
+    def from_config(cls, config: Mapping[str, Any] | None) -> DNASettings:
         """将 AstrBot 的嵌套配置字典转换为 typed settings，且不改写输入。"""
         legacy_scheduler_enabled = _read_legacy_scheduled_enabled(config)
         migrated = migrate_config_dict(config)
@@ -1071,7 +1071,7 @@ __all__ = [
     "DNAConfig",
     "DNASignConfig",
     "DisplaySettings",
-    "DnabySettings",
+    "DNASettings",
     "GeneralSettings",
     "LoginSettings",
     "NetworkSettings",

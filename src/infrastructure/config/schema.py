@@ -15,7 +15,7 @@ from .settings import (
     CacheSettings,
     ClientUpdatesSettings,
     DisplaySettings,
-    DnabySettings,
+    DNASettings,
     GeneralSettings,
     LoginSettings,
     NetworkSettings,
@@ -39,7 +39,7 @@ _GROUPS: tuple[tuple[str, type[BaseModel]], ...] = (
 
 # AstrBot 会在插件构造函数之前按 schema 删除未知字段。这个字段不属于
 # 新 typed model，只作为一次版本迁移窗口保留，确保旧 sign_in 配置能到达
-# ``DnabySettings.from_config``。``invisible`` 防止它成为新的正式配置入口。
+# ``DNASettings.from_config``。``invisible`` 防止它成为新的正式配置入口。
 _SIGN_IN_COMPATIBILITY_FIELDS: dict[str, dict[str, Any]] = {
     "scheduled_enabled": {
         "type": "bool",
@@ -151,7 +151,7 @@ def generate_astrbot_schema() -> dict[str, dict[str, Any]]:
                 }
             )
         result[group_name] = {
-            "description": DnabySettings.model_fields[group_name].description
+            "description": DNASettings.model_fields[group_name].description
             or group_name,
             "type": "object",
             "items": fields,

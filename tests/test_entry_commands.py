@@ -12,7 +12,7 @@ from astrbot.core.star.filter.permission import PermissionTypeFilter
 from astrbot.core.star.filter.regex import RegexFilter
 from astrbot.core.star.star_handler import star_handlers_registry
 
-from main import COMMAND_REGISTRY, DnabyPlugin
+from main import COMMAND_REGISTRY, DNAPlugin
 from src.entry.commands import (
     CommandRegistry,
     CommandRequest,
@@ -465,7 +465,7 @@ async def test_help_shows_implemented_commands_only(monkeypatch: pytest.MonkeyPa
         def plain_result(self, text: str) -> str:
             return text
 
-    plugin = DnabyPlugin(SimpleNamespace(), {})
+    plugin = DNAPlugin(SimpleNamespace(), {})
     result = [item async for item in plugin.handle_help(Event())]
 
     assert len(result) == 1
@@ -510,7 +510,7 @@ async def test_plugin_handles_custom_prefix_dynamically():
         def plain_result(self, text: str) -> tuple[str, str]:
             return ("plain", text)
 
-    plugin = DnabyPlugin(SimpleNamespace(), {"display": {"command_prefix": "dna"}})
+    plugin = DNAPlugin(SimpleNamespace(), {"display": {"command_prefix": "dna"}})
     res_dna = [
         item async for item in plugin.handle_resource_status(Event("dna资源状态"))
     ]
@@ -569,7 +569,7 @@ async def test_plugin_handles_multiple_prefixes_dynamically():
         def plain_result(self, text: str) -> tuple[str, str]:
             return ("plain", text)
 
-    plugin = DnabyPlugin(
+    plugin = DNAPlugin(
         SimpleNamespace(), {"display": {"command_prefixes": ["kk", "dna"]}}
     )
     res_dna = [

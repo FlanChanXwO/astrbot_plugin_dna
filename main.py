@@ -32,7 +32,7 @@ else:
 COMMAND_REGISTRY: CommandRegistry = load_command_registry()
 
 
-class DnabyPlugin(Star):
+class DNAPlugin(Star):
     """二重螺旋的 AstrBot 插件入口。"""
 
     name = "astrbot_plugin_dna"
@@ -65,7 +65,7 @@ class DnabyPlugin(Star):
             WebRegistrar.unregister_plugin_routes(self.context, self.name)
 
 
-install_command_handlers(DnabyPlugin, COMMAND_REGISTRY)
+install_command_handlers(DNAPlugin, COMMAND_REGISTRY)
 
 
-__all__ = ["COMMAND_REGISTRY", "DnabyPlugin"]
+__all__ = ["COMMAND_REGISTRY", "DNAPlugin"]

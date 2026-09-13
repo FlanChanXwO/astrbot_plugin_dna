@@ -28,7 +28,7 @@ from .entry.response import ResponseFactory
 from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
-from .infrastructure.config import DnabySettings
+from .infrastructure.config import DNASettings
 from .infrastructure.data_layout import (
     DATABASE_DIR_NAME,
     DATABASE_FILE_NAME,
@@ -119,7 +119,7 @@ from .utils.image_utils import ImageFetcher
 PluginConfig = AstrBotConfig | dict[str, Any] | None
 
 
-def _cache_maintenance_interval(settings: DnabySettings) -> float:
+def _cache_maintenance_interval(settings: DNASettings) -> float:
     """返回缓存维护周期；禁用/永久模式仍维护 rendered 临时文件。"""
 
     if settings.cache.ttl_hours > 0:
@@ -137,7 +137,7 @@ class PluginRuntime:
     events: EventEntryPoint
     responses: ResponseFactory
     commands: CommandRegistry
-    settings: DnabySettings
+    settings: DNASettings
     services: Mapping[str, object]
 
     async def initialize(self) -> None:
@@ -200,7 +200,7 @@ def build_runtime(
 
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()
-    settings = DnabySettings.from_config(config)
+    settings = DNASettings.from_config(config)
     from .utils import dna_api
 
     if services is not None and "image_fetcher" in services:

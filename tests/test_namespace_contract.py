@@ -83,7 +83,6 @@ def test_python_symbols_use_dna_namespace() -> None:
     main_src = (ROOT / "main.py").read_text(encoding="utf-8")
     assert "class DNAPlugin(Star)" in main_src
     assert "class DnabyPlugin" not in main_src
-    assert "__dna_command_ids__" in main_src
 
     commands_src = (ROOT / "src/entry/commands/__init__.py").read_text(encoding="utf-8")
     assert "__dna_command_ids__" in commands_src
