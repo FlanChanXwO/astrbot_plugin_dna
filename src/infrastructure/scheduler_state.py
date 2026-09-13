@@ -14,17 +14,16 @@ from typing import Any
 from .config.settings import NotificationSettings, SignInSettings
 
 BUILTIN_SCHEDULER_TASK_IDS = (
-    "dnaby_sign_daily",
-    "dnaby_sign_cleanup",
-    "dnaby_mh_push",
-    "dnaby_ann_poll",
-    "dnaby_client_update_poll",
+    "dna_sign_daily",
+    "dna_sign_cleanup",
+    "dna_mh_push",
+    "dna_ann_poll",
+    "dna_client_update_poll",
 )
-LEGACY_SIGN_SCHEDULER_MIGRATION = "legacy_scheduled_enabled"
 
-_DAILY_TASK_IDS = frozenset(("dnaby_sign_daily", "dnaby_sign_cleanup"))
-_HOURLY_TASK_IDS = frozenset(("dnaby_mh_push",))
-_INTERVAL_TASK_IDS = frozenset(("dnaby_ann_poll", "dnaby_client_update_poll"))
+_DAILY_TASK_IDS = frozenset(("dna_sign_daily", "dna_sign_cleanup"))
+_HOURLY_TASK_IDS = frozenset(("dna_mh_push",))
+_INTERVAL_TASK_IDS = frozenset(("dna_ann_poll", "dna_client_update_poll"))
 # 兼容旧调用方的默认值；实际密函分钟由 NoticesScheduler/typed 配置注入。
 MH_PUSH_AT: tuple[int, int] = (0, 0)
 MH_PUSH_SCHEDULE = "hourly@00:00"
@@ -76,7 +75,7 @@ def parse_scheduler_schedule(
         if match is None:
             raise ValueError("任务 schedule 必须为 interval@Nm")
         minutes = int(match.group(1))
-        if task_id == "dnaby_client_update_poll":
+        if task_id == "dna_client_update_poll":
             try:
                 NotificationSettings(client_update_check_minutes=minutes)
             except ValueError as error:
@@ -197,7 +196,6 @@ class SchedulerStateStore:
         self.path = Path(path).expanduser().resolve() if path is not None else None
         self._deleted_tasks: set[str] = set()
         self._paused_tasks: set[str] = set()
-        self._migrations: set[str] = set()
         self._lock = asyncio.Lock()
         self._loaded = False
 
@@ -233,34 +231,6 @@ class SchedulerStateStore:
                 self._paused_tasks = previous
                 raise
 
-    async def migrate_legacy_sign_scheduler(
-        self,
-        *,
-        enabled: bool,
-        migration_id: str = LEGACY_SIGN_SCHEDULER_MIGRATION,
-        task_id: str = "dnaby_sign_daily",
-    ) -> bool:
-        """一次性把旧签到总开关转换为可恢复的 registry 状态。"""
-
-        if not isinstance(enabled, bool):
-            raise TypeError("legacy scheduler enabled 必须是布尔值")
-        async with self._lock:
-            await self._load_unlocked()
-            if migration_id in self._migrations:
-                return False
-            previous_paused = set(self._paused_tasks)
-            previous_migrations = set(self._migrations)
-            if not enabled:
-                self._paused_tasks.add(task_id)
-            self._migrations.add(migration_id)
-            try:
-                self._save_unlocked()
-            except BaseException:
-                self._paused_tasks = previous_paused
-                self._migrations = previous_migrations
-                raise
-            return True
-
     async def _load_unlocked(self) -> None:
         if self._loaded:
             return
@@ -283,15 +253,8 @@ class SchedulerStateStore:
                 for task_id in paused
             ):
                 raise TypeError("paused_tasks must be a list of non-empty strings")
-            migrations = raw.get("migrations", [])
-            if not isinstance(migrations, list) or any(
-                not isinstance(migration_id, str) or not migration_id.strip()
-                for migration_id in migrations
-            ):
-                raise TypeError("migrations must be a list of non-empty strings")
             self._deleted_tasks = set(deleted)
             self._paused_tasks = set(paused)
-            self._migrations = set(migrations)
         except (OSError, json.JSONDecodeError, TypeError, ValueError) as error:
             raise RuntimeError(
                 f"调度状态文件损坏: {self.path.name} ({type(error).__name__})"
@@ -340,8 +303,6 @@ class SchedulerStateStore:
         payload = {"deleted_tasks": sorted(self._deleted_tasks)}
         if self._paused_tasks:
             payload["paused_tasks"] = sorted(self._paused_tasks)
-        if self._migrations:
-            payload["migrations"] = sorted(self._migrations)
         return payload
 
 
@@ -451,29 +412,6 @@ class SchedulerRegistry:
             if task_id not in self._definitions:
                 raise SchedulerTaskNotFound(task_id)
             return task_id in self._paused_tasks
-
-    async def migrate_legacy_sign_scheduler(self, *, enabled: bool) -> None:
-        """将旧签到总开关一次性迁移为 registry 暂停状态。"""
-
-        await self._ensure_initialized()
-        applied = await self.state_store.migrate_legacy_sign_scheduler(
-            enabled=enabled,
-        )
-        if not applied:
-            return
-        async with self._lock:
-            task_id = "dnaby_sign_daily"
-            if enabled or task_id in self._deleted_tasks:
-                return
-            self._paused_tasks.add(task_id)
-            current = self._snapshots.get(task_id)
-            if current is not None:
-                self._snapshots[task_id] = replace(
-                    current,
-                    state=SchedulerTaskState.PAUSED,
-                    next_run_at=None,
-                    last_error=None,
-                )
 
     async def activate(self, task_id: str) -> None:
         """标记 scheduler 已创建该任务。"""
@@ -622,7 +560,6 @@ class SchedulerRegistry:
 
 __all__ = [
     "BUILTIN_SCHEDULER_TASK_IDS",
-    "LEGACY_SIGN_SCHEDULER_MIGRATION",
     "MH_PUSH_AT",
     "MH_PUSH_SCHEDULE",
     "SchedulerRegistry",

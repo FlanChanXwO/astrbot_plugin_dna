@@ -28,8 +28,8 @@ TZ = ZoneInfo("Asia/Shanghai")
 NowCallable = Callable[[], datetime]
 SleepCallable = Callable[[float], Awaitable[None]]
 
-_MH_PUSH_TASK_NAME = "dnaby_mh_push"
-_ANN_POLL_TASK_NAME = "dnaby_ann_poll"
+_MH_PUSH_TASK_NAME = "dna_mh_push"
+_ANN_POLL_TASK_NAME = "dna_ann_poll"
 
 
 class SchedulableNotices(Protocol):

@@ -26,7 +26,7 @@ from .scheduler_state import (
 )
 
 TZ = ZoneInfo("Asia/Shanghai")
-CLIENT_UPDATE_TASK_ID = "dnaby_client_update_poll"
+CLIENT_UPDATE_TASK_ID = "dna_client_update_poll"
 CLIENT_UPDATE_TASK_NAME = "客户端更新轮询"
 CLIENT_UPDATE_TARGET = "client_update_subscriptions"
 DEFAULT_CLIENT_UPDATE_CHECK_MINUTES = 60
@@ -121,7 +121,7 @@ class ClientUpdatesScheduler:
         if existing is not None:
             return existing
         if not self.enabled:
-            raise ValueError("任务当前配置未启用: dnaby_client_update_poll")
+            raise ValueError("任务当前配置未启用: dna_client_update_poll")
         task = asyncio.create_task(
             self._run_periodic(),
             name=CLIENT_UPDATE_TASK_ID,

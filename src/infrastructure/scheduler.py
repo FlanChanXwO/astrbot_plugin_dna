@@ -44,8 +44,8 @@ class SignPushPayload:
 
 PushCallable = Callable[[str, SignPushPayload], Awaitable[Any]]
 
-_SIGN_TASK_NAME = "dnaby_sign_daily"
-_CLEANUP_TASK_NAME = "dnaby_sign_cleanup"
+_SIGN_TASK_NAME = "dna_sign_daily"
+_CLEANUP_TASK_NAME = "dna_sign_cleanup"
 
 
 class SchedulableCheckin(Protocol):
@@ -99,7 +99,6 @@ class SignScheduler:
         now: NowCallable | None = None,
         push: PushCallable | None = None,
         registry: SchedulerRegistry | None = None,
-        sign_task_enabled: bool = True,
     ) -> None:
         self.checkin = checkin
         self.subscriptions = subscriptions
@@ -111,9 +110,6 @@ class SignScheduler:
         self.registry = registry or SchedulerRegistry()
         self._tasks: list[asyncio.Task] = []
         self._task_by_id: dict[str, asyncio.Task] = {}
-        # 旧 scheduled_enabled 只在首次启动时迁移为 registry 的暂停状态；
-        # 具体 UID 是否签到仍由 AccountBinding.auto_sign_enabled 决定。
-        self._legacy_scheduler_enabled = sign_task_enabled
         self._enabled_tasks = {
             _SIGN_TASK_NAME: True,
             _CLEANUP_TASK_NAME: True,
@@ -219,9 +215,6 @@ class SignScheduler:
         await self.registry.initialize()
         if self._started:
             return
-        await self.registry.migrate_legacy_sign_scheduler(
-            enabled=self._legacy_scheduler_enabled,
-        )
         # 签到任务始终存在；CheckinService 会按每个 UID 的个人开关筛选候选。
         for task_id, enabled in self._enabled_tasks.items():
             if (

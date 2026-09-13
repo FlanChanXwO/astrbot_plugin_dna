@@ -494,7 +494,6 @@ def build_runtime(
         sign_time=settings.sign_in.sign_time,
         push=_push_sign,
         registry=scheduler_registry,
-        sign_task_enabled=settings.sign_in.scheduler_enabled_for_runtime,
     )
     notices_renderer = NoticesRenderer(
         rendered_root,
@@ -719,11 +718,11 @@ def build_runtime(
         scheduler_registry,
         subscriptions,
         {
-            "dnaby_sign_daily": sign_scheduler,
-            "dnaby_sign_cleanup": sign_scheduler,
-            "dnaby_mh_push": notices_scheduler,
-            "dnaby_ann_poll": notices_scheduler,
-            "dnaby_client_update_poll": client_updates_scheduler,
+            "dna_sign_daily": sign_scheduler,
+            "dna_sign_cleanup": sign_scheduler,
+            "dna_mh_push": notices_scheduler,
+            "dna_ann_poll": notices_scheduler,
+            "dna_client_update_poll": client_updates_scheduler,
         },
         membership_service,
         config_store=config if isinstance(config, dict) else None,

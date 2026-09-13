@@ -50,29 +50,29 @@ TaskSnapshot = SchedulerTaskSnapshot
 
 _TASK_IDS = frozenset(BUILTIN_SCHEDULER_TASK_IDS)
 _TASK_TARGET_TYPES: dict[str, frozenset[str]] = {
-    "dnaby_sign_daily": frozenset(
+    "dna_sign_daily": frozenset(
         (
             checkin_messages.SIGN_RESULT_SUBSCRIBE,
             checkin_messages.SIGN_GROUP_REPORT_SUBSCRIBE,
         )
     ),
-    "dnaby_sign_cleanup": frozenset(),
-    "dnaby_mh_push": frozenset(
+    "dna_sign_cleanup": frozenset(),
+    "dna_mh_push": frozenset(
         (
             notices_messages.MH_SUBSCRIBE,
             notices_messages.MH_PIC_SUBSCRIBE,
             notices_messages.MH_TEXT_SUBSCRIBE,
         )
     ),
-    "dnaby_ann_poll": frozenset((notices_messages.ANN_SUBSCRIBE,)),
-    "dnaby_client_update_poll": frozenset(
+    "dna_ann_poll": frozenset((notices_messages.ANN_SUBSCRIBE,)),
+    "dna_client_update_poll": frozenset(
         (client_updates_messages.CLIENT_UPDATE_SUBSCRIPTION_TYPE,)
     ),
 }
 _CONFIG_FIELDS: dict[str, tuple[str, str]] = {
-    "dnaby_sign_daily": ("sign_in", "sign_time"),
-    "dnaby_ann_poll": ("notifications", "announcement_check_minutes"),
-    "dnaby_client_update_poll": ("notifications", "client_update_check_minutes"),
+    "dna_sign_daily": ("sign_in", "sign_time"),
+    "dna_ann_poll": ("notifications", "announcement_check_minutes"),
+    "dna_client_update_poll": ("notifications", "client_update_check_minutes"),
 }
 _MISSING = object()
 
@@ -352,7 +352,7 @@ class AdminApiService:
 
         if not self._is_known_task(task_id):
             return _failure(AdminErrorCode.NOT_FOUND, "任务不存在")
-        if task_id == "dnaby_mh_push":
+        if task_id == "dna_mh_push":
             return _failure(
                 AdminErrorCode.CONFLICT,
                 "密函任务时间由 notifications.secret_push_minute 配置",
@@ -408,7 +408,7 @@ class AdminApiService:
             self.config_store[section_name] = section
         if not isinstance(section, MutableMapping):
             raise TypeError("配置分组不可写")
-        if task_id == "dnaby_sign_daily":
+        if task_id == "dna_sign_daily":
             value: object = schedule.split("@", 1)[1]
         else:
             value = int(schedule.removeprefix("interval@").removesuffix("m"))

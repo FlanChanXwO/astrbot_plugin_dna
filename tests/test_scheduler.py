@@ -88,8 +88,8 @@ async def test_scheduler_runs_sign_task_without_forcing_all_users(
     await scheduler.start()
     assert len(scheduler._tasks) == 2
     assert {task.get_name() for task in scheduler._tasks} == {
-        "dnaby_sign_daily",
-        "dnaby_sign_cleanup",
+        "dna_sign_daily",
+        "dna_sign_cleanup",
     }
     await scheduler.stop()
 
@@ -107,8 +107,8 @@ async def test_scheduler_always_starts_sign_and_cleanup_tasks(tmp_path: Path) ->
     await scheduler.start()
     assert len(scheduler._tasks) == 2
     assert {task.get_name() for task in scheduler._tasks} == {
-        "dnaby_sign_daily",
-        "dnaby_sign_cleanup",
+        "dna_sign_daily",
+        "dna_sign_cleanup",
     }
     await scheduler.stop()
 
