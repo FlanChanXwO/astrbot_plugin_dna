@@ -959,7 +959,7 @@ async def _load_banner(
     # 裁剪高度跟随 mask，保证素材缺失走 placeholder 时尺寸依然一致。
     background = _calendar_background(
         height, static_asset_resolver, static_records
-    ).crop((0, 150, 1200, 150 + banner_mask.height))
+    ).crop((0, 150, banner_mask.width, 150 + banner_mask.height))
     banner = Image.alpha_composite(
         background, Image.merge("RGBA", (*banner_bg.split()[:3], banner_mask))
     )

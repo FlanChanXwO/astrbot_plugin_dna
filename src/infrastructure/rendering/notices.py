@@ -51,7 +51,7 @@ from .assets import (
 )
 from .image_inspector import MediaType, inspect_image
 from .renderer import HtmlRenderer
-from .runtime_assets import placeholder_image
+from .runtime_assets import placeholder_image, resources_incomplete
 from .spec import RenderSpec
 from .static_assets import (
     ResolvedStaticAsset,
@@ -901,6 +901,7 @@ class RenderedNoticesImage:
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
+    incomplete: bool = False
 
 
 class NoticesRenderer:
@@ -1079,6 +1080,7 @@ class NoticesRenderer:
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
+            incomplete=resources_incomplete(resources),
         )
 
     async def render_mh(
