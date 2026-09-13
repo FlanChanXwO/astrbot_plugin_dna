@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -15,8 +14,8 @@ def test_rendered_brand_surfaces_use_display_name() -> None:
 
     assert "狩月终端帮助" in help_template
     assert "<title>狩月终端 登录</title>" in login_template
-    assert '<div class="logo-text">狩月终端</div>' in login_template
-    assert "<h1>登录狩月终端</h1>" in login_template
+    assert '<div class="logo-text sr-only">狩月终端</div>' in login_template
+    assert '<h1 id="loginHeading">登录狩月终端</h1>' in login_template
     assert "狩月终端 | 二重螺旋活动列表一栏 | 皎皎角" in calendar_template
 
     assert "DNA帮助" not in help_template
@@ -26,6 +25,18 @@ def test_rendered_brand_surfaces_use_display_name() -> None:
     assert "DNA | 二重螺旋活动列表一栏 | 皎皎角" not in calendar_template
 
 
+def test_login_template_keeps_static_fallback_and_defers_media_loading():
+    login_template = (ROOT / "src/templates/index.html.j2").read_text(encoding="utf-8")
+
+    assert "login_media.video_url" in login_template
+    assert "audio_url" not in login_template
+    assert "prefers-reduced-motion: reduce" in login_template
+    assert "data-video-src" in login_template
+    assert "data-audio-src" not in login_template
+    assert "herobox-img.yingxiong.com/post/1748784746036602530.jpg" in login_template
+
+
+
 def test_login_surfaces_use_canonical_plugin_logo() -> None:
     login_template = (ROOT / "src/templates/index.html.j2").read_text(encoding="utf-8")
     not_found_template = (ROOT / "src/templates/404.html.j2").read_text(
@@ -33,7 +44,7 @@ def test_login_surfaces_use_canonical_plugin_logo() -> None:
     )
 
     assert 'href="{{ plugin_logo }}"' in login_template
-    assert 'src="{{ plugin_logo }}"' in login_template
+    assert "title_logo" in login_template
     assert 'alt="狩月终端 Logo"' in login_template
     assert 'href="{{ plugin_logo }}"' in not_found_template
 
@@ -60,3 +71,12 @@ def test_plugin_uses_single_root_logo_asset() -> None:
         content = path.read_text(encoding="utf-8")
         assert "ICON.png" not in content
         assert "logo.png" in content
+
+    title_logo_path = ROOT / "src/resources/textures/common/title_logo.png"
+    assert title_logo_path.is_file()
+    assert not (ROOT / "src/resources/textures/common/music_on.png").exists()
+    assert not (ROOT / "src/resources/textures/common/music_off.png").exists()
+    resource_code = (ROOT / "src/utils/resource/RESOURCE_PATH.py").read_text(encoding="utf-8")
+    assert "title_logo" in resource_code
+    assert "music_on_icon" not in resource_code
+    assert "music_off_icon" not in resource_code

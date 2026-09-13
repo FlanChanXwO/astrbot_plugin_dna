@@ -44,40 +44,32 @@ from ...utils.msgs.notify import (
     dna_token_invalid,
     dna_uid_invalid,
 )
-from ...utils.resource.RESOURCE_PATH import CALENDAR_PATH, WEEKLY_ITEM_PATH
+from ...utils.resource.RESOURCE_PATH import (
+    AVATAR_PATH,
+    CALENDAR_PATH,
+    USER_AVATAR_PATH,
+    WEEKLY_ITEM_PATH,
+)
 from ...utils.session import EventContext, Sender
 from ...utils.utils import get_using_id, is_peek_blocked, is_uid_hidden
+from ..data_layout import RuntimeDataLayout
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .assets import pil_image_data_uri
-from .legacy_assets import (
-    CALENDAR_TEXT_PATH,
-    COMMON_PATH,
-    FONT_ORIGIN_PATH,
-    STAMINA_TEXT_PATH,
-    WEEKLY_TEXT_PATH,
-    open_legacy_image,
-)
-from .legacy_assets import (
-    legacy_font_data_uri as font_data_uri,
-)
-from .legacy_assets import (
-    legacy_image_data_uri as image_data_uri,
-)
+from .assets import font_data_uri, image_data_uri, pil_image_data_uri
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
-from .runtime_assets import (
-    AssetResolverLike,
-    placeholder_image,
-    render_runtime_card,
-    resolve_runtime_asset,
-    resource_record,
-    resources_incomplete,
-)
 from .spec import RenderSpec
 
 _RENDERER = HtmlRenderer()
+RESOURCES_DIR = Path(__file__).parents[2] / "resources"
+COMMON_PATH = RESOURCES_DIR / "textures" / "common"
+STAMINA_TEXT_PATH = RESOURCES_DIR / "textures" / "stamina"
+WEEKLY_TEXT_PATH = RESOURCES_DIR / "textures" / "weekly_report"
+CALENDAR_TEXT_PATH = RESOURCES_DIR / "textures" / "calendar"
+TEXT_PATH = CALENDAR_TEXT_PATH
+FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 
 
@@ -135,6 +127,9 @@ async def _draw_stamina_card_view(
     short_note: PlayerShortNote,
     uid_hidden: bool = False,
     bg_path: Path | None = None,
+    downloader: AssetDownloader | None = None,
+    user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """直接从便签/角色头部 DTO 构造模板输入。"""
 
@@ -151,6 +146,9 @@ async def _draw_stamina_card_view(
         stats=other_info,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
+        avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     raw_notes = [
         (
@@ -175,12 +173,7 @@ async def _draw_stamina_card_view(
             "current": current,
             "icon": pil_image_data_uri(
                 tint_image(
-                    open_legacy_image(
-                        STAMINA_TEXT_PATH / f"icon{index}.png",
-                        size=(96, 96),
-                        label=f"stamina-{index}",
-                    ),
-                    (240, 230, 140),
+                    Image.open(STAMINA_TEXT_PATH / f"icon{index}.png"), (240, 230, 140)
                 ),
             ),
             "name": name,
@@ -215,6 +208,7 @@ async def _draw_stamina_card_view(
             "foreground": image_data_uri(STAMINA_TEXT_PATH / "fg.png"),
             "font": font_data_uri(FONT_ORIGIN_PATH),
             "footer_text": "DNA",
+            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
             "header": header,
             "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
             "bar_background": image_data_uri(STAMINA_TEXT_PATH / "bar_bg2.png"),
@@ -235,6 +229,9 @@ async def _draw_stamina_card(
     short_note_info: DNARoleShortNoteRes,
     uid_hidden: bool = False,
     bg_path: Path | None = None,
+    downloader: AssetDownloader | None = None,
+    user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """组装 legacy 便签 payload；typed DTO 走最小 view 分支。"""
 
@@ -242,7 +239,14 @@ async def _draw_stamina_card(
         short_note_info, PlayerShortNote
     ):
         return await _draw_stamina_card_view(
-            ctx, role_show, short_note_info, uid_hidden=uid_hidden, bg_path=bg_path
+            ctx,
+            role_show,
+            short_note_info,
+            uid_hidden=uid_hidden,
+            bg_path=bg_path,
+            downloader=downloader,
+            user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
 
     other_info = [
@@ -258,6 +262,9 @@ async def _draw_stamina_card(
         stats=other_info,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
+        avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
 
     raw_notes = [
@@ -283,12 +290,7 @@ async def _draw_stamina_card(
             "current": current,
             "icon": pil_image_data_uri(
                 tint_image(
-                    open_legacy_image(
-                        STAMINA_TEXT_PATH / f"icon{index}.png",
-                        size=(96, 96),
-                        label=f"stamina-{index}",
-                    ),
-                    (240, 230, 140),
+                    Image.open(STAMINA_TEXT_PATH / f"icon{index}.png"), (240, 230, 140)
                 ),
             ),
             "name": name,
@@ -348,8 +350,17 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
         if short_note is None:
             raise ValueError("缺少 short_note_info 参数")
         uid_hidden = bool(kwargs.get("uid_hidden", False))
+        downloader = kwargs.get("downloader")
+        user_avatar_dir = kwargs.get("user_avatar_dir")
+        game_avatar_dir = kwargs.get("game_avatar_dir")
         return await _draw_stamina_card(
-            ctx, role_show, short_note, uid_hidden=uid_hidden
+            ctx,
+            role_show,
+            short_note,
+            uid_hidden=uid_hidden,
+            downloader=downloader,
+            user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
     elif len(args) >= 2:
         short_note = args[0]
@@ -361,8 +372,17 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
             user_id=kwargs.get("avatar_user_id", "0")
         )
         uid_hidden = bool(kwargs.get("uid_hidden", False))
+        downloader = kwargs.get("downloader")
+        user_avatar_dir = kwargs.get("user_avatar_dir")
+        game_avatar_dir = kwargs.get("game_avatar_dir")
         raw_bytes = await _draw_stamina_card(
-            ctx, role_show, short_note, uid_hidden=uid_hidden
+            ctx,
+            role_show,
+            short_note,
+            uid_hidden=uid_hidden,
+            downloader=downloader,
+            user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
         return Image.open(BytesIO(raw_bytes)).convert("RGBA")
     else:
@@ -419,13 +439,22 @@ def weekly_item_display_name(name: str) -> str:
 
 
 async def _weekly_item_payload(
-    item, item_assets: dict[int, Image.Image | Path] | None = None
+    item,
+    item_assets: dict[int, Image.Image | Path] | None = None,
+    *,
+    downloader: AssetDownloader | None = None,
+    weekly_item_cache_dir: Path | None = None,
 ) -> dict[str, object]:
     item_id = getattr(item, "item_id", getattr(item, "itemId", 0))
     item_name = getattr(item, "item_name", getattr(item, "itemName", ""))
     item_icon = getattr(item, "icon", "") or ""
     item_quality = getattr(item, "quality", 0)
     item_total = getattr(item, "total_num", getattr(item, "totalNum", "0"))
+    weekly_item_cache_dir = (
+        WEEKLY_ITEM_PATH
+        if weekly_item_cache_dir is None
+        else Path(weekly_item_cache_dir)
+    )
     quality_dir = WEEKLY_TEXT_PATH / "quality"
     if item_assets and item_id in item_assets:
         asset = item_assets[item_id]
@@ -437,13 +466,17 @@ async def _weekly_item_payload(
             icon = str(asset)
     else:
         name = f"item_{item_id}.png"
-        path = WEEKLY_ITEM_PATH / name
+        path = weekly_item_cache_dir / name
         if path.exists():
             icon = image_data_uri(path)
         else:
             try:
                 img = await download_pic_from_url(
-                    WEEKLY_ITEM_PATH, item_icon, size=(105, 105), name=name
+                    weekly_item_cache_dir,
+                    item_icon,
+                    size=(105, 105),
+                    name=name,
+                    downloader=downloader,
                 )
                 icon = pil_image_data_uri(img)
             except (OSError, httpx.HTTPError):
@@ -467,6 +500,10 @@ async def _draw_weekly_report_card_view(
     week_type: int = 1,
     uid_hidden: bool = False,
     item_assets: dict[int, Image.Image | Path] | None = None,
+    downloader: AssetDownloader | None = None,
+    weekly_item_cache_dir: Path | None = None,
+    user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """直接从周报领域 DTO 构造模板输入。"""
 
@@ -483,11 +520,22 @@ async def _draw_weekly_report_card_view(
         stats=other_info,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
+        avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     category_items = await asyncio.gather(
         *(
             asyncio.gather(
-                *(_weekly_item_payload(item, item_assets) for item in category.items)
+                *(
+                    _weekly_item_payload(
+                        item,
+                        item_assets,
+                        downloader=downloader,
+                        weekly_item_cache_dir=weekly_item_cache_dir,
+                    )
+                    for item in category.items
+                )
             )
             for category in report.categories
         )
@@ -530,6 +578,10 @@ async def _draw_weekly_report_card(
     week_type: int = 1,
     uid_hidden: bool = False,
     item_assets: dict[int, Image.Image | Path] | None = None,
+    downloader: AssetDownloader | None = None,
+    weekly_item_cache_dir: Path | None = None,
+    user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     if isinstance(role_show, RoleHeader) and isinstance(report, WeeklyReport):
         return await _draw_weekly_report_card_view(
@@ -539,6 +591,10 @@ async def _draw_weekly_report_card(
             week_type=week_type,
             uid_hidden=uid_hidden,
             item_assets=item_assets,
+            downloader=downloader,
+            weekly_item_cache_dir=weekly_item_cache_dir,
+            user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
 
     other_info = [
@@ -554,11 +610,22 @@ async def _draw_weekly_report_card(
         stats=other_info,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
+        avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     category_items = await asyncio.gather(
         *(
             asyncio.gather(
-                *(_weekly_item_payload(item, item_assets) for item in category.items)
+                *(
+                    _weekly_item_payload(
+                        item,
+                        item_assets,
+                        downloader=downloader,
+                        weekly_item_cache_dir=weekly_item_cache_dir,
+                    )
+                    for item in category.items
+                )
             )
             for category in report.categories
         )
@@ -604,6 +671,10 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
         week_type = int(kwargs.get("week_type", 1))
         uid_hidden = bool(kwargs.get("uid_hidden", False))
         item_assets = kwargs.get("item_assets")
+        downloader = kwargs.get("downloader")
+        weekly_item_cache_dir = kwargs.get("weekly_item_cache_dir")
+        user_avatar_dir = kwargs.get("user_avatar_dir")
+        game_avatar_dir = kwargs.get("game_avatar_dir")
         return await _draw_weekly_report_card(
             ctx,
             role_show,
@@ -611,6 +682,10 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
             week_type=week_type,
             uid_hidden=uid_hidden,
             item_assets=item_assets,
+            downloader=downloader,
+            weekly_item_cache_dir=weekly_item_cache_dir,
+            user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
     elif len(args) >= 2:
         report = args[0]
@@ -624,6 +699,10 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
         week_type = int(kwargs.get("week_type", 1))
         uid_hidden = bool(kwargs.get("uid_hidden", False))
         item_assets = kwargs.get("item_assets")
+        downloader = kwargs.get("downloader")
+        weekly_item_cache_dir = kwargs.get("weekly_item_cache_dir")
+        user_avatar_dir = kwargs.get("user_avatar_dir")
+        game_avatar_dir = kwargs.get("game_avatar_dir")
         raw_bytes = await _draw_weekly_report_card(
             ctx,
             role_show,
@@ -631,6 +710,10 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
             week_type=week_type,
             uid_hidden=uid_hidden,
             item_assets=item_assets,
+            downloader=downloader,
+            weekly_item_cache_dir=weekly_item_cache_dir,
+            user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
         return Image.open(BytesIO(raw_bytes)).convert("RGBA")
     else:
@@ -725,34 +808,27 @@ class CalendarContent(BaseModel):
 def _calendar_background(height: int) -> Image.Image:
     """按旧 PIL 的中心裁剪规则生成最终画布背景。"""
 
-    opened = open_legacy_image(
-        CALENDAR_TEXT_PATH / "bg.jpg",
-        size=(1200, max(750, height)),
-        label="calendar-bg",
-    )
-    return crop_center_img(opened, 1200, height)
+    with Image.open(CALENDAR_TEXT_PATH / "bg.jpg") as opened:
+        return crop_center_img(opened.convert("RGBA"), 1200, height)
 
 
 async def _load_banner(height: int) -> str:
-    """按旧 PIL 合成顺序预合成 banner，缺素材时返回可见占位图。"""
+    """按旧 PIL 合成顺序预合成 banner，避免 T2I 对透明 JPEG 的底色差异。"""
 
-    try:
-        with Image.open(CALENDAR_TEXT_PATH / "banner_bg.webp") as opened:
-            banner_bg = opened.convert("RGBA").resize((1200, 675))
-        with Image.open(CALENDAR_TEXT_PATH / "banner_mask.png") as opened:
-            banner_mask = opened.getchannel("A")
-        banner_bg = crop_center_img(banner_bg, banner_mask.width, banner_mask.height)
-        background = _calendar_background(height).crop((0, 150, 1200, 750))
-        banner = Image.alpha_composite(
-            background,
-            Image.merge("RGBA", (*banner_bg.split()[:3], banner_mask)),
-        )
-        with Image.open(CALENDAR_TEXT_PATH / "banner_frame.png") as opened:
-            frame = opened.convert("RGBA")
-        banner.alpha_composite(frame)
-        return pil_image_data_uri(banner)
-    except (OSError, ValueError):
-        return pil_image_data_uri(placeholder_image((1200, 600), "calendar-banner"))
+    banner_bg = (
+        Image.open(CALENDAR_TEXT_PATH / "banner_bg.webp")
+        .convert("RGBA")
+        .resize((1200, 675))
+    )
+    banner_mask = Image.open(CALENDAR_TEXT_PATH / "banner_mask.png").getchannel("A")
+    banner_bg = crop_center_img(banner_bg, banner_mask.width, banner_mask.height)
+    background = _calendar_background(height).crop((0, 150, 1200, 750))
+    banner = Image.alpha_composite(
+        background, Image.merge("RGBA", (*banner_bg.split()[:3], banner_mask))
+    )
+    frame = Image.open(CALENDAR_TEXT_PATH / "banner_frame.png").convert("RGBA")
+    banner.alpha_composite(frame)
+    return pil_image_data_uri(banner)
 
 
 def _event_dates(cont: CalendarContent) -> list[str]:
@@ -853,11 +929,24 @@ def _event_payload(cont: CalendarContent, now: datetime) -> dict[str, object]:
     return payload
 
 
-async def _event_image(cont: CalendarContent) -> str | None:
+async def _event_image(
+    cont: CalendarContent,
+    *,
+    downloader: AssetDownloader | None = None,
+    calendar_cache_dir: Path | None = None,
+) -> str | None:
     if not cont.pic:
         return None
     if "http" in cont.pic:
-        image = await download_pic_from_url(CALENDAR_PATH, cont.pic, size=(100, 100))
+        calendar_cache_dir = (
+            CALENDAR_PATH if calendar_cache_dir is None else Path(calendar_cache_dir)
+        )
+        image = await download_pic_from_url(
+            calendar_cache_dir,
+            cont.pic,
+            size=(100, 100),
+            downloader=downloader,
+        )
         return pil_image_data_uri(image)
     pic_path = CALENDAR_TEXT_PATH / cont.pic
     return image_data_uri(pic_path) if pic_path.exists() else None
@@ -867,6 +956,9 @@ async def _draw_calendar_card_bytes(
     content: list[CalendarContent],
     calendar_assets: Mapping[str, Image.Image | Path] | None = None,
     now: datetime | None = None,
+    *,
+    downloader: AssetDownloader | None = None,
+    calendar_cache_dir: Path | None = None,
 ) -> bytes:
     if now is None:
         now = datetime.now(SHANGHAI_TZ)
@@ -882,7 +974,11 @@ async def _draw_calendar_card_bytes(
             else:
                 event["icon"] = str(asset)
         else:
-            event["icon"] = await _event_image(item)
+            event["icon"] = await _event_image(
+                item,
+                downloader=downloader,
+                calendar_cache_dir=calendar_cache_dir,
+            )
         events.append(event)
 
     height = 880 + 170 * ((len(events) + 1) // 2)
@@ -914,10 +1010,19 @@ async def draw_calendar_card(
     content: list[CalendarContent],
     calendar_assets: Mapping[str, Image.Image | Path] | None = None,
     now: datetime | None = None,
+    *,
+    downloader: AssetDownloader | None = None,
+    calendar_cache_dir: Path | None = None,
 ) -> Image.Image:
     """兼容旧调用者返回 Pillow 图像；运行期 renderer 使用 raw bytes 边界。"""
 
-    raw_bytes = await _draw_calendar_card_bytes(content, calendar_assets, now)
+    raw_bytes = await _draw_calendar_card_bytes(
+        content,
+        calendar_assets,
+        now,
+        downloader=downloader,
+        calendar_cache_dir=calendar_cache_dir,
+    )
     return Image.open(BytesIO(raw_bytes)).convert("RGBA")
 
 
@@ -1054,7 +1159,6 @@ class RenderedEncyclopediaImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
-    incomplete: bool = False
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
@@ -1083,30 +1187,41 @@ class EncyclopediaRenderer:
         output_dir: str | Path,
         resources: EncyclopediaResourceStore,
         *,
-        resolver_factory: Any | None = None,
+        downloader: AssetDownloader | None = None,
+        runtime_data_layout: RuntimeDataLayout | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
-        self.resolver_factory = resolver_factory
-        self.asset_resolver: AssetResolverLike | None = None
+        self.downloader = downloader
+        self.user_avatar_dir = (
+            USER_AVATAR_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_user_avatar_dir
+        )
+        self.game_avatar_dir = (
+            AVATAR_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_game_avatar_dir
+        )
+        self.weekly_item_cache_dir = (
+            WEEKLY_ITEM_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_weekly_item_dir
+        )
+        self.calendar_cache_dir = (
+            CALENDAR_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_calendar_dir
+        )
 
     def _font_resource(self) -> dict[str, str]:
-        if self.asset_resolver is not None:
-            return resource_record(
-                "font",
-                "font.primary_ttf",
-                resolve_runtime_asset(self.asset_resolver, "font.primary_ttf"),
-                source="fonts/dna_fonts.ttf",
-            )
-        status = self.resources.font_status
         return {
             "kind": "font",
             "key": "dna_fonts",
-            "status": status,
+            "status": self.resources.font_status,
             "source": "fonts/dna_fonts.ttf"
             if self.resources.font_path is not None
             else "",
-            "incomplete": "false" if status == "provided" else "true",
         }
 
     def _write(
@@ -1155,7 +1270,6 @@ class EncyclopediaRenderer:
             text_lines=tuple(lines),
             resources=tuple(resources),
             sections=tuple(sections),
-            incomplete=resources_incomplete(resources),
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
@@ -1274,16 +1388,16 @@ class EncyclopediaRenderer:
             if actor is None or actor.unified_msg_origin is None
             else actor.unified_msg_origin,
         )
-        font_asset = resolve_runtime_asset(
-            self.asset_resolver,
-            "font.primary_ttf",
-            legacy_path=None if self.asset_resolver is not None else FONT_ORIGIN_PATH,
+        image_bytes = await _draw_stamina_card(
+            ctx,
+            role_show,
+            short_note,
+            uid_hidden=uid_hidden,
+            downloader=self.downloader,
+            user_avatar_dir=self.user_avatar_dir,
+            game_avatar_dir=self.game_avatar_dir,
         )
-        stamina_asset = resolve_runtime_asset(
-            self.asset_resolver,
-            "texture:stamina:bg",
-            legacy_path=None,
-        )
+
         rougelike_count = getattr(
             snapshot,
             "rouge_like_reward_count",
@@ -1324,40 +1438,15 @@ class EncyclopediaRenderer:
                 if item.name
             )
 
-        if self.asset_resolver is not None:
-            image_bytes = render_runtime_card(
-                "体力便签",
-                lines,
-                font_asset=font_asset,
-                image_assets=(("stamina", stamina_asset),),
-            )
-            resources = [
-                resource_record(
-                    "font",
-                    "font.primary_ttf",
-                    font_asset,
-                    source="fonts/dna_fonts.ttf",
-                ),
-                resource_record(
-                    "texture",
-                    "texture:stamina:bg",
-                    stamina_asset,
-                    source="textures/stamina/bg",
-                ),
-            ]
-        else:
-            image_bytes = await _draw_stamina_card(
-                ctx, role_show, short_note, uid_hidden=uid_hidden
-            )
-            resources = [
-                self._font_resource(),
-                {
-                    "kind": "texture_dir",
-                    "key": "stamina_textures",
-                    "status": "legacy",
-                    "source": "resources/textures/stamina",
-                },
-            ]
+        resources = [
+            self._font_resource(),
+            {
+                "kind": "texture_dir",
+                "key": "stamina_textures",
+                "status": "legacy",
+                "source": "resources/textures/stamina",
+            },
+        ]
         sections = [
             {"name": "日常便签", "items": 4},
             {
@@ -1459,15 +1548,17 @@ class EncyclopediaRenderer:
             if actor is None or actor.unified_msg_origin is None
             else actor.unified_msg_origin,
         )
-        image_bytes: bytes | None = None
-        if self.asset_resolver is None:
-            image_bytes = await _draw_weekly_report_card(
-                ctx,
-                role_show,
-                report,
-                week_type=report_week_type,
-                uid_hidden=uid_hidden,
-            )
+        image_bytes = await _draw_weekly_report_card(
+            ctx,
+            role_show,
+            report,
+            week_type=report_week_type,
+            uid_hidden=uid_hidden,
+            downloader=self.downloader,
+            weekly_item_cache_dir=self.weekly_item_cache_dir,
+            user_avatar_dir=self.user_avatar_dir,
+            game_avatar_dir=self.game_avatar_dir,
+        )
 
         lines = [
             role.role_name,
@@ -1506,63 +1597,22 @@ class EncyclopediaRenderer:
             {"name": category.category_name, "items": len(category.items)}
             for category in categories
         ]
-        if self.asset_resolver is not None:
-            font_asset = resolve_runtime_asset(
-                self.asset_resolver,
-                "font.primary_ttf",
-            )
-            weekly_assets = [
-                (
-                    f"weekly-{item.item_id}",
-                    resolve_runtime_asset(
-                        self.asset_resolver,
-                        f"weekly:item:{item.item_id}",
-                    ),
+        resources = [self._font_resource()]
+        for category in categories:
+            for item in category.items:
+                status = (
+                    "provided"
+                    if self.resources.weekly_asset(item.item_id) is not None
+                    else "placeholder"
                 )
-                for category in categories
-                for item in category.items
-            ]
-            image_bytes = render_runtime_card(
-                "每周报告",
-                lines,
-                font_asset=font_asset,
-                image_assets=weekly_assets,
-            )
-            resources = [
-                resource_record(
-                    "font",
-                    "font.primary_ttf",
-                    font_asset,
-                    source="fonts/dna_fonts.ttf",
-                ),
-                *(
-                    resource_record(
-                        "weekly_item",
-                        key,
-                        asset,
-                        source=f"resources/weekly_item/item_{key.removeprefix('weekly-')}.png",
-                    )
-                    for key, asset in weekly_assets
-                ),
-            ]
-        else:
-            assert image_bytes is not None
-            resources = [self._font_resource()]
-            for category in categories:
-                for item in category.items:
-                    status = (
-                        "provided"
-                        if self.resources.weekly_asset(item.item_id) is not None
-                        else "placeholder"
-                    )
-                    resources.append(
-                        {
-                            "kind": "weekly_item",
-                            "key": str(item.item_id),
-                            "status": status,
-                            "source": f"resources/weekly_item/item_{item.item_id}.png",
-                        }
-                    )
+                resources.append(
+                    {
+                        "kind": "weekly_item",
+                        "key": str(item.item_id),
+                        "status": status,
+                        "source": f"resources/weekly_item/item_{item.item_id}.png",
+                    }
+                )
         return self._write(
             image_bytes, lines=lines, resources=resources, sections=sections
         )
@@ -1583,72 +1633,33 @@ class EncyclopediaRenderer:
             )
             for event in snapshot.events
         ]
-        image_bytes: bytes | None = None
-        if self.asset_resolver is None:
-            image_bytes = await _draw_calendar_card_bytes(
-                contents, calendar_assets=self.resources.calendar_assets
-            )
+        image_bytes = await _draw_calendar_card_bytes(
+            contents,
+            calendar_assets=self.resources.calendar_assets,
+            downloader=self.downloader,
+            calendar_cache_dir=self.calendar_cache_dir,
+        )
         lines = ["二重螺旋 · 活动日历"]
         for event in snapshot.events:
             lines.append(
                 f"{event.title}: {_value(event.start_at) if event.start_at else ''} ~ {_value(event.end_at) if event.end_at else ''}"
             )
             lines.append(event.title)
+        resources = [self._font_resource()]
+        for event in snapshot.events:
+            asset = self.resources.calendar_asset(
+                event.pic
+            ) or self.resources.calendar_asset(event.title)
+            status = "provided" if asset is not None else "placeholder"
+            resources.append(
+                {
+                    "kind": "calendar",
+                    "key": event.title,
+                    "status": status,
+                    "source": f"resources/calendar/{event.pic}",
+                }
+            )
         sections = [{"name": "活动日历", "items": len(snapshot.events)}]
-        if self.asset_resolver is not None:
-            font_asset = resolve_runtime_asset(
-                self.asset_resolver,
-                "font.primary_ttf",
-            )
-            calendar_assets = [
-                (
-                    f"calendar:{event.pic or event.title}",
-                    resolve_runtime_asset(
-                        self.asset_resolver,
-                        f"calendar:{event.pic or event.title}",
-                    ),
-                )
-                for event in snapshot.events
-            ]
-            image_bytes = render_runtime_card(
-                "活动日历",
-                lines,
-                font_asset=font_asset,
-                image_assets=calendar_assets,
-            )
-            resources = [
-                resource_record(
-                    "font",
-                    "font.primary_ttf",
-                    font_asset,
-                    source="fonts/dna_fonts.ttf",
-                ),
-                *(
-                    resource_record(
-                        "calendar",
-                        key,
-                        asset,
-                        source=f"resources/calendar/{key.removeprefix('calendar:')}",
-                    )
-                    for key, asset in calendar_assets
-                ),
-            ]
-        else:
-            assert image_bytes is not None
-            resources = [self._font_resource()]
-            for event in snapshot.events:
-                asset = self.resources.calendar_asset(
-                    event.pic
-                ) or self.resources.calendar_asset(event.title)
-                status = "provided" if asset is not None else "placeholder"
-                resources.append(
-                    {
-                        "kind": "calendar",
-                        "key": event.title,
-                        "status": status,
-                        "source": f"resources/calendar/{event.pic}",
-                    }
-                )
         return self._write(
             image_bytes, lines=lines, resources=resources, sections=sections
         )

@@ -13,7 +13,9 @@ from PIL import Image
 
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from src.infrastructure import RuntimeDataLayout
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
+from src.infrastructure.rendering import encyclopedia as encyclopedia_module
 from src.infrastructure.rendering.artifact_store import read_rendered_artifact
 from src.infrastructure.rendering.encyclopedia import EncyclopediaRenderer
 from src.infrastructure.resources.encyclopedia import (
@@ -37,6 +39,7 @@ from src.modules.encyclopedia.contracts import (
 from src.modules.encyclopedia.service import EncyclopediaService
 from src.modules.player.contracts import RoleAchievement, RoleOverview
 from src.modules.privacy import PrivacyService
+from src.utils import image_utils
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 UID = "1234567890123"
@@ -265,6 +268,73 @@ def _resources(tmp_path: Path) -> EncyclopediaResourceStore:
     )
 
 
+@pytest.mark.asyncio
+async def test_encyclopedia_renderers_keep_runtime_image_fetchers_isolated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """关闭 runtime B 后，runtime A 的日历图片仍使用自己的 downloader。"""
+
+    class RuntimeDownloader:
+        def __init__(self, color: str) -> None:
+            self.color = color
+            self.closed = False
+            self.calls: list[str] = []
+
+        async def fetch(self, url: str, target: Path, *, tag: str = "") -> Path:
+            del tag
+            if self.closed:
+                raise RuntimeError(f"{self.color} downloader 已关闭")
+            self.calls.append(url)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            Image.new("RGBA", (24, 24), self.color).save(target)
+            return target
+
+    async def fail_global_download(*_args: object, **_kwargs: object) -> Path:
+        return pytest.fail("正常 Encyclopedia runtime 不应调用 global downloader")
+
+    async def fake_render(*_args: object, **_kwargs: object) -> bytes:
+        output = BytesIO()
+        Image.new("RGB", (24, 24), "white").save(output, format="JPEG")
+        return output.getvalue()
+
+    monkeypatch.setattr(encyclopedia_module._RENDERER, "render", fake_render)
+    monkeypatch.setattr(
+        image_utils.get_default_image_fetcher(),
+        "fetch",
+        fail_global_download,
+    )
+    snapshot = CalendarSnapshot(
+        events=(
+            CalendarEvent(
+                title="网络活动",
+                pic="https://cdn.example.test/calendar.png",
+            ),
+        ),
+    )
+    downloader_a = RuntimeDownloader("red")
+    downloader_b = RuntimeDownloader("blue")
+    renderer_a = EncyclopediaRenderer(
+        tmp_path / "rendered-a",
+        EncyclopediaResourceStore(),
+        downloader=downloader_a,
+        runtime_data_layout=RuntimeDataLayout(tmp_path / "runtime-a"),
+    )
+    renderer_b = EncyclopediaRenderer(
+        tmp_path / "rendered-b",
+        EncyclopediaResourceStore(),
+        downloader=downloader_b,
+        runtime_data_layout=RuntimeDataLayout(tmp_path / "runtime-b"),
+    )
+
+    await renderer_b.render_calendar(snapshot)
+    downloader_b.closed = True
+    await renderer_a.render_calendar(snapshot)
+
+    assert downloader_b.calls == ["https://cdn.example.test/calendar.png"]
+    assert downloader_a.calls == ["https://cdn.example.test/calendar.png"]
+
+
 def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(
     tmp_path: Path,
 ) -> None:
@@ -303,7 +373,7 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
 ) -> None:
     """周报和日历必须在图片 metadata 中显式区分提供素材与 placeholder。"""
 
-    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import USER_AVATAR_PATH, WEEKLY_ITEM_PATH
 
     root = tmp_path / "resources"
     weekly = root / "weekly_item" / "item_100.png"
@@ -311,7 +381,7 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
     for path, color in ((weekly, "yellow"), (calendar, "orange")):
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (31, 37), color).save(path)
-    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar = USER_AVATAR_PATH / "avatar_user-1.png"
     avatar.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (64, 64), "red").save(avatar)
     for item_id in range(101, 107):
@@ -365,9 +435,9 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
 async def test_stamina_renderer_uses_legacy_dna_canvas(tmp_path: Path) -> None:
     """便签必须复用原 DNA 的 2000x1100 卡片，而不是 rewrite 调试列表。"""
 
-    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH
+    from src.utils.resource.RESOURCE_PATH import USER_AVATAR_PATH
 
-    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar = USER_AVATAR_PATH / "avatar_user-1.png"
     avatar.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (64, 64), "red").save(avatar)
     renderer = EncyclopediaRenderer(
@@ -386,6 +456,98 @@ async def test_stamina_renderer_uses_legacy_dna_canvas(tmp_path: Path) -> None:
     with Image.open(rendered.path) as image:
         assert image.size == (2000, 1100)
         assert image.getpixel((1900, 500)) != (25, 31, 48)
+
+
+def test_stamina_card_template_layout() -> None:
+    """日常便签卡片模板必须具备正确的进度条全宽结构和正向锻造列表。"""
+
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+    src_templates = Path(__file__).parents[1] / "src" / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(src_templates)),
+        autoescape=select_autoescape(
+            enabled_extensions=("html", "j2", "jinja", "jinja2"),
+            default_for_string=True,
+        ),
+    )
+    tmpl = env.get_template("cards/stamina.html.j2")
+    rendered = tmpl.render(
+        width=2000,
+        height=1100,
+        background="",
+        font="",
+        foreground="",
+        divider="",
+        header={"name": "测试玩家", "stats": []},
+        header_background="",
+        bar_background="",
+        success="",
+        running="",
+        draft_background="",
+        notes=[
+            {
+                "icon": "",
+                "name": "备忘手记",
+                "current": 320,
+                "total": 200,
+                "ratio": 1.0,
+            }
+        ],
+        drafts=[
+            {"done": True, "name": "排斥结晶", "state": "已完成"},
+            {"done": True, "name": "金砂", "state": "已完成"},
+        ],
+    )
+    # 进度条应有独立的名称与计数头部，轨道应横跨底部全宽
+    assert "stamina-card__note-header" in rendered
+    assert "stamina-card__name" in rendered
+    assert "stamina-card__count" in rendered
+    # 锻造列表不应使用倒序绝对定位 (980 - loop.index * 100)
+    assert 'style="top:880px"' not in rendered
+    assert 'style="top:780px"' not in rendered
+    # 底部版权应仿照卡片命令使用 footer_image 图片标签，而非纯文本 p 标签
+    assert '<img class="stamina-card__footer"' in rendered
+    assert '<p class="stamina-card__footer"' not in rendered
+    # 右侧锻造清单应有专属容器与标题
+    assert "stamina-card__drafts-container" in rendered
+    assert "锻造清单" in rendered
+
+
+@pytest.mark.asyncio
+async def test_stamina_card_view_payload_includes_footer_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """日常便签卡片视图上下文必须携带通用 footer_image 素材。"""
+    from src.infrastructure.rendering import encyclopedia as encyclopedia_module
+    from src.utils.session import EventContext
+
+    captured_context: dict[str, object] = {}
+
+    async def fake_render(
+        template_name: str, context: dict[str, object], spec: object
+    ) -> bytes:
+        captured_context.update(context)
+        return b"fake-card"
+
+    monkeypatch.setattr(encyclopedia_module._RENDERER, "render", fake_render)
+
+    from src.modules.player.contracts import RoleHeader
+
+    ctx = EventContext(
+        bot_id="bot-1",
+        user_id="user-1",
+        group_id="group-1",
+    )
+    role = RoleHeader(role_id="role-1", role_name="资料玩家", level=55, params=[])
+    await encyclopedia_module._draw_stamina_card_view(
+        ctx=ctx,
+        role=role,
+        short_note=_short_note(),
+    )
+
+    assert "footer_image" in captured_context
+    assert str(captured_context["footer_image"]).startswith("data:image/png;base64,")
 
 
 @pytest.mark.asyncio
@@ -462,9 +624,9 @@ async def test_typed_weekly_renderer_skips_legacy_model_revalidation(
 async def test_weekly_renderer_uses_all_legacy_material_rows(tmp_path: Path) -> None:
     """周报按原素材卡模式动态增高，七个资源和空分类都必须保留。"""
 
-    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import USER_AVATAR_PATH, WEEKLY_ITEM_PATH
 
-    avatar = AVATAR_PATH / "avatar_user-1.png"
+    avatar = USER_AVATAR_PATH / "avatar_user-1.png"
     avatar.parent.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (64, 64), "red").save(avatar)
     for item_id in range(100, 107):
@@ -581,6 +743,7 @@ async def test_calendar_is_global_and_ignores_mention_privacy(tmp_path: Path) ->
         PrivacyService(database, allow_mention_query=False),
         EncyclopediaRenderer(tmp_path / "rendered", resources),
         resources,
+        rendered_root=tmp_path / "rendered",
     )
     response = await service.calendar(
         EncyclopediaRequest(
@@ -606,6 +769,7 @@ def _service(
         EncyclopediaRenderer(tmp_path / "rendered", resources),
         resources,
         guide_providers=("all",),
+        rendered_root=tmp_path / "rendered",
     )
 
 
@@ -663,7 +827,7 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
 ) -> None:
     """@查询必须沿用 resolved target，而不是命令发起者的头像或账号。"""
 
-    from src.utils.resource.RESOURCE_PATH import AVATAR_PATH, WEEKLY_ITEM_PATH
+    from src.utils.resource.RESOURCE_PATH import USER_AVATAR_PATH, WEEKLY_ITEM_PATH
 
     database = await _database_with_binding(
         tmp_path,
@@ -671,7 +835,7 @@ async def test_mentioned_target_drives_credentials_uid_avatar_and_calendar_conte
         uid=TARGET_UID,
     )
     for user_id, color in (("user-1", "red"), ("target-user", "blue")):
-        avatar = AVATAR_PATH / f"avatar_{user_id}.png"
+        avatar = USER_AVATAR_PATH / f"avatar_{user_id}.png"
         avatar.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (64, 64), color).save(avatar)
     for item_id in range(100, 107):

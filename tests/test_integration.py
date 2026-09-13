@@ -21,6 +21,7 @@ from src.entry.commands import (
 )
 from src.entry.event import EventActor
 from src.entry.response import PlainTextResponse, ResponseFactory
+from src.infrastructure import RuntimeDataLayout
 from src.infrastructure.config.settings import LoginSettings
 from src.infrastructure.persistence import AsyncDatabase, CredentialRecord
 from src.modules.account import login_flow as login_flow_module
@@ -70,12 +71,15 @@ class _Event:
 async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) -> None:
     """默认 local runtime 的 dna登录 必须立即返回可打开的登录链接。"""
 
-    database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
+    runtime_data_layout = RuntimeDataLayout(tmp_path)
+    runtime_data_layout.db_dir.mkdir(parents=True)
+    database = AsyncDatabase(runtime_data_layout.database_path)
     await database.create_schema_for_tests()
     runtime = build_runtime(
         _Context(),
         {"login": {"transport": "local", "port": 0}},
         database=database,
+        runtime_data_layout=runtime_data_layout,
     )
     assert runtime.services["resource_root"] is None
     assert runtime.services["player_resources"].root is None
@@ -92,7 +96,9 @@ async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) ->
         result = [item async for item in plugin.handle_account_login(_Event("dna登录"))]
 
         assert len(result) == 1
-        assert result[0].startswith("登录地址：http://localhost:")
+        assert result[0].startswith(
+            "[二重螺旋] 您的id为【user-1】\n请复制地址到浏览器打开\n http://localhost:"
+        )
         assert "/astrbot_plugin_dna/dna/i/" in result[0]
     finally:
         await runtime.terminate()
@@ -149,7 +155,7 @@ async def test_local_login_flow_serves_app_routes_and_cleans_completed_session()
     await flow.start()
     try:
         login_response = await flow.begin(actor)
-        login_url = login_response.text.removeprefix("登录地址：")
+        login_url = login_response.text.splitlines()[2].strip()
         auth = next(iter(flow._sessions.values())).auth
 
         async with aiohttp.ClientSession() as client:
@@ -159,7 +165,7 @@ async def test_local_login_flow_serves_app_routes_and_cleans_completed_session()
             assert "Web 登录" not in page
             assert "login-mode-switch" not in page
             assert "App 登录" not in page
-            assert "<h1>登录 DNA</h1>" in page
+            assert "登录狩月终端" in page
 
             async with client.post(
                 f"{flow.local_server.base_url}/dna/getSmsCode",
@@ -630,7 +636,10 @@ async def test_external_login_flow_notifies_and_cleans_completed_session() -> No
     await flow.start()
     try:
         response = await flow.begin(actor)
-        assert response.text.startswith("登录地址：https://login.example.test/dna/i/")
+        assert (
+            "\n请复制地址到浏览器打开\n https://login.example.test/dna/i/"
+            in response.text
+        )
         assert flow.active_session_count == 1
         await asyncio.sleep(0)
         await asyncio.sleep(0)
@@ -846,7 +855,7 @@ async def test_external_login_cancelled_result_notifies_cancelled_and_cleans_ses
     await flow.start()
     try:
         response = await flow.begin(actor)
-        assert response.text.startswith("登录地址：")
+        assert "\n请复制地址到浏览器打开\n " in response.text
         await asyncio.sleep(0)
         await asyncio.sleep(0)
         assert notified == ["登录已取消"]

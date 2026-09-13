@@ -16,7 +16,7 @@ from copy import copy
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from PIL import Image
@@ -182,7 +182,7 @@ _FONT_SIGNATURES = {
     ".woff": frozenset({b"wOFF"}),
     ".woff2": frozenset({b"wOF2"}),
 }
-_ASSET_ROOTS = ("images", "panel", "wiki", "guide", "weekly_item", "calendar", "textures")
+_ASSET_ROOTS = ("images", "panel", "wiki", "guide", "weekly_item", "calendar")
 _ALIAS_FILES = ("char_alias.json", "weapon_alias.json")
 _REDEEM_KEYS = frozenset(
     {"code", "reward", "valid_from", "expires_at", "platforms", "servers"}
@@ -349,7 +349,7 @@ def _validate_image_decodability(path: Path) -> None:
             image.verify()
         with Image.open(path) as image:
             image.load()
-    except (OSError, SyntaxError, ValueError) as exc:
+    except (OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
         raise ResourceGenerationError(f"资源候选图片不可解码: {path.name}") from exc
 
 
@@ -531,7 +531,6 @@ def _extract_archive(archive_path: Path, destination: Path) -> None:
 
 
 SnapshotListener = Callable[[ResourceSnapshot], None]
-_ResolverBinding = TypeVar("_ResolverBinding")
 
 
 class ResourceSnapshotCoordinator:
@@ -1085,35 +1084,48 @@ class ResourceSnapshotCoordinator:
             yield resources
 
     @contextmanager
-    def bind_resolver(
+    def bind_renderer(
         self,
-        factory: Callable[[ResourceSnapshot | None], _ResolverBinding],
-    ) -> Iterator[_ResolverBinding]:
-        """在当前 generation lease 内创建请求级资源解析器。"""
+        renderer: Any,
+        resource_attr: str,
+        *,
+        asset_resolver_attr: str | None = None,
+    ) -> Iterator[Any]:
+        """在同一 generation lease 内绑定资源视图和可选图片 resolver。"""
+
+        from .resolver import AssetResolver
 
         with self.optional_lease() as snapshot:
-            yield factory(snapshot)
-
-    @contextmanager
-    def bind_renderer(self, renderer: Any, resource_attr: str) -> Iterator[Any]:
-        """复制 renderer 并绑定持有 generation lease 的资源与 resolver。"""
-
-        with self.optional_lease() as snapshot:
-            resolver_factory = getattr(renderer, "resolver_factory", None)
-            if snapshot is None and not callable(resolver_factory):
-                yield renderer
-                return
-
-            bound = copy(renderer)
-            if snapshot is not None:
+            if snapshot is None:
+                resources = self._empty_resource_view(resource_attr)
+            else:
                 try:
-                    bound.resources = getattr(snapshot, resource_attr)
+                    resources = getattr(snapshot, resource_attr)
                 except AttributeError as exc:
                     raise ResourceGenerationError(
                         f"资源 generation 视图字段无效: {resource_attr}"
                     ) from exc
-            if callable(resolver_factory):
-                bound.asset_resolver = resolver_factory(snapshot)
+
+            bound = copy(renderer)
+            bound.resources = resources
+            if asset_resolver_attr is not None:
+                base_resolver = getattr(renderer, asset_resolver_attr, None)
+                if base_resolver is not None:
+                    dynamic_root = getattr(base_resolver, "dynamic_root", None)
+                    if dynamic_root is None:
+                        raise ResourceGenerationError(
+                            "renderer 的 asset resolver 缺少 dynamic_root: "
+                            f"{asset_resolver_attr}"
+                        )
+                    setattr(
+                        bound,
+                        asset_resolver_attr,
+                        AssetResolver.from_snapshot(
+                            snapshot,
+                            dynamic_root=dynamic_root,
+                            downloader=getattr(base_resolver, "downloader", None),
+                        ),
+                    )
             yield bound
 
     def _release(self, commit_sha: str) -> None:
@@ -1181,11 +1193,9 @@ class ResourceSnapshotCoordinator:
                 self._retired.add(previous.commit_sha)
             listeners = tuple(self._listeners)
         self._clear_validation_failure()
-        try:
-            for listener in listeners:
-                listener(snapshot)
-        finally:
-            self._collect_retired()
+        for listener in listeners:
+            listener(snapshot)
+        self._collect_retired()
 
     def _materialize(
         self,

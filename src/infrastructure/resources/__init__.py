@@ -45,6 +45,13 @@ from .manifest import (
     ResourceManifest,
     ResourceManifestError,
 )
+from .resolver import (
+    AssetDownloader,
+    AssetKind,
+    AssetResolutionError,
+    AssetResolver,
+    ResolvedAsset,
+)
 from .paths import (
     PLUGIN_NAME,
     RESOURCE_GENERATION_STATE_NAME,
@@ -72,6 +79,10 @@ __all__ = [
     "RESOURCE_REPOSITORY_NAME",
     "RESOURCE_VALIDATION_STATE_NAME",
     "RUNTIME_RESOURCE_DIRECTORIES",
+    "AssetDownloader",
+    "AssetKind",
+    "AssetResolutionError",
+    "AssetResolver",
     "AliasCatalog",
     "EncyclopediaResourceError",
     "EncyclopediaResourceStore",

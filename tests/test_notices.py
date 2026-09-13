@@ -282,7 +282,9 @@ async def test_mh_is_public_and_uses_any_available_credential_when_unbound(
 
 
 @pytest.mark.asyncio
-async def test_mh_public_credential_failure_has_public_error_message(tmp_path: Path) -> None:
+async def test_mh_public_credential_failure_has_public_error_message(
+    tmp_path: Path,
+) -> None:
     """公共密函没有可用凭据时不应误报为调用者未登录。"""
 
     database = AsyncDatabase(tmp_path / "notices.sqlite3")
@@ -376,10 +378,10 @@ async def test_ann_detail_image_failure_returns_fixed_text(
 
     from src.infrastructure.rendering import notices as notices_rendering
 
-    async def fail_image(*_: object) -> Image.Image:
+    async def fail_image(*_: object, **__: object) -> Image.Image:
         raise OSError("image unavailable")
 
-    async def no_qr(*_: object) -> None:
+    async def no_qr(*_: object, **__: object) -> None:
         return None
 
     monkeypatch.setattr(notices_rendering, "_load_detail_image", fail_image)

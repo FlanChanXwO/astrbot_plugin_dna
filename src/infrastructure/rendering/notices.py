@@ -38,45 +38,33 @@ from ...utils.api.model import DNARoleForToolInstanceInfo
 from ...utils.image_utils import download
 from ...utils.resource.RESOURCE_PATH import ANN_CARD_PATH
 from ..http.concurrency import RequestConcurrencyGate
+from ..data_layout import RuntimeDataLayout
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .assets import pil_image_data_uri
+from .assets import (
+    font_data_uri,
+    image_data_uri,
+    optimized_image_data_uri,
+    pil_image_data_uri,
+    unicode_font_data_uris,
+)
 from .image_inspector import MediaType, inspect_image
-from .legacy_assets import (
-    COMMON_PATH,
-    FONT_ORIGIN_PATH,
-    MH_TEXT_PATH,
-    OFFICIAL_AVATAR_PATH,
-    UNICODE_ORIGIN_PATH,
-)
-from .legacy_assets import (
-    legacy_font_data_uri as font_data_uri,
-)
-from .legacy_assets import (
-    legacy_image_data_uri as image_data_uri,
-)
-from .legacy_assets import (
-    legacy_optimized_image_data_uri as optimized_image_data_uri,
-)
-from .legacy_assets import (
-    legacy_unicode_font_data_uris as unicode_font_data_uris,
-)
 from .renderer import HtmlRenderer
-from .runtime_assets import (
-    AssetResolverLike,
-    render_runtime_card,
-    resolve_runtime_asset,
-    resource_record,
-    resources_incomplete,
-)
 from .spec import RenderSpec
 
 if TYPE_CHECKING:
     from ...infrastructure.cache import CacheManager
 
 _RENDERER = HtmlRenderer()
-_OFFICIAL_AVATAR = OFFICIAL_AVATAR_PATH
+RESOURCES_DIR = Path(__file__).parents[2] / "resources"
+MH_TEXT_PATH = RESOURCES_DIR / "textures" / "mh"
+ANN_TEXT_PATH = RESOURCES_DIR / "textures" / "ann"
+COMMON_PATH = RESOURCES_DIR / "textures" / "common"
+FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
+UNICODE_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "arial-unicode-ms-bold.ttf"
+_OFFICIAL_AVATAR = ANN_TEXT_PATH / "dna_official_avatar.jpeg"
 
 QR_CACHE_PATH = ANN_CARD_PATH / "qr"
 PREVIEW_CACHE_PATH = ANN_CARD_PATH / "preview"
@@ -138,13 +126,20 @@ async def _fetch_image(
     name: str | None = None,
     request_gate: RequestConcurrencyGate | None = None,
     request_key: object | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> Image.Image:
     path.mkdir(parents=True, exist_ok=True)
     file_name = name or pic_url.split("/")[-1]
     target = path / file_name
 
     async def fetch() -> None:
-        await download(pic_url, path, file_name, tag="[DNA]")
+        await download(
+            pic_url,
+            path,
+            file_name,
+            tag="[DNA]",
+            downloader=downloader,
+        )
 
     if request_gate is None:
         await fetch()
@@ -159,6 +154,7 @@ async def _fetch_image_bytes(
     pic_url: str,
     *,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     """下载并校验一张临时源图，成功后由调用方决定是否进入统一缓存。"""
 
@@ -166,7 +162,13 @@ async def _fetch_image_bytes(
         with tempfile.TemporaryDirectory(prefix="dnaby-ann-source-") as directory:
             target_dir = Path(directory)
             file_name = _cache_name("source", pic_url, ext="image")
-            target = await download(pic_url, target_dir, file_name, tag="[DNA]")
+            target = await download(
+                pic_url,
+                target_dir,
+                file_name,
+                tag="[DNA]",
+                downloader=downloader,
+            )
             return target.read_bytes()
 
     if request_gate is None:
@@ -186,11 +188,16 @@ async def _source_image_content(
     cache_manager: CacheManager | None,
     kind: str,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     if cache_manager is None:
         if request_gate is None:
-            return await _fetch_image_bytes(url)
-        return await _fetch_image_bytes(url, request_gate=request_gate)
+            return await _fetch_image_bytes(url, downloader=downloader)
+        return await _fetch_image_bytes(
+            url,
+            request_gate=request_gate,
+            downloader=downloader,
+        )
     key = f"ann-source:{kind}:{url}"
     lookup = await cache_manager.get(
         "announcement",
@@ -200,9 +207,13 @@ async def _source_image_content(
     if lookup.entry is not None:
         return lookup.entry.content
     if request_gate is None:
-        content = await _fetch_image_bytes(url)
+        content = await _fetch_image_bytes(url, downloader=downloader)
     else:
-        content = await _fetch_image_bytes(url, request_gate=request_gate)
+        content = await _fetch_image_bytes(
+            url,
+            request_gate=request_gate,
+            downloader=downloader,
+        )
     await cache_manager.put(
         "announcement",
         key,
@@ -214,18 +225,33 @@ async def _source_image_content(
 
 
 async def _load_qr_code(
-    url: str, size: int = 220, *, request_gate: RequestConcurrencyGate | None = None
+    url: str,
+    size: int = 220,
+    *,
+    request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image | None:
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size={size}x{size}&data={quote_plus(url)}"
+    ann_card_cache_dir = (
+        ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+    )
+    qr_cache_dir = ann_card_cache_dir / "qr"
     try:
         if request_gate is None:
             image = await _fetch_image(
-                QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size)
+                qr_cache_dir,
+                qr_url,
+                name=_cache_name("qr", url, size),
+                downloader=downloader,
             )
         else:
             image = await request_gate.run(
                 lambda: _fetch_image(
-                    QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size)
+                    qr_cache_dir,
+                    qr_url,
+                    name=_cache_name("qr", url, size),
+                    downloader=downloader,
                 ),
                 key=("qr", url, size),
             )
@@ -269,17 +295,23 @@ async def _load_preview(
     strict: bool = False,
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image | None:
     if not url:
         return None
     try:
+        preview_cache_dir = (
+            ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+        ) / "preview"
         if cache_manager is None:
             image = await _fetch_image(
-                PREVIEW_CACHE_PATH,
+                preview_cache_dir,
                 url,
                 name=_cache_name("preview", url),
                 request_gate=request_gate,
                 request_key=("preview", url),
+                downloader=downloader,
             )
         else:
             image = _image_from_bytes(
@@ -288,6 +320,7 @@ async def _load_preview(
                     cache_manager=cache_manager,
                     kind="preview",
                     request_gate=request_gate,
+                    downloader=downloader,
                 ),
             )
     except (OSError, httpx.HTTPError):
@@ -305,12 +338,18 @@ async def _load_detail_image(
     *,
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image:
     if cache_manager is None:
+        detail_cache_dir = (
+            ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+        ) / "detail"
         image = await _fetch_image(
-            DETAIL_CACHE_PATH,
+            detail_cache_dir,
             url,
             name=_cache_name("detail", url),
+            downloader=downloader,
         )
     else:
         image = _image_from_bytes(
@@ -319,6 +358,7 @@ async def _load_detail_image(
                 cache_manager=cache_manager,
                 kind="detail",
                 request_gate=request_gate,
+                downloader=downloader,
             ),
         )
     return _shrink_to_width(image.convert("RGB"), max_width)
@@ -443,6 +483,8 @@ async def draw_ann_list_img(
     strict_previews: bool = False,
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> bytes | str:
     """以 HTML/T2I 渲染包含全部公告的索引卡。"""
 
@@ -469,6 +511,10 @@ async def draw_ann_list_img(
             }
             if request_gate is not None:
                 kwargs["request_gate"] = request_gate
+            if downloader is not None:
+                kwargs["downloader"] = downloader
+            if ann_card_cache_dir is not None:
+                kwargs["ann_card_cache_dir"] = ann_card_cache_dir
             preview = await _load_preview(
                 preview_url, card_width, image_height, **kwargs
             )
@@ -524,6 +570,8 @@ async def _detail_blocks_payload(
     *,
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> list[dict[str, str]]:
     content_width = ANN_WIDTH - ANN_PADDING * 2
 
@@ -533,6 +581,10 @@ async def _detail_blocks_payload(
             kwargs["cache_manager"] = cache_manager
         if request_gate is not None:
             kwargs["request_gate"] = request_gate
+        if downloader is not None:
+            kwargs["downloader"] = downloader
+        if ann_card_cache_dir is not None:
+            kwargs["ann_card_cache_dir"] = ann_card_cache_dir
         return await _load_detail_image(value, content_width, **kwargs)
 
     image_values = [value for kind, value in blocks if kind != "text"]
@@ -578,20 +630,27 @@ async def draw_ann_detail_card(
     time_text: str = "",
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> bytes | list[bytes]:
     """使用 HTML/T2I 渲染已解析的公告正文卡片。"""
 
     post_id = str(post_id)
     qr_loader = globals()["load_qr_code"]
-    qr_image = (
-        await qr_loader(get_post_url(post_id), request_gate=request_gate)
-        if request_gate is not None
-        else await qr_loader(get_post_url(post_id))
-    )
+    qr_kwargs: dict[str, Any] = {}
+    if request_gate is not None:
+        qr_kwargs["request_gate"] = request_gate
+    if downloader is not None:
+        qr_kwargs["downloader"] = downloader
+    if ann_card_cache_dir is not None:
+        qr_kwargs["ann_card_cache_dir"] = ann_card_cache_dir
+    qr_image = await qr_loader(get_post_url(post_id), **qr_kwargs)
     block_payload = await _detail_blocks_payload(
         blocks,
         cache_manager=cache_manager,
         request_gate=request_gate,
+        downloader=downloader,
+        ann_card_cache_dir=ann_card_cache_dir,
     )
     font, font_fallback = unicode_font_data_uris(
         UNICODE_ORIGIN_PATH,
@@ -625,6 +684,7 @@ async def draw_ann_detail_img(
     post_id: int | str,
     *,
     is_check_time: bool = False,
+    ann_card_cache_dir: Path | None = None,
 ) -> bytes | str | list[bytes]:
     post_id = str(post_id)
     posts = await fetch_ann_list(prefer_cache=True)
@@ -651,7 +711,13 @@ async def draw_ann_detail_img(
 
     subject = str(detail.get("postTitle") or pick_subject(matched))
     time_text = format_post_time(detail.get("postTime") or matched.get("postTime"))
-    return await draw_ann_detail_card(post_id, subject, blocks, time_text=time_text)
+    return await draw_ann_detail_card(
+        post_id,
+        subject,
+        blocks,
+        time_text=time_text,
+        ann_card_cache_dir=ann_card_cache_dir,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -664,7 +730,6 @@ class RenderedNoticesImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, Any], ...]
-    incomplete: bool = False
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
@@ -681,15 +746,20 @@ class NoticesRenderer:
         simple_image: bool = False,
         cache_manager: CacheManager | None = None,
         request_gate: RequestConcurrencyGate | None = None,
-        resolver_factory: Any | None = None,
+        downloader: AssetDownloader | None = None,
+        runtime_data_layout: RuntimeDataLayout | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
         self.simple_image = simple_image
         self.cache_manager = cache_manager
         self.request_gate = request_gate
-        self.resolver_factory = resolver_factory
-        self.asset_resolver: AssetResolverLike | None = None
+        self.downloader = downloader
+        self.ann_card_cache_dir = (
+            ANN_CARD_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_ann_card_dir
+        )
 
     @staticmethod
     def list_cache_key(snapshot: AnnSnapshot) -> str:
@@ -785,20 +855,13 @@ class NoticesRenderer:
         return pages
 
     def _font_resource(self) -> dict[str, str]:
-        if self.asset_resolver is not None:
-            asset = resolve_runtime_asset(self.asset_resolver, "font.primary_ttf")
-            return resource_record(
-                "font", "font.primary_ttf", asset, source="fonts/dna_fonts.ttf"
-            )
-        status = self.resources.font_status
         return {
             "kind": "font",
             "key": "dna_fonts",
-            "status": status,
+            "status": self.resources.font_status,
             "source": "fonts/dna_fonts.ttf"
             if self.resources.font_path is not None
             else "",
-            "incomplete": "false" if status == "provided" else "true",
         }
 
     def _write(
@@ -845,7 +908,6 @@ class NoticesRenderer:
             text_lines=tuple(lines),
             resources=tuple(resources),
             sections=tuple(sections),
-            incomplete=resources_incomplete(resources),
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
@@ -866,46 +928,25 @@ class NoticesRenderer:
             hours=1
         )
         remaining_seconds = int((next_refresh - now).total_seconds())
-        lines = ["二重螺旋 · 密函"]
-        for section in snapshot.sections:
-            lines.append(f"{section.type_name}:")
-            lines.extend(
-                f"{item.name} (id={item.instance_id})" for item in section.instances
-            )
-
-        if self.asset_resolver is not None:
-            font_asset = resolve_runtime_asset(
-                self.asset_resolver, "font.primary_ttf"
-            )
-            texture_key = "texture.mh.simple" if is_simple else "texture.mh.card"
-            texture_asset = resolve_runtime_asset(self.asset_resolver, texture_key)
-            image_bytes = render_runtime_card(
-                "二重螺旋 · 密函",
-                lines,
-                font_asset=font_asset,
-                image_assets=((texture_key, texture_asset),),
-            )
-            resources: list[dict[str, str]] = [
-                resource_record(
-                    "font", "font.primary_ttf", font_asset, source="fonts/dna_fonts.ttf"
-                ),
-                resource_record("texture", texture_key, texture_asset),
-            ]
-        elif is_simple:
+        if is_simple:
             image_bytes = await draw_mh_simple(
                 snapshot.sections,
                 remaining_seconds,
                 subscribe_list=subscribe_list,
             )
-            resources = [self._font_resource()]
         else:
             image_bytes = await draw_mh_card(
                 snapshot.sections,
                 remaining_seconds,
                 subscribe_list=subscribe_list,
             )
-            resources = [self._font_resource()]
-
+        lines = ["二重螺旋 · 密函"]
+        for section in snapshot.sections:
+            lines.append(f"{section.type_name}:")
+            lines.extend(
+                f"{item.name} (id={item.instance_id})" for item in section.instances
+            )
+        resources: list[dict[str, str]] = [self._font_resource()]
         sections: list[dict[str, Any]] = []
         for section in snapshot.sections:
             sections.append(
@@ -938,30 +979,6 @@ class NoticesRenderer:
         sections: list[dict[str, Any]] = [
             {"name": "公告", "items": len(snapshot.posts)}
         ]
-        if self.asset_resolver is not None:
-            texture_asset = resolve_runtime_asset(
-                self.asset_resolver, "texture.ann.list"
-            )
-            resources.append(
-                resource_record(
-                    "texture",
-                    "texture.ann.list",
-                    texture_asset,
-                    source="textures/ann/list.png",
-                )
-            )
-            image_bytes = render_runtime_card(
-                "二重螺旋 · 公告列表",
-                lines,
-                font_asset=resolve_runtime_asset(
-                    self.asset_resolver, "font.primary_ttf"
-                ),
-                image_assets=(("texture.ann.list", texture_asset),),
-            )
-            return self._write(
-                image_bytes, lines=lines, resources=resources, sections=sections
-            )
-
         cache_key = self.list_cache_key(snapshot)
         cached = await self._cached_image(cache_key)
         if cached is not None:
@@ -986,6 +1003,8 @@ class NoticesRenderer:
             strict_previews=True,
             cache_manager=self.cache_manager,
             request_gate=self.request_gate,
+            downloader=self.downloader,
+            ann_card_cache_dir=self.ann_card_cache_dir,
         )
         if not isinstance(image_bytes, bytes):
             raise TypeError("公告列表 legacy 绘制失败")
@@ -1035,30 +1054,6 @@ class NoticesRenderer:
         sections: list[dict[str, Any]] = [
             {"name": "详情正文", "items": len(detail.blocks)}
         ]
-        if self.asset_resolver is not None:
-            texture_asset = resolve_runtime_asset(
-                self.asset_resolver, "texture.ann.detail"
-            )
-            resources.append(
-                resource_record(
-                    "texture",
-                    "texture.ann.detail",
-                    texture_asset,
-                    source="textures/ann/detail.png",
-                )
-            )
-            image_bytes = render_runtime_card(
-                "二重螺旋 · 公告详情",
-                lines,
-                font_asset=resolve_runtime_asset(
-                    self.asset_resolver, "font.primary_ttf"
-                ),
-                image_assets=(("texture.ann.detail", texture_asset),),
-            )
-            return self._write(
-                image_bytes, lines=lines, resources=resources, sections=sections
-            )
-
         fingerprint = announcement_fingerprint(detail)
         cached_pages = await self._cached_detail_pages(detail)
         if cached_pages is not None:
@@ -1078,6 +1073,8 @@ class NoticesRenderer:
                     detail.title,
                     blocks,
                     time_text=getattr(detail, "time", ""),
+                    downloader=self.downloader,
+                    ann_card_cache_dir=self.ann_card_cache_dir,
                 )
             else:
                 raw_result = await draw_ann_detail_card(
@@ -1087,6 +1084,8 @@ class NoticesRenderer:
                     time_text=getattr(detail, "time", ""),
                     cache_manager=self.cache_manager,
                     request_gate=self.request_gate,
+                    downloader=self.downloader,
+                    ann_card_cache_dir=self.ann_card_cache_dir,
                 )
             raw_pages = raw_result if isinstance(raw_result, list) else [raw_result]
             if not raw_pages:

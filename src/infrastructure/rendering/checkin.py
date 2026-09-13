@@ -19,38 +19,24 @@ from ...utils.api.model import (
     RoleShowForTool,
 )
 from ...utils.image import download_pic_from_url
-from ...utils.resource.RESOURCE_PATH import SIGN_PATH
+from ...utils.resource.RESOURCE_PATH import AVATAR_PATH, SIGN_PATH, USER_AVATAR_PATH
 from ...utils.session import EventContext
+from ..data_layout import RuntimeDataLayout
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .assets import pil_image_data_uri
-from .legacy_assets import (
-    BACKGROUND_PATH,
-    COMMON_PATH,
-    FONT_ORIGIN_PATH,
-    SIGN_TEXT_PATH,
-)
-from .legacy_assets import (
-    legacy_font_data_uri as font_data_uri,
-)
-from .legacy_assets import (
-    legacy_image_data_uri as image_data_uri,
-)
+from .assets import font_data_uri, image_data_uri, pil_image_data_uri
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
-from .runtime_assets import (
-    AssetResolverLike,
-    render_runtime_card,
-    resolve_runtime_asset,
-    resolved_font_data_uri,
-    resource_record,
-    resources_incomplete,
-)
 from .spec import RenderSpec
 
 _RENDERER = HtmlRenderer()
-TEXT_PATH = SIGN_TEXT_PATH
+RESOURCES_DIR = Path(__file__).parents[2] / "resources"
+BACKGROUND_PATH = RESOURCES_DIR / "textures" / "common" / "bg1.jpg"
+TEXT_PATH = RESOURCES_DIR / "textures" / "sign"
+COMMON_PATH = RESOURCES_DIR / "textures" / "common"
+FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
 
 
 async def _draw_sign_calendar_view(
@@ -60,9 +46,14 @@ async def _draw_sign_calendar_view(
     task_process: TaskProcess | None,
     bbs_total_sign_in_day: int,
     uid_hidden: bool = False,
+    downloader: AssetDownloader | None = None,
+    sign_cache_dir: Path | None = None,
+    user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """直接从签到领域 DTO 构造模板输入，避免回拼完整 legacy 模型。"""
 
+    sign_cache_dir = SIGN_PATH if sign_cache_dir is None else Path(sign_cache_dir)
     header = await build_profile_header(
         ctx,
         role.role_id,
@@ -70,6 +61,9 @@ async def _draw_sign_calendar_view(
         user_level=role.level,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
+        avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     achievement_info = [
         {"label": "皎皎积分", "value": str(calendar.user_gold or 0)},
@@ -96,7 +90,12 @@ async def _draw_sign_calendar_view(
         icon = None
         if award:
             icon = pil_image_data_uri(
-                await download_pic_from_url(SIGN_PATH, award.icon_url, size=(140, 140))
+                await download_pic_from_url(
+                    sign_cache_dir,
+                    award.icon_url,
+                    size=(140, 140),
+                    downloader=downloader,
+                )
             )
         return {
             "amount": award.award_num if award else 0,
@@ -157,6 +156,10 @@ async def _draw_sign_calendar(
     task_process: DNATaskProcessRes,
     bbs_total_sign_in_day: int,
     uid_hidden: bool = False,
+    downloader: AssetDownloader | None = None,
+    sign_cache_dir: Path | None = None,
+    user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """组装签到日历 payload，保留每日奖励和社区任务的完整条目。"""
 
@@ -177,6 +180,10 @@ async def _draw_sign_calendar(
             task_process if isinstance(task_process, TaskProcess) else None,
             bbs_total_sign_in_day,
             uid_hidden=uid_hidden,
+            downloader=downloader,
+            sign_cache_dir=sign_cache_dir,
+            user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
 
     header = await build_profile_header(
@@ -186,6 +193,9 @@ async def _draw_sign_calendar(
         user_level=role_show.level,
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
+        downloader=downloader,
+        avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     achievement_info = [
         {"label": "皎皎积分", "value": str(sign_data.userGoldNum or 0)},
@@ -212,7 +222,12 @@ async def _draw_sign_calendar(
         icon = None
         if award:
             icon = pil_image_data_uri(
-                await download_pic_from_url(SIGN_PATH, award.iconUrl, size=(140, 140))
+                await download_pic_from_url(
+                    SIGN_PATH if sign_cache_dir is None else Path(sign_cache_dir),
+                    award.iconUrl,
+                    size=(140, 140),
+                    downloader=downloader,
+                )
             )
         return {
             "amount": award.awardNum if award else 0,
@@ -276,15 +291,10 @@ async def create_sign_info_image(text: str, theme: str = "blue") -> bytes:
         "pink": "#ffe6e6",
         "green": "#e6ffe6",
     }
-    font_uri, _ = resolved_font_data_uri(
-        None,
-        "font.primary_ttf",
-        legacy_path=FONT_ORIGIN_PATH,
-    )
     return await _RENDERER.render(
         "cards/sign_report.html.j2",
         {
-            "font": font_uri,
+            "font": font_data_uri(FONT_ORIGIN_PATH),
             "lines": text[1:].split("\n"),
             "theme_color": colors.get(theme, colors["blue"]),
             "width": 600,
@@ -301,7 +311,6 @@ class RenderedCheckinImage:
     text_lines: tuple[str, ...]
     resources: tuple[dict[str, str], ...]
     sections: tuple[dict[str, object], ...]
-    incomplete: bool = False
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
@@ -315,12 +324,27 @@ class CheckinRenderer:
         output_dir: str | Path,
         resources: EncyclopediaResourceStore,
         *,
-        resolver_factory: object | None = None,
+        downloader: AssetDownloader | None = None,
+        runtime_data_layout: RuntimeDataLayout | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
-        self.resolver_factory = resolver_factory
-        self.asset_resolver: AssetResolverLike | None = None
+        self.downloader = downloader
+        self.sign_cache_dir = (
+            SIGN_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_sign_dir
+        )
+        self.user_avatar_dir = (
+            USER_AVATAR_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_user_avatar_dir
+        )
+        self.game_avatar_dir = (
+            AVATAR_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_game_avatar_dir
+        )
 
     async def render_calendar(
         self,
@@ -351,62 +375,24 @@ class CheckinRenderer:
             at=target_user_id,
             unified_msg_origin=actor.unified_msg_origin or "",
         )
+        image_bytes = await _draw_sign_calendar(
+            ctx,
+            role_header,
+            data.calendar,
+            data.tasks,
+            data.total_sign_in_days,
+            uid_hidden,
+            downloader=self.downloader,
+            sign_cache_dir=self.sign_cache_dir,
+            user_avatar_dir=self.user_avatar_dir,
+            game_avatar_dir=self.game_avatar_dir,
+        )
         lines = (
             role_header.role_name,
             f"社区累计签到: {data.total_sign_in_days}",
             f"游戏累计签到: {data.calendar.signin_time or 0}",
         )
-        font_asset = resolve_runtime_asset(
-            self.asset_resolver,
-            "font.primary_ttf",
-            legacy_path=getattr(self.resources, "font_path", None),
-        )
-        sign_assets = [
-            (
-                name,
-                resolve_runtime_asset(
-                    self.asset_resolver,
-                    f"texture.sign.{name}",
-                    legacy_path=None,
-                ),
-            )
-            for name in ("background", "bar", "item_BG", "green", "red", "line")
-        ]
-        if self.asset_resolver is not None:
-            # resolver 模式不回读已瘦身的源码资源目录，缺失资源由运行期卡片明确降级。
-            image_bytes = render_runtime_card(
-                "签到日历",
-                lines,
-                font_asset=font_asset,
-                image_assets=sign_assets,
-            )
-            resources = (
-                resource_record(
-                    "font",
-                    "font.primary_ttf",
-                    font_asset,
-                    source="fonts/dna_fonts.ttf",
-                ),
-                *(
-                    resource_record(
-                        "texture",
-                        f"texture.sign.{name}",
-                        asset,
-                        source=f"textures/sign/{name}",
-                    )
-                    for name, asset in sign_assets
-                ),
-            )
-        else:
-            image_bytes = await _draw_sign_calendar(
-                ctx,
-                role_header,
-                data.calendar,
-                data.tasks,
-                data.total_sign_in_days,
-                uid_hidden,
-            )
-            resources = ({"kind": "sign_calendar", "status": "legacy"},)
+        resources = ({"kind": "sign_calendar", "status": "legacy"},)
         sections = (
             {
                 "name": "社区任务",
@@ -444,7 +430,6 @@ class CheckinRenderer:
             text_lines=lines,
             resources=resources,
             sections=sections,
-            incomplete=resources_incomplete(resources),
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,

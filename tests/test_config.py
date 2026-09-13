@@ -5,6 +5,7 @@ import os
 os.environ.setdefault("DNABY_DATA_DIR", "/tmp/dnaby-test-data")
 
 import pytest
+from pydantic import ValidationError
 
 from src.infrastructure.config import generate_legacy_schema as generate_astrbot_schema
 from src.infrastructure.config.legacy import (
@@ -17,11 +18,28 @@ from src.infrastructure.config.schema import (
     generate_astrbot_schema as generate_typed_schema,
 )
 from src.infrastructure.config.settings import (
+    ClientUpdatesSettings,
     DnabySettings,
     DNAConfig,
     DNASignConfig,
+    LoginSettings,
     SignInSettings,
 )
+
+
+def test_login_dynamic_background_defaults_to_enabled_and_is_in_schema():
+    settings = LoginSettings()
+    assert settings.dynamic_background is True
+
+    schema = generate_typed_schema()
+    field = schema["login"]["items"]["dynamic_background"]
+    assert field["type"] == "bool"
+    assert field["default"] is True
+    assert "配套音乐" not in field.get("hint", "")
+    assert "配套音乐" not in (
+        LoginSettings.model_fields["dynamic_background"].json_schema_extra or {}
+    ).get("hint", "")
+    assert "MP4 动态背景" in field.get("hint", "")
 
 
 def test_schema_generation():
@@ -38,6 +56,42 @@ def test_schema_generation():
     assert default_items["MHSubscribe"]["type"] == "list"
     assert "DNAAnnGroups" not in default_items
     assert "DNASignin" not in schema[DNA_SIGN_CONFIG_SECTION]["items"]
+
+
+def test_client_update_targets_config_defaults_validation_and_schema():
+    """客户端更新 Target 必须由 registry 驱动并拒绝旧 channels 字段。"""
+    from src.modules.client_updates import (
+        CLIENT_UPDATE_TARGETS,
+        DEFAULT_CLIENT_UPDATE_TARGET_IDS,
+    )
+
+    assert ClientUpdatesSettings().targets == list(DEFAULT_CLIENT_UPDATE_TARGET_IDS)
+    assert ClientUpdatesSettings(
+        targets=[
+            "cn-app-store-ios",
+            "cn-official-pc",
+            "cn-app-store-ios",
+        ]
+    ).targets == ["cn-app-store-ios", "cn-official-pc"]
+
+    with pytest.raises(ValidationError, match="已注册的 Target ID"):
+        ClientUpdatesSettings(targets=["global-unknown-pc"])
+
+    with pytest.raises(
+        ValidationError,
+        match=r"client_updates\.channels 已移除，请改用 client_updates\.targets",
+    ):
+        DnabySettings.from_config(
+            {"client_updates": {"channels": ["pc_cn"]}},
+        )
+
+    fields = generate_typed_schema()["client_updates"]["items"]
+    assert "channels" not in fields
+    assert fields["targets"]["default"] == list(DEFAULT_CLIENT_UPDATE_TARGET_IDS)
+    assert fields["targets"]["options"] == list(CLIENT_UPDATE_TARGETS)
+    assert fields["merge_forward"]["hint"] == (
+        "OneBot 平台是否将同轮多目标更新合并为转发消息"
+    )
 
 
 def test_typed_sign_in_config_has_no_feature_enable_switches():
@@ -282,6 +336,13 @@ def test_build_runtime_propagates_all_settings(tmp_path):
             "group_report": True,
             "group_report_image": True,
         },
+        "client_updates": {
+            "targets": [
+                "cn-app-store-ios",
+                "cn-official-pc",
+                "cn-app-store-ios",
+            ],
+        },
         "notifications": {
             "announcement_enabled": False,
             "announcement_check_minutes": 20,
@@ -290,9 +351,16 @@ def test_build_runtime_propagates_all_settings(tmp_path):
             "secret_retry_interval_seconds": 2,
         },
     }
+    from src.infrastructure import RuntimeDataLayout
+
     db = AsyncDatabase(tmp_path / "test.sqlite3")
     context = SimpleNamespace(register_web_api=lambda *args: None)
-    runtime = build_runtime(context, config_dict, database=db)
+    runtime = build_runtime(
+        context,
+        config_dict,
+        database=db,
+        runtime_data_layout=RuntimeDataLayout(tmp_path),
+    )
 
     # 1. 验证 settings 字段
     assert runtime.settings.login.max_bind_count == 7
@@ -309,11 +377,20 @@ def test_build_runtime_propagates_all_settings(tmp_path):
     assert runtime.settings.notifications.secret_simple_image is True
     assert runtime.settings.notifications.secret_push_minute == 17
     assert runtime.settings.notifications.secret_retry_interval_seconds == 2
+    assert runtime.settings.client_updates.targets == [
+        "cn-app-store-ios",
+        "cn-official-pc",
+    ]
 
     # 2. 验证下发到各个具体 service / scheduler
     account_service = runtime.services["account_service"]
     assert account_service.max_bind_count == 7
     assert account_service.default_auto_sign_enabled is True
+
+    layout = RuntimeDataLayout(tmp_path)
+    admin_alias_service = runtime.services["admin_alias_service"]
+    assert admin_alias_service.custom_path == layout.char_alias_path
+    assert admin_alias_service.weapon_custom_path == layout.weapon_alias_path
 
     privacy_service = runtime.services["privacy_service"]
     assert privacy_service.allow_mention_query is False
@@ -333,6 +410,14 @@ def test_build_runtime_propagates_all_settings(tmp_path):
 
     sign_scheduler = runtime.services["sign_scheduler"]
     assert sign_scheduler.sign_time == (7, 15)
+
+    client_update_service = runtime.services["client_update_service"]
+    assert client_update_service.target_ids == (
+        "cn-app-store-ios",
+        "cn-official-pc",
+    )
+    assert client_update_service.initialize in runtime.lifecycle._start_hooks
+    assert not hasattr(client_update_service, "terminate")
 
     notices_scheduler = runtime.services["notices_scheduler"]
     assert notices_scheduler.announcement_enabled is False

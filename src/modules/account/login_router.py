@@ -3,11 +3,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from collections.abc import Callable
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from astrbot.api import logger
-from astrbot.api.star import StarTools
 from astrbot.api.web import request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse
@@ -26,9 +24,10 @@ from ...utils.msgs.notify import (
     send_dna_notify,
     send_dna_text,
 )
-from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES
+from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES, LOGIN_QR_PATH
 from ...utils.segments import MessageSegment
 from ...utils.session import EventContext, Sender
+from . import messages
 from .login_helps import (
     get_token,
     is_valid_chinese_phone_number,
@@ -132,17 +131,10 @@ async def send_login(sender: Sender, ctx: EventContext, url: str) -> None:
     if DNAConfig.get_config("DNAQRLogin").data:
         # 二维码 helper 保留旧 path 参数；文件名使用摘要，避免外部 user_id 逃出运行期目录。
         qr_name = hashlib.sha256(ctx.user_id.encode("utf-8")).hexdigest()
-        path = (
-            Path(StarTools.get_data_dir("astrbot_plugin_dna"))
-            / "login_qr"
-            / f"{qr_name}.gif"
-        )
+        path = LOGIN_QR_PATH / f"{qr_name}.gif"
         path.parent.mkdir(parents=True, exist_ok=True)
         qr_items = [
-            MessageSegment.text(f"[二重螺旋] 您的id为【{ctx.user_id}】\n"),
-            MessageSegment.text(
-                "请扫描下方二维码获取登录地址，并复制地址到浏览器打开\n"
-            ),
+            MessageSegment.text(messages.login_page(ctx.user_id, url)),
             MessageSegment.image(await get_qrcode_base64(url, path, ctx.bot_id)),
         ]
 
@@ -160,12 +152,7 @@ async def send_login(sender: Sender, ctx: EventContext, url: str) -> None:
 
     if DNAConfig.get_config("DNATencentWord").data:
         url = f"https://docs.qq.com/scenario/link.html?url={url}"
-    lines = [
-        f"[二重螺旋] 您的id为【{ctx.user_id}】",
-        "请复制地址到浏览器打开",
-        f" {url}",
-        "登录地址10分钟内有效",
-    ]
+    lines = messages.login_page(ctx.user_id, url).splitlines()
     if DNAConfig.get_config("DNALoginForward").data:
         if not ctx.group_id and ctx.bot_id == "onebot":
             await send_dna_text(sender, ctx, "\n".join(lines), immediate=True)

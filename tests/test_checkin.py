@@ -121,6 +121,23 @@ def _task_fixture() -> TaskProcess:
     )
 
 
+def _task_fixture_with_reply() -> TaskProcess:
+    """复用基础社区签到任务，并补一个代表性的回复附加任务。"""
+
+    return TaskProcess(
+        daily_tasks=(
+            *_task_fixture().daily_tasks,
+            CommunityTask(
+                mark_name="bbs_reply",
+                remark="回复",
+                complete_times=0,
+                times=1,
+                process=0.0,
+            ),
+        ),
+    )
+
+
 def _posts_fixture(count: int = 4) -> tuple[CommunityPost, ...]:
     return tuple(
         CommunityPost(post_id=f"post-{index}", payload={"postId": f"post-{index}"})
@@ -796,6 +813,90 @@ async def test_auto_sign_skips_bindings_without_usable_credentials(tmp_path: Pat
 
 
 @pytest.mark.asyncio
+async def test_group_report_ignores_reply_failure_after_community_sign(
+    tmp_path: Path,
+) -> None:
+    """社区签到成功后，附加回复普通失败不计群失败，也不触发 @。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeCheckinTransport(
+        task_process=_task_fixture_with_reply(),
+        posts=_posts_fixture(1),
+        post_ok=False,
+    )
+    service = _service(
+        database,
+        transport,
+        community_tasks=("bbs_sign", "bbs_reply"),
+        group_report=True,
+    )
+
+    report = await service.auto_sign_report()
+    community_report = next(
+        item
+        for item in report.group_reports["group-1"]
+        if item.report_type == "community"
+    )
+
+    assert community_report.success == 1
+    assert community_report.failed == 0
+    assert community_report.mention_details == ()
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_group_report_preserves_community_sign_on_reply_transport_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """回复 transport 异常不能抹掉已完成的社区签到状态。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeCheckinTransport(
+        task_process=_task_fixture_with_reply(),
+        posts=_posts_fixture(1),
+    )
+
+    async def fail_reply(actor, uid, post, *, credential_user_id):
+        del actor, post, credential_user_id
+        transport.calls.append("do_reply")
+        raise CheckinTransportError(
+            CheckinFailureKind.NETWORK,
+            resource="社区回复",
+        )
+
+    monkeypatch.setattr(transport, "do_reply", fail_reply)
+    service = _service(
+        database,
+        transport,
+        community_tasks=("bbs_sign", "bbs_reply"),
+        group_report=True,
+    )
+
+    report = await service.auto_sign_report()
+    community_report = next(
+        item
+        for item in report.group_reports["group-1"]
+        if item.report_type == "community"
+    )
+
+    assert "do_reply" in transport.calls
+    assert "今日社区签到 0 个账号" in report.summary_text
+    assert community_report.success == 1
+    assert community_report.failed == 0
+    assert community_report.mention_details == ()
+    async with database.session() as session:
+        record = await SignRecordRepository.get(
+            session,
+            uid=UID,
+            record_date=datetime.now(tz=SHANGHAI_TZ).date(),
+        )
+    assert record is not None
+    assert record.bbs_sign == 1
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_auto_sign_credential_expiry_is_not_group_failure(
     tmp_path: Path,
 ) -> None:
@@ -918,6 +1019,7 @@ async def test_group_report_uses_structured_details_not_display_layout(
     outcome = CheckinOutcome(
         game_status=SignStatus.DONE,
         bbs_status=SignStatus.FAILED,
+        community_sign_status=SignStatus.FAILED,
         detail_lines=("展示层社区标题", "展示层误分类游戏行", "展示层误分类社区行"),
         error="社区操作失败",
         game_detail_lines=("游戏签到：已完成", "游戏奖励：5"),
