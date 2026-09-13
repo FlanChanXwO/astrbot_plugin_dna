@@ -272,3 +272,19 @@ def test_bind_static_asset_resolver_without_snapshot(tmp_path: Path) -> None:
         assert pinned.generation_id is None
         missing = pinned.resolve_relative("fonts/dna_fonts.ttf")
         assert missing.incomplete
+
+
+def test_generation_validator_decodes_textures_assets(tmp_path: Path) -> None:
+    """textures/**/* 的图片必须通过 generation 图片解码校验。"""
+
+    good = tmp_path / "textures" / "sign" / "bar.png"
+    _write_image(good)
+
+    # 正常 PNG：包含 textures 根的校验不报错。
+    generation_module._validate_asset_headers(tmp_path)
+
+    bad = tmp_path / "textures" / "common" / "broken.png"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 4)
+    with pytest.raises(ResourceGenerationError, match="资源候选图片不可解码"):
+        generation_module._validate_asset_headers(tmp_path)

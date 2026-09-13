@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .static_assets import StaticAssetResolver
+
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,7 +51,7 @@ def _sign_calendar_payload(
     tasks: list[dict[str, object]],
     header: object,
     height: int,
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     static_records: list[dict[str, str]] | None,
 ) -> dict[str, object]:
     """构造签到日历模板输入；静态素材经 StaticAssetResolver 解析。"""
@@ -98,7 +103,7 @@ async def _draw_sign_calendar_view(
     sign_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
     game_avatar_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """直接从签到领域 DTO 构造模板输入，避免回拼完整 legacy 模型。"""
@@ -202,7 +207,7 @@ async def _draw_sign_calendar(
     sign_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
     game_avatar_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """组装签到日历 payload，保留每日奖励和社区任务的完整条目。"""
@@ -324,7 +329,7 @@ async def create_sign_info_image(
     text: str,
     theme: str = "blue",
     *,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
 ) -> bytes:
     """以固定 600×250 HTML 卡片渲染群签到汇总。"""
 

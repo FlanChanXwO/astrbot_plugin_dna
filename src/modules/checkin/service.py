@@ -691,10 +691,14 @@ class CheckinService:
         summary_text = messages.group_summary(report_type, success, failed)
         image_bytes = None
         if self.group_report_image:
-            image_bytes = await create_sign_info_image(
-                summary_text,
-                theme="blue" if report_type == "game" else "yellow",
-            )
+            with self._renderer_context() as renderer:
+                image_bytes = await create_sign_info_image(
+                    summary_text,
+                    theme="blue" if report_type == "game" else "yellow",
+                    static_asset_resolver=getattr(
+                        renderer, "static_asset_resolver", None
+                    ),
+                )
         return GroupSignReport(
             report_type=report_type,
             success=success,

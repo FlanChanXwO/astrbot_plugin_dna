@@ -11,12 +11,13 @@ import base64
 from collections.abc import Iterable
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
 from ...entry.event import EventActor
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import RenderedPlayerImage
 from ...infrastructure.rendering.errors import HtmlRenderError
+from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ..player.contracts import (
     DamageCalculation,
     PlayerFailureKind,
@@ -233,7 +234,7 @@ class AdminPreviewService:
         database: AsyncDatabase,
         transport: PlayerTransport,
         renderer: AdminPreviewRenderer,
-        resource_snapshots: Any | None = None,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.database = database
         self.transport = transport

@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .static_assets import StaticAssetResolver
+
 import asyncio
 from typing import Protocol
 
@@ -38,7 +43,7 @@ async def _mode_payload(
     side: str,
     *,
     image_loader: WeaponImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     mode_id = getattr(mode, "id", -1)
@@ -99,7 +104,7 @@ async def draw_weapon_detail_section(
     title: str,
     *,
     image_loader: WeaponImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     """保留旧函数签名，返回 HTML 模板使用的武器区块 payload。"""

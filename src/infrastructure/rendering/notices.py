@@ -63,6 +63,7 @@ from .static_assets import (
 
 if TYPE_CHECKING:
     from ...infrastructure.cache import CacheManager
+    from .static_assets import StaticAssetResolver
 
 _RENDERER = HtmlRenderer()
 OFFICIAL_AVATAR_RELATIVE = "textures/ann/dna_official_avatar.jpeg"
@@ -72,7 +73,7 @@ UNICODE_FONT_RELATIVE = "fonts/arial-unicode-ms-bold.ttf"
 def _static_image(
     key: str,
     relative: str,
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     static_records: list[dict[str, str]] | None,
     *,
     label: str = "公告",
@@ -86,7 +87,7 @@ def _static_image(
 
 
 def _static_font(
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     static_records: list[dict[str, str]] | None,
 ) -> str:
     """解析主字体；缺失时返回空 URI 交给 CSS fallback。"""
@@ -102,7 +103,7 @@ def _static_font(
 
 
 def _unicode_fonts(
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     text: str,
     static_records: list[dict[str, str]] | None,
 ) -> tuple[str, str | None]:
@@ -127,7 +128,7 @@ def _unicode_fonts(
 
 
 def _ann_background(
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     size: tuple[int, int],
     static_records: list[dict[str, str]] | None,
 ) -> str:
@@ -378,7 +379,7 @@ def _round_avatar(image: Image.Image, size: int) -> Image.Image:
 
 def _load_avatar(
     size: int,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> Image.Image:
     """官方头像经 resolver 解析；缺失时退回纯色圆头像。"""
@@ -504,7 +505,7 @@ _MhRenderSection = DNARoleForToolInstanceInfo | MhSection
 def _mh_payload(
     mh_result: Sequence[_MhRenderSection],
     subscribe_list: list[str] | None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, object]]:
     """将 legacy/typed 密函分节和本地类型图标转换为 HTML payload。"""
@@ -522,6 +523,14 @@ def _mh_payload(
             if isinstance(static_asset_resolver, StaticAssetResolver)
             else None
         )
+        if static_records is not None:
+            static_records.append(
+                static_record(
+                    f"texture.mh.type_icon.{mh_type}",
+                    icon_asset or ResolvedStaticAsset(None, "none", True),
+                    resource_path=icon_relative,
+                )
+            )
         entries.append(
             {
                 "icon": (
@@ -561,7 +570,7 @@ async def draw_mh_simple(
     mh_result: Sequence[_MhRenderSection],
     remaining_seconds: int,
     subscribe_list: list[str] | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """渲染固定高度的简洁密函图，保留旧动态列宽公式。"""
@@ -588,7 +597,7 @@ async def draw_mh_card(
     remaining_seconds: int,
     subscribe_list: list[str] | None = None,
     bg_name: str | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """渲染旧 1700×900 密函卡片，随机背景仍由业务层选择。"""
@@ -641,7 +650,7 @@ async def draw_ann_list_img(
     request_gate: RequestConcurrencyGate | None = None,
     downloader: AssetDownloader | None = None,
     ann_card_cache_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes | str:
     """以 HTML/T2I 渲染包含全部公告的索引卡。"""
@@ -789,7 +798,7 @@ async def draw_ann_detail_card(
     request_gate: RequestConcurrencyGate | None = None,
     downloader: AssetDownloader | None = None,
     ann_card_cache_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes | list[bytes]:
     """使用 HTML/T2I 渲染已解析的公告正文卡片。"""
@@ -849,7 +858,7 @@ async def draw_ann_detail_img(
     *,
     is_check_time: bool = False,
     ann_card_cache_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes | str | list[bytes]:
     post_id = str(post_id)

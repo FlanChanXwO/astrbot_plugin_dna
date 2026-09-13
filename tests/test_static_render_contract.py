@@ -1,11 +1,14 @@
-"""真实静态资源链路 integration smoke。
+"""静态资源渲染契约 smoke。
 
-覆盖审查要求的三个场景：
-- Case 1：本地大型纹理已删除、verified generation 可用 → 正式 renderer 全部
-  成功渲染且 incomplete=False（无 FileNotFoundError / AssetRenderError）。
-- Case 2：没有 verified generation → 渲染走 placeholder 降级，incomplete=True，
-  不崩溃。
-- Case 3：请求开始后切换 generation → 已固定的 resolver 仍读旧 generation。
+使用 fake snapshot（自绘 PNG / 占位 ttf）验证 StaticAssetResolver 契约、
+renderer fallback 与 generation lease 三个稳定场景：
+
+- Case 1：完整 fake snapshot → 渲染成功且 incomplete=False。
+- Case 2：无 snapshot → placeholder 降级、incomplete=True、不崩溃。
+- Case 3：请求中切换 generation → 已固定的 resolver 仍读旧 generation。
+
+本文件不模拟完整 dna-resource，也不作为生产素材齐全性的证明；
+生产素材 parity 由合并前对 dna-resource/main 的真实验证承担。
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from src.infrastructure.rendering.player import PlayerRenderer
 from src.infrastructure.rendering.static_assets import (
     BOOTSTRAP_RELATIVE_ALLOWLIST,
     StaticAssetResolver,
+    static_open_image,
 )
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.generation import (
@@ -304,3 +308,133 @@ def test_case3_request_keeps_generation_across_switch(tmp_path) -> None:
         StaticAssetResolver(coordinator=coordinator)
     ) as pinned_b:
         assert pinned_b.generation_id == "b" * 40
+
+
+def test_missing_static_assets_force_incomplete(tmp_path) -> None:
+    """任一正式静态素材缺失都必须让渲染结果 incomplete=True。"""
+
+    generation = _build_snapshot(tmp_path / "gen", generation="a" * 40)
+    # 构造素材缺口：签到条、密函类型图标、日历 banner、周报品质角标。
+    (generation / "textures" / "sign" / "bar.png").unlink()
+    (generation / "textures" / "mh" / "mh_role.png").unlink()
+    (generation / "calendar" / "banner_mask.png").unlink()
+    # 周报品质角标不在 fake snapshot 清单内，缺 q2.png 即代表缺失。
+    resolver = StaticAssetResolver(
+        snapshot_root=generation,
+        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
+        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
+    ).pinned(generation, generation_id="a" * 40)
+
+    # 签到日历：缺 sign/bar.png。
+    checkin_renderer = CheckinRenderer(
+        tmp_path / "rendered-checkin", EncyclopediaResourceStore()
+    )
+    checkin_renderer.static_asset_resolver = resolver
+    checkin_result = asyncio.run(
+        checkin_renderer.render_calendar(
+            CheckinCalendarData(
+                calendar=SignCalendar(
+                    today_signed=True,
+                    signin_time=2,
+                    period=SignPeriod(
+                        period_id=1, name="周期", over_days=7, start_date=0, end_date=7
+                    ),
+                ),
+                total_sign_in_days=3,
+                role_overview=RoleOverview.model_construct(
+                    role_id="10001", role_name="角色"
+                ),
+            ),
+            actor=_actor(),
+            target_user_id="10000",
+            uid_hidden=True,
+        )
+    )
+    assert checkin_result.incomplete is True
+
+    # 密函：缺 mh_role.png。
+    notices_renderer = NoticesRenderer(
+        tmp_path / "rendered-notices", EncyclopediaResourceStore()
+    )
+    notices_renderer.static_asset_resolver = resolver
+    mh_result = asyncio.run(
+        notices_renderer.render_mh(
+            MhSnapshot(
+                sections=(
+                    MhSection(
+                        mh_type="role",
+                        type_name="角色",
+                        instances=(MhInstance(instance_id=1, name="委托"),),
+                    ),
+                )
+            ),
+            simple_image=False,
+        )
+    )
+    assert mh_result.incomplete is True
+
+    # 日历 banner：缺 banner_mask.png 时资源记录必须暴露 incomplete。
+    from src.infrastructure.rendering.encyclopedia import _load_banner
+
+    calendar_records: list[dict[str, str]] = []
+    asyncio.run(_load_banner(1050, resolver, calendar_records))
+    assert any(
+        record.get("key") == "texture.calendar.banner_mask"
+        and record.get("incomplete") == "true"
+        for record in calendar_records
+    )
+
+    # 周报品质角标：缺 q2.png 时记录必须暴露 incomplete。
+    from src.infrastructure.rendering.encyclopedia import _weekly_item_payload
+
+    item = SimpleNamespace(item_id=1, item_name="道具", icon="", quality=2, total_num="1")
+    weekly_records: list[dict[str, str]] = []
+    payload = asyncio.run(
+        _weekly_item_payload(
+            item,
+            {1: generation / "weekly_item" / "item_101.png"}
+            if (generation / "weekly_item" / "item_101.png").exists()
+            else None,
+            static_asset_resolver=resolver,
+            static_records=weekly_records,
+            weekly_item_cache_dir=tmp_path / "weekly-cache",
+        )
+    )
+    assert payload["quality"] == ""
+    assert any(
+        record.get("key") == "texture.weekly_report.quality_q2"
+        and record.get("incomplete") == "true"
+        for record in weekly_records
+    )
+
+
+def test_static_open_image_writes_records(tmp_path: Path) -> None:
+    """static_open_image 的 key/records 参数保证 placeholder 参与 incomplete 判定。"""
+
+    present_records: list[dict[str, str]] = []
+    static_open_image(
+        StaticAssetResolver(
+            snapshot_root=_build_snapshot(tmp_path / "full", generation="a" * 40),
+            bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
+        ),
+        "textures/sign/bar.png",
+        size=(4, 4),
+        label="签到",
+        key="texture.sign.bar",
+        records=present_records,
+    )
+    assert present_records[0]["incomplete"] == "false"
+
+    missing_records: list[dict[str, str]] = []
+    static_open_image(
+        StaticAssetResolver(
+            snapshot_root=tmp_path / "empty",
+            bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
+        ),
+        "textures/stamina/icon1.png",
+        size=(4, 4),
+        label="便签",
+        key="texture.stamina.icon1",
+        records=missing_records,
+    )
+    assert missing_records[0]["incomplete"] == "true"

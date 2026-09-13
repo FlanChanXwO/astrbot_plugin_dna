@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .static_assets import StaticAssetResolver
+
 import asyncio
 import math
 import random
@@ -63,6 +68,7 @@ from .renderer import HtmlRenderer
 from .runtime_assets import resources_incomplete
 from .spec import RenderSpec
 from .static_assets import (
+    ResolvedStaticAsset,
     StaticAssetResolver,
     static_font_data_uri,
     static_image_data_uri,
@@ -77,7 +83,7 @@ _RENDERER_STATIC_LABEL = "图鉴"
 def _static_image(
     key: str,
     relative: str,
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     static_records: list[dict[str, str]] | None,
     *,
     label: str = _RENDERER_STATIC_LABEL,
@@ -91,7 +97,7 @@ def _static_image(
 
 
 def _static_font(
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     static_records: list[dict[str, str]] | None,
 ) -> str:
     """解析主字体；缺失时返回空 URI 交给 CSS fallback。"""
@@ -132,7 +138,7 @@ def _as_role_header(
 
 
 def _select_stamina_bg(
-    static_asset_resolver: object | None,
+    static_asset_resolver: StaticAssetResolver | None,
     static_records: list[dict[str, str]] | None,
 ) -> str:
     """随机选择 snapshot 中的体力卡背景；缺失时回退本地 bootstrap 装饰图。"""
@@ -176,7 +182,7 @@ async def _draw_stamina_card_view(
     downloader: AssetDownloader | None = None,
     user_avatar_dir: Path | None = None,
     game_avatar_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """直接从便签/角色头部 DTO 构造模板输入。"""
@@ -229,6 +235,8 @@ async def _draw_stamina_card_view(
                         size=(96, 96),
                         label="便签",
                         resize=False,
+                        key=f"texture.stamina.icon{index}",
+                        records=static_records,
                     ),
                     (240, 230, 140),
                 ),
@@ -293,7 +301,7 @@ async def _draw_stamina_card(
     downloader: AssetDownloader | None = None,
     user_avatar_dir: Path | None = None,
     game_avatar_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """组装 legacy 便签 payload；typed DTO 走最小 view 分支。"""
@@ -363,6 +371,8 @@ async def _draw_stamina_card(
                         size=(96, 96),
                         label="便签",
                         resize=False,
+                        key=f"texture.stamina.icon{index}",
+                        records=static_records,
                     ),
                     (240, 230, 140),
                 ),
@@ -528,7 +538,7 @@ async def _weekly_item_payload(
     *,
     downloader: AssetDownloader | None = None,
     weekly_item_cache_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     item_id = getattr(item, "item_id", getattr(item, "itemId", 0))
@@ -579,6 +589,14 @@ async def _weekly_item_payload(
         if quality_asset is not None and quality_asset.path is not None
         else ""
     )
+    if static_records is not None:
+        static_records.append(
+            static_record(
+                f"texture.weekly_report.quality_q{quality}",
+                quality_asset or ResolvedStaticAsset(None, "none", True),
+                resource_path=quality_relative,
+            )
+        )
     return {
         "icon": icon,
         "name": item_name,
@@ -598,7 +616,7 @@ async def _draw_weekly_report_card_view(
     weekly_item_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
     game_avatar_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """直接从周报领域 DTO 构造模板输入。"""
@@ -682,7 +700,7 @@ async def _draw_weekly_report_card(
     weekly_item_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
     game_avatar_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     if isinstance(role_show, RoleHeader) and isinstance(report, WeeklyReport):
@@ -923,7 +941,7 @@ class CalendarContent(BaseModel):
 
 def _calendar_background(
     height: int,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> Image.Image:
     """按旧 PIL 的中心裁剪规则生成最终画布背景。"""
@@ -934,28 +952,34 @@ def _calendar_background(
         size=(1200, height),
         label="日历",
         resize=False,
+        key="texture.calendar.bg",
+        records=static_records,
     )
     return crop_center_img(opened.convert("RGBA"), 1200, height)
 
 
 async def _load_banner(
     height: int,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> str:
     """按旧 PIL 合成顺序预合成 banner，避免 T2I 对透明 JPEG 的底色差异。"""
 
-    def _open(relative: str) -> Image.Image:
+    def _open(relative: str, key: str) -> Image.Image:
         return static_open_image(
             static_asset_resolver,
             relative,
             size=(1200, 675),
             label="日历",
             resize=False,
+            key=key,
+            records=static_records,
         )
 
-    banner_bg = _open("calendar/banner_bg.webp").convert("RGBA").resize((1200, 675))
-    banner_mask = _open("calendar/banner_mask.png").getchannel("A")
+    banner_bg = _open(
+        "calendar/banner_bg.webp", "texture.calendar.banner_bg"
+    ).convert("RGBA").resize((1200, 675))
+    banner_mask = _open("calendar/banner_mask.png", "texture.calendar.banner_mask").getchannel("A")
     banner_bg = crop_center_img(banner_bg, banner_mask.width, banner_mask.height)
     # 裁剪高度跟随 mask，保证素材缺失走 placeholder 时尺寸依然一致。
     background = _calendar_background(
@@ -964,7 +988,7 @@ async def _load_banner(
     banner = Image.alpha_composite(
         background, Image.merge("RGBA", (*banner_bg.split()[:3], banner_mask))
     )
-    frame = _open("calendar/banner_frame.png").convert("RGBA")
+    frame = _open("calendar/banner_frame.png", "texture.calendar.banner_frame").convert("RGBA")
     if frame.size != banner.size:
         frame = frame.resize(banner.size)
     banner.alpha_composite(frame)
@@ -1074,7 +1098,7 @@ async def _event_image(
     *,
     downloader: AssetDownloader | None = None,
     calendar_cache_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> str | None:
     if not cont.pic:
@@ -1090,11 +1114,20 @@ async def _event_image(
             downloader=downloader,
         )
         return pil_image_data_uri(image)
+    pic_relative = f"calendar/{cont.pic}"
     pic_asset = (
-        static_asset_resolver.resolve_relative(f"calendar/{cont.pic}")
+        static_asset_resolver.resolve_relative(pic_relative)
         if isinstance(static_asset_resolver, StaticAssetResolver)
         else None
     )
+    if static_records is not None:
+        static_records.append(
+            static_record(
+                f"texture.calendar.event:{cont.pic}",
+                pic_asset or ResolvedStaticAsset(None, "none", True),
+                resource_path=pic_relative,
+            )
+        )
     return (
         image_data_uri(pic_asset.path)
         if pic_asset is not None and pic_asset.path is not None
@@ -1109,7 +1142,7 @@ async def _draw_calendar_card_bytes(
     *,
     downloader: AssetDownloader | None = None,
     calendar_cache_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     if now is None:
@@ -1169,7 +1202,7 @@ async def draw_calendar_card(
     *,
     downloader: AssetDownloader | None = None,
     calendar_cache_dir: Path | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> Image.Image:
     """兼容旧调用者返回 Pillow 图像；运行期 renderer 使用 raw bytes 边界。"""

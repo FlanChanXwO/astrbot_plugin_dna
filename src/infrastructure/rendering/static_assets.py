@@ -286,14 +286,22 @@ def static_open_image(
     size: tuple[int, int],
     label: str,
     resize: bool = True,
+    key: str | None = None,
+    records: list[dict[str, str]] | None = None,
 ) -> Image.Image:
-    """按 snapshot 相对路径读取 PIL 图片；缺失或损坏时返回占位图。"""
+    """按 snapshot 相对路径读取 PIL 图片；缺失或损坏时返回占位图。
+
+    传入 ``key`` 与 ``records`` 时同步写入资源记录，保证 placeholder 参与
+    ``resources_incomplete()`` 判定，不留静默降级。
+    """
 
     asset = (
         resolver.resolve_relative(relative)
         if resolver is not None
         else ResolvedStaticAsset(None, "none", True)
     )
+    if key is not None and records is not None:
+        records.append(static_record(key, asset, resource_path=relative))
     if asset.path is not None:
         try:
             with Image.open(asset.path) as opened:

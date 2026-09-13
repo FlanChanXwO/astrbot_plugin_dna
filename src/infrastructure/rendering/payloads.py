@@ -17,6 +17,7 @@ from .static_assets import static_image_data_uri, static_record
 
 if TYPE_CHECKING:
     from ..resources.resolver import AssetDownloader
+    from .static_assets import StaticAssetResolver
 
 
 class ProfileImageLoader(Protocol):
@@ -39,7 +40,7 @@ async def build_profile_header(
     avatar_path: Path | None = None,
     game_avatar_path: Path | None = None,
     image_loader: ProfileImageLoader | None = None,
-    static_asset_resolver: object | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     """保留原头像选择语义，返回可安全交给模板的资料头 payload。
