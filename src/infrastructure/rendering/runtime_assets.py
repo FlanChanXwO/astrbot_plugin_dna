@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from io import BytesIO
 from pathlib import Path
 from typing import Protocol
 
@@ -97,66 +96,6 @@ def placeholder_image(size: tuple[int, int], label: str) -> Image.Image:
     return image
 
 
-def load_asset_image(asset: ResolvedAsset, *, size: tuple[int, int], label: str) -> Image.Image:
-    """读取已解析图片，读取失败时返回可见占位图。"""
-
-    if asset.path is None:
-        return placeholder_image(size, label)
-    try:
-        with Image.open(asset.path) as source:
-            image = source.convert("RGBA")
-    except (OSError, ValueError, Image.DecompressionBombError):
-        return placeholder_image(size, label)
-    return image.resize(size, Image.Resampling.LANCZOS)
-
-
-def render_runtime_card(
-    title: str,
-    lines: Iterable[str],
-    *,
-    font_asset: ResolvedAsset,
-    image_assets: Iterable[tuple[str, ResolvedAsset]] = (),
-    width: int = 1280,
-    min_height: int = 520,
-) -> bytes:
-    """用 PIL 生成不依赖插件大纹理的确定性降级/远端资源卡片。"""
-
-    text_lines = [str(line) for line in lines]
-    image_entries = list(image_assets)
-    text_height = 150 + max(len(text_lines), 1) * 42
-    image_height = 112 + len(image_entries) * 112
-    height = max(min_height, text_height, image_height)
-    image = Image.new("RGB", (width, height), (247, 248, 250))
-    draw = ImageDraw.Draw(image)
-    font = load_runtime_font(font_asset.path, 24)
-    title_font = load_runtime_font(font_asset.path, 34)
-    draw.rectangle((0, 0, width, 92), fill=(42, 54, 73))
-    draw.text((34, 26), title, fill=(255, 255, 255), font=title_font)
-
-    y = 126
-    thumb_x = width - 176
-    for line in text_lines:
-        draw.text((42, y), line, fill=(45, 50, 58), font=font)
-        y += 42
-        if y >= height - 44:
-            continue
-
-    for index, (label, asset) in enumerate(image_entries):
-        thumb_y = 112 + index * 112
-        if thumb_y + 96 >= height:
-            break
-        thumb = load_asset_image(asset, size=(96, 96), label=label).convert("RGB")
-        image.paste(thumb, (thumb_x, thumb_y))
-        draw.text(
-            (thumb_x - 2, thumb_y + 98),
-            label,
-            fill=(74, 83, 99),
-            font=load_runtime_font(14),
-        )
-
-    buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=88)
-    return buffer.getvalue()
 
 
 def resolved_image_data_uri(
@@ -206,9 +145,7 @@ def resolved_font_data_uri(
 
 __all__ = [
     "AssetResolverLike",
-    "load_asset_image",
     "placeholder_image",
-    "render_runtime_card",
     "resolve_runtime_asset",
     "resolved_font_data_uri",
     "resolved_image_data_uri",
