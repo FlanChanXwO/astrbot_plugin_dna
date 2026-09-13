@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Literal
+from typing import Any, Literal
 
 from .image_inspector import MediaType, inspect_image
 
@@ -35,7 +36,7 @@ class RenderedArtifact:
         *,
         media_type: MediaType,
         metadata: Mapping[str, JSONValue] | None = None,
-    ) -> "RenderedArtifact":
+    ) -> RenderedArtifact:
         inspected = inspect_image(data, media_type=media_type)
         return cls(
             data=data,

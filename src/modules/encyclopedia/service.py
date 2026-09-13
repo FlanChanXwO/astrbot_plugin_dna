@@ -43,6 +43,7 @@ class EncyclopediaService:
         *,
         guide_providers: tuple[str, ...] = ("all",),
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
+        rendered_root: str | Path,
     ) -> None:
         self.database = database
         self.transport = transport
@@ -51,6 +52,7 @@ class EncyclopediaService:
         self.resources = resources
         self.guide_providers = guide_providers
         self.resource_snapshots = resource_snapshots
+        self.rendered_root = Path(rendered_root).expanduser().absolute()
 
     def _renderer_context(self):
         if self.resource_snapshots is None:
@@ -71,7 +73,7 @@ class EncyclopediaService:
 
     def _copy_resource_image(self, path: Path) -> ImageResponse:
         return write_temporary_image(
-            self.database.path.parent / "rendered",
+            self.rendered_root,
             path.read_bytes(),
             prefix="dnaby-resource-",
             suffix=path.suffix or ".bin",
@@ -161,6 +163,7 @@ class EncyclopediaService:
             temporary=True,
             sidecar=rendered.sidecar,
             manifest=rendered.manifest,
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def weekly_report(self, request: EncyclopediaRequest):
@@ -201,6 +204,7 @@ class EncyclopediaService:
             temporary=True,
             sidecar=rendered.sidecar,
             manifest=rendered.manifest,
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def calendar(self, request: EncyclopediaRequest):
@@ -220,6 +224,7 @@ class EncyclopediaService:
             temporary=True,
             sidecar=rendered.sidecar,
             manifest=rendered.manifest,
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def wiki(self, request: EncyclopediaRequest):

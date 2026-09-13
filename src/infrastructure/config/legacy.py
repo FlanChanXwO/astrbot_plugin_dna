@@ -317,9 +317,9 @@ __all__ = [
     "DNA_CONFIG_SECTION",
     "DNA_PREFIX",
     "DNA_SIGN_CONFIG_SECTION",
-    "DNAConfig",
-    "DNASignConfig",
     "LEGACY_DNA_CONFIG_SECTION",
     "LEGACY_DNA_SIGN_CONFIG_SECTION",
+    "DNAConfig",
+    "DNASignConfig",
     "generate_astrbot_schema",
 ]

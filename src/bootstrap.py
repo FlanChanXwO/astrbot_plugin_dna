@@ -29,6 +29,11 @@ from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
 from .infrastructure.config import DnabySettings
+from .infrastructure.data_layout import (
+    DATABASE_DIR_NAME,
+    DATABASE_FILE_NAME,
+    RuntimeDataLayout,
+)
 from .infrastructure.http import (
     ClientUpdateTransport as DnaApiClientUpdateTransport,
 )
@@ -41,6 +46,7 @@ from .infrastructure.http import (
     RequestConcurrencyGate,
 )
 from .infrastructure.i18n import validate_tip_catalog
+from .infrastructure.legacy_layout import LegacyLayoutDetector
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
@@ -52,17 +58,20 @@ from .infrastructure.rendering import (
     RenderedFileStore,
     ResourceMap,
 )
+from .infrastructure.rendering.static_assets import (
+    BOOTSTRAP_RELATIVE_ALLOWLIST,
+    BOOTSTRAP_TEXTURE_ROOT,
+    HELP_ICON_DIR,
+    StaticAssetResolver,
+)
 from .infrastructure.resources import (
+    AssetResolver,
     EncyclopediaResourceStore,
     ResourceGenerationError,
     ResourceSnapshot,
     ResourceSnapshotCoordinator,
 )
-from .infrastructure.resources.paths import (
-    PLUGIN_NAME,
-    resource_generations_dir,
-    resource_repository_dir,
-)
+from .infrastructure.resources.paths import PLUGIN_NAME
 from .infrastructure.scheduler import SignPushPayload, SignScheduler
 from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
@@ -93,13 +102,19 @@ from .modules.encyclopedia.service import EncyclopediaService
 from .modules.notices.ann_delivery_state import AnnDeliveryStateStore
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.contracts import NoticesTransport
+from .modules.notices.mh_cache import MH_CACHE_TYPE
 from .modules.notices.service import NoticesService
 from .modules.notices.target_service import AnnouncementTargetService
 from .modules.operations.resource_service import ResourceUpdateService
-from .modules.player.cache import PlayerCache
+from .modules.player.cache import (
+    PLAYER_CARD_CACHE_TYPE,
+    PLAYER_DATA_CACHE_TYPE,
+    PlayerCache,
+)
 from .modules.player.contracts import PlayerTransport
 from .modules.player.service import PlayerService
 from .modules.privacy import PrivacyService
+from .utils.image_utils import ImageFetcher
 
 PluginConfig = AstrBotConfig | dict[str, Any] | None
 
@@ -147,6 +162,7 @@ def build_runtime(
     command_registry: CommandRegistry | None = None,
     *,
     database: AsyncDatabase | None = None,
+    runtime_data_layout: RuntimeDataLayout | None = None,
     account_transport: AccountTransport | None = None,
     player_transport: PlayerTransport | None = None,
     encyclopedia_transport: EncyclopediaTransport | None = None,
@@ -158,11 +174,40 @@ def build_runtime(
 ) -> PluginRuntime:
     """为一个 AstrBot 插件实例组装代码 registry 和 typed services。"""
 
+    if runtime_data_layout is None:
+        if database is None:
+            from astrbot.api.star import StarTools
+
+            runtime_data_layout = RuntimeDataLayout.from_data_dir(
+                StarTools.get_data_dir(PLUGIN_NAME),
+            )
+        else:
+            database_path = Path(database.path)
+            if (
+                database_path.name != DATABASE_FILE_NAME
+                or database_path.parent.name != DATABASE_DIR_NAME
+            ):
+                raise ValueError(
+                    "注入 database 时必须同时提供 runtime_data_layout；"
+                    "只有标准 db/dna.sqlite3 路径支持兼容推导"
+                )
+            runtime_data_layout = RuntimeDataLayout.from_data_dir(
+                database_path.parent.parent,
+            )
+
+    # 必须先完成只读旧布局检测，再进入任何会创建数据库或运行期目录的阶段。
+    LegacyLayoutDetector(runtime_data_layout).ensure_compatible()
+
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()
     settings = DnabySettings.from_config(config)
     from .utils import dna_api
 
+    if services is not None and "image_fetcher" in services:
+        image_fetcher = cast(ImageFetcher, services["image_fetcher"])
+    else:
+        # runtime 必须拥有自己的 client，避免重载或测试切换事件循环后复用旧连接池。
+        image_fetcher = ImageFetcher()
     dna_api.configure_network(
         api_base_url=settings.network.api_base_url,
         proxy_url=settings.network.proxy_url,
@@ -172,11 +217,11 @@ def build_runtime(
     request_gate = RequestConcurrencyGate(settings.network.max_concurrent_requests)
     runtime_database = database
     if runtime_database is None:
-        from astrbot.api.star import StarTools
-
-        runtime_database = AsyncDatabase.from_data_dir(
-            StarTools.get_data_dir(PLUGIN_NAME),
-        )
+        if runtime_data_layout is None:
+            raise RuntimeError("运行期数据布局尚未解析")
+        runtime_database = AsyncDatabase.from_data_dir(runtime_data_layout.data_dir)
+    if runtime_data_layout is None:
+        raise RuntimeError("运行期数据布局尚未解析")
     resolved_account_transport = account_transport or DnaApiAccountTransport()
     account_service = AccountService(
         runtime_database,
@@ -187,17 +232,52 @@ def build_runtime(
     if services is not None and "account_service" in services:
         account_service = cast(AccountService, services["account_service"])
 
-    custom_alias_path = runtime_database.path.parent / "alias_custom.json"
-    custom_weapon_alias_path = runtime_database.path.parent / "weapon_alias_custom.json"
-    resource_cache_root = resource_repository_dir(runtime_database.path.parent)
-    resource_generations_root = resource_generations_dir(runtime_database.path.parent)
+    custom_alias_path = runtime_data_layout.char_alias_path
+    custom_weapon_alias_path = runtime_data_layout.weapon_alias_path
+    resource_repository_root = runtime_data_layout.resource_repository_dir
+    resource_generations_root = runtime_data_layout.resource_generations_dir
     resource_snapshots = ResourceSnapshotCoordinator(
-        resource_cache_root,
+        resource_repository_root,
         generations_root=resource_generations_root,
         acceleration_prefix=settings.resources.acceleration_prefix,
         custom_alias_path=custom_alias_path,
         custom_weapon_alias_path=custom_weapon_alias_path,
     )
+    asset_resolver = AssetResolver(
+        coordinator=resource_snapshots,
+        dynamic_root=runtime_data_layout.cache_assets_dir,
+        downloader=image_fetcher,
+    )
+    if services is not None and "asset_resolver" in services:
+        asset_resolver = cast(AssetResolver, services["asset_resolver"])
+    static_asset_resolver = StaticAssetResolver(
+        snapshot_root=None,
+        coordinator=resource_snapshots,
+        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_ROOT,
+        # 仅显式允许这些通用装饰图在无 snapshot 时回退本地 bootstrap；
+        # 其余静态资源缺失必须暴露为 incomplete，不得被本地同名文件掩盖。
+        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
+        # 帮助菜单命令图标与 logo 是插件包内的小型 UI 资源，保持显式 bootstrap。
+        bootstrap_dirs={
+            "texture.help.icon": HELP_ICON_DIR,
+        },
+        bootstrap_allowlist={
+            "texture.help.logo": Path(__file__).parents[1] / "logo.png"
+        },
+        asset_paths={
+            "texture.help.background": "textures/help/bg.jpg",
+            "texture.help.banner": "textures/help/banner_bg.jpg",
+            "texture.help.cag": "textures/help/cag_bg.png",
+            "texture.help.item": "textures/help/item.png",
+            "texture.common.footer": "textures/common/footer.png",
+            "font.help": "fonts/MiSansVF.woff2",
+            "font.dna_fonts": "fonts/dna_fonts.ttf",
+        },
+    )
+    if services is not None and "static_asset_resolver" in services:
+        static_asset_resolver = cast(
+            StaticAssetResolver, services["static_asset_resolver"]
+        )
 
     async def _notify_login(actor: Any, response: object) -> None:
         """把后台登录终态投递回发起登录的 AstrBot 会话。"""
@@ -260,6 +340,7 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else None
     )
+    static_asset_resolver.snapshot_root = resource_root
     player_resources = (
         initial_resource_snapshot.player_resources
         if initial_resource_snapshot is not None
@@ -270,8 +351,17 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else EncyclopediaResourceStore()
     )
-    rendered_root = runtime_database.path.parent / "rendered"
-    cache_manager = CacheManager(runtime_database.path.parent / "cache", settings.cache)
+    rendered_root = runtime_data_layout.cache_rendered_dir
+    cache_manager = CacheManager(
+        runtime_data_layout.cache_dir,
+        settings.cache,
+        cache_type_roots={
+            PLAYER_DATA_CACHE_TYPE: runtime_data_layout.cache_api_dir,
+            PLAYER_CARD_CACHE_TYPE: runtime_data_layout.cache_rendered_dir,
+            MH_CACHE_TYPE: runtime_data_layout.cache_api_dir,
+            "announcement": runtime_data_layout.cache_media_dir,
+        },
+    )
     player_cache = PlayerCache(
         cache_manager,
         rendered_root,
@@ -321,7 +411,7 @@ def build_runtime(
         player_transport
         or DnaApiPlayerTransport(runtime_database, request_gate=request_gate),
         privacy_service,
-        PlayerRenderer(rendered_root, player_resources),
+        PlayerRenderer(rendered_root, player_resources, asset_resolver=asset_resolver),
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,
@@ -336,14 +426,18 @@ def build_runtime(
             request_gate=request_gate,
         ),
         privacy_service,
-        EncyclopediaRenderer(rendered_root, encyclopedia_resources),
+        EncyclopediaRenderer(
+            rendered_root,
+            encyclopedia_resources,
+            downloader=image_fetcher,
+            runtime_data_layout=runtime_data_layout,
+        ),
         encyclopedia_resources,
         guide_providers=tuple(settings.display.guide_providers),
         resource_snapshots=resource_snapshots,
+        rendered_root=rendered_root,
     )
-    subscriptions = SubscriptionStore(
-        runtime_database.path.parent / "subscriptions.json"
-    )
+    subscriptions = SubscriptionStore(runtime_data_layout.subscriptions_path)
     deletion_coordinator = AccountDeletionCoordinator(runtime_database, subscriptions)
     membership_probe = AiocqhttpMembershipProbe(context=context)
     membership_service = MembershipService(
@@ -352,12 +446,12 @@ def build_runtime(
         membership_probe,
         deletion_coordinator=deletion_coordinator,
     )
-    scheduler_registry = SchedulerRegistry(
-        runtime_database.path.parent / "scheduler_state.json"
-    )
+    scheduler_registry = SchedulerRegistry(runtime_data_layout.scheduler_state_path)
     checkin_renderer = CheckinRenderer(
         rendered_root,
         encyclopedia_resources,
+        downloader=image_fetcher,
+        runtime_data_layout=runtime_data_layout,
     )
     checkin_service = CheckinService(
         runtime_database,
@@ -411,7 +505,19 @@ def build_runtime(
         simple_image=settings.notifications.secret_simple_image,
         cache_manager=cache_manager,
         request_gate=request_gate,
+        downloader=image_fetcher,
+        runtime_data_layout=runtime_data_layout,
     )
+
+    # 四个正式 renderer 挂载静态资源解析器；bind_renderer 会在每次请求的
+    # generation lease 内生成固定 generation 的请求级副本，避免混用 generation。
+    for _renderer in (
+        player_service.renderer,
+        encyclopedia_service.renderer,
+        checkin_renderer,
+        notices_renderer,
+    ):
+        _renderer.static_asset_resolver = static_asset_resolver
 
     async def _push_notice(
         origin: str,
@@ -467,9 +573,9 @@ def build_runtime(
         runtime_database,
         request_gate=request_gate,
     )
-    ann_state = AnnStateStore(runtime_database.path.parent / "ann_state.json")
+    ann_state = AnnStateStore(runtime_data_layout.ann_state_path)
     ann_delivery_state = AnnDeliveryStateStore(
-        runtime_database.path.parent / "ann_delivery_state.json",
+        runtime_data_layout.ann_delivery_state_path,
     )
 
     class _AnnouncementListSource:
@@ -561,7 +667,7 @@ def build_runtime(
             services["client_updates_transport"],
         )
     client_update_state = ClientUpdateStateStore(
-        runtime_database.path.parent / "client_update_state.json",
+        runtime_data_layout.client_update_state_path,
     )
     if services is not None and "client_update_state" in services:
         client_update_state = cast(
@@ -572,7 +678,7 @@ def build_runtime(
         client_update_state,
         transport=resolved_client_updates_transport,
         subscriptions=subscriptions,
-        channels=tuple(settings.client_updates.channels),
+        target_ids=tuple(settings.client_updates.targets),
     )
     if services is not None and "client_update_service" in services:
         client_update_service = cast(
@@ -632,7 +738,7 @@ def build_runtime(
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
-        resource_root=resource_cache_root,
+        resource_root=resource_repository_root,
         resource_snapshots=resource_snapshots,
     )
     if services is not None and "resource_update_service" in services:
@@ -673,6 +779,7 @@ def build_runtime(
         runtime_database,
         player_service.transport,
         player_service.renderer,
+        resource_snapshots=resource_snapshots,
     )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
@@ -712,6 +819,12 @@ def build_runtime(
         "admin_alias_service": admin_alias_service,
         "resource_update_service": resource_update_service,
         "resource_snapshots": resource_snapshots,
+        "asset_resolver": asset_resolver,
+        "static_asset_resolver": static_asset_resolver,
+        "bind_static_asset_resolver": lambda: resource_snapshots.bind_static_asset_resolver(
+            static_asset_resolver
+        ),
+        "image_fetcher": image_fetcher,
     }
 
     def _refresh_resource_views(snapshot: ResourceSnapshot) -> None:
@@ -733,6 +846,7 @@ def build_runtime(
         resolved_services["resource_root"] = snapshot.root
         resolved_services["player_resources"] = new_player_resources
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources
+        static_asset_resolver.snapshot_root = snapshot.root
 
     resource_snapshots.subscribe(_refresh_resource_views)
 
@@ -756,6 +870,9 @@ def build_runtime(
 
     async def _stop_resource_views() -> None:
         """资源校验不持有后台任务，但需要与启动 hook 保持索引对齐。"""
+
+    async def _stop_image_fetcher() -> None:
+        """下载器在 finalizer 阶段关闭；此 hook 只保持生命周期索引对齐。"""
 
     if services is not None:
         resolved_services.update(services)
@@ -791,8 +908,10 @@ def build_runtime(
     )
     lifecycle = PluginLifecycle(
         start_hooks=(
+            image_fetcher.start,
             _initialize_resource_views,
             login_flow.start,
+            client_update_service.initialize,
             web.initialize,
             cache_maintenance.start,
             sign_scheduler.start,
@@ -800,9 +919,10 @@ def build_runtime(
             client_updates_scheduler.start,
             agent_tools_lifecycle.start,
         ),
-        # stop_hooks 与 start_hooks 按阶段对齐；PluginLifecycle 会逆序执行，
-        # 先取消 scheduler/监听任务，再运行 transport 和数据库 finalizer。
+        # PluginLifecycle 会逆序执行，先取消 scheduler/监听任务，
+        # 再运行 transport 和数据库 finalizer。
         stop_hooks=(
+            _stop_image_fetcher,
             _stop_resource_views,
             login_flow.stop,
             web.stop,
@@ -813,6 +933,7 @@ def build_runtime(
             agent_tools_lifecycle.stop,
         ),
         finalizer_hooks=(
+            image_fetcher.close,
             resource_update_service.stop,
             dna_api.close,
             runtime_database.dispose,

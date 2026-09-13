@@ -218,7 +218,11 @@ async def test_login_page_exposes_media_only_when_setting_and_snapshot_allow_it(
         assert 'id="backgroundVideo"' in page
         assert 'id="backgroundAudio"' not in page
         assert 'id="audioToggle"' not in page
-        assert 'data-video-src="http://localhost:' in page
+        assert 'id="mediaBootCover"' in page
+        assert 'autoplay' in page
+        assert 'preload="auto"' in page
+        assert 'src="http://localhost:' in page
+        assert 'data-video-src=' not in page
         assert "/astrbot_plugin_dna/dna/login/media/background.mp4" in page
         assert snapshots.optional_calls == 1
     finally:
@@ -243,6 +247,7 @@ async def test_login_page_exposes_media_only_when_setting_and_snapshot_allow_it(
         ) as response:
             page = await response.text()
         assert 'id="backgroundVideo"' not in page
+        assert 'id="mediaBootCover"' not in page
         assert "background.mp4" not in page
         assert no_media_snapshots.optional_calls == 0
     finally:

@@ -37,12 +37,13 @@ from ...utils.api.mh_map import get_mh_type_name
 from ...utils.api.model import DNARoleForToolInstanceInfo
 from ...utils.image_utils import download
 from ...utils.resource.RESOURCE_PATH import ANN_CARD_PATH
+from ..data_layout import RuntimeDataLayout
 from ..http.concurrency import RequestConcurrencyGate
 from ..resources.encyclopedia import EncyclopediaResourceStore
+from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import (
-    font_data_uri,
     image_data_uri,
     optimized_image_data_uri,
     pil_image_data_uri,
@@ -50,19 +51,115 @@ from .assets import (
 )
 from .image_inspector import MediaType, inspect_image
 from .renderer import HtmlRenderer
+from .runtime_assets import placeholder_image, resources_incomplete
 from .spec import RenderSpec
+from .static_assets import (
+    ResolvedStaticAsset,
+    StaticAssetResolver,
+    static_font_data_uri,
+    static_image_data_uri,
+    static_record,
+)
 
 if TYPE_CHECKING:
     from ...infrastructure.cache import CacheManager
 
 _RENDERER = HtmlRenderer()
-RESOURCES_DIR = Path(__file__).parents[2] / "resources"
-MH_TEXT_PATH = RESOURCES_DIR / "textures" / "mh"
-ANN_TEXT_PATH = RESOURCES_DIR / "textures" / "ann"
-COMMON_PATH = RESOURCES_DIR / "textures" / "common"
-FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
-UNICODE_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "arial-unicode-ms-bold.ttf"
-_OFFICIAL_AVATAR = ANN_TEXT_PATH / "dna_official_avatar.jpeg"
+OFFICIAL_AVATAR_RELATIVE = "textures/ann/dna_official_avatar.jpeg"
+UNICODE_FONT_RELATIVE = "fonts/arial-unicode-ms-bold.ttf"
+
+
+def _static_image(
+    key: str,
+    relative: str,
+    static_asset_resolver: StaticAssetResolver | None,
+    static_records: list[dict[str, str]] | None,
+    *,
+    label: str = "公告",
+) -> str:
+    """经 StaticAssetResolver 解析静态纹理；缺失时降级为 placeholder。"""
+
+    uri, asset = static_image_data_uri(static_asset_resolver, relative, label=label)
+    if static_records is not None:
+        static_records.append(static_record(key, asset, resource_path=relative))
+    return uri
+
+
+def _static_font(
+    static_asset_resolver: StaticAssetResolver | None,
+    static_records: list[dict[str, str]] | None,
+) -> str:
+    """解析主字体；缺失时返回空 URI 交给 CSS fallback。"""
+
+    uri, asset = static_font_data_uri(static_asset_resolver, "fonts/dna_fonts.ttf")
+    if static_records is not None:
+        static_records.append(
+            static_record(
+                "font.dna_fonts", asset, resource_path="fonts/dna_fonts.ttf"
+            )
+        )
+    return uri
+
+
+def _unicode_fonts(
+    static_asset_resolver: StaticAssetResolver | None,
+    text: str,
+    static_records: list[dict[str, str]] | None,
+) -> tuple[str, str | None]:
+    """解析 Unicode fallback 字体；缺失时交给 CSS fallback。"""
+
+    asset = (
+        static_asset_resolver.resolve_relative(UNICODE_FONT_RELATIVE)
+        if isinstance(static_asset_resolver, StaticAssetResolver)
+        else None
+    )
+    if asset is not None and asset.path is not None:
+        return unicode_font_data_uris(asset.path, text)
+    if static_records is not None:
+        static_records.append(
+            static_record(
+                "font.arial_unicode",
+                asset or ResolvedStaticAsset(None, "none", True),
+                resource_path=UNICODE_FONT_RELATIVE,
+            )
+        )
+    return "", None
+
+
+def _ann_background(
+    static_asset_resolver: StaticAssetResolver | None,
+    size: tuple[int, int],
+    static_records: list[dict[str, str]] | None,
+) -> str:
+    """解析公告背景；缺失时返回尺寸稳定的 placeholder。"""
+
+    relative = "textures/common/bg.jpg"
+    asset = (
+        static_asset_resolver.resolve_relative(relative)
+        if isinstance(static_asset_resolver, StaticAssetResolver)
+        else None
+    )
+    if asset is not None and asset.path is not None:
+        if static_records is not None:
+            static_records.append(
+                static_record("texture.common.bg", asset, resource_path=relative)
+            )
+        return optimized_image_data_uri(
+            asset.path,
+            size=size,
+            crop=True,
+            image_format="JPEG",
+            quality=85,
+        )
+    if static_records is not None:
+        static_records.append(
+            static_record(
+                "texture.common.bg",
+                asset or ResolvedStaticAsset(None, "none", True),
+                resource_path=relative,
+            )
+        )
+    return pil_image_data_uri(placeholder_image(size, "公告"))
 
 QR_CACHE_PATH = ANN_CARD_PATH / "qr"
 PREVIEW_CACHE_PATH = ANN_CARD_PATH / "preview"
@@ -124,13 +221,20 @@ async def _fetch_image(
     name: str | None = None,
     request_gate: RequestConcurrencyGate | None = None,
     request_key: object | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> Image.Image:
     path.mkdir(parents=True, exist_ok=True)
     file_name = name or pic_url.split("/")[-1]
     target = path / file_name
 
     async def fetch() -> None:
-        await download(pic_url, path, file_name, tag="[DNA]")
+        await download(
+            pic_url,
+            path,
+            file_name,
+            tag="[DNA]",
+            downloader=downloader,
+        )
 
     if request_gate is None:
         await fetch()
@@ -145,6 +249,7 @@ async def _fetch_image_bytes(
     pic_url: str,
     *,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     """下载并校验一张临时源图，成功后由调用方决定是否进入统一缓存。"""
 
@@ -152,7 +257,13 @@ async def _fetch_image_bytes(
         with tempfile.TemporaryDirectory(prefix="dnaby-ann-source-") as directory:
             target_dir = Path(directory)
             file_name = _cache_name("source", pic_url, ext="image")
-            target = await download(pic_url, target_dir, file_name, tag="[DNA]")
+            target = await download(
+                pic_url,
+                target_dir,
+                file_name,
+                tag="[DNA]",
+                downloader=downloader,
+            )
             return target.read_bytes()
 
     if request_gate is None:
@@ -172,11 +283,16 @@ async def _source_image_content(
     cache_manager: CacheManager | None,
     kind: str,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
 ) -> bytes:
     if cache_manager is None:
         if request_gate is None:
-            return await _fetch_image_bytes(url)
-        return await _fetch_image_bytes(url, request_gate=request_gate)
+            return await _fetch_image_bytes(url, downloader=downloader)
+        return await _fetch_image_bytes(
+            url,
+            request_gate=request_gate,
+            downloader=downloader,
+        )
     key = f"ann-source:{kind}:{url}"
     lookup = await cache_manager.get(
         "announcement",
@@ -186,9 +302,13 @@ async def _source_image_content(
     if lookup.entry is not None:
         return lookup.entry.content
     if request_gate is None:
-        content = await _fetch_image_bytes(url)
+        content = await _fetch_image_bytes(url, downloader=downloader)
     else:
-        content = await _fetch_image_bytes(url, request_gate=request_gate)
+        content = await _fetch_image_bytes(
+            url,
+            request_gate=request_gate,
+            downloader=downloader,
+        )
     await cache_manager.put(
         "announcement",
         key,
@@ -200,18 +320,33 @@ async def _source_image_content(
 
 
 async def _load_qr_code(
-    url: str, size: int = 220, *, request_gate: RequestConcurrencyGate | None = None
+    url: str,
+    size: int = 220,
+    *,
+    request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image | None:
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size={size}x{size}&data={quote_plus(url)}"
+    ann_card_cache_dir = (
+        ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+    )
+    qr_cache_dir = ann_card_cache_dir / "qr"
     try:
         if request_gate is None:
             image = await _fetch_image(
-                QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size)
+                qr_cache_dir,
+                qr_url,
+                name=_cache_name("qr", url, size),
+                downloader=downloader,
             )
         else:
             image = await request_gate.run(
                 lambda: _fetch_image(
-                    QR_CACHE_PATH, qr_url, name=_cache_name("qr", url, size)
+                    qr_cache_dir,
+                    qr_url,
+                    name=_cache_name("qr", url, size),
+                    downloader=downloader,
                 ),
                 key=("qr", url, size),
             )
@@ -241,9 +376,36 @@ def _round_avatar(image: Image.Image, size: int) -> Image.Image:
     return output
 
 
-def _load_avatar(size: int) -> Image.Image:
-    if _OFFICIAL_AVATAR.exists():
-        return _round_avatar(Image.open(_OFFICIAL_AVATAR).convert("RGBA"), size)
+def _load_avatar(
+    size: int,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
+) -> Image.Image:
+    """官方头像经 resolver 解析；缺失时退回纯色圆头像。"""
+
+    asset = (
+        static_asset_resolver.resolve_relative(OFFICIAL_AVATAR_RELATIVE)
+        if isinstance(static_asset_resolver, StaticAssetResolver)
+        else None
+    )
+    if asset is not None and asset.path is not None:
+        if static_records is not None:
+            static_records.append(
+                static_record(
+                    "texture.ann.official_avatar",
+                    asset,
+                    resource_path=OFFICIAL_AVATAR_RELATIVE,
+                )
+            )
+        return _round_avatar(Image.open(asset.path).convert("RGBA"), size)
+    if static_records is not None:
+        static_records.append(
+            static_record(
+                "texture.ann.official_avatar",
+                asset or ResolvedStaticAsset(None, "none", True),
+                resource_path=OFFICIAL_AVATAR_RELATIVE,
+            )
+        )
     return _round_avatar(Image.new("RGB", (size, size), "#b22222"), size)
 
 
@@ -255,17 +417,23 @@ async def _load_preview(
     strict: bool = False,
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image | None:
     if not url:
         return None
     try:
+        preview_cache_dir = (
+            ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+        ) / "preview"
         if cache_manager is None:
             image = await _fetch_image(
-                PREVIEW_CACHE_PATH,
+                preview_cache_dir,
                 url,
                 name=_cache_name("preview", url),
                 request_gate=request_gate,
                 request_key=("preview", url),
+                downloader=downloader,
             )
         else:
             image = _image_from_bytes(
@@ -274,6 +442,7 @@ async def _load_preview(
                     cache_manager=cache_manager,
                     kind="preview",
                     request_gate=request_gate,
+                    downloader=downloader,
                 ),
             )
     except (OSError, httpx.HTTPError):
@@ -291,12 +460,18 @@ async def _load_detail_image(
     *,
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> Image.Image:
     if cache_manager is None:
+        detail_cache_dir = (
+            ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+        ) / "detail"
         image = await _fetch_image(
-            DETAIL_CACHE_PATH,
+            detail_cache_dir,
             url,
             name=_cache_name("detail", url),
+            downloader=downloader,
         )
     else:
         image = _image_from_bytes(
@@ -305,6 +480,7 @@ async def _load_detail_image(
                 cache_manager=cache_manager,
                 kind="detail",
                 request_gate=request_gate,
+                downloader=downloader,
             ),
         )
     return _shrink_to_width(image.convert("RGB"), max_width)
@@ -328,6 +504,8 @@ _MhRenderSection = DNARoleForToolInstanceInfo | MhSection
 def _mh_payload(
     mh_result: Sequence[_MhRenderSection],
     subscribe_list: list[str] | None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, object]]:
     """将 legacy/typed 密函分节和本地类型图标转换为 HTML payload。"""
 
@@ -338,10 +516,27 @@ def _mh_payload(
             logger.warning("密函分节缺少类型，跳过渲染")
             continue
         type_name = getattr(mh, "type_name", None) or get_mh_type_name(mh_type)
-        icon_path = MH_TEXT_PATH / f"mh_{mh_type}.png"
+        icon_relative = f"textures/mh/mh_{mh_type}.png"
+        icon_asset = (
+            static_asset_resolver.resolve_relative(icon_relative)
+            if isinstance(static_asset_resolver, StaticAssetResolver)
+            else None
+        )
+        if static_records is not None:
+            static_records.append(
+                static_record(
+                    f"texture.mh.type_icon.{mh_type}",
+                    icon_asset or ResolvedStaticAsset(None, "none", True),
+                    resource_path=icon_relative,
+                )
+            )
         entries.append(
             {
-                "icon": image_data_uri(icon_path) if icon_path.exists() else None,
+                "icon": (
+                    image_data_uri(icon_asset.path)
+                    if icon_asset is not None and icon_asset.path is not None
+                    else None
+                ),
                 "instances": [
                     {
                         "name": getattr(instance, "name", ""),
@@ -374,17 +569,21 @@ async def draw_mh_simple(
     mh_result: Sequence[_MhRenderSection],
     remaining_seconds: int,
     subscribe_list: list[str] | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """渲染固定高度的简洁密函图，保留旧动态列宽公式。"""
 
     card_width, gutter = 320, 20
-    entries = _mh_payload(mh_result, subscribe_list)
+    entries = _mh_payload(
+        mh_result, subscribe_list, static_asset_resolver, static_records
+    )
     width = (card_width + gutter) * len(mh_result) + gutter
     return await _RENDERER.render(
         "cards/mh_simple.html.j2",
         {
             "entries": entries,
-            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "font": _static_font(static_asset_resolver, static_records),
             "refresh_text": _simple_refresh_text(remaining_seconds),
             "width": width,
         },
@@ -397,26 +596,45 @@ async def draw_mh_card(
     remaining_seconds: int,
     subscribe_list: list[str] | None = None,
     bg_name: str | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """渲染旧 1700×900 密函卡片，随机背景仍由业务层选择。"""
 
-    bg_path = MH_TEXT_PATH / (bg_name or random.choice(MH_BG_LIST))
-    if not bg_path.exists():
-        bg_path = COMMON_PATH / "bg1.jpg"
+    bg_relative = "textures/mh/" + (bg_name or random.choice(MH_BG_LIST))
+    bg_asset = (
+        static_asset_resolver.resolve_relative(bg_relative)
+        if isinstance(static_asset_resolver, StaticAssetResolver)
+        else None
+    )
+    if bg_asset is None or bg_asset.path is None:
+        # 密函背景缺失时回退通用装饰图（snapshot → 本地 bootstrap）。
+        bg_relative = "textures/common/bg1.jpg"
+        bg_uri = _static_image(
+            "texture.common.bg1", bg_relative, static_asset_resolver, static_records
+        )
+    else:
+        if static_records is not None:
+            static_records.append(
+                static_record("texture.mh.bg", bg_asset, resource_path=bg_relative)
+            )
+        bg_uri = image_data_uri(bg_asset.path)
 
     return await _RENDERER.render(
         "cards/mh_card.html.j2",
         {
-            "background": image_data_uri(bg_path),
-            "bar": image_data_uri(MH_TEXT_PATH / "bar.png"),
-            "cards": _mh_payload(mh_result, subscribe_list),
-            "card_background": image_data_uri(MH_TEXT_PATH / "card.png"),
-            "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer": image_data_uri(COMMON_PATH / "footer.png"),
+            "background": bg_uri,
+            "bar": _static_image("texture.mh.bar", "textures/mh/bar.png", static_asset_resolver, static_records),
+            "cards": _mh_payload(
+                mh_result, subscribe_list, static_asset_resolver, static_records
+            ),
+            "card_background": _static_image("texture.mh.card", "textures/mh/card.png", static_asset_resolver, static_records),
+            "font": _static_font(static_asset_resolver, static_records),
+            "footer": _static_image("texture.common.footer", "textures/common/footer.png", static_asset_resolver, static_records),
             "height": 900,
             "refresh_text": f"{format_seconds(remaining_seconds)}后刷新",
-            "refresh_background": image_data_uri(MH_TEXT_PATH / "refresh_time.png"),
-            "title": image_data_uri(MH_TEXT_PATH / "title.png"),
+            "refresh_background": _static_image("texture.mh.refresh_time", "textures/mh/refresh_time.png", static_asset_resolver, static_records),
+            "title": _static_image("texture.mh.title", "textures/mh/title.png", static_asset_resolver, static_records),
             "width": 1700,
         },
         RenderSpec(width=1700, height=900, full_page=True, output_format="jpeg"),
@@ -429,6 +647,10 @@ async def draw_ann_list_img(
     strict_previews: bool = False,
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes | str:
     """以 HTML/T2I 渲染包含全部公告的索引卡。"""
 
@@ -455,6 +677,10 @@ async def draw_ann_list_img(
             }
             if request_gate is not None:
                 kwargs["request_gate"] = request_gate
+            if downloader is not None:
+                kwargs["downloader"] = downloader
+            if ann_card_cache_dir is not None:
+                kwargs["ann_card_cache_dir"] = ann_card_cache_dir
             preview = await _load_preview(
                 preview_url, card_width, image_height, **kwargs
             )
@@ -475,19 +701,18 @@ async def draw_ann_list_img(
         )
     )
 
-    font, font_fallback = unicode_font_data_uris(
-        UNICODE_ORIGIN_PATH,
+    font, font_fallback = _unicode_fonts(
+        static_asset_resolver,
         "".join(f"{card['subject']}{card['time'] or ''}" for card in cards),
+        static_records,
     )
     return await _RENDERER.render(
         "cards/announcement_list.html.j2",
         {
-            "background": optimized_image_data_uri(
-                COMMON_PATH / "bg.jpg",
-                size=(ANN_WIDTH, canvas_height),
-                crop=True,
-                image_format="JPEG",
-                quality=85,
+            "background": _ann_background(
+                static_asset_resolver,
+                (ANN_WIDTH, canvas_height),
+                static_records,
             ),
             "cards": cards,
             "font": font,
@@ -510,6 +735,8 @@ async def _detail_blocks_payload(
     *,
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
 ) -> list[dict[str, str]]:
     content_width = ANN_WIDTH - ANN_PADDING * 2
 
@@ -519,6 +746,10 @@ async def _detail_blocks_payload(
             kwargs["cache_manager"] = cache_manager
         if request_gate is not None:
             kwargs["request_gate"] = request_gate
+        if downloader is not None:
+            kwargs["downloader"] = downloader
+        if ann_card_cache_dir is not None:
+            kwargs["ann_card_cache_dir"] = ann_card_cache_dir
         return await _load_detail_image(value, content_width, **kwargs)
 
     image_values = [value for kind, value in blocks if kind != "text"]
@@ -564,31 +795,45 @@ async def draw_ann_detail_card(
     time_text: str = "",
     cache_manager: CacheManager | None = None,
     request_gate: RequestConcurrencyGate | None = None,
+    downloader: AssetDownloader | None = None,
+    ann_card_cache_dir: Path | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes | list[bytes]:
     """使用 HTML/T2I 渲染已解析的公告正文卡片。"""
 
     post_id = str(post_id)
     qr_loader = globals()["load_qr_code"]
-    qr_image = (
-        await qr_loader(get_post_url(post_id), request_gate=request_gate)
-        if request_gate is not None
-        else await qr_loader(get_post_url(post_id))
-    )
+    qr_kwargs: dict[str, Any] = {}
+    if request_gate is not None:
+        qr_kwargs["request_gate"] = request_gate
+    if downloader is not None:
+        qr_kwargs["downloader"] = downloader
+    if ann_card_cache_dir is not None:
+        qr_kwargs["ann_card_cache_dir"] = ann_card_cache_dir
+    qr_image = await qr_loader(get_post_url(post_id), **qr_kwargs)
     block_payload = await _detail_blocks_payload(
         blocks,
         cache_manager=cache_manager,
         request_gate=request_gate,
+        downloader=downloader,
+        ann_card_cache_dir=ann_card_cache_dir,
     )
-    font, font_fallback = unicode_font_data_uris(
-        UNICODE_ORIGIN_PATH,
+    font, font_fallback = _unicode_fonts(
+        static_asset_resolver,
         f"{subject}{time_text}"
         + "".join(block["value"] for block in block_payload if block["kind"] == "text"),
+        static_records,
     )
     rendered = await _RENDERER.render(
         "cards/announcement_detail.html.j2",
         {
-            "avatar": pil_image_data_uri(_load_avatar(120)),
-            "background": image_data_uri(COMMON_PATH / "bg.jpg"),
+            "avatar": pil_image_data_uri(
+                _load_avatar(120, static_asset_resolver, static_records)
+            ),
+            "background": _ann_background(
+                static_asset_resolver, (ANN_WIDTH, ANN_WIDTH), static_records
+            ),
             "blocks": block_payload,
             "font": font,
             "font_fallback": font_fallback,
@@ -611,6 +856,9 @@ async def draw_ann_detail_img(
     post_id: int | str,
     *,
     is_check_time: bool = False,
+    ann_card_cache_dir: Path | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes | str | list[bytes]:
     post_id = str(post_id)
     posts = await fetch_ann_list(prefer_cache=True)
@@ -637,7 +885,15 @@ async def draw_ann_detail_img(
 
     subject = str(detail.get("postTitle") or pick_subject(matched))
     time_text = format_post_time(detail.get("postTime") or matched.get("postTime"))
-    return await draw_ann_detail_card(post_id, subject, blocks, time_text=time_text)
+    return await draw_ann_detail_card(
+        post_id,
+        subject,
+        blocks,
+        time_text=time_text,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
+        ann_card_cache_dir=ann_card_cache_dir,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -653,6 +909,7 @@ class RenderedNoticesImage:
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
+    incomplete: bool = False
 
 
 class NoticesRenderer:
@@ -666,30 +923,39 @@ class NoticesRenderer:
         simple_image: bool = False,
         cache_manager: CacheManager | None = None,
         request_gate: RequestConcurrencyGate | None = None,
+        downloader: AssetDownloader | None = None,
+        runtime_data_layout: RuntimeDataLayout | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources
         self.simple_image = simple_image
         self.cache_manager = cache_manager
         self.request_gate = request_gate
-
-    @staticmethod
-    def list_cache_key(snapshot: AnnSnapshot) -> str:
-        return f"ann-list:{announcement_fingerprint(snapshot)}"
-
-    @staticmethod
-    def detail_manifest_key(detail: AnnDetail) -> str:
-        return (
-            f"ann-detail-manifest:{detail.post_id}:{announcement_fingerprint(detail)}"
+        self.downloader = downloader
+        self.ann_card_cache_dir = (
+            ANN_CARD_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_ann_card_dir
         )
 
-    @staticmethod
-    def detail_cache_key(detail: AnnDetail, *, page_index: int) -> str:
+    def list_cache_key(self, snapshot: AnnSnapshot) -> str:
+        return (
+            f"ann-list:{self._generation_cache_prefix()}:"
+            f"{announcement_fingerprint(snapshot)}"
+        )
+
+    def detail_manifest_key(self, detail: AnnDetail) -> str:
+        return (
+            f"ann-detail-manifest:{self._generation_cache_prefix()}:"
+            f"{detail.post_id}:{announcement_fingerprint(detail)}"
+        )
+
+    def detail_cache_key(self, detail: AnnDetail, *, page_index: int) -> str:
         if page_index < 0:
             raise ValueError("公告详情页序号不能为负数")
         return (
             f"ann-detail-page:{detail.post_id}:"
-            f"{announcement_fingerprint(detail)}:{page_index}"
+            f"{self._generation_cache_prefix()}:{announcement_fingerprint(detail)}:{page_index}"
         )
 
     async def _cached_image(self, key: str) -> bytes | None:
@@ -716,6 +982,18 @@ class NoticesRenderer:
             content,
             tags=(*tags, f"media:{media_type}"),
             validator=_png_validator,
+        )
+
+    def _generation_cache_prefix(self) -> str:
+        """公告渲染缓存必须按 generation 隔离，防止跨代复用降级图片。"""
+
+        return str(
+            getattr(
+                getattr(self, "static_asset_resolver", None),
+                "generation_id",
+                None,
+            )
+            or "no-generation"
         )
 
     def _write_cached(
@@ -823,6 +1101,7 @@ class NoticesRenderer:
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
+            incomplete=resources_incomplete(resources),
         )
 
     async def render_mh(
@@ -840,17 +1119,22 @@ class NoticesRenderer:
             hours=1
         )
         remaining_seconds = int((next_refresh - now).total_seconds())
+        static_records: list[dict[str, str]] = []
         if is_simple:
             image_bytes = await draw_mh_simple(
                 snapshot.sections,
                 remaining_seconds,
                 subscribe_list=subscribe_list,
+                static_asset_resolver=getattr(self, "static_asset_resolver", None),
+                static_records=static_records,
             )
         else:
             image_bytes = await draw_mh_card(
                 snapshot.sections,
                 remaining_seconds,
                 subscribe_list=subscribe_list,
+                static_asset_resolver=getattr(self, "static_asset_resolver", None),
+                static_records=static_records,
             )
         lines = ["二重螺旋 · 密函"]
         for section in snapshot.sections:
@@ -859,6 +1143,7 @@ class NoticesRenderer:
                 f"{item.name} (id={item.instance_id})" for item in section.instances
             )
         resources: list[dict[str, str]] = [self._font_resource()]
+        resources.extend(static_records)
         sections: list[dict[str, Any]] = []
         for section in snapshot.sections:
             sections.append(
@@ -910,20 +1195,29 @@ class NoticesRenderer:
             }
             for post in snapshot.posts
         ]
+        static_records: list[dict[str, str]] = []
         image_bytes = await draw_ann_list_img(
             payload,
             strict_previews=True,
             cache_manager=self.cache_manager,
             request_gate=self.request_gate,
+            downloader=self.downloader,
+            ann_card_cache_dir=self.ann_card_cache_dir,
+            static_asset_resolver=getattr(self, "static_asset_resolver", None),
+            static_records=static_records,
         )
         if not isinstance(image_bytes, bytes):
             raise TypeError("公告列表 legacy 绘制失败")
+        resources.extend(static_records)
         rendered = self._write_cached(
             image_bytes,
             lines=lines,
             resources=resources,
             sections=sections,
         )
+        if rendered.incomplete:
+            # 降级图片不得进入正式公告缓存，避免 placeholder 被长期复用。
+            return rendered
         await self._store_image(
             cache_key,
             rendered.path.read_bytes(),
@@ -942,6 +1236,7 @@ class NoticesRenderer:
 
         lines = ["二重螺旋 · 公告详情", detail.title]
         resources: list[dict[str, str]] = [self._font_resource()]
+        static_records: list[dict[str, str]] = []
         text_lines: list[str] = []
         blocks: list[tuple[str, str]] = []
         for index, block in enumerate(detail.blocks):
@@ -983,6 +1278,10 @@ class NoticesRenderer:
                     detail.title,
                     blocks,
                     time_text=getattr(detail, "time", ""),
+                    downloader=self.downloader,
+                    ann_card_cache_dir=self.ann_card_cache_dir,
+                    static_asset_resolver=getattr(self, "static_asset_resolver", None),
+                    static_records=static_records,
                 )
             else:
                 raw_result = await draw_ann_detail_card(
@@ -992,10 +1291,15 @@ class NoticesRenderer:
                     time_text=getattr(detail, "time", ""),
                     cache_manager=self.cache_manager,
                     request_gate=self.request_gate,
+                    downloader=self.downloader,
+                    ann_card_cache_dir=self.ann_card_cache_dir,
+                    static_asset_resolver=getattr(self, "static_asset_resolver", None),
+                    static_records=static_records,
                 )
             raw_pages = raw_result if isinstance(raw_result, list) else [raw_result]
             if not raw_pages:
                 raise ValueError("公告详情渲染没有生成图片")
+            resources.extend(static_records)
             rendered_pages = [
                 self._write_cached(
                     page,
@@ -1005,7 +1309,9 @@ class NoticesRenderer:
                 )
                 for page in raw_pages
             ]
-            if self.cache_manager is not None:
+            if self.cache_manager is not None and not any(
+                rendered.incomplete for rendered in rendered_pages
+            ):
                 for page_index, rendered in enumerate(rendered_pages):
                     await self._store_image(
                         self.detail_cache_key(detail, page_index=page_index),

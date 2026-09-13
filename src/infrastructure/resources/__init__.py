@@ -56,8 +56,15 @@ from .paths import (
     resource_generation_state_path,
     resource_generations_dir,
     resource_last_sync_state_path,
-    resource_validation_state_path,
     resource_repository_dir,
+    resource_validation_state_path,
+)
+from .resolver import (
+    AssetDownloader,
+    AssetKind,
+    AssetResolutionError,
+    AssetResolver,
+    ResolvedAsset,
 )
 
 __all__ = [
@@ -72,6 +79,10 @@ __all__ = [
     "RESOURCE_VALIDATION_STATE_NAME",
     "RUNTIME_RESOURCE_DIRECTORIES",
     "AliasCatalog",
+    "AssetDownloader",
+    "AssetKind",
+    "AssetResolutionError",
+    "AssetResolver",
     "EncyclopediaResourceError",
     "EncyclopediaResourceStore",
     "GitCommandError",
@@ -79,6 +90,7 @@ __all__ = [
     "GitUnavailableError",
     "GithubAccelerationMode",
     "GuideAsset",
+    "ResolvedAsset",
     "ResourceBranchMismatchError",
     "ResourceGenerationError",
     "ResourceGenerationManager",
@@ -105,7 +117,7 @@ __all__ = [
     "resource_generation_state_path",
     "resource_generations_dir",
     "resource_last_sync_state_path",
-    "resource_validation_state_path",
     "resource_repository_dir",
+    "resource_validation_state_path",
     "run_git",
 ]

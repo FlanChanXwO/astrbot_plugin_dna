@@ -2,13 +2,30 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .static_assets import StaticAssetResolver
+
+import asyncio
+from typing import Protocol
+
+from PIL import Image
 
 from ...utils.api.model import Mode, WeaponDetail
 from ...utils.image import get_mod_img, get_weapon_img
-from .assets import image_data_uri, pil_image_data_uri
+from .assets import pil_image_data_uri
+from .static_assets import static_image_data_uri, static_record
 
-TEXT_PATH = Path(__file__).parents[2] / "resources" / "textures" / "detail"
+
+class WeaponImageLoader(Protocol):
+    """武器区块所需的异步图片加载边界。"""
+
+    async def weapon(self, weapon_id: str | int, url: str | None) -> Image.Image:
+        """读取武器图。"""
+
+    async def mod(self, mod_id: str | int, url: str | None) -> Image.Image:
+        """读取武器 Mod 图。"""
 
 
 def _mode_quality(mode: Mode) -> int:
@@ -21,11 +38,30 @@ def _mode_quality(mode: Mode) -> int:
     return quality
 
 
-async def _mode_payload(mode: Mode, side: str) -> dict[str, object]:
+async def _mode_payload(
+    mode: Mode,
+    side: str,
+    *,
+    image_loader: WeaponImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
     mode_id = getattr(mode, "id", -1)
     quality = _mode_quality(mode)
+    background = f"textures/detail/mod/mod_{side}_{quality}.png"
+    background_uri, background_asset = static_image_data_uri(
+        static_asset_resolver, background, label="武器"
+    )
+    if static_records is not None:
+        static_records.append(
+            static_record(
+                f"texture.detail.mod_{side}_{quality}",
+                background_asset,
+                resource_path=background,
+            )
+        )
     payload: dict[str, object] = {
-        "background": image_data_uri(TEXT_PATH / f"mod/mod_{side}_{quality}.png"),
+        "background": background_uri,
         "icon": None,
         "level": None,
         "name": getattr(mode, "name", "") or "",
@@ -40,7 +76,12 @@ async def _mode_payload(mode: Mode, side: str) -> dict[str, object]:
     level = getattr(mode, "level", None)
     if name is None or icon is None or level is None:
         raise RuntimeError(f"武器 Mod {mode_id} 详情不完整")
-    payload["icon"] = pil_image_data_uri(await get_mod_img(mode_id, icon))
+    image = (
+        await get_mod_img(mode_id, icon)
+        if image_loader is None
+        else await image_loader.mod(mode_id, icon)
+    )
+    payload["icon"] = pil_image_data_uri(image)
     payload["level"] = f"+{level}" if level > 0 else None
     return payload
 
@@ -61,12 +102,37 @@ def _mode_order(modes: list[Mode]) -> list[tuple[Mode, str]]:
 async def draw_weapon_detail_section(
     weapon_detail: WeaponDetail,
     title: str,
+    *,
+    image_loader: WeaponImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     """保留旧函数签名，返回 HTML 模板使用的武器区块 payload。"""
 
     weapon_id = getattr(weapon_detail, "id", getattr(weapon_detail, "weapon_id", 0))
     weapon_icon = getattr(weapon_detail, "icon", "")
-    weapon_image = await get_weapon_img(weapon_id, weapon_icon)
+    weapon_image_coro = (
+        get_weapon_img(weapon_id, weapon_icon)
+        if image_loader is None
+        else image_loader.weapon(weapon_id, weapon_icon)
+    )
+    raw_modes = getattr(weapon_detail, "modes", [])
+    mode_payloads_coro = asyncio.gather(
+        *(
+            _mode_payload(
+                mode,
+                side,
+                image_loader=image_loader,
+                static_asset_resolver=static_asset_resolver,
+                static_records=static_records,
+            )
+            for mode, side in _mode_order(raw_modes)
+        )
+    )
+    weapon_image, modes = await asyncio.gather(
+        weapon_image_coro,
+        mode_payloads_coro,
+    )
     attr = getattr(weapon_detail, "attribute", None)
     atk = getattr(attr, "atk", 0) if attr else 0
     crd = getattr(attr, "crd", 0.0) if attr else 0.0
@@ -84,18 +150,34 @@ async def draw_weapon_detail_section(
         ("攻击速度", f"{speed:.0%}", "icon14.png"),
         ("触发率", f"{trigger:.0%}", "icon15.png"),
     )
-    attributes = [
-        {
-            "icon": image_data_uri(TEXT_PATH / f"icons/{icon_name}"),
-            "label": label,
-            "value": value,
-        }
-        for label, value, icon_name in attr_specs
-    ]
-    raw_modes = getattr(weapon_detail, "modes", [])
-    modes = [await _mode_payload(mode, side) for mode, side in _mode_order(raw_modes)]
+    attributes = []
+    for label, value, icon_name in attr_specs:
+        icon_relative = f"textures/detail/icons/{icon_name}"
+        icon_uri, icon_asset = static_image_data_uri(
+            static_asset_resolver, icon_relative, label="武器属性"
+        )
+        if static_records is not None:
+            static_records.append(
+                static_record(
+                    f"texture.detail.icons.{icon_name}",
+                    icon_asset,
+                    resource_path=icon_relative,
+                )
+            )
+        attributes.append({"icon": icon_uri, "label": label, "value": value})
+
+    def detail_image(key: str, relative: str) -> str:
+        uri, asset = static_image_data_uri(
+            static_asset_resolver, relative, label="武器"
+        )
+        if static_records is not None:
+            static_records.append(static_record(key, asset, resource_path=relative))
+        return uri
+
     return {
-        "attribute_background": image_data_uri(TEXT_PATH / "weapon_attr.png"),
+        "attribute_background": detail_image(
+            "texture.detail.weapon_attr", "textures/detail/weapon_attr.png"
+        ),
         "attributes": attributes,
         "icon": pil_image_data_uri(weapon_image),
         "level": getattr(weapon_detail, "level", 0),
@@ -105,6 +187,8 @@ async def draw_weapon_detail_section(
             weapon_detail, "skillLevel", getattr(weapon_detail, "skill_level", 0)
         ),
         "title": title,
-        "weapon_background": image_data_uri(TEXT_PATH / "weapon_bg.png"),
+        "weapon_background": detail_image(
+            "texture.detail.weapon_bg", "textures/detail/weapon_bg.png"
+        ),
         "width": 1000,
     }

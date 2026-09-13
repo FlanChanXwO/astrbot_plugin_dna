@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 _AUTH_FAILURE_MARKERS = (
     "token无效",
     "token失效",

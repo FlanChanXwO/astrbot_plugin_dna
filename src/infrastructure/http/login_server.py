@@ -7,8 +7,8 @@ AstrBot 的 ``register_web_api`` 由 Dashboard 统一鉴权，不能直接作为
 
 from __future__ import annotations
 
-from builtins import BaseExceptionGroup
 import inspect
+from builtins import BaseExceptionGroup
 from collections.abc import Callable, Iterable
 from types import SimpleNamespace
 from typing import Any

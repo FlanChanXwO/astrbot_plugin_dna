@@ -380,10 +380,10 @@ async def test_ann_detail_image_failure_returns_fixed_text(
 
     from src.infrastructure.rendering import notices as notices_rendering
 
-    async def fail_image(*_: object) -> Image.Image:
+    async def fail_image(*_: object, **__: object) -> Image.Image:
         raise OSError("image unavailable")
 
-    async def no_qr(*_: object) -> None:
+    async def no_qr(*_: object, **__: object) -> None:
         return None
 
     monkeypatch.setattr(notices_rendering, "_load_detail_image", fail_image)

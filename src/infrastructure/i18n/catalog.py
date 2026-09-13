@@ -145,10 +145,10 @@ def validate_tip_catalog() -> None:
 
 __all__ = [
     "DEFAULT_TIP_PATH",
+    "PLUGIN_ROOT",
     "I18nCatalogError",
     "I18nKeyError",
     "I18nTemplateError",
-    "PLUGIN_ROOT",
     "TipCatalog",
     "get_tip",
     "get_tip_template",

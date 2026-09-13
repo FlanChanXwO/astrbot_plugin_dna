@@ -36,6 +36,7 @@ from .paths import (
     RESOURCE_LAST_SYNC_STATE_NAME,
     RESOURCE_VALIDATION_STATE_NAME,
 )
+from .resolver import AssetResolver
 
 if TYPE_CHECKING:
     from ..rendering.player import ResourceMap
@@ -182,7 +183,15 @@ _FONT_SIGNATURES = {
     ".woff": frozenset({b"wOFF"}),
     ".woff2": frozenset({b"wOF2"}),
 }
-_ASSET_ROOTS = ("images", "panel", "wiki", "guide", "weekly_item", "calendar")
+_ASSET_ROOTS = (
+    "images",
+    "panel",
+    "wiki",
+    "guide",
+    "weekly_item",
+    "calendar",
+    "textures",
+)
 _ALIAS_FILES = ("char_alias.json", "weapon_alias.json")
 _REDEEM_KEYS = frozenset(
     {"code", "reward", "valid_from", "expires_at", "platforms", "servers"}
@@ -349,7 +358,7 @@ def _validate_image_decodability(path: Path) -> None:
             image.verify()
         with Image.open(path) as image:
             image.load()
-    except (OSError, SyntaxError, ValueError) as exc:
+    except (OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
         raise ResourceGenerationError(f"资源候选图片不可解码: {path.name}") from exc
 
 
@@ -1084,12 +1093,55 @@ class ResourceSnapshotCoordinator:
             yield resources
 
     @contextmanager
-    def bind_renderer(self, renderer: Any, resource_attr: str) -> Iterator[Any]:
-        """复制 renderer 并绑定一个持有 generation lease 的资源视图。"""
+    def bind_static_asset_resolver(
+        self,
+        static_asset_resolver: Any,
+    ) -> Iterator[Any]:
+        """在同一 generation lease 内返回固定 generation 的静态资源解析器。"""
 
-        with self.bind_resource(resource_attr) as resources:
+        with self.optional_lease() as snapshot:
+            yield static_asset_resolver.pinned(
+                None if snapshot is None else snapshot.root,
+                generation_id=None if snapshot is None else snapshot.commit_sha,
+            )
+
+    @contextmanager
+    def bind_renderer(
+        self,
+        renderer: Any,
+        resource_attr: str,
+        *,
+        asset_resolver: AssetResolver | None = None,
+    ) -> Iterator[Any]:
+        """在同一 generation lease 内绑定资源视图和可选图片 resolver。"""
+
+        with self.optional_lease() as snapshot:
+            if snapshot is None:
+                resources = self._empty_resource_view(resource_attr)
+            else:
+                try:
+                    resources = getattr(snapshot, resource_attr)
+                except AttributeError as exc:
+                    raise ResourceGenerationError(
+                        f"资源 generation 视图字段无效: {resource_attr}"
+                    ) from exc
+
             bound = copy(renderer)
             bound.resources = resources
+            if asset_resolver is not None:
+                bound.asset_resolver = AssetResolver.from_snapshot(
+                    snapshot,
+                    dynamic_root=asset_resolver.dynamic_root,
+                    downloader=asset_resolver.downloader,
+                )
+            # renderer 若挂载了静态资源解析器，同样固定到本次 lease 的 generation，
+            # 保证一次渲染中动态角色图与静态纹理来自同一个 generation。
+            static_asset_resolver = getattr(renderer, "static_asset_resolver", None)
+            if static_asset_resolver is not None:
+                bound.static_asset_resolver = static_asset_resolver.pinned(
+                    None if snapshot is None else snapshot.root,
+                    generation_id=None if snapshot is None else snapshot.commit_sha,
+                )
             yield bound
 
     def _release(self, commit_sha: str) -> None:

@@ -175,7 +175,7 @@ def _append_unique(values: list[str], extra: tuple[str, ...]) -> tuple[str, ...]
 
 
 class AdminAliasService:
-    """只读默认角色别名，并把管理修改写入独立 ``alias_custom.json``。"""
+    """只读默认角色别名，并把管理修改写入独立运行期别名文件。"""
 
     def __init__(
         self,
@@ -360,9 +360,7 @@ class AdminAliasService:
                 )
             )
         )
-        return AdminApiResponse.success(
-            paginate_items(matching_roles, pagination)
-        )
+        return AdminApiResponse.success(paginate_items(matching_roles, pagination))
 
     async def get_catalog(self) -> AdminApiResponse[AdminAliasCatalog]:
         """``list_aliases`` 的 API 语义别名。"""

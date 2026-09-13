@@ -8,7 +8,7 @@ import inspect
 import json
 import logging
 import os
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -131,17 +131,50 @@ class CacheLookup:
 
 
 class CacheManager:
-    """在一个运行期目录中管理带 sidecar 的完整文件缓存。"""
+    """在一个运行期目录中管理带 sidecar 的完整文件缓存。
+
+    ``cache_type_roots`` 只改变指定类型的物理分层，metadata、租约、TTL、
+    完整性校验和清理规则仍由同一个 manager 统一执行。
+    """
 
     def __init__(
         self,
         root: str | Path,
         settings: CacheSettings | None = None,
+        *,
+        cache_type_roots: Mapping[str, str | Path] | None = None,
     ) -> None:
         # 保留根目录自身的符号链接状态，避免 resolve() 把写入边界解析到缓存根目录之外。
         self.root = Path(root).expanduser().absolute()
         self.settings = settings or CacheSettings()
+        self._cache_type_roots = self._normalize_cache_type_roots(cache_type_roots)
         self._lock = asyncio.Lock()
+
+    def _normalize_cache_type_roots(
+        self,
+        cache_type_roots: Mapping[str, str | Path] | None,
+    ) -> dict[str, Path]:
+        """规范化 cache type 的 namespace，并确保写入仍位于 cache 根内。"""
+
+        if cache_type_roots is None:
+            return {}
+        normalized: dict[str, Path] = {}
+        for cache_type, root in cache_type_roots.items():
+            normalized_type = self._validate_cache_type(cache_type)
+            candidate = Path(root).expanduser()
+            if not candidate.is_absolute():
+                candidate = self.root / candidate
+            candidate = Path(os.path.abspath(os.fspath(candidate)))
+            if not candidate.is_relative_to(self.root):
+                raise ValueError("缓存类型目录必须位于缓存根目录内")
+            normalized[normalized_type] = candidate
+        return normalized
+
+    @property
+    def cache_type_roots(self) -> Mapping[str, Path]:
+        """返回 cache type 到 namespace 根目录的只读快照。"""
+
+        return dict(self._cache_type_roots)
 
     @staticmethod
     def key_digest(key: str) -> str:
@@ -168,8 +201,24 @@ class CacheManager:
     def _paths(self, cache_type: str, key: str) -> tuple[Path, Path]:
         cache_type = self._validate_cache_type(cache_type)
         digest = self.key_digest(key)
-        directory = self.root / cache_type
+        namespace = self._cache_type_roots.get(cache_type, self.root)
+        directory = namespace / cache_type
         return directory / f"{digest}.data", directory / f"{digest}.meta.json"
+
+    def _path_has_unsafe_parent(self, path: Path) -> bool:
+        """检查路径从缓存根到目标之间的所有目录边界。"""
+
+        if self.root.is_symlink() or not path.is_relative_to(self.root):
+            return True
+        current = path
+        while current != self.root:
+            if current.is_symlink():
+                return True
+            parent = current.parent
+            if parent == current:
+                return True
+            current = parent
+        return False
 
     def _entry_path_is_unsafe(
         self,
@@ -179,27 +228,30 @@ class CacheManager:
         """拒绝沿缓存根、类型目录或条目文件的符号链接读写。"""
 
         return any(
-            path.is_symlink()
-            for path in (
-                self.root,
-                data_path.parent,
-                data_path,
-                metadata_path,
-            )
+            self._path_has_unsafe_parent(path)
+            for path in (data_path, metadata_path)
         )
 
     def _ensure_cache_directory(self, directory: Path) -> None:
         """创建缓存目录，并在写入前确认目录没有越过运行期根目录。"""
 
-        if self.root.is_symlink() or (self.root.exists() and not self.root.is_dir()):
+        if (
+            self.root.is_symlink()
+            or (self.root.exists() and not self.root.is_dir())
+            or self._path_has_unsafe_parent(directory)
+        ):
             raise CacheMetadataError("缓存目录路径不安全")
         self.root.mkdir(parents=True, exist_ok=True)
         if self.root.is_symlink() or not self.root.is_dir():
             raise CacheMetadataError("缓存目录路径不安全")
-        if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+        if (
+            directory.is_symlink()
+            or (directory.exists() and not directory.is_dir())
+            or not directory.is_relative_to(self.root)
+        ):
             raise CacheMetadataError("缓存目录路径不安全")
         directory.mkdir(parents=True, exist_ok=True)
-        if directory.is_symlink() or not directory.is_dir():
+        if self._path_has_unsafe_parent(directory) or not directory.is_dir():
             raise CacheMetadataError("缓存目录路径不安全")
 
     @staticmethod
