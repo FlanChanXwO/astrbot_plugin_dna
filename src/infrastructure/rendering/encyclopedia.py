@@ -45,6 +45,7 @@ from ...utils.msgs.notify import (
     dna_uid_invalid,
 )
 from ...utils.resource.RESOURCE_PATH import (
+    AVATAR_PATH,
     CALENDAR_PATH,
     USER_AVATAR_PATH,
     WEEKLY_ITEM_PATH,
@@ -128,6 +129,7 @@ async def _draw_stamina_card_view(
     bg_path: Path | None = None,
     downloader: AssetDownloader | None = None,
     user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """直接从便签/角色头部 DTO 构造模板输入。"""
 
@@ -146,6 +148,7 @@ async def _draw_stamina_card_view(
         uid_hidden=uid_hidden,
         downloader=downloader,
         avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     raw_notes = [
         (
@@ -228,6 +231,7 @@ async def _draw_stamina_card(
     bg_path: Path | None = None,
     downloader: AssetDownloader | None = None,
     user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """组装 legacy 便签 payload；typed DTO 走最小 view 分支。"""
 
@@ -242,6 +246,7 @@ async def _draw_stamina_card(
             bg_path=bg_path,
             downloader=downloader,
             user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
 
     other_info = [
@@ -259,6 +264,7 @@ async def _draw_stamina_card(
         uid_hidden=uid_hidden,
         downloader=downloader,
         avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
 
     raw_notes = [
@@ -346,6 +352,7 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
         uid_hidden = bool(kwargs.get("uid_hidden", False))
         downloader = kwargs.get("downloader")
         user_avatar_dir = kwargs.get("user_avatar_dir")
+        game_avatar_dir = kwargs.get("game_avatar_dir")
         return await _draw_stamina_card(
             ctx,
             role_show,
@@ -353,6 +360,7 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
             uid_hidden=uid_hidden,
             downloader=downloader,
             user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
     elif len(args) >= 2:
         short_note = args[0]
@@ -366,6 +374,7 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
         uid_hidden = bool(kwargs.get("uid_hidden", False))
         downloader = kwargs.get("downloader")
         user_avatar_dir = kwargs.get("user_avatar_dir")
+        game_avatar_dir = kwargs.get("game_avatar_dir")
         raw_bytes = await _draw_stamina_card(
             ctx,
             role_show,
@@ -373,6 +382,7 @@ async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
             uid_hidden=uid_hidden,
             downloader=downloader,
             user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
         return Image.open(BytesIO(raw_bytes)).convert("RGBA")
     else:
@@ -493,6 +503,7 @@ async def _draw_weekly_report_card_view(
     downloader: AssetDownloader | None = None,
     weekly_item_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """直接从周报领域 DTO 构造模板输入。"""
 
@@ -511,6 +522,7 @@ async def _draw_weekly_report_card_view(
         uid_hidden=uid_hidden,
         downloader=downloader,
         avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     category_items = await asyncio.gather(
         *(
@@ -569,6 +581,7 @@ async def _draw_weekly_report_card(
     downloader: AssetDownloader | None = None,
     weekly_item_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     if isinstance(role_show, RoleHeader) and isinstance(report, WeeklyReport):
         return await _draw_weekly_report_card_view(
@@ -581,6 +594,7 @@ async def _draw_weekly_report_card(
             downloader=downloader,
             weekly_item_cache_dir=weekly_item_cache_dir,
             user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
 
     other_info = [
@@ -598,6 +612,7 @@ async def _draw_weekly_report_card(
         uid_hidden=uid_hidden,
         downloader=downloader,
         avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     category_items = await asyncio.gather(
         *(
@@ -659,6 +674,7 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
         downloader = kwargs.get("downloader")
         weekly_item_cache_dir = kwargs.get("weekly_item_cache_dir")
         user_avatar_dir = kwargs.get("user_avatar_dir")
+        game_avatar_dir = kwargs.get("game_avatar_dir")
         return await _draw_weekly_report_card(
             ctx,
             role_show,
@@ -669,6 +685,7 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
             downloader=downloader,
             weekly_item_cache_dir=weekly_item_cache_dir,
             user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
     elif len(args) >= 2:
         report = args[0]
@@ -685,6 +702,7 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
         downloader = kwargs.get("downloader")
         weekly_item_cache_dir = kwargs.get("weekly_item_cache_dir")
         user_avatar_dir = kwargs.get("user_avatar_dir")
+        game_avatar_dir = kwargs.get("game_avatar_dir")
         raw_bytes = await _draw_weekly_report_card(
             ctx,
             role_show,
@@ -695,6 +713,7 @@ async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
             downloader=downloader,
             weekly_item_cache_dir=weekly_item_cache_dir,
             user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
         return Image.open(BytesIO(raw_bytes)).convert("RGBA")
     else:
@@ -1179,6 +1198,11 @@ class EncyclopediaRenderer:
             if runtime_data_layout is None
             else runtime_data_layout.cache_user_avatar_dir
         )
+        self.game_avatar_dir = (
+            AVATAR_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_game_avatar_dir
+        )
         self.weekly_item_cache_dir = (
             WEEKLY_ITEM_PATH
             if runtime_data_layout is None
@@ -1371,6 +1395,7 @@ class EncyclopediaRenderer:
             uid_hidden=uid_hidden,
             downloader=self.downloader,
             user_avatar_dir=self.user_avatar_dir,
+            game_avatar_dir=self.game_avatar_dir,
         )
 
         rougelike_count = getattr(
@@ -1532,6 +1557,7 @@ class EncyclopediaRenderer:
             downloader=self.downloader,
             weekly_item_cache_dir=self.weekly_item_cache_dir,
             user_avatar_dir=self.user_avatar_dir,
+            game_avatar_dir=self.game_avatar_dir,
         )
 
         lines = [

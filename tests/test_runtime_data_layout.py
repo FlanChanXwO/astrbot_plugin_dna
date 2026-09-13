@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import os
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
@@ -126,6 +127,51 @@ def test_resource_path_projection_uses_split_asset_and_media_scopes() -> None:
     assert LOGIN_QR_PATH == layout.cache_login_qr_dir
     assert CALENDAR_PATH == layout.cache_calendar_dir
     assert WEEKLY_ITEM_PATH == layout.cache_weekly_item_dir
+
+
+@pytest.mark.asyncio
+async def test_profile_header_fallback_uses_explicit_game_avatar_layout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """用户头像失败时，默认角色头像必须来自调用方的运行期布局。"""
+
+    from src.infrastructure.rendering import payloads as payloads_module
+    from src.utils import image as image_module
+    from src.utils.session import EventContext
+
+    global_layout = RuntimeDataLayout(tmp_path / "global-a")
+    runtime_layout = RuntimeDataLayout(tmp_path / "runtime-b")
+    global_avatar = global_layout.cache_game_avatar_dir / "avatar_5101.png"
+    runtime_avatar = runtime_layout.cache_game_avatar_dir / "avatar_5101.png"
+    global_avatar.parent.mkdir(parents=True)
+    runtime_avatar.parent.mkdir(parents=True)
+    Image.new("RGBA", (8, 8), "red").save(global_avatar)
+    Image.new("RGBA", (8, 8), "blue").save(runtime_avatar)
+    global_avatar_before = global_avatar.read_bytes()
+
+    monkeypatch.setattr(
+        image_module, "AVATAR_PATH", global_layout.cache_game_avatar_dir
+    )
+
+    async def fail_user_avatar(*args: object, **kwargs: object) -> Image.Image:
+        del args, kwargs
+        raise OSError("user avatar unavailable")
+
+    monkeypatch.setattr(payloads_module, "get_event_avatar", fail_user_avatar)
+
+    header = await payloads_module.build_profile_header(
+        EventContext(user_id="user-a"),
+        "role-a",
+        "测试角色",
+        game_avatar_path=runtime_layout.cache_game_avatar_dir,
+    )
+
+    avatar_uri = header["avatar"]
+    assert isinstance(avatar_uri, str)
+    with Image.open(BytesIO(base64.b64decode(avatar_uri.split(",", 1)[1]))) as avatar:
+        assert avatar.getpixel((0, 0))[:3] == (0, 0, 255)
+    assert global_avatar.read_bytes() == global_avatar_before
 
 
 @pytest.mark.asyncio

@@ -19,7 +19,7 @@ from ...utils.api.model import (
     RoleShowForTool,
 )
 from ...utils.image import download_pic_from_url
-from ...utils.resource.RESOURCE_PATH import SIGN_PATH, USER_AVATAR_PATH
+from ...utils.resource.RESOURCE_PATH import AVATAR_PATH, SIGN_PATH, USER_AVATAR_PATH
 from ...utils.session import EventContext
 from ..data_layout import RuntimeDataLayout
 from ..resources.encyclopedia import EncyclopediaResourceStore
@@ -49,6 +49,7 @@ async def _draw_sign_calendar_view(
     downloader: AssetDownloader | None = None,
     sign_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """直接从签到领域 DTO 构造模板输入，避免回拼完整 legacy 模型。"""
 
@@ -62,6 +63,7 @@ async def _draw_sign_calendar_view(
         uid_hidden=uid_hidden,
         downloader=downloader,
         avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     achievement_info = [
         {"label": "皎皎积分", "value": str(calendar.user_gold or 0)},
@@ -157,6 +159,7 @@ async def _draw_sign_calendar(
     downloader: AssetDownloader | None = None,
     sign_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
+    game_avatar_dir: Path | None = None,
 ) -> bytes:
     """组装签到日历 payload，保留每日奖励和社区任务的完整条目。"""
 
@@ -180,6 +183,7 @@ async def _draw_sign_calendar(
             downloader=downloader,
             sign_cache_dir=sign_cache_dir,
             user_avatar_dir=user_avatar_dir,
+            game_avatar_dir=game_avatar_dir,
         )
 
     header = await build_profile_header(
@@ -191,6 +195,7 @@ async def _draw_sign_calendar(
         uid_hidden=uid_hidden,
         downloader=downloader,
         avatar_path=user_avatar_dir,
+        game_avatar_path=game_avatar_dir,
     )
     achievement_info = [
         {"label": "皎皎积分", "value": str(sign_data.userGoldNum or 0)},
@@ -335,6 +340,11 @@ class CheckinRenderer:
             if runtime_data_layout is None
             else runtime_data_layout.cache_user_avatar_dir
         )
+        self.game_avatar_dir = (
+            AVATAR_PATH
+            if runtime_data_layout is None
+            else runtime_data_layout.cache_game_avatar_dir
+        )
 
     async def render_calendar(
         self,
@@ -375,6 +385,7 @@ class CheckinRenderer:
             downloader=self.downloader,
             sign_cache_dir=self.sign_cache_dir,
             user_avatar_dir=self.user_avatar_dir,
+            game_avatar_dir=self.game_avatar_dir,
         )
         lines = (
             role_header.role_name,

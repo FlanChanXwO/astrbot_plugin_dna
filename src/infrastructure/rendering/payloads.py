@@ -38,6 +38,7 @@ async def build_profile_header(
     uid_hidden: bool = False,
     downloader: AssetDownloader | None = None,
     avatar_path: Path | None = None,
+    game_avatar_path: Path | None = None,
     image_loader: ProfileImageLoader | None = None,
 ) -> dict[str, object]:
     """保留原头像选择语义，返回可安全交给模板的资料头 payload。
@@ -58,7 +59,11 @@ async def build_profile_header(
                 downloader=downloader,
             )
         except (httpx.HTTPError, OSError, TypeError, ValueError):
-            avatar = await get_avatar_img("5101")
+            avatar = await get_avatar_img(
+                "5101",
+                avatar_path=game_avatar_path,
+                downloader=downloader,
+            )
         finally:
             ctx.at = original_at
 

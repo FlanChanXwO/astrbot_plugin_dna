@@ -49,7 +49,7 @@ from ...utils.image import (
 )
 from ...utils.session import EventContext
 from ..resources.encyclopedia import EncyclopediaResourceStore
-from ..resources.resolver import ResolvedAsset
+from ..resources.resolver import AssetResolver, ResolvedAsset
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import font_data_uri, image_data_uri, pil_image_data_uri
@@ -925,7 +925,7 @@ class PlayerRenderer:
         output_dir: str | Path,
         resources: EncyclopediaResourceStore | ResourceMap,
         *,
-        asset_resolver: Any | None = None,
+        asset_resolver: AssetResolver | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.resources = resources

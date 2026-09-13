@@ -144,11 +144,23 @@ async def download_pic_from_url(
     return img.convert("RGBA")
 
 
-async def _download_optional_image(path: Path, name: str, pic_url: str) -> bool:
+async def _download_optional_image(
+    path: Path,
+    name: str,
+    pic_url: str,
+    *,
+    downloader: AssetDownloader | None = None,
+) -> bool:
     """下载可退化卡片素材；失败只允许本次内存占位，不写假缓存。"""
 
     try:
-        await download(pic_url, path, name, tag="[DNA]")
+        await download(
+            pic_url,
+            path,
+            name,
+            tag="[DNA]",
+            downloader=downloader,
+        )
     except (ImageFetchError, httpx.HTTPError):
         # 角色卡已有明确的内存占位语义，严格图片链路仍直接使用 download()。
         return False
@@ -173,15 +185,26 @@ async def get_skill_img(
     return image
 
 
-async def get_avatar_img(char_id: str | int, pic_url: str | None = None) -> Image.Image:
-    char_avatar_dir = AVATAR_PATH
+async def get_avatar_img(
+    char_id: str | int,
+    pic_url: str | None = None,
+    *,
+    avatar_path: Path | None = None,
+    downloader: AssetDownloader | None = None,
+) -> Image.Image:
+    char_avatar_dir = AVATAR_PATH if avatar_path is None else Path(avatar_path)
     char_avatar_dir.mkdir(parents=True, exist_ok=True)
 
     name = f"avatar_{char_id}.png"
-    avatar_path = char_avatar_dir / name
-    if pic_url and not await _download_optional_image(char_avatar_dir, name, pic_url):
+    cached_avatar_path = char_avatar_dir / name
+    if pic_url and not await _download_optional_image(
+        char_avatar_dir,
+        name,
+        pic_url,
+        downloader=downloader,
+    ):
         return Image.new("RGBA", (256, 256))
-    image = _load_cached_image(avatar_path)
+    image = _load_cached_image(cached_avatar_path)
     if image is None:
         return Image.new("RGBA", (256, 256))
 
