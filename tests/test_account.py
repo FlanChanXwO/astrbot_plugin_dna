@@ -378,7 +378,15 @@ async def test_check_credentials_reports_valid_state(database):
             app_status="",
         )
 
-    transport = FakeAccountTransport(LoginResult.cancelled())
+    transport = FakeAccountTransport(
+        LoginResult.success(
+            LoginCredentials(
+                channel=LoginChannel.APP,
+                token="cookie-check",
+                dev_code="device-check",
+            )
+        )
+    )
     service = AccountService(database, transport, max_bind_count=2)
     response = await service.check_credentials(_actor())
 
@@ -394,6 +402,78 @@ async def test_check_credentials_reports_valid_state(database):
         )
     assert record is not None
     assert record.app_status != "无效"
+
+
+@pytest.mark.asyncio
+async def test_check_credentials_restores_invalid_marker_after_successful_check(
+    database,
+):
+    """曾被标记无效的凭证在实时验证成功后必须恢复，避免业务链路继续拒绝。"""
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            is_active=True,
+        )
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            app_cookie="cookie-check",
+            app_device_code="device-check",
+            app_status="无效",
+        )
+
+    transport = FakeAccountTransport(
+        LoginResult.success(
+            LoginCredentials(
+                channel=LoginChannel.APP,
+                token="cookie-check",
+                dev_code="device-check",
+            )
+        )
+    )
+    service = AccountService(database, transport, max_bind_count=2)
+    response = await service.check_credentials(_actor())
+
+    assert "有效" in response.text
+    async with database.session() as session:
+        record = await CredentialRepository.get(
+            session, user_id="user-1", uid="1234567890123"
+        )
+    assert record is not None
+    assert record.app_status == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("factory", [LoginResult.cancelled, LoginResult.failed])
+async def test_check_credentials_never_reports_valid_for_non_success_results(
+    database, factory
+):
+    """cancelled / failed 只是本次校验未完成，不得报告「凭证有效」。"""
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            is_active=True,
+        )
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            app_cookie="cookie-check",
+            app_device_code="device-check",
+            app_status="",
+        )
+
+    transport = FakeAccountTransport(factory())
+    service = AccountService(database, transport, max_bind_count=2)
+    response = await service.check_credentials(_actor())
+
+    assert "暂时无法验证" in response.text
+    assert "有效" not in response.text
 
 
 @pytest.mark.asyncio
@@ -429,6 +509,67 @@ async def test_check_credentials_persists_invalid_only_when_upstream_confirms(da
         )
     assert record is not None
     assert record.app_status == "无效"
+
+
+@pytest.mark.asyncio
+async def test_check_credentials_stale_invalid_writeback_never_overwrites_relogin(
+    database,
+):
+    """检查期间用户重新登录后，旧 token 的失效结论不得污染新凭据。"""
+
+    class ReloginThenCredentialError(FakeAccountTransport):
+        """校验期间模拟并发重新登录，再返回上游凭据失效。"""
+
+        async def authenticate_credentials(
+            self,
+            credentials: LoginCredentials,
+        ) -> LoginResult:
+            # 记录本次校验的凭据后，模拟并发重新登录，再返回旧凭据失效。
+            self.checked_credentials.append(credentials)
+            async with service.database.transaction() as session:
+                await CredentialRepository.save_app(
+                    session,
+                    user_id="user-1",
+                    uid="1234567890123",
+                    token="cookie-new",
+                    device_code="device-new",
+                )
+            raise AccountTransportError(
+                TransportErrorKind.CREDENTIAL,
+                detail="upstream invalid for old token",
+            )
+
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            is_active=True,
+        )
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            app_cookie="cookie-old",
+            app_device_code="device-old",
+            app_status="",
+        )
+
+    service = AccountService(
+        database, ReloginThenCredentialError(None), max_bind_count=2
+    )
+    response = await service.check_credentials(_actor())
+
+    # 旧凭据确实失效，但数据库已是新凭据：不得报告失效，也不得覆盖新凭据状态。
+    assert "暂时无法验证" in response.text
+    async with database.session() as session:
+        record = await CredentialRepository.get(
+            session, user_id="user-1", uid="1234567890123"
+        )
+    assert record is not None
+    assert record.app_cookie == "cookie-new"
+    assert record.app_device_code == "device-new"
+    assert record.app_status != "无效"
 
 
 @pytest.mark.asyncio
@@ -588,6 +729,15 @@ async def test_real_transport_boundary_classifies_credential_and_network_failure
 
     # 每次校验都实时调用角色列表接口，且从未触达 login_log 缓存路径。
     assert len(calls) == 3
+
+    async def programming_bug(token: str, dev_code: str):
+        raise RuntimeError("unexpected bug in caller code")
+
+    monkeypatch.setattr(dna_api, "get_app_role_list", programming_bug)
+    # 编程缺陷不属于 transport 失败分类，必须原样向上抛出，
+    # 不得被包装成 SERVER /「暂时无法验证」掩盖。
+    with pytest.raises(RuntimeError):
+        await transport.authenticate_credentials(credentials)
 
 
 @pytest.mark.asyncio

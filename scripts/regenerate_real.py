@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw
 
+from main import COMMAND_REGISTRY
 from src.infrastructure.rendering.checkin import (
     _draw_sign_calendar,
     create_sign_info_image,
@@ -90,7 +91,7 @@ async def main() -> None:
 
     # 1. 帮助卡
     print("[1/13] 渲染 help.jpg ...")
-    help_bytes = await get_help()
+    help_bytes = await get_help(registry=COMMAND_REGISTRY)
     save_image("help.jpg", help_bytes)
     print(f"       -> help.jpg 完成: {len(help_bytes):,} 字节")
 

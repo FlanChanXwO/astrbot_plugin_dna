@@ -157,11 +157,7 @@ class DnaApiAccountTransport:
                 TransportErrorKind.SERVER,
                 detail=f"credential validation failed: {type(exc).__name__}",
             ) from None
-        except Exception as exc:  # noqa: BLE001
-            raise AccountTransportError(
-                TransportErrorKind.SERVER,
-                detail=f"credential validation failed: {type(exc).__name__}",
-            ) from None
+        # 其余异常（如编程缺陷）原样向上抛出，不得伪装成「暂时无法验证」。
 
     async def request_sms_code(
         self,

@@ -494,17 +494,27 @@ class AccountService:
             refresh_token=record.app_refresh_token,
         )
         try:
-            await self.transport.authenticate_credentials(credentials)
+            result = await self.transport.authenticate_credentials(credentials)
         except AccountTransportError as error:
             if error.kind is TransportErrorKind.CREDENTIAL:
-                # 只有上游明确判定凭据失效才持久化无效状态；
-                # 网络/服务端失败不属于凭据失效，不修改 CredentialRecord。
+                # 只有上游明确判定凭据失效才持久化无效状态；写回绑定本次
+                # 验证的 token/device_code，凭据中途被重新登录覆盖时不允许
+                # 旧检查结果污染新登录状态。
                 async with self.database.transaction() as session:
-                    await CredentialRepository.mark_app_invalid(
+                    updated = await CredentialRepository.set_app_status_if_credentials_match(
                         session,
                         user_id=actor.user_id,
                         uid=binding.uid,
+                        token=credentials.token,
+                        device_code=credentials.dev_code,
+                        status="无效",
                     )
+                if not updated:
+                    logger.warning(
+                        "凭证检查期间凭据已变化，跳过失效写回 uid=%s",
+                        binding.uid,
+                    )
+                    return PlainTextResponse(messages.CREDENTIAL_CHECK_INDETERMINATE)
                 return PlainTextResponse(messages.CREDENTIAL_CHECK_INVALID)
             logger.warning(
                 "凭证检查未完成 kind=%s uid=%s",
@@ -512,6 +522,25 @@ class AccountService:
                 binding.uid,
             )
             return PlainTextResponse(messages.CREDENTIAL_CHECK_INDETERMINATE)
+        if result.status != "success":
+            # cancelled / failed 不代表凭据失效，只是本次校验未完成。
+            logger.warning(
+                "凭证检查未完成 result=%s uid=%s",
+                result.status,
+                binding.uid,
+            )
+            return PlainTextResponse(messages.CREDENTIAL_CHECK_INDETERMINATE)
+        # 实时验证成功：若凭证此前被误标为无效，恢复为正常状态；
+        # 同样绑定本次验证的凭据，避免覆盖中途重新登录的新凭据。
+        async with self.database.transaction() as session:
+            await CredentialRepository.set_app_status_if_credentials_match(
+                session,
+                user_id=actor.user_id,
+                uid=binding.uid,
+                token=credentials.token,
+                device_code=credentials.dev_code,
+                status="",
+            )
         return PlainTextResponse(messages.CREDENTIAL_CHECK_VALID)
 
 
