@@ -12,12 +12,11 @@ from ...utils.image import get_avatar_img
 from ...utils.image_utils import get_event_avatar
 from ...utils.resource.RESOURCE_PATH import USER_AVATAR_PATH
 from ...utils.session import EventContext
-from .assets import image_data_uri, pil_image_data_uri
+from .assets import pil_image_data_uri
+from .static_assets import static_image_data_uri, static_record
 
 if TYPE_CHECKING:
     from ..resources.resolver import AssetDownloader
-
-TEXTURE_PATH = Path(__file__).parents[2] / "resources" / "textures" / "common"
 
 
 class ProfileImageLoader(Protocol):
@@ -40,11 +39,14 @@ async def build_profile_header(
     avatar_path: Path | None = None,
     game_avatar_path: Path | None = None,
     image_loader: ProfileImageLoader | None = None,
+    static_asset_resolver: object | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     """保留原头像选择语义，返回可安全交给模板的资料头 payload。
 
     用户头像加载失败时继续沿用旧逻辑，使用游戏默认角色头像；这属于素材读取
     的既有回退，不会替代 HTML/T2I 渲染失败后的错误处理。
+    静态装饰图经 StaticAssetResolver 从 verified snapshot 解析，缺失时降级。
     """
 
     if image_loader is not None:
@@ -67,13 +69,28 @@ async def build_profile_header(
         finally:
             ctx.at = original_at
 
+    def image(key: str, relative: str) -> str:
+        uri, asset = static_image_data_uri(
+            static_asset_resolver, relative, label="资料头"
+        )
+        if static_records is not None:
+            static_records.append(static_record(key, asset, resource_path=relative))
+        return uri
+
     return {
         "avatar": pil_image_data_uri(avatar),
-        "avatar_frame": image_data_uri(TEXTURE_PATH / "avatar_frame.png"),
+        "avatar_frame": image(
+            "texture.common.avatar_frame", "textures/common/avatar_frame.png"
+        ),
         "level": user_level,
-        "level_background": image_data_uri(TEXTURE_PATH / "avatar_title_level.png"),
+        "level_background": image(
+            "texture.common.avatar_title_level", "textures/common/avatar_title_level.png"
+        ),
         "name": name,
         "stats": [{"label": label, "value": value} for label, value in stats or []],
-        "stats_background": image_data_uri(TEXTURE_PATH / "avatar_title_base_info.png"),
+        "stats_background": image(
+            "texture.common.avatar_title_base_info",
+            "textures/common/avatar_title_base_info.png",
+        ),
         "uid": None if uid_hidden else str(role_id),
     }
