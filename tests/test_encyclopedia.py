@@ -647,7 +647,7 @@ async def test_weekly_renderer_uses_all_legacy_material_rows(tmp_path: Path) -> 
 
     artifact = read_rendered_artifact(rendered.path)
     assert (artifact.width, artifact.height) == (1200, 1370)
-    text = artifact.metadata["dnaby.text"]
+    text = artifact.metadata["dna.text"]
     assert "资源6-完整名称" in text
     assert "空分类" in text
 
@@ -684,8 +684,8 @@ async def test_calendar_renderer_uses_legacy_two_column_canvas(tmp_path: Path) -
 
     artifact = read_rendered_artifact(rendered.path)
     assert (artifact.width, artifact.height) == (1200, 1050)
-    assert "活动甲" in artifact.metadata["dnaby.text"]
-    assert "活动乙" in artifact.metadata["dnaby.text"]
+    assert "活动甲" in artifact.metadata["dna.text"]
+    assert "活动乙" in artifact.metadata["dna.text"]
 
 
 def test_legacy_role_adapter_preserves_role_id() -> None:
@@ -717,7 +717,7 @@ def test_renderer_write_preserves_t2i_bytes_and_metadata_sidecar(
     rendered = renderer._write(payload, lines=["文本"], resources=[], sections=[])
     assert rendered.path.read_bytes() == payload
     artifact = read_rendered_artifact(rendered.path)
-    assert artifact.metadata["dnaby.text"] == "文本"
+    assert artifact.metadata["dna.text"] == "文本"
 
 
 @pytest.mark.asyncio
@@ -810,9 +810,9 @@ async def test_stamina_and_weekly_images_preserve_full_typed_output(
     ):
         artifact = read_rendered_artifact(Path(response.image))
         assert artifact.width == expected_width
-        text = artifact.metadata["dnaby.text"]
-        layout = artifact.metadata["dnaby.layout"]
-        resources = artifact.metadata["dnaby.resources"]
+        text = artifact.metadata["dna.text"]
+        layout = artifact.metadata["dna.layout"]
+        resources = artifact.metadata["dna.resources"]
         for value in expected:
             assert value in text
         assert layout["height"] > 0
@@ -937,8 +937,8 @@ async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
     assert isinstance(calendar, ImageResponse)
     assert calendar.temporary is True
     artifact = read_rendered_artifact(Path(calendar.image))
-    assert "活动甲" in artifact.metadata["dnaby.text"]
-    assert "活动乙" in artifact.metadata["dnaby.text"]
+    assert "活动甲" in artifact.metadata["dna.text"]
+    assert "活动乙" in artifact.metadata["dna.text"]
     assert isinstance(codes, ChainResponse)
     assert any(
         isinstance(item, PlainTextResponse) and "CODE-A" in item.text

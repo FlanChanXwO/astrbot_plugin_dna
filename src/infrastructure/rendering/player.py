@@ -1125,13 +1125,13 @@ class PlayerRenderer:
             image_bytes,
             media_type="image/jpeg",
             metadata={
-                "dnaby.text": "\n".join(lines),
-                "dnaby.layout": {
+                "dna.text": "\n".join(lines),
+                "dna.layout": {
                     "width": inspection.width,
                     "height": inspection.height,
                     "sections": sections,
                 },
-                "dnaby.resources": resources,
+                "dna.resources": resources,
             },
         )
         response = write_rendered_artifact(self.output_dir, artifact, prefix="player-")

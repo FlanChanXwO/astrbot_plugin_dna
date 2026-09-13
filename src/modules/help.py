@@ -67,9 +67,9 @@ async def help_use_case(
         payload,
         media_type="image/jpeg",
         metadata={
-            "dnaby.text": "",
-            "dnaby.layout": {"width": 2020, "height": None, "sections": []},
-            "dnaby.resources": resource_records,
+            "dna.text": "",
+            "dna.layout": {"width": 2020, "height": None, "sections": []},
+            "dna.resources": resource_records,
         },
     )
     response = write_rendered_artifact(

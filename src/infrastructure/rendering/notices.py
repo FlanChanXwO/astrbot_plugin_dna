@@ -1076,13 +1076,13 @@ class NoticesRenderer:
             image_bytes,
             media_type=media_type,
             metadata={
-                "dnaby.text": "\n".join(lines),
-                "dnaby.layout": {"width": 0, "height": 0, "sections": sections},
-                "dnaby.resources": resources,
+                "dna.text": "\n".join(lines),
+                "dna.layout": {"width": 0, "height": 0, "sections": sections},
+                "dna.resources": resources,
             },
         )
         metadata = dict(artifact.metadata)
-        metadata["dnaby.layout"] = {
+        metadata["dna.layout"] = {
             "width": artifact.width,
             "height": artifact.height,
             "sections": sections,
