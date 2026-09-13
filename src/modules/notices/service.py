@@ -195,6 +195,7 @@ class NoticesService:
                     temporary=True,
                     sidecar=getattr(page, "sidecar", None),
                     manifest=getattr(page, "manifest", None),
+                    incomplete=getattr(page, "incomplete", False),
                 )
                 for page in rendered
             )
@@ -204,6 +205,7 @@ class NoticesService:
             temporary=True,
             sidecar=getattr(rendered, "sidecar", None),
             manifest=getattr(rendered, "manifest", None),
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def mh(self, request: NoticeRequest):
@@ -242,6 +244,7 @@ class NoticesService:
             temporary=True,
             sidecar=getattr(rendered, "sidecar", None),
             manifest=getattr(rendered, "manifest", None),
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def mh_list(self, _request: NoticeRequest):

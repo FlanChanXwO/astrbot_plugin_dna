@@ -2,7 +2,6 @@
 
 from ..infrastructure.rendering import (
     AssetRenderError,
-    RenderedArtifact,
     CheckinRenderer,
     ClipRect,
     EncyclopediaRenderer,
@@ -11,6 +10,7 @@ from ..infrastructure.rendering import (
     HtmlRenderErrorKind,
     NoticesRenderer,
     PlayerRenderer,
+    RenderedArtifact,
     RenderedCheckinImage,
     RenderedEncyclopediaImage,
     RenderedNoticesImage,

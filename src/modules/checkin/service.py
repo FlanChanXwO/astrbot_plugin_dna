@@ -519,6 +519,7 @@ class CheckinService:
             temporary=True,
             sidecar=rendered.sidecar,
             manifest=rendered.manifest,
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def _run_all_signs_with_results(

@@ -930,23 +930,24 @@ class NoticesRenderer:
             else runtime_data_layout.cache_ann_card_dir
         )
 
-    @staticmethod
-    def list_cache_key(snapshot: AnnSnapshot) -> str:
-        return f"ann-list:{announcement_fingerprint(snapshot)}"
-
-    @staticmethod
-    def detail_manifest_key(detail: AnnDetail) -> str:
+    def list_cache_key(self, snapshot: AnnSnapshot) -> str:
         return (
-            f"ann-detail-manifest:{detail.post_id}:{announcement_fingerprint(detail)}"
+            f"ann-list:{self._generation_cache_prefix()}:"
+            f"{announcement_fingerprint(snapshot)}"
         )
 
-    @staticmethod
-    def detail_cache_key(detail: AnnDetail, *, page_index: int) -> str:
+    def detail_manifest_key(self, detail: AnnDetail) -> str:
+        return (
+            f"ann-detail-manifest:{self._generation_cache_prefix()}:"
+            f"{detail.post_id}:{announcement_fingerprint(detail)}"
+        )
+
+    def detail_cache_key(self, detail: AnnDetail, *, page_index: int) -> str:
         if page_index < 0:
             raise ValueError("公告详情页序号不能为负数")
         return (
             f"ann-detail-page:{detail.post_id}:"
-            f"{announcement_fingerprint(detail)}:{page_index}"
+            f"{self._generation_cache_prefix()}:{announcement_fingerprint(detail)}:{page_index}"
         )
 
     async def _cached_image(self, key: str) -> bytes | None:
@@ -973,6 +974,18 @@ class NoticesRenderer:
             content,
             tags=(*tags, f"media:{media_type}"),
             validator=_png_validator,
+        )
+
+    def _generation_cache_prefix(self) -> str:
+        """公告渲染缓存必须按 generation 隔离，防止跨代复用降级图片。"""
+
+        return str(
+            getattr(
+                getattr(self, "static_asset_resolver", None),
+                "generation_id",
+                None,
+            )
+            or "no-generation"
         )
 
     def _write_cached(
@@ -1187,12 +1200,16 @@ class NoticesRenderer:
         )
         if not isinstance(image_bytes, bytes):
             raise TypeError("公告列表 legacy 绘制失败")
+        resources.extend(static_records)
         rendered = self._write_cached(
             image_bytes,
             lines=lines,
             resources=resources,
             sections=sections,
         )
+        if rendered.incomplete:
+            # 降级图片不得进入正式公告缓存，避免 placeholder 被长期复用。
+            return rendered
         await self._store_image(
             cache_key,
             rendered.path.read_bytes(),
@@ -1274,6 +1291,7 @@ class NoticesRenderer:
             raw_pages = raw_result if isinstance(raw_result, list) else [raw_result]
             if not raw_pages:
                 raise ValueError("公告详情渲染没有生成图片")
+            resources.extend(static_records)
             rendered_pages = [
                 self._write_cached(
                     page,
@@ -1283,7 +1301,9 @@ class NoticesRenderer:
                 )
                 for page in raw_pages
             ]
-            if self.cache_manager is not None:
+            if self.cache_manager is not None and not any(
+                rendered.incomplete for rendered in rendered_pages
+            ):
                 for page_index, rendered in enumerate(rendered_pages):
                     await self._store_image(
                         self.detail_cache_key(detail, page_index=page_index),

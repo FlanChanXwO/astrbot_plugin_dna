@@ -59,7 +59,9 @@ from .infrastructure.rendering import (
     ResourceMap,
 )
 from .infrastructure.rendering.static_assets import (
+    BOOTSTRAP_RELATIVE_ALLOWLIST,
     BOOTSTRAP_TEXTURE_ROOT,
+    HELP_ICON_DIR,
     StaticAssetResolver,
 )
 from .infrastructure.resources import (
@@ -252,6 +254,13 @@ def build_runtime(
         snapshot_root=None,
         coordinator=resource_snapshots,
         bootstrap_texture_dir=BOOTSTRAP_TEXTURE_ROOT,
+        # 仅显式允许这些通用装饰图在无 snapshot 时回退本地 bootstrap；
+        # 其余静态资源缺失必须暴露为 incomplete，不得被本地同名文件掩盖。
+        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
+        # 帮助菜单命令图标与 logo 是插件包内的小型 UI 资源，保持显式 bootstrap。
+        bootstrap_dirs={
+            "texture.help.icon": HELP_ICON_DIR,
+        },
         bootstrap_allowlist={
             "texture.help.logo": Path(__file__).parents[1] / "logo.png"
         },
@@ -770,6 +779,7 @@ def build_runtime(
         runtime_database,
         player_service.transport,
         player_service.renderer,
+        resource_snapshots=resource_snapshots,
     )
     resolved_services: dict[str, object] = {
         "database": runtime_database,

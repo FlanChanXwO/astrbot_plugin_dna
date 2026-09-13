@@ -9,20 +9,15 @@ from typing import TYPE_CHECKING, Literal
 from PIL import Image
 
 from .assets import (
-    AssetSource,
-    pil_image_data_uri,
-)
-from .assets import (
     font_data_uri as _font_data_uri,
 )
 from .assets import (
     image_data_uri as _image_data_uri,
 )
+from .assets import pil_image_data_uri
 from .errors import AssetRenderError
 from .runtime_assets import (
     placeholder_image,
-    resolved_font_data_uri,
-    resolved_image_data_uri,
 )
 
 StaticAssetSource = Literal["verified_snapshot", "bootstrap", "none"]
@@ -51,6 +46,8 @@ class StaticAssetResolver:
         bootstrap_allowlist: dict[str, str | Path] | None = None,
         asset_paths: dict[str, str] | None = None,
         bootstrap_texture_dir: str | Path | None = None,
+        bootstrap_relative_allowlist: set[str] | None = None,
+        bootstrap_dirs: dict[str, str | Path] | None = None,
     ) -> None:
         self.snapshot_root = (
             None if snapshot_root is None else Path(snapshot_root).resolve()
@@ -61,10 +58,16 @@ class StaticAssetResolver:
             for key, value in (bootstrap_allowlist or {}).items()
         }
         self.asset_paths = dict(asset_paths or {})
-        # 本地保留的通用装饰图目录；snapshot 缺失时作为 textures/common 的 fallback。
+        # 本地保留的通用装饰图目录；只有显式列入 allowlist 的相对路径才允许
+        # 从这里回退，避免隐式 fallback 掩盖 dna-resource 的资源遗漏。
         self.bootstrap_texture_dir = (
             None if bootstrap_texture_dir is None else Path(bootstrap_texture_dir)
         )
+        self.bootstrap_relative_allowlist = set(bootstrap_relative_allowlist or ())
+        # 帮助图标等仅存在于插件包内的小型 UI 资源：key 前缀 → bootstrap 目录。
+        self.bootstrap_dirs = {
+            key: Path(value) for key, value in (bootstrap_dirs or {}).items()
+        }
         # 已固定 generation 的副本会写入该字段；未固定时由 coordinator 推导。
         self._generation_id: str | None = None
 
@@ -80,20 +83,35 @@ class StaticAssetResolver:
         return path
 
     def resolve(self, logical_key: str) -> ResolvedStaticAsset:
+        """按 snapshot mapping → 显式 bootstrap mapping → missing 解析逻辑 key。
+
+        bootstrap-only key（如 logo、帮助图标）没有 snapshot 映射，也必须能
+        进入 bootstrap 检查。
+        """
+
         if self.coordinator is not None:
             snapshot = self.coordinator.current_snapshot
             self.snapshot_root = None if snapshot is None else snapshot.root
         relative = self.asset_paths.get(logical_key)
-        if relative is None:
-            return ResolvedStaticAsset(None, "none", True)
-        safe = self._safe_relative(relative)
-        if self.snapshot_root is not None:
-            candidate = self.snapshot_root.joinpath(*safe.parts)
-            if candidate.is_file() and not candidate.is_symlink():
-                return ResolvedStaticAsset(candidate, "verified_snapshot", False)
+        if relative is not None:
+            safe = self._safe_relative(relative)
+            if self.snapshot_root is not None:
+                candidate = self.snapshot_root.joinpath(*safe.parts)
+                if candidate.is_file() and not candidate.is_symlink():
+                    return ResolvedStaticAsset(candidate, "verified_snapshot", False)
         bootstrap = self.bootstrap_allowlist.get(logical_key)
         if bootstrap is not None and bootstrap.is_file() and not bootstrap.is_symlink():
             return ResolvedStaticAsset(bootstrap, "bootstrap", False)
+        # 帮助图标等 bootstrap 目录型 key：<prefix>:<filename>。
+        if ":" in logical_key:
+            prefix, filename = logical_key.split(":", 1)
+            directory = self.bootstrap_dirs.get(prefix)
+            if (
+                directory is not None
+                and not _safe_dir_member(filename)
+                and (directory / filename).is_file()
+            ):
+                return ResolvedStaticAsset(directory / filename, "bootstrap", False)
         return ResolvedStaticAsset(None, "none", True)
 
     @property
@@ -106,7 +124,7 @@ class StaticAssetResolver:
         return getattr(snapshot, "commit_sha", None)
 
     def resolve_relative(self, relative: str) -> ResolvedStaticAsset:
-        """按 snapshot → 本地 bootstrap → missing 解析 snapshot 相对路径。"""
+        """按 snapshot → 显式 bootstrap allowlist → missing 解析相对路径。"""
 
         safe = self._safe_relative(relative)
         snapshot_root = self.snapshot_root
@@ -117,11 +135,11 @@ class StaticAssetResolver:
             candidate = snapshot_root.joinpath(*safe.parts)
             if candidate.is_file() and not candidate.is_symlink():
                 return ResolvedStaticAsset(candidate, "verified_snapshot", False)
+        # 仅显式列入 allowlist 的路径才允许回退本地 bootstrap 装饰图，
+        # 防止 dna-resource 资源遗漏被本地同名文件静默掩盖。
         if (
             self.bootstrap_texture_dir is not None
-            and safe.parts[0] == "textures"
-            and len(safe.parts) > 2
-            and safe.parts[1] == "common"
+            and str(PurePosixPath(relative)) in self.bootstrap_relative_allowlist
         ):
             candidate = self.bootstrap_texture_dir.joinpath(safe.parts[-1])
             if candidate.is_file() and not candidate.is_symlink():
@@ -144,6 +162,10 @@ class StaticAssetResolver:
             },
             asset_paths=dict(self.asset_paths),
             bootstrap_texture_dir=self.bootstrap_texture_dir,
+            bootstrap_relative_allowlist=set(self.bootstrap_relative_allowlist),
+            bootstrap_dirs={
+                key: str(value) for key, value in self.bootstrap_dirs.items()
+            },
         )._with_generation_id(generation_id or self.generation_id)
 
     def listdir(self, relative: str) -> list[str]:
@@ -169,6 +191,31 @@ class StaticAssetResolver:
         self._generation_id = generation_id
         return self
 
+
+def _safe_dir_member(filename: str) -> bool:
+    """目录型 bootstrap key 的文件名安全检查。"""
+
+    return (
+        not filename
+        or "/" in filename
+        or "\\" in filename
+        or filename in {".", ".."}
+    )
+
+
+# 生产环境显式允许回退本地 bootstrap 的通用装饰图；其余静态资源缺失必须
+# 暴露为 incomplete，避免本地同名文件掩盖 dna-resource 的资源遗漏。
+BOOTSTRAP_RELATIVE_ALLOWLIST = {
+    "textures/common/bg.jpg",
+    "textures/common/bg1.jpg",
+    "textures/common/bg2.jpg",
+    "textures/common/div.png",
+    "textures/common/footer.png",
+    "textures/common/avatar_frame.png",
+    "textures/common/avatar_title_bg.png",
+    "textures/common/avatar_title_level.png",
+    "textures/common/avatar_title_base_info.png",
+}
 
 RESOURCE_ROOT = Path(__file__).parents[2] / "resources"
 
@@ -259,6 +306,49 @@ def static_open_image(
     return placeholder_image(size, label)
 
 
+def static_key_image_data_uri(
+    resolver: StaticAssetResolver | None,
+    logical_key: str,
+    *,
+    label: str,
+) -> tuple[str, ResolvedStaticAsset]:
+    """按逻辑 key 解析图片；缺失时返回可见 placeholder 并标记 incomplete。"""
+
+    asset = (
+        resolver.resolve(logical_key)
+        if resolver is not None
+        else ResolvedStaticAsset(None, "none", True)
+    )
+    if asset.path is not None:
+        try:
+            return _image_data_uri(asset.path), asset
+        except (AssetRenderError, OSError, ValueError):
+            pass
+    return (
+        pil_image_data_uri(placeholder_image((96, 96), label)),
+        ResolvedStaticAsset(None, "none", True),
+    )
+
+
+def static_key_font_data_uri(
+    resolver: StaticAssetResolver | None,
+    logical_key: str,
+) -> tuple[str, ResolvedStaticAsset]:
+    """按逻辑 key 解析字体；缺失时返回空 URI 交给 CSS fallback。"""
+
+    asset = (
+        resolver.resolve(logical_key)
+        if resolver is not None
+        else ResolvedStaticAsset(None, "none", True)
+    )
+    if asset.path is not None:
+        try:
+            return _font_data_uri(asset.path), asset
+        except (AssetRenderError, OSError, ValueError):
+            pass
+    return "", ResolvedStaticAsset(None, "none", True)
+
+
 def static_record(
     key: str,
     asset: ResolvedStaticAsset,
@@ -278,51 +368,9 @@ def static_record(
     }
 
 
-def _legacy_label(source: AssetSource) -> str:
-    return source.name if isinstance(source, Path) else "asset"
-
-
-def legacy_image_data_uri(
-    source: AssetSource,
-    *,
-    media_type: str | None = None,
-) -> str:
-    """读取旧 helper 的素材；素材已外置时返回可见 placeholder。"""
-
-    try:
-        return _image_data_uri(source, media_type=media_type)
-    except (AssetRenderError, OSError, ValueError):
-        legacy_path = source if isinstance(source, Path) else None
-        return resolved_image_data_uri(
-            None,
-            f"legacy.image:{_legacy_label(source)}",
-            legacy_path=legacy_path,
-            label=_legacy_label(source),
-        )[0]
-
-
-def legacy_font_data_uri(
-    source: AssetSource,
-    *,
-    media_type: str | None = None,
-) -> str:
-    """读取旧 helper 的字体；完整字体缺失时交给 CSS fallback。"""
-
-    try:
-        return _font_data_uri(source, media_type=media_type)
-    except (AssetRenderError, OSError, ValueError):
-        legacy_path = source if isinstance(source, Path) else None
-        return resolved_font_data_uri(
-            None,
-            "legacy.font",
-            legacy_path=legacy_path,
-        )[0]
-
-
-
-
 
 __all__ = [
+    "BOOTSTRAP_RELATIVE_ALLOWLIST",
     "COMMON_PATH",
     "HELP_BACKGROUND_PATH",
     "HELP_BANNER_PATH",
@@ -334,8 +382,6 @@ __all__ = [
     "HELP_ICON_DIR",
     "HELP_ITEM_PATH",
     "PLUGIN_ICON_PATH",
-    "legacy_font_data_uri",
-    "legacy_image_data_uri",
     "static_font_data_uri",
     "static_image_data_uri",
     "static_open_image",

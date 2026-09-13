@@ -59,6 +59,7 @@ def test_resolve_relative_prefers_snapshot_then_common_bootstrap(
     resolver = StaticAssetResolver(
         snapshot_root=snapshot,
         bootstrap_texture_dir=bootstrap_dir,
+        bootstrap_relative_allowlist={"textures/common/bg1.jpg"},
     )
     resolved = resolver.resolve_relative("textures/role/info_bar.png")
     assert resolved.path == snapshot / "textures" / "role" / "info_bar.png"
@@ -69,6 +70,11 @@ def test_resolve_relative_prefers_snapshot_then_common_bootstrap(
     assert resolved.path == bootstrap_dir / "bg1.jpg"
     assert resolved.source == "bootstrap"
     assert not resolved.incomplete
+
+    # 未列入显式 allowlist 的 common 路径不得隐式回退本地 bootstrap。
+    resolved = resolver.resolve_relative("textures/common/not_allowlisted.jpg")
+    assert resolved.path is None
+    assert resolved.incomplete
 
 
 def test_resolve_relative_marks_missing_and_rejects_escape(tmp_path: Path) -> None:
@@ -155,3 +161,36 @@ def test_static_helpers_fallback_and_record(tmp_path: Path) -> None:
         resolver, "textures/sign/none.png", size=(4, 4), label="签到"
     )
     assert placeholder.size == (4, 4)
+
+
+def test_resolve_supports_bootstrap_only_keys(tmp_path: Path) -> None:
+    """没有 snapshot 映射的 key 也必须能进入 bootstrap 检查。"""
+
+    logo = tmp_path / "logo.png"
+    logo.write_bytes(b"png")
+    resolver = StaticAssetResolver(bootstrap_allowlist={"texture.help.logo": logo})
+    resolved = resolver.resolve("texture.help.logo")
+    assert resolved.path == logo
+    assert resolved.source == "bootstrap"
+    assert not resolved.incomplete
+
+
+def test_resolve_bootstrap_dir_icons(tmp_path: Path) -> None:
+    """帮助命令图标经 bootstrap 目录解析，且拒绝路径逃逸。"""
+
+    icon_dir = tmp_path / "icons"
+    icon_dir.mkdir()
+    (icon_dir / "签到日历.png").write_bytes(b"png")
+    resolver = StaticAssetResolver(bootstrap_dirs={"texture.help.icon": icon_dir})
+
+    resolved = resolver.resolve("texture.help.icon:签到日历.png")
+    assert resolved.path == icon_dir / "签到日历.png"
+    assert resolved.source == "bootstrap"
+
+    missing = resolver.resolve("texture.help.icon:不存在.png")
+    assert missing.path is None
+    assert missing.incomplete
+
+    escaped = resolver.resolve("texture.help.icon:../escape.png")
+    assert escaped.path is None
+    assert escaped.incomplete

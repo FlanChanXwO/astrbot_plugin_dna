@@ -11,8 +11,8 @@ from .legacy import (
 )
 from .schema import generate_astrbot_schema, write_astrbot_schema
 from .settings import (
-    AISettings,
     AgentToolsSettings,
+    AISettings,
     CacheSettings,
     ClientUpdatesSettings,
     DisplaySettings,

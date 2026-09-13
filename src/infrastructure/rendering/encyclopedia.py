@@ -60,6 +60,7 @@ from .artifact_store import write_rendered_artifact
 from .assets import image_data_uri, pil_image_data_uri
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
+from .runtime_assets import resources_incomplete
 from .spec import RenderSpec
 from .static_assets import (
     StaticAssetResolver,
@@ -1330,6 +1331,7 @@ class RenderedEncyclopediaImage:
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
+    incomplete: bool = False
 
 
 def _value(val: Any) -> str:
@@ -1441,6 +1443,7 @@ class EncyclopediaRenderer:
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
+            incomplete=resources_incomplete(resources),
         )
 
     async def render_stamina(

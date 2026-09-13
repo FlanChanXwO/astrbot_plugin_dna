@@ -3,18 +3,14 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ...entry.commands import COMMAND_GROUP_ORDER
 from ...version import PLUGIN_VERSION
+from .assets import font_data_uri, image_data_uri
 from .renderer import HtmlRenderer
-from .runtime_assets import (
-    AssetResolverLike,
-    resolved_font_data_uri,
-    resolved_image_data_uri,
-    resource_record,
-)
 from .spec import RenderSpec
 from .static_assets import (
     HELP_BACKGROUND_PATH,
@@ -26,12 +22,10 @@ from .static_assets import (
     HELP_FOOTER_PATH,
     HELP_ICON_DIR,
     HELP_ITEM_PATH,
-)
-from .static_assets import (
-    legacy_font_data_uri as font_data_uri,
-)
-from .static_assets import (
-    legacy_image_data_uri as image_data_uri,
+    StaticAssetResolver,
+    static_key_font_data_uri,
+    static_key_image_data_uri,
+    static_record,
 )
 
 BACKGROUND_PATH = HELP_BACKGROUND_PATH
@@ -52,7 +46,34 @@ _ICON_ALIASES = {
     "基本信息卡片": "基本信息.png",
     "查看UID列表": "UID.png",
 }
-_HELP_CACHE: dict[tuple[object, str, str, str, object], bytes] = {}
+def _legacy_image_uri(path: Path, label: str) -> str:
+    """无 resolver 兼容路径的本地读取；素材缺失时退回 placeholder。"""
+
+    try:
+        return image_data_uri(path)
+    except (OSError, ValueError):
+        from .static_assets import static_image_data_uri
+
+        return static_image_data_uri(None, "", label=label)[0]
+
+
+def _legacy_font_uri(path: Path) -> str:
+    """无 resolver 兼容路径的字体读取；缺失时交给 CSS fallback。"""
+
+    try:
+        return font_data_uri(path)
+    except (OSError, ValueError):
+        return ""
+
+
+# Help 缓存必须连同资源完整性记录一起缓存，命中后才能恢复 incomplete 状态。
+@dataclass(frozen=True)
+class CachedHelp:
+    payload: bytes
+    resources: tuple[dict[str, str], ...]
+
+
+_HELP_CACHE: dict[tuple[object, str, str, str, object], CachedHelp] = {}
 
 
 def help_cache_generation_id(asset_resolver: object) -> object:
@@ -151,25 +172,19 @@ def _find_icon(name: str) -> Path:
 
 def _help_icon_uri(
     name: str,
-    asset_resolver: AssetResolverLike | None,
+    asset_resolver: StaticAssetResolver | None,
     resource_records: list[dict[str, str]] | None = None,
 ) -> str:
-    """按帮助命令名称解析图标，resolver 模式下不回读旧资源目录。"""
+    """按帮助命令名称解析图标；图标是显式 bootstrap，不外置。"""
 
     path = _find_icon(name)
     if asset_resolver is None:
-        return image_data_uri(path)
+        return _legacy_image_uri(path, name)
     key = f"texture.help.icon:{path.name}"
-    uri, asset = resolved_image_data_uri(
-        asset_resolver,
-        key,
-        legacy_path=None,
-        label=name,
-    )
+    uri, asset = static_key_image_data_uri(asset_resolver, key, label=name)
     if resource_records is not None:
         resource_records.append(
-            resource_record(
-                "texture",
+            static_record(
                 key,
                 asset,
                 resource_path=f"textures/help/icon/{path.name}",
@@ -182,7 +197,7 @@ def _help_sections(
     plugin_help: dict[str, Any],
     prefix: str = "dna",
     *,
-    asset_resolver: AssetResolverLike | None = None,
+    asset_resolver: StaticAssetResolver | None = None,
     resource_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """按 GScore new_help 的分组、列数和条目顺序构造模板数据。"""
@@ -223,7 +238,7 @@ def _registry_help_sections(
     prefix: str,
     plugin_help: dict[str, Any],
     *,
-    asset_resolver: AssetResolverLike | None = None,
+    asset_resolver: StaticAssetResolver | None = None,
     resource_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """以 registry 为命令唯一来源，同时沿用资源文件中的分组说明和图标。"""
@@ -305,7 +320,7 @@ async def get_help(
     registry: CommandRegistry | None = None,
     permission: PermissionName = "user",
     version: str = PLUGIN_VERSION,
-    asset_resolver: AssetResolverLike | None = None,
+    asset_resolver: StaticAssetResolver | None = None,
     resource_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """使用 HTML 模板绘制帮助卡片，保留双列与三列排版结构。"""
@@ -321,8 +336,11 @@ async def get_help(
         if registry is not None
         else None
     )
-    if cache_key is not None and cache_key in _HELP_CACHE:
-        return _HELP_CACHE[cache_key]
+    cached = _HELP_CACHE.get(cache_key) if cache_key is not None else None
+    if cached is not None:
+        if resource_records is not None:
+            resource_records.extend(cached.resources)
+        return cached.payload
 
     plugin_help = _load_help_data()
     if registry is None:
@@ -344,36 +362,31 @@ async def get_help(
         )
         lines = []
     if asset_resolver is None:
-        background_uri = image_data_uri(BACKGROUND_PATH)
-        banner_uri = image_data_uri(HELP_BANNER_PATH)
-        cag_uri = image_data_uri(HELP_CAG_PATH)
-        footer_uri = image_data_uri(HELP_FOOTER_PATH)
-        icon_uri = image_data_uri(PLUGIN_ICON_PATH)
-        item_uri = image_data_uri(HELP_ITEM_PATH)
-        font_uri = font_data_uri(HELP_FONT_PATH)
+        background_uri = _legacy_image_uri(BACKGROUND_PATH, "help-background")
+        banner_uri = _legacy_image_uri(HELP_BANNER_PATH, "help-banner")
+        cag_uri = _legacy_image_uri(HELP_CAG_PATH, "help-cag")
+        footer_uri = _legacy_image_uri(HELP_FOOTER_PATH, "footer")
+        icon_uri = _legacy_image_uri(PLUGIN_ICON_PATH, "logo")
+        item_uri = _legacy_image_uri(HELP_ITEM_PATH, "help-item")
+        font_uri = _legacy_font_uri(HELP_FONT_PATH)
     else:
         def image_uri(key: str, path: Path, label: str) -> str:
-            uri, asset = resolved_image_data_uri(
+            uri, asset = static_key_image_data_uri(
                 asset_resolver,
                 key,
-                legacy_path=None,
                 label=label,
             )
             if resource_records is not None:
                 resource_records.append(
-                    resource_record("texture", key, asset, resource_path=path.as_posix()),
+                    static_record(key, asset, resource_path=path.as_posix()),
                 )
             return uri
 
         def font_uri_for(key: str, path: Path) -> str:
-            uri, asset = resolved_font_data_uri(
-                asset_resolver,
-                key,
-                legacy_path=None,
-            )
+            uri, asset = static_key_font_data_uri(asset_resolver, key)
             if resource_records is not None:
                 resource_records.append(
-                    resource_record("font", key, asset, resource_path=path.as_posix()),
+                    static_record(key, asset, resource_path=path.as_posix()),
                 )
             return uri
 
@@ -411,7 +424,10 @@ async def get_help(
     )
     payload = await _RENDERER.render("cards/help.html.j2", template_data, spec)
     if cache_key is not None:
-        _HELP_CACHE[cache_key] = payload
+        _HELP_CACHE[cache_key] = CachedHelp(
+            payload,
+            tuple(resource_records) if resource_records is not None else (),
+        )
     return payload
 
 

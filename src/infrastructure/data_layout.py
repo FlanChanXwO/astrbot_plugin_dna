@@ -280,7 +280,7 @@ __all__ = [
     "STATE_DIR_NAME",
     "SUBSCRIPTIONS_FILE_NAME",
     "USER_AVATAR_DIR_NAME",
-    "WEEKLY_ITEM_DIR_NAME",
     "WEAPON_ALIAS_FILE_NAME",
+    "WEEKLY_ITEM_DIR_NAME",
     "RuntimeDataLayout",
 ]

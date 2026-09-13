@@ -11,7 +11,6 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .auth import is_credential_failure
 from ...modules.account.contracts import (
     AccountActor,
     AccountTransportError,
@@ -22,6 +21,7 @@ from ...modules.account.contracts import (
     RoleInfo,
     TransportErrorKind,
 )
+from .auth import is_credential_failure
 
 
 def _response_error(response: Any) -> AccountTransportError:

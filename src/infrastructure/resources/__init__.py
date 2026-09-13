@@ -45,13 +45,6 @@ from .manifest import (
     ResourceManifest,
     ResourceManifestError,
 )
-from .resolver import (
-    AssetDownloader,
-    AssetKind,
-    AssetResolutionError,
-    AssetResolver,
-    ResolvedAsset,
-)
 from .paths import (
     PLUGIN_NAME,
     RESOURCE_GENERATION_STATE_NAME,
@@ -63,8 +56,15 @@ from .paths import (
     resource_generation_state_path,
     resource_generations_dir,
     resource_last_sync_state_path,
-    resource_validation_state_path,
     resource_repository_dir,
+    resource_validation_state_path,
+)
+from .resolver import (
+    AssetDownloader,
+    AssetKind,
+    AssetResolutionError,
+    AssetResolver,
+    ResolvedAsset,
 )
 
 __all__ = [
@@ -78,11 +78,11 @@ __all__ = [
     "RESOURCE_REPOSITORY_NAME",
     "RESOURCE_VALIDATION_STATE_NAME",
     "RUNTIME_RESOURCE_DIRECTORIES",
+    "AliasCatalog",
     "AssetDownloader",
     "AssetKind",
     "AssetResolutionError",
     "AssetResolver",
-    "AliasCatalog",
     "EncyclopediaResourceError",
     "EncyclopediaResourceStore",
     "GitCommandError",
@@ -117,7 +117,7 @@ __all__ = [
     "resource_generation_state_path",
     "resource_generations_dir",
     "resource_last_sync_state_path",
-    "resource_validation_state_path",
     "resource_repository_dir",
+    "resource_validation_state_path",
     "run_git",
 ]

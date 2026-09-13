@@ -15,7 +15,10 @@ from types import SimpleNamespace
 from PIL import Image
 
 from src.infrastructure.rendering.checkin import CheckinRenderer
-from src.infrastructure.rendering.static_assets import StaticAssetResolver
+from src.infrastructure.rendering.static_assets import (
+    BOOTSTRAP_RELATIVE_ALLOWLIST,
+    StaticAssetResolver,
+)
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.modules.checkin.contracts import CheckinCalendarData, SignCalendar, SignPeriod
 from src.modules.player.contracts import RoleHeader
@@ -45,7 +48,7 @@ def _stub_avatar(monkeypatch) -> None:
 
     from PIL import Image
 
-    import src.infrastructure.rendering.payloads as payloads
+    from src.infrastructure.rendering import payloads
 
     async def _fake_event_avatar(*_args, **_kwargs):
         return Image.new("RGBA", (16, 16), (90, 120, 200, 255))
@@ -84,6 +87,7 @@ def test_checkin_calendar_renders_from_verified_snapshot(
     resolver = StaticAssetResolver(
         snapshot_root=_snapshot(tmp_path),
         bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
+        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
     )
     renderer = CheckinRenderer(tmp_path / "rendered", EncyclopediaResourceStore())
     renderer.static_asset_resolver = resolver

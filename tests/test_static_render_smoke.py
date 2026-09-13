@@ -17,11 +17,15 @@ from types import SimpleNamespace
 
 from PIL import Image
 
+from src.infrastructure.rendering import ResourceMap
 from src.infrastructure.rendering.checkin import CheckinRenderer
 from src.infrastructure.rendering.encyclopedia import _draw_calendar_card_bytes
 from src.infrastructure.rendering.notices import NoticesRenderer
 from src.infrastructure.rendering.player import PlayerRenderer
-from src.infrastructure.rendering.static_assets import StaticAssetResolver
+from src.infrastructure.rendering.static_assets import (
+    BOOTSTRAP_RELATIVE_ALLOWLIST,
+    StaticAssetResolver,
+)
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.generation import (
     ResourceManifest,
@@ -30,7 +34,6 @@ from src.infrastructure.resources.generation import (
 )
 from src.modules.checkin.contracts import CheckinCalendarData, SignCalendar, SignPeriod
 from src.modules.notices.contracts import MhInstance, MhSection, MhSnapshot
-from src.infrastructure.rendering import ResourceMap
 from src.modules.player.contracts import RoleOverview
 
 BOOTSTRAP_TEXTURE_DIR = Path(__file__).parents[1] / "src" / "utils" / "texture2d"
@@ -120,7 +123,7 @@ def _stub_avatar(monkeypatch) -> None:
 
     from PIL import Image
 
-    import src.infrastructure.rendering.payloads as payloads
+    from src.infrastructure.rendering import payloads
 
     async def _fake_event_avatar(*_args, **_kwargs):
         return Image.new("RGBA", (16, 16), (90, 120, 200, 255))
@@ -149,6 +152,7 @@ def test_case1_full_snapshot_renders_core_cards_incomplete_false(
     resolver = StaticAssetResolver(
         snapshot_root=generation,
         bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
+        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
     ).pinned(generation, generation_id="a" * 40)
 
     # 玩家角色总览
@@ -234,7 +238,10 @@ def test_case2_without_snapshot_falls_back_incomplete(
     tmp_path, monkeypatch
 ) -> None:
     _stub_avatar(monkeypatch)
-    resolver = StaticAssetResolver(bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR)
+    resolver = StaticAssetResolver(
+        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
+        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
+    )
     checkin_renderer = CheckinRenderer(
         tmp_path / "rendered-checkin", EncyclopediaResourceStore()
     )
