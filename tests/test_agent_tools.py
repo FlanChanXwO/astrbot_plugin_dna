@@ -280,7 +280,7 @@ async def test_default_agent_result_is_json_without_local_image_path(
     tool = next(
         tool
         for tool in build_agent_tools(services=_services(FakePlayerService(image_path)))
-        if tool.name == "dnaby_player_overview"
+        if tool.name == "dna_player_overview"
     )
 
     payload = json.loads(await tool.call(_agent_wrapper(event)))
@@ -302,7 +302,7 @@ async def test_send_image_sends_to_current_event_and_preserves_data(
     tool = next(
         tool
         for tool in build_agent_tools(services=_services(FakePlayerService(image_path)))
-        if tool.name == "dnaby_player_overview"
+        if tool.name == "dna_player_overview"
     )
 
     payload = json.loads(await tool.call(_agent_wrapper(event), send_image=True))
@@ -327,7 +327,7 @@ async def test_send_image_failure_is_explicit_and_never_success(tmp_path: Path) 
     tool = next(
         tool
         for tool in build_agent_tools(services=_services(FakePlayerService(image_path)))
-        if tool.name == "dnaby_player_overview"
+        if tool.name == "dna_player_overview"
     )
 
     payload = json.loads(await tool.call(_agent_wrapper(event), send_image=True))
@@ -347,7 +347,7 @@ async def test_missing_image_file_is_not_reported_available_or_sent(
     tool = next(
         tool
         for tool in build_agent_tools(services=_services(FakePlayerService(image_path)))
-        if tool.name == "dnaby_player_overview"
+        if tool.name == "dna_player_overview"
     )
 
     default_payload = json.loads(await tool.call(_agent_wrapper(event)))
@@ -376,7 +376,7 @@ async def test_query_failure_returns_safe_json_instead_of_leaking_exception() ->
         )
 
     tool = AgentQueryTool(
-        name="dnaby_failing_query",
+        name="dna_failing_query",
         query_name="failing_query",
         description="测试异常边界",
         parameters={"type": "object", "properties": {}, "additionalProperties": False},
@@ -404,7 +404,7 @@ async def test_agent_query_maps_model_parameters_to_typed_domain_request(
     tool = next(
         tool
         for tool in build_agent_tools(services=_services(player))
-        if tool.name == "dnaby_player_role_detail"
+        if tool.name == "dna_player_role_detail"
     )
 
     payload = json.loads(
@@ -436,7 +436,7 @@ async def test_identity_override_is_a_structured_tool_failure(tmp_path: Path) ->
         for tool in build_agent_tools(
             services=_services(FakePlayerService(tmp_path / "role.png"))
         )
-        if tool.name == "dnaby_player_overview"
+        if tool.name == "dna_player_overview"
     )
 
     payload = json.loads(await tool.call(_agent_wrapper(), user_id="attacker"))
@@ -453,7 +453,7 @@ async def test_non_image_tool_does_not_accept_send_image(tmp_path: Path) -> None
         for tool in build_agent_tools(
             services=_services(FakePlayerService(tmp_path / "role.png"))
         )
-        if tool.name == "dnaby_codes"
+        if tool.name == "dna_codes"
     )
 
     assert "send_image" not in tool.parameters["properties"]

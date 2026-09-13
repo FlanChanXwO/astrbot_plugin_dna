@@ -171,14 +171,14 @@ def _event_cache(event: Any) -> tuple[Any, Any]:
     return getter, setter
 
 
-_SIGN_LOCK_EXTRA = "dnaby_agent_sign_lock"
-_SIGN_RESULT_EXTRA = "dnaby_agent_sign_result"
+_SIGN_LOCK_EXTRA = "dna_agent_sign_lock"
+_SIGN_RESULT_EXTRA = "dna_agent_sign_result"
 
 
 class AgentSignTool(FunctionTool):
     """仅允许由当前原始消息明确确认的当前用户签到工具。"""
 
-    name = "dnaby_sign"
+    name = "dna_sign"
 
     def __init__(
         self,

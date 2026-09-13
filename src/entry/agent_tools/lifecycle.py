@@ -14,7 +14,7 @@ from ...modules.agent_tools.queries import AgentQueryCatalog
 from .signin import AgentSignTool
 from .tools import AGENT_TOOL_NAMES, build_agent_tools
 
-AGENT_SIGN_TOOL_NAME = "dnaby_sign"
+AGENT_SIGN_TOOL_NAME = "dna_sign"
 
 
 class AgentToolsLifecycle:
