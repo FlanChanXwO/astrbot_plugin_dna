@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 from collections.abc import Iterable
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
@@ -16,6 +17,7 @@ from ...entry.event import EventActor
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import RenderedPlayerImage
 from ...infrastructure.rendering.errors import HtmlRenderError
+from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ..player.contracts import (
     DamageCalculation,
     PlayerFailureKind,
@@ -232,10 +234,22 @@ class AdminPreviewService:
         database: AsyncDatabase,
         transport: PlayerTransport,
         renderer: AdminPreviewRenderer,
+        resource_snapshots: ResourceSnapshotCoordinator | None = None,
     ) -> None:
         self.database = database
         self.transport = transport
         self.renderer = renderer
+        # 预览与普通玩家请求共用同一 generation lease，避免混用资源代。
+        self.resource_snapshots = resource_snapshots
+
+    def _renderer_context(self):
+        if self.resource_snapshots is None:
+            return nullcontext(self.renderer)
+        return self.resource_snapshots.bind_renderer(
+            self.renderer,
+            "player_resources",
+            asset_resolver=getattr(self.renderer, "asset_resolver", None),
+        )
 
     async def _binding_exists(self, request: AdminPreviewRequest) -> bool:
         async with self.database.session() as session:
@@ -317,14 +331,15 @@ class AdminPreviewService:
                 request.uid,
                 credential_user_id=request.user_id,
             )
-            rendered = await self.renderer.render_overview(
-                overview,
-                uid=request.uid,
-                actor=request.actor,
-                target_user_id=request.user_id,
-                uid_hidden=False,
-                show_unowned=True,
-            )
+            with self._renderer_context() as renderer:
+                rendered = await renderer.render_overview(
+                    overview,
+                    uid=request.uid,
+                    actor=request.actor,
+                    target_user_id=request.user_id,
+                    uid_hidden=False,
+                    show_unowned=True,
+                )
         except PlayerTransportError as error:
             return AdminApiResponse.failure(self._transport_error(error))
         except (HtmlRenderError, OSError, ValueError):
@@ -433,16 +448,17 @@ class AdminPreviewService:
             if damage.data is None:
                 return _failure(AdminErrorCode.UPSTREAM, "上游伤害计算失败")
 
-            rendered = await self.renderer.render_detail(
-                role_detail,
-                weapon_sections,
-                damage,
-                uid=request.uid,
-                uid_hidden=False,
-                overview=overview,
-                actor=request.actor,
-                target_user_id=request.user_id,
-            )
+            with self._renderer_context() as renderer:
+                rendered = await renderer.render_detail(
+                    role_detail,
+                    weapon_sections,
+                    damage,
+                    uid=request.uid,
+                    uid_hidden=False,
+                    overview=overview,
+                    actor=request.actor,
+                    target_user_id=request.user_id,
+                )
         except PlayerTransportError as error:
             return AdminApiResponse.failure(self._transport_error(error))
         except (HtmlRenderError, OSError, ValueError):

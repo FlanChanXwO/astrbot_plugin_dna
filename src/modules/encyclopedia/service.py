@@ -163,6 +163,7 @@ class EncyclopediaService:
             temporary=True,
             sidecar=rendered.sidecar,
             manifest=rendered.manifest,
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def weekly_report(self, request: EncyclopediaRequest):
@@ -203,6 +204,7 @@ class EncyclopediaService:
             temporary=True,
             sidecar=rendered.sidecar,
             manifest=rendered.manifest,
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def calendar(self, request: EncyclopediaRequest):
@@ -222,6 +224,7 @@ class EncyclopediaService:
             temporary=True,
             sidecar=rendered.sidecar,
             manifest=rendered.manifest,
+            incomplete=getattr(rendered, "incomplete", False),
         )
 
     async def wiki(self, request: EncyclopediaRequest):

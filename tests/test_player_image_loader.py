@@ -10,10 +10,10 @@ import pytest
 from PIL import Image
 
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap
+from src.infrastructure.rendering import player as player_module
 from src.infrastructure.rendering import (
     player_image_loader as player_image_loader_module,
 )
-from src.infrastructure.rendering import player as player_module
 from src.infrastructure.rendering.player_image_loader import PlayerImageLoader
 from src.infrastructure.resources import AssetResolver
 from src.utils.image_utils import ImageFetcherClosed

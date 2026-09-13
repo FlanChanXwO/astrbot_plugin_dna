@@ -36,6 +36,7 @@ from .paths import (
     RESOURCE_LAST_SYNC_STATE_NAME,
     RESOURCE_VALIDATION_STATE_NAME,
 )
+from .resolver import AssetResolver
 
 if TYPE_CHECKING:
     from ..rendering.player import ResourceMap
@@ -182,7 +183,15 @@ _FONT_SIGNATURES = {
     ".woff": frozenset({b"wOFF"}),
     ".woff2": frozenset({b"wOF2"}),
 }
-_ASSET_ROOTS = ("images", "panel", "wiki", "guide", "weekly_item", "calendar")
+_ASSET_ROOTS = (
+    "images",
+    "panel",
+    "wiki",
+    "guide",
+    "weekly_item",
+    "calendar",
+    "textures",
+)
 _ALIAS_FILES = ("char_alias.json", "weapon_alias.json")
 _REDEEM_KEYS = frozenset(
     {"code", "reward", "valid_from", "expires_at", "platforms", "servers"}
@@ -1084,16 +1093,27 @@ class ResourceSnapshotCoordinator:
             yield resources
 
     @contextmanager
+    def bind_static_asset_resolver(
+        self,
+        static_asset_resolver: Any,
+    ) -> Iterator[Any]:
+        """在同一 generation lease 内返回固定 generation 的静态资源解析器。"""
+
+        with self.optional_lease() as snapshot:
+            yield static_asset_resolver.pinned(
+                None if snapshot is None else snapshot.root,
+                generation_id=None if snapshot is None else snapshot.commit_sha,
+            )
+
+    @contextmanager
     def bind_renderer(
         self,
         renderer: Any,
         resource_attr: str,
         *,
-        asset_resolver_attr: str | None = None,
+        asset_resolver: AssetResolver | None = None,
     ) -> Iterator[Any]:
         """在同一 generation lease 内绑定资源视图和可选图片 resolver。"""
-
-        from .resolver import AssetResolver
 
         with self.optional_lease() as snapshot:
             if snapshot is None:
@@ -1108,24 +1128,20 @@ class ResourceSnapshotCoordinator:
 
             bound = copy(renderer)
             bound.resources = resources
-            if asset_resolver_attr is not None:
-                base_resolver = getattr(renderer, asset_resolver_attr, None)
-                if base_resolver is not None:
-                    dynamic_root = getattr(base_resolver, "dynamic_root", None)
-                    if dynamic_root is None:
-                        raise ResourceGenerationError(
-                            "renderer 的 asset resolver 缺少 dynamic_root: "
-                            f"{asset_resolver_attr}"
-                        )
-                    setattr(
-                        bound,
-                        asset_resolver_attr,
-                        AssetResolver.from_snapshot(
-                            snapshot,
-                            dynamic_root=dynamic_root,
-                            downloader=getattr(base_resolver, "downloader", None),
-                        ),
-                    )
+            if asset_resolver is not None:
+                bound.asset_resolver = AssetResolver.from_snapshot(
+                    snapshot,
+                    dynamic_root=asset_resolver.dynamic_root,
+                    downloader=asset_resolver.downloader,
+                )
+            # renderer 若挂载了静态资源解析器，同样固定到本次 lease 的 generation，
+            # 保证一次渲染中动态角色图与静态纹理来自同一个 generation。
+            static_asset_resolver = getattr(renderer, "static_asset_resolver", None)
+            if static_asset_resolver is not None:
+                bound.static_asset_resolver = static_asset_resolver.pinned(
+                    None if snapshot is None else snapshot.root,
+                    generation_id=None if snapshot is None else snapshot.commit_sha,
+                )
             yield bound
 
     def _release(self, commit_sha: str) -> None:

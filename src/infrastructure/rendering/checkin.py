@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .static_assets import StaticAssetResolver
+
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,17 +31,65 @@ from ..resources.encyclopedia import EncyclopediaResourceStore
 from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .assets import font_data_uri, image_data_uri, pil_image_data_uri
+from .assets import pil_image_data_uri
 from .payloads import build_profile_header
 from .renderer import HtmlRenderer
+from .runtime_assets import resources_incomplete
 from .spec import RenderSpec
+from .static_assets import (
+    static_font_data_uri,
+    static_image_data_uri,
+    static_record,
+)
 
 _RENDERER = HtmlRenderer()
-RESOURCES_DIR = Path(__file__).parents[2] / "resources"
-BACKGROUND_PATH = RESOURCES_DIR / "textures" / "common" / "bg1.jpg"
-TEXT_PATH = RESOURCES_DIR / "textures" / "sign"
-COMMON_PATH = RESOURCES_DIR / "textures" / "common"
-FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
+
+
+def _sign_calendar_payload(
+    achievements: list[dict[str, object]],
+    awards: list[dict[str, object]],
+    tasks: list[dict[str, object]],
+    header: object,
+    height: int,
+    static_asset_resolver: StaticAssetResolver | None,
+    static_records: list[dict[str, str]] | None,
+) -> dict[str, object]:
+    """构造签到日历模板输入；静态素材经 StaticAssetResolver 解析。"""
+
+    def image(key: str, relative: str) -> str:
+        uri, asset = static_image_data_uri(
+            static_asset_resolver, relative, label="签到"
+        )
+        if static_records is not None:
+            static_records.append(static_record(key, asset, resource_path=relative))
+        return uri
+
+    font_uri, font_asset = static_font_data_uri(static_asset_resolver, "fonts/dna_fonts.ttf")
+    if static_records is not None:
+        static_records.append(
+            static_record("font.dna_fonts", font_asset, resource_path="fonts/dna_fonts.ttf")
+        )
+    return {
+        "achievements": achievements,
+        "awards": awards,
+        "background": image("texture.common.bg1", "textures/common/bg1.jpg"),
+        "achievement_background": image("texture.sign.bar", "textures/sign/bar.png"),
+        "divider_background": image("texture.common.div", "textures/common/div.png"),
+        "item_background": image("texture.sign.item_BG", "textures/sign/item_BG.png"),
+        "green": image("texture.sign.green", "textures/sign/green.png"),
+        "red": image("texture.sign.red", "textures/sign/red.png"),
+        "task_background": image("texture.sign.line", "textures/sign/line.png"),
+        "font": font_uri,
+        "footer_text": "DNA",
+        "footer_image": image("texture.common.footer", "textures/common/footer.png"),
+        "header": header,
+        "header_background": image(
+            "texture.common.avatar_title_bg", "textures/common/avatar_title_bg.png"
+        ),
+        "tasks": tasks,
+        "width": 1300,
+        "height": height,
+    }
 
 
 async def _draw_sign_calendar_view(
@@ -50,6 +103,8 @@ async def _draw_sign_calendar_view(
     sign_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
     game_avatar_dir: Path | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """直接从签到领域 DTO 构造模板输入，避免回拼完整 legacy 模型。"""
 
@@ -64,6 +119,8 @@ async def _draw_sign_calendar_view(
         downloader=downloader,
         avatar_path=user_avatar_dir,
         game_avatar_path=game_avatar_dir,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
     )
     achievement_info = [
         {"label": "皎皎积分", "value": str(calendar.user_gold or 0)},
@@ -121,25 +178,15 @@ async def _draw_sign_calendar_view(
     )
     return await _RENDERER.render(
         "cards/sign_calendar.html.j2",
-        {
-            "achievements": achievement_info,
-            "awards": awards,
-            "background": image_data_uri(BACKGROUND_PATH),
-            "achievement_background": image_data_uri(TEXT_PATH / "bar.png"),
-            "divider_background": image_data_uri(COMMON_PATH / "div.png"),
-            "item_background": image_data_uri(TEXT_PATH / "item_BG.png"),
-            "green": image_data_uri(TEXT_PATH / "green.png"),
-            "red": image_data_uri(TEXT_PATH / "red.png"),
-            "task_background": image_data_uri(TEXT_PATH / "line.png"),
-            "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNA",
-            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
-            "header": header,
-            "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
-            "tasks": tasks,
-            "width": 1300,
-            "height": height,
-        },
+        _sign_calendar_payload(
+            achievement_info,
+            awards,
+            tasks,
+            header,
+            height,
+            static_asset_resolver,
+            static_records,
+        ),
         RenderSpec(
             width=1300,
             height=height,
@@ -160,6 +207,8 @@ async def _draw_sign_calendar(
     sign_cache_dir: Path | None = None,
     user_avatar_dir: Path | None = None,
     game_avatar_dir: Path | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     """组装签到日历 payload，保留每日奖励和社区任务的完整条目。"""
 
@@ -184,6 +233,8 @@ async def _draw_sign_calendar(
             sign_cache_dir=sign_cache_dir,
             user_avatar_dir=user_avatar_dir,
             game_avatar_dir=game_avatar_dir,
+            static_asset_resolver=static_asset_resolver,
+            static_records=static_records,
         )
 
     header = await build_profile_header(
@@ -196,6 +247,8 @@ async def _draw_sign_calendar(
         downloader=downloader,
         avatar_path=user_avatar_dir,
         game_avatar_path=game_avatar_dir,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
     )
     achievement_info = [
         {"label": "皎皎积分", "value": str(sign_data.userGoldNum or 0)},
@@ -254,25 +307,15 @@ async def _draw_sign_calendar(
 
     return await _RENDERER.render(
         "cards/sign_calendar.html.j2",
-        {
-            "achievements": achievement_info,
-            "awards": awards,
-            "background": image_data_uri(BACKGROUND_PATH),
-            "achievement_background": image_data_uri(TEXT_PATH / "bar.png"),
-            "divider_background": image_data_uri(COMMON_PATH / "div.png"),
-            "item_background": image_data_uri(TEXT_PATH / "item_BG.png"),
-            "green": image_data_uri(TEXT_PATH / "green.png"),
-            "red": image_data_uri(TEXT_PATH / "red.png"),
-            "task_background": image_data_uri(TEXT_PATH / "line.png"),
-            "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNA",
-            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
-            "header": header,
-            "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
-            "tasks": tasks,
-            "width": 1300,
-            "height": height,
-        },
+        _sign_calendar_payload(
+            achievement_info,
+            awards,
+            tasks,
+            header,
+            height,
+            static_asset_resolver,
+            static_records,
+        ),
         RenderSpec(
             width=1300,
             height=height,
@@ -282,7 +325,12 @@ async def _draw_sign_calendar(
     )
 
 
-async def create_sign_info_image(text: str, theme: str = "blue") -> bytes:
+async def create_sign_info_image(
+    text: str,
+    theme: str = "blue",
+    *,
+    static_asset_resolver: StaticAssetResolver | None = None,
+) -> bytes:
     """以固定 600×250 HTML 卡片渲染群签到汇总。"""
 
     colors = {
@@ -294,7 +342,7 @@ async def create_sign_info_image(text: str, theme: str = "blue") -> bytes:
     return await _RENDERER.render(
         "cards/sign_report.html.j2",
         {
-            "font": font_data_uri(FONT_ORIGIN_PATH),
+            "font": static_font_data_uri(static_asset_resolver, "fonts/dna_fonts.ttf")[0],
             "lines": text[1:].split("\n"),
             "theme_color": colors.get(theme, colors["blue"]),
             "width": 600,
@@ -314,6 +362,7 @@ class RenderedCheckinImage:
     sidecar: Path | None = None
     manifest: Path | None = None
     media_type: str = "image/jpeg"
+    incomplete: bool = False
 
 
 class CheckinRenderer:
@@ -375,6 +424,7 @@ class CheckinRenderer:
             at=target_user_id,
             unified_msg_origin=actor.unified_msg_origin or "",
         )
+        static_records: list[dict[str, str]] = []
         image_bytes = await _draw_sign_calendar(
             ctx,
             role_header,
@@ -386,13 +436,15 @@ class CheckinRenderer:
             sign_cache_dir=self.sign_cache_dir,
             user_avatar_dir=self.user_avatar_dir,
             game_avatar_dir=self.game_avatar_dir,
+            static_asset_resolver=getattr(self, "static_asset_resolver", None),
+            static_records=static_records,
         )
         lines = (
             role_header.role_name,
             f"社区累计签到: {data.total_sign_in_days}",
             f"游戏累计签到: {data.calendar.signin_time or 0}",
         )
-        resources = ({"kind": "sign_calendar", "status": "legacy"},)
+        resources = ({"kind": "sign_calendar", "status": "legacy"}, *static_records)
         sections = (
             {
                 "name": "社区任务",
@@ -433,6 +485,7 @@ class CheckinRenderer:
             sidecar=Path(response.sidecar) if response.sidecar else None,
             manifest=Path(response.manifest) if response.manifest else None,
             media_type=artifact.media_type,
+            incomplete=resources_incomplete(static_records),
         )
 
 

@@ -478,12 +478,11 @@ async def test_active_session_can_use_alicap_proxy() -> None:
     async with _started_flow() as flow:
         auth = await _open_session(flow)
         flow._captcha_forward = fake_forward
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{flow.public_url}/alicap/{auth}/captcha.alicaptcha.com/load?a=1"
-            ) as response:
-                assert response.status == 200
-                assert await response.text() == "ok"
+        async with aiohttp.ClientSession() as session, session.get(
+            f"{flow.public_url}/alicap/{auth}/captcha.alicaptcha.com/load?a=1"
+        ) as response:
+            assert response.status == 200
+            assert await response.text() == "ok"
     assert seen["host"] == "captcha.alicaptcha.com"
     assert seen["path"] == "load"
     assert seen["query"] == "a=1"
@@ -582,15 +581,14 @@ async def test_alicap_redirect_is_rewritten_into_same_origin_proxy() -> None:
     async with _started_flow() as flow:
         auth = await _open_session(flow)
         flow._captcha_forward = fake_forward
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{flow.public_url}/alicap/{auth}/captcha.alicaptcha.com/load",
-                allow_redirects=False,
-            ) as response:
-                assert response.status == 302
-                assert response.headers["Location"] == (
-                    "/astrbot_plugin_dna/alicap/A1/static.alicaptcha.com/f%2Fg"
-                )
+        async with aiohttp.ClientSession() as session, session.get(
+            f"{flow.public_url}/alicap/{auth}/captcha.alicaptcha.com/load",
+            allow_redirects=False,
+        ) as response:
+            assert response.status == 302
+            assert response.headers["Location"] == (
+                "/astrbot_plugin_dna/alicap/A1/static.alicaptcha.com/f%2Fg"
+            )
 
 
 @pytest.mark.asyncio
@@ -608,12 +606,11 @@ async def test_alicap_foreign_redirect_is_refused() -> None:
     async with _started_flow() as flow:
         auth = await _open_session(flow)
         flow._captcha_forward = fake_forward
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{flow.public_url}/alicap/{auth}/captcha.alicaptcha.com/load",
-                allow_redirects=False,
-            ) as response:
-                assert response.status == 502
+        async with aiohttp.ClientSession() as session, session.get(
+            f"{flow.public_url}/alicap/{auth}/captcha.alicaptcha.com/load",
+            allow_redirects=False,
+        ) as response:
+            assert response.status == 502
 
 
 # --------------------------------------------------------------------------

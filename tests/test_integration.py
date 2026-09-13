@@ -81,6 +81,8 @@ async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) ->
         database=database,
         runtime_data_layout=runtime_data_layout,
     )
+    assert runtime.services["resource_root"] is None
+    assert runtime.services["player_resources"].root is None
 
     class GeneratedLoginPlugin:
         __module__ = "tests.generated_fullchain_recovery_plugin"

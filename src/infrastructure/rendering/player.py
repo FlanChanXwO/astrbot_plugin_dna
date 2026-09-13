@@ -52,7 +52,7 @@ from ..resources.encyclopedia import EncyclopediaResourceStore
 from ..resources.resolver import AssetResolver, ResolvedAsset
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
-from .assets import font_data_uri, image_data_uri, pil_image_data_uri
+from .assets import image_data_uri, pil_image_data_uri
 from .damage_renderer import draw_role_damage_section
 from .fonts import load_runtime_font
 from .image_inspector import inspect_image
@@ -60,14 +60,47 @@ from .payloads import build_profile_header
 from .player_image_loader import PlayerImageLoader
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
+from .static_assets import (
+    StaticAssetResolver,
+    static_font_data_uri,
+    static_image_data_uri,
+    static_record,
+)
 from .weapon_renderer import draw_weapon_detail_section
 
 _RENDERER = HtmlRenderer()
-RESOURCES_DIR = Path(__file__).parents[2] / "resources"
-COMMON_PATH = RESOURCES_DIR / "textures" / "common"
-DETAIL_TEXT_PATH = RESOURCES_DIR / "textures" / "detail"
-ROLE_TEXT_PATH = RESOURCES_DIR / "textures" / "role"
-FONT_ORIGIN_PATH = RESOURCES_DIR / "fonts" / "dna_fonts.ttf"
+
+
+def _static_image(
+    key: str,
+    relative: str,
+    static_asset_resolver: StaticAssetResolver | None,
+    static_records: list[dict[str, str]] | None,
+    *,
+    label: str = "角色卡",
+) -> str:
+    """经 StaticAssetResolver 解析静态纹理；缺失时降级为 placeholder。"""
+
+    uri, asset = static_image_data_uri(static_asset_resolver, relative, label=label)
+    if static_records is not None:
+        static_records.append(static_record(key, asset, resource_path=relative))
+    return uri
+
+
+def _static_font(
+    static_asset_resolver: StaticAssetResolver | None,
+    static_records: list[dict[str, str]] | None,
+) -> str:
+    """解析主字体；缺失时返回空 URI 交给 CSS fallback。"""
+
+    uri, asset = static_font_data_uri(static_asset_resolver, "fonts/dna_fonts.ttf")
+    if static_records is not None:
+        static_records.append(
+            static_record(
+                "font.dna_fonts", asset, resource_path="fonts/dna_fonts.ttf"
+            )
+        )
+    return uri
 
 
 # ---------------------------------------------------------------------------
@@ -167,13 +200,20 @@ async def _section_payload(
     items: list[ItemTemp],
     title: str,
     show_none: bool,
-    background_path: Path,
+    background_relative: str,
     *,
     image_loader: PlayerImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     visible = items if show_none else [item for item in items if item.unlocked]
     return {
-        "background": image_data_uri(background_path),
+        "background": _static_image(
+            f"texture.section.{background_relative.rsplit('/', 1)[-1]}",
+            background_relative,
+            static_asset_resolver,
+            static_records,
+        ),
         "items": list(
             await asyncio.gather(
                 *(_item_payload(item, image_loader=image_loader) for item in visible)
@@ -191,6 +231,8 @@ async def _draw_role_overview_card(
     hero_background_path: Path | None = None,
     *,
     image_loader: PlayerImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     role_chars = getattr(role_show, "roleChars", getattr(role_show, "role_chars", []))
     close_weapons = getattr(
@@ -288,28 +330,36 @@ async def _draw_role_overview_card(
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
         image_loader=image_loader,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
     )
     sections_coro = asyncio.gather(
         _section_payload(
             role_items,
             "角色信息",
             show_none,
-            ROLE_TEXT_PATH / "bg" / "bg1.png",
+            "textures/role/bg/bg1.png",
             image_loader=image_loader,
+            static_asset_resolver=static_asset_resolver,
+            static_records=static_records,
         ),
         _section_payload(
             close_items,
             "近战武器",
             show_none,
-            ROLE_TEXT_PATH / "bg" / "bg5.png",
+            "textures/role/bg/bg5.png",
             image_loader=image_loader,
+            static_asset_resolver=static_asset_resolver,
+            static_records=static_records,
         ),
         _section_payload(
             lang_items,
             "远程武器",
             show_none,
-            ROLE_TEXT_PATH / "bg" / "bg4.png",
+            "textures/role/bg/bg4.png",
             image_loader=image_loader,
+            static_asset_resolver=static_asset_resolver,
+            static_records=static_records,
         ),
     )
     header, sections = await asyncio.gather(header_coro, sections_coro)
@@ -325,21 +375,55 @@ async def _draw_role_overview_card(
         "cards/role_info.html.j2",
         {
             "achievements": achievements,
-            "background": image_data_uri(COMMON_PATH / "bg1.jpg"),
-            "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_text": "DNA",
-            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
-            "header": header,
-            "header_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
-            "info_bar": image_data_uri(ROLE_TEXT_PATH / "info_bar.png"),
-            "div_background": image_data_uri(ROLE_TEXT_PATH / "div_bg.png"),
-            "item_foreground": image_data_uri(ROLE_TEXT_PATH / "item_fg.png"),
-            "item_mask": image_data_uri(ROLE_TEXT_PATH / "item_mask.png"),
-            "sections": sections,
-            "title_background": image_data_uri(
-                hero_background_path or ROLE_TEXT_PATH / "title_bg.jpg"
+            "background": _static_image(
+                "texture.common.bg1", "textures/common/bg1.jpg",
+                static_asset_resolver, static_records,
             ),
-            "title_mask": image_data_uri(ROLE_TEXT_PATH / "title_mask.png"),
+            "font": _static_font(static_asset_resolver, static_records),
+            "footer_text": "DNA",
+            "footer_image": _static_image(
+                "texture.common.footer", "textures/common/footer.png",
+                static_asset_resolver, static_records,
+            ),
+            "header": header,
+            "header_background": _static_image(
+                "texture.common.avatar_title_bg",
+                "textures/common/avatar_title_bg.png",
+                static_asset_resolver, static_records,
+            ),
+            "info_bar": _static_image(
+                "texture.role.info_bar", "textures/role/info_bar.png",
+                static_asset_resolver, static_records,
+            ),
+            "div_background": _static_image(
+                "texture.role.div_bg", "textures/role/div_bg.png",
+                static_asset_resolver, static_records,
+            ),
+            "item_foreground": _static_image(
+                "texture.role.item_fg", "textures/role/item_fg.png",
+                static_asset_resolver, static_records,
+            ),
+            "item_mask": _static_image(
+                "texture.role.item_mask", "textures/role/item_mask.png",
+                static_asset_resolver, static_records,
+            ),
+            "sections": sections,
+            # hero 背景优先用 snapshot 的 panel 图集（动态资源），缺失时回退
+            # snapshot 的 role/title_bg.jpg。
+            "title_background": (
+                image_data_uri(hero_background_path)
+                if hero_background_path is not None
+                else _static_image(
+                    "texture.role.title_bg",
+                    "textures/role/title_bg.jpg",
+                    static_asset_resolver,
+                    static_records,
+                )
+            ),
+            "title_mask": _static_image(
+                "texture.role.title_mask", "textures/role/title_mask.png",
+                static_asset_resolver, static_records,
+            ),
             "height": height,
             "width": 1200,
         },
@@ -359,6 +443,8 @@ async def draw_role_info_card_core(
     hero_background_path: Path | None = None,
     *,
     image_loader: PlayerImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> bytes:
     ctx = ev_stub or EventContext(user_id=avatar_user_id or "0")
     return await _draw_role_overview_card(
@@ -368,6 +454,8 @@ async def draw_role_info_card_core(
         uid_hidden=uid_hidden,
         hero_background_path=hero_background_path,
         image_loader=image_loader,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
     )
 
 
@@ -421,19 +509,36 @@ def _get_attr_val(attr: Any, camel: str, snake: str) -> Any:
     return getattr(attr, camel.lower(), "")
 
 
-def _attribute_payload(role_detail: Any) -> list[dict[str, str]]:
+def _attribute_payload(
+    role_detail: Any,
+    *,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
+) -> list[dict[str, str]]:
     attr = getattr(role_detail, "attribute", None)
-    return [
-        {
-            "background": image_data_uri(
-                DETAIL_TEXT_PATH / f"prop_info_bar{1 if index % 2 == 0 else 2}.png"
-            ),
-            "icon": image_data_uri(DETAIL_TEXT_PATH / "icons" / icon_name),
-            "label": label,
-            "value": _format_attribute(_get_attr_val(attr, camel, snake)),
-        }
-        for index, (camel, snake, label, icon_name) in enumerate(ATTR_SPECS)
-    ]
+    rows = []
+    for index, (camel, snake, label, icon_name) in enumerate(ATTR_SPECS):
+        bar = f"textures/detail/prop_info_bar{1 if index % 2 == 0 else 2}.png"
+        icon = f"textures/detail/icons/{icon_name}"
+        rows.append(
+            {
+                "background": _static_image(
+                    f"texture.detail.prop_info_bar{1 if index % 2 == 0 else 2}",
+                    bar,
+                    static_asset_resolver,
+                    static_records,
+                ),
+                "icon": _static_image(
+                    f"texture.detail.icons.{icon_name}",
+                    icon,
+                    static_asset_resolver,
+                    static_records,
+                ),
+                "label": label,
+                "value": _format_attribute(_get_attr_val(attr, camel, snake)),
+            }
+        )
+    return rows
 
 
 async def _skill_payload(
@@ -465,11 +570,16 @@ async def _mode_payload(
     position: str,
     *,
     image_loader: PlayerImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     quality = getattr(mode, "quality", None) or 1
     payload: dict[str, object] = {
-        "background": image_data_uri(
-            DETAIL_TEXT_PATH / f"mod/mod_{position}_{quality}.png"
+        "background": _static_image(
+            f"texture.detail.mod_{position}_{quality}",
+            f"textures/detail/mod/mod_{position}_{quality}.png",
+            static_asset_resolver,
+            static_records,
         ),
         "icon": None,
         "level": None,
@@ -494,6 +604,8 @@ async def _role_modes_payload(
     modes: list[Any],
     *,
     image_loader: PlayerImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> list[dict[str, object]]:
     padded = list(modes) + [Mode(id=-1) for _ in range(max(0, 9 - len(modes)))]
     order = tuple((index, "left") for index in (0, 2, 4, 6)) + tuple(
@@ -583,6 +695,8 @@ async def _draw_role_detail_card(
     custom_panel: Path | None = None,
     *,
     image_loader: PlayerImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> tuple[bytes, Path | None]:
     damage = None
     if damage_calc_response is not None:
@@ -608,6 +722,8 @@ async def _draw_role_detail_card(
                 weapon,
                 title,
                 image_loader=image_loader,
+                static_asset_resolver=static_asset_resolver,
+                static_records=static_records,
             )
             for title, weapon in weapon_inputs
             if weapon is not None
@@ -641,6 +757,8 @@ async def _draw_role_detail_card(
         avatar_user_id=ctx.user_id,
         uid_hidden=uid_hidden,
         image_loader=image_loader,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
     )
     hero_coro = _hero_payload(
         char_id,
@@ -651,6 +769,8 @@ async def _draw_role_detail_card(
     role_modes_coro = _role_modes_payload(
         getattr(role_detail, "modes", []),
         image_loader=image_loader,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
     )
     skills_coro = _skill_payload(role_detail, image_loader=image_loader)
     element_icon_url = getattr(
@@ -690,9 +810,12 @@ async def _draw_role_detail_card(
     grade_total = 7 if grade_level >= 7 else 6
     grades = [
         {
-            "background": image_data_uri(
-                DETAIL_TEXT_PATH
-                / ("grade_1.png" if index <= grade_level else "grade_0.png")
+            "background": _static_image(
+                f"texture.detail.grade_{1 if index <= grade_level else 0}",
+                "textures/detail/"
+                + ("grade_1.png" if index <= grade_level else "grade_0.png"),
+                static_asset_resolver,
+                static_records,
             ),
             "icon": pil_image_data_uri(get_grade_img(index)),
             "index": index,
@@ -704,18 +827,38 @@ async def _draw_role_detail_card(
     card = await _RENDERER.render(
         "cards/role_detail.html.j2",
         {
-            "attributes": _attribute_payload(role_detail),
-            "background": image_data_uri(COMMON_PATH / "bg2.jpg"),
-            "divider": image_data_uri(COMMON_PATH / "div.png"),
+            "attributes": _attribute_payload(
+                role_detail,
+                static_asset_resolver=static_asset_resolver,
+                static_records=static_records,
+            ),
+            "background": _static_image(
+                "texture.common.bg2", "textures/common/bg2.jpg",
+                static_asset_resolver, static_records,
+            ),
+            "divider": _static_image(
+                "texture.common.div", "textures/common/div.png",
+                static_asset_resolver, static_records,
+            ),
             "damage": damage,
             "element_icon": pil_image_data_uri(element_icon),
-            "font": font_data_uri(FONT_ORIGIN_PATH),
-            "footer_image": image_data_uri(COMMON_PATH / "footer.png"),
+            "font": _static_font(static_asset_resolver, static_records),
+            "footer_image": _static_image(
+                "texture.common.footer", "textures/common/footer.png",
+                static_asset_resolver, static_records,
+            ),
             "grades": grades,
             "header": header,
             "hero": hero,
-            "point": image_data_uri(DETAIL_TEXT_PATH / "point.png"),
-            "profile_background": image_data_uri(COMMON_PATH / "avatar_title_bg.png"),
+            "point": _static_image(
+                "texture.detail.point", "textures/detail/point.png",
+                static_asset_resolver, static_records,
+            ),
+            "profile_background": _static_image(
+                "texture.common.avatar_title_bg",
+                "textures/common/avatar_title_bg.png",
+                static_asset_resolver, static_records,
+            ),
             "role": {
                 "grade": grade_level,
                 "grade_icon": pil_image_data_uri(get_grade_img(grade_level))
@@ -729,7 +872,10 @@ async def _draw_role_detail_card(
             },
             "role_modes": role_modes,
             "skills": skills,
-            "skill_background": image_data_uri(DETAIL_TEXT_PATH / "skill_bg.png"),
+            "skill_background": _static_image(
+                "texture.detail.skill_bg", "textures/detail/skill_bg.png",
+                static_asset_resolver, static_records,
+            ),
             "weapon_sections": weapon_sections,
             "width": 1000,
         },
@@ -1036,6 +1182,7 @@ class PlayerRenderer:
         image_loader = (
             PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
         )
+        static_records: list[dict[str, str]] = []
         image_bytes = await draw_role_info_card_core(
             overview,
             uid_hidden=uid_hidden,
@@ -1045,6 +1192,8 @@ class PlayerRenderer:
             or (actor.user_id if actor is not None else uid),
             hero_background_path=hero_background,
             image_loader=image_loader,
+            static_asset_resolver=getattr(self, "static_asset_resolver", None),
+            static_records=static_records,
         )
         if image_loader is not None:
             resolved_assets = image_loader.resolved_assets
@@ -1104,6 +1253,7 @@ class PlayerRenderer:
                         }
                     )
         resources.extend(self._asset_resource(asset) for asset in resolved_assets)
+        resources.extend(static_records)
         return self._write(
             image_bytes,
             lines=lines,
@@ -1202,6 +1352,7 @@ class PlayerRenderer:
         image_loader = (
             PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
         )
+        static_records: list[dict[str, str]] = []
         card_bytes, original_path = await _draw_role_detail_card(
             ctx,
             char_id,
@@ -1215,6 +1366,8 @@ class PlayerRenderer:
             uid_hidden=uid_hidden,
             custom_panel=custom_panel,
             image_loader=image_loader,
+            static_asset_resolver=getattr(self, "static_asset_resolver", None),
+            static_records=static_records,
         )
         if image_loader is not None:
             resolved_assets = image_loader.resolved_assets
@@ -1278,6 +1431,7 @@ class PlayerRenderer:
                 }
             )
         resources.extend(self._asset_resource(asset) for asset in resolved_assets)
+        resources.extend(static_records)
 
         return self._write(
             card_bytes,

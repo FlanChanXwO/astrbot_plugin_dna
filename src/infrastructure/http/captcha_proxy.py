@@ -260,8 +260,8 @@ __all__ = [
     "ProxyResult",
     "build_forward_headers",
     "build_upstream_url",
-    "parse_proxy_target",
     "forward",
     "new_http_client",
+    "parse_proxy_target",
     "rewrite_redirect",
 ]

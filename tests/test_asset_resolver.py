@@ -195,7 +195,7 @@ async def test_bind_renderer_shares_generation_lease_with_asset_resolver(
     with coordinator.bind_renderer(
         renderer,
         "player_resources",
-        asset_resolver_attr="asset_resolver",
+        asset_resolver=base_resolver,
     ) as bound:
         assert bound.resources is coordinator._current.player_resources
         assert bound.asset_resolver.coordinator is None
@@ -205,3 +205,86 @@ async def test_bind_renderer_shares_generation_lease_with_asset_resolver(
         assert resolved.path == public_path
 
     assert coordinator._leases == {}
+
+
+def test_bind_renderer_pins_static_asset_resolver(tmp_path: Path) -> None:
+    """同一 lease 内，静态 resolver 必须固定到当前 generation，不混用。"""
+
+    from types import SimpleNamespace
+
+    from src.infrastructure.rendering import ResourceMap
+    from src.infrastructure.rendering.static_assets import StaticAssetResolver
+    from src.infrastructure.resources import (
+        EncyclopediaResourceStore,
+        ResourceManifest,
+        ResourceSnapshot,
+        ResourceSnapshotCoordinator,
+    )
+
+    public = tmp_path / "generation"
+    (public / "fonts").mkdir(parents=True)
+    (public / "fonts" / "dna_fonts.ttf").write_bytes(b"font")
+    coordinator = ResourceSnapshotCoordinator(
+        tmp_path / "repository",
+        generations_root=tmp_path / "generations",
+    )
+    commit_sha = "c" * 40
+    coordinator._current = ResourceSnapshot(
+        commit_sha=commit_sha,
+        root=public,
+        manifest=ResourceManifest(
+            format_version=1,
+            required_dirs=("images",),
+            resource_version="test",
+        ),
+        player_resources=ResourceMap.from_root(public),
+        encyclopedia_resources=EncyclopediaResourceStore(),
+    )
+    static_resolver = StaticAssetResolver(coordinator=coordinator)
+    renderer = SimpleNamespace(
+        resources=None, static_asset_resolver=static_resolver
+    )
+
+    with coordinator.bind_renderer(renderer, "player_resources") as bound:
+        assert coordinator._leases == {commit_sha: 1}
+        pinned = bound.static_asset_resolver
+        assert pinned is not static_resolver
+        assert pinned.generation_id == commit_sha
+        resolved = pinned.resolve_relative("fonts/dna_fonts.ttf")
+        assert resolved.path == public / "fonts" / "dna_fonts.ttf"
+        assert resolved.source == "verified_snapshot"
+
+    assert coordinator._leases == {}
+
+
+def test_bind_static_asset_resolver_without_snapshot(tmp_path: Path) -> None:
+    """没有 verified generation 时返回 incomplete 解析器，但绑定仍成功。"""
+
+    from src.infrastructure.rendering.static_assets import StaticAssetResolver
+    from src.infrastructure.resources import ResourceSnapshotCoordinator
+
+    coordinator = ResourceSnapshotCoordinator(
+        tmp_path / "repository",
+        generations_root=tmp_path / "generations",
+    )
+    static_resolver = StaticAssetResolver(coordinator=coordinator)
+    with coordinator.bind_static_asset_resolver(static_resolver) as pinned:
+        assert pinned.generation_id is None
+        missing = pinned.resolve_relative("fonts/dna_fonts.ttf")
+        assert missing.incomplete
+
+
+def test_generation_validator_decodes_textures_assets(tmp_path: Path) -> None:
+    """textures/**/* 的图片必须通过 generation 图片解码校验。"""
+
+    good = tmp_path / "textures" / "sign" / "bar.png"
+    _write_image(good)
+
+    # 正常 PNG：包含 textures 根的校验不报错。
+    generation_module._validate_asset_headers(tmp_path)
+
+    bad = tmp_path / "textures" / "common" / "broken.png"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 4)
+    with pytest.raises(ResourceGenerationError, match="资源候选图片不可解码"):
+        generation_module._validate_asset_headers(tmp_path)

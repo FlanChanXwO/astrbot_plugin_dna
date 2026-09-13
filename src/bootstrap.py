@@ -58,6 +58,12 @@ from .infrastructure.rendering import (
     RenderedFileStore,
     ResourceMap,
 )
+from .infrastructure.rendering.static_assets import (
+    BOOTSTRAP_RELATIVE_ALLOWLIST,
+    BOOTSTRAP_TEXTURE_ROOT,
+    HELP_ICON_DIR,
+    StaticAssetResolver,
+)
 from .infrastructure.resources import (
     AssetResolver,
     EncyclopediaResourceStore,
@@ -244,6 +250,34 @@ def build_runtime(
     )
     if services is not None and "asset_resolver" in services:
         asset_resolver = cast(AssetResolver, services["asset_resolver"])
+    static_asset_resolver = StaticAssetResolver(
+        snapshot_root=None,
+        coordinator=resource_snapshots,
+        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_ROOT,
+        # 仅显式允许这些通用装饰图在无 snapshot 时回退本地 bootstrap；
+        # 其余静态资源缺失必须暴露为 incomplete，不得被本地同名文件掩盖。
+        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
+        # 帮助菜单命令图标与 logo 是插件包内的小型 UI 资源，保持显式 bootstrap。
+        bootstrap_dirs={
+            "texture.help.icon": HELP_ICON_DIR,
+        },
+        bootstrap_allowlist={
+            "texture.help.logo": Path(__file__).parents[1] / "logo.png"
+        },
+        asset_paths={
+            "texture.help.background": "textures/help/bg.jpg",
+            "texture.help.banner": "textures/help/banner_bg.jpg",
+            "texture.help.cag": "textures/help/cag_bg.png",
+            "texture.help.item": "textures/help/item.png",
+            "texture.common.footer": "textures/common/footer.png",
+            "font.help": "fonts/MiSansVF.woff2",
+            "font.dna_fonts": "fonts/dna_fonts.ttf",
+        },
+    )
+    if services is not None and "static_asset_resolver" in services:
+        static_asset_resolver = cast(
+            StaticAssetResolver, services["static_asset_resolver"]
+        )
 
     async def _notify_login(actor: Any, response: object) -> None:
         """把后台登录终态投递回发起登录的 AstrBot 会话。"""
@@ -306,6 +340,7 @@ def build_runtime(
         if initial_resource_snapshot is not None
         else None
     )
+    static_asset_resolver.snapshot_root = resource_root
     player_resources = (
         initial_resource_snapshot.player_resources
         if initial_resource_snapshot is not None
@@ -473,6 +508,16 @@ def build_runtime(
         downloader=image_fetcher,
         runtime_data_layout=runtime_data_layout,
     )
+
+    # 四个正式 renderer 挂载静态资源解析器；bind_renderer 会在每次请求的
+    # generation lease 内生成固定 generation 的请求级副本，避免混用 generation。
+    for _renderer in (
+        player_service.renderer,
+        encyclopedia_service.renderer,
+        checkin_renderer,
+        notices_renderer,
+    ):
+        _renderer.static_asset_resolver = static_asset_resolver
 
     async def _push_notice(
         origin: str,
@@ -734,6 +779,7 @@ def build_runtime(
         runtime_database,
         player_service.transport,
         player_service.renderer,
+        resource_snapshots=resource_snapshots,
     )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
@@ -774,6 +820,10 @@ def build_runtime(
         "resource_update_service": resource_update_service,
         "resource_snapshots": resource_snapshots,
         "asset_resolver": asset_resolver,
+        "static_asset_resolver": static_asset_resolver,
+        "bind_static_asset_resolver": lambda: resource_snapshots.bind_static_asset_resolver(
+            static_asset_resolver
+        ),
         "image_fetcher": image_fetcher,
     }
 
@@ -796,6 +846,7 @@ def build_runtime(
         resolved_services["resource_root"] = snapshot.root
         resolved_services["player_resources"] = new_player_resources
         resolved_services["encyclopedia_resources"] = new_encyclopedia_resources
+        static_asset_resolver.snapshot_root = snapshot.root
 
     resource_snapshots.subscribe(_refresh_resource_views)
 
