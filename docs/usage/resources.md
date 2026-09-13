@@ -34,7 +34,15 @@
 
 公共资源的当前 generation 是已校验的发布物，不应当当作普通缓存删除后再手工拼装。动态素材、API 响应、渲染产物和媒体文件均可在需要时重新获取或生成；同步后新请求会使用新的 generation，旧动态副本不会自动清理，也不会覆盖公共资源快照。
 
-资源仓库当前只承担已接入的角色头像、角色立绘和武器图等公共资源；其他动态素材仍按需写入 `cache/assets/`。资源仓库的 `resource_manifest.json` 仍是资源布局与版本的事实源。
+资源仓库承担的公共资源包括：
+
+- 动态素材：角色头像、角色立绘、武器图（由 #58 引入的 `AssetResolver` 按 generation 解析）；
+- 静态渲染素材：`fonts/`（正文字体与 Unicode fallback）、`textures/`（角色总览/详情、日常便签、周报、签到、密函、公告、帮助等卡片纹理）、`calendar/`（活动日历底图与装饰）；
+- 资料：`wiki/`、`guide/`、`weekly_item/`、`data/`、`alias/` 等图鉴与文本资源。
+
+静态渲染素材由 `StaticAssetResolver`（`src/infrastructure/rendering/static_assets.py`）从 verified generation 解析；插件包内仅保留少量显式 bootstrap 资源（帮助命令图标、logo 与 `utils/texture2d/` 中的通用装饰图），且只有列入显式 allowlist 的路径才会在无 snapshot 时回退本地。静态素材缺失时渲染降级为可见 placeholder，并标记 `incomplete=True`。
+
+其他动态素材仍按需写入 `cache/assets/`。资源仓库的 `resource_manifest.json` 仍是资源布局、文件摘要与版本的事实源。
 
 ## manifest 与目录
 
