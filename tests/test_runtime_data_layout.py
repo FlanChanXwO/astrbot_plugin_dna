@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import os
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
@@ -116,7 +115,11 @@ def test_resource_path_projection_uses_split_asset_and_media_scopes() -> None:
         WEEKLY_ITEM_PATH,
     )
 
-    layout = RuntimeDataLayout.from_data_dir(os.environ["DNABY_DATA_DIR"])
+    from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+    layout = RuntimeDataLayout.from_data_dir(
+        Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_dna"
+    )
 
     assert RESOURCE_PATH == layout.cache_assets_dir
     assert AVATAR_PATH == layout.cache_game_avatar_dir

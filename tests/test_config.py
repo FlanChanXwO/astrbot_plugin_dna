@@ -1,9 +1,5 @@
 """config_manager：schema 生成与 get/set 语义测试。"""
 
-import os
-
-os.environ.setdefault("DNABY_DATA_DIR", "/tmp/dnaby-test-data")
-
 import pytest
 from pydantic import ValidationError
 

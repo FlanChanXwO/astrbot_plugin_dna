@@ -46,7 +46,6 @@ from .infrastructure.http import (
     RequestConcurrencyGate,
 )
 from .infrastructure.i18n import validate_tip_catalog
-from .infrastructure.legacy_layout import LegacyLayoutDetector
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
@@ -194,9 +193,6 @@ def build_runtime(
             runtime_data_layout = RuntimeDataLayout.from_data_dir(
                 database_path.parent.parent,
             )
-
-    # 必须先完成只读旧布局检测，再进入任何会创建数据库或运行期目录的阶段。
-    LegacyLayoutDetector(runtime_data_layout).ensure_compatible()
 
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()

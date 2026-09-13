@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import base64
-import os
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -17,10 +16,7 @@ from ...infrastructure.data_layout import RuntimeDataLayout
 
 
 def _default_data_dir() -> Path:
-    """解析测试或 AstrBot 提供的插件运行期数据根。"""
-
-    if data_dir := os.environ.get("DNABY_DATA_DIR"):
-        return Path(data_dir)
+    """解析 AstrBot 提供的插件运行期数据根；测试通过 ASTRBOT_ROOT 注入。"""
 
     from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
