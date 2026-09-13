@@ -531,9 +531,10 @@ class AccountService:
             )
             return PlainTextResponse(messages.CREDENTIAL_CHECK_INDETERMINATE)
         # 实时验证成功：若凭证此前被误标为无效，恢复为正常状态；
-        # 同样绑定本次验证的凭据，避免覆盖中途重新登录的新凭据。
+        # 同样绑定本次验证的凭据。rowcount=0 说明检查期间凭据已被重新
+        # 登录覆盖，本次「有效」只属于旧快照，不得作为当前状态报告。
         async with self.database.transaction() as session:
-            await CredentialRepository.set_app_status_if_credentials_match(
+            updated = await CredentialRepository.set_app_status_if_credentials_match(
                 session,
                 user_id=actor.user_id,
                 uid=binding.uid,
@@ -541,6 +542,12 @@ class AccountService:
                 device_code=credentials.dev_code,
                 status="",
             )
+        if not updated:
+            logger.warning(
+                "凭证检查期间凭据已变化，跳过有效状态写回 uid=%s",
+                binding.uid,
+            )
+            return PlainTextResponse(messages.CREDENTIAL_CHECK_INDETERMINATE)
         return PlainTextResponse(messages.CREDENTIAL_CHECK_VALID)
 
 

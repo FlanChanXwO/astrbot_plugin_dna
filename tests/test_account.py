@@ -447,6 +447,63 @@ async def test_check_credentials_restores_invalid_marker_after_successful_check(
 
 
 @pytest.mark.asyncio
+async def test_check_credentials_stale_valid_writeback_never_reports_new_credential(
+    database,
+):
+    """检查期间用户重新登录后，旧 token 的有效结论不得当作当前状态。"""
+
+    class ReloginThenSuccess(FakeAccountTransport):
+        """校验期间模拟并发重新登录，再返回旧凭据校验成功。"""
+
+        async def authenticate_credentials(
+            self,
+            credentials: LoginCredentials,
+        ) -> LoginResult:
+            # 记录本次校验的凭据后，模拟并发重新登录，再返回旧凭据有效。
+            self.checked_credentials.append(credentials)
+            async with service.database.transaction() as session:
+                await CredentialRepository.save_app(
+                    session,
+                    user_id="user-1",
+                    uid="1234567890123",
+                    token="cookie-new",
+                    device_code="device-new",
+                )
+            return LoginResult.success(credentials)
+
+    async with database.transaction() as session:
+        await AccountBindingRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            is_active=True,
+        )
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid="1234567890123",
+            app_cookie="cookie-old",
+            app_device_code="device-old",
+            app_status="无效",
+        )
+
+    service = AccountService(database, ReloginThenSuccess(None), max_bind_count=2)
+    response = await service.check_credentials(_actor())
+
+    # 旧凭据确实有效，但数据库已是新凭据：不得报告「有效」，
+    # 新凭据的无效标记（如有）也不得被旧检查结果清除。
+    assert "暂时无法验证" in response.text
+    assert "有效" not in response.text
+    async with database.session() as session:
+        record = await CredentialRepository.get(
+            session, user_id="user-1", uid="1234567890123"
+        )
+    assert record is not None
+    assert record.app_cookie == "cookie-new"
+    assert record.app_device_code == "device-new"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("factory", [LoginResult.cancelled, LoginResult.failed])
 async def test_check_credentials_never_reports_valid_for_non_success_results(
     database, factory
