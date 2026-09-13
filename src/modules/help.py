@@ -75,7 +75,7 @@ async def help_use_case(
     response = write_rendered_artifact(
         rendered_root,
         artifact,
-        prefix="dnaby-help-帮助-",
+        prefix="dna-help-帮助-",
     )
     return replace(response, incomplete=resources_incomplete(resource_records))
 

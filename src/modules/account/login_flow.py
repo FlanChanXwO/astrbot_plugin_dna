@@ -250,7 +250,7 @@ class LoginFlowCoordinator:
             self._sessions[key] = session
             session.task = asyncio.create_task(
                 self._wait_for_completion(key, session),
-                name="dnaby-login-wait",
+                name="dna-login-wait",
             )
             return await self._build_login_response(actor, normalized_url)
 

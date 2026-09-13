@@ -38,7 +38,7 @@ jobs:
           import sys
 
           script = Path("scripts/ci/check_astrbot_plugin_load.py").resolve()
-          spec = spec_from_file_location("dnaby_loader", script)
+          spec = spec_from_file_location("dna_loader", script)
           if spec is None or spec.loader is None:
               raise RuntimeError(f"无法加载 stable 版本解析器: {script}")
           module = module_from_spec(spec)
@@ -74,7 +74,7 @@ jobs:
         env:
           ASTRBOT_SOURCE: ${{ runner.temp }}/astrbot
           ASTRBOT_VERSION: ${{ steps.astrbot-ref.outputs.ref }}
-          ASTRBOT_ROOT: ${{ runner.temp }}/dnaby-astrbot-root-latest-stable
+          ASTRBOT_ROOT: ${{ runner.temp }}/dna-astrbot-root-latest-stable
         shell: bash
         run: |
           set -euo pipefail

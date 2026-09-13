@@ -275,7 +275,7 @@ def main() -> int:
 
     import tempfile
 
-    artifact_dir = Path(tempfile.mkdtemp(prefix="dnaby-render-compare-"))
+    artifact_dir = Path(tempfile.mkdtemp(prefix="dna-render-compare-"))
     legacy = _render_legacy(artifact_dir)
     rewrite, rewrite_path = _render_rewrite(artifact_dir)
     report = _report(legacy, rewrite, rewrite_path, args.out)

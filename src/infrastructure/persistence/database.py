@@ -43,7 +43,7 @@ class AsyncDatabase:
     def from_data_dir(
         cls, data_dir: str | Path, *, echo: bool = False
     ) -> AsyncDatabase:
-        """从运行期 data 目录定位新数据库，不读取旧 `dnaby.db`。"""
+        """从运行期 data 目录定位新数据库，不读取旧 `dna.db`。"""
         database_path = RuntimeDataLayout.from_data_dir(data_dir).database_path
         database_path.parent.mkdir(parents=True, exist_ok=True)
         return cls(database_path, echo=echo)

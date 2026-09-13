@@ -254,7 +254,7 @@ async def _fetch_image_bytes(
     """下载并校验一张临时源图，成功后由调用方决定是否进入统一缓存。"""
 
     async def fetch() -> bytes:
-        with tempfile.TemporaryDirectory(prefix="dnaby-ann-source-") as directory:
+        with tempfile.TemporaryDirectory(prefix="dna-ann-source-") as directory:
             target_dir = Path(directory)
             file_name = _cache_name("source", pic_url, ext="image")
             target = await download(

@@ -75,7 +75,7 @@ class EncyclopediaService:
         return write_temporary_image(
             self.rendered_root,
             path.read_bytes(),
-            prefix="dnaby-resource-",
+            prefix="dna-resource-",
             suffix=path.suffix or ".bin",
         )
 

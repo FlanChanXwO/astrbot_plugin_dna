@@ -39,7 +39,7 @@ from src.modules.notices import messages as notices_messages
 
 @pytest_asyncio.fixture
 async def database(tmp_path: Path) -> AsyncIterator[AsyncDatabase]:
-    database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
+    database = AsyncDatabase(tmp_path / "dna.sqlite3")
     await database.create_schema_for_tests()
     try:
         yield database

@@ -21,7 +21,7 @@ async def test_database_uses_new_async_sqlite_file_and_does_not_touch_legacy_db(
     tmp_path: Path,
 ):
     """新持久化路径使用独立文件，且不会打开旧 SQLModel 数据库。"""
-    legacy_path = tmp_path / "dnaby.db"
+    legacy_path = tmp_path / "dna.db"
     legacy_bytes = b"legacy-database-fixture"
     legacy_path.write_bytes(legacy_bytes)
 
@@ -41,7 +41,7 @@ async def test_repository_uses_explicit_transaction_and_rolls_back_on_error(
     tmp_path: Path,
 ):
     """repository 不隐式创建 session，事务异常时应完整回滚。"""
-    database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
+    database = AsyncDatabase(tmp_path / "dna.sqlite3")
     await database.create_schema_for_tests()
     try:
         async with database.transaction() as session:
@@ -87,7 +87,7 @@ async def test_credential_repository_keeps_secret_fields_out_of_repr_and_snapsho
     tmp_path: Path,
 ):
     """凭据可持久化，但 repr 与脱敏快照不得携带 secret 值。"""
-    database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
+    database = AsyncDatabase(tmp_path / "dna.sqlite3")
     await database.create_schema_for_tests()
     app_cookie = "cookie-fixture-value"
     refresh_token = "refresh-fixture-value"
@@ -212,8 +212,8 @@ def test_alembic_is_declared_without_hardcoded_runtime_database_path():
     alembic_config = Path("alembic.ini").read_text(encoding="utf-8")
     assert "script_location = %(here)s/alembic" in alembic_config
     assert "sqlalchemy.url =" in alembic_config
-    assert "dnaby.db" not in alembic_config
-    assert "dnaby.sqlite3" not in alembic_config
+    assert "dna.db" not in alembic_config
+    assert "dna.sqlite3" not in alembic_config
 
 
 @pytest.mark.asyncio

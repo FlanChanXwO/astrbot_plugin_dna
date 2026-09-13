@@ -15,7 +15,6 @@ if (!petiteVue || typeof petiteVue.createApp !== "function") {
 }
 
 const store = createDashboardStore({ api: createDashboardApi() });
-globalThis.dnabyDashboard = store;
 petiteVue.createApp(store).mount("#app");
 
 document.addEventListener("keydown", (event) => {

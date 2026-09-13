@@ -3,7 +3,7 @@
 只在 transport 边界读取 rewrite 凭据并组装 legacy ``DNAUser`` 值对象；业务层
 收到的始终是 typed notices contracts。密函复用 legacy ``get_default_role_for_tool``
 响应中的 ``instanceInfo``；公告列表/详情无账号凭据（公共 BBS），HTML 清洗与时间
-解析复用 ``dnaby/dna_ann/utils`` 的纯逻辑。没有凭据或外部 API 结构异常时返回
+解析复用 ``dna/dna_ann/utils`` 的纯逻辑。没有凭据或外部 API 结构异常时返回
 安全的 ``NoticesTransportError``，不把原始响应或 secret 带进日志/响应。
 """
 

@@ -42,11 +42,7 @@ class HtmlRenderer:
         if template_dir is not None:
             self.template_dir = template_dir
         else:
-            src_templates = Path(__file__).parents[2] / "templates"
-            if src_templates.exists():
-                self.template_dir = src_templates
-            else:
-                self.template_dir = Path(__file__).parents[3] / "dnaby" / "templates"
+            self.template_dir = Path(__file__).parents[2] / "templates"
         self._t2i = t2i
         self._environment = environment or Environment(
             loader=FileSystemLoader(str(self.template_dir)),

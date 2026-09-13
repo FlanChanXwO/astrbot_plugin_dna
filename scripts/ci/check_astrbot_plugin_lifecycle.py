@@ -1,4 +1,4 @@
-"""验证 dnaby 在官方 AstrBot 中的完整加载/卸载生命周期。
+"""验证 astrbot_plugin_dna 在官方 AstrBot 中的完整加载/卸载生命周期。
 
 该脚本复用现有 loader harness 的 staging、配置和错误脱敏能力，在真实
 ``PluginManager.load()`` 成功后继续走 AstrBot 自己的 ``_terminate_plugin()`` 与
@@ -26,7 +26,7 @@ _LEGACY_PATH = Path(__file__).with_name("check_astrbot_plugin_load.py")
 
 def _load_legacy_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
-        "dnaby_plugin_load_harness", _LEGACY_PATH
+        "dna_plugin_load_harness", _LEGACY_PATH
     )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"无法加载现有 loader harness: {_LEGACY_PATH}")
@@ -111,7 +111,7 @@ def _build_official_runtime(
         plugin_name,
     )
 
-    # loader harness 默认不需要 ProviderManager；生命周期检查需要让 dnaby 的
+    # loader harness 默认不需要 ProviderManager；生命周期检查需要让 astrbot_plugin_dna 的
     # Agent Tools 真正注册到 AstrBot 使用的同一份全局 tool registry。
     from astrbot.core.provider.register import llm_tools
     from astrbot.core.star.star_handler import star_handlers_registry
