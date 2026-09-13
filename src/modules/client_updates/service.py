@@ -232,23 +232,14 @@ class ClientUpdateService:
 
         actor = request.actor
         if actor is None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
         if not actor.group_id:
-            return PlainTextResponse(messages.CLIENT_UPDATE_GROUP_ONLY, need_at=True)
+            return PlainTextResponse(messages.CLIENT_UPDATE_GROUP_ONLY)
         if not actor.unified_msg_origin:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
         subscriptions = self.subscriptions
         if subscriptions is None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE)
 
         async with self._subscription_mutation_lock:
             existing = await self._subscription_for_origin(actor.unified_msg_origin)
@@ -265,42 +256,24 @@ class ClientUpdateService:
                 provenance="chat_command",
             )
             if existing is not None:
-                return PlainTextResponse(
-                    messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED,
-                    need_at=True,
-                )
+                return PlainTextResponse(messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED)
             if failed_sources:
-                return PlainTextResponse(
-                    messages.CLIENT_UPDATE_SUBSCRIBED_RETRY,
-                    need_at=True,
-                )
-            return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED, need_at=True)
+                return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED_RETRY)
+            return PlainTextResponse(messages.CLIENT_UPDATE_SUBSCRIBED)
 
     async def unsubscribe(self, request: ClientUpdateRequest) -> PlainTextResponse:
         """串行取消当前群订阅，并同步移除该目标的 pending。"""
 
         actor = request.actor
         if actor is None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
         if not actor.group_id:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_GROUP_UNSUB_ONLY,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_GROUP_UNSUB_ONLY)
         if not actor.unified_msg_origin:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_CONTEXT_UNAVAILABLE)
         subscriptions = self.subscriptions
         if subscriptions is None:
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE,
-                need_at=True,
-            )
+            return PlainTextResponse(messages.CLIENT_UPDATE_SERVICE_UNAVAILABLE)
 
         async with (
             self._subscription_mutation_lock,
@@ -315,14 +288,8 @@ class ClientUpdateService:
             )
             await self.state.remove_target(actor.unified_msg_origin, uid="")
             if not deleted:
-                return PlainTextResponse(
-                    messages.CLIENT_UPDATE_NOT_SUBSCRIBED,
-                    need_at=True,
-                )
-            return PlainTextResponse(
-                messages.CLIENT_UPDATE_UNSUBSCRIBED,
-                need_at=True,
-            )
+                return PlainTextResponse(messages.CLIENT_UPDATE_NOT_SUBSCRIBED)
+            return PlainTextResponse(messages.CLIENT_UPDATE_UNSUBSCRIBED)
 
     async def _subscription_for_origin(self, origin: str) -> Subscription | None:
         subscriptions = self.subscriptions

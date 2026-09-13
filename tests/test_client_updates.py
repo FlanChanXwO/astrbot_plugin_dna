@@ -1,15 +1,20 @@
-"""客户端更新 Target / Source 公共契约测试。"""
+"""客户端更新 Target / Source 公共契约与同步回复装饰归属测试。"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Self
 
 import pytest
 
+from src.entry.commands import CommandRequest
+from src.entry.event import EventActor
+from src.entry.response import PlainTextResponse
 from src.infrastructure.http.client_updates import ClientUpdateTransport
+from src.infrastructure.subscriptions import SubscriptionStore
 from src.modules.client_updates import (
     CLIENT_UPDATE_SOURCES,
     CLIENT_UPDATE_TARGETS,
@@ -33,11 +38,14 @@ from src.modules.client_updates import (
     ManifestCdnProviderConfig,
     ManifestCdnVersionMetadata,
     group_client_update_target_ids_by_source,
+    messages,
     normalize_client_update_target_ids,
     parse_version_list_entries,
     resolve_client_update_source,
     resolve_client_update_target,
 )
+from src.modules.client_updates.commands import client_update_subscribe_use_case
+from src.modules.client_updates.contracts import ClientUpdateRequest
 
 
 def test_manifest_parser_rejects_unsupported_platform() -> None:
@@ -1307,3 +1315,60 @@ async def test_hykb_transport_rejects_malformed_or_wrong_package(page: str) -> N
         ).get_observation(source.source_id)
 
     assert caught.value.kind is ClientUpdateFailureKind.CONTRACT
+
+
+_GROUP_ORIGIN = "aiocqhttp:GroupMessage:group-1"
+
+
+@pytest.mark.asyncio
+async def test_client_update_subscribe_result_does_not_request_self_mention(
+    tmp_path: Path,
+) -> None:
+    """同步订阅结果不自行 @ 调用者；回复装饰交由 AstrBot 平台层决定。"""
+
+    service = ClientUpdateService(
+        ClientUpdateStateStore(tmp_path / "state.json"),
+        subscriptions=SubscriptionStore(tmp_path / "subscriptions.json"),
+    )
+    request = ClientUpdateRequest(
+        actor=EventActor(
+            "user-1",
+            "bot-1",
+            "group-1",
+            _GROUP_ORIGIN,
+        )
+    )
+
+    response = await service.subscribe(request)
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text in {
+        messages.CLIENT_UPDATE_SUBSCRIBED,
+        messages.CLIENT_UPDATE_SUBSCRIBED_RETRY,
+        messages.CLIENT_UPDATE_ALREADY_SUBSCRIBED,
+    }
+    assert response.need_at is False
+
+
+@pytest.mark.asyncio
+async def test_client_update_admin_guard_does_not_request_self_mention() -> None:
+    """管理员权限不足提示不自行 @ 调用者。"""
+
+    request = CommandRequest(
+        command_id="client_update_subscribe",
+        text="订阅客户端更新",
+        parameters={},
+        actor=EventActor(
+            "user-1",
+            "bot-1",
+            "group-1",
+            _GROUP_ORIGIN,
+        ),
+        permission="user",
+    )
+
+    response = await client_update_subscribe_use_case(request, None)
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.CLIENT_UPDATE_ADMIN_ONLY
+    assert response.need_at is False

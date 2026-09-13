@@ -181,6 +181,7 @@ def _service(
     *,
     allow_mention_query: bool = True,
     secret_simple_image: bool = False,
+    subscriptions=None,
 ) -> NoticesService:
     return NoticesService(
         database,
@@ -191,6 +192,7 @@ def _service(
             EncyclopediaResourceStore.from_root(database.path.parent / "resources"),
             simple_image=secret_simple_image,
         ),
+        subscriptions,
         secret_simple_image=secret_simple_image,
     )
 
@@ -391,7 +393,8 @@ async def test_ann_detail_image_failure_returns_fixed_text(
 
     assert isinstance(response, PlainTextResponse)
     assert response.text == messages.ANN_DETAIL_FAILED
-    assert response.need_at is True
+    # 同步命令回复不再自行 @ 调用者，回复装饰交由 AstrBot 平台层。
+    assert response.need_at is False
     await database.dispose()
 
 
@@ -423,4 +426,35 @@ async def test_ann_empty_list_is_visible(tmp_path: Path) -> None:
 
     assert isinstance(response, PlainTextResponse)
     assert response.text == messages.ANN_LIST_FAILED
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_mh_subscribe_success_does_not_request_self_mention(
+    tmp_path: Path,
+) -> None:
+    """同步订阅回复不自行 @ 调用者；回复装饰交由 AstrBot 平台层决定。"""
+
+    from src.infrastructure.subscriptions import SubscriptionStore
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeNoticesTransport()
+    service = _service(
+        database,
+        transport,
+        subscriptions=SubscriptionStore(tmp_path / "subscriptions.json"),
+    )
+    actor = EventActor(
+        "user-1",
+        "bot-1",
+        "group-1",
+        "aiocqhttp:GroupMessage:group-1",
+    )
+
+    response = await service.subscribe_mh(
+        _request(actor=actor, parameters={"mh_name": "扼守"})
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.need_at is False
     await database.dispose()
