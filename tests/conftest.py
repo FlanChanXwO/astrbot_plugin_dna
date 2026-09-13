@@ -25,7 +25,12 @@ def _prepare_test_environment() -> tuple[Path, Path]:
     session_root = Path(tempfile.mkdtemp(prefix="dna-pytest-"))
     astrbot_root = session_root / "astrbot"
     data_root = session_root / "plugin-data"
-    shutil.copytree(TESTS_DIR / ".data", data_root)
+    # tests/.data 属于 gitignore 的本地 fixture（当前内容为空），clean checkout 中不存在；
+    # 缺失时视为空 fixture，直接使用空白数据根，保证测试可在干净环境复现。
+    if (TESTS_DIR / ".data").is_dir():
+        shutil.copytree(TESTS_DIR / ".data", data_root)
+    else:
+        data_root.mkdir()
     astrbot_root.mkdir()
     (astrbot_root / "temp").mkdir(parents=True, exist_ok=True)
     Path("data/temp").mkdir(parents=True, exist_ok=True)
