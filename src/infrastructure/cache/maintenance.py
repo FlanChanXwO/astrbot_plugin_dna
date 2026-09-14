@@ -67,7 +67,7 @@ class CacheMaintenance:
                 raise
             except Exception as error:  # noqa: BLE001 - 后台清理必须记录真实失败并继续循环。
                 logger.warning(
-                    "[dnaby][cache] 缓存清理任务失败: %s",
+                    "缓存清理任务失败 error=%s",
                     type(error).__name__,
                 )
 
@@ -80,7 +80,7 @@ class CacheMaintenance:
             await self.cleanup_once()
             self._task = asyncio.create_task(
                 self._run(),
-                name="dnaby_cache_cleanup",
+                name="dna_cache_cleanup",
             )
 
     async def stop(self) -> None:

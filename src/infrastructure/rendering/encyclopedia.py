@@ -1440,18 +1440,18 @@ class EncyclopediaRenderer:
             image_bytes,
             media_type=media_type,  # type: ignore[arg-type]
             metadata={
-                "dnaby.text": "\n".join(lines),
-                "dnaby.layout": {
+                "dna.text": "\n".join(lines),
+                "dna.layout": {
                     "width": None,
                     "height": None,
                     "sections": sections,
                 },
-                "dnaby.resources": resources,
+                "dna.resources": resources,
             },
         )
         # 尺寸先由容器检查器读取，再补入 sidecar；图片 bytes 保持原样。
         metadata = dict(artifact.metadata)
-        metadata["dnaby.layout"] = {
+        metadata["dna.layout"] = {
             "width": artifact.width,
             "height": artifact.height,
             "sections": sections,

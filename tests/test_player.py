@@ -192,8 +192,8 @@ async def test_role_detail_requests_damage_for_complete_app_card(
     assert isinstance(response, ImageResponse)
     assert transport.damage_calls == 1
     artifact = read_rendered_artifact(Path(response.image))
-    text = artifact.metadata["dnaby.text"]
-    layout = artifact.metadata["dnaby.layout"]
+    text = artifact.metadata["dna.text"]
+    layout = artifact.metadata["dna.layout"]
     assert "技能伤害" in text
     assert "伤害" in {section["name"] for section in layout["sections"]}
     await database.dispose()
@@ -423,9 +423,9 @@ async def test_role_overview_returns_runtime_image_and_preserves_all_items(
     artifact = read_rendered_artifact(image_path)
     assert artifact.width == 1200
     assert artifact.height > 1500  # legacy 布局：头部 800 + 3 分区 × (320+70)
-    text = artifact.metadata["dnaby.text"]
-    layout = artifact.metadata["dnaby.layout"]
-    resources = artifact.metadata["dnaby.resources"]
+    text = artifact.metadata["dna.text"]
+    layout = artifact.metadata["dna.layout"]
+    resources = artifact.metadata["dna.resources"]
     assert "测试玩家" in text
     assert "UID 1234567890123" in text
     assert "总活跃天数: 99" in text
@@ -474,7 +474,7 @@ async def test_role_overview_allows_weapon_without_element_icon(tmp_path: Path) 
     artifact = read_rendered_artifact(Path(response.image))
     assert any(
         item["kind"] == "weapon_icon" and item["key"] == "201"
-        for item in artifact.metadata["dnaby.resources"]
+        for item in artifact.metadata["dna.resources"]
     )
     await database.dispose()
 
@@ -507,7 +507,7 @@ async def test_role_overview_allows_role_without_element_icon(tmp_path: Path) ->
     artifact = read_rendered_artifact(Path(response.image))
     assert any(
         item["kind"] == "role_avatar" and item["key"] == "101"
-        for item in artifact.metadata["dnaby.resources"]
+        for item in artifact.metadata["dna.resources"]
     )
     await database.dispose()
 
@@ -741,9 +741,9 @@ async def test_role_detail_renders_all_basic_sections_and_original_path(
     assert response.original_image_path == original
     artifact = read_rendered_artifact(Path(response.image))
     assert artifact.width == 1000
-    text = artifact.metadata["dnaby.text"]
-    layout = artifact.metadata["dnaby.layout"]
-    resources = artifact.metadata["dnaby.resources"]
+    text = artifact.metadata["dna.text"]
+    layout = artifact.metadata["dna.layout"]
+    resources = artifact.metadata["dna.resources"]
     for expected in ("角色甲", "技能1", "技能4", "魔之楔1", "魔之楔9", "近战甲"):
         assert expected in text
     assert [section["name"] for section in layout["sections"]] == [
@@ -934,9 +934,9 @@ async def test_damage_failure_hides_optional_detail_section(
     assert response.original_image_path is None
     assert upstream_message not in repr(response)
     artifact = read_rendered_artifact(Path(response.image))
-    text = artifact.metadata["dnaby.text"]
-    layout = artifact.metadata["dnaby.layout"]
-    resources = artifact.metadata["dnaby.resources"]
+    text = artifact.metadata["dna.text"]
+    layout = artifact.metadata["dna.layout"]
+    resources = artifact.metadata["dna.resources"]
     assert messages.PLAYER_DAMAGE_FAILED not in text
     assert upstream_message not in text
     assert upstream_message not in layout

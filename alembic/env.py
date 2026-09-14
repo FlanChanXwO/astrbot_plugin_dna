@@ -1,6 +1,6 @@
 """Alembic async migration environment。
 
-运行期数据库 URL 由部署环境通过 ``DNABY_DATABASE_URL`` 注入；测试可以通过
+运行期数据库 URL 由部署环境通过 ``DNA_DATABASE_URL`` 注入；测试可以通过
 Alembic Config 覆盖空的配置项。这里不输出 URL，避免把凭据或私有路径写入日志。
 """
 
@@ -26,12 +26,12 @@ def _database_url() -> str:
     if configured_url:
         return configured_url
 
-    environment_url = os.environ.get("DNABY_DATABASE_URL", "").strip()
+    environment_url = os.environ.get("DNA_DATABASE_URL", "").strip()
     if environment_url:
         return environment_url
 
     raise RuntimeError(
-        "Alembic requires sqlalchemy.url or the DNABY_DATABASE_URL environment variable"
+        "Alembic requires sqlalchemy.url or the DNA_DATABASE_URL environment variable"
     )
 
 

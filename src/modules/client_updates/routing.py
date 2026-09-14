@@ -60,7 +60,7 @@ def _has_valid_metadata(subscription: Subscription) -> bool:
 
     if is_valid_client_update_subscription_metadata(subscription.extra_data):
         return True
-    logger.warning("[dnaby][client_update] 订阅元数据无效，跳过投递")
+    logger.warning("客户端更新订阅元数据无效，跳过投递")
     return False
 
 

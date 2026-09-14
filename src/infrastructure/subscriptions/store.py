@@ -1,6 +1,6 @@
 """框架无关的订阅存储。
 
-替代旧 ``dnaby/utils/subscriptions.py`` 与 gsucore ``gs_subscribe``：以 JSON 持久化
+替代旧 ``dna/utils/subscriptions.py`` 与 gsucore ``gs_subscribe``：以 JSON 持久化
 到运行期数据目录，按 ``type`` + ``unified_msg_origin``（+ 个人作用域的 ``uid`` 语义
 字段）去重。业务层只读写 ``Subscription`` 值对象，推送目标统一由
 ``unified_msg_origin`` 表示，发送动作由调用方（scheduler/bootstrap）注入，本模块不

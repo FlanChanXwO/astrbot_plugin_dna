@@ -326,7 +326,7 @@ class AssetResolver:
             raise AssetResolutionError(
                 f"素材网络下载需要 runtime AssetDownloader: {kind}:{target.name}"
             )
-        await downloader.fetch(url, target, tag=f"[DNA-{kind}]")
+        await downloader.fetch(url, target, tag=f"DNA-{kind}")
 
 
 __all__ = [

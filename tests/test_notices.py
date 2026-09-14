@@ -356,8 +356,8 @@ async def test_ann_renders_list_image(tmp_path: Path) -> None:
     assert isinstance(response, ImageResponse)
     assert response.temporary is True
     artifact = read_rendered_artifact(response.image)
-    text = artifact.metadata["dnaby.text"]
-    resources = artifact.metadata["dnaby.resources"]
+    text = artifact.metadata["dna.text"]
+    resources = artifact.metadata["dna.resources"]
     assert "1. 版本更新公告" in text
     assert "2. 活动预告" in text
     assert any(

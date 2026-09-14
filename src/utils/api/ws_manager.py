@@ -111,7 +111,7 @@ class WebSocketManager:
             TypeError,
             ValueError,
         ) as error:
-            logger.debug(f"[DNA WebSocket] token 解析失败: {error}")
+            logger.debug(f"token 解析失败: {error}")
         return ""
 
     def _start_heartbeat(self, ws: Any, user_id: str):
@@ -144,7 +144,7 @@ class WebSocketManager:
 
             def on_message(ws, message):
                 # 快速过期检查
-                logger.debug(f"[DNA WebSocket] received message: {message}")
+                logger.debug(f"received message: {message}")
                 with self._lock:
                     if (item := self._pool.get(key)) and time.time() - item[
                         1
@@ -152,21 +152,21 @@ class WebSocketManager:
                         try:
                             ws.close()
                         except (OSError, websocket.WebSocketException) as error:
-                            logger.debug(f"[DNA WebSocket] 关闭过期连接失败: {error}")
+                            logger.debug(f"关闭过期连接失败: {error}")
 
             def on_error(ws, error):
-                logger.debug(f"[DNA WebSocket] on_error is called (error: {error})")
+                logger.debug(f"on_error is called (error: {error})")
                 _remove_from_pool()
                 ready_event.set()  # 即使出错也要释放等待
 
             def on_close(ws, close_status_code, close_msg):
                 logger.debug(
-                    f"[DNA WebSocket] on_close is called (code: {close_status_code}, message: {close_msg})"
+                    f"on_close is called (code: {close_status_code}, message: {close_msg})"
                 )
                 _remove_from_pool()
 
             def on_open(ws):
-                logger.debug("[DNA WebSocket] on_open is successed")
+                logger.debug("on_open is successed")
                 with self._lock:
                     self._pool[key] = (ws, time.time())
                 self._start_heartbeat(ws, user_id)
@@ -199,7 +199,7 @@ class WebSocketManager:
             ).start()
             return ws
         except (OSError, TypeError, ValueError, websocket.WebSocketException) as e:
-            logger.warning(f"[DNA WebSocket] connection failed (error: {e})")
+            logger.warning(f"connection failed (error: {e})")
             ready_event.set()
             return None
 
@@ -213,7 +213,7 @@ class WebSocketManager:
             try:
                 item[0].close()
             except (OSError, websocket.WebSocketException) as error:
-                logger.debug(f"[DNA WebSocket] 清理连接失败: {error}")
+                logger.debug(f"清理连接失败: {error}")
 
     def get_connection(
         self, token: str, dev_code: str, wait_ready: bool = False, timeout: float = 5
@@ -258,19 +258,19 @@ class WebSocketManager:
         # 等待连接建立
         if wait_ready:
             logger.debug(
-                f"[DNA WebSocket] waiting for connection to be established (timeout {timeout}s)..."
+                f"waiting for connection to be established (timeout {timeout}s)..."
             )
             if ready_event.wait(timeout):
                 with self._lock:
                     if key in self._pool:
-                        logger.debug("[DNA WebSocket] connection is ready")
+                        logger.debug("connection is ready")
                         return self._pool[key][0]
                     else:
-                        logger.warning("[DNA WebSocket] connection is failed")
+                        logger.warning("connection is failed")
                         return None
             else:
                 logger.warning(
-                    f"[DNA WebSocket] waiting for connection to be established timeout ({timeout}s)"
+                    f"waiting for connection to be established timeout ({timeout}s)"
                 )
                 # 超时后清理连接
                 with self._lock:
@@ -299,7 +299,7 @@ class WebSocketManager:
                 try:
                     item[0].close()
                 except (OSError, websocket.WebSocketException) as error:
-                    logger.debug(f"[DNA WebSocket] 关闭连接失败: {error}")
+                    logger.debug(f"关闭连接失败: {error}")
 
 
 # 全局单例

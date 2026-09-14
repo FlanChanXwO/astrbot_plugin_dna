@@ -147,7 +147,7 @@ class _Base:
             "sig": _sign(["start", auth, user_id, str(ts)], self.shared_secret),
         }
         url = f"{self.base_url}/dna/start"
-        logger.debug("[DNA登录] 外置登录服务 start 请求")
+        logger.debug("外置登录服务 start 请求")
         try:
             async with httpx.AsyncClient(
                 timeout=START_TIMEOUT_S, trust_env=False
@@ -181,7 +181,8 @@ class HttpPollTransport(_Base):
                     )
                 except httpx.HTTPError as err:
                     logger.debug(
-                        f"[DNA登录] poll 网络错误，将重试: {type(err).__name__}",
+                        "外置登录服务 poll 网络错误，将重试 error_type=%s",
+                            type(err).__name__,
                     )
                     last_network_error = err
                     await asyncio.sleep(POLL_INTERVAL_S)

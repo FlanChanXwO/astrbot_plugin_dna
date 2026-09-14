@@ -188,11 +188,7 @@ async def run() -> None:
     print("Initializing Plugin Runtime with live DB")
     print("========================================")
 
-    prod_data_dir = Path("/AstrBot/data/plugin_data/astrbot_plugin_dna")
-    if (prod_data_dir / "dnaby.sqlite3").exists():
-        data_dir = prod_data_dir
-    else:
-        data_dir = Path(StarTools.get_data_dir("astrbot_plugin_dna"))
+    data_dir = Path(StarTools.get_data_dir("astrbot_plugin_dna"))
 
     db = AsyncDatabase.from_data_dir(data_dir)
     await db.create_schema_for_tests()
@@ -332,7 +328,7 @@ async def run() -> None:
     timestamp = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
     md_lines = [
-        "# 二重螺旋插件 (dnaby) 全量指令测试报告\n\n",
+        "# 狩月终端 astrbot_plugin_dna 全量指令测试报告\n\n",
         f"- **测试时间**: {timestamp}\n",
         f"- **测试账号**: QQ `{user_id}` (UID: `1002631141868` / 角色: 江上月)\n",
         f"- **测试命令总数**: {len(results)}\n\n",

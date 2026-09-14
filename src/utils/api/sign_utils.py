@@ -23,7 +23,7 @@ def rsa_encrypt(data: str, public_key_base64: str) -> str:
         from Crypto.PublicKey import RSA
     except ImportError:
         raise RuntimeError(
-            "[DNA] 缺少依赖: 需要 pycryptodome 执行 RSA 加密。请安装: uv add pycryptodome"
+            "缺少依赖: 需要 pycryptodome 执行 RSA 加密。请安装: uv add pycryptodome"
         )
     try:
         key = RSA.importKey(base64.b64decode(public_key_base64))

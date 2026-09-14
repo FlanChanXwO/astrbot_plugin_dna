@@ -232,7 +232,7 @@ async def _fetch_image(
             pic_url,
             path,
             file_name,
-            tag="[DNA]",
+            tag="DNA",
             downloader=downloader,
         )
 
@@ -254,14 +254,14 @@ async def _fetch_image_bytes(
     """下载并校验一张临时源图，成功后由调用方决定是否进入统一缓存。"""
 
     async def fetch() -> bytes:
-        with tempfile.TemporaryDirectory(prefix="dnaby-ann-source-") as directory:
+        with tempfile.TemporaryDirectory(prefix="dna-ann-source-") as directory:
             target_dir = Path(directory)
             file_name = _cache_name("source", pic_url, ext="image")
             target = await download(
                 pic_url,
                 target_dir,
                 file_name,
-                tag="[DNA]",
+                tag="DNA",
                 downloader=downloader,
             )
             return target.read_bytes()
@@ -874,7 +874,11 @@ async def draw_ann_detail_img(
         post_time = post_time_to_timestamp(detail.get("postTime"))
         now = int(time.time())
         logger.debug(
-            f"[DNA公告] {post_id} post_time={post_time} now={now} delta={now - post_time}"
+            "公告 post_id=%s post_time=%s now=%s delta=%s",
+            post_id,
+            post_time,
+            now,
+            now - post_time,
         )
         if post_time and post_time < now - 86400:
             return "该公告已过期"
@@ -1076,13 +1080,13 @@ class NoticesRenderer:
             image_bytes,
             media_type=media_type,
             metadata={
-                "dnaby.text": "\n".join(lines),
-                "dnaby.layout": {"width": 0, "height": 0, "sections": sections},
-                "dnaby.resources": resources,
+                "dna.text": "\n".join(lines),
+                "dna.layout": {"width": 0, "height": 0, "sections": sections},
+                "dna.resources": resources,
             },
         )
         metadata = dict(artifact.metadata)
-        metadata["dnaby.layout"] = {
+        metadata["dna.layout"] = {
             "width": artifact.width,
             "height": artifact.height,
             "sections": sections,

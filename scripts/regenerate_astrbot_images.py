@@ -211,7 +211,7 @@ def main() -> int:
             with Image.open(target) as image:
                 print(f"{target.name}: {image.width} x {image.height}")
 
-    with tempfile.TemporaryDirectory(prefix="dnaby-regenerate-") as temporary_dir:
+    with tempfile.TemporaryDirectory(prefix="dna-regenerate-") as temporary_dir:
         artifact_dir = Path(temporary_dir)
         asyncio.run(render_all())
     return 0

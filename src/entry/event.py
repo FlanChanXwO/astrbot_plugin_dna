@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 from astrbot.api.message_components import At, AtAll, Plain, Reply
 
-SCHEDULED_ACTOR_BOT_ID = "dnaby-scheduler"
+SCHEDULED_ACTOR_BOT_ID = "dna-scheduler"
 
 
 @dataclass(frozen=True, slots=True)

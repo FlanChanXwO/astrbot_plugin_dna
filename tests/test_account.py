@@ -29,7 +29,7 @@ from src.utils.constants.constants import DNA_GAME_ID
 @pytest_asyncio.fixture
 async def database(tmp_path) -> AsyncIterator[AsyncDatabase]:
     """为每条账号测试提供隔离新 SQLite。"""
-    database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
+    database = AsyncDatabase(tmp_path / "dna.sqlite3")
     await database.create_schema_for_tests()
     try:
         yield database

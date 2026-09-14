@@ -67,15 +67,15 @@ async def help_use_case(
         payload,
         media_type="image/jpeg",
         metadata={
-            "dnaby.text": "",
-            "dnaby.layout": {"width": 2020, "height": None, "sections": []},
-            "dnaby.resources": resource_records,
+            "dna.text": "",
+            "dna.layout": {"width": 2020, "height": None, "sections": []},
+            "dna.resources": resource_records,
         },
     )
     response = write_rendered_artifact(
         rendered_root,
         artifact,
-        prefix="dnaby-help-帮助-",
+        prefix="dna-help-帮助-",
     )
     return replace(response, incomplete=resources_incomplete(resource_records))
 

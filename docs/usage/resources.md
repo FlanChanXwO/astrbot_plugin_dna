@@ -64,63 +64,9 @@
 
 ## 旧版本手动迁移
 
-现行布局是一次不兼容的运行期目录变更。旧版本升级必须由管理员**停机、备份、人工复制或移动、验证、清理旧标记**；启动门禁发现旧布局时会直接报错。插件不会自动复制、移动、双读旧数据，也不会在失败时替管理员回滚。
+v0.6.0 起插件不再检测、读取、迁移或提示如何转换 pre-v0.5 旧数据布局（旧数据库文件、旧 `resource/`、`resource_generations/` 等）。
 
-### 停机与备份
-
-1. 停止插件及其宿主进程，等待正在进行的同步、下载、渲染和数据库写入结束；不要在任务仍运行时复制数据。
-2. 备份整个旧插件数据根目录，使用能保留文件内容、目录结构和必要权限的工具。备份应放在独立且受限的位置，并记录所对应的旧插件版本。
-3. 迁移前先确认备份可读取。迁移过程优先复制而不是直接删除旧文件，待新布局验证通过并经过回滚观察期后再清理旧目录。
-4. 如果旧目录同时存在 `dnaby.db` 和 `dnaby.sqlite3`，不要合并或互相覆盖；先确认旧版本实际使用的数据库文件，无法确认时保留备份并暂停迁移。
-
-### 旧路径到新路径
-
-表中“复制内容”指复制目录内的内容，而不是把旧父目录再套一层。不存在的旧项无需创建空文件。
-
-| 旧版本路径 | 新版本路径 | 说明 |
-| --- | --- | --- |
-| `dnaby.db` 或 `dnaby.sqlite3` | `db/dna.sqlite3` | 只能迁移旧版本实际使用的数据库；不要合并两个数据库。 |
-| `subscriptions.json` | `state/subscriptions.json` | 保留订阅状态。 |
-| `scheduler_state.json` | `state/scheduler.json` | 保留调度状态。 |
-| `ann_state.json` | `state/announcements/seen.json` | 保留公告已见状态。 |
-| `ann_delivery_state.json` | `state/announcements/delivery.json` | 保留公告投递状态。 |
-| `client_update_state.json` | `state/client_update.json` | 保留客户端更新基线和投递状态。 |
-| `resource/alias/char_alias.json` | `state/aliases/char.json` | 只迁移用户自定义项，避免覆盖新版本内置别名。 |
-| `resource/alias/weapon_alias.json` | `state/aliases/weapon.json` | 只迁移用户自定义项，避免覆盖新版本内置别名。 |
-| `alias_custom.json` | `state/aliases/char.json` | 旧文件若存在，合并其用户自定义角色别名；不要把两个 JSON 文件直接拼接。 |
-| `weapon_alias_custom.json` | `state/aliases/weapon.json` | 旧文件若存在，合并其用户自定义武器别名。 |
-| `resource/avatar/` | `cache/assets/game_avatar/` | 可选迁移；这是动态游戏头像缓存，不是公共资源 generation。 |
-| `resource/weapon/`、`resource/paint/`、`resource/skill/`、`resource/attr/`、`resource/mod/`、`resource/weapon_attr/`、`resource/weekly_item/` | `cache/assets/<对应目录>/` | 可选迁移动态素材；只复制目录内容，不要把它们当作已校验公共快照。 |
-| `resource_generations/` | `resources/generations/` | 可复制整个 generation 树，但启动后必须执行 `dna资源状态` 验证；校验失败时恢复备份并重新同步，不要手工改 current 指针。 |
-| 旧 `resources/` 工作树及 `resources/.git` | `resources/repository/` | 复制完整仓库工作树到新位置，不要只复制 `.git`；无法确认工作树与 generation 兼容时，保留备份并使用 `dna同步资源` 获取新快照。 |
-| `rendered/` | `cache/rendered/` | 可选迁移渲染产物；不迁移也不会丢失业务状态。 |
-| `other/` | `cache/media/` | 可选迁移其他媒体；其中 `sign/`、`ann_card/`、`calendar/` 分别对应新目录下的同名子目录。 |
-| `login_qr/` | `cache/media/login_qr/` | 临时登录二维码，可不迁移。 |
-| `custom/` | 无目标 | 自定义素材功能已移除，不迁移到新布局；升级前如有需要仅保留在人工备份中。 |
-| `cache/player_data/` | `cache/api/player_data/` | 可选迁移 API 缓存内容。 |
-| `cache/player_card/` | `cache/rendered/player_card/` | 可选迁移玩家卡渲染缓存。 |
-| `cache/mh/` | `cache/api/mh/` | 可选迁移密函 API 缓存。 |
-| `cache/announcement/` | `cache/media/announcement/` | 可选迁移公告媒体缓存。 |
-| `players/` | 无直接目标 | 不要臆造新的玩家数据目录；保留在备份中，运行期缓存按需重建。 |
-| `config.json`、`sign_config.json` | 无直接目标 | 这些不是新布局的运行期状态文件；按当前 AstrBot 配置/Dashboard 重新录入需要的设置，不要原样复制。 |
-
-角色/武器别名是需要保留的用户数据，迁移时应合并到 `state/aliases/char.json` 和 `state/aliases/weapon.json`，而不是因为它们看起来像缓存就删除。相反，`cache/` 下的动态素材、API、渲染和媒体内容可以全部不迁移；缺失项会在后续请求中按现行资源优先级重新获取。
-
-### 清理、启动与验证
-
-1. 完成复制后，检查 `db/dna.sqlite3`、`state/`、别名文件和需要保留的资源 generation 是否可读。
-2. 删除或移走旧布局中的文件和非空目录，尤其是旧数据库、`resource/`、`resource_generations/`、旧 `resources/.git`、旧状态文件及旧缓存入口。不要只留下一个旧 `.git` 标记；它仍会阻止启动。
-3. 启动新版本前，确保旧目录不再包含待检测的实际数据。启动门禁只读检测，不会替你搬运数据。
-4. 启动后执行 `dna资源状态`，确认当前 generation、最近同步结果和校验状态正常；再执行一个不改变数据的查询命令，确认数据库和别名可用。
-5. 若资源 generation 无法验证，停止新版本，恢复迁移前备份，随后重新执行人工迁移或 `dna同步资源`。不要在同一数据根目录混用新旧版本。
-6. 保留旧备份和新布局备份直到回滚观察期结束，再按部署环境的保留策略清理旧文件。清理前不要删除唯一的数据库、状态或别名备份。
-
-### 回滚
-
-1. 停止新版本，并将当前新布局完整保留为故障排查副本；不要把它与旧备份混合覆盖。
-2. 将迁移前的旧数据备份原样恢复到旧版本使用的数据根目录，确认旧目录结构完整。
-3. 启动旧插件版本验证业务；旧版本和新版本不要同时操作同一份数据，也不要让旧版本读取混合了新目录的根目录。
-4. 若需要再次升级，先停止旧版本，重新制作工作副本，按本节步骤迁移并清理旧标记。代码不提供自动降级或自动回滚。
+支持的升级基线是**已经在 v0.5.0 当前数据布局上正确运行的实例**。如果仍处于更旧的布局，必须先升级或整理到 v0.5.0 的运行期布局（迁移步骤见 v0.5.0 对应版本文档），或执行全新安装；直接跳到 v0.6.0 时旧路径不会被识别，也不会得到迁移提示。
 
 ## 缓存与备份
 

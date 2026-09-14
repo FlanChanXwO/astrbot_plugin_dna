@@ -456,17 +456,17 @@ class CheckinRenderer:
             image_bytes,
             media_type="image/jpeg",
             metadata={
-                "dnaby.text": "\n".join(lines),
-                "dnaby.layout": {
+                "dna.text": "\n".join(lines),
+                "dna.layout": {
                     "width": 0,
                     "height": 0,
                     "sections": list(sections),
                 },
-                "dnaby.resources": list(resources),
+                "dna.resources": list(resources),
             },
         )
         metadata = dict(artifact.metadata)
-        metadata["dnaby.layout"] = {
+        metadata["dna.layout"] = {
             "width": artifact.width,
             "height": artifact.height,
             "sections": list(sections),

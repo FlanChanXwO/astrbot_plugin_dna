@@ -648,7 +648,7 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
     from astrbot.core.star.register.star_handler import get_handler_or_create
 
     command_ids = tuple(spec.id for spec in registry)
-    installed = getattr(plugin_cls, "__dnaby_command_ids__", None)
+    installed = getattr(plugin_cls, "__dna_command_ids__", None)
     if installed is not None:
         if installed != command_ids:
             raise ValueError("同一个插件类重复安装了不同的命令 registry")
@@ -683,7 +683,7 @@ def install_command_handlers(plugin_cls: type[Any], registry: CommandRegistry) -
                     filter_pattern, spec.id
                 )
         setattr(plugin_cls, handler_name, handler)
-    plugin_cls.__dnaby_command_ids__ = command_ids
+    plugin_cls.__dna_command_ids__ = command_ids
 
 
 __all__ = [

@@ -44,8 +44,8 @@ class SignPushPayload:
 
 PushCallable = Callable[[str, SignPushPayload], Awaitable[Any]]
 
-_SIGN_TASK_NAME = "dnaby_sign_daily"
-_CLEANUP_TASK_NAME = "dnaby_sign_cleanup"
+_SIGN_TASK_NAME = "dna_sign_daily"
+_CLEANUP_TASK_NAME = "dna_sign_cleanup"
 
 
 class SchedulableCheckin(Protocol):
@@ -99,7 +99,6 @@ class SignScheduler:
         now: NowCallable | None = None,
         push: PushCallable | None = None,
         registry: SchedulerRegistry | None = None,
-        sign_task_enabled: bool = True,
     ) -> None:
         self.checkin = checkin
         self.subscriptions = subscriptions
@@ -111,9 +110,6 @@ class SignScheduler:
         self.registry = registry or SchedulerRegistry()
         self._tasks: list[asyncio.Task] = []
         self._task_by_id: dict[str, asyncio.Task] = {}
-        # 旧 scheduled_enabled 只在首次启动时迁移为 registry 的暂停状态；
-        # 具体 UID 是否签到仍由 AccountBinding.auto_sign_enabled 决定。
-        self._legacy_scheduler_enabled = sign_task_enabled
         self._enabled_tasks = {
             _SIGN_TASK_NAME: True,
             _CLEANUP_TASK_NAME: True,
@@ -184,7 +180,7 @@ class SignScheduler:
                 await self.registry.mark_error(task_id)
                 from astrbot.api import logger
 
-                logger.warning(f"[dnaby][{name}] 定时任务异常")
+                logger.warning("定时任务异常 task_id=%s", name)
             else:
                 await self.registry.mark_running(task_id)
             # 执行完成后增加小余量，防止微秒级时钟抖动在同一目标分钟内重复触发
@@ -219,9 +215,6 @@ class SignScheduler:
         await self.registry.initialize()
         if self._started:
             return
-        await self.registry.migrate_legacy_sign_scheduler(
-            enabled=self._legacy_scheduler_enabled,
-        )
         # 签到任务始终存在；CheckinService 会按每个 UID 的个人开关筛选候选。
         for task_id, enabled in self._enabled_tasks.items():
             if (
@@ -326,10 +319,14 @@ class SignScheduler:
             result = self._push(origin, payload)
             if inspect.isawaitable(result):
                 await result
-        except Exception:  # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             from astrbot.api import logger
 
-            logger.warning("[dnaby][sign_push] 推送失败")
+            logger.warning(
+                "签到推送失败 origin=%s error_type=%s",
+                origin,
+                type(error).__name__,
+            )
 
     @staticmethod
     def _group_payload(report: GroupSignReport) -> SignPushPayload:

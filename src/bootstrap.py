@@ -28,7 +28,7 @@ from .entry.response import ResponseFactory
 from .entry.web import WebRegistrar
 from .infrastructure.cache import CacheMaintenance, CacheManager
 from .infrastructure.client_updates_scheduler import ClientUpdatesScheduler
-from .infrastructure.config import DnabySettings
+from .infrastructure.config import DNASettings
 from .infrastructure.data_layout import (
     DATABASE_DIR_NAME,
     DATABASE_FILE_NAME,
@@ -46,7 +46,6 @@ from .infrastructure.http import (
     RequestConcurrencyGate,
 )
 from .infrastructure.i18n import validate_tip_catalog
-from .infrastructure.legacy_layout import LegacyLayoutDetector
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
@@ -119,7 +118,7 @@ from .utils.image_utils import ImageFetcher
 PluginConfig = AstrBotConfig | dict[str, Any] | None
 
 
-def _cache_maintenance_interval(settings: DnabySettings) -> float:
+def _cache_maintenance_interval(settings: DNASettings) -> float:
     """返回缓存维护周期；禁用/永久模式仍维护 rendered 临时文件。"""
 
     if settings.cache.ttl_hours > 0:
@@ -137,7 +136,7 @@ class PluginRuntime:
     events: EventEntryPoint
     responses: ResponseFactory
     commands: CommandRegistry
-    settings: DnabySettings
+    settings: DNASettings
     services: Mapping[str, object]
 
     async def initialize(self) -> None:
@@ -195,12 +194,9 @@ def build_runtime(
                 database_path.parent.parent,
             )
 
-    # 必须先完成只读旧布局检测，再进入任何会创建数据库或运行期目录的阶段。
-    LegacyLayoutDetector(runtime_data_layout).ensure_compatible()
-
     # 在构造 runtime 前校验运行期用户文案，避免插件已加载后才暴露目录问题。
     validate_tip_catalog()
-    settings = DnabySettings.from_config(config)
+    settings = DNASettings.from_config(config)
     from .utils import dna_api
 
     if services is not None and "image_fetcher" in services:
@@ -490,7 +486,11 @@ def build_runtime(
         except Exception as error:  # noqa: BLE001
             from astrbot.api import logger
 
-            logger.warning(f"[dnaby][push_sign] 推送至 {origin} 失败: {error}")
+            logger.warning(
+                "签到推送失败 origin=%s error=%s",
+                origin,
+                error,
+            )
 
     sign_scheduler = SignScheduler(
         checkin_service,
@@ -498,7 +498,6 @@ def build_runtime(
         sign_time=settings.sign_in.sign_time,
         push=_push_sign,
         registry=scheduler_registry,
-        sign_task_enabled=settings.sign_in.scheduler_enabled_for_runtime,
     )
     notices_renderer = NoticesRenderer(
         rendered_root,
@@ -566,7 +565,9 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                f"[dnaby][push_notice] 推送至 {origin} 失败: {type(error).__name__}",
+                "公告推送失败 origin=%s error_type=%s",
+                origin,
+                type(error).__name__,
             )
             return False
 
@@ -627,7 +628,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                "[dnaby][client_update] 普通消息推送失败（错误类型：%s）",
+                "客户端更新普通消息推送失败 error_type=%s",
                 type(error).__name__,
             )
             return False
@@ -651,7 +652,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                "[dnaby][client_update] 合并转发推送失败（错误类型：%s）",
+                "客户端更新合并转发推送失败 error_type=%s",
                 type(error).__name__,
             )
             return False
@@ -723,11 +724,11 @@ def build_runtime(
         scheduler_registry,
         subscriptions,
         {
-            "dnaby_sign_daily": sign_scheduler,
-            "dnaby_sign_cleanup": sign_scheduler,
-            "dnaby_mh_push": notices_scheduler,
-            "dnaby_ann_poll": notices_scheduler,
-            "dnaby_client_update_poll": client_updates_scheduler,
+            "dna_sign_daily": sign_scheduler,
+            "dna_sign_cleanup": sign_scheduler,
+            "dna_mh_push": notices_scheduler,
+            "dna_ann_poll": notices_scheduler,
+            "dna_client_update_poll": client_updates_scheduler,
         },
         membership_service,
         config_store=config if isinstance(config, dict) else None,
@@ -861,7 +862,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                "[dnaby][resources] 当前 generation 校验失败，资源暂不可用；"
+                "当前 generation 校验失败，资源暂不可用；"
                 "可执行同步资源修复（%s）",
                 type(error).__name__,
             )
@@ -897,7 +898,7 @@ def build_runtime(
             from astrbot.api import logger
 
             logger.warning(
-                "[dnaby] notifications.announcement_groups 已弃用；公告目标请在真实群聊中重新执行订阅命令。"
+                "notifications.announcement_groups 已弃用；公告目标请在真实群聊中重新执行订阅命令。"
             )
 
     _warn_deprecated_announcement_config()

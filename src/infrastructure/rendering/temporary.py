@@ -14,8 +14,8 @@ DEFAULT_RENDERED_PREFIXES = (
     "encyclopedia-",
     "notices-",
     "checkin-",
-    "dnaby-help-",
-    "dnaby-resource-",
+    "dna-help-",
+    "dna-resource-",
 )
 
 # 内容缓存 TTL 与 rendered 临时文件生命周期相互独立。

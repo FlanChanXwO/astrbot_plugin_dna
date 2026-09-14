@@ -266,18 +266,18 @@ class ClientUpdateDeliveryService:
             result = await self.push_port.send(push)
         except Exception as error:  # noqa: BLE001
             logger.warning(
-                "[dnaby][client_update] 订阅目标投递失败（错误类型：%s）",
+                "客户端更新订阅目标投递失败 error_type=%s",
                 type(error).__name__,
             )
             return frozenset()
         if not isinstance(result, ClientUpdatePushResult):
-            logger.warning("[dnaby][client_update] 订阅目标投递返回无效结果类型")
+            logger.warning("客户端更新订阅目标投递返回无效结果类型")
             return frozenset()
 
         expected_event_keys = frozenset(message.event_key for message in push.messages)
         succeeded_event_keys = frozenset(result.succeeded_event_keys)
         if not succeeded_event_keys.issubset(expected_event_keys):
-            logger.warning("[dnaby][client_update] 订阅目标投递返回未知事件键")
+            logger.warning("客户端更新订阅目标投递返回未知事件键")
             return frozenset()
         return succeeded_event_keys
 
@@ -319,7 +319,7 @@ class ClientUpdatePushAdapter:
         sender = self._send_forward
         if sender is None:
             logger.warning(
-                "[dnaby][client_update] OneBot 合并转发不可用，原因：未提供转发适配器"
+                "客户端更新 OneBot 合并转发不可用，原因：未提供转发适配器"
             )
             return False
 
@@ -330,13 +330,13 @@ class ClientUpdatePushAdapter:
             )
         except Exception as error:  # noqa: BLE001
             logger.warning(
-                "[dnaby][client_update] OneBot 合并转发失败，降级普通消息（错误类型：%s）",
+                "客户端更新 OneBot 合并转发失败，降级普通消息 error_type=%s",
                 type(error).__name__,
             )
             return False
         if result is False:
             logger.warning(
-                "[dnaby][client_update] OneBot 合并转发返回失败，降级普通消息"
+                "客户端更新 OneBot 合并转发返回失败，降级普通消息"
             )
             return False
         return True
@@ -351,12 +351,12 @@ class ClientUpdatePushAdapter:
                 result = await self._send_text(push.target.origin, message.text)
             except Exception as error:  # noqa: BLE001
                 logger.warning(
-                    "[dnaby][client_update] 普通消息投递失败，错误类型：%s",
+                    "客户端更新普通消息投递失败 error_type=%s",
                     type(error).__name__,
                 )
                 continue
             if result is False:
-                logger.warning("[dnaby][client_update] 普通消息投递返回失败")
+                logger.warning("客户端更新普通消息投递返回失败")
                 continue
             succeeded_event_keys.append(message.event_key)
         return ClientUpdatePushResult(succeeded_event_keys=tuple(succeeded_event_keys))

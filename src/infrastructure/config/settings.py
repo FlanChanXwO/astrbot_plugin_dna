@@ -1,7 +1,7 @@
 """v0.1 typed 配置定义。
 
 配置模型只描述插件自己的领域配置，不依赖 AstrBot 的事件、命令或
-``Context``。AstrBot 的嵌套字典在边界处通过 :meth:`DnabySettings.from_config`
+``Context``。AstrBot 的嵌套字典在边界处通过 :meth:`DNASettings.from_config`
 转换为这些模型，避免业务代码继续直接操作未类型化的配置字典。
 """
 
@@ -290,20 +290,6 @@ class AgentToolsSettings(_SettingsModel):
 class SignInSettings(_SettingsModel):
     """游戏签到、社区任务和签到报告配置。"""
 
-    # 仅保留旧版定时任务总开关，供 scheduler 首次启动时迁移，不进入 typed schema。
-    _legacy_scheduler_enabled: bool = PrivateAttr(default=True)
-
-    def _set_legacy_scheduler_enabled(self, enabled: bool) -> None:
-        """保存旧配置值，交由 scheduler 一次性迁移为 registry 状态。"""
-
-        self._legacy_scheduler_enabled = enabled
-
-    @property
-    def scheduler_enabled_for_runtime(self) -> bool:
-        """返回旧配置值，供 scheduler 执行一次性迁移。"""
-
-        return self._legacy_scheduler_enabled
-
     community_tasks: list[
         Literal["bbs_sign", "bbs_detail", "bbs_like", "bbs_share", "bbs_reply"]
     ] = Field(
@@ -584,9 +570,6 @@ _TARGET_CONFIG_GROUPS = (
     "resources",
     "cache",
 )
-_REMOVED_SIGN_IN_FIELDS = frozenset(
-    ("scheduled_enabled", "game_enabled", "community_enabled")
-)
 _REMOVED_NOTIFICATION_FIELDS = frozenset(
     (
         "announcement_ids",
@@ -612,51 +595,6 @@ def _normalize_migrated_value(field: str, value: Any) -> Any:
     if field == "command_prefixes" and isinstance(value, str):
         return [value]
     return copy.deepcopy(value)
-
-
-def _read_legacy_scheduled_enabled(raw: Mapping[str, Any] | None) -> bool:
-    """读取旧定时签到总开关，供 scheduler 首次启动迁移使用。"""
-
-    if raw is None:
-        return True
-    if not isinstance(raw, Mapping):
-        raise TypeError("配置必须是对象")
-
-    values: list[tuple[bool, str]] = []
-
-    def collect(value: Any, source: str) -> None:
-        if not isinstance(value, bool):
-            raise TypeError(
-                f"配置字段 sign_in.scheduled_enabled 必须是布尔值（来源 {source}）"
-            )
-        values.append((value, source))
-
-    if "scheduled_enabled" in raw:
-        collect(raw["scheduled_enabled"], "top-level.scheduled_enabled")
-    for section_name in (
-        DNA_CONFIG_SECTION,
-        DNA_SIGN_CONFIG_SECTION,
-        LEGACY_DNA_CONFIG_SECTION,
-        LEGACY_DNA_SIGN_CONFIG_SECTION,
-        "sign_in",
-    ):
-        section = raw.get(section_name)
-        if isinstance(section, Mapping) and "scheduled_enabled" in section:
-            collect(
-                section["scheduled_enabled"],
-                f"{section_name}.scheduled_enabled",
-            )
-
-    if not values:
-        return True
-    first_value, first_source = values[0]
-    for value, source in values[1:]:
-        if value != first_value:
-            raise ValueError(
-                "配置字段 sign_in.scheduled_enabled 存在冲突来源："
-                f"{first_source} 与 {source}"
-            )
-    return first_value
 
 
 def _record_assignment(
@@ -695,7 +633,7 @@ def _record_proxy_component(
 
 def _discard_migrated_field(group: str, field: str, source: str) -> None:
     logger.warning(
-        "[dnaby][config] 丢弃已移除配置 %s.%s（来源 %s）",
+        "丢弃已移除配置 %s.%s（来源 %s）",
         group,
         field,
         source,
@@ -719,9 +657,6 @@ def _consume_legacy_entry(
         return
     group, field = mapped
     if group == "notifications" and field in _REMOVED_NOTIFICATION_FIELDS:
-        _discard_migrated_field(group, field, source)
-        return
-    if group == "sign_in" and field in _REMOVED_SIGN_IN_FIELDS:
         _discard_migrated_field(group, field, source)
         return
     _record_assignment(result, assignments, group, field, value, source)
@@ -762,9 +697,7 @@ def _consume_typed_group(
             continue
 
         if group_name == "sign_in":
-            if field in _REMOVED_SIGN_IN_FIELDS:
-                _discard_migrated_field(group_name, field, source)
-            elif field == "enable_all_users":
+            if field == "enable_all_users":
                 _record_assignment(
                     result,
                     assignments,
@@ -882,7 +815,7 @@ def _resolve_legacy_proxy(
 
     if local_value.strip():
         logger.warning(
-            "[dnaby][config] 检测到旧版按函数代理配置；该模式已废弃，为避免扩大代理范围，"
+            "检测到旧版按函数代理配置；该模式已废弃，为避免扩大代理范围，"
             "未自动迁移为统一代理，请重新配置 network.proxy_url"
         )
 
@@ -961,7 +894,7 @@ def migrate_config_dict(raw: Mapping[str, Any] | None) -> dict[str, Any]:
     return result
 
 
-class DnabySettings(_SettingsModel):
+class DNASettings(_SettingsModel):
     """插件完整 typed 配置。"""
 
     general: GeneralSettings = Field(
@@ -1006,12 +939,10 @@ class DnabySettings(_SettingsModel):
         return AgentToolsSettings(enabled=self.ai.agent_tools_enabled)
 
     @classmethod
-    def from_config(cls, config: Mapping[str, Any] | None) -> DnabySettings:
+    def from_config(cls, config: Mapping[str, Any] | None) -> DNASettings:
         """将 AstrBot 的嵌套配置字典转换为 typed settings，且不改写输入。"""
-        legacy_scheduler_enabled = _read_legacy_scheduled_enabled(config)
         migrated = migrate_config_dict(config)
         settings = cls.model_validate(migrated)
-        settings.sign_in._set_legacy_scheduler_enabled(legacy_scheduler_enabled)
         canonical_store = copy.deepcopy(migrated)
 
         if hasattr(DNAConfig, "bind"):
@@ -1045,7 +976,7 @@ def _log_discarded_mh_config(raw: Mapping[str, Any]) -> None:
             if field in notifications:
                 locations.append(("notifications", field))
     for location, key in locations:
-        logger.warning("[dnaby][config] 丢弃已移除的全局密函配置 %s.%s", location, key)
+        logger.warning("丢弃已移除的全局密函配置 %s.%s", location, key)
 
 
 def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
@@ -1057,7 +988,7 @@ def _log_discarded_cache_config(raw: Mapping[str, Any]) -> None:
     for field in _REMOVED_CACHE_FIELDS:
         if field in cache:
             logger.warning(
-                "[dnaby][config] 丢弃已移除的缓存配置 cache.%s",
+                "丢弃已移除的缓存配置 cache.%s",
                 field,
             )
 
@@ -1071,7 +1002,7 @@ __all__ = [
     "DNAConfig",
     "DNASignConfig",
     "DisplaySettings",
-    "DnabySettings",
+    "DNASettings",
     "GeneralSettings",
     "LoginSettings",
     "NetworkSettings",

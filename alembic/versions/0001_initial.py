@@ -15,7 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """从空库创建 normalized schema，不读取或改写旧 dnaby.db。"""
+    """从空库创建 normalized schema，不读取或改写旧版数据库文件。"""
     op.create_table(
         "account_bindings",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),

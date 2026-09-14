@@ -39,7 +39,7 @@ from src.modules.notices import messages as notices_messages
 
 @pytest_asyncio.fixture
 async def database(tmp_path: Path) -> AsyncIterator[AsyncDatabase]:
-    database = AsyncDatabase(tmp_path / "dnaby.sqlite3")
+    database = AsyncDatabase(tmp_path / "dna.sqlite3")
     await database.create_schema_for_tests()
     try:
         yield database
@@ -183,7 +183,7 @@ async def test_target_page_filters_task_before_paging_and_supports_search(
     registry = SchedulerRegistry(tmp_path / "scheduler.json")
     registry.register(
         SchedulerTaskDefinition(
-            id="dnaby_mh_push",
+            id="dna_mh_push",
             name="密函推送",
             schedule="hourly@00:00",
         )
@@ -191,7 +191,7 @@ async def test_target_page_filters_task_before_paging_and_supports_search(
     api = AdminApiService(registry, subscriptions)
 
     response = await api.list_targets_page(
-        "dnaby_mh_push",
+        "dna_mh_push",
         AdminPagination(page=1, page_size=10, search="group:one"),
     )
 

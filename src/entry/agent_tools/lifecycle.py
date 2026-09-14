@@ -14,7 +14,7 @@ from ...modules.agent_tools.queries import AgentQueryCatalog
 from .signin import AgentSignTool
 from .tools import AGENT_TOOL_NAMES, build_agent_tools
 
-AGENT_SIGN_TOOL_NAME = "dnaby_sign"
+AGENT_SIGN_TOOL_NAME = "dna_sign"
 
 
 class AgentToolsLifecycle:
@@ -90,7 +90,7 @@ class AgentToolsLifecycle:
                 await self._maybe_await(remove(name))
             except BaseException as error:  # noqa: BLE001
                 logger.warning(
-                    "[dnaby][agent_tools] 工具注销失败: %s (%s)",
+                    "Agent Tool 注销失败 tool=%s error_type=%s",
                     name,
                     type(error).__name__,
                 )

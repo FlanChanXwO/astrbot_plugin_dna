@@ -4,7 +4,7 @@
 ``NoticesRenderer.render_mh``，输出结构化对比表：
 
 - 画布尺寸（legacy 与 rewrite 各自宽度/高度）
-- rewrite 侧 ``dnaby.text`` / ``dnaby.layout`` / ``dnaby.resources`` 元数据
+- rewrite 侧 ``dna.text`` / ``dna.layout`` / ``dna.resources`` 元数据
 - 像素弱信号：RGB 直方图余弦距离；legacy resize 到 rewrite 尺寸后的逐像素
   相同率与差异区域 bounding box（明确标注为近似信号，不作通过依据）
 - 动态字段 mask 说明（轮换时间/刷新倒计时固定时钟后确定性输出）
@@ -198,13 +198,13 @@ def _report(
     from src.infrastructure.rendering.artifact_store import read_rendered_artifact
 
     metadata = read_rendered_artifact(rewrite_path).metadata
-    text = str(metadata.get("dnaby.text", ""))
-    layout = metadata.get("dnaby.layout", {})
-    resources = metadata.get("dnaby.resources", [])
+    text = str(metadata.get("dna.text", ""))
+    layout = metadata.get("dna.layout", {})
+    resources = metadata.get("dna.resources", [])
     if not isinstance(layout, dict):
-        raise ValueError("rewrite artifact 的 dnaby.layout 无效")
+        raise ValueError("rewrite artifact 的 dna.layout 无效")
     if not isinstance(resources, list):
-        raise ValueError("rewrite artifact 的 dnaby.resources 无效")
+        raise ValueError("rewrite artifact 的 dna.resources 无效")
 
     lines = [
         "# 本地离线渲染对比：密函（legacy draw_mh_simple vs rewrite render_mh）",
@@ -275,7 +275,7 @@ def main() -> int:
 
     import tempfile
 
-    artifact_dir = Path(tempfile.mkdtemp(prefix="dnaby-render-compare-"))
+    artifact_dir = Path(tempfile.mkdtemp(prefix="dna-render-compare-"))
     legacy = _render_legacy(artifact_dir)
     rewrite, rewrite_path = _render_rewrite(artifact_dir)
     report = _report(legacy, rewrite, rewrite_path, args.out)

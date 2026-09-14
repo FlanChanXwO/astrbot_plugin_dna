@@ -186,7 +186,7 @@ async def _send_image_response(event: Any, response: object) -> tuple[bool, str]
         components, has_image = _response_components(response)
     except (OSError, TypeError, ValueError) as error:
         logger.warning(
-            "[dnaby][agent_tools] 图片响应转换失败: %s",
+            "Agent Tool 图片响应转换失败: %s",
             type(error).__name__,
         )
         return False, "图片响应不可发送"
@@ -201,7 +201,7 @@ async def _send_image_response(event: Any, response: object) -> tuple[bool, str]
             await result
     except Exception as error:  # noqa: BLE001
         logger.warning(
-            "[dnaby][agent_tools] 图片发送失败: %s",
+            "Agent Tool 图片发送失败: %s",
             type(error).__name__,
         )
         return False, "图片发送失败"
@@ -257,7 +257,7 @@ class AgentQueryTool(FunctionTool):
             request = agent_request_from_context(context, parameters=kwargs)
         except (TypeError, ValueError) as error:
             logger.warning(
-                "[dnaby][agent_tools] 查询请求被拒绝: %s",
+                "Agent Tool 查询请求被拒绝: %s",
                 type(error).__name__,
             )
             return _result_json(
@@ -289,7 +289,7 @@ class AgentQueryTool(FunctionTool):
             # Agent 框架会把未处理异常和 traceback 回传给模型；这里只记录类型，
             # 对外保持固定 envelope，避免暴露本地路径、内部 URL 或实现细节。
             logger.warning(
-                "[dnaby][agent_tools] 查询执行失败: %s (%s)",
+                "Agent Tool 查询执行失败: %s (%s)",
                 self.query_name,
                 type(error).__name__,
             )
@@ -349,14 +349,14 @@ class _ToolDefinition:
 
 _TOOL_DEFINITIONS = (
     _ToolDefinition(
-        "dnaby_player_overview",
+        "dna_player_overview",
         "player_overview",
         "查询当前消息用户绑定 UID 的角色与武器概览。返回已拥有角色/武器的结构化数据，名称和数量以接口结果为准，不要根据图片或资源目录猜测。身份固定来自当前事件，不接受用户 ID 或 UID 参数。",
         _image_schema(),
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_player_role_detail",
+        "dna_player_role_detail",
         "player_role_detail",
         "查询当前消息用户指定角色的基础详情与武器信息；先使用角色目录确认名称。",
         _image_schema(
@@ -376,35 +376,35 @@ _TOOL_DEFINITIONS = (
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_stamina",
+        "dna_stamina",
         "stamina",
         "查询当前消息用户绑定 UID 的实时便笺和体力信息。",
         _image_schema(),
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_weekly_report_current",
+        "dna_weekly_report_current",
         "weekly_report_current",
         "查询当前消息用户绑定 UID 的本周资源获取周报。",
         _image_schema(),
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_weekly_report_last",
+        "dna_weekly_report_last",
         "weekly_report_last",
         "查询当前消息用户绑定 UID 的上周资源获取周报。",
         _image_schema(),
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_calendar",
+        "dna_calendar",
         "calendar",
         "查询二重螺旋活动日历；这是全局资料，不使用模型提供的身份参数。",
         _image_schema(),
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_wiki",
+        "dna_wiki",
         "wiki",
         "按角色、武器或魔之楔名称查询本地图鉴图片。",
         _image_schema(
@@ -414,7 +414,7 @@ _TOOL_DEFINITIONS = (
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_guide",
+        "dna_guide",
         "guide",
         "按角色名称查询攻略图片；名称不确定时先使用角色目录。",
         _image_schema(
@@ -424,13 +424,13 @@ _TOOL_DEFINITIONS = (
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_codes",
+        "dna_codes",
         "codes",
         "查询当前可用兑换码及其有效期。",
         _object_schema(),
     ),
     _ToolDefinition(
-        "dnaby_role_directory",
+        "dna_role_directory",
         "role_directory",
         "查询全部角色或武器名称目录，供其它角色查询工具选择参数。",
         _object_schema(
@@ -445,33 +445,33 @@ _TOOL_DEFINITIONS = (
         ),
     ),
     _ToolDefinition(
-        "dnaby_mh",
+        "dna_mh",
         "mh",
         "查询当前消息用户当前激活 UID 可见的本时段梦魇残声/密函。",
         _image_schema(),
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_mh_list",
+        "dna_mh_list",
         "mh_list",
         "查询全部可识别的梦魇残声/密函委托名称。",
         _object_schema(),
     ),
     _ToolDefinition(
-        "dnaby_mh_subscriptions",
+        "dna_mh_subscriptions",
         "mh_subscriptions",
         "查询当前消息用户在当前会话自己的密函订阅，不读取或修改他人订阅。",
         _object_schema(),
     ),
     _ToolDefinition(
-        "dnaby_announcement_list",
+        "dna_announcement_list",
         "announcement_list",
         "查询完整官方公告列表。需要图片预览时可设置 send_image=true。",
         _image_schema(),
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_announcement_detail",
+        "dna_announcement_detail",
         "announcement_detail",
         "按公告列表中的 1-based index 查询官方公告详情和全部正文图片。",
         _image_schema(
@@ -487,7 +487,7 @@ _TOOL_DEFINITIONS = (
         supports_image=True,
     ),
     _ToolDefinition(
-        "dnaby_sign_calendar",
+        "dna_sign_calendar",
         "sign_calendar",
         "查询当前消息用户当前激活 UID 的签到日历和任务进度；不会执行签到。",
         _image_schema(),

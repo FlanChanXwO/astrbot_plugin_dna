@@ -432,7 +432,7 @@ class ClientUpdateStateStore:
                 raise TypeError("state.schema_version must be an integer")
             if schema_version in _IGNORED_STATE_VERSIONS:
                 logger.warning(
-                    "[dnaby][client_update] 忽略不兼容的客户端更新 state v%s，按空状态启动",
+                    "忽略不兼容的客户端更新 state v%s，按空状态启动",
                     schema_version,
                 )
                 self._baselines = {}

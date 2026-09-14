@@ -50,7 +50,9 @@ class Subscription:
 
         if _push_func is None:
             logger.warning(
-                f"[订阅] 未绑定推送函数，跳过 {self.type} -> {self.unified_msg_origin}"
+                "订阅未绑定推送函数，跳过 type=%s origin=%s",
+                self.type,
+                self.unified_msg_origin,
             )
             return
         sender = Sender(EventContext())
@@ -84,7 +86,7 @@ class SubscriptionStore:
                 data = json.loads(self.path.read_text(encoding="utf-8"))
                 self._subs = [Subscription(**item) for item in data]
             except (OSError, json.JSONDecodeError, TypeError) as e:
-                logger.error(f"[订阅] 加载失败: {e}")
+                logger.error("订阅状态加载失败 error=%s", e)
 
     async def _save_unlocked(self) -> None:
         """在调用方已持有 ``_lock`` 时落盘，避免变更事务重复获取同一把锁。"""
