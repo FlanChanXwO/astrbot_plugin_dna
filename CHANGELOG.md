@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## v0.5.3 — 2026-09-16
+
+### 修复
+
+- 插件启动/重载不再对已经成功发布的 current resource generation 重复执行全量 SHA-256、图片解码与 manifest 校验；现在只快速恢复已验证快照，避免重载期间长时间阻塞并导致帮助卡等资源退化为 placeholder。完整校验仍只在显式资源同步流程执行。（[#73](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/73)）
+- 修复玩家接口首个请求可能早于 WebSocket 业务身份握手完成而触发 `code=220 / userId不能为空` 的竞态；同时将 220 正确归类为凭证失败、补齐角色详情魔之楔底板的 current generation 解析，并修正 OneBot 合并转发消息链格式。（[#74](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/74)）
+- 修正角色详情武器属性中暴击率/暴击伤害字段映射颠倒的问题：`cri` 显示为暴击率，`crd` 显示为暴击伤害。（[#75](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/75)）
+- 玩家查询确认凭证失效后会立即把对应 App 凭证状态持久化为“无效”，后续查询在本地凭证边界直接停止，不再重复请求上游；同时修复兼容图片下载器跨 event loop 复用旧 HTTP client 时可能触发 `Event loop is closed` 的问题。（[#76](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/76)）
+
+### 维护
+
+- 更新登录动态背景、自动签到与玩家渲染相关的过期测试契约，并补充玩家凭证失效持久化与跨 event loop 图片下载的确定性回归测试。（[#76](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/76)）
+
+**完整变更**：[`v0.5.2...v0.5.3`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.5.2...v0.5.3)
+
 ## v0.5.2 — 2026-09-16
 
 ### 修复
