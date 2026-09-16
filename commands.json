@@ -755,7 +755,7 @@
     "pattern": "^dna资源状态$",
     "group": "资源管理",
     "name": "资源状态",
-    "description": "查看公共资源仓库状态",
+    "description": "查看资源仓库状态",
     "examples": [
       "dna资源状态"
     ],
@@ -767,7 +767,7 @@
     "pattern": "^dna同步资源$",
     "group": "资源管理",
     "name": "同步资源",
-    "description": "同步全部公共资源",
+    "description": "同步全部资源",
     "examples": [
       "dna同步资源"
     ],

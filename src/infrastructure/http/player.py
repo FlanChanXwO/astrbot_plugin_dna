@@ -48,10 +48,19 @@ def _response_data(response: Any, *, resource: str) -> Any:
     """检查 legacy response 成功标志并隐藏 msg/data 原文。"""
 
     if not getattr(response, "is_success", False):
+        message = str(getattr(response, "msg", "") or "").replace("\r", " ").replace(
+            "\n", " "
+        )
+        message = message.strip()
+        if len(message) > 200:
+            message = f"{message[:197]}..."
         raise PlayerTransportError(
             _error_kind(response),
             resource=resource,
-            detail=f"api response code={getattr(response, 'code', None)!r}",
+            detail=(
+                f"api response code={getattr(response, 'code', None)!r} "
+                f"msg={message!r}"
+            ),
         )
     data = getattr(response, "data", None)
     if data is None:

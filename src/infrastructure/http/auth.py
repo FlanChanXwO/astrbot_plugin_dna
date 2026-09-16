@@ -33,7 +33,7 @@ def is_credential_failure(response: Any) -> bool:
     code = getattr(response, "code", None)
     if code == -999:
         return False
-    if code in (401, 403):
+    if code in (220, 401, 403):
         return True
 
     message = str(getattr(response, "msg", "") or "").casefold()

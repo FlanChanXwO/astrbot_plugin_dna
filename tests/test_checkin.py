@@ -419,11 +419,11 @@ async def test_manual_sign_credential_failure_requests_login(tmp_path: Path) -> 
 
 
 def test_identity_validation_failure_is_credential_failure() -> None:
-    """上游身份校验失败必须映射为登录失效，而不是服务异常。"""
+    """业务码 220 必须映射为登录失效，而不是服务异常。"""
 
     class Response:
         code = 220
-        msg = "用户身份校验失败"
+        msg = "userId不能为空"
 
     assert is_credential_failure(Response()) is True
 

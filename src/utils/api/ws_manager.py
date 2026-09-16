@@ -167,6 +167,21 @@ class WebSocketManager:
 
             def on_open(ws):
                 logger.debug("on_open is successed")
+                try:
+                    ws.send(
+                        json.dumps(
+                            {"event": "ping", "data": {"userId": user_id}}
+                        )
+                    )
+                except (OSError, websocket.WebSocketException) as error:
+                    logger.debug(f"initial heartbeat failed: {error}")
+                    _remove_from_pool()
+                    ready_event.set()
+                    try:
+                        ws.close()
+                    except (OSError, websocket.WebSocketException):
+                        pass
+                    return
                 with self._lock:
                     self._pool[key] = (ws, time.time())
                 self._start_heartbeat(ws, user_id)

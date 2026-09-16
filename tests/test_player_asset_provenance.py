@@ -13,6 +13,7 @@ from PIL import Image
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap, weapon_renderer
 from src.infrastructure.rendering import player as player_module
 from src.infrastructure.rendering.player_image_loader import PlayerImageLoader
+from src.infrastructure.rendering.static_assets import StaticAssetResolver
 from src.infrastructure.resources import AssetResolver
 from src.utils.image_utils import ImageFetcherClosed
 
@@ -89,6 +90,32 @@ class _RuntimeDownloader:
         target.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (24, 24), self.color).save(target)
         return target
+
+
+@pytest.mark.asyncio
+async def test_role_modes_use_snapshot_backgrounds_and_record_provenance(
+    tmp_path: Path,
+) -> None:
+    """角色魔之楔底板必须走当前静态资源 resolver，而不是占位图。"""
+
+    generation_root = tmp_path / "generation"
+    mod_root = generation_root / "textures" / "detail" / "mod"
+    mod_root.mkdir(parents=True)
+    for position in ("left", "right", "center"):
+        Image.new("RGBA", (32, 32), "navy").save(mod_root / f"mod_{position}_1.png")
+
+    records: list[dict[str, str]] = []
+    payloads = await player_module._role_modes_payload(
+        [],
+        static_asset_resolver=StaticAssetResolver(snapshot_root=generation_root),
+        static_records=records,
+    )
+
+    assert len(payloads) == 9
+    assert len(records) == 9
+    assert all(item["status"] == "provided" for item in records)
+    assert all(item["source"] == "verified_snapshot" for item in records)
+    assert all(item["incomplete"] == "false" for item in records)
 
 
 @pytest.mark.asyncio

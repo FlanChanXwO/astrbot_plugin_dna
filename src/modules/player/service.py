@@ -181,9 +181,10 @@ class PlayerService:
         """映射安全错误类别；不向用户返回 detail。"""
 
         logger.warning(
-            "玩家请求失败 kind=%s resource=%s",
+            "玩家请求失败 kind=%s resource=%s detail=%s",
             error.kind.value,
             error.resource,
+            error.detail or "-",
         )
 
         if error.kind is PlayerFailureKind.NOT_FOUND:
@@ -684,9 +685,10 @@ class PlayerService:
             )
         except PlayerTransportError as error:
             logger.warning(
-                "玩家请求失败 kind=%s resource=%s",
+                "玩家请求失败 kind=%s resource=%s detail=%s",
                 error.kind.value,
                 error.resource,
+                error.detail or "-",
             )
             damage = DamageCalculation.failure(
                 messages.transport_error(error.kind.value)
@@ -1160,9 +1162,10 @@ class PlayerService:
                 except PlayerTransportError as error:
                     failed_names.append(role.name)
                     logger.warning(
-                        "角色批量刷新失败 kind=%s resource=%s role=%s",
+                        "角色批量刷新失败 kind=%s resource=%s detail=%s role=%s",
                         error.kind.value,
                         error.resource,
+                        error.detail or "-",
                         role.name,
                     )
                 except Exception as error:  # noqa: BLE001 - 每个角色必须隔离未预期异常
