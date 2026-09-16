@@ -14,7 +14,11 @@ from ...entry.response import (
     ImageResponse,
     PlainTextResponse,
 )
-from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
+from ...infrastructure.persistence import (
+    AccountBindingRepository,
+    AsyncDatabase,
+    CredentialRepository,
+)
 from ...infrastructure.rendering import PlayerRenderer
 from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.utils.logger import logger
@@ -195,6 +199,41 @@ class PlayerService:
             messages.transport_error(error.kind.value, target=target)
         )
 
+    async def _persist_credential_failure(
+        self,
+        error: PlayerTransportError,
+        *,
+        user_id: str,
+        uid: str,
+    ) -> None:
+        """Persist an upstream-confirmed credential failure for later queries."""
+
+        if error.kind is not PlayerFailureKind.CREDENTIAL:
+            return
+        async with self.database.transaction() as session:
+            changed = await CredentialRepository.mark_app_invalid(
+                session,
+                user_id=user_id,
+                uid=uid,
+            )
+        if changed:
+            logger.warning("已标记玩家凭据失效 user=%s", user_id)
+
+    async def _handle_transport_error(
+        self,
+        error: PlayerTransportError,
+        *,
+        user_id: str,
+        uid: str,
+        target: bool = False,
+    ) -> PlainTextResponse:
+        await self._persist_credential_failure(
+            error,
+            user_id=user_id,
+            uid=uid,
+        )
+        return self._transport_response(error, target=target)
+
     def _now(self) -> datetime:
         return self.clock()
 
@@ -243,8 +282,11 @@ class PlayerService:
             try:
                 overview = await self._fetch_overview(request, target_user_id, uid)
             except PlayerTransportError as error:
-                return self._transport_response(
-                    error, target=target_user_id != request.actor.user_id
+                return await self._handle_transport_error(
+                    error,
+                    user_id=target_user_id,
+                    uid=uid,
+                    target=target_user_id != request.actor.user_id,
                 )
             return _OverviewState(overview, self._value_digest(overview))
 
@@ -284,8 +326,11 @@ class PlayerService:
         try:
             overview = await self._fetch_overview(request, target_user_id, uid)
         except PlayerTransportError as error:
-            return self._transport_response(
-                error, target=target_user_id != request.actor.user_id
+            return await self._handle_transport_error(
+                error,
+                user_id=target_user_id,
+                uid=uid,
+                target=target_user_id != request.actor.user_id,
             )
         metadata = await self.cache.put_data(
             key,
@@ -684,6 +729,11 @@ class PlayerService:
                 credential_user_id=target_user_id,
             )
         except PlayerTransportError as error:
+            await self._persist_credential_failure(
+                error,
+                user_id=target_user_id,
+                uid=uid,
+            )
             logger.warning(
                 "玩家请求失败 kind=%s resource=%s detail=%s",
                 error.kind.value,
@@ -725,8 +775,11 @@ class PlayerService:
                     selected,
                 )
             except PlayerTransportError as error:
-                return self._transport_response(
-                    error, target=target_user_id != request.actor.user_id
+                return await self._handle_transport_error(
+                    error,
+                    user_id=target_user_id,
+                    uid=uid,
+                    target=target_user_id != request.actor.user_id,
                 )
             return _DetailState(
                 bundle, self._value_digest(self._detail_payload(bundle))
@@ -763,8 +816,11 @@ class PlayerService:
                 selected,
             )
         except PlayerTransportError as error:
-            return self._transport_response(
-                error, target=target_user_id != request.actor.user_id
+            return await self._handle_transport_error(
+                error,
+                user_id=target_user_id,
+                uid=uid,
+                target=target_user_id != request.actor.user_id,
             )
         if not bundle.cacheable:
             return _DetailState(bundle, None)
@@ -940,8 +996,11 @@ class PlayerService:
                 refresh_uid,
             )
         except PlayerTransportError as error:
-            return self._transport_response(
-                error, target=target_user_id != request.actor.user_id
+            return await self._handle_transport_error(
+                error,
+                user_id=target_user_id,
+                uid=refresh_uid,
+                target=target_user_id != request.actor.user_id,
             )
 
         char_name = str(request.parameters.get("char_name", "")).strip()
@@ -987,7 +1046,11 @@ class PlayerService:
                     refresh_uid,
                 )
             except PlayerTransportError as error:
-                return self._transport_response(error)
+                return await self._handle_transport_error(
+                    error,
+                    user_id=target_user_id,
+                    uid=refresh_uid,
+                )
 
             if self.cache is not None:
                 await self.cache.invalidate_overview(target_user_id, refresh_uid)
@@ -1107,8 +1170,11 @@ class PlayerService:
                     refresh_uid,
                 )
             except PlayerTransportError as error:
-                return self._transport_response(
-                    error, target=target_user_id != request.actor.user_id
+                return await self._handle_transport_error(
+                    error,
+                    user_id=target_user_id,
+                    uid=refresh_uid,
+                    target=target_user_id != request.actor.user_id,
                 )
 
             if self.cache is not None:
@@ -1160,6 +1226,11 @@ class PlayerService:
                         )
                     succeeded += 1
                 except PlayerTransportError as error:
+                    await self._persist_credential_failure(
+                        error,
+                        user_id=target_user_id,
+                        uid=refresh_uid,
+                    )
                     failed_names.append(role.name)
                     logger.warning(
                         "角色批量刷新失败 kind=%s resource=%s detail=%s role=%s",

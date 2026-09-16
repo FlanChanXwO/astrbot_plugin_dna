@@ -75,6 +75,30 @@ class _ClientFactory:
         return client
 
 
+class _LoopBoundClient(_FakeClient):
+    """模拟只能在创建它的 event loop 中使用的 AsyncClient。"""
+
+    def __init__(self, outcomes: list[object]) -> None:
+        super().__init__(outcomes)
+        self.loop = asyncio.get_running_loop()
+
+    async def get(self, url: str, **kwargs: object) -> httpx.Response:
+        if asyncio.get_running_loop() is not self.loop:
+            raise RuntimeError("client reused across event loops")
+        return await super().get(url, **kwargs)
+
+
+class _LoopBoundClientFactory:
+    def __init__(self, outcomes: list[httpx.Response]) -> None:
+        self.outcomes = outcomes
+        self.clients: list[_LoopBoundClient] = []
+
+    def __call__(self) -> _LoopBoundClient:
+        client = _LoopBoundClient([self.outcomes[len(self.clients)]])
+        self.clients.append(client)
+        return client
+
+
 async def _no_sleep(_delay: float) -> None:
     return None
 
@@ -103,6 +127,30 @@ async def test_fetch_uses_one_long_lived_client_for_multiple_urls(
 
     assert factory.calls == 1
     assert client.closed
+
+
+def test_fetch_rebinds_client_when_event_loop_changes(tmp_path: Path) -> None:
+    """legacy 默认下载器跨 event loop 使用时不得复用旧 loop 的 HTTP client。"""
+
+    first_url = "https://cdn.example.test/loop-a.png"
+    second_url = "https://cdn.example.test/loop-b.png"
+    factory = _LoopBoundClientFactory(
+        [
+            _response(first_url, _png_bytes()),
+            _response(second_url, _png_bytes("#22c55e")),
+        ]
+    )
+    fetcher = ImageFetcher(client_factory=factory, sleep=_no_sleep)
+
+    async def fetch_once(url: str, target: Path) -> None:
+        await fetcher.fetch(url, target)
+
+    asyncio.run(fetch_once(first_url, tmp_path / "loop-a.png"))
+    asyncio.run(fetch_once(second_url, tmp_path / "loop-b.png"))
+    asyncio.run(fetcher.close())
+
+    assert len(factory.clients) == 2
+    assert all(client.closed for client in factory.clients)
 
 
 @pytest.mark.asyncio

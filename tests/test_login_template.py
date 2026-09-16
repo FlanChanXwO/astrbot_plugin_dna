@@ -65,12 +65,13 @@ def test_no_audio_or_playback_buttons_rendered_in_login_page() -> None:
     assert "audio_url" not in page
 
 
-def test_page_renders_video_when_media_present_and_defers_loading() -> None:
+def test_page_renders_video_when_media_present_and_preloads_immediately() -> None:
     _, parser = _render()
     assert not parser.external_scripts
     assert "backgroundVideo" in parser.controls
-    assert "src" not in parser.controls["backgroundVideo"]
-    assert parser.controls["backgroundVideo"]["preload"] == "none"
+    assert parser.controls["backgroundVideo"]["src"] == "/media/background.mp4"
+    assert parser.controls["backgroundVideo"]["preload"] == "auto"
+    assert "autoplay" in parser.controls["backgroundVideo"]
     assert "playsinline" in parser.controls["backgroundVideo"]
     assert "muted" in parser.controls["backgroundVideo"]
 

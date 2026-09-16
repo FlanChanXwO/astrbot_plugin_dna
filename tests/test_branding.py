@@ -25,13 +25,14 @@ def test_rendered_brand_surfaces_use_display_name() -> None:
     assert "DNA | 二重螺旋活动列表一栏 | 皎皎角" not in calendar_template
 
 
-def test_login_template_keeps_static_fallback_and_defers_media_loading():
+def test_login_template_keeps_static_fallback_and_preloads_media():
     login_template = (ROOT / "src/templates/index.html.j2").read_text(encoding="utf-8")
 
     assert "login_media.video_url" in login_template
     assert "audio_url" not in login_template
     assert "prefers-reduced-motion: reduce" in login_template
-    assert "data-video-src" in login_template
+    assert 'preload="auto"' in login_template
+    assert 'src="{{ login_media.video_url | e }}"' in login_template
     assert "data-audio-src" not in login_template
     assert "herobox-img.yingxiong.com/post/1748784746036602530.jpg" in login_template
 

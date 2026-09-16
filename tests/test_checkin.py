@@ -913,8 +913,12 @@ async def test_auto_sign_credential_expiry_is_not_group_failure(
 
     report = await service.auto_sign_report()
 
-    assert "今日成功游戏签到 0 个账号" in report.summary_text
+    assert "没有需要签到的用户" in report.summary_text
     assert report.group_reports == {}
+    async with database.session() as session:
+        credential = await CredentialRepository.get(session, user_id="user-1", uid=UID)
+    assert credential is not None
+    assert credential.app_status == "无效"
     await database.dispose()
 
 
@@ -977,6 +981,18 @@ async def test_auto_sign_report_groups_game_and_community_by_group(
             group_id=None,
             is_active=True,
         )
+        for user_id, uid in (
+            ("user-a", "uid-a"),
+            ("user-b", "uid-b"),
+            ("user-private", "uid-private"),
+        ):
+            await CredentialRepository.add(
+                session,
+                user_id=user_id,
+                uid=uid,
+                app_cookie=f"token-{user_id}",
+                app_device_code=f"device-{user_id}",
+            )
 
     transport = FakeCheckinTransport()
     original_calendar = transport.get_sign_calendar

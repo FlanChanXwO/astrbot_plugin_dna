@@ -261,6 +261,7 @@ class ImageFetcher:
         self._condition = asyncio.Condition()
         self._client_lock = asyncio.Lock()
         self._client: Any | None = None
+        self._client_loop: asyncio.AbstractEventLoop | None = None
         self._starting = False
         self._closing = False
         self._close_task: asyncio.Task[None] | None = None
@@ -297,13 +298,31 @@ class ImageFetcher:
         )
 
     async def _get_client(self) -> Any:
+        current_loop = asyncio.get_running_loop()
+        stale_client: Any | None = None
         async with self._client_lock:
+            if self._client is not None and self._client_loop is not current_loop:
+                stale_client = self._client
+                self._client = None
+                self._client_loop = None
             if self._client is None:
                 client = self._client_factory()
                 if inspect.isawaitable(client):
                     client = await client
                 self._client = client
-            return self._client
+                self._client_loop = current_loop
+            client = self._client
+
+        if stale_client is not None:
+            try:
+                await self._close_client(stale_client)
+            except RuntimeError as error:
+                # 旧兼容 singleton 可能跨 pytest/event-loop 存活；旧 loop 已关闭时
+                # httpx 的 aclose 也无法再投递 cleanup callback。此时丢弃旧 client，
+                # 当前 loop 使用新 client，生产 runtime 的单 loop 生命周期不受影响。
+                if "Event loop is closed" not in str(error):
+                    raise
+        return client
 
     @staticmethod
     async def _close_client(client: Any | None) -> None:
@@ -326,11 +345,12 @@ class ImageFetcher:
     async def start(self) -> None:
         """启动下载器并预先创建长生命周期 HTTP client。"""
 
+        current_loop = asyncio.get_running_loop()
         async with self._condition:
             while self._closing:
                 await self._condition.wait()
             if self._accepting and not self._closed:
-                if self._client is not None:
+                if self._client is not None and self._client_loop is current_loop:
                     return
             else:
                 self._capacity.reset()
@@ -361,6 +381,7 @@ class ImageFetcher:
                     await self._condition.wait()
                 client = self._client
                 self._client = None
+                self._client_loop = None
                 self._inflight.clear()
             await self._close_client(client)
         finally:

@@ -12,7 +12,11 @@ from PIL import Image, ImageFont
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from src.infrastructure.cache import CacheManager
-from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
+from src.infrastructure.persistence import (
+    AccountBindingRepository,
+    AsyncDatabase,
+    CredentialRepository,
+)
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap
 from src.infrastructure.rendering.artifact_store import read_rendered_artifact
 from src.modules.player import messages
@@ -53,13 +57,22 @@ def _preseed_legacy_assets() -> None:
     assets = {
         RESOURCE_PATH.AVATAR_PATH / "avatar_101.png": (180, 60, 60),
         RESOURCE_PATH.AVATAR_PATH / "avatar_102.png": (60, 120, 180),
+        RESOURCE_PATH.USER_AVATAR_PATH / "avatar_user-1.png": (90, 90, 90),
+        RESOURCE_PATH.USER_AVATAR_PATH / "avatar_target-1.png": (110, 110, 110),
         RESOURCE_PATH.WEAPON_PATH / "weapon_201.png": (160, 140, 40),
         RESOURCE_PATH.WEAPON_PATH / "weapon_202.png": (80, 160, 80),
+        RESOURCE_PATH.PAINT_PATH / "paint_101.png": (100, 100, 120),
         RESOURCE_PATH.ATTR_PATH / "attr_fire.png": (200, 90, 40),
         RESOURCE_PATH.ATTR_PATH / "attr_ice.png": (70, 140, 210),
         RESOURCE_PATH.WEAPON_ATTR_PATH / "attr_close.png": (140, 80, 160),
         RESOURCE_PATH.WEAPON_ATTR_PATH / "attr_ranged.png": (60, 170, 130),
     }
+    for index in range(4):
+        assets[
+            RESOURCE_PATH.SKILL_PATH / "101" / f"skill_技能{index + 1}.png"
+        ] = (90 + index * 20, 60, 120)
+    for mod_id in (*range(3000, 3009), 4001):
+        assets[RESOURCE_PATH.MOD_PATH / f"mod_{mod_id}.png"] = (70, 80, 100)
     for path, color in assets.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists():
@@ -438,6 +451,66 @@ async def test_player_transport_failure_logs_safe_detail_and_keeps_user_message_
 
 
 @pytest.mark.asyncio
+async def test_player_credential_failure_marks_app_credentials_invalid(
+    tmp_path: Path,
+) -> None:
+    """上游确认凭证失效后，玩家查询必须持久化 App 凭证失效状态。"""
+
+    class _ExpiredOverviewTransport(FixturePlayerTransport):
+        async def get_overview(
+            self,
+            actor: EventActor,
+            uid: str,
+            *,
+            credential_user_id: str,
+        ) -> RoleOverview:
+            del actor, uid, credential_user_id
+            raise PlayerTransportError(
+                PlayerFailureKind.CREDENTIAL,
+                resource="角色列表信息",
+                detail="api response code=220 msg='credential invalid'",
+            )
+
+    database = await _database_with_binding(tmp_path)
+    async with database.transaction() as session:
+        await CredentialRepository.add(
+            session,
+            user_id="user-1",
+            uid=UID,
+            app_cookie="test-token",
+            app_device_code="test-device",
+            app_status="",
+        )
+    service = PlayerService(
+        database,
+        _ExpiredOverviewTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.role_overview(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        )
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.transport_error("credential")
+    async with database.session() as session:
+        credential = await CredentialRepository.get(
+            session,
+            user_id="user-1",
+            uid=UID,
+        )
+    assert credential is not None
+    assert credential.app_status == "无效"
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_role_overview_returns_runtime_image_and_preserves_all_items(
     tmp_path: Path,
 ) -> None:
@@ -759,6 +832,7 @@ async def test_role_detail_renders_all_basic_sections_and_original_path(
 ) -> None:
     """详情图保留基础角色资料、技能、魔之楔和武器字段。"""
 
+    _preseed_legacy_assets()
     original = tmp_path / "original-panel.png"
     Image.new("RGBA", (37, 53), "purple").save(original)
     database = await _database_with_binding(tmp_path)
@@ -801,6 +875,7 @@ async def test_role_detail_renders_all_basic_sections_and_original_path(
         "溯源",
         "武器",
         "魔之楔",
+        "伤害",
     ]
     assert any(
         item["kind"] == "original_panel" and item["status"] == "provided"
