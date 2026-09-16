@@ -408,6 +408,7 @@ def build_runtime(
         or DnaApiPlayerTransport(runtime_database, request_gate=request_gate),
         privacy_service,
         PlayerRenderer(rendered_root, player_resources, asset_resolver=asset_resolver),
+        aliases=encyclopedia_resources.aliases,
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,
@@ -835,6 +836,7 @@ def build_runtime(
         new_player_resources = snapshot.player_resources
         new_encyclopedia_resources = snapshot.encyclopedia_resources
         player_service.renderer.resources = new_player_resources
+        player_service.aliases = new_encyclopedia_resources.aliases
         encyclopedia_service.renderer.resources = new_encyclopedia_resources
         encyclopedia_service.resources = new_encyclopedia_resources
         checkin_renderer.resources = new_encyclopedia_resources
