@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.entry.response import ChainResponse, PlainTextResponse, ResponseFactory
+from src.entry.response import (
+    ChainResponse,
+    MultiTextResponse,
+    PlainTextResponse,
+    ResponseFactory,
+)
 
 
 class _CaptureEvent:
@@ -87,3 +92,24 @@ def test_explicit_need_at_still_builds_at_component() -> None:
     assert [type(component).__name__ for component in components] == ["At", "Plain"]
     assert components[0].qq == "user-1"
     assert components[1].text == "凭证失效"
+
+
+class _OneBotCaptureEvent(_CaptureEvent):
+    """模拟 AstrBot OneBot 事件，保留 chain_result 的真实 list 契约。"""
+
+    @staticmethod
+    def get_platform_name() -> str:
+        return "aiocqhttp"
+
+
+def test_multi_text_onebot_wraps_nodes_in_message_chain() -> None:
+    """OneBot 合并转发必须作为单个组件放进 list chain。"""
+
+    components = ResponseFactory().build(
+        _OneBotCaptureEvent(),
+        MultiTextResponse(("国服 PC：1.2.3", "全球服 PC：1.2.4")),
+    )
+
+    assert isinstance(components, list)
+    assert len(components) == 1
+    assert type(components[0]).__name__ == "Nodes"

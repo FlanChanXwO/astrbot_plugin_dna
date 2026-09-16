@@ -190,7 +190,7 @@ class ResponseFactory:
             )
             for text in texts
         ]
-        return event.chain_result(AstrNodes(nodes))
+        return event.chain_result([AstrNodes(nodes)])
 
     @staticmethod
     def chain(event: Any, components: Any) -> Any:
@@ -301,7 +301,7 @@ class ResponseFactory:
                 components.append(AstrImage.fromBytes(response.qr_bytes))
             if response.forward:
                 return event.chain_result(
-                    AstrNodes([AstrNode(content=components, name="二重螺旋登录")])
+                    [AstrNodes([AstrNode(content=components, name="二重螺旋登录")])]
                 )
             return event.chain_result(components)
         if isinstance(response, ChainResponse):

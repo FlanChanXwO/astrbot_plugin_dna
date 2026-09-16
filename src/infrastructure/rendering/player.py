@@ -621,6 +621,8 @@ async def _role_modes_payload(
                     mode,
                     position,
                     image_loader=image_loader,
+                    static_asset_resolver=static_asset_resolver,
+                    static_records=static_records,
                 )
                 for mode, position in ordered_modes
             )

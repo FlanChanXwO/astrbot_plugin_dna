@@ -390,6 +390,54 @@ async def _database_with_binding(
 
 
 @pytest.mark.asyncio
+async def test_player_transport_failure_logs_safe_detail_and_keeps_user_message_generic(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """玩家上游失败日志必须保留安全 detail，用户响应仍只返回归一化文案。"""
+
+    class _FailingOverviewTransport(FixturePlayerTransport):
+        async def get_overview(
+            self,
+            actor: EventActor,
+            uid: str,
+            *,
+            credential_user_id: str,
+        ) -> RoleOverview:
+            del actor, uid, credential_user_id
+            raise PlayerTransportError(
+                PlayerFailureKind.SERVER,
+                resource="角色列表信息",
+                detail="api response code=220 msg='userId不能为空'",
+            )
+
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        _FailingOverviewTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.role_overview(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.transport_error("server")
+    assert "kind=server" in caplog.text
+    assert "resource=角色列表信息" in caplog.text
+    assert "detail=api response code=220 msg='userId不能为空'" in caplog.text
+    assert "api response code=220" not in response.text
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_role_overview_returns_runtime_image_and_preserves_all_items(
     tmp_path: Path,
 ) -> None:

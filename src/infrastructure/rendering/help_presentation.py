@@ -76,7 +76,7 @@ HELP_GROUP_DESCRIPTIONS: dict[str, str] = {
     GROUP_PRIVACY: "控制他人查询你的游戏信息和 UID",
     GROUP_ADMIN_PRIVACY: "管理本群成员与全体的隐私策略",
     GROUP_ADMIN_PUSH: "管理签到与公告、客户端更新的订阅推送",
-    GROUP_ADMIN_RESOURCE: "别名维护与公共资源管理",
+    GROUP_ADMIN_RESOURCE: "别名维护与资源管理",
 }
 
 HELP_PRESENTATION: dict[str, HelpPresentationEntry] = {
