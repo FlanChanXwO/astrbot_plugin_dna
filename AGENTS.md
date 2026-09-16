@@ -38,6 +38,7 @@
 - 改 Dashboard：读 `src/entry/admin_web.py`、`src/entry/web.py`、`pages/dashboard/`、`docs/usage/admin-pages.md`。
 - 改 Agent Tools：读 `src/entry/agent_tools/`、`src/modules/agent_tools/`、`tests/test_agent_tools.py`、`docs/usage/agent-tools.md`。
 - 改公共资源：读 `src/infrastructure/resources/`、`tests/test_resources.py`、`docs/usage/resources.md`。
+- 创建、更新、修复或准备合并 Pull Request：必须先读并执行 `.agents/skills/pr/SKILL.md`；PR 正文结构以目标分支当前 `.github/PULL_REQUEST_TEMPLATE.md` 为事实源。
 
 ## 修改流程
 
@@ -56,6 +57,7 @@
 - `commands.json` 与 `_conf_schema.json` 不手工维护；修改源模型后重新生成。
 - `docs/` 顶层长期只保留 `dev/` 和 `usage/`。迁移计划、阶段报告、一次性 review、机器路径、生产容器名、某次 SHA/测试数量不进入长期文档；版本历史写 `CHANGELOG.md`。
 - 用户可见文案当前以 `i18/zh/tip.json` 和 `src/infrastructure/i18n/` 为事实源；不要为不存在的目录维护规则。
+- 本插件内部 Python 实现不是 SDK 契约。模块、类、函数、导入路径或调用形状重构时，同步迁移仓库内调用者并删除旧入口，不为假想的内部旧调用方保留 alias、facade、proxy 或 pass-through compatibility layer。只有用户已持久化的数据格式或已发布配置格式变化时才设计读取兼容/迁移，并把数据归一到当前格式。
 - `CLAUDE.md` 通过 `@AGENTS.md` 复用本文件，不在两处复制同一规则。
 
 ## 验证
