@@ -194,3 +194,20 @@ def test_resolve_bootstrap_dir_icons(tmp_path: Path) -> None:
     escaped = resolver.resolve("texture.help.icon:../escape.png")
     assert escaped.path is None
     assert escaped.incomplete
+
+
+def test_resolve_bootstrap_dir_icons_accepts_deployment_encoded_unicode_names(
+    tmp_path: Path,
+) -> None:
+    """Resolve logical icon names after deployment encodes Unicode filenames."""
+
+    icon_dir = tmp_path / "icons"
+    icon_dir.mkdir()
+    encoded = icon_dir / "#U7b7e#U5230#U65e5#U5386.png"
+    encoded.write_bytes(b"png")
+    resolver = StaticAssetResolver(bootstrap_dirs={"texture.help.icon": icon_dir})
+
+    resolved = resolver.resolve("texture.help.icon:签到日历.png")
+    assert resolved.path == encoded
+    assert resolved.source == "bootstrap"
+    assert not resolved.incomplete
