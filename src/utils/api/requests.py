@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import aiohttp
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...infrastructure.http.app import (
     AppTransport,
@@ -288,7 +288,7 @@ class DNAApi:
         payload = {"mobile": mobile, "vJson": v_json, "isCaptcha": 1}
         headers = await get_base_header(dev_code)
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=GET_SMS_CODE_URL,
             header=headers,
             data=payload,
@@ -315,7 +315,7 @@ class DNAApi:
             "mobile": mobile,
         }
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=LOGIN_URL,
             header=headers,
             data=payload,
@@ -327,7 +327,7 @@ class DNAApi:
         headers = await get_base_header(dev_code=dev_code, token=token)
         payload = {"refreshToken": refresh_token}
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=REFRESH_TOKEN_URL,
             header=headers,
             data=payload,
@@ -354,7 +354,7 @@ class DNAApi:
         headers = await get_base_header(dev_code=dev_code, token=token)
         payload = {}
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=ROLE_LIST_URL,
             header=headers,
             data=payload,
@@ -385,7 +385,7 @@ class DNAApi:
         )
         payload = {"type": 1}
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=ROLE_FOR_TOOL_URL,
             header=header,
             data=payload,
@@ -540,7 +540,7 @@ class DNAApi:
         )
         payload = {}
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=SHORT_NOTE_URL,
             header=headers,
             data=payload,
@@ -625,7 +625,7 @@ class DNAApi:
         )
         payload = {"dayAwardId": day_award_id, "periodId": period, "signinType": 1}
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=GAME_SIGN_URL,
             header=headers,
             data=payload,
@@ -649,7 +649,7 @@ class DNAApi:
         )
         payload = {"gameId": DNA_GAME_ID}
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=BBS_SIGN_URL,
             header=headers,
             data=payload,
@@ -792,7 +792,7 @@ class DNAApi:
             "toUserId": post.get("userId"),
         }
         rsa_pub = await self.get_rsa_public_key()
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=LIKE_POST_URL,
             header=headers,
             data=payload,
@@ -864,7 +864,7 @@ class DNAApi:
             "content": content_json,
             "toUserId": post.get("userId"),
         }
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=REPLY_POST_URL,
             header=header,
             data=payload,
@@ -998,7 +998,7 @@ class DNAApi:
             "endTime": "2026-04-05 23:59:59",
             "startTime": "2025-12-01 00:00:00",
         }
-        headers, payload = get_signed_headers_and_body(
+        headers, payload = await get_signed_headers_and_body(
             url=ACTIVITY_LIST_URL,
             header=headers,
             data=payload,

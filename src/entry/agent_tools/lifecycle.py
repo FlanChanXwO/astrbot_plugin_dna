@@ -8,7 +8,7 @@ from builtins import BaseExceptionGroup
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...modules.agent_tools.queries import AgentQueryCatalog
 from .signin import AgentSignTool

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
-from astrbot.api import logger
+from ..infrastructure.logger import logger
 from PIL import Image, ImageDraw
 
 from ..infrastructure.data_layout import default_runtime_data_layout

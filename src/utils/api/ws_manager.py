@@ -9,7 +9,8 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 import websocket
-from astrbot.api import logger
+
+from ...infrastructure.logger import logger
 
 from .request_util import ios_base_header
 

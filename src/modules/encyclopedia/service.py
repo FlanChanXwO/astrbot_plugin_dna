@@ -7,7 +7,7 @@ from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...entry.response import (
     ChainResponse,

@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import Protocol, cast
 from zoneinfo import ZoneInfo
 
-from astrbot.api import logger
+from .logger import logger
 
 from ..modules.client_updates.contracts import ClientUpdateChange
 from .scheduler_state import (

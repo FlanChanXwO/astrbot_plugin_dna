@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 import httpx
-from astrbot.api import logger
+from ..logger import logger
 
 # 出站建连预算：TCP 建连到不可达主机时会一直等到操作系统默认超时（macOS 约
 # 75s），期间用户交互请求被白白挂起，因此沿用项目既有外呼的 10s 建连约定

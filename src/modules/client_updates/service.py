@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...entry.response import CommandResponse, MultiTextResponse, PlainTextResponse
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore

@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 from astrbot.api.web import request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse, Response

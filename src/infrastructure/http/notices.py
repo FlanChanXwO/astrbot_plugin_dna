@@ -13,7 +13,7 @@ import asyncio
 from typing import Any
 
 import aiohttp
-from astrbot.api import logger
+from ..logger import logger
 from pydantic import BaseModel, ConfigDict
 
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor

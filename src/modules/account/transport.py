@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 import httpx
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from .contracts import LoginChannel

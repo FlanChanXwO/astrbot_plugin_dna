@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...entry.event import EventActor
 from ...entry.response import ImageResponse, MultiImageResponse, PlainTextResponse

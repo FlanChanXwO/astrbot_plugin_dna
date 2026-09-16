@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...entry.response import LoginResponse, PlainTextResponse
 from ...infrastructure.persistence import (

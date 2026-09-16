@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 from astrbot.api.message_components import Image as AstrImage
 from astrbot.api.message_components import Plain as AstrPlain
 from astrbot.core.agent.run_context import ContextWrapper

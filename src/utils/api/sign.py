@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from typing import Any
 
@@ -27,7 +28,7 @@ def get_dev_code() -> str:
     return str(uuid.uuid4()).upper()
 
 
-def get_signed_headers_and_body(
+async def get_signed_headers_and_body(
     url: str,
     header: dict[str, str],
     data: dict[str, Any],
@@ -40,8 +41,12 @@ def get_signed_headers_and_body(
     dev_code = header.get("devCode", "")
     from .ws_manager import get_ws_manager, get_ws_wait_time
 
-    get_ws_manager().get_connection(
-        token, dev_code, wait_ready=True, timeout=get_ws_wait_time()
+    await asyncio.to_thread(
+        get_ws_manager().get_connection,
+        token,
+        dev_code,
+        True,
+        get_ws_wait_time(),
     )
 
     return generate_headers_130(header, data, rsa_public_key)
