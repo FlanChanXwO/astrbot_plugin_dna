@@ -337,6 +337,18 @@
         "description": "自定义 GitHub 加速前缀",
         "hint": "仅 custom 模式使用；填写不含 query、fragment 或凭据的 HTTP(S) 基础 URL",
         "default": ""
+      },
+      "image_download_timeout_seconds": {
+        "type": "int",
+        "description": "图片下载超时（秒）",
+        "hint": "角色、武器、MOD、技能等运行时图片请求的单次 I/O 超时；默认 5 秒，避免单个异常 CDN 长时间阻塞整张卡",
+        "default": 5
+      },
+      "image_download_max_attempts": {
+        "type": "int",
+        "description": "图片下载最大尝试次数",
+        "hint": "运行时图片遇到网络错误、429 或 5xx 时的最大尝试次数，包含首次请求；默认 2 次",
+        "default": 2
       }
     }
   },

@@ -227,7 +227,8 @@ class _AdaptiveCapacity:
 class ImageFetcher:
     """带生命周期、动态并发、URL 合并和原子校验的运行期图片下载器。"""
 
-    _MAX_ATTEMPTS = 3
+    _DEFAULT_TIMEOUT_SECONDS = 5.0
+    _DEFAULT_MAX_ATTEMPTS = 2
     _MIN_CAPACITY = 1
     _DEFAULT_INITIAL_CAPACITY = 8
     _MAX_CAPACITY = 64
@@ -239,6 +240,8 @@ class ImageFetcher:
         sleep: Callable[[float], Awaitable[None]] | None = None,
         initial_capacity: int = _DEFAULT_INITIAL_CAPACITY,
         max_capacity: int = _MAX_CAPACITY,
+        timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+        max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
     ) -> None:
         # 仅作为内部连接数安全边界，避免无限扩大 client 连接池；不暴露为用户配置。
         maximum = min(self._MAX_CAPACITY, int(max_capacity))
@@ -247,10 +250,18 @@ class ImageFetcher:
             raise ValueError("图片下载并发上限必须至少为 1")
         if not self._MIN_CAPACITY <= initial <= maximum:
             raise ValueError("图片下载初始并发必须位于有效上限内")
+        timeout = float(timeout_seconds)
+        attempts = int(max_attempts)
+        if timeout <= 0:
+            raise ValueError("图片下载超时必须大于 0 秒")
+        if attempts < 1:
+            raise ValueError("图片下载最大尝试次数必须至少为 1")
 
         self._client_factory = client_factory or self._build_client
         self._sleep = sleep or asyncio.sleep
         self._max_capacity = maximum
+        self._timeout_seconds = timeout
+        self._max_attempts = attempts
         self._capacity = _AdaptiveCapacity(
             initial=initial,
             minimum=self._MIN_CAPACITY,
@@ -287,10 +298,22 @@ class ImageFetcher:
 
         return len(self._inflight)
 
+    @property
+    def timeout_seconds(self) -> float:
+        """运行时图片请求的单次 I/O 超时。"""
+
+        return self._timeout_seconds
+
+    @property
+    def max_attempts(self) -> int:
+        """单个运行时图片 URL 的最大尝试次数（包含首次请求）。"""
+
+        return self._max_attempts
+
     def _build_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(
             follow_redirects=False,
-            timeout=30,
+            timeout=self._timeout_seconds,
             limits=httpx.Limits(
                 max_connections=self._max_capacity,
                 max_keepalive_connections=self._max_capacity,
@@ -301,6 +324,14 @@ class ImageFetcher:
         current_loop = asyncio.get_running_loop()
         stale_client: Any | None = None
         async with self._client_lock:
+            if self._client_loop is not current_loop:
+                # legacy 默认 fetcher 可能跨多个短生命周期 event loop 被复用。
+                # HTTP client 与用于唤醒 retry sleep 的 Event 都必须跟随当前 loop，
+                # 否则第二个 loop 一旦进入退避会触发 "bound to a different event loop"。
+                closing_event = asyncio.Event()
+                if self._closing or self._closed:
+                    closing_event.set()
+                self._closing_event = closing_event
             if self._client is not None and self._client_loop is not current_loop:
                 stale_client = self._client
                 self._client = None
@@ -450,7 +481,7 @@ class ImageFetcher:
             raise ImageFetchError("图片 URL 必须使用 HTTP(S)")
 
         client = await self._get_client()
-        for attempt in range(self._MAX_ATTEMPTS):
+        for attempt in range(self._max_attempts):
             await self._capacity.acquire()
             congestion: str | None = None
             healthy = False
@@ -460,7 +491,7 @@ class ImageFetcher:
                     response = await client.get(url, follow_redirects=False)
                 except httpx.TransportError:
                     congestion = "weak"
-                    if attempt == self._MAX_ATTEMPTS - 1:
+                    if attempt == self._max_attempts - 1:
                         raise
                     await self._release_capacity(
                         success=False,
@@ -479,7 +510,7 @@ class ImageFetcher:
                     healthy = True
 
                 if self._is_retryable_status(response.status_code):
-                    if attempt == self._MAX_ATTEMPTS - 1:
+                    if attempt == self._max_attempts - 1:
                         response.raise_for_status()
                     delay = _retry_after_seconds(response.headers)
                     await self._release_capacity(

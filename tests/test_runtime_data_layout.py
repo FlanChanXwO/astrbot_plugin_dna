@@ -293,7 +293,12 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
     database = AsyncDatabase(tmp_path / "dna.sqlite3")
     runtime = build_runtime(
         SimpleNamespace(register_web_api=lambda *_args: None),
-        {},
+        {
+            "resources": {
+                "image_download_timeout_seconds": 9,
+                "image_download_max_attempts": 4,
+            }
+        },
         database=database,
         runtime_data_layout=layout,
     )
@@ -314,6 +319,8 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
 
         asset_resolver = runtime.services["asset_resolver"]
         image_fetcher = runtime.services["image_fetcher"]
+        assert image_fetcher.timeout_seconds == 9
+        assert image_fetcher.max_attempts == 4
         assert asset_resolver.dynamic_root == layout.cache_assets_dir
         assert asset_resolver.coordinator is runtime.services["resource_snapshots"]
         assert asset_resolver.downloader is image_fetcher
