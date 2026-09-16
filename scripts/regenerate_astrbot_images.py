@@ -2,7 +2,7 @@
 
 - role_overview：legacy 同源渲染（draw_role_info_card_core）
 - stamina / weekly_report_*：encyclopedia renderer
-素材缓存（legacy RESOURCE_PATH）由预置 fixture 命中，不依赖网络。
+运行期素材缓存由预置 fixture 命中，不依赖网络。
 """
 
 from __future__ import annotations
@@ -20,17 +20,19 @@ OUT = ROOT / "output" / "astrbot"
 
 
 def _preseed_legacy_assets() -> None:
-    from src.utils.resource import RESOURCE_PATH
+    from src.infrastructure.data_layout import default_runtime_data_layout
+
+    layout = default_runtime_data_layout()
 
     assets = {
-        RESOURCE_PATH.AVATAR_PATH / "avatar_101.png": (180, 60, 60),
-        RESOURCE_PATH.AVATAR_PATH / "avatar_102.png": (60, 120, 180),
-        RESOURCE_PATH.WEAPON_PATH / "weapon_201.png": (160, 140, 40),
-        RESOURCE_PATH.WEAPON_PATH / "weapon_202.png": (80, 160, 80),
-        RESOURCE_PATH.ATTR_PATH / "attr_fire.png": (200, 90, 40),
-        RESOURCE_PATH.ATTR_PATH / "attr_ice.png": (70, 140, 210),
-        RESOURCE_PATH.WEAPON_ATTR_PATH / "attr_close.png": (140, 80, 160),
-        RESOURCE_PATH.WEAPON_ATTR_PATH / "attr_ranged.png": (60, 170, 130),
+        layout.cache_game_avatar_dir / "avatar_101.png": (180, 60, 60),
+        layout.cache_game_avatar_dir / "avatar_102.png": (60, 120, 180),
+        layout.cache_weapon_dir / "weapon_201.png": (160, 140, 40),
+        layout.cache_weapon_dir / "weapon_202.png": (80, 160, 80),
+        layout.cache_attr_dir / "attr_fire.png": (200, 90, 40),
+        layout.cache_attr_dir / "attr_ice.png": (70, 140, 210),
+        layout.cache_weapon_attr_dir / "attr_close.png": (140, 80, 160),
+        layout.cache_weapon_attr_dir / "attr_ranged.png": (60, 170, 130),
     }
     for path, color in assets.items():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -171,6 +173,7 @@ def _export_rendered(source: Path, destination_stem: Path) -> Path:
 
 def main() -> int:
     import asyncio
+    import tempfile
 
     from src.infrastructure.rendering import (
         EncyclopediaRenderer,
@@ -178,8 +181,6 @@ def main() -> int:
         ResourceMap,
     )
     from src.infrastructure.resources import EncyclopediaResourceStore
-
-    import tempfile
 
     OUT.mkdir(parents=True, exist_ok=True)
     _preseed_legacy_assets()

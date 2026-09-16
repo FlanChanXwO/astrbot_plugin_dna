@@ -40,7 +40,7 @@
 - 静态渲染素材：`fonts/`（正文字体与 Unicode fallback）、`textures/`（角色总览/详情、日常便签、周报、签到、密函、公告、帮助等卡片纹理）、`calendar/`（活动日历底图与装饰）；
 - 资料：`wiki/`、`guide/`、`weekly_item/`、`data/`、`alias/` 等图鉴与文本资源。
 
-静态渲染素材由 `StaticAssetResolver`（`src/infrastructure/rendering/static_assets.py`）从 verified generation 解析；插件包内仅保留少量显式 bootstrap 资源（帮助命令图标、logo 与 `utils/texture2d/` 中的通用装饰图），且只有列入显式 allowlist 的路径才会在无 snapshot 时回退本地。静态素材缺失时渲染降级为可见 placeholder，并标记 `incomplete=True`。
+静态渲染素材由 `StaticAssetResolver`（`src/infrastructure/rendering/static_assets.py`）从 verified generation 解析；帮助命令图标和登录标题图同样由资源同步提供，不在插件源码中维护副本。插件包内只保留插件根 `logo.png` 与 `utils/texture2d/` 中少量显式 bootstrap 装饰图，且只有列入 allowlist 的路径才会回退本地。同步资源缺失时渲染降级为可见 placeholder，并标记 `incomplete=True`。
 
 其他动态素材仍按需写入 `cache/assets/`。资源仓库的 `resource_manifest.json` 仍是资源布局、文件摘要与版本的事实源。
 

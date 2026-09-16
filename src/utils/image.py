@@ -7,22 +7,13 @@ import httpx
 from astrbot.api import logger
 from PIL import Image, ImageDraw, ImageOps
 
+from ..infrastructure.data_layout import default_runtime_data_layout
 from . import image_utils
 from .image_utils import (
     ImageFetchError,
     crop_center_img,
     download,
     get_event_avatar,
-)
-from .resource.RESOURCE_PATH import (
-    ATTR_PATH,
-    AVATAR_PATH,
-    MOD_PATH,
-    PAINT_PATH,
-    SKILL_PATH,
-    USER_AVATAR_PATH,
-    WEAPON_ATTR_PATH,
-    WEAPON_PATH,
 )
 from .session import EventContext
 
@@ -170,7 +161,7 @@ async def _download_optional_image(
 async def get_skill_img(
     char_id: str | int, skill_name: str, pic_url: str | None = None
 ) -> Image.Image:
-    char_skill_dir = SKILL_PATH / str(char_id)
+    char_skill_dir = default_runtime_data_layout().cache_skill_dir / str(char_id)
     char_skill_dir.mkdir(parents=True, exist_ok=True)
 
     skill_name = skill_name.strip()
@@ -192,7 +183,11 @@ async def get_avatar_img(
     avatar_path: Path | None = None,
     downloader: AssetDownloader | None = None,
 ) -> Image.Image:
-    char_avatar_dir = AVATAR_PATH if avatar_path is None else Path(avatar_path)
+    char_avatar_dir = (
+        default_runtime_data_layout().cache_game_avatar_dir
+        if avatar_path is None
+        else Path(avatar_path)
+    )
     char_avatar_dir.mkdir(parents=True, exist_ok=True)
 
     name = f"avatar_{char_id}.png"
@@ -214,7 +209,7 @@ async def get_avatar_img(
 async def get_weapon_img(
     weapon_id: str | int, pic_url: str | None = None
 ) -> Image.Image:
-    weapon_dir = WEAPON_PATH
+    weapon_dir = default_runtime_data_layout().cache_weapon_dir
     weapon_dir.mkdir(parents=True, exist_ok=True)
 
     name = f"weapon_{weapon_id}.png"
@@ -237,7 +232,7 @@ async def get_attr_img(
         else:
             raise ValueError("attr_id 和 pic_url 不能同时为空")
 
-    attr_dir = ATTR_PATH
+    attr_dir = default_runtime_data_layout().cache_attr_dir
     attr_dir.mkdir(parents=True, exist_ok=True)
 
     name = f"attr_{attr_id}.png"
@@ -260,7 +255,7 @@ async def get_weapon_attr_img(
         else:
             raise ValueError("attr_id 和 pic_url 不能同时为空")
 
-    attr_dir = WEAPON_ATTR_PATH
+    attr_dir = default_runtime_data_layout().cache_weapon_attr_dir
     attr_dir.mkdir(parents=True, exist_ok=True)
 
     name = f"attr_{attr_id}.png"
@@ -275,7 +270,7 @@ async def get_weapon_attr_img(
 
 
 async def get_paint_img(char_id: str | int, pic_url: str | None = None) -> Image.Image:
-    paint_dir = PAINT_PATH
+    paint_dir = default_runtime_data_layout().cache_paint_dir
     paint_dir.mkdir(parents=True, exist_ok=True)
 
     name = f"paint_{char_id}.png"
@@ -290,7 +285,7 @@ async def get_paint_img(char_id: str | int, pic_url: str | None = None) -> Image
 
 
 async def get_mod_img(mod_id: str | int, pic_url: str | None = None) -> Image.Image:
-    mod_dir = MOD_PATH
+    mod_dir = default_runtime_data_layout().cache_mod_dir
     mod_dir.mkdir(parents=True, exist_ok=True)
 
     name = f"mod_{mod_id}.png"
@@ -366,7 +361,10 @@ async def get_avatar_title_img(
     else:
         ev.at = ""  # 清空 at，确保获取发送者自己的头像
     try:
-        avatar = await get_event_avatar(ev, avatar_path=USER_AVATAR_PATH)
+        avatar = await get_event_avatar(
+            ev,
+            avatar_path=default_runtime_data_layout().cache_user_avatar_dir,
+        )
     except (httpx.HTTPError, OSError, TypeError, ValueError):
         avatar = await get_avatar_img("5101")
     finally:

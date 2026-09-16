@@ -24,9 +24,8 @@ from ...utils.api.model import (
     RoleShowForTool,
 )
 from ...utils.image import download_pic_from_url
-from ...utils.resource.RESOURCE_PATH import AVATAR_PATH, SIGN_PATH, USER_AVATAR_PATH
 from ...utils.session import EventContext
-from ..data_layout import RuntimeDataLayout
+from ..data_layout import RuntimeDataLayout, default_runtime_data_layout
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
@@ -108,7 +107,11 @@ async def _draw_sign_calendar_view(
 ) -> bytes:
     """直接从签到领域 DTO 构造模板输入，避免回拼完整 legacy 模型。"""
 
-    sign_cache_dir = SIGN_PATH if sign_cache_dir is None else Path(sign_cache_dir)
+    sign_cache_dir = (
+        default_runtime_data_layout().cache_sign_dir
+        if sign_cache_dir is None
+        else Path(sign_cache_dir)
+    )
     header = await build_profile_header(
         ctx,
         role.role_id,
@@ -276,7 +279,9 @@ async def _draw_sign_calendar(
         if award:
             icon = pil_image_data_uri(
                 await download_pic_from_url(
-                    SIGN_PATH if sign_cache_dir is None else Path(sign_cache_dir),
+                    default_runtime_data_layout().cache_sign_dir
+                    if sign_cache_dir is None
+                    else Path(sign_cache_dir),
                     award.iconUrl,
                     size=(140, 140),
                     downloader=downloader,
@@ -380,17 +385,17 @@ class CheckinRenderer:
         self.resources = resources
         self.downloader = downloader
         self.sign_cache_dir = (
-            SIGN_PATH
+            default_runtime_data_layout().cache_sign_dir
             if runtime_data_layout is None
             else runtime_data_layout.cache_sign_dir
         )
         self.user_avatar_dir = (
-            USER_AVATAR_PATH
+            default_runtime_data_layout().cache_user_avatar_dir
             if runtime_data_layout is None
             else runtime_data_layout.cache_user_avatar_dir
         )
         self.game_avatar_dir = (
-            AVATAR_PATH
+            default_runtime_data_layout().cache_game_avatar_dir
             if runtime_data_layout is None
             else runtime_data_layout.cache_game_avatar_dir
         )

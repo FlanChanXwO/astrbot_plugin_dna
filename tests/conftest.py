@@ -1,7 +1,7 @@
 """pytest 测试配置：隔离运行期数据，并为渲染测试提供确定性实现。
 
 - ``ASTRBOT_ROOT``：让 AstrBot 数据目录指向临时根，避免测试写入真实运行期数据；
-  RESOURCE_PATH 经 ``get_astrbot_data_path()`` 解析到 ``<ASTRBOT_ROOT>/data``。
+  RuntimeDataLayout 解析到 ``<ASTRBOT_ROOT>/data`` 下的插件数据目录。
 """
 
 import atexit
@@ -25,7 +25,7 @@ def _prepare_test_environment() -> tuple[Path, Path]:
     session_root = Path(tempfile.mkdtemp(prefix="dna-pytest-"))
     astrbot_root = session_root / "astrbot"
     # AstrBot 数据目录固定为 <root>/data；fixture 必须落在
-    # data/plugin_data/astrbot_plugin_dna 才能被 RESOURCE_PATH 原生解析。
+    # data/plugin_data/astrbot_plugin_dna 才能被运行期布局解析。
     data_root = astrbot_root / "data" / "plugin_data" / "astrbot_plugin_dna"
     # tests/.data 属于 gitignore 的本地 fixture（当前内容为空），clean checkout 中不存在；
     # 缺失时视为空 fixture，直接使用空白数据根，保证测试可在干净环境复现。

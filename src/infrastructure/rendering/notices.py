@@ -36,8 +36,7 @@ from ...utils import dna_api, get_datetime
 from ...utils.api.mh_map import get_mh_type_name
 from ...utils.api.model import DNARoleForToolInstanceInfo
 from ...utils.image_utils import download
-from ...utils.resource.RESOURCE_PATH import ANN_CARD_PATH
-from ..data_layout import RuntimeDataLayout
+from ..data_layout import RuntimeDataLayout, default_runtime_data_layout
 from ..http.concurrency import RequestConcurrencyGate
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from ..resources.resolver import AssetDownloader
@@ -160,10 +159,6 @@ def _ann_background(
             )
         )
     return pil_image_data_uri(placeholder_image(size, "公告"))
-
-QR_CACHE_PATH = ANN_CARD_PATH / "qr"
-PREVIEW_CACHE_PATH = ANN_CARD_PATH / "preview"
-DETAIL_CACHE_PATH = ANN_CARD_PATH / "detail"
 
 ANN_WIDTH = 1080
 ANN_JPEG_QUALITY = 85
@@ -329,7 +324,9 @@ async def _load_qr_code(
 ) -> Image.Image | None:
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size={size}x{size}&data={quote_plus(url)}"
     ann_card_cache_dir = (
-        ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+        default_runtime_data_layout().cache_ann_card_dir
+        if ann_card_cache_dir is None
+        else Path(ann_card_cache_dir)
     )
     qr_cache_dir = ann_card_cache_dir / "qr"
     try:
@@ -424,7 +421,9 @@ async def _load_preview(
         return None
     try:
         preview_cache_dir = (
-            ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+            default_runtime_data_layout().cache_ann_card_dir
+            if ann_card_cache_dir is None
+            else Path(ann_card_cache_dir)
         ) / "preview"
         if cache_manager is None:
             image = await _fetch_image(
@@ -465,7 +464,9 @@ async def _load_detail_image(
 ) -> Image.Image:
     if cache_manager is None:
         detail_cache_dir = (
-            ANN_CARD_PATH if ann_card_cache_dir is None else Path(ann_card_cache_dir)
+            default_runtime_data_layout().cache_ann_card_dir
+            if ann_card_cache_dir is None
+            else Path(ann_card_cache_dir)
         ) / "detail"
         image = await _fetch_image(
             detail_cache_dir,
@@ -937,7 +938,7 @@ class NoticesRenderer:
         self.request_gate = request_gate
         self.downloader = downloader
         self.ann_card_cache_dir = (
-            ANN_CARD_PATH
+            default_runtime_data_layout().cache_ann_card_dir
             if runtime_data_layout is None
             else runtime_data_layout.cache_ann_card_dir
         )

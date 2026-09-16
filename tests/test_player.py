@@ -53,27 +53,31 @@ TARGET_UID = "9876543210987"
 def _preseed_legacy_assets() -> None:
     """预置 legacy 素材缓存（命中即不下载），使离线渲染可复现。"""
 
-    from src.utils.resource import RESOURCE_PATH
+    from src.infrastructure.data_layout import default_runtime_data_layout
+
+    layout = default_runtime_data_layout()
 
     assets = {
-        RESOURCE_PATH.AVATAR_PATH / "avatar_101.png": (180, 60, 60),
-        RESOURCE_PATH.AVATAR_PATH / "avatar_102.png": (60, 120, 180),
-        RESOURCE_PATH.USER_AVATAR_PATH / "avatar_user-1.png": (90, 90, 90),
-        RESOURCE_PATH.USER_AVATAR_PATH / "avatar_target-1.png": (110, 110, 110),
-        RESOURCE_PATH.WEAPON_PATH / "weapon_201.png": (160, 140, 40),
-        RESOURCE_PATH.WEAPON_PATH / "weapon_202.png": (80, 160, 80),
-        RESOURCE_PATH.PAINT_PATH / "paint_101.png": (100, 100, 120),
-        RESOURCE_PATH.ATTR_PATH / "attr_fire.png": (200, 90, 40),
-        RESOURCE_PATH.ATTR_PATH / "attr_ice.png": (70, 140, 210),
-        RESOURCE_PATH.WEAPON_ATTR_PATH / "attr_close.png": (140, 80, 160),
-        RESOURCE_PATH.WEAPON_ATTR_PATH / "attr_ranged.png": (60, 170, 130),
+        layout.cache_game_avatar_dir / "avatar_101.png": (180, 60, 60),
+        layout.cache_game_avatar_dir / "avatar_102.png": (60, 120, 180),
+        layout.cache_user_avatar_dir / "avatar_user-1.png": (90, 90, 90),
+        layout.cache_user_avatar_dir / "avatar_target-1.png": (110, 110, 110),
+        layout.cache_weapon_dir / "weapon_201.png": (160, 140, 40),
+        layout.cache_weapon_dir / "weapon_202.png": (80, 160, 80),
+        layout.cache_paint_dir / "paint_101.png": (100, 100, 120),
+        layout.cache_attr_dir / "attr_fire.png": (200, 90, 40),
+        layout.cache_attr_dir / "attr_ice.png": (70, 140, 210),
+        layout.cache_weapon_attr_dir / "attr_close.png": (140, 80, 160),
+        layout.cache_weapon_attr_dir / "attr_ranged.png": (60, 170, 130),
     }
     for index in range(4):
-        assets[
-            RESOURCE_PATH.SKILL_PATH / "101" / f"skill_技能{index + 1}.png"
-        ] = (90 + index * 20, 60, 120)
+        assets[layout.cache_skill_dir / "101" / f"skill_技能{index + 1}.png"] = (
+            90 + index * 20,
+            60,
+            120,
+        )
     for mod_id in (*range(3000, 3009), 4001):
-        assets[RESOURCE_PATH.MOD_PATH / f"mod_{mod_id}.png"] = (70, 80, 100)
+        assets[layout.cache_mod_dir / f"mod_{mod_id}.png"] = (70, 80, 100)
     for path, color in assets.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists():

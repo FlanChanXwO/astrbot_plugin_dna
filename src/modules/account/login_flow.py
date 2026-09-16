@@ -27,11 +27,15 @@ from ...infrastructure.http.login_media import (
     LoginMediaService,
 )
 from ...infrastructure.http.login_server import LocalLoginServer, Route
+from ...infrastructure.http.login_templates import LOGIN_TEMPLATE_ROOT, LOGIN_TEMPLATES
 from ...infrastructure.rendering.qr import render_qr_code
+from ...infrastructure.rendering.static_assets import (
+    StaticAssetResolver,
+    static_image_data_uri,
+)
 from ...infrastructure.resources.generation import ResourceSnapshotCoordinator
 from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 from ...utils.api.auth import create_device_code
-from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES, TEMP_PATH
 from . import messages
 from .contracts import (
     AccountActor,
@@ -140,6 +144,7 @@ class LoginFlowCoordinator:
         self.account_transport = account_transport
         self.notify = notify
         self.login_media = LoginMediaService(resource_snapshots)
+        self.resource_snapshots = resource_snapshots
         self._sessions: dict[tuple[str, str, str | None], _LoginSession] = {}
         self._session_lock = asyncio.Lock()
         self._started = False
@@ -412,24 +417,37 @@ class LoginFlowCoordinator:
         session = self._find_session(auth)
         if session is None:
             return self._not_found_page()
-        template = DNA_TEMPLATES.get_template("index.html.j2")
+        template = LOGIN_TEMPLATES.get_template("index.html.j2")
         base_url = self.public_url
         login_media = self.login_media.resolve(
             base_url,
             enabled=self.settings.dynamic_background,
         )
+        title_logo_resolver: StaticAssetResolver | None = None
+        if self.resource_snapshots is not None:
+            with self.resource_snapshots.optional_lease() as snapshot:
+                if snapshot is not None:
+                    title_logo_resolver = StaticAssetResolver(snapshot_root=snapshot.root)
+                title_logo = static_image_data_uri(
+                    title_logo_resolver,
+                    "textures/common/title_logo.png",
+                    label="logo",
+                )[0]
+        else:
+            title_logo = static_image_data_uri(None, "", label="logo")[0]
         return HTMLResponse(
             template.render(
                 server_url=base_url,
                 auth=auth,
                 userId=session.actor.user_id,
                 login_media=login_media,
+                title_logo=title_logo,
             )
         )
 
     @staticmethod
     def _not_found_page() -> HTMLResponse:
-        template = DNA_TEMPLATES.get_template("404.html.j2")
+        template = LOGIN_TEMPLATES.get_template("404.html.j2")
         return HTMLResponse(template.render(), status_code=404)
 
     def _login_video(self):
@@ -586,7 +604,7 @@ class LoginFlowCoordinator:
     def _service_worker() -> Response:
         """提供验证码 Service Worker；禁缓存以便发版立即生效。"""
 
-        source = (TEMP_PATH / "sw.js").read_text(encoding="utf-8")
+        source = (LOGIN_TEMPLATE_ROOT / "sw.js").read_text(encoding="utf-8")
         return Response(
             source,
             media_type="text/javascript",

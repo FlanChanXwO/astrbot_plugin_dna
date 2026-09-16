@@ -8,7 +8,7 @@
   配置错误，渲染边界显式失败。
 - ``HELP_GROUP_ORDER``：帮助分组的产品约定顺序（普通用户 10 组 + 管理员
   追加 3 组）。
-- 图标文件位于 ``src/resources/help/icon_path/``；条目引用的图标必须存在。
+- 图标由 ``dna-resource`` 的当前 verified generation 提供。
 """
 
 from __future__ import annotations
