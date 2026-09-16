@@ -106,7 +106,7 @@ class HtmlRenderer:
         if self._t2i is not None:
             return self._t2i
         try:
-            from astrbot.core import html_renderer
+            from astrbot.api import html_renderer
         except ImportError as exc:
             raise T2IRenderError(
                 "无法导入 AstrBot 全局 html_renderer", cause=exc

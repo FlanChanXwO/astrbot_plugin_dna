@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from astrbot.api import AstrBotConfig
+from astrbot.api.event import MessageChain
+from astrbot.api.message_components import At, Node, Nodes, Plain
+from astrbot.api.message_components import Image as AstrImage
 from astrbot.api.star import Context
-from astrbot.core import AstrBotConfig
-from astrbot.core.message.components import At, Node, Nodes, Plain
-from astrbot.core.message.components import Image as AstrImage
-from astrbot.core.message.message_event_result import MessageChain
 
 from .entry.admin_web import build_admin_web_routes
 from .entry.agent_tools import AgentToolsLifecycle

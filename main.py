@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from astrbot.api import AstrBotConfig
 from astrbot.api.star import Context, Star
-from astrbot.core import AstrBotConfig
 
 if __package__:
     from .src.bootstrap import PluginRuntime, build_runtime

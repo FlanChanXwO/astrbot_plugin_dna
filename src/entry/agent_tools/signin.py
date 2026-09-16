@@ -8,10 +8,11 @@ import unicodedata
 from collections.abc import Sequence
 from typing import Any
 
-from ...infrastructure.logger import logger
+from astrbot.api import FunctionTool
 from astrbot.core.agent.run_context import ContextWrapper
-from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
+
+from ...infrastructure.logger import logger
 
 from ...modules.agent_tools.contracts import AgentQueryResult
 from ...modules.checkin.contracts import CheckinCommandRequest
