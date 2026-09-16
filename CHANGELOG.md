@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## v0.5.2 — 2026-09-16
+
+### 修复
+
+- 修复插件经部分安装/解包链路部署后，中文帮助图标文件名被转换为 `#Uxxxx` 形式时无法被 `StaticAssetResolver` 命中的问题；解析器现在优先使用原始文件名，并在原文件不存在时兼容部署后的 Unicode 转义文件名，恢复帮助菜单命令图标正常渲染。（[#70](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/70)）
+- 修正活动日历的资源完整性记录：成功下载并使用的远程活动图记为 `provided`，上游本身未提供图片的活动记为 `omitted`，仅真正无法解析的非空资源引用继续记为 `placeholder`，避免正常日历被误判为 `incomplete`。（[#71](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/71)）
+
+### 文档
+
+- 清理当前 README 中仅用于描述旧 namespace 的遗留字面量，使现行文档保持新的 `dna` namespace 契约；历史变更记录仍保留在 CHANGELOG 中。（[#69](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/69)）
+
+**完整变更**：[`v0.5.1...v0.5.2`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.5.1...v0.5.2)
+
 ## v0.5.1 — 2026-09-16
 
 ### 变更
