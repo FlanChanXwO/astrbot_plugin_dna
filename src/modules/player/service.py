@@ -20,7 +20,7 @@ from ...infrastructure.persistence import (
     CredentialRepository,
 )
 from ...infrastructure.rendering import PlayerRenderer
-from ...infrastructure.resources import ResourceSnapshotCoordinator
+from ...infrastructure.resources import AliasCatalog, ResourceSnapshotCoordinator
 from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
@@ -112,6 +112,7 @@ class PlayerService:
         privacy: PrivacyService,
         renderer: PlayerRenderer,
         *,
+        aliases: AliasCatalog | None = None,
         show_unowned_roles: bool = True,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache: PlayerCache | None = None,
@@ -123,6 +124,7 @@ class PlayerService:
         self.transport = transport
         self.privacy = privacy
         self.renderer = renderer
+        self.aliases = aliases or AliasCatalog()
         self.show_unowned_roles = show_unowned_roles
         self.resource_snapshots = resource_snapshots
         self.cache = cache
@@ -530,11 +532,17 @@ class PlayerService:
         return candidates[0]
 
     @staticmethod
-    def _find_role(overview: RoleOverview, input_name: str) -> RoleItem | None:
+    def _find_role(
+        overview: RoleOverview,
+        input_name: str,
+        aliases: AliasCatalog | None = None,
+    ) -> RoleItem | None:
         normalized = input_name.strip()
         target_name = _MASTER_ALIASES.get(normalized)
         if target_name is None:
             target_name = PlayerService._resolve_master_alias(overview, normalized)
+        if target_name is None and aliases is not None:
+            target_name = aliases.resolve_char(normalized)
         if target_name is None:
             target_name = normalized
         exact = next(
@@ -878,7 +886,7 @@ class PlayerService:
         overview = overview_state.overview
 
         char_name = str(request.parameters.get("char_name", "")).strip()
-        role = self._find_role(overview, char_name)
+        role = self._find_role(overview, char_name, self.aliases)
         if role is None:
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
         if not role.unlocked or role.char_eid is None:
@@ -1004,7 +1012,7 @@ class PlayerService:
             )
 
         char_name = str(request.parameters.get("char_name", "")).strip()
-        role = self._find_role(overview, char_name)
+        role = self._find_role(overview, char_name, self.aliases)
         if role is None:
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
         if not role.unlocked or role.char_eid is None:
@@ -1281,7 +1289,7 @@ class PlayerService:
         )
         if isinstance(overview_state, PlainTextResponse):
             return overview_state
-        role = self._find_role(overview_state.overview, char_name)
+        role = self._find_role(overview_state.overview, char_name, self.aliases)
         if role is None:
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
         await self.cache.invalidate_role_only(target_user_id, uid, role.char_id)

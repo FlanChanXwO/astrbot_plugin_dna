@@ -19,6 +19,7 @@ from src.infrastructure.persistence import (
 )
 from src.infrastructure.rendering import PlayerRenderer, ResourceMap
 from src.infrastructure.rendering.artifact_store import read_rendered_artifact
+from src.infrastructure.resources import AliasCatalog
 from src.modules.player import messages
 from src.modules.player.cache import PlayerCache
 from src.modules.player.contracts import (
@@ -209,6 +210,36 @@ async def test_role_detail_requests_damage_for_complete_app_card(
     layout = artifact.metadata["dna.layout"]
     assert "技能伤害" in text
     assert "伤害" in {section["name"] for section in layout["sections"]}
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_role_detail_resolves_resource_character_alias(tmp_path: Path) -> None:
+    """角色面板应复用公共角色别名，而不是只识别玩家列表中的 canonical 名。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    overview = _overview_fixture()
+    overview.role_chars[0] = overview.role_chars[0].model_copy(update={"name": "海尔法"})
+    transport = FixturePlayerTransport(overview, _detail_fixture(), _weapon_fixture())
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        aliases=AliasCatalog(char_aliases={"海尔法": ("海尔法", "典狱长")}),
+    )
+
+    response = await service.role_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={"char_name": "典狱长", "weapon_name_1": "近战甲"},
+        ),
+    )
+
+    assert isinstance(response, ImageResponse)
+    assert transport.role_detail_calls == 1
     await database.dispose()
 
 
