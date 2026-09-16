@@ -335,6 +335,51 @@ async def test_encyclopedia_renderers_keep_runtime_image_fetchers_isolated(
     assert downloader_a.calls == ["https://cdn.example.test/calendar.png"]
 
 
+@pytest.mark.asyncio
+async def test_calendar_remote_image_success_is_not_marked_incomplete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """成功下载的远程活动图必须记录为 provided，而不是 placeholder。"""
+
+    class RuntimeDownloader:
+        async def fetch(self, url: str, target: Path, *, tag: str = "") -> Path:
+            del url, tag
+            target.parent.mkdir(parents=True, exist_ok=True)
+            Image.new("RGBA", (24, 24), "green").save(target)
+            return target
+
+    async def fake_render(*_args: object, **_kwargs: object) -> bytes:
+        output = BytesIO()
+        Image.new("RGB", (24, 24), "white").save(output, format="JPEG")
+        return output.getvalue()
+
+    monkeypatch.setattr(encyclopedia_module._RENDERER, "render", fake_render)
+    renderer = EncyclopediaRenderer(
+        tmp_path / "rendered",
+        EncyclopediaResourceStore(),
+        downloader=RuntimeDownloader(),
+        runtime_data_layout=RuntimeDataLayout(tmp_path / "runtime"),
+    )
+    rendered = await renderer.render_calendar(
+        CalendarSnapshot(
+            events=(
+                CalendarEvent(
+                    title="网络活动",
+                    pic="https://cdn.example.test/calendar.png",
+                ),
+            ),
+        ),
+    )
+
+    assert any(
+        item["kind"] == "calendar"
+        and item["key"] == "网络活动"
+        and item["status"] == "provided"
+        for item in rendered.resources
+    )
+
+
 def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(
     tmp_path: Path,
 ) -> None:
@@ -426,7 +471,7 @@ async def test_encyclopedia_renderer_marks_provided_and_missing_runtime_assets(
     assert any(
         item["kind"] == "calendar"
         and item["key"] == "活动乙"
-        and item["status"] == "placeholder"
+        and item["status"] == "omitted"
         for item in calendar_image.resources
     )
 
