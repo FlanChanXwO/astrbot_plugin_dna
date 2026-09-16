@@ -100,38 +100,6 @@ def test_runtime_data_layout_exposes_cache_scopes_without_legacy_roots(
     assert not data_dir.exists()
 
 
-def test_resource_path_projection_uses_split_asset_and_media_scopes() -> None:
-    """旧导入投影必须指向新 cache 分层，而不是顶层旧目录。"""
-
-    from src.utils.resource.RESOURCE_PATH import (
-        ANN_CARD_PATH,
-        AVATAR_PATH,
-        CALENDAR_PATH,
-        LOGIN_QR_PATH,
-        OTHER_PATH,
-        RESOURCE_PATH,
-        SIGN_PATH,
-        USER_AVATAR_PATH,
-        WEEKLY_ITEM_PATH,
-    )
-
-    from astrbot.core.utils.astrbot_path import get_astrbot_data_path
-
-    layout = RuntimeDataLayout.from_data_dir(
-        Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_dna"
-    )
-
-    assert RESOURCE_PATH == layout.cache_assets_dir
-    assert AVATAR_PATH == layout.cache_game_avatar_dir
-    assert USER_AVATAR_PATH == layout.cache_user_avatar_dir
-    assert OTHER_PATH == layout.cache_media_dir
-    assert SIGN_PATH == layout.cache_sign_dir
-    assert ANN_CARD_PATH == layout.cache_ann_card_dir
-    assert LOGIN_QR_PATH == layout.cache_login_qr_dir
-    assert CALENDAR_PATH == layout.cache_calendar_dir
-    assert WEEKLY_ITEM_PATH == layout.cache_weekly_item_dir
-
-
 @pytest.mark.asyncio
 async def test_profile_header_fallback_uses_explicit_game_avatar_layout(
     tmp_path: Path,
@@ -153,9 +121,7 @@ async def test_profile_header_fallback_uses_explicit_game_avatar_layout(
     Image.new("RGBA", (8, 8), "blue").save(runtime_avatar)
     global_avatar_before = global_avatar.read_bytes()
 
-    monkeypatch.setattr(
-        image_module, "AVATAR_PATH", global_layout.cache_game_avatar_dir
-    )
+    monkeypatch.setattr(image_module, "default_runtime_data_layout", lambda: global_layout)
 
     async def fail_user_avatar(*args: object, **kwargs: object) -> Image.Image:
         del args, kwargs
@@ -187,7 +153,6 @@ async def test_build_runtime_renderer_uses_explicit_layout_for_media_cache(
     from src.bootstrap import build_runtime
     from src.infrastructure.rendering import encyclopedia as encyclopedia_module
     from src.modules.encyclopedia.contracts import CalendarEvent, CalendarSnapshot
-    from src.utils.resource.RESOURCE_PATH import CALENDAR_PATH
 
     class RuntimeDownloader:
         async def start(self) -> None:
@@ -237,7 +202,6 @@ async def test_build_runtime_renderer_uses_explicit_layout_for_media_cache(
         renderer = runtime.services["encyclopedia_service"].renderer
         await renderer.render_calendar(snapshot)
         assert (layout.cache_calendar_dir / target_name).is_file()
-        assert not (CALENDAR_PATH / target_name).exists()
     finally:
         await database.dispose()
 

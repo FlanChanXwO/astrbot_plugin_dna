@@ -66,14 +66,12 @@ def test_plugin_uses_single_root_logo_asset() -> None:
         ROOT / "README.md",
         ROOT / "src/utils/image.py",
         ROOT / "src/infrastructure/rendering/help.py",
-        ROOT / "src/utils/resource/RESOURCE_PATH.py",
+        ROOT / "src/infrastructure/http/login_templates.py",
     )
     for path in text_paths:
         content = path.read_text(encoding="utf-8")
         assert "ICON.png" not in content
         assert "logo.png" in content
 
-    resource_code = (ROOT / "src/utils/resource/RESOURCE_PATH.py").read_text(encoding="utf-8")
-    assert "title_logo" in resource_code
-    assert "music_on_icon" not in resource_code
-    assert "music_off_icon" not in resource_code
+    login_code = (ROOT / "src/modules/account/login_flow.py").read_text(encoding="utf-8")
+    assert "title_logo" in login_code

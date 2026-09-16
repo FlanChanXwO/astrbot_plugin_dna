@@ -10,8 +10,8 @@ from PIL import Image
 
 from ...utils.image import get_avatar_img
 from ...utils.image_utils import get_event_avatar
-from ...utils.resource.RESOURCE_PATH import USER_AVATAR_PATH
 from ...utils.session import EventContext
+from ..data_layout import default_runtime_data_layout
 from .assets import pil_image_data_uri
 from .static_assets import static_image_data_uri, static_record
 
@@ -58,7 +58,11 @@ async def build_profile_header(
         try:
             avatar = await get_event_avatar(
                 ctx,
-                avatar_path=(USER_AVATAR_PATH if avatar_path is None else avatar_path),
+                avatar_path=(
+                    default_runtime_data_layout().cache_user_avatar_dir
+                    if avatar_path is None
+                    else avatar_path
+                ),
                 downloader=downloader,
             )
         except (httpx.HTTPError, OSError, TypeError, ValueError):

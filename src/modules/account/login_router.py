@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse
 
 from ...infrastructure.config.settings import DNAConfig
+from ...infrastructure.data_layout import default_runtime_data_layout
+from ...infrastructure.http.login_templates import LOGIN_TEMPLATES
 from ...utils import TimedCache, dna_api, get_public_ip
 from ...utils.api.auth import (
     LoginChannel,
@@ -24,7 +26,6 @@ from ...utils.msgs.notify import (
     send_dna_notify,
     send_dna_text,
 )
-from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES, LOGIN_QR_PATH
 from ...utils.segments import MessageSegment
 from ...utils.session import EventContext, Sender
 from . import messages
@@ -133,7 +134,7 @@ async def send_login(sender: Sender, ctx: EventContext, url: str) -> None:
     if DNAConfig.get_config("DNAQRLogin").data:
         # 二维码 helper 保留旧 path 参数；文件名使用摘要，避免外部 user_id 逃出运行期目录。
         qr_name = hashlib.sha256(ctx.user_id.encode("utf-8")).hexdigest()
-        path = LOGIN_QR_PATH / f"{qr_name}.gif"
+        path = default_runtime_data_layout().cache_login_qr_dir / f"{qr_name}.gif"
         path.parent.mkdir(parents=True, exist_ok=True)
         qr_items = [
             MessageSegment.text(messages.login_page(ctx.user_id, url)),
@@ -310,11 +311,11 @@ async def _render_login_page(
 ) -> HTMLResponse:
     login_session = cache.get(auth)
     if not isinstance(login_session, LoginSession):
-        template = DNA_TEMPLATES.get_template("404.html.j2")
+        template = LOGIN_TEMPLATES.get_template("404.html.j2")
         return HTMLResponse(template.render(), status_code=404)
 
     server_url = await get_dna_login_url()
-    template = DNA_TEMPLATES.get_template("index.html.j2")
+    template = LOGIN_TEMPLATES.get_template("index.html.j2")
     return HTMLResponse(
         template.render(
             server_url=server_url,

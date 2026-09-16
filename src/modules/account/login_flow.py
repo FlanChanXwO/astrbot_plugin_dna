@@ -27,6 +27,7 @@ from ...infrastructure.http.login_media import (
     LoginMediaService,
 )
 from ...infrastructure.http.login_server import LocalLoginServer, Route
+from ...infrastructure.http.login_templates import LOGIN_TEMPLATE_ROOT, LOGIN_TEMPLATES
 from ...infrastructure.rendering.qr import render_qr_code
 from ...infrastructure.rendering.static_assets import (
     StaticAssetResolver,
@@ -35,7 +36,6 @@ from ...infrastructure.rendering.static_assets import (
 from ...infrastructure.resources.generation import ResourceSnapshotCoordinator
 from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 from ...utils.api.auth import create_device_code
-from ...utils.resource.RESOURCE_PATH import DNA_TEMPLATES, TEMP_PATH
 from . import messages
 from .contracts import (
     AccountActor,
@@ -417,7 +417,7 @@ class LoginFlowCoordinator:
         session = self._find_session(auth)
         if session is None:
             return self._not_found_page()
-        template = DNA_TEMPLATES.get_template("index.html.j2")
+        template = LOGIN_TEMPLATES.get_template("index.html.j2")
         base_url = self.public_url
         login_media = self.login_media.resolve(
             base_url,
@@ -447,7 +447,7 @@ class LoginFlowCoordinator:
 
     @staticmethod
     def _not_found_page() -> HTMLResponse:
-        template = DNA_TEMPLATES.get_template("404.html.j2")
+        template = LOGIN_TEMPLATES.get_template("404.html.j2")
         return HTMLResponse(template.render(), status_code=404)
 
     def _login_video(self):
@@ -604,7 +604,7 @@ class LoginFlowCoordinator:
     def _service_worker() -> Response:
         """提供验证码 Service Worker；禁缓存以便发版立即生效。"""
 
-        source = (TEMP_PATH / "sw.js").read_text(encoding="utf-8")
+        source = (LOGIN_TEMPLATE_ROOT / "sw.js").read_text(encoding="utf-8")
         return Response(
             source,
             media_type="text/javascript",

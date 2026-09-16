@@ -532,10 +532,11 @@ async def test_sign_calendar_renders_runtime_image(tmp_path: Path) -> None:
     transport = FakeCheckinTransport()
     service = _service(database, transport)
 
-    from src.utils.resource.RESOURCE_PATH import SIGN_PATH
+    from src.infrastructure.data_layout import default_runtime_data_layout
 
+    sign_path = default_runtime_data_layout().cache_sign_dir
     for award in transport.calendar.day_awards:
-        icon_path = SIGN_PATH / award.icon_url.split("/")[-1]
+        icon_path = sign_path / award.icon_url.split("/")[-1]
         icon_path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (140, 140), (80, 120, 160, 255)).save(icon_path, format="PNG")
 

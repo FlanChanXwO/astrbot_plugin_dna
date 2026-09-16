@@ -7,6 +7,7 @@ from pathlib import Path
 
 DATABASE_DIR_NAME = "db"
 DATABASE_FILE_NAME = "dna.sqlite3"
+PLUGIN_NAME = "astrbot_plugin_dna"
 STATE_DIR_NAME = "state"
 SUBSCRIPTIONS_FILE_NAME = "subscriptions.json"
 SCHEDULER_STATE_FILE_NAME = "scheduler.json"
@@ -25,6 +26,12 @@ MEDIA_CACHE_DIR_NAME = "media"
 GAME_AVATAR_DIR_NAME = "game_avatar"
 USER_AVATAR_DIR_NAME = "user_avatar"
 WEEKLY_ITEM_DIR_NAME = "weekly_item"
+WEAPON_DIR_NAME = "weapon"
+PAINT_DIR_NAME = "paint"
+SKILL_DIR_NAME = "skill"
+ATTR_DIR_NAME = "attr"
+MOD_DIR_NAME = "mod"
+WEAPON_ATTR_DIR_NAME = "weapon_attr"
 SIGN_DIR_NAME = "sign"
 ANN_CARD_DIR_NAME = "ann_card"
 CALENDAR_DIR_NAME = "calendar"
@@ -195,6 +202,42 @@ class RuntimeDataLayout:
         return self.cache_assets_dir / WEEKLY_ITEM_DIR_NAME
 
     @property
+    def cache_weapon_dir(self) -> Path:
+        """武器图片缓存目录。"""
+
+        return self.cache_assets_dir / WEAPON_DIR_NAME
+
+    @property
+    def cache_paint_dir(self) -> Path:
+        """角色立绘缓存目录。"""
+
+        return self.cache_assets_dir / PAINT_DIR_NAME
+
+    @property
+    def cache_skill_dir(self) -> Path:
+        """角色技能图标缓存目录。"""
+
+        return self.cache_assets_dir / SKILL_DIR_NAME
+
+    @property
+    def cache_attr_dir(self) -> Path:
+        """角色属性图标缓存目录。"""
+
+        return self.cache_assets_dir / ATTR_DIR_NAME
+
+    @property
+    def cache_mod_dir(self) -> Path:
+        """魔之楔图标缓存目录。"""
+
+        return self.cache_assets_dir / MOD_DIR_NAME
+
+    @property
+    def cache_weapon_attr_dir(self) -> Path:
+        """武器属性图标缓存目录。"""
+
+        return self.cache_assets_dir / WEAPON_ATTR_DIR_NAME
+
+    @property
     def cache_api_dir(self) -> Path:
         """外部 API 响应缓存目录。"""
 
@@ -249,6 +292,23 @@ class RuntimeDataLayout:
         return self.backups_dir / BACKUP_DATABASE_DIR_NAME
 
 
+def default_runtime_data_layout(
+    plugin_name: str = PLUGIN_NAME,
+) -> RuntimeDataLayout:
+    """Resolve the runtime data layout assigned by AstrBot.
+
+    Args:
+        plugin_name: AstrBot plugin identifier used to resolve the data root.
+
+    Returns:
+        Runtime layout rooted at AstrBot's plugin data directory.
+    """
+
+    from astrbot.api.star import StarTools
+
+    return RuntimeDataLayout.from_data_dir(StarTools.get_data_dir(plugin_name))
+
+
 __all__ = [
     "ALIASES_DIR_NAME",
     "ANNOUNCEMENTS_DIR_NAME",
@@ -257,6 +317,7 @@ __all__ = [
     "ANN_CARD_DIR_NAME",
     "API_CACHE_DIR_NAME",
     "ASSETS_DIR_NAME",
+    "ATTR_DIR_NAME",
     "BACKUPS_DIR_NAME",
     "BACKUP_DATABASE_DIR_NAME",
     "CACHE_DIR_NAME",
@@ -268,6 +329,9 @@ __all__ = [
     "GAME_AVATAR_DIR_NAME",
     "LOGIN_QR_DIR_NAME",
     "MEDIA_CACHE_DIR_NAME",
+    "MOD_DIR_NAME",
+    "PAINT_DIR_NAME",
+    "PLUGIN_NAME",
     "RENDERED_CACHE_DIR_NAME",
     "RESOURCES_DIR_NAME",
     "RESOURCE_GENERATIONS_DIR_NAME",
@@ -277,10 +341,14 @@ __all__ = [
     "RESOURCE_VALIDATION_STATE_FILE_NAME",
     "SCHEDULER_STATE_FILE_NAME",
     "SIGN_DIR_NAME",
+    "SKILL_DIR_NAME",
     "STATE_DIR_NAME",
     "SUBSCRIPTIONS_FILE_NAME",
     "USER_AVATAR_DIR_NAME",
     "WEAPON_ALIAS_FILE_NAME",
+    "WEAPON_ATTR_DIR_NAME",
+    "WEAPON_DIR_NAME",
     "WEEKLY_ITEM_DIR_NAME",
     "RuntimeDataLayout",
+    "default_runtime_data_layout",
 ]

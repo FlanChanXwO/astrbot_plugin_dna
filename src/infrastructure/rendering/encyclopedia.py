@@ -49,15 +49,9 @@ from ...utils.msgs.notify import (
     dna_token_invalid,
     dna_uid_invalid,
 )
-from ...utils.resource.RESOURCE_PATH import (
-    AVATAR_PATH,
-    CALENDAR_PATH,
-    USER_AVATAR_PATH,
-    WEEKLY_ITEM_PATH,
-)
 from ...utils.session import EventContext, Sender
 from ...utils.utils import get_using_id, is_peek_blocked, is_uid_hidden
-from ..data_layout import RuntimeDataLayout
+from ..data_layout import RuntimeDataLayout, default_runtime_data_layout
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact
@@ -547,7 +541,7 @@ async def _weekly_item_payload(
     item_quality = getattr(item, "quality", 0)
     item_total = getattr(item, "total_num", getattr(item, "totalNum", "0"))
     weekly_item_cache_dir = (
-        WEEKLY_ITEM_PATH
+        default_runtime_data_layout().cache_weekly_item_dir
         if weekly_item_cache_dir is None
         else Path(weekly_item_cache_dir)
     )
@@ -1105,7 +1099,9 @@ async def _event_image(
         return None
     if "http" in cont.pic:
         calendar_cache_dir = (
-            CALENDAR_PATH if calendar_cache_dir is None else Path(calendar_cache_dir)
+            default_runtime_data_layout().cache_calendar_dir
+            if calendar_cache_dir is None
+            else Path(calendar_cache_dir)
         )
         image = await download_pic_from_url(
             calendar_cache_dir,
@@ -1397,22 +1393,22 @@ class EncyclopediaRenderer:
         self.resources = resources
         self.downloader = downloader
         self.user_avatar_dir = (
-            USER_AVATAR_PATH
+            default_runtime_data_layout().cache_user_avatar_dir
             if runtime_data_layout is None
             else runtime_data_layout.cache_user_avatar_dir
         )
         self.game_avatar_dir = (
-            AVATAR_PATH
+            default_runtime_data_layout().cache_game_avatar_dir
             if runtime_data_layout is None
             else runtime_data_layout.cache_game_avatar_dir
         )
         self.weekly_item_cache_dir = (
-            WEEKLY_ITEM_PATH
+            default_runtime_data_layout().cache_weekly_item_dir
             if runtime_data_layout is None
             else runtime_data_layout.cache_weekly_item_dir
         )
         self.calendar_cache_dir = (
-            CALENDAR_PATH
+            default_runtime_data_layout().cache_calendar_dir
             if runtime_data_layout is None
             else runtime_data_layout.cache_calendar_dir
         )
