@@ -145,8 +145,8 @@ async def draw_weapon_detail_section(
     attr_specs = (
         ("武器类型", element_name, "icon16.png"),
         ("攻击", f"{atk:,}", "icon17.png"),
-        ("暴击率", f"{crd:.0%}", "icon13.png"),
-        ("暴击伤害", f"{cri:.0%}", "icon12.png"),
+        ("暴击率", f"{cri:.0%}", "icon13.png"),
+        ("暴击伤害", f"{crd:.0%}", "icon12.png"),
         ("攻击速度", f"{speed:.0%}", "icon14.png"),
         ("触发率", f"{trigger:.0%}", "icon15.png"),
     )
