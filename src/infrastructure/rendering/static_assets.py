@@ -106,12 +106,17 @@ class StaticAssetResolver:
         if ":" in logical_key:
             prefix, filename = logical_key.split(":", 1)
             directory = self.bootstrap_dirs.get(prefix)
-            if (
-                directory is not None
-                and not _safe_dir_member(filename)
-                and (directory / filename).is_file()
-            ):
-                return ResolvedStaticAsset(directory / filename, "bootstrap", False)
+            if directory is not None and not _safe_dir_member(filename):
+                candidate = directory / filename
+                if candidate.is_file() and not candidate.is_symlink():
+                    return ResolvedStaticAsset(candidate, "bootstrap", False)
+                encoded_filename = "".join(
+                    f"#U{ord(char):04x}" if not char.isascii() else char
+                    for char in filename
+                )
+                encoded_candidate = directory / encoded_filename
+                if encoded_candidate.is_file() and not encoded_candidate.is_symlink():
+                    return ResolvedStaticAsset(encoded_candidate, "bootstrap", False)
         return ResolvedStaticAsset(None, "none", True)
 
     @property
