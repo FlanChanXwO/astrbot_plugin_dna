@@ -16,7 +16,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
     SecretStr,
     field_validator,
     model_validator,
@@ -433,42 +432,6 @@ class ClientUpdatesSettings(_SettingsModel):
 class NotificationSettings(_SettingsModel):
     """公告和密函通知配置。"""
 
-    _compat_client_update_enabled: bool = PrivateAttr(default=True)
-    _compat_client_update_check_minutes: int = PrivateAttr(default=60)
-    _compat_client_update_merge_forward: bool = PrivateAttr(default=True)
-
-    def __init__(self, **data: Any) -> None:
-        # 调度管理旧入口仍可能直接构造 NotificationSettings；兼容参数只在
-        # 构造边界消费，不进入 typed model、model_dump 或 AstrBot schema。
-        legacy_client_values = {
-            key: data.pop(key)
-            for key in (
-                "client_update_enabled",
-                "client_update_check_minutes",
-                "client_update_merge_forward",
-            )
-            if key in data
-        }
-        super().__init__(**data)
-        if legacy_client_values:
-            client_updates = ClientUpdatesSettings.model_validate(
-                {
-                    "enabled": legacy_client_values.get(
-                        "client_update_enabled",
-                        self._compat_client_update_enabled,
-                    ),
-                    "check_minutes": legacy_client_values.get(
-                        "client_update_check_minutes",
-                        self._compat_client_update_check_minutes,
-                    ),
-                    "merge_forward": legacy_client_values.get(
-                        "client_update_merge_forward",
-                        self._compat_client_update_merge_forward,
-                    ),
-                }
-            )
-            self._set_client_update_compatibility(client_updates)
-
     announcement_enabled: bool = Field(
         default=True,
         description="公告推送开关",
@@ -503,38 +466,8 @@ class NotificationSettings(_SettingsModel):
         },
     )
 
-    def _set_client_update_compatibility(
-        self,
-        client_updates: ClientUpdatesSettings,
-    ) -> None:
-        self._compat_client_update_enabled = client_updates.enabled
-        self._compat_client_update_check_minutes = client_updates.check_minutes
-        self._compat_client_update_merge_forward = client_updates.merge_forward
-
-    @property
-    def client_update_enabled(self) -> bool:
-        """兼容旧读取；正式配置位于 client_updates.enabled。"""
-
-        return self._compat_client_update_enabled
-
-    @property
-    def client_update_check_minutes(self) -> int:
-        """兼容旧读取；正式配置位于 client_updates.check_minutes。"""
-
-        return self._compat_client_update_check_minutes
-
-    @property
-    def client_update_merge_forward(self) -> bool:
-        """兼容旧读取；正式配置位于 client_updates.merge_forward。"""
-
-        return self._compat_client_update_merge_forward
-
-
 class DisplaySettings(_SettingsModel):
     """角色展示和攻略来源配置。"""
-
-    _compat_command_prefixes: list[str] = PrivateAttr(default_factory=lambda: ["dna"])
-    _compat_allow_mention_query: bool = PrivateAttr(default=True)
 
     guide_providers: list[Literal["all", "狩月庭攻略组", "猫冬"]] = Field(
         default_factory=lambda: ["all"],
@@ -546,35 +479,6 @@ class DisplaySettings(_SettingsModel):
         description="显示未拥有角色",
         json_schema_extra={"hint": "是否在角色信息卡片中显示未拥有的角色和武器"},
     )
-
-    def _set_general_compatibility(
-        self,
-        command_prefixes: list[str],
-        allow_mention_query: bool,
-    ) -> None:
-        self._compat_command_prefixes = list(command_prefixes)
-        self._compat_allow_mention_query = allow_mention_query
-
-    @property
-    def command_prefixes(self) -> list[str]:
-        """兼容旧读取；正式配置位于 general.command_prefixes。"""
-
-        return list(self._compat_command_prefixes)
-
-    @property
-    def command_prefix(self) -> str:
-        """保持向前兼容的单前缀访问属性。"""
-
-        return (
-            self._compat_command_prefixes[0] if self._compat_command_prefixes else "dna"
-        )
-
-    @property
-    def allow_mention_query(self) -> bool:
-        """兼容旧读取；正式配置位于 general.allow_mention_query。"""
-
-        return self._compat_allow_mention_query
-
 
 _TARGET_CONFIG_GROUPS = (
     "general",
@@ -942,20 +846,6 @@ class DNASettings(_SettingsModel):
     )
     cache: CacheSettings = Field(default_factory=CacheSettings, description="缓存设置")
 
-    def model_post_init(self, __context: Any) -> None:
-        """同步尚未迁移的旧读取属性，但不把兼容字段暴露为模型字段。"""
-        self.display._set_general_compatibility(
-            self.general.command_prefixes,
-            self.general.allow_mention_query,
-        )
-        self.notifications._set_client_update_compatibility(self.client_updates)
-
-    @property
-    def agent_tools(self) -> AgentToolsSettings:
-        """兼容旧读取；正式开关位于 ai.agent_tools_enabled。"""
-
-        return AgentToolsSettings(enabled=self.ai.agent_tools_enabled)
-
     @classmethod
     def from_config(cls, config: Mapping[str, Any] | None) -> DNASettings:
         """将 AstrBot 的嵌套配置字典转换为 typed settings，且不改写输入。"""
@@ -1018,9 +908,9 @@ __all__ = [
     "CacheSettings",
     "ClientUpdatesSettings",
     "DNAConfig",
+    "DNASettings",
     "DNASignConfig",
     "DisplaySettings",
-    "DNASettings",
     "GeneralSettings",
     "LoginSettings",
     "NetworkSettings",

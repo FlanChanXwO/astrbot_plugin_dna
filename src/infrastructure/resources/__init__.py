@@ -18,7 +18,6 @@ from .encyclopedia import (
 )
 from .generation import (
     ResourceGenerationError,
-    ResourceGenerationManager,
     ResourceGenerationValidator,
     ResourceLease,
     ResourceSnapshot,
@@ -37,7 +36,6 @@ from .git import (
     ResourceSyncError,
     ResourceSynchronizer,
     ResourceSyncResult,
-    download_all_resources,
     run_git,
 )
 from .manifest import (
@@ -93,7 +91,6 @@ __all__ = [
     "ResolvedAsset",
     "ResourceBranchMismatchError",
     "ResourceGenerationError",
-    "ResourceGenerationManager",
     "ResourceGenerationValidator",
     "ResourceLease",
     "ResourceLocalChangesError",
@@ -110,7 +107,6 @@ __all__ = [
     "accelerate_github_url",
     "build_git_instead_of_config",
     "default_resource_repository_dir",
-    "download_all_resources",
     "normalize_github_repository_url",
     "normalize_http_base_url",
     "resolve_github_acceleration_prefix",

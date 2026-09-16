@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from PIL import Image
 
-from src.rendering import (
+from src.infrastructure.rendering import (
     HtmlRenderer,
     RenderResultError,
     RenderSpec,

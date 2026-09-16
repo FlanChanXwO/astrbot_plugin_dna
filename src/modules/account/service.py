@@ -9,13 +9,14 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
+from astrbot.api import logger
+
 from ...entry.response import LoginResponse, PlainTextResponse
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
     CredentialRepository,
 )
-from ...infrastructure.utils.logger import logger
 from . import messages
 from .contracts import (
     AccountActor,

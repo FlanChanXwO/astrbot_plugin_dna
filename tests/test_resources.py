@@ -9,18 +9,18 @@ from threading import Event, Lock
 import pytest
 
 from src.entry.response import PlainTextResponse
+from src.infrastructure.rendering.player import ResourceMap
 from src.infrastructure.resources import (
     GitUnavailableError,
-    ResourceSnapshot,
-    ResourceSnapshotCoordinator,
     ResourceLocalChangesError,
     ResourceRemoteMismatchError,
+    ResourceSnapshot,
+    ResourceSnapshotCoordinator,
     ResourceSyncError,
     ResourceSyncResult,
 )
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.manifest import ResourceManifest
-from src.infrastructure.rendering.player import ResourceMap
 from src.modules.operations.resource_service import ResourceUpdateService
 
 
@@ -36,7 +36,7 @@ def _service(tmp_path: Path, *, synchronize=None) -> ResourceUpdateService:
 
 
 @pytest.mark.asyncio
-async def test_download_all_reports_clone_and_update(tmp_path: Path) -> None:
+async def test_sync_resources_reports_clone_and_update(tmp_path: Path) -> None:
     """下载成功区分克隆与更新动作并报告版本。"""
 
     cloned = _service(
@@ -52,8 +52,8 @@ async def test_download_all_reports_clone_and_update(tmp_path: Path) -> None:
         ),
     )
 
-    clone_resp = await cloned.download_all(None)
-    update_resp = await updated.download_all(None)
+    clone_resp = await cloned.sync_resources(None)
+    update_resp = await updated.sync_resources(None)
 
     assert isinstance(clone_resp, PlainTextResponse)
     assert "资源已克隆完成，版本 1.0" in clone_resp.text
@@ -70,7 +70,7 @@ async def test_download_all_reports_clone_and_update(tmp_path: Path) -> None:
         (ResourceSyncError("sync exploded"), "资源同步失败：sync exploded"),
     ],
 )
-async def test_download_all_failures_are_visible(
+async def test_sync_resources_failures_are_visible(
     tmp_path: Path, error: Exception, expected: str
 ) -> None:
     """Git 缺失/远端不匹配/本地修改/同步失败均返回可见文案，不自动覆盖。"""
@@ -79,14 +79,14 @@ async def test_download_all_failures_are_visible(
         raise error
 
     service = _service(tmp_path, synchronize=boom)
-    response = await service.download_all(None)
+    response = await service.sync_resources(None)
 
     assert isinstance(response, PlainTextResponse)
     assert expected in response.text
 
 
 @pytest.mark.asyncio
-async def test_concurrent_download_all_uses_one_single_flight(tmp_path: Path) -> None:
+async def test_concurrent_sync_resources_uses_one_single_flight(tmp_path: Path) -> None:
     """并发管理员请求必须等待同一次同步，而不是重复执行 Git。"""
 
     started = Event()
@@ -107,9 +107,9 @@ async def test_concurrent_download_all_uses_one_single_flight(tmp_path: Path) ->
         )
 
     service = _service(tmp_path, synchronize=synchronize)
-    first = asyncio.create_task(service.download_all(None))
+    first = asyncio.create_task(service.sync_resources(None))
     await asyncio.to_thread(started.wait)
-    second = asyncio.create_task(service.download_all(None))
+    second = asyncio.create_task(service.sync_resources(None))
     await asyncio.sleep(0)
     release.set()
 

@@ -318,7 +318,7 @@ async def test_generated_handler_reparses_its_named_parameters():
 async def test_generated_handler_returns_generic_message_for_render_failure():
     """图片渲染失败时，handler 不得把模板或服务内部细节暴露给用户。"""
 
-    from src.rendering import T2IRenderError
+    from src.infrastructure.rendering import T2IRenderError
 
     async def failing_use_case(_request: CommandRequest, _registry, **_parameters):
         raise T2IRenderError("secret-template-path")

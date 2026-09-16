@@ -3,20 +3,20 @@
 import pytest
 from pydantic import ValidationError
 
-from src.infrastructure.config import generate_legacy_schema as generate_astrbot_schema
 from src.infrastructure.config.legacy import (
     DNA_CONFIG_SECTION,
     DNA_SIGN_CONFIG_SECTION,
     LEGACY_DNA_CONFIG_SECTION,
     LEGACY_DNA_SIGN_CONFIG_SECTION,
+    generate_astrbot_schema,
 )
 from src.infrastructure.config.schema import (
     generate_astrbot_schema as generate_typed_schema,
 )
 from src.infrastructure.config.settings import (
     ClientUpdatesSettings,
-    DNASettings,
     DNAConfig,
+    DNASettings,
     DNASignConfig,
     LoginSettings,
     ResourceSettings,
@@ -174,30 +174,27 @@ def test_get_config_unknown_key_raises():
         DNAConfig.get_config("不存在的键")
 
 
-def test_display_settings_supports_configurable_command_prefix():
+def test_general_settings_supports_configurable_command_prefix():
     settings = DNASettings.from_config({"display": {"command_prefix": "dna"}})
-    assert settings.display.command_prefix == "dna"
-    assert settings.display.command_prefixes == ["dna"]
+    assert settings.general.command_prefixes == ["dna"]
 
     multi_settings = DNASettings.from_config(
         {"display": {"command_prefixes": ["kk", "dna"]}}
     )
-    assert multi_settings.display.command_prefixes == ["kk", "dna"]
-    assert multi_settings.display.command_prefix == "kk"
+    assert multi_settings.general.command_prefixes == ["kk", "dna"]
 
     default_settings = DNASettings.from_config({})
-    assert default_settings.display.command_prefix == "dna"
-    assert default_settings.display.command_prefixes == ["dna"]
+    assert default_settings.general.command_prefixes == ["dna"]
 
 
-def test_display_settings_rejects_invalid_prefix_values():
+def test_general_settings_rejects_invalid_prefix_values():
     from pydantic import ValidationError
 
-    from src.infrastructure.config.settings import DisplaySettings
+    from src.infrastructure.config.settings import GeneralSettings
 
     for value in (None, 123, {"prefix": "kk"}):
         with pytest.raises(ValidationError):
-            DisplaySettings(command_prefixes=value)
+            GeneralSettings(command_prefixes=value)
 
     with pytest.raises(ValidationError):
         DNASettings.from_config({"display": {"command_prefix": {"prefix": "kk"}}})
@@ -540,7 +537,7 @@ def test_legacy_nested_and_flat_config_migration():
     settings = DNASettings.from_config(legacy_gscore)
     assert settings.login.max_bind_count == 4
     assert settings.login.url == "http://login.local:8080"
-    assert settings.display.command_prefix == "dna"
+    assert settings.general.command_prefixes == ["dna"]
     assert settings.notifications.secret_simple_image is True
     assert settings.sign_in.sign_time == "08:00"
     assert settings.sign_in.default_auto_sign_enabled is True

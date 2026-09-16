@@ -31,9 +31,7 @@ def _parse_local_time(text: str, fmt: str) -> datetime:
     return datetime.strptime(text, fmt).replace(tzinfo=SHANGHAI_TZ)
 
 
-async def fetch_ann_list(*, prefer_cache: bool = True) -> list[dict[str, Any]]:
-    # 保留参数以兼容 legacy 绘制入口；公告列表不再接受无 TTL 进程缓存。
-    del prefer_cache
+async def fetch_ann_list() -> list[dict[str, Any]]:
     return await dna_api.get_ann_list(is_cache=False) or []
 
 

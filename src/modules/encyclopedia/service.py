@@ -7,6 +7,8 @@ from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
 
+from astrbot.api import logger
+
 from ...entry.response import (
     ChainResponse,
     ImageResponse,
@@ -19,7 +21,6 @@ from ...infrastructure.resources import (
     EncyclopediaResourceStore,
     ResourceSnapshotCoordinator,
 )
-from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (

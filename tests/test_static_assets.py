@@ -3,16 +3,12 @@ from pathlib import Path
 from src.infrastructure.rendering.static_assets import StaticAssetResolver
 
 
-def test_static_asset_resolver_prefers_snapshot_then_bootstrap(tmp_path: Path) -> None:
+def test_static_asset_resolver_uses_snapshot_only(tmp_path: Path) -> None:
     snapshot = tmp_path / "snapshot"
     (snapshot / "fonts").mkdir(parents=True)
     (snapshot / "fonts" / "dna_fonts.ttf").write_bytes(b"font")
-    bootstrap = tmp_path / "bootstrap.ttf"
-    bootstrap.write_bytes(b"bootstrap")
-
     resolver = StaticAssetResolver(
         snapshot_root=snapshot,
-        bootstrap_allowlist={"font.dna": bootstrap},
         asset_paths={"font.dna": "fonts/dna_fonts.ttf"},
     )
     resolved = resolver.resolve("font.dna")
@@ -22,9 +18,9 @@ def test_static_asset_resolver_prefers_snapshot_then_bootstrap(tmp_path: Path) -
 
     (snapshot / "fonts" / "dna_fonts.ttf").unlink()
     resolved = resolver.resolve("font.dna")
-    assert resolved.path == bootstrap
-    assert resolved.source == "bootstrap"
-    assert not resolved.incomplete
+    assert resolved.path is None
+    assert resolved.source == "none"
+    assert resolved.incomplete
 
 
 def test_static_asset_resolver_marks_missing_and_rejects_escape(tmp_path: Path) -> None:
@@ -46,34 +42,19 @@ def test_static_asset_resolver_marks_missing_and_rejects_escape(tmp_path: Path) 
         raise AssertionError("unsafe static asset path must be rejected")
 
 
-def test_resolve_relative_prefers_snapshot_then_common_bootstrap(
-    tmp_path: Path,
-) -> None:
+def test_resolve_relative_uses_snapshot_only(tmp_path: Path) -> None:
     snapshot = tmp_path / "snapshot"
     (snapshot / "textures" / "role").mkdir(parents=True)
     (snapshot / "textures" / "role" / "info_bar.png").write_bytes(b"png")
-    bootstrap_dir = tmp_path / "texture2d"
-    bootstrap_dir.mkdir()
-    (bootstrap_dir / "bg1.jpg").write_bytes(b"jpg")
-
-    resolver = StaticAssetResolver(
-        snapshot_root=snapshot,
-        bootstrap_texture_dir=bootstrap_dir,
-        bootstrap_relative_allowlist={"textures/common/bg1.jpg"},
-    )
+    resolver = StaticAssetResolver(snapshot_root=snapshot)
     resolved = resolver.resolve_relative("textures/role/info_bar.png")
     assert resolved.path == snapshot / "textures" / "role" / "info_bar.png"
     assert resolved.source == "verified_snapshot"
     assert not resolved.incomplete
 
     resolved = resolver.resolve_relative("textures/common/bg1.jpg")
-    assert resolved.path == bootstrap_dir / "bg1.jpg"
-    assert resolved.source == "bootstrap"
-    assert not resolved.incomplete
-
-    # 未列入显式 allowlist 的 common 路径不得隐式回退本地 bootstrap。
-    resolved = resolver.resolve_relative("textures/common/not_allowlisted.jpg")
     assert resolved.path is None
+    assert resolved.source == "none"
     assert resolved.incomplete
 
 
@@ -161,15 +142,3 @@ def test_static_helpers_fallback_and_record(tmp_path: Path) -> None:
         resolver, "textures/sign/none.png", size=(4, 4), label="签到"
     )
     assert placeholder.size == (4, 4)
-
-
-def test_resolve_supports_bootstrap_only_keys(tmp_path: Path) -> None:
-    """没有 snapshot 映射的 key 也必须能进入 bootstrap 检查。"""
-
-    logo = tmp_path / "logo.png"
-    logo.write_bytes(b"png")
-    resolver = StaticAssetResolver(bootstrap_allowlist={"texture.help.logo": logo})
-    resolved = resolver.resolve("texture.help.logo")
-    assert resolved.path == logo
-    assert resolved.source == "bootstrap"
-    assert not resolved.incomplete

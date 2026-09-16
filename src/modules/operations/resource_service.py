@@ -127,11 +127,6 @@ class ResourceUpdateService:
             ),
         )
 
-    async def download_all(self, _request: object):
-        """兼容旧命令入口，转发到 ``sync_resources``。"""
-
-        return await self.sync_resources(_request)
-
     async def status(self):
         """展示公共资源状态；不读取已移除的自定义面板目录。"""
 

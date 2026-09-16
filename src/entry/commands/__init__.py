@@ -19,11 +19,11 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Literal, cast
 
+from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.core.star.filter.regex import RegexFilter
 
 from ...infrastructure.rendering.errors import HtmlRenderError
-from ...infrastructure.utils.logger import logger
 from ...utils.msgs.notify import HTML_RENDER_FAILED, MENTION_TARGET_UNRESOLVED
 from ..event import (
     EventActor,

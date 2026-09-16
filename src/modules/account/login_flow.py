@@ -657,15 +657,10 @@ class LoginFlowCoordinator:
         ]
 
 
-# 兼容现有 import 名称；新的入口统一使用协调器实现。
-LoginFlowService = LoginFlowCoordinator
-
-
 __all__ = [
     "ROUTE_PREFIX",
     "LoginFlowCoordinator",
     "LoginFlowProvider",
-    "LoginFlowService",
     "LoginSmsCodeParams",
     "LoginSubmitParams",
 ]

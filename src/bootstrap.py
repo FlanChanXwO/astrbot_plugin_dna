@@ -58,8 +58,6 @@ from .infrastructure.rendering import (
     ResourceMap,
 )
 from .infrastructure.rendering.static_assets import (
-    BOOTSTRAP_RELATIVE_ALLOWLIST,
-    BOOTSTRAP_TEXTURE_ROOT,
     StaticAssetResolver,
 )
 from .infrastructure.resources import (
@@ -251,14 +249,8 @@ def build_runtime(
     static_asset_resolver = StaticAssetResolver(
         snapshot_root=None,
         coordinator=resource_snapshots,
-        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_ROOT,
-        # 仅显式允许这些通用装饰图在无 snapshot 时回退本地 bootstrap；
-        # 其余静态资源缺失必须暴露为 incomplete，不得被本地同名文件掩盖。
-        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
-        bootstrap_allowlist={
-            "texture.help.logo": Path(__file__).parents[1] / "logo.png"
-        },
         asset_paths={
+            "texture.help.logo": "textures/common/title_logo.png",
             "texture.common.footer": "textures/common/footer.png",
             "font.dna_fonts": "fonts/dna_fonts.ttf",
         },
@@ -318,7 +310,7 @@ def build_runtime(
         set_login_flow(login_flow)
     privacy_service = PrivacyService(
         runtime_database,
-        allow_mention_query=settings.display.allow_mention_query,
+        allow_mention_query=settings.general.allow_mention_query,
     )
     # 构造期只接纳本进程已经拥有的 current snapshot；常规重载会在异步生命周期
     # 从上一次成功同步后原子写入的 current.json 快速恢复，不再重复执行全量哈希与
@@ -730,7 +722,7 @@ def build_runtime(
     )
 
     def _synchronize_resources():
-        return resource_snapshots.synchronize()
+        return resource_snapshots.sync_resources()
 
     resource_update_service = ResourceUpdateService(
         synchronize=_synchronize_resources,
@@ -876,9 +868,9 @@ def build_runtime(
 
     agent_tools_lifecycle = AgentToolsLifecycle(
         context=context,
-        enabled=settings.agent_tools.enabled,
+        enabled=settings.ai.agent_tools_enabled,
         services=resolved_services,
-        command_prefixes=tuple(settings.display.command_prefixes),
+        command_prefixes=tuple(settings.general.command_prefixes),
         plugin_context=plugin_context,
     )
     resolved_services["agent_tools_lifecycle"] = agent_tools_lifecycle
@@ -946,8 +938,8 @@ def build_runtime(
             rendered_store=rendered_store,
         ),
         commands=(
-            load_command_registry(prefixes=settings.display.command_prefixes)
-            if command_registry is None or settings.display.command_prefixes != ["dna"]
+            load_command_registry(prefixes=settings.general.command_prefixes)
+            if command_registry is None or settings.general.command_prefixes != ["dna"]
             else command_registry
         ),
         settings=settings,

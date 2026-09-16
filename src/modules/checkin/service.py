@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+from astrbot.api import logger
+
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
 from ...entry.response import ImageResponse, PlainTextResponse
 from ...infrastructure.persistence import (
@@ -27,7 +29,6 @@ from ...infrastructure.rendering import CheckinRenderer
 from ...infrastructure.rendering.checkin import create_sign_info_image
 from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
-from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .contracts import (
@@ -736,7 +737,6 @@ class CheckinService:
     async def auto_sign_report(
         self,
         *,
-        enable_all_users: bool = False,
         group_ids: Collection[str] | None = None,
     ) -> AutoSignReport:
         """执行一次自动签到并返回全局与目标群的结构化报告。
@@ -745,8 +745,6 @@ class CheckinService:
         群集合（包括空集合）后，服务只构建这些群的报告，避免未订阅群的图片渲染。
         """
 
-        # 保留旧调用参数以兼容外部调用方，但不允许全局参数覆盖 UID 的选择。
-        del enable_all_users
         result = await self._run_all_signs_with_results(respect_auto_sign=True)
         summary_text = self._auto_summary_text(result.summary)
         if not self.group_report:

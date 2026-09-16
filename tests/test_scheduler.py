@@ -25,10 +25,8 @@ class _FakeCheckin:
     async def auto_sign_report(
         self,
         *,
-        enable_all_users: bool = False,
         group_ids=None,
     ) -> AutoSignReport:
-        del enable_all_users
         self.requested_group_ids.append(
             None if group_ids is None else frozenset(group_ids)
         )

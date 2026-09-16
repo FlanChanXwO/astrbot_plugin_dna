@@ -72,7 +72,7 @@ _TASK_TARGET_TYPES: dict[str, frozenset[str]] = {
 _CONFIG_FIELDS: dict[str, tuple[str, str]] = {
     "dna_sign_daily": ("sign_in", "sign_time"),
     "dna_ann_poll": ("notifications", "announcement_check_minutes"),
-    "dna_client_update_poll": ("notifications", "client_update_check_minutes"),
+    "dna_client_update_poll": ("client_updates", "check_minutes"),
 }
 _MISSING = object()
 

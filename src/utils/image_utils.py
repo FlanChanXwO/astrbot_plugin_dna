@@ -5,7 +5,6 @@
 - ``ImageFetcher`` / ``download``：带重试、校验和原子替换的运行期图片下载
 - ``get_event_avatar``：按用户 id 拉头像（QQ 头像源），失败抛异常由调用方兜底
 - ``change_ev_image_to_bytes``：URL/路径/bytes → bytes（上传用）
-- ``get_qrcode_base64``：兼容入口，URL → HTML/T2I 二维码 PNG bytes
 """
 
 from __future__ import annotations
@@ -40,7 +39,6 @@ __all__ = [
     "download",
     "get_default_image_fetcher",
     "get_event_avatar",
-    "get_qrcode_base64",
     "tint_image",
 ]
 
@@ -760,12 +758,3 @@ async def change_ev_image_to_bytes(
             resp.raise_for_status()
             return resp.content
     return Path(s).read_bytes()
-
-
-async def get_qrcode_base64(url: str, path: Path, name: str) -> bytes:
-    """以 HTML/T2I 生成扫码登录二维码，保留旧参数与返回类型。"""
-
-    del path, name
-    from ..infrastructure.rendering.qr import render_qr_code
-
-    return await render_qr_code(url)

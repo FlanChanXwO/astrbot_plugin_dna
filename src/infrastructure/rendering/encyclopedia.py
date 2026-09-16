@@ -14,8 +14,6 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum
-from io import BytesIO
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -33,24 +31,15 @@ from ...modules.encyclopedia.contracts import (
     WeeklyReportItem,
 )
 from ...modules.player.contracts import RoleHeader, RoleOverview
-from ...utils import dna_api
 from ...utils.api.model import (
     DNAItemWeeklyReportRes,
     DNARoleForToolRes,
     DNARoleShortNoteRes,
     RoleShowForTool,
 )
-from ...utils.database.models import DNABind
 from ...utils.image import download_pic_from_url
 from ...utils.image_utils import crop_center_img, tint_image
-from ...utils.msgs.notify import (
-    dna_not_found,
-    dna_peek_blocked,
-    dna_token_invalid,
-    dna_uid_invalid,
-)
-from ...utils.session import EventContext, Sender
-from ...utils.utils import get_using_id, is_peek_blocked, is_uid_hidden
+from ...utils.session import EventContext
 from ..data_layout import RuntimeDataLayout, default_runtime_data_layout
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from ..resources.resolver import AssetDownloader
@@ -424,95 +413,6 @@ async def _draw_stamina_card(
     )
 
 
-async def draw_stamina_card(*args, **kwargs) -> Image.Image | bytes:
-    if len(args) >= 2 and isinstance(args[1], RoleShowForTool):
-        ctx = args[0]
-        role_show = args[1]
-        short_note = args[2] if len(args) > 2 else kwargs.get("short_note_info")
-        if short_note is None:
-            raise ValueError("缺少 short_note_info 参数")
-        uid_hidden = bool(kwargs.get("uid_hidden", False))
-        downloader = kwargs.get("downloader")
-        user_avatar_dir = kwargs.get("user_avatar_dir")
-        game_avatar_dir = kwargs.get("game_avatar_dir")
-        static_asset_resolver = kwargs.get("static_asset_resolver")
-        static_records = kwargs.get("static_records")
-        return await _draw_stamina_card(
-            ctx,
-            role_show,
-            short_note,
-            uid_hidden=uid_hidden,
-            downloader=downloader,
-            user_avatar_dir=user_avatar_dir,
-            game_avatar_dir=game_avatar_dir,
-        )
-    elif len(args) >= 2:
-        short_note = args[0]
-        role_info = args[1]
-        role_show = (
-            role_info.roleInfo.roleShow if hasattr(role_info, "roleInfo") else role_info
-        )
-        ctx = kwargs.get("ctx") or EventContext(
-            user_id=kwargs.get("avatar_user_id", "0")
-        )
-        uid_hidden = bool(kwargs.get("uid_hidden", False))
-        downloader = kwargs.get("downloader")
-        user_avatar_dir = kwargs.get("user_avatar_dir")
-        game_avatar_dir = kwargs.get("game_avatar_dir")
-        static_asset_resolver = kwargs.get("static_asset_resolver")
-        static_records = kwargs.get("static_records")
-        raw_bytes = await _draw_stamina_card(
-            ctx,
-            role_show,
-            short_note,
-            uid_hidden=uid_hidden,
-            downloader=downloader,
-            user_avatar_dir=user_avatar_dir,
-            game_avatar_dir=game_avatar_dir,
-            static_asset_resolver=static_asset_resolver,
-            static_records=static_records,
-        )
-        return Image.open(BytesIO(raw_bytes)).convert("RGBA")
-    else:
-        return await _draw_stamina_card(*args, **kwargs)
-
-
-async def draw_stamina_img(sender: Sender, ctx: EventContext):
-    user_id = await get_using_id(ctx)
-    if is_peek_blocked(ctx, user_id):
-        await dna_peek_blocked(sender, ctx)
-        return
-    uid = await DNABind.get_uid_by_game(user_id, ctx.bot_id)
-    if not uid:
-        await dna_uid_invalid(sender, ctx)
-        return
-
-    dna_user = await dna_api.get_dna_user(uid, user_id, ctx.bot_id)
-    if not dna_user:
-        await dna_token_invalid(sender, ctx)
-        return
-
-    short_note_info = await dna_api.get_short_note_info(dna_user)
-    if not short_note_info.is_success:
-        await dna_not_found(sender, ctx, "日常便签数据")
-        return
-    short_note_res = DNARoleShortNoteRes.model_validate(short_note_info.data)
-
-    role_for_tool_info = await dna_api.get_default_role_for_tool(dna_user)
-    if not role_for_tool_info.is_success:
-        await dna_not_found(sender, ctx, "角色列表信息")
-        return
-    role_show = DNARoleForToolRes.model_validate(
-        role_for_tool_info.data
-    ).roleInfo.roleShow
-    uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
-
-    card = await _draw_stamina_card(
-        ctx, role_show, short_note_res, uid_hidden=uid_hidden
-    )
-    await sender.send(card)
-
-
 # ---------------------------------------------------------------------------
 # 2. 探险周报 (Weekly Report)
 # ---------------------------------------------------------------------------
@@ -781,149 +681,9 @@ async def _draw_weekly_report_card(
     )
 
 
-async def draw_weekly_report_card(*args, **kwargs) -> Image.Image | bytes:
-    if len(args) >= 2 and isinstance(args[1], RoleShowForTool):
-        ctx = args[0]
-        role_show = args[1]
-        report = args[2] if len(args) > 2 else kwargs.get("report")
-        if report is None:
-            raise ValueError("缺少 report 参数")
-        week_type = int(kwargs.get("week_type", 1))
-        uid_hidden = bool(kwargs.get("uid_hidden", False))
-        item_assets = kwargs.get("item_assets")
-        downloader = kwargs.get("downloader")
-        weekly_item_cache_dir = kwargs.get("weekly_item_cache_dir")
-        user_avatar_dir = kwargs.get("user_avatar_dir")
-        game_avatar_dir = kwargs.get("game_avatar_dir")
-        static_asset_resolver = kwargs.get("static_asset_resolver")
-        static_records = kwargs.get("static_records")
-        return await _draw_weekly_report_card(
-            ctx,
-            role_show,
-            report,
-            week_type=week_type,
-            uid_hidden=uid_hidden,
-            item_assets=item_assets,
-            downloader=downloader,
-            weekly_item_cache_dir=weekly_item_cache_dir,
-            user_avatar_dir=user_avatar_dir,
-            game_avatar_dir=game_avatar_dir,
-            static_asset_resolver=static_asset_resolver,
-            static_records=static_records,
-        )
-    elif len(args) >= 2:
-        report = args[0]
-        role_info = args[1]
-        role_show = (
-            role_info.roleInfo.roleShow if hasattr(role_info, "roleInfo") else role_info
-        )
-        ctx = kwargs.get("ctx") or EventContext(
-            user_id=kwargs.get("avatar_user_id", "0")
-        )
-        week_type = int(kwargs.get("week_type", 1))
-        uid_hidden = bool(kwargs.get("uid_hidden", False))
-        item_assets = kwargs.get("item_assets")
-        downloader = kwargs.get("downloader")
-        weekly_item_cache_dir = kwargs.get("weekly_item_cache_dir")
-        user_avatar_dir = kwargs.get("user_avatar_dir")
-        game_avatar_dir = kwargs.get("game_avatar_dir")
-        static_asset_resolver = kwargs.get("static_asset_resolver")
-        static_records = kwargs.get("static_records")
-        raw_bytes = await _draw_weekly_report_card(
-            ctx,
-            role_show,
-            report,
-            week_type=week_type,
-            uid_hidden=uid_hidden,
-            item_assets=item_assets,
-            downloader=downloader,
-            weekly_item_cache_dir=weekly_item_cache_dir,
-            user_avatar_dir=user_avatar_dir,
-            game_avatar_dir=game_avatar_dir,
-            static_asset_resolver=static_asset_resolver,
-            static_records=static_records,
-        )
-        return Image.open(BytesIO(raw_bytes)).convert("RGBA")
-    else:
-        return await _draw_weekly_report_card(*args, **kwargs)
-
-
-async def draw_weekly_report_img(sender: Sender, ctx: EventContext, week_type: int = 1):
-    user_id = await get_using_id(ctx)
-    if is_peek_blocked(ctx, user_id):
-        return await dna_peek_blocked(sender, ctx)
-    uid = await DNABind.get_uid_by_game(user_id, ctx.bot_id)
-    if not uid:
-        return await dna_uid_invalid(sender, ctx)
-
-    dna_user = await dna_api.get_dna_user(uid, user_id, ctx.bot_id)
-    if not dna_user:
-        return await dna_token_invalid(sender, ctx)
-
-    weekly_report_info = await dna_api.get_item_weekly_report(dna_user, week_type)
-    if not weekly_report_info.is_success:
-        return await dna_not_found(sender, ctx, "周报数据")
-    report = DNAItemWeeklyReportRes.model_validate(weekly_report_info.data)
-
-    role_for_tool_info = await dna_api.get_default_role_for_tool(dna_user)
-    if not role_for_tool_info.is_success:
-        return await dna_not_found(sender, ctx, "角色列表信息")
-    role_show = DNARoleForToolRes.model_validate(
-        role_for_tool_info.data
-    ).roleInfo.roleShow
-    uid_hidden = await is_uid_hidden(user_id, ctx.bot_id, ctx.group_id)
-
-    card = await _draw_weekly_report_card(
-        ctx, role_show, report, week_type=week_type, uid_hidden=uid_hidden
-    )
-    await sender.send(card)
-
-
 # ---------------------------------------------------------------------------
 # 3. 活动日历 (Calendar)
 # ---------------------------------------------------------------------------
-
-
-class TimeType(str, Enum):
-    MOLING = "moling"
-    MIHAN = "mihan"
-    ZHOUBEN = "zhouben"
-
-
-START_TIME = {
-    TimeType.MOLING: {
-        "start_time": datetime(2026, 1, 3, 5, 0, tzinfo=SHANGHAI_TZ),
-        "date_range": 86400 * 3,
-    },
-    TimeType.MIHAN: {
-        "start_time": datetime(2026, 1, 3, 5, 0, tzinfo=SHANGHAI_TZ),
-        "date_range": 3600,
-    },
-    TimeType.ZHOUBEN: {
-        "start_time": datetime(2025, 12, 29, 5, 0, tzinfo=SHANGHAI_TZ),
-        "date_range": 86400 * 7,
-    },
-}
-
-
-def get_time(now: datetime, time_type: TimeType):
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=SHANGHAI_TZ)
-    else:
-        now = now.astimezone(SHANGHAI_TZ)
-    start_time = START_TIME[time_type]["start_time"]
-    date_range = START_TIME[time_type]["date_range"]
-    date_range_td = timedelta(seconds=date_range)
-    elapsed_time = (now - start_time).total_seconds()
-    period_index = int(elapsed_time // date_range)
-    period_start = start_time + period_index * date_range_td
-    period_end = period_start + date_range_td
-    return {
-        "start_time": period_start,
-        "end_time": period_end,
-        "start_date_str": period_start.strftime("%Y-%m-%d %H:%M"),
-        "end_date_str": period_end.strftime("%Y-%m-%d %H:%M"),
-    }
 
 
 class CalendarContent(BaseModel):
@@ -1189,159 +949,6 @@ async def _draw_calendar_card_bytes(
         RenderSpec(width=1200, height=height, full_page=False, image_format="jpeg"),
     )
     return raw_bytes
-
-
-async def draw_calendar_card(
-    content: list[CalendarContent],
-    calendar_assets: Mapping[str, Image.Image | Path] | None = None,
-    now: datetime | None = None,
-    *,
-    downloader: AssetDownloader | None = None,
-    calendar_cache_dir: Path | None = None,
-    static_asset_resolver: StaticAssetResolver | None = None,
-    static_records: list[dict[str, str]] | None = None,
-) -> Image.Image:
-    """兼容旧调用者返回 Pillow 图像；运行期 renderer 使用 raw bytes 边界。"""
-
-    raw_bytes = await _draw_calendar_card_bytes(
-        content,
-        calendar_assets,
-        now,
-        downloader=downloader,
-        calendar_cache_dir=calendar_cache_dir,
-        static_asset_resolver=static_asset_resolver,
-        static_records=static_records,
-    )
-    return Image.open(BytesIO(raw_bytes)).convert("RGBA")
-
-
-async def draw_calendar_img(ctx: EventContext):
-    # legacy 便捷入口没有 resolver 上下文，静态素材统一走 placeholder 降级。
-    static_asset_resolver: StaticAssetResolver | None = None
-    static_records: list[dict[str, str]] | None = None
-    activity_res = await dna_api.get_activity_info()
-    activity_list = (
-        activity_res.data.get("activities", [])
-        if activity_res.is_success and isinstance(activity_res.data, dict)
-        else []
-    )
-
-    wiki_list = []
-    wiki_home = await dna_api.get_calendar_info()
-    if wiki_home:
-        jumu = next(
-            filter(
-                lambda x: x["sectionType"] == 3 and x.get("activityUps") is not None,
-                wiki_home,
-            ),
-            None,
-        )
-        old_activity_list = next(
-            filter(
-                lambda x: x["sectionType"] == 3 and x.get("activities") is not None,
-                wiki_home,
-            ),
-            None,
-        )
-        if jumu:
-            wiki_list.append(jumu)
-        if old_activity_list:
-            wiki_list.append(old_activity_list)
-
-    if not activity_list and not wiki_list:
-        return "获取日历失败"
-
-    now = datetime.now(tz=SHANGHAI_TZ)
-    content = [
-        CalendarContent(
-            title="魔灵",
-            pic="moling.png",
-            start_time=get_time(now, TimeType.MOLING)["start_date_str"],
-            end_time=get_time(now, TimeType.MOLING)["end_date_str"],
-        ),
-        CalendarContent(
-            title="周本",
-            pic="zhouben.png",
-            start_time=get_time(now, TimeType.ZHOUBEN)["start_date_str"],
-            end_time=get_time(now, TimeType.ZHOUBEN)["end_date_str"],
-        ),
-    ]
-    if wiki_list:
-        for item in wiki_list:
-            for activity_up in item.get("activityUps", []):
-                start_time, end_time = (
-                    activity_up.get("createTime"),
-                    activity_up.get("endTime"),
-                )
-                content.extend(
-                    CalendarContent(
-                        title=activity_up.get("name") or entry["name"],
-                        pic=entry["pic"],
-                        start_time=int(start_time / 1000) if start_time else "",
-                        end_time=int(end_time / 1000) if end_time else "",
-                    )
-                    for entry in activity_up["contents"]
-                )
-            for activity in item.get("activities", []):
-                content.append(
-                    CalendarContent(
-                        title=activity["name"],
-                        pic=activity["pic"],
-                        start_time=int(activity["createTime"] / 1000)
-                        if activity["createTime"]
-                        else "",
-                        end_time=int(activity["endTime"] / 1000)
-                        if activity["endTime"]
-                        else "",
-                    )
-                )
-    for activity in activity_list:
-        if activity.get("cycleDay", -1) != -1 or "委托密函轮换" in activity["name"]:
-            continue
-        start_time, end_time = activity.get("startTime"), activity.get("endTime")
-        content.append(
-            CalendarContent(
-                title=activity["name"],
-                pic=activity.get("icon", ""),
-                start_time=int(start_time / 1000) if start_time else "",
-                end_time=int(end_time / 1000) if end_time else "",
-            )
-        )
-
-    events = []
-    for item in content:
-        event = _event_payload(item, now)
-        event["icon"] = await _event_image(
-            item,
-            static_asset_resolver=static_asset_resolver,
-            static_records=static_records,
-        )
-        events.append(event)
-
-    height = 880 + 170 * ((len(events) + 1) // 2)
-    background = _calendar_background(height, static_asset_resolver, static_records)
-
-    return await _RENDERER.render(
-        "cards/calendar.html.j2",
-        {
-            "background": pil_image_data_uri(
-                background.convert("RGB"), image_format="JPEG"
-            ),
-            "banner": await _load_banner(
-                height, static_asset_resolver, static_records
-            ),
-            "events": events,
-            "event_background": _static_image("texture.calendar.event_bg", "calendar/event_bg.png", static_asset_resolver, static_records),
-            "bar": _static_image("texture.calendar.bar", "calendar/bar.png", static_asset_resolver, static_records),
-            "time_icon": _static_image("texture.calendar.time_icon", "calendar/time_icon.png", static_asset_resolver, static_records),
-            "footer_image": _static_image("texture.common.footer", "textures/common/footer.png", static_asset_resolver, static_records),
-            "font": _static_font(static_asset_resolver, static_records),
-            "footer_text": "DNA",
-            "height": height,
-            "width": 1200,
-        },
-        RenderSpec(width=1200, height=height, full_page=False, image_format="jpeg"),
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1883,11 +1490,9 @@ class EncyclopediaRenderer:
 
 
 __all__ = [
-    "START_TIME",
     "CalendarContent",
     "EncyclopediaRenderer",
     "RenderedEncyclopediaImage",
-    "TimeType",
     "_calendar_background",
     "_draw_stamina_card",
     "_draw_weekly_report_card",
@@ -1900,14 +1505,7 @@ __all__ = [
     "_progress_ratio",
     "_value",
     "_weekly_item_payload",
-    "draw_calendar_card",
-    "draw_calendar_img",
-    "draw_stamina_card",
-    "draw_stamina_img",
-    "draw_weekly_report_card",
-    "draw_weekly_report_img",
     "get_date_range",
     "get_left_time_str",
-    "get_time",
     "weekly_item_display_name",
 ]

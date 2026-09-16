@@ -655,12 +655,6 @@ class ResourceSnapshotCoordinator:
             raise ResourceGenerationError("当前资源 generation 内容哈希指针无效")
         return generation, content_sha256
 
-    def _read_generation_id(self) -> str | None:
-        """兼容旧调用方，只返回 active pointer 中的 generation 标识。"""
-
-        generation, _content_sha256 = self._read_generation_pointer()
-        return generation
-
     def _read_last_sync_status(self) -> ResourceSyncStatus | None:
         """读取最近同步摘要；缺失表示尚未执行过同步。"""
 
@@ -1022,20 +1016,6 @@ class ResourceSnapshotCoordinator:
                 self._expected_content_sha256 = validated.content_sha256
             self._clear_validation_failure()
             return validated
-
-    def initialize(self) -> ResourceSnapshot | None:
-        """兼容旧生命周期调用：快速恢复已发布 generation 并清理孤立目录。"""
-
-        with self._sync_lock:
-            self._ensure_storage_roots()
-            self.generations_root.mkdir(parents=True, exist_ok=True)
-            self._ensure_storage_roots()
-            snapshot = self.restore_current()
-            if snapshot is None:
-                self._cleanup_orphans(None)
-                return None
-            self._cleanup_orphans(snapshot.commit_sha)
-            return snapshot
 
     def acquire(self) -> ResourceLease:
         """为一次资源读取取得当前已验证 generation lease。"""
@@ -1482,18 +1462,8 @@ class ResourceSnapshotCoordinator:
         self.record_sync_result(result)
         return result
 
-    def synchronize(self) -> ResourceSyncResult:
-        """兼容旧调用方，转发到 ``sync_resources``。"""
-
-        return self.sync_resources()
-
-
-ResourceGenerationManager = ResourceSnapshotCoordinator
-
-
 __all__ = [
     "ResourceGenerationError",
-    "ResourceGenerationManager",
     "ResourceGenerationValidator",
     "ResourceLease",
     "ResourceSnapshot",

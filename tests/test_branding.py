@@ -62,16 +62,22 @@ def test_plugin_uses_single_root_logo_asset() -> None:
     assert (ROOT / "logo.png").is_file()
     assert not (ROOT / "ICON.png").exists()
 
-    text_paths = (
-        ROOT / "README.md",
-        ROOT / "src/utils/image.py",
-        ROOT / "src/infrastructure/rendering/help.py",
-        ROOT / "src/infrastructure/http/login_templates.py",
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "logo.png" in readme
+
+    image_code = (ROOT / "src/utils/image.py").read_text(encoding="utf-8")
+    help_code = (ROOT / "src/infrastructure/rendering/help.py").read_text(
+        encoding="utf-8"
     )
-    for path in text_paths:
-        content = path.read_text(encoding="utf-8")
+    login_templates = (
+        ROOT / "src/infrastructure/http/login_templates.py"
+    ).read_text(encoding="utf-8")
+    for content in (image_code, help_code, login_templates):
         assert "ICON.png" not in content
-        assert "logo.png" in content
+    assert "logo.png" not in image_code
+    assert "PLUGIN_ICON_PATH" not in help_code
+    assert 'parents[3] / "logo.png"' not in help_code
+    assert "textures/common/title_logo.png" in help_code
 
     login_code = (ROOT / "src/modules/account/login_flow.py").read_text(encoding="utf-8")
     assert "title_logo" in login_code

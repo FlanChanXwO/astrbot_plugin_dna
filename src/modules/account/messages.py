@@ -1,4 +1,4 @@
-"""账号用例的用户可见文案兼容层。"""
+"""账号用例的用户可见文案。"""
 
 from __future__ import annotations
 
@@ -34,8 +34,6 @@ CREDENTIAL_GROUP_HINT = get_tip("account.credential_group_hint")
 CREDENTIAL_CHECK_VALID = get_tip("account.credential_check_valid")
 CREDENTIAL_CHECK_INVALID = get_tip("account.credential_check_invalid")
 CREDENTIAL_CHECK_INDETERMINATE = get_tip("account.credential_check_indeterminate")
-LEGACY_COMPLETE_ERROR = get_tip("account.legacy_complete_error")
-LEGACY_ROLE_ERROR = get_tip("account.legacy_role_error")
 LOGIN_APP_ONLY = get_tip("account.login_app_only")
 LOGIN_TOKEN_EMPTY = get_tip("account.login_token_empty")
 UNNAMED_ROLE = get_tip("account.unnamed_role")
@@ -55,14 +53,6 @@ def login_success(roles: Iterable[RoleInfo]) -> str:
     for role in ordered_roles:
         name = role.name or get_tip("account.unnamed_role")
         lines.append(get_tip("account.login_role_line", name=name, uid=role.uid))
-    return "\n".join(lines)
-
-
-def legacy_login_success(role_names: Iterable[str]) -> str:
-    lines = [get_tip("account.legacy_login_success_header")]
-    lines.extend(
-        get_tip("account.legacy_login_role_line", name=name) for name in role_names
-    )
     return "\n".join(lines)
 
 
@@ -123,8 +113,6 @@ __all__ = [
     "CREDENTIAL_CHECK_VALID",
     "CREDENTIAL_GROUP_HINT",
     "INVALID_LOGIN_INPUT",
-    "LEGACY_COMPLETE_ERROR",
-    "LEGACY_ROLE_ERROR",
     "LOGIN_APP_ONLY",
     "LOGIN_BIND_LIMIT",
     "LOGIN_CANCELLED",
@@ -150,7 +138,6 @@ __all__ = [
     "binding_list",
     "credential_reveal",
     "credential_status",
-    "legacy_login_success",
     "login_page",
     "login_success",
     "transport_error",

@@ -21,7 +21,6 @@ from .acceleration import (
     normalize_http_base_url,
 )
 from .manifest import ResourceManifest
-from .paths import default_resource_repository_dir, resource_repository_dir
 
 DEFAULT_RESOURCE_REMOTE = "https://github.com/FlanChanXwO/dna-resource.git"
 
@@ -310,35 +309,6 @@ class ResourceSynchronizer:
         )
 
 
-def download_all_resources(
-    repository: str | Path | None = None,
-    *,
-    data_dir: str | Path | None = None,
-    remote: str = DEFAULT_RESOURCE_REMOTE,
-    acceleration_prefix: str | None = None,
-    runner: GitRunner = run_git,
-) -> ResourceSyncResult:
-    """下载并验证全部公共资源；首次浅克隆，后续 fast-forward-only 更新。"""
-
-    if repository is not None and data_dir is not None:
-        raise ValueError("repository 与 data_dir 只能指定一个")
-    target = (
-        Path(repository)
-        if repository is not None
-        else (
-            resource_repository_dir(data_dir)
-            if data_dir is not None
-            else default_resource_repository_dir()
-        )
-    )
-    return ResourceSynchronizer(
-        target,
-        remote=remote,
-        acceleration_prefix=acceleration_prefix,
-        runner=runner,
-    ).sync()
-
-
 __all__ = [
     "DEFAULT_RESOURCE_REMOTE",
     "GitCommandError",
@@ -350,6 +320,5 @@ __all__ = [
     "ResourceSyncError",
     "ResourceSyncResult",
     "ResourceSynchronizer",
-    "download_all_resources",
     "run_git",
 ]

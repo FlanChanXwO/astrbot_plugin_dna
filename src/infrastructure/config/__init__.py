@@ -6,9 +6,6 @@ from .legacy import (
     DNAConfig,
     DNASignConfig,
 )
-from .legacy import (
-    generate_astrbot_schema as generate_legacy_schema,
-)
 from .schema import generate_astrbot_schema, write_astrbot_schema
 from .settings import (
     AgentToolsSettings,
@@ -34,9 +31,9 @@ __all__ = [
     "CacheSettings",
     "ClientUpdatesSettings",
     "DNAConfig",
+    "DNASettings",
     "DNASignConfig",
     "DisplaySettings",
-    "DNASettings",
     "GeneralSettings",
     "LoginSettings",
     "NetworkSettings",
@@ -44,7 +41,6 @@ __all__ = [
     "ResourceSettings",
     "SignInSettings",
     "generate_astrbot_schema",
-    "generate_legacy_schema",
     "migrate_config_dict",
     "write_astrbot_schema",
 ]

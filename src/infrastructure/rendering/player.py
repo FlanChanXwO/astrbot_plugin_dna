@@ -40,7 +40,6 @@ from ...utils.database.models import DNAUser
 from ...utils.image import (
     get_attr_img,
     get_avatar_img,
-    get_grade_img,
     get_mod_img,
     get_paint_img,
     get_skill_img,
@@ -123,6 +122,8 @@ async def _item_payload(
     item: ItemTemp,
     *,
     image_loader: PlayerImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     if item.type == "role":
         image_coro = (
@@ -174,7 +175,12 @@ async def _item_payload(
     # 仅当条目已解锁且命座等级大于 0 时才显示命座徽章，0 命或未解锁不渲染徽章
     grade_level = item.grade_level
     grade_uri = (
-        pil_image_data_uri(get_grade_img(grade_level))
+        _static_image(
+            f"texture.common.number.{max(0, min(grade_level, 10))}",
+            f"textures/common/number/{max(0, min(grade_level, 10))}.png",
+            static_asset_resolver,
+            static_records,
+        )
         if item.unlocked and grade_level is not None and grade_level > 0
         else None
     )
@@ -216,7 +222,15 @@ async def _section_payload(
         ),
         "items": list(
             await asyncio.gather(
-                *(_item_payload(item, image_loader=image_loader) for item in visible)
+                *(
+                    _item_payload(
+                        item,
+                        image_loader=image_loader,
+                        static_asset_resolver=static_asset_resolver,
+                        static_records=static_records,
+                    )
+                    for item in visible
+                )
             )
         ),
         "title": title,
@@ -819,7 +833,12 @@ async def _draw_role_detail_card(
                 static_asset_resolver,
                 static_records,
             ),
-            "icon": pil_image_data_uri(get_grade_img(index)),
+            "icon": _static_image(
+                f"texture.common.number.{index}",
+                f"textures/common/number/{index}.png",
+                static_asset_resolver,
+                static_records,
+            ),
             "index": index,
             "left": 50 + (index - 1) * (375 // (grade_total - 1)),
             "unlocked": index <= grade_level,
@@ -863,7 +882,12 @@ async def _draw_role_detail_card(
             ),
             "role": {
                 "grade": grade_level,
-                "grade_icon": pil_image_data_uri(get_grade_img(grade_level))
+                "grade_icon": _static_image(
+                    f"texture.common.number.{max(0, min(grade_level, 10))}",
+                    f"textures/common/number/{max(0, min(grade_level, 10))}.png",
+                    static_asset_resolver,
+                    static_records,
+                )
                 if grade_level > 0
                 else None,
                 "level": role_detail.level,
@@ -1264,25 +1288,6 @@ class PlayerRenderer:
             resolved_assets=resolved_assets,
         )
 
-    async def render_overview_legacy(
-        self,
-        overview: RoleOverview,
-        *,
-        uid: str,
-        actor: EventActor | None = None,
-        target_user_id: str | None = None,
-        uid_hidden: bool = False,
-        show_unowned: bool = True,
-    ) -> RenderedPlayerImage:
-        return await self.render_overview(
-            overview,
-            uid=uid,
-            actor=actor,
-            target_user_id=target_user_id,
-            uid_hidden=uid_hidden,
-            show_unowned=show_unowned,
-        )
-
     async def render_detail(
         self,
         detail: RoleDetail,
@@ -1443,30 +1448,6 @@ class PlayerRenderer:
             original_image_path=original_path,
             resolved_assets=resolved_assets,
         )
-
-    async def render_detail_legacy(
-        self,
-        detail: Any,
-        *,
-        uid: str,
-        uid_hidden: bool = False,
-        damage_message: str | None = None,
-        overview: RoleOverview | None = None,
-        actor: EventActor | None = None,
-        target_user_id: str | None = None,
-    ) -> RenderedPlayerImage:
-        return await self.render_detail(
-            detail.char_detail,
-            detail.weapons,
-            detail.damage_calculation,
-            uid=uid,
-            uid_hidden=uid_hidden,
-            damage_message=damage_message,
-            overview=overview,
-            actor=actor,
-            target_user_id=target_user_id,
-        )
-
 
 __all__ = [
     "ItemTemp",
