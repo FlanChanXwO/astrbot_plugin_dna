@@ -19,6 +19,7 @@ from src.infrastructure.config.settings import (
     DNAConfig,
     DNASignConfig,
     LoginSettings,
+    ResourceSettings,
     SignInSettings,
 )
 
@@ -36,6 +37,34 @@ def test_login_dynamic_background_defaults_to_enabled_and_is_in_schema():
         LoginSettings.model_fields["dynamic_background"].json_schema_extra or {}
     ).get("hint", "")
     assert "MP4 动态背景" in field.get("hint", "")
+
+
+def test_resource_image_download_defaults_custom_values_and_schema():
+    """运行时图片下载预算默认快速失败，并允许在资源设置中显式调整。"""
+
+    defaults = ResourceSettings()
+    assert defaults.image_download_timeout_seconds == 5
+    assert defaults.image_download_max_attempts == 2
+
+    custom = DNASettings.from_config(
+        {
+            "resources": {
+                "image_download_timeout_seconds": 12,
+                "image_download_max_attempts": 4,
+            }
+        }
+    )
+    assert custom.resources.image_download_timeout_seconds == 12
+    assert custom.resources.image_download_max_attempts == 4
+
+    with pytest.raises(ValidationError):
+        ResourceSettings(image_download_timeout_seconds=0)
+    with pytest.raises(ValidationError):
+        ResourceSettings(image_download_max_attempts=0)
+
+    fields = generate_typed_schema()["resources"]["items"]
+    assert fields["image_download_timeout_seconds"]["default"] == 5
+    assert fields["image_download_max_attempts"]["default"] == 2
 
 
 def test_schema_generation():

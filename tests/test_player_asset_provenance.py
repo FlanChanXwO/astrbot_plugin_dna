@@ -480,6 +480,64 @@ async def test_player_renderer_optional_detail_element_icon_does_not_block_cache
 
 
 @pytest.mark.asyncio
+async def test_weapon_mod_download_failure_marks_detail_incomplete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """显赫/普通武器 MOD 下载失败必须进入 provenance，并阻止缺图整卡缓存。"""
+
+    class SelectiveFailDownloader(_RuntimeDownloader):
+        async def fetch(self, url: str, target: Path, *, tag: str = "") -> Path:
+            if url.endswith("weapon-mod-0.png"):
+                self.calls.append(url)
+                raise OSError("fixture connect timeout")
+            return await super().fetch(url, target, tag=tag)
+
+    async def fake_render(*_args: object, **_kwargs: object) -> bytes:
+        buffer = BytesIO()
+        Image.new("RGB", (24, 24), "white").save(buffer, format="JPEG")
+        return buffer.getvalue()
+
+    monkeypatch.setattr(player_module._RENDERER, "render", fake_render)
+    font_path = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "resources"
+        / "fonts"
+        / "dna_fonts.ttf"
+    )
+    resolver = AssetResolver(
+        snapshot_root=tmp_path / "generation",
+        dynamic_root=tmp_path / "cache" / "assets",
+        downloader=SelectiveFailDownloader("green"),
+    )
+    renderer = PlayerRenderer(
+        tmp_path / "rendered",
+        ResourceMap(
+            root=tmp_path / "generation",
+            fonts={"dna_fonts": font_path},
+        ),
+        asset_resolver=resolver,
+    )
+
+    rendered = await renderer.render_detail(
+        _role_detail(),
+        [("同律武器", _weapon_detail())],
+        uid="uid-1",
+        target_user_id="user-1",
+    )
+
+    missing = next(
+        item
+        for item in rendered.resources
+        if item["kind"] == "mod" and item["key"] == "4000"
+    )
+    assert missing["source"] == "none"
+    assert missing["status"] == "missing"
+    assert rendered.incomplete is True
+
+
+@pytest.mark.asyncio
 async def test_player_renderer_placeholder_provenance_marks_image_incomplete(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

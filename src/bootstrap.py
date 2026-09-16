@@ -203,7 +203,10 @@ def build_runtime(
         image_fetcher = cast(ImageFetcher, services["image_fetcher"])
     else:
         # runtime 必须拥有自己的 client，避免重载或测试切换事件循环后复用旧连接池。
-        image_fetcher = ImageFetcher()
+        image_fetcher = ImageFetcher(
+            timeout_seconds=settings.resources.image_download_timeout_seconds,
+            max_attempts=settings.resources.image_download_max_attempts,
+        )
     dna_api.configure_network(
         api_base_url=settings.network.api_base_url,
         proxy_url=settings.network.proxy_url,

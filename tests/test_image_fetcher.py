@@ -103,6 +103,45 @@ async def _no_sleep(_delay: float) -> None:
     return None
 
 
+def test_default_runtime_image_budget_is_short_and_bounded() -> None:
+    """默认连接等待与尝试次数应避免单个坏 CDN URL 长时间阻塞整张卡。"""
+
+    fetcher = ImageFetcher()
+    assert fetcher.timeout_seconds == 5
+    assert fetcher.max_attempts == 2
+    client = fetcher._build_client()
+    try:
+        assert client.timeout.connect == 5.0
+        assert client.timeout.read == 5.0
+    finally:
+        asyncio.run(client.aclose())
+
+
+@pytest.mark.asyncio
+async def test_transport_errors_stop_after_configured_attempts(tmp_path: Path) -> None:
+    """连续连接失败时不得超过配置的最大尝试次数。"""
+
+    url = "https://cdn.example.test/flaky.png"
+    client = _FakeClient(
+        [
+            httpx.ConnectTimeout("connect timeout"),
+            httpx.ConnectTimeout("connect timeout"),
+            _response(url, _png_bytes()),
+        ]
+    )
+    fetcher = ImageFetcher(
+        client_factory=_ClientFactory([client]),
+        sleep=_no_sleep,
+        max_attempts=2,
+    )
+
+    with pytest.raises(httpx.ConnectTimeout):
+        await fetcher.fetch(url, tmp_path / "flaky.png")
+
+    assert client.calls == [url, url]
+    await fetcher.close()
+
+
 @pytest.mark.asyncio
 async def test_fetch_uses_one_long_lived_client_for_multiple_urls(
     tmp_path: Path,
@@ -151,6 +190,44 @@ def test_fetch_rebinds_client_when_event_loop_changes(tmp_path: Path) -> None:
 
     assert len(factory.clients) == 2
     assert all(client.closed for client in factory.clients)
+
+
+def test_fetch_rebinds_retry_signal_when_event_loop_changes(tmp_path: Path) -> None:
+    """legacy 下载器跨 event loop 重试时不得复用旧 loop 的关闭事件。"""
+
+    first_url = "https://cdn.example.test/retry-loop-a.png"
+    second_url = "https://cdn.example.test/retry-loop-b.png"
+    clients = [
+        _FakeClient(
+            [
+                _response(first_url, b"busy", status_code=503),
+                _response(first_url, _png_bytes()),
+            ]
+        ),
+        _FakeClient(
+            [
+                _response(second_url, b"busy", status_code=503),
+                _response(second_url, _png_bytes("#22c55e")),
+            ]
+        ),
+    ]
+    factory = _ClientFactory(clients)
+
+    async def retry_sleep(_delay: float) -> None:
+        # 确保 closing_event.wait() 真正进入等待并绑定当前 event loop。
+        await asyncio.sleep(0.01)
+
+    fetcher = ImageFetcher(client_factory=factory, sleep=retry_sleep)
+
+    async def fetch_once(url: str, target: Path) -> None:
+        await fetcher.fetch(url, target)
+
+    asyncio.run(fetch_once(first_url, tmp_path / "retry-loop-a.png"))
+    asyncio.run(fetch_once(second_url, tmp_path / "retry-loop-b.png"))
+    asyncio.run(fetcher.close())
+
+    assert factory.calls == 2
+    assert all(client.closed for client in clients)
 
 
 @pytest.mark.asyncio
@@ -357,6 +434,7 @@ async def test_weak_errors_accumulate_before_capacity_shrink(tmp_path: Path) -> 
         client_factory=_ClientFactory([congested_client]),
         sleep=_no_sleep,
         initial_capacity=4,
+        max_attempts=3,
     )
 
     await congested_fetcher.fetch(congested_url, tmp_path / "congested.png")
@@ -518,6 +596,7 @@ async def test_fetch_retries_transient_errors_and_keeps_invalid_content_out_of_c
     fetcher = ImageFetcher(
         client_factory=_ClientFactory([client]),
         sleep=record_sleep,
+        max_attempts=3,
     )
     target = tmp_path / "retry.png"
 

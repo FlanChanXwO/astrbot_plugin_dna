@@ -205,7 +205,7 @@ class NetworkSettings(_SettingsModel):
 
 
 class ResourceSettings(_SettingsModel):
-    """公共资源仓库下载和 GitHub 加速配置。"""
+    """资源仓库和运行时图片下载配置。"""
 
     # Pydantic 默认会把无效字段的原始 input 写进 ValidationError 文本；加速 URL
     # 可能包含凭据样式内容，因此该配置组必须隐藏原始输入，避免错误回显。
@@ -227,6 +227,24 @@ class ResourceSettings(_SettingsModel):
         description="自定义 GitHub 加速前缀",
         json_schema_extra={
             "hint": "仅 custom 模式使用；填写不含 query、fragment 或凭据的 HTTP(S) 基础 URL",
+        },
+    )
+    image_download_timeout_seconds: int = Field(
+        default=5,
+        ge=1,
+        le=60,
+        description="图片下载超时（秒）",
+        json_schema_extra={
+            "hint": "角色、武器、MOD、技能等运行时图片请求的单次 I/O 超时；默认 5 秒，避免单个异常 CDN 长时间阻塞整张卡",
+        },
+    )
+    image_download_max_attempts: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="图片下载最大尝试次数",
+        json_schema_extra={
+            "hint": "运行时图片遇到网络错误、429 或 5xx 时的最大尝试次数，包含首次请求；默认 2 次",
         },
     )
 
