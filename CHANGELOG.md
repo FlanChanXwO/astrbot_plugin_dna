@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## v0.5.1 — 2026-09-16
+
+### 变更
+
+- 完成旧 `dnaby` namespace 的破坏性清理：插件入口与配置类型统一为 `DNAPlugin` / `DNASettings`，Scheduler Task ID、Agent Tool ID、异步任务名与临时文件前缀统一改为 `dna_*`，渲染 artifact metadata 统一改为 `dna.*`，并删除旧 symbol alias、fallback 与双读兼容。（[#67](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/67)）
+- 清理插件自身的 `[dnaby]`、`[DNA登录]`、`[订阅]` 等人工日志前缀，日志来源交由 AstrBot 平台层标识，保留必要的结构化上下文。（[#67](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/67)）
+
+### 升级注意
+
+- 本版本不再识别 pre-v0.5 旧运行期布局；升级前应先完成 v0.5.0 布局整理，数据库位于 `db/dna.sqlite3`，状态位于 `state/`，公共资源位于 `resources/`。
+- Scheduler Task ID 已切换为 `dna_*` 且旧 scheduler 状态不迁移；升级前应删除 `state/scheduler.json`，接受暂停/删除状态重置。
+- 旧配置字段 `sign_in.scheduled_enabled`、`sign_in.game_enabled`、`sign_in.community_enabled` 已零兼容，残留会导致配置校验失败，升级前必须删除。
+- 如外部 Alembic/运维脚本仍使用 `DNABY_DATABASE_URL`，请改为 `DNA_DATABASE_URL`；旧渲染缓存中的 `dnaby.*` metadata 可直接清理后重新生成。
+- 升级后建议重新加载插件、刷新 Agent Tool discovery，并执行一次 `dna资源状态` / `dna同步资源` 验证公共资源 generation。
+
+**完整变更**：[`v0.5.0...v0.5.1`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.5.0...v0.5.1)
+
 ## v0.5.0 — 2026-09-14
 
 ### 新增
@@ -118,6 +135,7 @@
 ### 维护
 
 - 增加品牌资源和帮助订阅回归测试，防止旧头像、`ICON.png` 引用及取消订阅入口缺失再次出现。（[#37](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/37)、[#38](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/38)）
+- 精简根目录开发配置，移除不再需要的开发期文件并降低仓库维护噪音。（[#34](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/34)）
 
 **完整变更**：[`v0.3.1...v0.3.2`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.3.1...v0.3.2)
 
