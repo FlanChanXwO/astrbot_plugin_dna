@@ -327,9 +327,9 @@ def build_runtime(
         runtime_database,
         allow_mention_query=settings.display.allow_mention_query,
     )
-    # 构造期只接纳已由外部显式注入的 verified snapshot；重载时的 current
-    # 指针和完整资源校验延后到异步生命周期，避免阻塞 AstrBot 插件加载线程。
-    # 没有已验证快照时使用显式空视图，直到异步校验成功后由监听器刷新。
+    # 构造期只接纳本进程已经拥有的 current snapshot；常规重载会在异步生命周期
+    # 从上一次成功同步后原子写入的 current.json 快速恢复，不再重复执行全量哈希与
+    # 图片解码。没有可恢复快照时使用显式空视图，直到同步资源成功后由监听器刷新。
     initial_resource_snapshot = resource_snapshots.current_snapshot
     resource_root = (
         initial_resource_snapshot.root
@@ -853,16 +853,16 @@ def build_runtime(
     resource_snapshots.subscribe(_refresh_resource_views)
 
     async def _initialize_resource_views() -> None:
-        """在异步生命周期中完成完整资源校验，避免阻塞插件构造线程。"""
+        """在异步生命周期中快速恢复上一次已发布的资源 generation。"""
 
         try:
-            snapshot = await asyncio.to_thread(resource_snapshots.validate_current)
+            snapshot = await asyncio.to_thread(resource_snapshots.restore_current)
         except ResourceGenerationError as error:
             resource_snapshots.record_validation_failure(error)
             from astrbot.api import logger
 
             logger.warning(
-                "当前 generation 校验失败，资源暂不可用；"
+                "当前 generation 快速恢复失败，资源暂不可用；"
                 "可执行同步资源修复（%s）",
                 type(error).__name__,
             )

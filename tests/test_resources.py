@@ -11,11 +11,16 @@ import pytest
 from src.entry.response import PlainTextResponse
 from src.infrastructure.resources import (
     GitUnavailableError,
+    ResourceSnapshot,
+    ResourceSnapshotCoordinator,
     ResourceLocalChangesError,
     ResourceRemoteMismatchError,
     ResourceSyncError,
     ResourceSyncResult,
 )
+from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
+from src.infrastructure.resources.manifest import ResourceManifest
+from src.infrastructure.rendering.player import ResourceMap
 from src.modules.operations.resource_service import ResourceUpdateService
 
 
@@ -154,3 +159,49 @@ async def test_stop_drains_inflight_sync_and_rejects_new_work(tmp_path: Path) ->
     assert calls == 1
     with pytest.raises(ResourceSyncError, match="资源同步服务正在停止"):
         await service.synchronize_once()
+
+
+def test_restore_current_trusts_published_pointer_without_full_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """插件重载只能快速恢复已发布 generation，不得重新执行完整 validator。"""
+
+    coordinator = ResourceSnapshotCoordinator(
+        tmp_path / "repository",
+        generations_root=tmp_path / "generations",
+    )
+    content_sha256 = "a" * 64
+    light_snapshot = ResourceSnapshot(
+        commit_sha="abc123",
+        root=tmp_path / "generations" / "abc123",
+        manifest=ResourceManifest(
+            format_version=1,
+            required_dirs=("fonts",),
+            resource_version="5",
+        ),
+        player_resources=ResourceMap(),
+        encyclopedia_resources=EncyclopediaResourceStore(),
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_read_generation_pointer",
+        lambda: ("abc123", content_sha256),
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_load_light_snapshot",
+        lambda _generation: light_snapshot,
+    )
+
+    def fail_if_validated() -> None:
+        raise AssertionError("reload must not execute full resource validation")
+
+    monkeypatch.setattr(coordinator, "validate_current", fail_if_validated)
+
+    restored = coordinator.restore_current()
+
+    assert restored is not None
+    assert restored.commit_sha == "abc123"
+    assert restored.content_sha256 == content_sha256
+    assert coordinator.current_snapshot is restored
