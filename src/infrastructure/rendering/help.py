@@ -8,7 +8,6 @@ command id 显式映射；业务 registry 只负责确定当前调用者可见�
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ...version import PLUGIN_VERSION
@@ -28,7 +27,6 @@ from .static_assets import (
     static_record,
 )
 
-PLUGIN_ICON_PATH = Path(__file__).parents[3] / "logo.png"
 HELP_BACKGROUND_PATH = "textures/help/bg.jpg"
 HELP_BANNER_PATH = "textures/help/banner_bg.jpg"
 HELP_CAG_PATH = "textures/help/cag_bg.png"
@@ -45,20 +43,6 @@ HELP_FOOTER_HEIGHT = 40
 HELP_FOOTER_MARGIN_TOP = 32
 HELP_FOOTER_MARGIN_BOTTOM = 40
 _RENDERER = HtmlRenderer()
-
-
-def _legacy_image_uri(path: Path, label: str) -> str:
-    """无 resolver 兼容路径的本地读取；素材缺失时退回 placeholder。"""
-
-    try:
-        from .assets import image_data_uri
-
-        return image_data_uri(path)
-    except (OSError, ValueError):
-        from .static_assets import static_image_data_uri
-
-        return static_image_data_uri(None, "", label=label)[0]
-
 
 # Help 缓存必须连同资源完整性记录一起缓存，命中后才能恢复 incomplete 状态。
 @dataclass(frozen=True)
@@ -273,22 +257,19 @@ async def get_help(
     banner_uri = image_uri("texture.help.banner", HELP_BANNER_PATH, "help-banner")
     cag_uri = image_uri("texture.help.cag", HELP_CAG_PATH, "help-cag")
     footer_uri = image_uri("texture.common.footer", HELP_FOOTER_PATH, "footer")
-    if asset_resolver is None:
-        icon_uri = _legacy_image_uri(PLUGIN_ICON_PATH, "logo")
-    else:
-        icon_uri, icon_asset = static_key_image_data_uri(
-            asset_resolver,
-            "texture.help.logo",
-            label="logo",
+    icon_uri, icon_asset = static_key_image_data_uri(
+        asset_resolver,
+        "texture.help.logo",
+        label="logo",
+    )
+    if resource_records is not None:
+        resource_records.append(
+            static_record(
+                "texture.help.logo",
+                icon_asset,
+                resource_path="textures/common/title_logo.png",
+            ),
         )
-        if resource_records is not None:
-            resource_records.append(
-                static_record(
-                    "texture.help.logo",
-                    icon_asset,
-                    resource_path="logo.png",
-                ),
-            )
     item_uri = image_uri("texture.help.item", HELP_ITEM_PATH, "help-item")
     font_uri = font_uri_for("font.help", HELP_FONT_PATH)
     template_data = {

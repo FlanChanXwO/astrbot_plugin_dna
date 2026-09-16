@@ -11,7 +11,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from .config.settings import NotificationSettings, SignInSettings
+from .config.settings import ClientUpdatesSettings, NotificationSettings, SignInSettings
 
 BUILTIN_SCHEDULER_TASK_IDS = (
     "dna_sign_daily",
@@ -24,9 +24,6 @@ BUILTIN_SCHEDULER_TASK_IDS = (
 _DAILY_TASK_IDS = frozenset(("dna_sign_daily", "dna_sign_cleanup"))
 _HOURLY_TASK_IDS = frozenset(("dna_mh_push",))
 _INTERVAL_TASK_IDS = frozenset(("dna_ann_poll", "dna_client_update_poll"))
-# 兼容旧调用方的默认值；实际密函分钟由 NoticesScheduler/typed 配置注入。
-MH_PUSH_AT: tuple[int, int] = (0, 0)
-MH_PUSH_SCHEDULE = "hourly@00:00"
 
 
 def parse_scheduler_schedule(
@@ -77,7 +74,7 @@ def parse_scheduler_schedule(
         minutes = int(match.group(1))
         if task_id == "dna_client_update_poll":
             try:
-                NotificationSettings(client_update_check_minutes=minutes)
+                ClientUpdatesSettings(check_minutes=minutes)
             except ValueError as error:
                 raise ValueError("客户端更新检查间隔必须为正整数") from error
             return f"interval@{minutes}m", minutes
@@ -560,8 +557,6 @@ class SchedulerRegistry:
 
 __all__ = [
     "BUILTIN_SCHEDULER_TASK_IDS",
-    "MH_PUSH_AT",
-    "MH_PUSH_SCHEDULE",
     "SchedulerRegistry",
     "SchedulerStateError",
     "SchedulerStateStore",

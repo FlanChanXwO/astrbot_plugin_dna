@@ -8,6 +8,8 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from astrbot.api import logger
+
 from ...entry.response import (
     ChainResponse,
     CommandResponse,
@@ -21,7 +23,6 @@ from ...infrastructure.persistence import (
 )
 from ...infrastructure.rendering import PlayerRenderer
 from ...infrastructure.resources import AliasCatalog, ResourceSnapshotCoordinator
-from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .cache import PlayerCache

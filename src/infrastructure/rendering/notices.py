@@ -656,7 +656,7 @@ async def draw_ann_list_img(
     """以 HTML/T2I 渲染包含全部公告的索引卡。"""
 
     if posts is None:
-        posts = await fetch_ann_list(prefer_cache=True)
+        posts = await fetch_ann_list()
     if not posts:
         return "获取公告列表失败"
 
@@ -862,7 +862,7 @@ async def draw_ann_detail_img(
     static_records: list[dict[str, str]] | None = None,
 ) -> bytes | str | list[bytes]:
     post_id = str(post_id)
-    posts = await fetch_ann_list(prefer_cache=True)
+    posts = await fetch_ann_list()
     matched = next((post for post in posts if str(post.get("postId")) == post_id), None)
     if matched is None:
         return "未找到该公告"

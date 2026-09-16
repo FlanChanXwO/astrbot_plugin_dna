@@ -20,7 +20,7 @@ from .runtime_assets import (
     placeholder_image,
 )
 
-StaticAssetSource = Literal["verified_snapshot", "bootstrap", "none"]
+StaticAssetSource = Literal["verified_snapshot", "none"]
 
 if TYPE_CHECKING:
     from ..resources.generation import ResourceSnapshotCoordinator
@@ -36,33 +36,20 @@ class ResolvedStaticAsset:
 
 
 class StaticAssetResolver:
-    """按 verified generation → 显式 bootstrap → missing 解析静态资源。"""
+    """只从已校验的 resource generation 解析静态资源。"""
 
     def __init__(
         self,
         *,
         snapshot_root: str | Path | None = None,
         coordinator: ResourceSnapshotCoordinator | None = None,
-        bootstrap_allowlist: dict[str, str | Path] | None = None,
         asset_paths: dict[str, str] | None = None,
-        bootstrap_texture_dir: str | Path | None = None,
-        bootstrap_relative_allowlist: set[str] | None = None,
     ) -> None:
         self.snapshot_root = (
             None if snapshot_root is None else Path(snapshot_root).resolve()
         )
         self.coordinator = coordinator
-        self.bootstrap_allowlist = {
-            key: Path(value).resolve()
-            for key, value in (bootstrap_allowlist or {}).items()
-        }
         self.asset_paths = dict(asset_paths or {})
-        # 本地保留的通用装饰图目录；只有显式列入 allowlist 的相对路径才允许
-        # 从这里回退，避免隐式 fallback 掩盖 dna-resource 的资源遗漏。
-        self.bootstrap_texture_dir = (
-            None if bootstrap_texture_dir is None else Path(bootstrap_texture_dir)
-        )
-        self.bootstrap_relative_allowlist = set(bootstrap_relative_allowlist or ())
         # 已固定 generation 的副本会写入该字段；未固定时由 coordinator 推导。
         self._generation_id: str | None = None
 
@@ -78,11 +65,7 @@ class StaticAssetResolver:
         return path
 
     def resolve(self, logical_key: str) -> ResolvedStaticAsset:
-        """按 snapshot mapping → 显式 bootstrap mapping → missing 解析逻辑 key。
-
-        bootstrap-only key（如 logo、帮助图标）没有 snapshot 映射，也必须能
-        进入 bootstrap 检查。
-        """
+        """按 snapshot mapping → missing 解析逻辑 key。"""
 
         if self.coordinator is not None:
             snapshot = self.coordinator.current_snapshot
@@ -94,9 +77,6 @@ class StaticAssetResolver:
                 candidate = self.snapshot_root.joinpath(*safe.parts)
                 if candidate.is_file() and not candidate.is_symlink():
                     return ResolvedStaticAsset(candidate, "verified_snapshot", False)
-        bootstrap = self.bootstrap_allowlist.get(logical_key)
-        if bootstrap is not None and bootstrap.is_file() and not bootstrap.is_symlink():
-            return ResolvedStaticAsset(bootstrap, "bootstrap", False)
         return ResolvedStaticAsset(None, "none", True)
 
     @property
@@ -109,7 +89,7 @@ class StaticAssetResolver:
         return getattr(snapshot, "commit_sha", None)
 
     def resolve_relative(self, relative: str) -> ResolvedStaticAsset:
-        """按 snapshot → 显式 bootstrap allowlist → missing 解析相对路径。"""
+        """按 snapshot → missing 解析相对路径。"""
 
         safe = self._safe_relative(relative)
         snapshot_root = self.snapshot_root
@@ -120,15 +100,6 @@ class StaticAssetResolver:
             candidate = snapshot_root.joinpath(*safe.parts)
             if candidate.is_file() and not candidate.is_symlink():
                 return ResolvedStaticAsset(candidate, "verified_snapshot", False)
-        # 仅显式列入 allowlist 的路径才允许回退本地 bootstrap 装饰图，
-        # 防止 dna-resource 资源遗漏被本地同名文件静默掩盖。
-        if (
-            self.bootstrap_texture_dir is not None
-            and str(PurePosixPath(relative)) in self.bootstrap_relative_allowlist
-        ):
-            candidate = self.bootstrap_texture_dir.joinpath(safe.parts[-1])
-            if candidate.is_file() and not candidate.is_symlink():
-                return ResolvedStaticAsset(candidate, "bootstrap", False)
         return ResolvedStaticAsset(None, "none", True)
 
     def pinned(
@@ -142,12 +113,7 @@ class StaticAssetResolver:
         return StaticAssetResolver(
             snapshot_root=snapshot_root,
             coordinator=None,
-            bootstrap_allowlist={
-                key: str(value) for key, value in self.bootstrap_allowlist.items()
-            },
             asset_paths=dict(self.asset_paths),
-            bootstrap_texture_dir=self.bootstrap_texture_dir,
-            bootstrap_relative_allowlist=set(self.bootstrap_relative_allowlist),
         )._with_generation_id(generation_id or self.generation_id)
 
     def listdir(self, relative: str) -> list[str]:
@@ -172,24 +138,6 @@ class StaticAssetResolver:
     def _with_generation_id(self, generation_id: str | None) -> StaticAssetResolver:
         self._generation_id = generation_id
         return self
-
-
-# 生产环境显式允许回退本地 bootstrap 的通用装饰图；其余静态资源缺失必须
-# 暴露为 incomplete，避免本地同名文件掩盖 dna-resource 的资源遗漏。
-BOOTSTRAP_RELATIVE_ALLOWLIST = {
-    "textures/common/bg.jpg",
-    "textures/common/bg1.jpg",
-    "textures/common/bg2.jpg",
-    "textures/common/div.png",
-    "textures/common/footer.png",
-    "textures/common/avatar_frame.png",
-    "textures/common/avatar_title_bg.png",
-    "textures/common/avatar_title_level.png",
-    "textures/common/avatar_title_base_info.png",
-}
-
-# 仅保留少量通用装饰图作为本地 bootstrap；完整公共资源由 resource snapshot 提供。
-BOOTSTRAP_TEXTURE_ROOT = Path(__file__).parents[2] / "utils" / "texture2d"
 
 
 def static_image_data_uri(
@@ -342,7 +290,6 @@ def static_record(
 
 
 __all__ = [
-    "BOOTSTRAP_RELATIVE_ALLOWLIST",
     "static_font_data_uri",
     "static_image_data_uri",
     "static_open_image",

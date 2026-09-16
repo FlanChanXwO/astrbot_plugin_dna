@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from astrbot.api import logger
 
 from ...entry.event import EventActor
 from ...entry.response import ImageResponse, MultiImageResponse, PlainTextResponse
@@ -21,7 +22,6 @@ from ...infrastructure.rendering import NoticesRenderer, RenderedNoticesImage
 from ...infrastructure.rendering.errors import HtmlRenderError
 from ...infrastructure.resources import ResourceSnapshotCoordinator
 from ...infrastructure.subscriptions import SubscriptionStore
-from ...infrastructure.utils.logger import logger
 from ..privacy import PrivacyService
 from . import messages
 from .ann_delivery_state import AnnDeliveryStateStore

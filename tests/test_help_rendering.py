@@ -76,7 +76,7 @@ async def test_help_cache_hit_restores_resource_records(
     """缓存命中后必须恢复完整的资源记录，不得丢失 incomplete 状态。"""
 
     resolver = _FakeResolver(
-        {"textures/help/icon/登录.png": help_module.PLUGIN_ICON_PATH},
+        {"textures/help/icon/登录.png": Path(__file__).parents[1] / "logo.png"},
         generation_id="gen-a",
     )
 
@@ -113,7 +113,7 @@ async def test_help_cache_is_isolated_between_generations(
 ) -> None:
     """不同 resource generation 不得共用帮助图片缓存。"""
 
-    icon = help_module.PLUGIN_ICON_PATH
+    icon = Path(__file__).parents[1] / "logo.png"
 
     async def render_for_generation(gen: str) -> bytes:
         return await help_module.get_help(

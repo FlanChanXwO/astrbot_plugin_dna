@@ -88,9 +88,8 @@ class Sender:
         self,
         msg: SendPayload,
         at_sender: bool = False,
-        wait_recall: bool = False,
     ) -> _SendResult:
-        """入队消息；保留 ``wait_recall`` 以兼容旧调用方。
+        """入队消息。
 
         AstrBot handler 先收集结果链，发送完成后的 message id 不在此层可用；
         因此 await 该返回值只返回 None，原图缓存逻辑会自然跳过。
@@ -122,10 +121,6 @@ class Sender:
         ]
         if chain:
             await self._immediate_send(chain)
-
-    def send_option(self, im: bytes) -> None:
-        """兼容 gsucore ``bot.send_option``：帮助卡片图片。"""
-        self.send(im)
 
     def _prepare_segments(self, msg: SendPayload, at_sender: bool) -> list[Segment]:
         segs = self._parse(msg)

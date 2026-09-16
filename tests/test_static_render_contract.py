@@ -26,7 +26,6 @@ from src.infrastructure.rendering.encyclopedia import _draw_calendar_card_bytes
 from src.infrastructure.rendering.notices import NoticesRenderer
 from src.infrastructure.rendering.player import PlayerRenderer
 from src.infrastructure.rendering.static_assets import (
-    BOOTSTRAP_RELATIVE_ALLOWLIST,
     StaticAssetResolver,
     static_open_image,
 )
@@ -40,11 +39,16 @@ from src.modules.checkin.contracts import CheckinCalendarData, SignCalendar, Sig
 from src.modules.notices.contracts import MhInstance, MhSection, MhSnapshot
 from src.modules.player.contracts import RoleOverview
 
-BOOTSTRAP_TEXTURE_DIR = Path(__file__).parents[1] / "src" / "utils" / "texture2d"
-
 _PLAYER_STATICS = (
+    "textures/common/avatar_frame.png",
+    "textures/common/avatar_title_base_info.png",
+    "textures/common/avatar_title_bg.png",
+    "textures/common/avatar_title_level.png",
+    "textures/common/bg.jpg",
     "textures/common/bg1.jpg",
     "textures/common/bg2.jpg",
+    "textures/common/div.png",
+    "textures/common/footer.png",
     "textures/role/bg/bg1.png",
     "textures/role/bg/bg4.png",
     "textures/role/bg/bg5.png",
@@ -156,11 +160,9 @@ def test_case1_full_snapshot_renders_core_cards_incomplete_false(
 ) -> None:
     _stub_avatar(monkeypatch)
     generation = _build_snapshot(tmp_path / "gen-a", generation="a" * 40)
-    resolver = StaticAssetResolver(
-        snapshot_root=generation,
-        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
-        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
-    ).pinned(generation, generation_id="a" * 40)
+    resolver = StaticAssetResolver(snapshot_root=generation).pinned(
+        generation, generation_id="a" * 40
+    )
 
     # 玩家角色总览
     player_renderer = PlayerRenderer(
@@ -249,10 +251,7 @@ def test_case2_without_snapshot_falls_back_incomplete(
     tmp_path, monkeypatch
 ) -> None:
     _stub_avatar(monkeypatch)
-    resolver = StaticAssetResolver(
-        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
-        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
-    )
+    resolver = StaticAssetResolver()
     checkin_renderer = CheckinRenderer(
         tmp_path / "rendered-checkin", EncyclopediaResourceStore()
     )
@@ -277,8 +276,7 @@ def test_case2_without_snapshot_falls_back_incomplete(
         )
     )
     assert result.path.is_file()
-    # 本地 bootstrap 装饰图可覆盖 common 纹理，但 sign 纹理与字体已外置，
-    # 缺 snapshot 时必然走 placeholder/incomplete。
+    # 缺 snapshot 时静态资源统一走 placeholder/incomplete。
     assert result.incomplete is True
 
 
@@ -291,9 +289,7 @@ def test_case3_request_keeps_generation_across_switch(tmp_path) -> None:
         tmp_path, generation_a, "a" * 40
     )
     with coordinator.bind_static_asset_resolver(
-        StaticAssetResolver(
-            coordinator=coordinator, bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR
-        )
+        StaticAssetResolver(coordinator=coordinator)
     ) as pinned:
         # 请求进行中发布 generation B。
         coordinator._current = ResourceSnapshot(
@@ -328,11 +324,9 @@ def test_missing_static_assets_force_incomplete(tmp_path, monkeypatch) -> None:
     (generation / "textures" / "mh" / "mh_role.png").unlink()
     (generation / "calendar" / "banner_mask.png").unlink()
     # 周报品质角标不在 fake snapshot 清单内，缺 q2.png 即代表缺失。
-    resolver = StaticAssetResolver(
-        snapshot_root=generation,
-        bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
-        bootstrap_relative_allowlist=BOOTSTRAP_RELATIVE_ALLOWLIST,
-    ).pinned(generation, generation_id="a" * 40)
+    resolver = StaticAssetResolver(snapshot_root=generation).pinned(
+        generation, generation_id="a" * 40
+    )
 
     # 签到日历：缺 sign/bar.png。
     checkin_renderer = CheckinRenderer(
@@ -424,7 +418,6 @@ def test_static_open_image_writes_records(tmp_path: Path) -> None:
     static_open_image(
         StaticAssetResolver(
             snapshot_root=_build_snapshot(tmp_path / "full", generation="a" * 40),
-            bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
         ),
         "textures/sign/bar.png",
         size=(4, 4),
@@ -438,7 +431,6 @@ def test_static_open_image_writes_records(tmp_path: Path) -> None:
     static_open_image(
         StaticAssetResolver(
             snapshot_root=tmp_path / "empty",
-            bootstrap_texture_dir=BOOTSTRAP_TEXTURE_DIR,
         ),
         "textures/stamina/icon1.png",
         size=(4, 4),

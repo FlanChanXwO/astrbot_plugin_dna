@@ -5,24 +5,17 @@ from typing import TYPE_CHECKING
 
 import httpx
 from astrbot.api import logger
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw
 
 from ..infrastructure.data_layout import default_runtime_data_layout
 from . import image_utils
 from .image_utils import (
     ImageFetchError,
-    crop_center_img,
     download,
-    get_event_avatar,
 )
-from .session import EventContext
 
 if TYPE_CHECKING:
     from ..infrastructure.resources.resolver import AssetDownloader
-
-ICON = Path(__file__).parent.parent.parent / "logo.png"
-TEXT_PATH = Path(__file__).parent / "texture2d"
-
 
 # Gold & Earth Tones
 COLOR_LIGHT_GOLDENROD = (250, 250, 210)  # 浅金黄色
@@ -64,12 +57,6 @@ COLOR_PURPLE = (138, 43, 226)
 
 Color = str | tuple[int, int, int] | tuple[int, int, int, int]
 
-grades = [Image.open(TEXT_PATH / f"number/{i}.png") for i in range(11)]
-
-
-def get_ICON() -> Image.Image:
-    return Image.open(ICON).convert("RGBA")
-
 
 def _normalize_paint_img(image: Image.Image) -> Image.Image:
     paint_size = 1320
@@ -100,11 +87,6 @@ def _load_cached_image(path: Path) -> Image.Image | None:
             return image.convert("RGBA")
     except (OSError, SyntaxError, ValueError):
         return None
-
-
-def get_dna_bg(w: int, h: int, bg: str = "bg") -> Image.Image:
-    img = Image.open(TEXT_PATH / f"{bg}.jpg").convert("RGBA")
-    return crop_center_img(img, w, h)
 
 
 async def download_pic_from_url(
@@ -297,176 +279,6 @@ async def get_mod_img(mod_id: str | int, pic_url: str | None = None) -> Image.Im
         return Image.new("RGBA", (256, 256))
 
     return image
-
-
-def get_grade_img(grade_level: int) -> Image.Image:
-    # 命座等级会随版本增加，越界时夹到现有素材的上下限
-    idx = max(0, min(grade_level, len(grades) - 1))
-    return grades[idx]
-
-
-async def get_avatar_title_img(
-    ev: EventContext,
-    uid: str,
-    name: str,
-    user_level: int | None = None,
-    other_info: list[tuple[str, str]] | None = None,
-    avatar_user_id: str | None = None,
-    uid_hidden: bool = False,
-) -> Image.Image:
-    # 字体由 resolver 注入到新 renderer；旧 helper 无 snapshot 时使用统一 Pillow fallback。
-    from src.infrastructure.rendering.fonts import load_runtime_font
-
-    dna_font_20 = load_runtime_font(20)
-    dna_font_24 = load_runtime_font(24)
-    dna_font_30 = load_runtime_font(30)
-    dna_font_40 = load_runtime_font(40)
-    dna_font_50 = load_runtime_font(50)
-
-    img = Image.open(TEXT_PATH / "avatar_title_bg.png").convert("RGBA")
-    draw = ImageDraw.Draw(img)
-    _ = draw.text(
-        (320, 100),
-        f"{name}",
-        COLOR_WHITE,
-        dna_font_50,
-        "lm",
-    )
-
-    # 仅在 UID 未隐藏时显示 UID
-    if not uid_hidden:
-        get_smooth_drawer().rounded_rectangle(
-            (320, 140, 320 + 330, 140 + 40),
-            15,
-            COLOR_PALE_GOLDENROD,
-            target=img,
-        )
-
-        _ = draw.text(
-            (330, 160),
-            f"UID {uid}",
-            COLOR_BLACK,
-            dna_font_30,
-            "lm",
-        )
-
-    avater_size = 190
-
-    avatar_temp = Image.new("RGBA", (avater_size, avater_size))
-
-    # 如果 avatar_user_id 为 None，则使用发送者自己的头像
-    original_at = ev.at
-    if avatar_user_id:
-        ev.at = avatar_user_id
-    else:
-        ev.at = ""  # 清空 at，确保获取发送者自己的头像
-    try:
-        avatar = await get_event_avatar(
-            ev,
-            avatar_path=default_runtime_data_layout().cache_user_avatar_dir,
-        )
-    except (httpx.HTTPError, OSError, TypeError, ValueError):
-        avatar = await get_avatar_img("5101")
-    finally:
-        ev.at = original_at  # 恢复原始值
-
-    avatar = avatar.resize((avater_size - 60, avater_size - 60))
-
-    avatar_temp.alpha_composite(avatar, (30, 30))
-
-    avatar_frame = Image.open(TEXT_PATH / "avatar_frame.png").convert("RGBA")
-    avatar_frame = avatar_frame.resize((avater_size, avater_size))
-    avatar_temp.alpha_composite(avatar_frame, (0, 0))
-
-    if user_level:
-        avatar_title_level = Image.open(TEXT_PATH / "avatar_title_level.png").convert(
-            "RGBA"
-        )
-        draw_avatar_title_level = ImageDraw.Draw(avatar_title_level)
-        _ = draw_avatar_title_level.text(
-            (36, 35),
-            f"{user_level}",
-            COLOR_WHITE,
-            dna_font_24,
-            "mm",
-        )
-        avatar_temp.alpha_composite(avatar_title_level, (120, 120))
-
-    img.alpha_composite(avatar_temp, (115, 20))
-
-    if other_info and len(other_info) >= 2:
-        avatar_title_base_info = Image.open(
-            TEXT_PATH / "avatar_title_base_info.png"
-        ).convert("RGBA")
-
-        if len(other_info) >= 4:
-            other_info = other_info[:4]
-            next_x = 120
-            start_x = 70
-        elif len(other_info) == 3:
-            next_x = 150
-            start_x = 100
-        else:
-            next_x = 200
-            start_x = 150
-
-        draw_avatar_title_base_info = ImageDraw.Draw(avatar_title_base_info)
-        for index, value in enumerate(other_info):
-            k, v = value
-            _ = draw_avatar_title_base_info.text(
-                (index * next_x + start_x, 23),
-                v,
-                COLOR_WHITE,
-                dna_font_40,
-                "mm",
-            )
-            _ = draw_avatar_title_base_info.text(
-                (index * next_x + start_x, 63),
-                k,
-                COLOR_WHITE,
-                dna_font_20,
-                "mm",
-            )
-
-        img.alpha_composite(avatar_title_base_info, (680, 90))
-
-    return img
-
-
-def get_footer() -> Image.Image:
-    return Image.open(TEXT_PATH / "footer.png")
-
-
-def get_div() -> Image.Image:
-    return Image.open(TEXT_PATH / "div.png")
-
-
-def add_footer(
-    img: Image.Image,
-    w: int = 0,
-    offset_y: int = 0,
-    is_invert: bool = False,
-) -> Image.Image:
-    footer = Image.open(TEXT_PATH / "footer.png")
-    if is_invert:
-        r, g, b, a = footer.split()
-        rgb_image = Image.merge("RGB", (r, g, b))
-        rgb_image = ImageOps.invert(rgb_image.convert("RGB"))
-        r2, g2, b2 = rgb_image.split()
-        footer = Image.merge("RGBA", (r2, g2, b2, a))
-
-    if w != 0:
-        footer = footer.resize(
-            (w, int(footer.size[1] * w / footer.size[0])),
-        )
-
-    x, y = (
-        int((img.size[0] - footer.size[0]) / 2),
-        img.size[1] - footer.size[1] - 20 + offset_y,
-    )
-
-    img.paste(footer, (x, y), footer)
-    return img
 
 
 class SmoothDrawer:
