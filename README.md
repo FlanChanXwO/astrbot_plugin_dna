@@ -53,10 +53,7 @@ python3 -m pip install -r data/plugins/astrbot_plugin_dna/requirements.txt
 随后重启 AstrBot 或在 Dashboard 中重载插件。
 
 > [!NOTE]
-> 如果 AstrBot 已自动同步插件依赖，可跳过手动安装 `requirements.txt`。公开发布并进入 AstrBot 插件市场后，以市场页面显示的安装入口为准。
-
-> [!WARNING]
-> **v0.5.1 Breaking Change**：插件不再提供旧 namespace 兼容——Scheduler Task ID 与 Agent Tool ID 全部改为 `dna_*`，scheduler 状态不自动迁移（升级前删除 `state/scheduler.json`），Alembic 数据库 URL 环境变量改为 `DNA_DATABASE_URL`，渲染 artifact metadata 前缀改为 `dna.*`，且不再检测或支持 pre-v0.5 旧数据布局。升级步骤详见 v0.5.1 发布说明。
+> 在使用本插件前，建议先使用`dna同步资源`进行资源同步以获得最佳体验
 
 ## ⚡ 快速开始
 
@@ -98,9 +95,9 @@ python3 -m pip install -r data/plugins/astrbot_plugin_dna/requirements.txt
 
 修改配置后建议重载插件。
 
-## 🧰 公共资源
+## 🧰 素材资源
 
-角色、武器、图鉴、攻略、日历、字体和兑换码等公共资料由独立仓库维护：
+角色、武器、图鉴、攻略、日历、字体和兑换码等素材资料由独立仓库维护：
 
 **[`FlanChanXwO/dna-resource`](https://github.com/FlanChanXwO/dna-resource)**
 
