@@ -248,8 +248,8 @@ class DNARoleDetailRes(BaseModel):
 
 class WeaponAttribute(BaseModel):
     atk: int = Field(description="攻击")
-    crd: float = Field(description="暴击率")
-    cri: float = Field(description="暴击伤害")
+    crd: float = Field(description="暴击伤害")
+    cri: float = Field(description="暴击率")
     speed: float = Field(description="攻击速度")
     trigger: float = Field(description="触发率")
 
