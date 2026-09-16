@@ -28,6 +28,10 @@ from ...infrastructure.http.login_media import (
 )
 from ...infrastructure.http.login_server import LocalLoginServer, Route
 from ...infrastructure.rendering.qr import render_qr_code
+from ...infrastructure.rendering.static_assets import (
+    StaticAssetResolver,
+    static_image_data_uri,
+)
 from ...infrastructure.resources.generation import ResourceSnapshotCoordinator
 from ...utils.api.auth import LoginChannel as LegacyLoginChannel
 from ...utils.api.auth import create_device_code
@@ -140,6 +144,7 @@ class LoginFlowCoordinator:
         self.account_transport = account_transport
         self.notify = notify
         self.login_media = LoginMediaService(resource_snapshots)
+        self.resource_snapshots = resource_snapshots
         self._sessions: dict[tuple[str, str, str | None], _LoginSession] = {}
         self._session_lock = asyncio.Lock()
         self._started = False
@@ -418,12 +423,25 @@ class LoginFlowCoordinator:
             base_url,
             enabled=self.settings.dynamic_background,
         )
+        title_logo_resolver: StaticAssetResolver | None = None
+        if self.resource_snapshots is not None:
+            with self.resource_snapshots.optional_lease() as snapshot:
+                if snapshot is not None:
+                    title_logo_resolver = StaticAssetResolver(snapshot_root=snapshot.root)
+                title_logo = static_image_data_uri(
+                    title_logo_resolver,
+                    "textures/common/title_logo.png",
+                    label="logo",
+                )[0]
+        else:
+            title_logo = static_image_data_uri(None, "", label="logo")[0]
         return HTMLResponse(
             template.render(
                 server_url=base_url,
                 auth=auth,
                 userId=session.actor.user_id,
                 login_media=login_media,
+                title_logo=title_logo,
             )
         )
 

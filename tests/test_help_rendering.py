@@ -13,10 +13,7 @@ import pytest
 
 from main import COMMAND_REGISTRY
 from src.infrastructure.rendering import help as help_module
-from src.infrastructure.rendering.static_assets import (
-    HELP_ICON_DIR,
-    ResolvedStaticAsset,
-)
+from src.infrastructure.rendering.static_assets import ResolvedStaticAsset
 
 
 class _FakeResolver:
@@ -41,6 +38,12 @@ class _FakeResolver:
             return ResolvedStaticAsset(path, "verified_snapshot", False)
         return ResolvedStaticAsset(None, "none", True)
 
+    def resolve_relative(self, relative: str) -> ResolvedStaticAsset:
+        path = self.provided.get(relative)
+        if path is not None:
+            return ResolvedStaticAsset(path, "verified_snapshot", False)
+        return ResolvedStaticAsset(None, "none", True)
+
 
 class _FakeRenderer:
     """记录渲染次数并输出固定字节的渲染器桩。"""
@@ -51,12 +54,6 @@ class _FakeRenderer:
     async def render(self, _template: str, _data: Any, _spec: Any) -> bytes:
         self.calls += 1
         return b"help-payload"
-
-
-def _icon_file(name: str) -> Path:
-    path = HELP_ICON_DIR / name
-    assert path.is_file(), f"测试前置：帮助图标应存在 {name}"
-    return path
 
 
 @pytest.fixture
@@ -79,10 +76,9 @@ async def test_help_cache_hit_restores_resource_records(
     """缓存命中后必须恢复完整的资源记录，不得丢失 incomplete 状态。"""
 
     resolver = _FakeResolver(
-        {"texture.help.icon:登录.png": _icon_file("登录.png")},
+        {"textures/help/icon/登录.png": help_module.PLUGIN_ICON_PATH},
         generation_id="gen-a",
     )
-    monkeypatch.setattr(help_module, "PLUGIN_ICON_PATH", _icon_file("帮助.png"))
 
     first_records: list[dict[str, str]] = []
     first = await help_module.get_help(
@@ -117,8 +113,7 @@ async def test_help_cache_is_isolated_between_generations(
 ) -> None:
     """不同 resource generation 不得共用帮助图片缓存。"""
 
-    icon = _icon_file("登录.png")
-    monkeypatch.setattr(help_module, "PLUGIN_ICON_PATH", _icon_file("帮助.png"))
+    icon = help_module.PLUGIN_ICON_PATH
 
     async def render_for_generation(gen: str) -> bytes:
         return await help_module.get_help(
@@ -126,7 +121,7 @@ async def test_help_cache_is_isolated_between_generations(
             registry=COMMAND_REGISTRY,
             permission="user",
             asset_resolver=_FakeResolver(
-                {"texture.help.icon:登录.png": icon},
+                {"textures/help/icon/登录.png": icon},
                 generation_id=gen,
             ),
         )

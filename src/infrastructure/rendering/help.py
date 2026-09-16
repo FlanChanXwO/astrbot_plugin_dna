@@ -21,20 +21,20 @@ from .help_presentation import (
 from .renderer import HtmlRenderer
 from .spec import RenderSpec
 from .static_assets import (
-    HELP_BACKGROUND_PATH,
-    HELP_BANNER_PATH,
-    HELP_CAG_PATH,
-    HELP_FONT_PATH,
-    HELP_FOOTER_PATH,
-    HELP_ICON_DIR,
-    HELP_ITEM_PATH,
     StaticAssetResolver,
-    static_key_font_data_uri,
+    static_font_data_uri,
+    static_image_data_uri,
     static_key_image_data_uri,
     static_record,
 )
 
 PLUGIN_ICON_PATH = Path(__file__).parents[3] / "logo.png"
+HELP_BACKGROUND_PATH = "textures/help/bg.jpg"
+HELP_BANNER_PATH = "textures/help/banner_bg.jpg"
+HELP_CAG_PATH = "textures/help/cag_bg.png"
+HELP_ITEM_PATH = "textures/help/item.png"
+HELP_FOOTER_PATH = "textures/common/footer.png"
+HELP_FONT_PATH = "fonts/MiSansVF.woff2"
 
 if TYPE_CHECKING:
     from ...entry.commands import CommandRegistry, PermissionName
@@ -58,17 +58,6 @@ def _legacy_image_uri(path: Path, label: str) -> str:
         from .static_assets import static_image_data_uri
 
         return static_image_data_uri(None, "", label=label)[0]
-
-
-def _legacy_font_uri(path: Path) -> str:
-    """无 resolver 兼容路径的字体读取；缺失时交给 CSS fallback。"""
-
-    try:
-        from .assets import font_data_uri
-
-        return font_data_uri(path)
-    except (OSError, ValueError):
-        return ""
 
 
 # Help 缓存必须连同资源完整性记录一起缓存，命中后才能恢复 incomplete 状态。
@@ -139,19 +128,17 @@ def _help_icon_uri(
     asset_resolver: StaticAssetResolver | None,
     resource_records: list[dict[str, str]] | None = None,
 ) -> str:
-    """按 presentation 显式声明的图标名解析；图标是显式 bootstrap，不外置。"""
+    """按 presentation 显式声明的图标名从当前 resource generation 解析。"""
 
-    path = HELP_ICON_DIR / icon
-    if asset_resolver is None:
-        return _legacy_image_uri(path, icon)
     key = f"texture.help.icon:{icon}"
-    uri, asset = static_key_image_data_uri(asset_resolver, key, label=icon)
+    relative = f"textures/help/icon/{icon}"
+    uri, asset = static_image_data_uri(asset_resolver, relative, label=icon)
     if resource_records is not None:
         resource_records.append(
             static_record(
                 key,
                 asset,
-                resource_path=f"textures/help/icon/{icon}",
+                resource_path=relative,
             ),
         )
     return uri
@@ -262,46 +249,48 @@ async def get_help(
         asset_resolver=asset_resolver,
         resource_records=resource_records,
     )
-    if asset_resolver is None:
-        background_uri = _legacy_image_uri(HELP_BACKGROUND_PATH, "help-background")
-        banner_uri = _legacy_image_uri(HELP_BANNER_PATH, "help-banner")
-        cag_uri = _legacy_image_uri(HELP_CAG_PATH, "help-cag")
-        footer_uri = _legacy_image_uri(HELP_FOOTER_PATH, "footer")
-        icon_uri = _legacy_image_uri(PLUGIN_ICON_PATH, "logo")
-        item_uri = _legacy_image_uri(HELP_ITEM_PATH, "help-item")
-        font_uri = _legacy_font_uri(HELP_FONT_PATH)
-    else:
-        def image_uri(key: str, path: Path, label: str) -> str:
-            uri, asset = static_key_image_data_uri(
-                asset_resolver,
-                key,
-                label=label,
+    def image_uri(key: str, relative: str, label: str) -> str:
+        uri, asset = static_image_data_uri(asset_resolver, relative, label=label)
+        if resource_records is not None:
+            resource_records.append(
+                static_record(key, asset, resource_path=relative),
             )
-            if resource_records is not None:
-                resource_records.append(
-                    static_record(key, asset, resource_path=path.as_posix()),
-                )
-            return uri
+        return uri
 
-        def font_uri_for(key: str, path: Path) -> str:
-            uri, asset = static_key_font_data_uri(asset_resolver, key)
-            if resource_records is not None:
-                resource_records.append(
-                    static_record(key, asset, resource_path=path.as_posix()),
-                )
-            return uri
+    def font_uri_for(key: str, relative: str) -> str:
+        uri, asset = static_font_data_uri(asset_resolver, relative)
+        if resource_records is not None:
+            resource_records.append(
+                static_record(key, asset, resource_path=relative),
+            )
+        return uri
 
-        background_uri = image_uri(
-            "texture.help.background",
-            HELP_BACKGROUND_PATH,
-            "help-background",
+    background_uri = image_uri(
+        "texture.help.background",
+        HELP_BACKGROUND_PATH,
+        "help-background",
+    )
+    banner_uri = image_uri("texture.help.banner", HELP_BANNER_PATH, "help-banner")
+    cag_uri = image_uri("texture.help.cag", HELP_CAG_PATH, "help-cag")
+    footer_uri = image_uri("texture.common.footer", HELP_FOOTER_PATH, "footer")
+    if asset_resolver is None:
+        icon_uri = _legacy_image_uri(PLUGIN_ICON_PATH, "logo")
+    else:
+        icon_uri, icon_asset = static_key_image_data_uri(
+            asset_resolver,
+            "texture.help.logo",
+            label="logo",
         )
-        banner_uri = image_uri("texture.help.banner", HELP_BANNER_PATH, "help-banner")
-        cag_uri = image_uri("texture.help.cag", HELP_CAG_PATH, "help-cag")
-        footer_uri = image_uri("texture.common.footer", HELP_FOOTER_PATH, "footer")
-        icon_uri = image_uri("texture.help.logo", PLUGIN_ICON_PATH, "logo")
-        item_uri = image_uri("texture.help.item", HELP_ITEM_PATH, "help-item")
-        font_uri = font_uri_for("font.help", HELP_FONT_PATH)
+        if resource_records is not None:
+            resource_records.append(
+                static_record(
+                    "texture.help.logo",
+                    icon_asset,
+                    resource_path="logo.png",
+                ),
+            )
+    item_uri = image_uri("texture.help.item", HELP_ITEM_PATH, "help-item")
+    font_uri = font_uri_for("font.help", HELP_FONT_PATH)
     template_data = {
         "background": background_uri,
         "banner": banner_uri,

@@ -1,4 +1,4 @@
-"""静态资源解析器与无 resolver 兼容路径使用的本地资源常量。"""
+"""静态资源解析器。"""
 
 from __future__ import annotations
 
@@ -47,7 +47,6 @@ class StaticAssetResolver:
         asset_paths: dict[str, str] | None = None,
         bootstrap_texture_dir: str | Path | None = None,
         bootstrap_relative_allowlist: set[str] | None = None,
-        bootstrap_dirs: dict[str, str | Path] | None = None,
     ) -> None:
         self.snapshot_root = (
             None if snapshot_root is None else Path(snapshot_root).resolve()
@@ -64,10 +63,6 @@ class StaticAssetResolver:
             None if bootstrap_texture_dir is None else Path(bootstrap_texture_dir)
         )
         self.bootstrap_relative_allowlist = set(bootstrap_relative_allowlist or ())
-        # 帮助图标等仅存在于插件包内的小型 UI 资源：key 前缀 → bootstrap 目录。
-        self.bootstrap_dirs = {
-            key: Path(value) for key, value in (bootstrap_dirs or {}).items()
-        }
         # 已固定 generation 的副本会写入该字段；未固定时由 coordinator 推导。
         self._generation_id: str | None = None
 
@@ -102,21 +97,6 @@ class StaticAssetResolver:
         bootstrap = self.bootstrap_allowlist.get(logical_key)
         if bootstrap is not None and bootstrap.is_file() and not bootstrap.is_symlink():
             return ResolvedStaticAsset(bootstrap, "bootstrap", False)
-        # 帮助图标等 bootstrap 目录型 key：<prefix>:<filename>。
-        if ":" in logical_key:
-            prefix, filename = logical_key.split(":", 1)
-            directory = self.bootstrap_dirs.get(prefix)
-            if directory is not None and not _safe_dir_member(filename):
-                candidate = directory / filename
-                if candidate.is_file() and not candidate.is_symlink():
-                    return ResolvedStaticAsset(candidate, "bootstrap", False)
-                encoded_filename = "".join(
-                    f"#U{ord(char):04x}" if not char.isascii() else char
-                    for char in filename
-                )
-                encoded_candidate = directory / encoded_filename
-                if encoded_candidate.is_file() and not encoded_candidate.is_symlink():
-                    return ResolvedStaticAsset(encoded_candidate, "bootstrap", False)
         return ResolvedStaticAsset(None, "none", True)
 
     @property
@@ -168,9 +148,6 @@ class StaticAssetResolver:
             asset_paths=dict(self.asset_paths),
             bootstrap_texture_dir=self.bootstrap_texture_dir,
             bootstrap_relative_allowlist=set(self.bootstrap_relative_allowlist),
-            bootstrap_dirs={
-                key: str(value) for key, value in self.bootstrap_dirs.items()
-            },
         )._with_generation_id(generation_id or self.generation_id)
 
     def listdir(self, relative: str) -> list[str]:
@@ -197,17 +174,6 @@ class StaticAssetResolver:
         return self
 
 
-def _safe_dir_member(filename: str) -> bool:
-    """目录型 bootstrap key 的文件名安全检查。"""
-
-    return (
-        not filename
-        or "/" in filename
-        or "\\" in filename
-        or filename in {".", ".."}
-    )
-
-
 # 生产环境显式允许回退本地 bootstrap 的通用装饰图；其余静态资源缺失必须
 # 暴露为 incomplete，避免本地同名文件掩盖 dna-resource 的资源遗漏。
 BOOTSTRAP_RELATIVE_ALLOWLIST = {
@@ -222,21 +188,8 @@ BOOTSTRAP_RELATIVE_ALLOWLIST = {
     "textures/common/avatar_title_base_info.png",
 }
 
-RESOURCE_ROOT = Path(__file__).parents[2] / "resources"
-
-# 仅保留少量通用装饰图与帮助素材作为本地 bootstrap；完整纹理由 resource snapshot 提供。
+# 仅保留少量通用装饰图作为本地 bootstrap；完整公共资源由 resource snapshot 提供。
 BOOTSTRAP_TEXTURE_ROOT = Path(__file__).parents[2] / "utils" / "texture2d"
-COMMON_PATH = BOOTSTRAP_TEXTURE_ROOT
-
-HELP_FONT_PATH = RESOURCE_ROOT / "fonts" / "MiSansVF.woff2"
-
-HELP_ICON_DIR = RESOURCE_ROOT / "help" / "icon_path"
-HELP_BACKGROUND_PATH = RESOURCE_ROOT / "textures" / "help" / "bg.jpg"
-HELP_BANNER_PATH = RESOURCE_ROOT / "textures" / "help" / "banner_bg.jpg"
-HELP_CAG_PATH = RESOURCE_ROOT / "textures" / "help" / "cag_bg.png"
-HELP_ITEM_PATH = RESOURCE_ROOT / "textures" / "help" / "item.png"
-HELP_FOOTER_PATH = COMMON_PATH / "footer.png"
-PLUGIN_ICON_PATH = Path(__file__).parents[3] / "logo.png"
 
 
 def static_image_data_uri(
@@ -390,15 +343,6 @@ def static_record(
 
 __all__ = [
     "BOOTSTRAP_RELATIVE_ALLOWLIST",
-    "COMMON_PATH",
-    "HELP_BACKGROUND_PATH",
-    "HELP_BANNER_PATH",
-    "HELP_CAG_PATH",
-    "HELP_FONT_PATH",
-    "HELP_FOOTER_PATH",
-    "HELP_ICON_DIR",
-    "HELP_ITEM_PATH",
-    "PLUGIN_ICON_PATH",
     "static_font_data_uri",
     "static_image_data_uri",
     "static_open_image",

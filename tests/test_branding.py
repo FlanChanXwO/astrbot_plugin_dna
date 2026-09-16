@@ -73,10 +73,6 @@ def test_plugin_uses_single_root_logo_asset() -> None:
         assert "ICON.png" not in content
         assert "logo.png" in content
 
-    title_logo_path = ROOT / "src/resources/textures/common/title_logo.png"
-    assert title_logo_path.is_file()
-    assert not (ROOT / "src/resources/textures/common/music_on.png").exists()
-    assert not (ROOT / "src/resources/textures/common/music_off.png").exists()
     resource_code = (ROOT / "src/utils/resource/RESOURCE_PATH.py").read_text(encoding="utf-8")
     assert "title_logo" in resource_code
     assert "music_on_icon" not in resource_code

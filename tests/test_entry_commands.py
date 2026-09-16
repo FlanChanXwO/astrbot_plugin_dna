@@ -598,25 +598,19 @@ def test_help_card_examples_adapt_to_matched_prefix():
     assert not first_item_empty["example"].startswith("dna")
 
 
-def test_help_presentation_covers_every_visible_command_with_existing_icon():
-    """帮助可见命令必须有显式 presentation 配置、存在的图标，且不落通用图标。"""
-    from pathlib import Path
-
+def test_help_presentation_covers_every_visible_command():
+    """帮助可见命令必须有显式 presentation 配置，且不落通用图标。"""
     from src.infrastructure.rendering.help import _registry_help_sections
     from src.infrastructure.rendering.help_presentation import (
         HELP_GROUP_DESCRIPTIONS,
         HELP_GROUP_ORDER,
         HELP_PRESENTATION,
     )
-    from src.infrastructure.rendering.static_assets import HELP_ICON_DIR
-
-    icon_dir = Path(HELP_ICON_DIR)
     generic_icon = "通用.png"
     for spec in COMMAND_REGISTRY:
         entry = HELP_PRESENTATION.get(spec.id)
         assert entry is not None, f"命令 {spec.id} 缺少帮助 presentation 配置"
         assert entry.group in HELP_GROUP_ORDER
-        assert (icon_dir / entry.icon).exists(), f"命令 {spec.id} 图标缺失: {entry.icon}"
         assert entry.icon != generic_icon, f"命令 {spec.id} 不应使用通用图标兜底"
     for group in HELP_GROUP_ORDER:
         assert group in HELP_GROUP_DESCRIPTIONS

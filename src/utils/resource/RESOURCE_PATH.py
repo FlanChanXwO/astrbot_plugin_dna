@@ -13,6 +13,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from ...infrastructure.data_layout import RuntimeDataLayout
+from ...infrastructure.rendering.static_assets import static_image_data_uri
 
 
 def _default_data_dir() -> Path:
@@ -56,15 +57,7 @@ PLUGIN_LOGO_PATH = Path(__file__).parents[3] / "logo.png"
 PLUGIN_LOGO_DATA_URI = "data:image/png;base64," + base64.b64encode(
     PLUGIN_LOGO_PATH.read_bytes()
 ).decode("ascii")
-TITLE_LOGO_PATH = (
-    Path(__file__).parents[2] / "resources" / "textures" / "common" / "title_logo.png"
-)
-TITLE_LOGO_DATA_URI = (
-    "data:image/png;base64,"
-    + base64.b64encode(TITLE_LOGO_PATH.read_bytes()).decode("ascii")
-    if TITLE_LOGO_PATH.exists()
-    else PLUGIN_LOGO_DATA_URI
-)
+TITLE_LOGO_DATA_URI = static_image_data_uri(None, "", label="logo")[0]
 DNA_TEMPLATES = Environment(
     loader=FileSystemLoader(
         [
