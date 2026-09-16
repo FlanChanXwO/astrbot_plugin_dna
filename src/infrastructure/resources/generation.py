@@ -584,7 +584,8 @@ class ResourceSnapshotCoordinator:
         self._state_lock = threading.RLock()
         self._sync_lock = threading.Lock()
         self._validation_lock = threading.Lock()
-        # light snapshot 只作为待校验输入保存，current 只允许指向完整校验结果。
+        # light snapshot 可作为同步时的待校验输入；current 既可以来自本进程刚完成
+        # 的完整校验，也可以在重载时从上一次已原子发布的 current.json 快速恢复。
         self._loaded_snapshot: ResourceSnapshot | None = None
         self._current: ResourceSnapshot | None = None
         self._expected_content_sha256: str | None = None
@@ -936,8 +937,39 @@ class ResourceSnapshotCoordinator:
             self._expected_content_sha256 = expected_content_sha256
         return snapshot
 
+    def restore_current(self) -> ResourceSnapshot | None:
+        """快速恢复上一次已原子发布的 generation，不重新执行完整内容校验。
+
+        ``current.json`` 只会由成功完成完整校验的发布流程写入，并携带当时的
+        ``content_sha256``。插件启动/重载只恢复这个已发布快照；昂贵的 SHA-256
+        扫描、图片解码和 manifest 全量校验仅由显式资源同步流程执行。
+        """
+
+        self._ensure_storage_roots()
+        generation, expected_content_sha256 = self._read_generation_pointer()
+        if generation is None:
+            with self._state_lock:
+                self._loaded_snapshot = None
+                self._current = None
+                self._expected_content_sha256 = None
+            return None
+        if expected_content_sha256 is None:
+            raise ResourceGenerationError(
+                "当前资源 generation 缺少已验证内容哈希，请执行同步资源"
+            )
+
+        snapshot = replace(
+            self._load_light_snapshot(generation),
+            content_sha256=expected_content_sha256,
+        )
+        with self._state_lock:
+            self._loaded_snapshot = snapshot
+            self._current = snapshot
+            self._expected_content_sha256 = expected_content_sha256
+        return snapshot
+
     def validate_current(self) -> ResourceSnapshot | None:
-        """对已加载的 current generation 执行完整校验；无 current 时返回 ``None``。"""
+        """对 current generation 执行完整校验；仅供显式资源同步流程调用。"""
 
         with self._validation_lock:
             with self._state_lock:
@@ -992,20 +1024,18 @@ class ResourceSnapshotCoordinator:
             return validated
 
     def initialize(self) -> ResourceSnapshot | None:
-        """兼容旧生命周期调用：完整恢复当前 generation 并清理孤立目录。"""
+        """兼容旧生命周期调用：快速恢复已发布 generation 并清理孤立目录。"""
 
         with self._sync_lock:
             self._ensure_storage_roots()
             self.generations_root.mkdir(parents=True, exist_ok=True)
             self._ensure_storage_roots()
-            snapshot = self.load_current()
+            snapshot = self.restore_current()
             if snapshot is None:
                 self._cleanup_orphans(None)
                 return None
-            validated = self.validate_current()
-            if validated is not None:
-                self._cleanup_orphans(validated.commit_sha)
-            return validated
+            self._cleanup_orphans(snapshot.commit_sha)
+            return snapshot
 
     def acquire(self) -> ResourceLease:
         """为一次资源读取取得当前已验证 generation lease。"""
