@@ -1865,7 +1865,12 @@ class EncyclopediaRenderer:
             asset = self.resources.calendar_asset(
                 event.pic
             ) or self.resources.calendar_asset(event.title)
-            status = "provided" if asset is not None else "placeholder"
+            if asset is not None or (event.pic and "http" in event.pic):
+                status = "provided"
+            elif not event.pic:
+                status = "omitted"
+            else:
+                status = "placeholder"
             resources.append(
                 {
                     "kind": "calendar",
