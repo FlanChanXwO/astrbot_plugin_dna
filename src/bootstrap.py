@@ -250,7 +250,6 @@ def build_runtime(
         snapshot_root=None,
         coordinator=resource_snapshots,
         asset_paths={
-            "texture.help.logo": "textures/common/title_logo.png",
             "texture.common.footer": "textures/common/footer.png",
             "font.dna_fonts": "fonts/dna_fonts.ttf",
         },
