@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -50,9 +51,11 @@ class _FakeRenderer:
 
     def __init__(self) -> None:
         self.calls = 0
+        self.last_data: dict[str, Any] | None = None
 
     async def render(self, _template: str, _data: Any, _spec: Any) -> bytes:
         self.calls += 1
+        self.last_data = _data
         return b"help-payload"
 
 
@@ -66,6 +69,26 @@ def fake_renderer(monkeypatch: pytest.MonkeyPatch) -> _FakeRenderer:
 @pytest.fixture(autouse=True)
 def _clear_help_cache() -> None:
     help_module.invalidate_help_cache()
+
+
+@pytest.mark.asyncio
+async def test_help_header_uses_canonical_plugin_logo(
+    fake_renderer: _FakeRenderer,
+) -> None:
+    """帮助卡左上角必须使用仓库根目录的插件 Logo。"""
+
+    resolver = _FakeResolver({}, generation_id="gen-logo")
+    await help_module.get_help(
+        "dna",
+        registry=COMMAND_REGISTRY,
+        permission="user",
+        asset_resolver=resolver,
+    )
+
+    assert fake_renderer.last_data is not None
+    icon_uri = fake_renderer.last_data["icon"]
+    _prefix, encoded = icon_uri.split(",", maxsplit=1)
+    assert base64.b64decode(encoded) == (Path(__file__).parents[1] / "logo.png").read_bytes()
 
 
 @pytest.mark.asyncio

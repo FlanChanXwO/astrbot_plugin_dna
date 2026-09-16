@@ -8,9 +8,11 @@ command id 显式映射；业务 registry 只负责确定当前调用者可见�
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ...version import PLUGIN_VERSION
+from .assets import image_data_uri
 from .help_presentation import (
     HELP_GROUP_DESCRIPTIONS,
     HELP_GROUP_ORDER,
@@ -23,7 +25,6 @@ from .static_assets import (
     StaticAssetResolver,
     static_font_data_uri,
     static_image_data_uri,
-    static_key_image_data_uri,
     static_record,
 )
 
@@ -33,6 +34,8 @@ HELP_CAG_PATH = "textures/help/cag_bg.png"
 HELP_ITEM_PATH = "textures/help/item.png"
 HELP_FOOTER_PATH = "textures/common/footer.png"
 HELP_FONT_PATH = "fonts/MiSansVF.woff2"
+_PLUGIN_LOGO_PATH = Path(__file__).parents[3] / "logo.png"
+_PLUGIN_LOGO_URI = image_data_uri(_PLUGIN_LOGO_PATH)
 
 if TYPE_CHECKING:
     from ...entry.commands import CommandRegistry, PermissionName
@@ -257,19 +260,6 @@ async def get_help(
     banner_uri = image_uri("texture.help.banner", HELP_BANNER_PATH, "help-banner")
     cag_uri = image_uri("texture.help.cag", HELP_CAG_PATH, "help-cag")
     footer_uri = image_uri("texture.common.footer", HELP_FOOTER_PATH, "footer")
-    icon_uri, icon_asset = static_key_image_data_uri(
-        asset_resolver,
-        "texture.help.logo",
-        label="logo",
-    )
-    if resource_records is not None:
-        resource_records.append(
-            static_record(
-                "texture.help.logo",
-                icon_asset,
-                resource_path="textures/common/title_logo.png",
-            ),
-        )
     item_uri = image_uri("texture.help.item", HELP_ITEM_PATH, "help-item")
     font_uri = font_uri_for("font.help", HELP_FONT_PATH)
     template_data = {
@@ -279,7 +269,7 @@ async def get_help(
         "card_height": _card_height(sections),
         "font": font_uri,
         "footer": footer_uri,
-        "icon": icon_uri,
+        "icon": _PLUGIN_LOGO_URI,
         "item_background": item_uri,
         "lines": [],
         "sections": sections,

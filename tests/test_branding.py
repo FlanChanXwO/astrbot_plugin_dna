@@ -75,9 +75,8 @@ def test_plugin_uses_single_root_logo_asset() -> None:
     for content in (image_code, help_code, login_templates):
         assert "ICON.png" not in content
     assert "logo.png" not in image_code
-    assert "PLUGIN_ICON_PATH" not in help_code
-    assert 'parents[3] / "logo.png"' not in help_code
-    assert "textures/common/title_logo.png" in help_code
+    assert '_PLUGIN_LOGO_PATH = Path(__file__).parents[3] / "logo.png"' in help_code
+    assert "textures/common/title_logo.png" not in help_code
 
     login_code = (ROOT / "src/modules/account/login_flow.py").read_text(encoding="utf-8")
     assert "title_logo" in login_code
