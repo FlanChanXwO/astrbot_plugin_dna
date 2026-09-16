@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## v0.5.4 — 2026-09-16
+
+### 修复
+
+- 统一玩家角色查询与资源仓库角色别名解析：角色详情、刷新角色面板和清理指定角色缓存现在都会使用当前 resource generation 的 `AliasCatalog`，并在资源 generation 切换后同步刷新别名视图；修复 `d典狱长别名` 能识别 `典狱长 -> 海尔法`、但 `d典狱长面板` 仍返回“角色未找到”的问题，同时让其他公共角色别名在玩家面板链路中按同一契约生效。（[#78](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/78)）
+
+**完整变更**：[`v0.5.3...v0.5.4`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.5.3...v0.5.4)
+
 ## v0.5.3 — 2026-09-16
 
 ### 修复
