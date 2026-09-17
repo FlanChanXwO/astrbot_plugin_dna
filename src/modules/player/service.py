@@ -542,12 +542,19 @@ class PlayerService:
         target_name = _MASTER_ALIASES.get(normalized)
         if target_name is None:
             target_name = PlayerService._resolve_master_alias(overview, normalized)
+        alias_names: tuple[str, ...] = ()
         if target_name is None and aliases is not None:
             target_name = aliases.resolve_char(normalized)
+            if target_name is not None:
+                alias_names = aliases.char_aliases.get(target_name, ())
         if target_name is None:
             target_name = normalized
         exact = next(
-            (item for item in overview.role_chars if item.name == target_name),
+            (
+                item
+                for item in overview.role_chars
+                if item.name == target_name or item.name in alias_names
+            ),
             None,
         )
         if exact is not None:
