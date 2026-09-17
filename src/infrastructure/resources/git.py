@@ -222,7 +222,7 @@ class ResourceSynchronizer:
     def _validate_manifest(self) -> ResourceManifest:
         return ResourceManifest.load(
             self.repository / "resource_manifest.json"
-        ).validate_runtime_layout(self.repository)
+        ).validate_root(self.repository)
 
     def fetch_main(self) -> None:
         """显式获取 ``origin/main``，为候选 generation 准备 ``FETCH_HEAD``。"""

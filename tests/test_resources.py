@@ -18,6 +18,7 @@ from src.infrastructure.resources import (
     ResourceSnapshotCoordinator,
     ResourceSyncError,
     ResourceSyncResult,
+    ResourceSynchronizer,
 )
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.manifest import (
@@ -274,3 +275,26 @@ def test_manifest_v2_layout_is_declared_only_by_manifest(tmp_path: Path) -> None
     )
 
     assert manifest.validate_root(tmp_path) is manifest
+
+
+def test_synchronizer_accepts_manifest_v2_declared_layout(tmp_path: Path) -> None:
+    """同步器应使用 manifest 自身声明校验布局，不依赖已移除的旧接口。"""
+
+    (tmp_path / "fonts").mkdir()
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "required.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "resource_manifest.json").write_text(
+        ResourceManifest(
+            format_version=2,
+            required_dirs=("fonts", "data"),
+            required_files=("data/required.json",),
+            resource_version="12",
+            file_hashes={},
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+
+    manifest = ResourceSynchronizer(tmp_path)._validate_manifest()
+
+    assert manifest.format_version == 2
+    assert manifest.resource_version == "12"
