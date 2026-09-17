@@ -20,7 +20,10 @@ from src.infrastructure.resources import (
     ResourceSyncResult,
 )
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
-from src.infrastructure.resources.manifest import ResourceManifest
+from src.infrastructure.resources.manifest import (
+    ResourceManifest,
+    ResourceManifestError,
+)
 from src.modules.operations.resource_service import ResourceUpdateService
 
 
@@ -205,3 +208,69 @@ def test_restore_current_trusts_published_pointer_without_full_validation(
     assert restored.commit_sha == "abc123"
     assert restored.content_sha256 == content_sha256
     assert coordinator.current_snapshot is restored
+
+
+def test_manifest_v2_requires_declared_required_files(tmp_path: Path) -> None:
+    """v2 manifest 必须由 required_files 显式声明阻断发布的文件。"""
+
+    (tmp_path / "fonts").mkdir()
+    manifest = ResourceManifest(
+        format_version=2,
+        required_dirs=("fonts",),
+        required_files=("data/required.json",),
+        resource_version="6",
+    )
+
+    with pytest.raises(ResourceManifestError, match="必须文件不存在"):
+        manifest.validate_root(tmp_path)
+
+
+def test_manifest_v2_missing_optional_hashed_file_does_not_block(tmp_path: Path) -> None:
+    """v2 的 file_hashes 只校验完整性，不能隐式把文件升级为必需资源。"""
+
+    (tmp_path / "fonts").mkdir()
+    manifest = ResourceManifest(
+        format_version=2,
+        required_dirs=("fonts",),
+        required_files=(),
+        resource_version="6",
+        file_hashes={"textures/optional.png": "a" * 64},
+    )
+
+    manifest.validate_root(tmp_path)
+    manifest.validate_file_hashes(tmp_path)
+
+
+def test_manifest_v2_rejects_hash_mismatch_for_present_optional_file(
+    tmp_path: Path,
+) -> None:
+    """可选文件一旦存在且声明摘要，内容不匹配仍必须拒绝发布。"""
+
+    (tmp_path / "fonts").mkdir()
+    asset = tmp_path / "textures" / "optional.png"
+    asset.parent.mkdir()
+    asset.write_bytes(b"actual")
+    manifest = ResourceManifest(
+        format_version=2,
+        required_dirs=("fonts",),
+        required_files=(),
+        resource_version="6",
+        file_hashes={"textures/optional.png": "a" * 64},
+    )
+
+    with pytest.raises(ResourceManifestError, match="文件哈希不匹配"):
+        manifest.validate_file_hashes(tmp_path)
+
+
+def test_manifest_v2_layout_is_declared_only_by_manifest(tmp_path: Path) -> None:
+    """插件不得再维护一份与资源仓库重复的运行期目录清单。"""
+
+    (tmp_path / "assets").mkdir()
+    manifest = ResourceManifest(
+        format_version=2,
+        required_dirs=("assets",),
+        required_files=(),
+        resource_version="6",
+    )
+
+    assert manifest.validate_root(tmp_path) is manifest
