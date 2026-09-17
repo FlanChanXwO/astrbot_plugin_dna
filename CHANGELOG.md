@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## v0.5.5 — 2026-09-17
+
+### 改进
+
+- 运行时角色、武器、MOD 与技能图片下载改为可配置的快速失败策略：新增 `resources.image_download_timeout_seconds` 与 `resources.image_download_max_attempts`，默认由原先约 `30s × 3` 收敛为 `5s × 2`，同时保留相同 URL 的 inflight 合并、缺图 provenance 与不完整卡片不缓存语义；并修复默认图片下载器跨 event loop 重试时的生命周期问题。（[#81](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/81)）
+- 公共资源 manifest 增加 v2 契约：用 `required_files` 显式声明发布必需文件，`file_hashes` 只负责已声明文件的完整性校验，并移除插件内重复维护的资源目录必需性规则；继续兼容 manifest v1，便于滚动升级。（[#87](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/87)）
+
+### 修复
+
+- 帮助卡片顶部品牌图标统一使用仓库根目录 `logo.png`，不再错误使用登录页专用的 `textures/common/title_logo.png`，使 AstrBot 插件信息、帮助卡与登录界面的主品牌标识保持一致。（[#85](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/85)）
+- 修复插件市场评审指出的运行期问题：源码日志统一经插件 logger 适配层接入 `astrbot.api.logger`；请求签名链路把同步 WebSocket readiness 等待移出事件循环线程；登录未知异常不再输出异常正文或 traceback，避免凭证及上游敏感正文进入日志；同时将已有公开等价入口迁移到 `astrbot.api`。（[#86](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/86)）
+- 角色面板按完整资源别名组匹配玩家 API 返回名：当资源 canonical 与 API 实际名称不同但属于同一 alias group 时仍能正确定位角色，修复 `艾达 -> 艾达（？？）` 后因 API 返回 `伊薇` 而提示“角色未找到”的问题，并让同类角色别名组按统一语义生效。（[#88](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/88)）
+
+### 维护
+
+- 删除插件源码内置的公共资源树及 `RESOURCE_PATH.py` 兼容投影，运行期动态目录统一由 `RuntimeDataLayout` 管理，公共静态资源只从已验证的 `dna-resource` generation 读取；资源缺失继续使用既有 placeholder / `incomplete=True` 降级语义。（[#82](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/82)）
+- 清理仅服务历史内部实现的渲染 facade、旧登录服务、旧通知/订阅转发及内部 alias/compatibility projection；仓库内调用者全部迁移到当前正式边界，用户持久化数据、已发布配置格式和真实上游适配仍保留兼容。（[#83](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/83)）
+- 更新 README 的插件使用与资源维护说明，并加入仓库标准 PR skill，约束后续自动化修改按当前模板、真实 diff 与验证证据创建和复查 Pull Request。（[#80](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/80)、[#84](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/84)）
+
+### 升级注意
+
+- 插件包不再携带公共静态资源副本，也不会回退读取旧源码资源目录；升级后应确保存在已验证的 `dna-resource` generation，必要时执行一次 `dna同步资源`。未准备完整资源时文字功能仍可工作，依赖静态素材的图片输出会按现有规则降级并标记为不完整。（[#82](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/82)）
+
+**完整变更**：[`v0.5.4...v0.5.5`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.5.4...v0.5.5)
+
 ## v0.5.4 — 2026-09-16
 
 ### 修复
