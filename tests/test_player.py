@@ -247,6 +247,38 @@ async def test_role_detail_resolves_resource_character_alias(tmp_path: Path) -> 
     await database.dispose()
 
 
+@pytest.mark.asyncio
+async def test_role_detail_resolves_alias_group_to_player_role_name(tmp_path: Path) -> None:
+    """资源 canonical 与玩家角色名不同时，同组别名仍应命中角色面板。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    overview = _overview_fixture()
+    overview.role_chars[0] = overview.role_chars[0].model_copy(update={"name": "伊薇"})
+    transport = FixturePlayerTransport(overview, _detail_fixture(), _weapon_fixture())
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        aliases=AliasCatalog(
+            char_aliases={"艾达（？？）": ("艾达（？？）", "艾达", "伊薇")}
+        ),
+    )
+
+    response = await service.role_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={"char_name": "艾达", "weapon_name_1": "近战甲"},
+        ),
+    )
+
+    assert isinstance(response, ImageResponse)
+    assert transport.role_detail_calls == 1
+    await database.dispose()
+
+
 def _overview_fixture() -> RoleOverview:
     return RoleOverview(
         role_id="role-1",
