@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## v0.5.6 — 2026-09-17
+
+### 修复
+
+- 修复公共资源同步器仍调用已移除的 `ResourceManifest.validate_runtime_layout()`，导致 v0.5.5 升级后执行 `dna同步资源` 时直接抛出 `AttributeError`、无法正常消费最新 `dna-resource` format v2 manifest 的问题；同步器现在按 manifest 自身声明使用 `validate_root()` 校验布局，完整文件哈希校验继续由 `ResourceGenerationValidator` 负责，避免重复扫描资源文件。（[#90](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/90)）
+
+**完整变更**：[`v0.5.5...v0.5.6`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.5.5...v0.5.6)
+
 ## v0.5.5 — 2026-09-17
 
 ### 改进
