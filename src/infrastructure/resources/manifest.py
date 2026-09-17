@@ -2,26 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-
-RUNTIME_RESOURCE_DIRECTORIES: tuple[str, ...] = (
-    "fonts",
-    "images",
-    "panel",
-    "alias",
-    "wiki/role",
-    "wiki/weapon",
-    "wiki/spirit",
-    "guide",
-    "weekly_item",
-    "calendar",
-    "textures",
-)
-"""v0.3 renderer 与资料索引共同消费的公共资源目录。"""
 
 
 class ResourceManifestError(ValueError):
@@ -37,6 +23,10 @@ class ResourceManifest(BaseModel):
     required_dirs: tuple[str, ...] = Field(
         description="资源仓库必须存在的相对目录。",
     )
+    required_files: tuple[str, ...] = Field(
+        default=(),
+        description="缺失时必须阻断资源 generation 发布的相对文件路径。",
+    )
     resource_version: str = Field(description="资源内容版本。")
     file_hashes: dict[str, str] = Field(
         default_factory=dict,
@@ -46,9 +36,9 @@ class ResourceManifest(BaseModel):
     @field_validator("format_version")
     @classmethod
     def _check_format_version(cls, value: int) -> int:
-        # 当前插件只实现 manifest v1；未知格式必须显式失败，不能按旧格式猜测。
-        if value != 1:
-            raise ValueError("仅支持 resource_manifest.json format_version=1")
+        # v1 保留用于滚动升级；v2 将“文件必要性”从 file_hashes 中显式拆出。
+        if value not in {1, 2}:
+            raise ValueError("仅支持 resource_manifest.json format_version=1 或 2")
         return value
 
     @field_validator("required_dirs")
@@ -68,6 +58,22 @@ class ResourceManifest(BaseModel):
                 or ".." in path.parts
             ):
                 raise ValueError(f"required_dirs 含有不安全路径: {relative!r}")
+        return value
+
+    @field_validator("required_files")
+    @classmethod
+    def _check_required_files(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(value)) != len(value):
+            raise ValueError("required_files 不能包含重复文件")
+        for relative in value:
+            parts = relative.split("/")
+            if (
+                not relative
+                or Path(relative).is_absolute()
+                or "\\" in relative
+                or any(part in {"", ".", ".."} for part in parts)
+            ):
+                raise ValueError(f"required_files 含有不安全路径: {relative!r}")
         return value
 
     @field_validator("resource_version")
@@ -127,27 +133,45 @@ class ResourceManifest(BaseModel):
                 raise ResourceManifestError(
                     f"资源 manifest 要求的目录不存在: {relative!r}"
                 )
+        for relative in self.required_files:
+            resource_path = root_path.joinpath(*relative.split("/"))
+            if resource_path.is_symlink() or not resource_path.is_file():
+                raise ResourceManifestError(
+                    f"资源 manifest 必须文件不存在: {relative!r}"
+                )
         return self
 
-    def validate_runtime_layout(self, root: str | Path) -> ResourceManifest:
-        """确认 manifest 完整声明当前运行期会读取的资源目录。"""
+    def validate_file_hashes(self, root: str | Path) -> ResourceManifest:
+        """校验 manifest 声明文件的完整性。
 
-        self.validate_root(root)
-        declared = set(self.required_dirs)
-        missing = tuple(
-            relative
-            for relative in RUNTIME_RESOURCE_DIRECTORIES
-            if relative not in declared
-        )
-        if missing:
-            raise ResourceManifestError(
-                "资源 manifest 缺少运行期目录声明: " + ", ".join(missing),
-            )
+        v1 中 ``file_hashes`` 同时承担存在性与完整性约束。v2 起存在性只由
+        ``required_files`` 决定，因此缺失的可选文件不会阻断 generation 发布。
+        """
+
+        root_path = Path(root).resolve()
+        for relative, expected in self.file_hashes.items():
+            resource_path = root_path.joinpath(*relative.split("/"))
+            if resource_path.is_symlink():
+                raise ResourceManifestError(
+                    f"资源 manifest 文件哈希目标不允许符号链接: {relative!r}"
+                )
+            if not resource_path.is_file():
+                if self.format_version == 1:
+                    raise ResourceManifestError(
+                        f"资源 manifest 文件哈希目标不存在: {relative!r}"
+                    )
+                continue
+            digest = hashlib.sha256()
+            with resource_path.open("rb") as file:
+                while chunk := file.read(1024 * 1024):
+                    digest.update(chunk)
+            if digest.hexdigest().casefold() != expected.casefold():
+                raise ResourceManifestError(
+                    f"资源 manifest 文件哈希不匹配: {relative!r}"
+                )
         return self
-
 
 __all__ = [
-    "RUNTIME_RESOURCE_DIRECTORIES",
     "ResourceManifest",
     "ResourceManifestError",
 ]

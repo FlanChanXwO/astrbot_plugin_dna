@@ -388,19 +388,6 @@ def _content_sha256(root: Path) -> str:
     return digest.hexdigest()
 
 
-def _validate_declared_file_hashes(
-    root: Path,
-    manifest: ResourceManifest,
-) -> None:
-    for relative, expected in manifest.file_hashes.items():
-        path = root.joinpath(*relative.split("/"))
-        if path.is_symlink() or not path.is_file():
-            raise ResourceGenerationError(f"资源候选文件哈希目标不存在: {relative}")
-        actual = _sha256_file(path)
-        if actual.casefold() != expected.casefold():
-            raise ResourceGenerationError(f"资源候选文件哈希不匹配: {relative}")
-
-
 def _validate_no_symlinks(root: Path) -> None:
     """拒绝 generation 根及其子项的符号链接，避免校验时读取外部文件。"""
 
@@ -464,8 +451,8 @@ class ResourceGenerationValidator:
             root_path = root_input.resolve()
             manifest = ResourceManifest.load(
                 root_path / "resource_manifest.json"
-            ).validate_runtime_layout(root_path)
-            _validate_declared_file_hashes(root_path, manifest)
+            ).validate_root(root_path)
+            manifest.validate_file_hashes(root_path)
             for filename in _ALIAS_FILES:
                 _validate_alias_file(root_path / "alias" / filename)
             _validate_redeem_file(root_path / "data" / "redeem_codes.json")

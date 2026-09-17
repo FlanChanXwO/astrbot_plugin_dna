@@ -39,7 +39,6 @@ from .git import (
     run_git,
 )
 from .manifest import (
-    RUNTIME_RESOURCE_DIRECTORIES,
     ResourceManifest,
     ResourceManifestError,
 )
@@ -75,7 +74,6 @@ __all__ = [
     "RESOURCE_LAST_SYNC_STATE_NAME",
     "RESOURCE_REPOSITORY_NAME",
     "RESOURCE_VALIDATION_STATE_NAME",
-    "RUNTIME_RESOURCE_DIRECTORIES",
     "AliasCatalog",
     "AssetDownloader",
     "AssetKind",
