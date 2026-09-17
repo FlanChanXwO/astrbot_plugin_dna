@@ -19,7 +19,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Literal, cast
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.core.star.filter.regex import RegexFilter
 

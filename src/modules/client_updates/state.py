@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -23,8 +22,7 @@ from .registry import (
     ClientUpdateProviderKind,
     ClientUpdateRegistry,
 )
-
-logger = logging.getLogger(__name__)
+from ...infrastructure.logger import logger
 
 STATE_VERSION = 4
 _IGNORED_STATE_VERSIONS = frozenset((1, 2, 3))

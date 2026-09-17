@@ -6,7 +6,6 @@ import asyncio
 import hashlib
 import inspect
 import json
-import logging
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
@@ -17,8 +16,7 @@ from typing import Literal
 from uuid import uuid4
 
 from ..config.settings import CacheSettings
-
-logger = logging.getLogger(__name__)
+from ..logger import logger
 
 CacheState = Literal["fresh", "miss"]
 ContentValidator = Callable[[bytes], bool | None | Awaitable[bool | None]]

@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 from astrbot.api.web import request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse, Response
@@ -239,10 +239,8 @@ class LoginFlowCoordinator:
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
             except Exception as error:  # noqa: BLE001
                 logger.error(
-                    "登录流程启动出现未预期异常 kind=%s: %s",
+                    "登录流程启动出现未预期异常 kind=%s",
                     type(error).__name__,
-                    error,
-                    exc_info=True,
                 )
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
 
@@ -272,10 +270,8 @@ class LoginFlowCoordinator:
                 qr_bytes = await render_qr_code(url)
             except Exception as error:  # noqa: BLE001
                 logger.error(
-                    "登录二维码生成失败 kind=%s: %s",
+                    "登录二维码生成失败 kind=%s",
                     type(error).__name__,
-                    error,
-                    exc_info=True,
                 )
                 return PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
             return LoginResponse(
@@ -347,10 +343,8 @@ class LoginFlowCoordinator:
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "登录流程等待出现未预期异常 kind=%s: %s",
+                "登录流程等待出现未预期异常 kind=%s",
                 type(error).__name__,
-                error,
-                exc_info=True,
             )
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         finally:
@@ -401,10 +395,8 @@ class LoginFlowCoordinator:
                 await result
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "登录完成通知失败 kind=%s: %s",
+                "登录完成通知失败 kind=%s",
                 type(error).__name__,
-                error,
-                exc_info=True,
             )
 
     def _find_session(self, auth: str) -> _LoginSession | None:
@@ -493,10 +485,8 @@ class LoginFlowCoordinator:
             return {"success": False, "msg": messages.LOGIN_SERVICE_FAILED}
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "登录流程请求短信出现未预期异常 kind=%s: %s",
+                "登录流程请求短信出现未预期异常 kind=%s",
                 type(error).__name__,
-                error,
-                exc_info=True,
             )
             return {"success": False, "msg": messages.LOGIN_SERVICE_FAILED}
         if result is False:
@@ -530,10 +520,8 @@ class LoginFlowCoordinator:
             response = await self.account_service.login(session.actor, attempt)
         except Exception as error:  # noqa: BLE001
             logger.error(
-                "登录流程认证出现未预期异常 kind=%s: %s",
+                "登录流程认证出现未预期异常 kind=%s",
                 type(error).__name__,
-                error,
-                exc_info=True,
             )
             response = PlainTextResponse(messages.LOGIN_SERVICE_FAILED)
         session.response = response

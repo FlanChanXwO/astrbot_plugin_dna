@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
-from astrbot.api import logger
+from ..infrastructure.logger import logger
 from PIL import Image
 
 from .session import EventContext

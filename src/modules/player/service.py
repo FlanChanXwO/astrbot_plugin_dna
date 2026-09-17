@@ -8,7 +8,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...entry.response import (
     ChainResponse,

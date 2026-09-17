@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from astrbot.api import AstrBotConfig
+from astrbot.api.event import MessageChain
+from astrbot.api.message_components import At, Node, Nodes, Plain
+from astrbot.api.message_components import Image as AstrImage
 from astrbot.api.star import Context
-from astrbot.core import AstrBotConfig
-from astrbot.core.message.components import At, Node, Nodes, Plain
-from astrbot.core.message.components import Image as AstrImage
-from astrbot.core.message.message_event_result import MessageChain
 
 from .entry.admin_web import build_admin_web_routes
 from .entry.agent_tools import AgentToolsLifecycle
@@ -46,6 +46,7 @@ from .infrastructure.http import (
     RequestConcurrencyGate,
 )
 from .infrastructure.i18n import validate_tip_catalog
+from .infrastructure.logger import logger
 from .infrastructure.notices_scheduler import NoticesScheduler
 from .infrastructure.persistence import AsyncDatabase
 from .infrastructure.rendering import (
@@ -272,8 +273,6 @@ def build_runtime(
             if inspect.isawaitable(result):
                 await result
         except Exception as error:  # noqa: BLE001
-            from astrbot.api import logger
-
             logger.error(
                 "登录完成消息发送失败 kind=%s",
                 type(error).__name__,
@@ -469,8 +468,6 @@ def build_runtime(
             if inspect.isawaitable(res):
                 await res
         except Exception as error:  # noqa: BLE001
-            from astrbot.api import logger
-
             logger.warning(
                 "签到推送失败 origin=%s error=%s",
                 origin,
@@ -547,8 +544,6 @@ def build_runtime(
                 res = await res
             return res is not False
         except Exception as error:  # noqa: BLE001
-            from astrbot.api import logger
-
             logger.warning(
                 "公告推送失败 origin=%s error_type=%s",
                 origin,
@@ -610,8 +605,6 @@ def build_runtime(
                 result = await result
             return result is not False
         except Exception as error:  # noqa: BLE001
-            from astrbot.api import logger
-
             logger.warning(
                 "客户端更新普通消息推送失败 error_type=%s",
                 type(error).__name__,
@@ -634,8 +627,6 @@ def build_runtime(
                 result = await result
             return result is not False
         except Exception as error:  # noqa: BLE001
-            from astrbot.api import logger
-
             logger.warning(
                 "客户端更新合并转发推送失败 error_type=%s",
                 type(error).__name__,
@@ -845,8 +836,6 @@ def build_runtime(
             snapshot = await asyncio.to_thread(resource_snapshots.restore_current)
         except ResourceGenerationError as error:
             resource_snapshots.record_validation_failure(error)
-            from astrbot.api import logger
-
             logger.warning(
                 "当前 generation 快速恢复失败，资源暂不可用；"
                 "可执行同步资源修复（%s）",
@@ -881,8 +870,6 @@ def build_runtime(
             return
         notifications = config.get("notifications")
         if isinstance(notifications, dict) and "announcement_groups" in notifications:
-            from astrbot.api import logger
-
             logger.warning(
                 "notifications.announcement_groups 已弃用；公告目标请在真实群聊中重新执行订阅命令。"
             )

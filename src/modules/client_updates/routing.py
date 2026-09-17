@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 
 from ...infrastructure.subscriptions import Subscription
@@ -14,9 +13,8 @@ from .contracts import (
     ClientUpdateChange,
     is_valid_client_update_subscription_metadata,
 )
+from ...infrastructure.logger import logger
 from .state import ClientUpdatePendingTarget
-
-logger = logging.getLogger(__name__)
 
 
 def active_subscriptions(

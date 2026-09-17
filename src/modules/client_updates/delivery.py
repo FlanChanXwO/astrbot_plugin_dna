@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -23,8 +22,7 @@ from .state import (
     ClientUpdateStateStore,
     canonicalize_client_update_change,
 )
-
-logger = logging.getLogger(__name__)
+from ...infrastructure.logger import logger
 
 _ONEBOT_PLATFORM_NAMES = frozenset(("aiocqhttp", "onebot"))
 

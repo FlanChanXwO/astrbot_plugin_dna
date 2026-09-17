@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import copy
-import logging
 from collections.abc import Mapping
 from typing import Any, Literal
 
@@ -25,6 +24,7 @@ from ...modules.client_updates.registry import (
     DEFAULT_CLIENT_UPDATE_TARGET_IDS,
     normalize_client_update_target_ids,
 )
+from ..logger import logger
 from ..resources.acceleration import (
     GithubAccelerationMode,
     normalize_http_base_url,
@@ -41,7 +41,6 @@ from .legacy import (
     DNASignConfig,
 )
 
-logger = logging.getLogger(__name__)
 _REMOVED_MH_LEGACY_KEYS = frozenset(("MHPushSubscribe", "MHCache"))
 _REMOVED_MH_TYPED_FIELDS = frozenset(("secret_push_time", "secret_cache"))
 _REMOVED_CACHE_FIELDS = frozenset(

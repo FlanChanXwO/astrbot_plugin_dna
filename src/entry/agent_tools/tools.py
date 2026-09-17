@@ -11,13 +11,14 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from astrbot.api import logger
+from astrbot.api import FunctionTool
+from astrbot.api.event import MessageChain
 from astrbot.api.message_components import Image as AstrImage
 from astrbot.api.message_components import Plain as AstrPlain
 from astrbot.core.agent.run_context import ContextWrapper
-from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
-from astrbot.core.message.message_event_result import MessageChain
+
+from ...infrastructure.logger import logger
 
 from ...modules.agent_tools.contracts import AgentQueryPresentation, AgentQueryResult
 from ...modules.agent_tools.queries import AgentQueryCatalog, build_query_catalog

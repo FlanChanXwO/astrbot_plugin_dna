@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
 from ...entry.response import ImageResponse, PlainTextResponse

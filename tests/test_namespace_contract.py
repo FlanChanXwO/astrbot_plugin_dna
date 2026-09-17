@@ -56,6 +56,7 @@ _DNABY_PATTERN = re.compile(r"dnaby", re.IGNORECASE)
 # logger message 开头的人工方括号标签判定由 AST 驱动（见 _starts_with_manual_prefix），
 # 不再使用行级正则，避免多行调用 / f-string / 引号的边界漏洞。
 _LOG_LEVELS = frozenset({"debug", "info", "warning", "error", "exception", "critical"})
+_LOGGER_ADAPTER = Path("src/infrastructure/logger.py")
 
 
 def _iter_gate_paths() -> list[Path]:
@@ -89,6 +90,41 @@ def _python_sources() -> list[Path]:
     return [
         path for path in (ROOT / "src").rglob("*.py") if "__pycache__" not in path.parts
     ]
+
+
+def test_platform_logger_is_only_imported_by_internal_adapter() -> None:
+    """AstrBot logger 只允许由插件内部日志适配层直接依赖。"""
+
+    platform_logger_imports: list[str] = []
+    builtin_logging_imports: list[str] = []
+
+    for path in _python_sources():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        relative = str(path.relative_to(ROOT))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                if any(alias.name == "logging" for alias in node.names):
+                    builtin_logging_imports.append(f"{relative}:{node.lineno}")
+                continue
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            if node.module == "logging":
+                builtin_logging_imports.append(f"{relative}:{node.lineno}")
+            if node.module == "astrbot.api" and any(
+                alias.name == "logger" for alias in node.names
+            ):
+                platform_logger_imports.append(f"{relative}:{node.lineno}")
+
+    assert builtin_logging_imports == [], (
+        "源码不得绕过插件日志适配层直接使用 Python logging:\n"
+        + "\n".join(builtin_logging_imports)
+    )
+    assert [item.split(":", 1)[0] for item in platform_logger_imports] == [
+        str(_LOGGER_ADAPTER)
+    ], (
+        "astrbot.api.logger 只允许由插件日志适配层导入:\n"
+        + "\n".join(platform_logger_imports)
+    )
 
 
 def test_python_symbols_use_dna_namespace() -> None:

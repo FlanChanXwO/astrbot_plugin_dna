@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote_plus
 
 import httpx
-from astrbot.api import logger
+from ..logger import logger
 from PIL import Image, ImageDraw, ImageOps
 
 from ...modules.notices.ann_utils import (

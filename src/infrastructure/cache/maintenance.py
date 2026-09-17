@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 
-from astrbot.api import logger
+from ..logger import logger
 
 from ..rendering.temporary import RenderedFileStore
 from .manager import CacheManager

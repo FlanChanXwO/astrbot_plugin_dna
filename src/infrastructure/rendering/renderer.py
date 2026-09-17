@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Protocol
@@ -11,9 +10,9 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 
 from .errors import RenderResultError, T2IRenderError, TemplateRenderError
 from .image_inspector import inspect_image
+from ..logger import logger
 from .spec import RenderSpec
 
-logger = logging.getLogger(__name__)
 _WARN_BYTES = 1024 * 1024
 
 
@@ -107,7 +106,7 @@ class HtmlRenderer:
         if self._t2i is not None:
             return self._t2i
         try:
-            from astrbot.core import html_renderer
+            from astrbot.api import html_renderer
         except ImportError as exc:
             raise T2IRenderError(
                 "无法导入 AstrBot 全局 html_renderer", cause=exc

@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 from ..modules.checkin import messages
 from ..modules.checkin.contracts import AutoSignReport, GroupSignReport
+from .logger import logger
 from .scheduler_state import (
     SchedulerRegistry,
     SchedulerTaskDefinition,
@@ -178,8 +179,6 @@ class SignScheduler:
                 raise
             except Exception:  # noqa: BLE001
                 await self.registry.mark_error(task_id)
-                from astrbot.api import logger
-
                 logger.warning("定时任务异常 task_id=%s", name)
             else:
                 await self.registry.mark_running(task_id)
@@ -320,8 +319,6 @@ class SignScheduler:
             if inspect.isawaitable(result):
                 await result
         except Exception as error:  # noqa: BLE001
-            from astrbot.api import logger
-
             logger.warning(
                 "签到推送失败 origin=%s error_type=%s",
                 origin,

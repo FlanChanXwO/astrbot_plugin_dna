@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Self, cast
 
 import httpx
-from astrbot.api import logger
+from ..logger import logger
 
 from ...modules.client_updates.contracts import (
     AppStoreVersionMetadata,

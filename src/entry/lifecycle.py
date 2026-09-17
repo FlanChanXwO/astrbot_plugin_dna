@@ -12,7 +12,7 @@ from builtins import BaseExceptionGroup
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from time import perf_counter
 
-from astrbot.api import logger
+from ..infrastructure.logger import logger
 
 LifecycleHook = Callable[[], Awaitable[None]]
 

@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Callable
 from pathlib import Path
 
-from astrbot.api import logger
+from ...infrastructure.logger import logger
 
 from ...entry.response import PlainTextResponse
 from ...infrastructure.resources import (
