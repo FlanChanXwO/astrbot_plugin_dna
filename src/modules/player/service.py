@@ -85,6 +85,16 @@ class _RefreshOverviewState:
 
 
 @dataclass(frozen=True, slots=True)
+class _PanelTarget:
+    """面板查询对象的解析结果：role / weapon / ambiguous / not_found / rejected。"""
+
+    kind: str
+    role: RoleItem | None = None
+    weapon: WeaponItem | None = None
+    slot: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class _RoleDetailBundle:
     role_detail: RoleDetail
     weapon_sections: tuple[tuple[str, WeaponDetail], ...]
@@ -573,18 +583,63 @@ class PlayerService:
         close_weapons: Iterable[WeaponItem],
         ranged_weapons: Iterable[WeaponItem],
         input_name: str,
+        aliases: AliasCatalog | None = None,
     ) -> tuple[str, WeaponItem] | None:
         normalized = input_name.strip()
+        if not normalized:
+            return None
+        # 正式名优先；alias 命中后回查展柜列表，展柜里没有仍视为未命中。
+        names = [normalized]
+        if aliases is not None:
+            canonical = aliases.resolve_weapon(normalized)
+            if canonical is not None:
+                names.append(canonical)
+                names.extend(aliases.weapon_aliases.get(canonical, ()))
         for slot, weapons in (
             ("近战武器", close_weapons),
             ("远程武器", ranged_weapons),
         ):
             for weapon in weapons:
-                if normalized == weapon.name or (
-                    normalized and normalized in weapon.name
-                ):
+                if weapon.name in names or normalized in weapon.name:
                     return slot, weapon
         return None
+
+    @staticmethod
+    def _resolve_panel_target(
+        overview: RoleOverview,
+        query: str,
+        aliases: AliasCatalog | None = None,
+        *,
+        extra_weapon_names: tuple[str, ...] = (),
+    ) -> _PanelTarget:
+        """把面板查询对象解析为角色/武器四态，供智能分流复用。
+
+        正式名优先，alias 仅作补充输入；角色与武器同时命中时不猜优先级，
+        交给调用方提示用户换更完整的名称。
+        """
+
+        normalized = query.strip()
+        if not normalized:
+            return _PanelTarget(kind="not_found")
+        role = PlayerService._find_role(overview, normalized, aliases)
+        found = PlayerService._find_weapon(
+            overview.close_weapons,
+            overview.ranged_weapons,
+            normalized,
+            aliases,
+        )
+        weapon = None if found is None else found[1]
+        if role is not None and weapon is not None:
+            return _PanelTarget(kind="ambiguous", role=role, weapon=weapon)
+        if weapon is not None:
+            # 主对象已是武器，再追加武器参数没有语义，直接拒绝。
+            if extra_weapon_names:
+                return _PanelTarget(kind="rejected", weapon=weapon)
+            slot = found[0] if found is not None else None
+            return _PanelTarget(kind="weapon", weapon=weapon, slot=slot)
+        if role is not None:
+            return _PanelTarget(kind="role", role=role)
+        return _PanelTarget(kind="not_found")
 
     @classmethod
     def _select_weapons(

@@ -1411,3 +1411,65 @@ def test_protagonist_aliases_never_conflate_genders() -> None:
         assert female_role is not None and male_role is not None
         assert female_role.name != male_role.name
         assert female_role.char_id != male_role.char_id
+
+
+def test_resolve_panel_target_prefers_weapon_by_official_name() -> None:
+    """展柜武器正式名应解析为武器目标，并带上近战/远程槽位。"""
+
+    target = PlayerService._resolve_panel_target(_overview_fixture(), "近战甲")
+
+    assert target.kind == "weapon"
+    assert target.slot == "近战武器"
+    assert target.weapon is not None and target.weapon.weapon_id == 201
+    assert PlayerService._resolve_panel_target(_overview_fixture(), "远程甲").slot == "远程武器"
+
+
+def test_resolve_panel_target_uses_weapon_alias_only_as_supplement() -> None:
+    """武器别名命中时回查 RoleOverview，别名缺失时正式名仍然可查。"""
+
+    aliases = AliasCatalog(weapon_aliases={"近战甲": ("近战甲", "无声的嘶吼")})
+    overview = _overview_fixture()
+
+    aliased = PlayerService._resolve_panel_target(overview, "无声的嘶吼", aliases)
+    assert aliased.kind == "weapon"
+    assert aliased.weapon is not None and aliased.weapon.weapon_id == 201
+
+    # alias 未更新（表里没有该武器）+ API 已返回正式名 = 正式名仍可查询。
+    stale = AliasCatalog(weapon_aliases={"其它武器": ("其它武器", "旧名")})
+    official = PlayerService._resolve_panel_target(overview, "远程甲", stale)
+    assert official.kind == "weapon"
+    assert official.weapon is not None and official.weapon.weapon_id == 202
+
+
+def test_resolve_panel_target_reports_ambiguous_when_both_match() -> None:
+    """角色与武器同时命中时不得自动选一边，必须报歧义。"""
+
+    target = PlayerService._resolve_panel_target(_overview_fixture(), "甲")
+
+    assert target.kind == "ambiguous"
+    assert target.role is not None and target.weapon is not None
+
+
+def test_resolve_panel_target_reports_not_found_without_truncating_weapon_lookup() -> None:
+    """角色查不到时仍要继续查武器，两边都落空才报未找到。"""
+
+    target = PlayerService._resolve_panel_target(_overview_fixture(), "不存在的对象")
+
+    assert target.kind == "not_found"
+    assert target.role is None and target.weapon is None
+
+
+def test_resolve_panel_target_rejects_extra_weapons_for_weapon_object() -> None:
+    """主对象已是武器时，追加 `+ 武器` 参数必须拒绝；角色对象不受影响。"""
+
+    overview = _overview_fixture()
+
+    rejected = PlayerService._resolve_panel_target(
+        overview, "近战甲", extra_weapon_names=("远程甲",)
+    )
+    assert rejected.kind == "rejected"
+
+    role = PlayerService._resolve_panel_target(
+        overview, "角色甲", extra_weapon_names=("近战甲",)
+    )
+    assert role.kind == "role"
