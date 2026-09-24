@@ -635,8 +635,8 @@ class PlayerService:
             # 主对象已是武器，再追加武器参数没有语义，直接拒绝。
             if extra_weapon_names:
                 return _PanelTarget(kind="rejected", weapon=weapon)
-            slot = found[0] if found is not None else None
-            return _PanelTarget(kind="weapon", weapon=weapon, slot=slot)
+            assert found is not None
+            return _PanelTarget(kind="weapon", weapon=weapon, slot=found[0])
         if role is not None:
             return _PanelTarget(kind="role", role=role)
         return _PanelTarget(kind="not_found")
