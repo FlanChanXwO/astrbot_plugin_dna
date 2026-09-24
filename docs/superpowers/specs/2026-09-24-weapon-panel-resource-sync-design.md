@@ -33,7 +33,7 @@
 
 ### 不包含
 
-- 新的武器 API client。
+- 新增武器 API transport/client；现有 `get_weapon_detail()` 已经接入 `/role/getWeaponDetail`，本次直接复用。
 - `wiki/weapon` Wiki 资料图接入玩家武器面板或在线抓取 Wiki 图片。
 - 新的 alias 数据结构。
 - 新的缓存目录或缓存管理器。
@@ -89,7 +89,7 @@
 
 ## 2. 武器数据流
 
-武器面板复用现有玩家 transport，不新增 API 层。
+武器面板复用现有玩家 transport。当前 `/role/getWeaponDetail` 已经通过 `dna_api.get_weapon_detail()`、`DnaApiPlayerTransport.get_weapon_detail()` 和 `WeaponDetail` typed model 接入；本次不新增 API 层，只新增独立武器面板 use case，并直接复用现有 endpoint。
 
 数据流：
 
