@@ -96,7 +96,7 @@
 1. 解析当前账号和 UID，沿用角色面板现有隐私和绑定逻辑。
 2. 获取 `defaultRoleForTool` / `RoleOverview`。
 3. 在 `closeWeapons + langRangeWeapons` 中找到目标 `WeaponItem`。
-4. 要求 `unLocked=true` 且 `weaponEid` 存在。
+4. 若 `unLocked=false` 或 `weaponEid` 缺失，则直接按未拥有返回；只有已拥有且存在 `weaponEid` 才继续。
 5. 调用现有 `get_weapon_detail(weaponId, weaponEid)`。
 6. 使用现有 `WeaponDetail` typed model。
 7. 渲染独立武器卡。
@@ -114,7 +114,7 @@
 - 武器图
 - 武器名称
 - 等级
-- 精通/skill level
+- 精炼等级/skill level
 - 武器类型
 - 攻击
 - 暴击率
@@ -126,7 +126,7 @@
 
 独立武器卡应复用这些字段和素材，不复制第二套属性/Mod 逻辑。
 
-现有 `cri → 暴击率`、`crd → 暴击伤害` 语义保持不变。
+字段显示语义以取证文档和 App UI 为准：`cri` 显示为暴击率百分比，`crd` 显示为暴击伤害百分比，`trigger` 显示为触发概率百分比；`speed` 是倍率，`1.0` 应显示为 `1.0`，不得格式化成 `100%`。当前共享 renderer 中 `speed` 的百分比格式需要随本次复用一起纠正。
 
 ### 3.2 模板复用
 
@@ -157,7 +157,7 @@
 
 - 武器名称
 - 等级
-- 精通/skill level
+- 精炼等级/skill level
 - 武器类型
 - 攻击
 - 暴击率
@@ -203,7 +203,7 @@
 
 - 查询词没有匹配：未找到角色或武器。
 - 武器存在但未拥有：当前武器暂未拥有，无法查看。
-- `weaponEid` 缺失：武器详情未找到。
+- `unLocked=false` 或 `weaponEid` 缺失：当前武器暂未拥有，无法查看。
 - `getWeaponDetail` 返回空 `weaponDetail`：武器详情未找到。
 - 角色与武器同时命中：名称存在歧义。
 - 武器面板携带角色专属 `+...` 参数：明确提示该参数不适用于武器面板。
@@ -260,13 +260,13 @@
 
 - 已拥有且存在 `weaponEid` 时调用武器详情。
 - 未拥有时返回明确提示。
-- `weaponEid` 缺失时返回详情不存在。
+- `unLocked=false` 或 `weaponEid` 缺失时返回未拥有。
 - 空 `weaponDetail` 不被当作有效数据。
 
 ### 7.3 渲染
 
-- `cri/crd` 字段含义不回归。
-- 等级、精通、属性和魔之楔进入独立模板。
+- `cri/crd/trigger` 百分比语义不回归，`speed` 按倍率显示（例如 `1.0`），不得显示为 `100%`。
+- 等级、精炼等级、属性和魔之楔进入独立模板。
 - generation 武器图缺失但 API icon 可下载时仍正常渲染。
 - 图片最终不可用时才 placeholder + incomplete。
 - incomplete 卡不进入完整卡片缓存。
