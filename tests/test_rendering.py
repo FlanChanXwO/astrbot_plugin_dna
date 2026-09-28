@@ -256,15 +256,20 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     weapon = {
         "attribute_background": "data:image/png;base64,attr",
         "attributes": [
-            {"icon": "", "label": label, "value": value}
-            for label, value in (
+            {
+                "background": f"data:image/png;base64,attr-{index}",
+                "icon": "",
+                "label": label,
+                "value": value,
+            }
+            for index, (label, value) in enumerate((
                 ("武器类型", "近战"),
                 ("攻击", "777"),
                 ("暴击率", "150%"),
                 ("暴击伤害", "10%"),
                 ("攻击速度", "1.2"),
                 ("触发率", "30%"),
-            )
+            ))
         ],
         "icon": "data:image/png;base64,weapon",
         "level": 80,
@@ -322,12 +327,12 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert html.index("left-1") < html.index("left-2") < html.index("right-1") < html.index("right-2")
     assert "weapon-detail__attributes" not in html
     assert "weapon-detail__weapon-card" not in html
-    assert "weapon-detail__attribute-panel" not in html
-    assert "weapon-detail__attribute" not in html
+    assert "weapon-detail__hero-attributes" in html
+    assert "weapon-detail__hero-attribute" in html
     assert "weapon-detail__specs" not in html
     assert "weapon-detail__profile" in html
     assert "data:image/png;base64,weapon-frame" not in html
-    assert "data:image/png;base64,attr" not in html
+    assert "data:image/png;base64,attr-0" in html
     assert "data:image/png;base64,mode-left-1" in html
     assert "data:image/png;base64,mode-right-1" in html
     assert "data:image/png;base64,divider" in html
@@ -341,6 +346,12 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
         "Lv.80",
         "精炼等级 5",
         "近战",
+        "武器类型",
+        "攻击",
+        "暴击率",
+        "暴击伤害",
+        "攻击速度",
+        "触发率",
         "left-1",
         "right-1",
     ):
