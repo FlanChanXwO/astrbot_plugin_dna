@@ -288,8 +288,8 @@ class CacheSettings(_SettingsModel):
     )
     refresh_send_role_panel: bool = Field(
         default=True,
-        description="刷新后发送角色面板",
-        json_schema_extra={"hint": "主动刷新单个角色面板后是否发送新的角色面板图片"},
+        description="刷新后发送角色/武器面板",
+        json_schema_extra={"hint": "主动刷新单个角色或武器面板后是否发送新的面板图片"},
     )
 
 

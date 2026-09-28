@@ -1,0 +1,78 @@
+{% from "cards/macros/layout.html.j2" import card_shell %}
+{% from "cards/macros/components.html.j2" import legacy_profile_header %}
+{% macro module_group(modes, side) -%}
+<div class="weapon-detail__module-group weapon-detail__module-group--{{ side }}" data-mode-side="{{ side }}">
+  {% for mode in modes %}<article class="weapon-detail__module{% if not mode.icon %} is-empty{% endif %}"><img class="weapon-detail__module-frame" src="{{ mode.background }}" alt="" />{% if mode.icon %}<img class="weapon-detail__module-icon" src="{{ mode.icon }}" alt="" />{% endif %}{% if mode.name %}<h3>{{ mode.name }}</h3>{% endif %}{% if mode.level %}<span class="weapon-detail__module-level">{{ mode.level }}</span>{% endif %}</article>{% endfor %}
+</div>
+{%- endmacro %}
+{% call card_shell(width, background=background, class_name="weapon-detail") %}
+<style>
+  @font-face { font-family: "DNAFont"; src: url("{{ font }}") format("woff2"); }
+  .weapon-detail { width: 1000px; color: #fff; font-family: "DNAFont", sans-serif; overflow: hidden; background: #080a12; }
+  .weapon-detail__hero { position: relative; height: 650px; overflow: hidden; background: linear-gradient(110deg, rgba(7,9,16,.08) 0 61%, rgba(7,9,16,.82) 61% 100%); }
+  .weapon-detail__hero::before { content: ""; position: absolute; left: 52px; top: 42px; width: 560px; height: 560px; border: 1px solid rgba(238,232,170,.16); border-radius: 50%; box-shadow: inset 0 0 90px rgba(112,83,189,.2); }
+  .weapon-detail__visual { position: absolute; left: 22px; top: 14px; width: 625px; height: 610px; display: flex; align-items: center; justify-content: center; }
+  .weapon-detail__weapon-icon { width: 570px; height: 570px; object-fit: contain; filter: drop-shadow(0 28px 28px rgba(0,0,0,.74)); transform: rotate(-4deg); }
+  .weapon-detail__identity { position: absolute; right: 38px; top: 72px; width: 400px; height: 540px; }
+  .weapon-detail__identity-point { position: absolute; top: 10px; left: 10px; width: 30px; height: 30px; object-fit: contain; }
+  .weapon-detail__identity h1 { position: absolute; top: 8px; left: 50px; margin: 0; color: #fff7cf; font-size: 30px; font-weight: 400; line-height: 38px; }
+  .weapon-detail__levels { position: absolute; top: 60px; left: 50px; display: flex; gap: 8px; align-items: center; height: 35px; }
+  .weapon-detail__badge { display: inline-flex; align-items: center; height: 35px; padding: 0 10px; border-radius: 7px; background: #b22222; color: #fff; font-size: 26px; line-height: 35px; }
+  .weapon-detail__refinement-badge { display: grid; place-items: center; width: 34px; padding: 0; }
+  .weapon-detail__refinement-badge img { width: 34px; height: 25px; object-fit: contain; }
+  .weapon-detail__divider { display: block; width: 1046px; height: 53px; margin-left: -23px; object-fit: fill; }
+  .weapon-detail__section { position: relative; padding: 0 44px 34px; background: rgba(5,6,11,.36); }
+  .weapon-detail__modules { padding-top: 30px; }
+  .weapon-detail__module-groups { display: flex; justify-content: space-between; gap: 68px; }
+  .weapon-detail__module-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 4px; width: 422px; }
+  .weapon-detail__module { position: relative; width: 209px; height: 218px; overflow: hidden; }
+  .weapon-detail__module-frame { position: absolute; inset: 0; width: 209px; height: 218px; object-fit: fill; }
+  .weapon-detail__module.is-empty { opacity: .25; }
+  .weapon-detail__module-icon { position: absolute; top: 12px; left: 29px; width: 150px; height: 150px; object-fit: contain; filter: drop-shadow(0 8px 10px rgba(0,0,0,.5)); }
+  .weapon-detail__module h3 { position: absolute; right: 24px; bottom: 25px; left: 24px; margin: 0; overflow: hidden; color: #fff; font-size: 17px; font-weight: 400; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+  .weapon-detail__module-level { position: absolute; top: 14px; left: 42px; min-width: 42px; height: 28px; border-radius: 9px; background: #ff4500; font-size: 20px; line-height: 28px; text-align: center; }
+  .weapon-detail__module-group--right .weapon-detail__module-level { right: 36px; left: auto; }
+  .weapon-detail__module-group--right .weapon-detail__module h3 { right: 18px; left: 30px; }
+  .weapon-detail__module-group--left .weapon-detail__module h3 { right: 30px; left: 18px; }
+  .weapon-detail__modules.modes-4 .weapon-detail__module-group { grid-template-rows: 218px; }
+  .weapon-detail__hero-attributes { position: absolute; top: 120px; left: 0; width: 400px; }
+  .weapon-detail__hero-attribute { display: grid; grid-template-columns: 53px 1fr auto; align-items: center; width: 400px; height: 53px; padding-right: 28px; box-sizing: border-box; background-position: center; background-repeat: no-repeat; background-size: 400px 53px; }
+  .weapon-detail__hero-attribute img { width: 53px; height: 53px; object-fit: contain; }
+  .weapon-detail__hero-attribute span, .weapon-detail__hero-attribute strong { font-size: 24px; font-weight: 400; line-height: 53px; }
+  .weapon-detail__refinement-orbs { position: absolute; left: 97px; bottom: 18px; display: flex; gap: 12px; width: 368px; height: 64px; }
+  .weapon-detail__refinement-orb { position: relative; width: 64px; height: 64px; background-position: center; background-repeat: no-repeat; background-size: 64px 64px; }
+  .weapon-detail__refinement-orb img { position: absolute; top: 19px; left: 17px; width: 31px; height: 23px; object-fit: fill; }
+  .weapon-detail .dna-legacy-profile { width: 1000px; height: 180px; margin: 0; font-family: "DNAFont", sans-serif; }
+  .weapon-detail .dna-legacy-profile__background { width: 1000px; height: 180px; }
+  .weapon-detail .dna-legacy-profile__avatar { top: 38px; left: 112px; width: 100px; height: 100px; }
+  .weapon-detail .dna-legacy-profile__avatar-frame { top: 15px; left: 88px; width: 146px; height: 146px; }
+  .weapon-detail .dna-legacy-profile h1 { top: 54px; left: 246px; height: 46px; font-size: 38px; line-height: 46px; }
+  .weapon-detail .dna-legacy-profile__uid { top: 108px; left: 246px; width: 254px; height: 31px; padding: 0 8px; overflow: visible; font-size: 23px; line-height: 31px; white-space: nowrap; }
+  .weapon-detail .dna-legacy-profile__level { top: 108px; left: 181px; width: 54px; height: 54px; }.weapon-detail .dna-legacy-profile__level img { width: 57px; height: 58px; }.weapon-detail .dna-legacy-profile__level span { width: 54px; height: 51px; font-size: 18px; line-height: 51px; }
+  .weapon-detail .dna-legacy-profile dl { top: 69px; left: 523px; width: 378px; height: 69px; background-size: 378px 69px; }.weapon-detail .dna-legacy-profile dl div { width: 92px; height: 69px; transform: translateX(-46px); }.weapon-detail .dna-legacy-profile dl div:nth-child(1) { left: 115px !important; }.weapon-detail .dna-legacy-profile dl div:nth-child(2) { left: 269px !important; }.weapon-detail .dna-legacy-profile dt { height: 35px; font-size: 31px; line-height: 35px; }.weapon-detail .dna-legacy-profile dd { height: 26px; font-size: 15px; line-height: 26px; }
+  .weapon-detail__calculation { width: 900px; margin: 20px 50px; padding: 20px; border-radius: 10px; background: rgba(16,16,19,.77); }
+  .weapon-detail__calculation-head { display: flex; align-items: center; height: 64px; padding: 0 16px; background: rgba(55,55,58,.75); }
+  .weapon-detail__calculation-head h2 { margin: 0; padding-left: 10px; border-left: 4px solid #fff7cf; color: #fff7cf; font-size: 30px; font-weight: 400; }
+  .weapon-detail__calculation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 6px 0 0; }
+  .weapon-detail__calculation-grid div { display: flex; justify-content: space-between; min-height: 48px; padding: 10px 18px; background: rgba(9,9,10,.3); }
+  .weapon-detail__calculation-grid dt { color: #f4d58d; }
+  .weapon-detail__calculation-grid dd { margin: 0; }
+  .weapon-detail__footer { position: relative; width: 1000px; height: 52px; background: transparent; }
+  .weapon-detail__footer img { position: absolute; right: 200px; bottom: 14px; width: 600px; height: 23px; object-fit: fill; opacity: .76; }
+</style>
+{% set left_modes = weapon.modes|selectattr("side", "equalto", "left")|list %}
+{% set right_modes = weapon.modes|selectattr("side", "equalto", "right")|list %}
+<article data-weapon-card="archive">
+  <section class="weapon-detail__hero">
+    <div class="weapon-detail__visual"><img class="weapon-detail__weapon-icon" src="{{ weapon.icon }}" alt="" /></div>
+    <div class="weapon-detail__identity"><img class="weapon-detail__identity-point" src="{{ point }}" alt="" /><h1>{{ weapon.name }}</h1><div class="weapon-detail__levels">{% if refinement_badge %}<span class="weapon-detail__badge weapon-detail__refinement-badge"><img src="{{ refinement_badge }}" alt="精炼 {{ weapon.skill_level }}" /></span>{% endif %}<span class="weapon-detail__badge">Lv.{{ weapon.level }}</span></div><div class="weapon-detail__hero-attributes">{% for attr in weapon.attributes %}<div class="weapon-detail__hero-attribute" style="background-image:url('{{ attr.background }}')"><img src="{{ attr.icon }}" alt="" /><span>{{ attr.label }}</span><strong>{{ attr.value }}</strong></div>{% endfor %}</div></div>
+    <div class="weapon-detail__refinement-orbs">{% for grade in refinement_grades %}<div class="weapon-detail__refinement-orb{% if grade.unlocked %} is-unlocked{% endif %}" style="background-image:url('{{ grade.background }}')"><img src="{{ grade.icon }}" alt="{{ grade.index }}" /></div>{% endfor %}</div>
+  </section>
+  <img class="weapon-detail__divider" src="{{ divider }}" alt="" />
+  <section class="weapon-detail__section weapon-detail__modules modes-{{ weapon.modes|length }}"><div class="weapon-detail__module-groups">{{ module_group(left_modes, "left") }}{{ module_group(right_modes, "right") }}</div></section>
+  {% if calculation and calculation.attributes %}<img class="weapon-detail__divider" src="{{ divider }}" alt="" />
+  <section class="weapon-detail__calculation"><header class="weapon-detail__calculation-head"><h2>计算属性</h2></header><dl class="weapon-detail__calculation-grid">{% for item in calculation.attributes %}<div><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>{% endfor %}</dl></section>{% endif %}
+  {{ legacy_profile_header(header, profile_background) }}
+</article>
+<footer class="weapon-detail__footer"><img src="{{ footer_image }}" alt="" /></footer>
+{% endcall %}

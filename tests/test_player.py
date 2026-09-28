@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from PIL import Image, ImageFont
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from src.infrastructure.cache import CacheManager
+from src.infrastructure.http.player import DnaApiPlayerTransport
 from src.infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -40,6 +42,8 @@ from src.modules.player.contracts import (
     RoleSkill,
     RoleTrace,
     WeaponAttribute,
+    WeaponCalculation,
+    WeaponCalculationSnapshot,
     WeaponDetail,
     WeaponItem,
 )
@@ -96,6 +100,8 @@ class FixturePlayerTransport:
         expected_user_id: str = "user-1",
         expected_uid: str = UID,
         fail_con_weapon: bool = False,
+        weapon_calculation_result: WeaponCalculation | None = None,
+        weapon_calculation_transport_error: bool = False,
     ) -> None:
         self.overview = overview
         self.detail = detail
@@ -103,9 +109,13 @@ class FixturePlayerTransport:
         self.expected_user_id = expected_user_id
         self.expected_uid = expected_uid
         self.fail_con_weapon = fail_con_weapon
+        self.weapon_calculation_result = weapon_calculation_result
+        self.weapon_calculation_transport_error = weapon_calculation_transport_error
         self.damage_calls = 0
+        self.weapon_calculation_calls = 0
         self.overview_calls = 0
         self.role_detail_calls = 0
+        self.weapon_detail_calls = 0
 
     async def get_overview(
         self,
@@ -146,6 +156,7 @@ class FixturePlayerTransport:
         *,
         credential_user_id: str,
     ) -> WeaponDetail:
+        self.weapon_detail_calls += 1
         assert actor.user_id == "user-1"
         assert weapon_id in {201, 203}
         assert weapon_eid.startswith("weapon-eid-")
@@ -158,6 +169,48 @@ class FixturePlayerTransport:
                 detail="fixture failure",
             )
         return self.weapon
+
+    async def calculate_weapon(
+        self,
+        actor: EventActor,
+        uid: str,
+        weapon_detail: WeaponDetail,
+        *,
+        credential_user_id: str,
+    ) -> WeaponCalculation:
+        self.weapon_calculation_calls += 1
+        assert actor.user_id == "user-1"
+        assert uid == self.expected_uid
+        assert weapon_detail.weapon_id == 201
+        assert credential_user_id == self.expected_user_id
+        if self.weapon_calculation_transport_error:
+            raise PlayerTransportError(
+                PlayerFailureKind.SERVER,
+                resource="武器计算",
+                detail="fixture failure",
+            )
+        if self.weapon_calculation_result is not None:
+            return self.weapon_calculation_result
+        return WeaponCalculation.success(
+            WeaponCalculationSnapshot.model_validate(
+                {
+                    "baseWeaponAttribute": {
+                        "atk": 777,
+                        "cri": 12,
+                        "crd": 150,
+                        "speed": 1.0,
+                        "trigger": 30,
+                    },
+                    "finalWeaponAttribute": {
+                        "atk": 999,
+                        "cri": 24,
+                        "crd": 180,
+                        "speed": 1.2,
+                        "trigger": 50,
+                    },
+                }
+            )
+        )
 
     async def calculate_damage(
         self,
@@ -448,6 +501,15 @@ def _damage_fixture() -> DamageSnapshot:
         ),
         base_attribute=AttributeBag(atk=1234, hp=5678),
     )
+
+
+def test_weapon_detail_projection_marks_empty_payload_not_found() -> None:
+    """成功响应中的空 weaponDetail 应进入明确的详情未找到路径。"""
+
+    with pytest.raises(PlayerTransportError) as captured:
+        DnaApiPlayerTransport._weapon_detail({"weaponDetail": {}})
+
+    assert captured.value.kind is PlayerFailureKind.NOT_FOUND
 
 
 async def _database_with_binding(
@@ -1411,3 +1473,961 @@ def test_protagonist_aliases_never_conflate_genders() -> None:
         assert female_role is not None and male_role is not None
         assert female_role.name != male_role.name
         assert female_role.char_id != male_role.char_id
+
+
+def test_resolve_panel_target_prefers_weapon_by_official_name() -> None:
+    """展柜武器正式名应解析为武器目标，并带上近战/远程槽位。"""
+
+    target = PlayerService._resolve_panel_target(_overview_fixture(), "近战甲")
+
+    assert target.kind == "weapon"
+    assert target.slot == "近战武器"
+    assert target.weapon is not None and target.weapon.weapon_id == 201
+    assert PlayerService._resolve_panel_target(_overview_fixture(), "远程甲").slot == "远程武器"
+
+
+def test_resolve_panel_target_uses_weapon_alias_only_as_supplement() -> None:
+    """武器别名命中时回查 RoleOverview，别名缺失时正式名仍然可查。"""
+
+    aliases = AliasCatalog(weapon_aliases={"近战甲": ("近战甲", "无声的嘶吼")})
+    overview = _overview_fixture()
+
+    aliased = PlayerService._resolve_panel_target(overview, "无声的嘶吼", aliases)
+    assert aliased.kind == "weapon"
+    assert aliased.weapon is not None and aliased.weapon.weapon_id == 201
+
+    # alias 未更新（表里没有该武器）+ API 已返回正式名 = 正式名仍可查询。
+    stale = AliasCatalog(weapon_aliases={"其它武器": ("其它武器", "旧名")})
+    official = PlayerService._resolve_panel_target(overview, "远程甲", stale)
+    assert official.kind == "weapon"
+    assert official.weapon is not None and official.weapon.weapon_id == 202
+
+
+def test_resolve_panel_target_reports_ambiguous_when_both_match() -> None:
+    """角色与武器同时命中时不得自动选一边，必须报歧义。"""
+
+    target = PlayerService._resolve_panel_target(_overview_fixture(), "甲")
+
+    assert target.kind == "ambiguous"
+    assert target.role is not None and target.weapon is not None
+
+
+def test_resolve_panel_target_reports_not_found_without_truncating_weapon_lookup() -> None:
+    """角色查不到时仍要继续查武器，两边都落空才报未找到。"""
+
+    target = PlayerService._resolve_panel_target(_overview_fixture(), "不存在的对象")
+
+    assert target.kind == "not_found"
+    assert target.role is None and target.weapon is None
+
+
+def test_resolve_panel_target_rejects_extra_weapons_for_weapon_object() -> None:
+    """主对象已是武器时，追加 `+ 武器` 参数必须拒绝；角色对象不受影响。"""
+
+    overview = _overview_fixture()
+
+    rejected = PlayerService._resolve_panel_target(
+        overview, "近战甲", extra_weapon_names=("远程甲",)
+    )
+    assert rejected.kind == "rejected"
+
+    role = PlayerService._resolve_panel_target(
+        overview, "角色甲", extra_weapon_names=("近战甲",)
+    )
+    assert role.kind == "role"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parameters", "expected"),
+    [
+        ({"char_name": "不存在的对象"}, "未找到角色或武器，请检查名称是否正确"),
+        ({"char_name": "甲"}, "名称同时匹配角色和武器，请使用更完整的名称"),
+        (
+            {"char_name": "近战甲", "weapon_name_1": "远程甲"},
+            "武器面板不支持附加武器参数",
+        ),
+    ],
+)
+async def test_panel_target_errors_use_specific_messages(
+    tmp_path: Path, parameters: dict[str, str], expected: str
+) -> None:
+    """智能分流的未找到、歧义和武器附加参数必须有独立文案。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.role_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters=parameters,
+        )
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == expected
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_weapon_panel_detail_requests_owned_weapon(tmp_path: Path) -> None:
+    """已拥有且有 weaponEid 时直接复用现有武器详情接口。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    detail = await service._fetch_weapon_panel_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+        "user-1",
+        UID,
+        _overview_fixture().close_weapons[0],
+    )
+
+    assert detail == _weapon_fixture()
+    assert transport.weapon_detail_calls == 1
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "weapon",
+    [
+        _overview_fixture().close_weapons[0].model_copy(update={"unlocked": False}),
+        _overview_fixture().close_weapons[0].model_copy(update={"weapon_eid": None}),
+    ],
+)
+async def test_fetch_weapon_panel_detail_rejects_unowned_weapon(
+    tmp_path: Path, weapon: WeaponItem
+) -> None:
+    """未解锁或缺少 weaponEid 都按未拥有处理，且不请求详情。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service._fetch_weapon_panel_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+        "user-1",
+        UID,
+        weapon,
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.PLAYER_WEAPON_NOT_UNLOCKED
+    assert transport.weapon_detail_calls == 0
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_weapon_panel_detail_rejects_empty_detail(tmp_path: Path) -> None:
+    """上游未返回有效 WeaponDetail 时不得继续生成全零面板。"""
+
+    class EmptyWeaponTransport(FixturePlayerTransport):
+        async def get_weapon_detail(
+            self,
+            actor: EventActor,
+            uid: str,
+            weapon_id: int,
+            weapon_eid: str,
+            *,
+            credential_user_id: str,
+        ) -> WeaponDetail | None:
+            self.weapon_detail_calls += 1
+            return None
+
+    database = await _database_with_binding(tmp_path)
+    transport = EmptyWeaponTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service._fetch_weapon_panel_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+        "user-1",
+        UID,
+        _overview_fixture().close_weapons[0],
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.PLAYER_WEAPON_DETAIL_NOT_FOUND
+    assert transport.weapon_detail_calls == 1
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_weapon_panel_detail_maps_not_found_error(tmp_path: Path) -> None:
+    """transport 的武器详情未找到必须使用专用文案。"""
+
+    class MissingWeaponTransport(FixturePlayerTransport):
+        async def get_weapon_detail(
+            self,
+            actor: EventActor,
+            uid: str,
+            weapon_id: int,
+            weapon_eid: str,
+            *,
+            credential_user_id: str,
+        ) -> WeaponDetail:
+            raise PlayerTransportError(
+                PlayerFailureKind.NOT_FOUND, resource="武器详情"
+            )
+
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        MissingWeaponTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service._fetch_weapon_panel_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+        "user-1",
+        UID,
+        _overview_fixture().close_weapons[0],
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.PLAYER_WEAPON_DETAIL_NOT_FOUND
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_weapon_name_panel_renders_independent_weapon_card(tmp_path: Path) -> None:
+    """正式武器名面板应走独立武器模板并返回完整图片响应。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.role_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={"char_name": "近战甲"},
+        )
+    )
+
+    assert isinstance(response, ImageResponse)
+    assert service.transport.weapon_calculation_calls == 1
+    artifact = read_rendered_artifact(Path(response.image))
+    assert artifact.width == 1000
+    assert artifact.height > 0
+    assert isinstance(response.incomplete, bool)
+    for expected in ("近战甲", "等级: 80", "精炼等级: 5", "武器楔"):
+        assert expected in artifact.metadata["dna.text"]
+    assert "UID 1234567890123" in artifact.metadata["dna.text"]
+    assert [section["name"] for section in artifact.metadata["dna.layout"]["sections"]] == [
+        "武器主视觉",
+        "武器属性",
+        "魔之楔",
+        "计算属性",
+        "玩家信息",
+    ]
+    await database.dispose()
+
+
+class _CountingWeaponRenderer(PlayerRenderer):
+    def __init__(self, output_dir: Path) -> None:
+        super().__init__(output_dir, ResourceMap())
+        self.weapon_render_calls = 0
+        self.force_incomplete = False
+
+    async def render_weapon_detail(self, *args, **kwargs):
+        self.weapon_render_calls += 1
+        rendered = await super().render_weapon_detail(*args, **kwargs)
+        return replace(rendered, incomplete=self.force_incomplete)
+
+
+def test_weapon_cache_keys_and_tags_include_all_invalidation_dimensions(
+    tmp_path: Path,
+) -> None:
+    """武器数据/卡片 key 与 tag 必须覆盖身份、数据、资源和隐私维度。"""
+
+    cache = PlayerCache(CacheManager(tmp_path / "cache"), tmp_path / "rendered")
+
+    assert cache.weapon_data_key("user-1", UID, 201, "overview-digest").split(
+        "\x1f"
+    ) == [
+        "weapon-data",
+        "user-1",
+        UID,
+        "201",
+        "overview-digest",
+    ]
+    assert cache.weapon_card_key(
+        "user-1",
+        UID,
+        201,
+        "overview-digest",
+        "detail-digest",
+        "resource-v1",
+        True,
+    ).split("\x1f") == [
+        "weapon-card",
+        "user-1",
+        UID,
+        "201",
+        "overview-digest",
+        "detail-digest",
+        "resource-v1",
+        "True",
+    ]
+    identity = cache.identity_tag("user-1", UID)
+    assert cache.weapon_data_tags(
+        "user-1", UID, 201, "overview-digest"
+    ) == (
+        "player_data",
+        "weapon",
+        identity,
+        "weapon:201",
+        cache.data_tag("overview-digest"),
+    )
+    assert cache.weapon_card_tags(
+        "user-1", UID, 201, "detail-digest", "resource-v1"
+    ) == (
+        "player_card",
+        "weapon",
+        identity,
+        "weapon:201",
+        cache.data_tag("detail-digest"),
+        cache.resource_tag("resource-v1"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_weapon_panel_cache_tracks_detail_resource_and_incomplete_state(
+    tmp_path: Path,
+) -> None:
+    """同内容命中缓存，详情/资源变化重渲染，incomplete 卡不得落缓存。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=cache,
+    )
+    resource_version = {"value": "resource-v1"}
+    service._resource_version = lambda: resource_version["value"]
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "近战甲"},
+    )
+
+    first = await service.role_detail(request)
+    second = await service.role_detail(request)
+
+    assert isinstance(first, ImageResponse)
+    assert isinstance(second, ImageResponse)
+    assert transport.weapon_detail_calls == 1
+    assert transport.weapon_calculation_calls == 1
+    assert renderer.weapon_render_calls == 1
+
+    resource_version["value"] = "resource-v2"
+    await service.role_detail(request)
+    assert transport.weapon_detail_calls == 1
+    assert transport.weapon_calculation_calls == 2
+    assert renderer.weapon_render_calls == 2
+
+    await manager.invalidate(
+        "player_data",
+        tags=(cache.identity_tag("user-1", UID), "weapon:201"),
+    )
+    transport.weapon = transport.weapon.model_copy(update={"level": 81})
+    await service.role_detail(request)
+    assert transport.weapon_detail_calls == 2
+    assert transport.weapon_calculation_calls == 3
+    assert renderer.weapon_render_calls == 3
+
+    renderer.force_incomplete = True
+    resource_version["value"] = "resource-v3"
+    incomplete = await service.role_detail(request)
+    repeated = await service.role_detail(request)
+
+    assert incomplete.incomplete is True
+    assert repeated.incomplete is True
+    assert transport.weapon_detail_calls == 2
+    assert transport.weapon_calculation_calls == 5
+    assert renderer.weapon_render_calls == 5
+    overview_digest = cache.content_digest(cache.encode_json(_overview_fixture()))
+    detail_digest = cache.content_digest(cache.encode_json(transport.weapon))
+    incomplete_key = cache.weapon_card_key(
+        "user-1",
+        UID,
+        201,
+        overview_digest,
+        detail_digest,
+        "resource-v3|weapon-calculation-v1",
+        False,
+    )
+    assert (await cache.get_card(incomplete_key)).status == "miss"
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_weapon_panel_caches_complete_card_after_calculation_business_failure(
+    tmp_path: Path,
+) -> None:
+    """计算业务失败只隐藏增强区块，完整基础卡仍应命中缓存。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(),
+        _detail_fixture(),
+        _weapon_fixture(),
+        weapon_calculation_result=WeaponCalculation.failure("参数错误"),
+    )
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=PlayerCache(CacheManager(tmp_path / "cache"), tmp_path / "rendered"),
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "近战甲"},
+    )
+
+    first = await service.role_detail(request)
+    second = await service.role_detail(request)
+
+    assert isinstance(first, ImageResponse)
+    assert isinstance(second, ImageResponse)
+    assert transport.weapon_detail_calls == 1
+    assert transport.weapon_calculation_calls == 1
+    assert renderer.weapon_render_calls == 1
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_weapon_panel_does_not_cache_transport_failure_fallback(
+    tmp_path: Path,
+) -> None:
+    """计算 transport failure 的降级卡不应阻止下次重试。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(),
+        _detail_fixture(),
+        _weapon_fixture(),
+        weapon_calculation_transport_error=True,
+    )
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=PlayerCache(CacheManager(tmp_path / "cache"), tmp_path / "rendered"),
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "近战甲"},
+    )
+
+    first = await service.role_detail(request)
+    second = await service.role_detail(request)
+
+    assert isinstance(first, ImageResponse)
+    assert isinstance(second, ImageResponse)
+    assert transport.weapon_detail_calls == 1
+    assert transport.weapon_calculation_calls == 2
+    assert renderer.weapon_render_calls == 2
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_weapon_panel_replaces_cached_detail_and_card(
+    tmp_path: Path,
+) -> None:
+    """刷新武器面板必须拉最新 overview、覆盖旧详情并生成新卡。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=cache,
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "近战甲"},
+    )
+
+    initial = await service.role_detail(request)
+    transport.weapon = transport.weapon.model_copy(update={"level": 81})
+    refreshed = await service.refresh_role(request)
+    cached = await service.role_detail(request)
+
+    assert isinstance(initial, ImageResponse)
+    assert isinstance(refreshed, ChainResponse)
+    assert isinstance(refreshed.components[0], PlainTextResponse)
+    assert isinstance(refreshed.components[1], ImageResponse)
+    assert refreshed.components[0].text == "武器【近战甲】面板已刷新"
+    assert isinstance(cached, ImageResponse)
+    assert transport.overview_calls == 2
+    assert transport.weapon_detail_calls == 2
+    assert renderer.weapon_render_calls == 2
+    artifact = read_rendered_artifact(Path(refreshed.components[1].image))
+    assert "等级: 81" in artifact.metadata["dna.text"]
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_all_weapons_only_caches_owned_details_and_isolates_failures(
+    tmp_path: Path,
+) -> None:
+    """批量刷新只写 owned 武器数据，单把失败不影响其它武器。"""
+
+    overview = _overview_fixture().model_copy(
+        update={
+            "close_weapons": [
+                *_overview_fixture().close_weapons,
+                WeaponItem(
+                    element_icon="weapon-element://close",
+                    icon="weapon://203",
+                    level=0,
+                    name="未拥有武器",
+                    unlocked=False,
+                    weapon_eid=None,
+                    weapon_id=203,
+                    skill_level=0,
+                ),
+            ],
+        }
+    )
+
+    class BatchWeaponTransport(FixturePlayerTransport):
+        def __init__(self) -> None:
+            super().__init__(overview, _detail_fixture(), _weapon_fixture())
+            self.requested_weapon_ids: list[int] = []
+
+        async def get_weapon_detail(
+            self,
+            actor: EventActor,
+            uid: str,
+            weapon_id: int,
+            weapon_eid: str,
+            *,
+            credential_user_id: str,
+        ) -> WeaponDetail:
+            self.weapon_detail_calls += 1
+            self.requested_weapon_ids.append(weapon_id)
+            assert actor.user_id == "user-1"
+            assert uid == self.expected_uid
+            assert credential_user_id == self.expected_user_id
+            assert weapon_eid == f"weapon-eid-{weapon_id}"
+            if weapon_id == 201:
+                raise PlayerTransportError(
+                    PlayerFailureKind.SERVER,
+                    resource="武器详情",
+                    detail="fixture failure",
+                )
+            return self.weapon.model_copy(update={"weapon_id": weapon_id})
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    transport = BatchWeaponTransport()
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=cache,
+    )
+
+    response = await service.refresh_all_weapons(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        )
+    )
+
+    overview_digest = cache.content_digest(cache.encode_json(overview))
+    assert isinstance(response, PlainTextResponse)
+    assert "成功 1" in response.text
+    assert "失败 1" in response.text
+    assert "近战甲" in response.text
+    assert transport.overview_calls == 1
+    assert transport.requested_weapon_ids == [201, 202]
+    assert transport.role_detail_calls == 0
+    assert transport.damage_calls == 0
+    assert renderer.weapon_render_calls == 0
+    assert (
+        await cache.get_data(
+            cache.weapon_data_key("user-1", UID, 201, overview_digest)
+        )
+    ).status == "miss"
+    assert (
+        await cache.get_data(
+            cache.weapon_data_key("user-1", UID, 202, overview_digest)
+        )
+    ).status == "fresh"
+    assert (
+        await cache.get_data(
+            cache.weapon_data_key("user-1", UID, 203, overview_digest)
+        )
+    ).status == "miss"
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_weapon_panel_cache_preserves_other_weapon_role_and_overview(
+    tmp_path: Path,
+) -> None:
+    """单武器清缓存仅删除当前身份对应 weapon id 的数据和卡片。"""
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    identity = cache.identity_tag("user-1", UID)
+    await cache.put_data(
+        cache.overview_data_key("user-1", UID),
+        _overview_fixture(),
+        tags=("player_data", "overview", identity),
+    )
+    entries = (
+        (
+            "player_data",
+            "weapon-201-data",
+            cache.weapon_data_tags("user-1", UID, 201, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-201-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 201, "detail-201", "resource"
+            ),
+        ),
+        (
+            "player_data",
+            "weapon-202-data",
+            cache.weapon_data_tags("user-1", UID, 202, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-202-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 202, "detail-202", "resource"
+            ),
+        ),
+        (
+            "player_data",
+            "role-data",
+            cache.detail_data_tags("user-1", UID, 101, "overview"),
+        ),
+        (
+            "player_card",
+            "role-card",
+            cache.detail_card_tags(
+                "user-1", UID, 101, "role-detail", "resource"
+            ),
+        ),
+    )
+    for cache_type, key, tags in entries:
+        await manager.put(cache_type, key, b"{}", tags=tags)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        cache=cache,
+    )
+
+    response = await service.clear_role_cache(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={"char_name": "近战甲"},
+        )
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == "武器【近战甲】缓存已清理"
+    assert (await manager.get("player_data", "weapon-201-data")).status == "miss"
+    assert (await manager.get("player_card", "weapon-201-card")).status == "miss"
+    for cache_type, key in (
+        ("player_data", "weapon-202-data"),
+        ("player_card", "weapon-202-card"),
+        ("player_data", "role-data"),
+        ("player_card", "role-card"),
+    ):
+        assert (await manager.get(cache_type, key)).status == "fresh"
+    assert (
+        await cache.get_data(cache.overview_data_key("user-1", UID))
+    ).status == "fresh"
+    assert transport.overview_calls == 0
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_all_weapon_cache_preserves_roles_and_overview(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """全量武器清理只按 identity + weapon 删除数据和卡片。"""
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    identity = cache.identity_tag("user-1", UID)
+    await cache.put_data(
+        cache.overview_data_key("user-1", UID),
+        _overview_fixture(),
+        tags=("player_data", "overview", identity),
+    )
+    entries = (
+        (
+            "player_data",
+            "weapon-201-data",
+            cache.weapon_data_tags("user-1", UID, 201, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-201-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 201, "detail-201", "resource"
+            ),
+        ),
+        (
+            "player_data",
+            "weapon-202-data",
+            cache.weapon_data_tags("user-1", UID, 202, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-202-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 202, "detail-202", "resource"
+            ),
+        ),
+        (
+            "player_data",
+            "role-data",
+            cache.detail_data_tags("user-1", UID, 101, "overview"),
+        ),
+        (
+            "player_card",
+            "role-card",
+            cache.detail_card_tags(
+                "user-1", UID, 101, "role-detail", "resource"
+            ),
+        ),
+    )
+    for cache_type, key, tags in entries:
+        await manager.put(cache_type, key, b"{}", tags=tags)
+    await manager.put(
+        "player_data",
+        "other-weapon-data",
+        b"{}",
+        tags=cache.weapon_data_tags("user-2", TARGET_UID, 201, "overview"),
+    )
+
+    async def reject_identity_invalidation(*_args, **_kwargs) -> int:
+        raise AssertionError("不得调用 invalidate_identity()")
+
+    monkeypatch.setattr(cache, "invalidate_identity", reject_identity_invalidation)
+    service = PlayerService(
+        database,
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        cache=cache,
+    )
+
+    response = await service.clear_all_weapon_cache(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        )
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    for cache_type, key in (
+        ("player_data", "weapon-201-data"),
+        ("player_card", "weapon-201-card"),
+        ("player_data", "weapon-202-data"),
+        ("player_card", "weapon-202-card"),
+    ):
+        assert (await manager.get(cache_type, key)).status == "miss"
+    for cache_type, key in (
+        ("player_data", "role-data"),
+        ("player_card", "role-card"),
+    ):
+        assert (await manager.get(cache_type, key)).status == "fresh"
+    assert (
+        await cache.get_data(cache.overview_data_key("user-1", UID))
+    ).status == "fresh"
+    assert (
+        await manager.get("player_data", "other-weapon-data")
+    ).status == "fresh"
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_bulk_role_operations_preserve_weapon_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """新增武器缓存后，批量角色刷新/清理仍不能越界删除武器。"""
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    weapon_entries = (
+        (
+            "player_data",
+            "weapon-data",
+            cache.weapon_data_tags("user-1", UID, 201, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 201, "detail", "resource"
+            ),
+        ),
+    )
+    for cache_type, key, tags in weapon_entries:
+        await manager.put(cache_type, key, b"{}", tags=tags)
+
+    async def reject_identity_invalidation(*_args, **_kwargs) -> int:
+        raise AssertionError("批量角色操作不得调用 invalidate_identity()")
+
+    class BatchRoleTransport(FixturePlayerTransport):
+        async def calculate_damage(
+            self,
+            actor: EventActor,
+            uid: str,
+            role_detail: RoleDetail,
+            con_weapon: WeaponDetail | None,
+            close_weapon: WeaponDetail | None,
+            ranged_weapon: WeaponDetail | None,
+            *,
+            credential_user_id: str,
+        ) -> DamageCalculation:
+            self.damage_calls += 1
+            assert actor.user_id == "user-1"
+            assert uid == self.expected_uid
+            assert credential_user_id == self.expected_user_id
+            assert role_detail.char_id == 101
+            assert con_weapon is not None
+            assert close_weapon is None
+            assert ranged_weapon is None
+            return DamageCalculation.success(_damage_fixture())
+
+    monkeypatch.setattr(cache, "invalidate_identity", reject_identity_invalidation)
+    overview = _overview_fixture()
+    service = PlayerService(
+        database,
+        BatchRoleTransport(overview, _detail_fixture(), _weapon_fixture()),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        cache=cache,
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+    )
+
+    refreshed = await service.refresh_all_roles(request)
+    overview_digest = cache.content_digest(cache.encode_json(overview))
+    role_key = cache.detail_data_key(
+        "user-1", UID, 101, (), overview_digest
+    )
+
+    assert isinstance(refreshed, PlainTextResponse)
+    assert (await cache.get_data(role_key)).status == "fresh"
+    for cache_type, key, _tags in weapon_entries:
+        assert (await manager.get(cache_type, key)).status == "fresh"
+
+    cleared = await service.clear_all_role_cache(request)
+
+    assert isinstance(cleared, PlainTextResponse)
+    assert (await cache.get_data(role_key)).status == "miss"
+    assert (
+        await cache.get_data(cache.overview_data_key("user-1", UID))
+    ).status == "miss"
+    for cache_type, key, _tags in weapon_entries:
+        assert (await manager.get(cache_type, key)).status == "fresh"
+    await database.dispose()

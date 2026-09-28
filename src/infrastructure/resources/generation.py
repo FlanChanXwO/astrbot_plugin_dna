@@ -956,11 +956,9 @@ class ResourceSnapshotCoordinator:
             with self._state_lock:
                 snapshot = self._current or self._loaded_snapshot
                 expected_content_sha256 = self._expected_content_sha256
-                if snapshot is self._current:
-                    # 重验现有 current 时暂时撤回暴露，避免校验期间继续读取可能已被
-                    # 外部篡改的目录；新远端 generation 的构建不会走这个分支，因此不影响
-                    # 已验证旧 generation 在后台同步期间继续服务。
-                    self._current = None
+            # 重验现有 current 时不撤回暴露：目录此前已原子发布并通过校验，
+            # 校验期间并发面板渲染必须继续读到它，否则会退化成空资源视图并
+            # 显示 placeholder。只有校验真正失败时才在本方法内撤下 current。
             if snapshot is None:
                 snapshot = self.load_current()
                 with self._state_lock:

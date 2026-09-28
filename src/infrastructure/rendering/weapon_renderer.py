@@ -21,7 +21,13 @@ from .static_assets import static_image_data_uri, static_record
 class WeaponImageLoader(Protocol):
     """武器区块所需的异步图片加载边界。"""
 
-    async def weapon(self, weapon_id: str | int, url: str | None) -> Image.Image:
+    async def weapon(
+        self,
+        weapon_id: str | int,
+        url: str | None,
+        *,
+        size: tuple[int, int] = (256, 256),
+    ) -> Image.Image:
         """读取武器图。"""
 
     async def mod(self, mod_id: str | int, url: str | None) -> Image.Image:
@@ -104,6 +110,7 @@ async def draw_weapon_detail_section(
     title: str,
     *,
     image_loader: WeaponImageLoader | None = None,
+    weapon_image_size: tuple[int, int] = (256, 256),
     static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
@@ -112,9 +119,13 @@ async def draw_weapon_detail_section(
     weapon_id = getattr(weapon_detail, "id", getattr(weapon_detail, "weapon_id", 0))
     weapon_icon = getattr(weapon_detail, "icon", "")
     weapon_image_coro = (
-        get_weapon_img(weapon_id, weapon_icon)
+        get_weapon_img(weapon_id, weapon_icon, size=weapon_image_size)
         if image_loader is None
-        else image_loader.weapon(weapon_id, weapon_icon)
+        else image_loader.weapon(
+            weapon_id,
+            weapon_icon,
+            size=weapon_image_size,
+        )
     )
     raw_modes = getattr(weapon_detail, "modes", [])
     mode_payloads_coro = asyncio.gather(
@@ -147,24 +158,37 @@ async def draw_weapon_detail_section(
         ("攻击", f"{atk:,}", "icon17.png"),
         ("暴击率", f"{cri:.0%}", "icon13.png"),
         ("暴击伤害", f"{crd:.0%}", "icon12.png"),
-        ("攻击速度", f"{speed:.0%}", "icon14.png"),
+        ("攻击速度", str(float(speed)), "icon14.png"),
         ("触发率", f"{trigger:.0%}", "icon15.png"),
     )
     attributes = []
-    for label, value, icon_name in attr_specs:
+    for index, (label, value, icon_name) in enumerate(attr_specs):
+        bar_relative = f"textures/detail/prop_info_bar{1 if index % 2 == 0 else 2}.png"
+        bar_uri, bar_asset = static_image_data_uri(
+            static_asset_resolver, bar_relative, label="武器属性"
+        )
         icon_relative = f"textures/detail/icons/{icon_name}"
         icon_uri, icon_asset = static_image_data_uri(
             static_asset_resolver, icon_relative, label="武器属性"
         )
         if static_records is not None:
-            static_records.append(
-                static_record(
-                    f"texture.detail.icons.{icon_name}",
-                    icon_asset,
-                    resource_path=icon_relative,
+            static_records.extend(
+                (
+                    static_record(
+                        f"texture.detail.prop_info_bar{1 if index % 2 == 0 else 2}",
+                        bar_asset,
+                        resource_path=bar_relative,
+                    ),
+                    static_record(
+                        f"texture.detail.icons.{icon_name}",
+                        icon_asset,
+                        resource_path=icon_relative,
+                    ),
                 )
             )
-        attributes.append({"icon": icon_uri, "label": label, "value": value})
+        attributes.append(
+            {"background": bar_uri, "icon": icon_uri, "label": label, "value": value}
+        )
 
     def detail_image(key: str, relative: str) -> str:
         uri, asset = static_image_data_uri(
