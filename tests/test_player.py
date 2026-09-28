@@ -1642,3 +1642,42 @@ async def test_fetch_weapon_panel_detail_maps_not_found_error(tmp_path: Path) ->
     assert isinstance(response, PlainTextResponse)
     assert response.text == messages.PLAYER_WEAPON_DETAIL_NOT_FOUND
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_weapon_name_panel_renders_independent_weapon_card(tmp_path: Path) -> None:
+    """正式武器名面板应走独立武器模板并返回完整图片响应。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.role_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={"char_name": "近战甲"},
+        )
+    )
+
+    assert isinstance(response, ImageResponse)
+    artifact = read_rendered_artifact(Path(response.image))
+    assert artifact.width == 1000
+    assert artifact.height > 0
+    assert isinstance(response.incomplete, bool)
+    for expected in ("近战甲", "等级: 80", "精炼等级: 5", "武器楔"):
+        assert expected in artifact.metadata["dna.text"]
+    assert [section["name"] for section in artifact.metadata["dna.layout"]["sections"]] == [
+        "武器主视觉",
+        "武器属性",
+        "魔之楔",
+        "玩家信息",
+    ]
+    await database.dispose()

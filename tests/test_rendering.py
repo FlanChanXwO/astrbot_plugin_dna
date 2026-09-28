@@ -244,3 +244,94 @@ def test_coerce_result_validates_container_without_pillow_decode(
         )
         == payload
     )
+
+
+@pytest.mark.asyncio
+async def test_weapon_template_uses_shared_section_and_renders_all_fields() -> None:
+    """独立武器卡和角色卡共用同一段武器 HTML/CSS。"""
+
+    templates = Path(__file__).parents[1] / "src" / "templates"
+    t2i = FakeT2I(_jpeg_bytes())
+    renderer = HtmlRenderer(templates, t2i=t2i)
+    weapon = {
+        "attribute_background": "data:image/png;base64,attr",
+        "attributes": [
+            {"icon": "", "label": label, "value": value}
+            for label, value in (
+                ("武器类型", "近战"),
+                ("攻击", "777"),
+                ("暴击率", "150%"),
+                ("暴击伤害", "10%"),
+                ("攻击速度", "20%"),
+                ("触发率", "30%"),
+            )
+        ],
+        "icon": "data:image/png;base64,weapon",
+        "level": 80,
+        "modes": [
+            {
+                "background": "",
+                "icon": "",
+                "level": "+2",
+                "name": "武器楔",
+                "side": "left",
+            }
+        ],
+        "name": "近战甲",
+        "skill_level": 5,
+        "title": "武器详情",
+        "weapon_background": "",
+    }
+
+    await renderer.render(
+        "cards/weapon_detail.html.j2",
+        {
+            "background": "",
+            "font": "",
+            "footer_image": "",
+            "header": {
+                "avatar": "",
+                "avatar_frame": None,
+                "level": 42,
+                "level_background": "",
+                "name": "测试玩家",
+                "stats": [],
+                "uid": "123456",
+            },
+            "profile_background": "",
+            "weapon": weapon,
+            "width": 1000,
+        },
+        RenderSpec(width=1000, full_page=True, image_format="jpeg"),
+    )
+
+    html = str(t2i.calls[0]["tmpl_str"])
+    assert html.count('data-weapon-section="shared"') == 1
+    for expected in (
+        "近战甲",
+        "Lv.80",
+        "精炼等级 5",
+        "武器类型",
+        "攻击",
+        "暴击率",
+        "暴击伤害",
+        "攻击速度",
+        "触发率",
+        "武器楔",
+    ):
+        assert expected in html
+
+    macro = (templates / "cards/macros/weapon_section.html.j2").read_text(
+        encoding="utf-8"
+    )
+    role_template = (templates / "cards/role_detail.html.j2").read_text(
+        encoding="utf-8"
+    )
+    weapon_template = (templates / "cards/weapon_detail.html.j2").read_text(
+        encoding="utf-8"
+    )
+    assert ".role-detail__weapon-section {" in macro
+    assert ".role-detail__weapon-section {" not in role_template
+    assert ".role-detail__weapon-section {" not in weapon_template
+    assert "{{ weapon_section(weapon) }}" in role_template
+    assert "{{ weapon_section(weapon) }}" in weapon_template

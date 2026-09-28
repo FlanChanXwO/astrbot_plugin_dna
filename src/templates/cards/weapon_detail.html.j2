@@ -1,0 +1,21 @@
+{% from "cards/macros/layout.html.j2" import card_shell %}
+{% from "cards/macros/weapon_section.html.j2" import weapon_section, weapon_section_styles %}
+{% call card_shell(width, background=background, class_name="weapon-detail") %}
+<style>
+  @font-face { font-family: "DNAFont"; src: url("{{ font }}") format("woff2"); }
+  .weapon-detail { width: 1000px; color: #fff; font-family: "DNAFont", sans-serif; overflow: hidden; }
+  .weapon-detail__hero { position: relative; width: 1000px; height: 520px; overflow: hidden; background: radial-gradient(circle at 50% 45%, rgba(238,232,170,.25), rgba(12,14,22,.88) 58%); }
+  .weapon-detail__hero-image { position: absolute; top: 40px; left: 290px; width: 420px; height: 420px; object-fit: contain; filter: drop-shadow(0 24px 24px rgba(0,0,0,.55)); }
+  .weapon-detail__hero h1 { position: absolute; right: 60px; bottom: 72px; left: 60px; margin: 0; color: #fff7cf; font-size: 46px; font-weight: 400; text-align: center; }
+  .weapon-detail__hero p { position: absolute; right: 60px; bottom: 30px; left: 60px; margin: 0; color: #eee8aa; font-size: 22px; text-align: center; }
+  .weapon-detail__profile { display: flex; gap: 28px; align-items: center; min-height: 120px; padding: 24px 70px; background: rgba(9,9,12,.55); }
+  .weapon-detail__profile img { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; }
+  .weapon-detail__profile h2 { margin: 0; font-size: 28px; font-weight: 400; }.weapon-detail__profile p { margin: 8px 0 0; color: #eee8aa; font-size: 18px; }
+  .weapon-detail__footer { position: relative; width: 1000px; height: 80px; }.weapon-detail__footer img { position: absolute; right: 200px; bottom: 20px; width: 600px; height: 23px; object-fit: fill; }
+</style>
+{{ weapon_section_styles() }}
+<section class="weapon-detail__hero"><img class="weapon-detail__hero-image" src="{{ weapon.icon }}" alt="" /><h1>{{ weapon.name }}</h1><p>Lv.{{ weapon.level }} · 精炼等级 {{ weapon.skill_level }}</p></section>
+{{ weapon_section(weapon) }}
+<section class="weapon-detail__profile">{% if header.avatar %}<img src="{{ header.avatar }}" alt="" />{% endif %}<div><h2>{{ header.name }}</h2><p>{% if header.uid %}UID {{ header.uid }} · {% endif %}Lv.{{ header.level }}</p></div></section>
+<footer class="weapon-detail__footer"><img src="{{ footer_image }}" alt="" /></footer>
+{% endcall %}

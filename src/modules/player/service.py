@@ -967,6 +967,31 @@ class PlayerService:
             )
         return self._response_from_rendered(rendered)
 
+    async def _render_weapon_detail(
+        self,
+        detail: WeaponDetail,
+        overview: RoleOverview,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        uid_hidden: bool,
+    ) -> ImageResponse:
+        with self._renderer_context() as renderer:
+            rendered_res = renderer.render_weapon_detail(
+                detail,
+                uid=uid,
+                uid_hidden=uid_hidden,
+                overview=overview,
+                actor=request.actor,
+                target_user_id=target_user_id,
+            )
+            rendered = (
+                await rendered_res
+                if asyncio.iscoroutine(rendered_res)
+                else rendered_res
+            )
+        return self._response_from_rendered(rendered)
+
     async def _role_detail_from_overview(
         self,
         request: PlayerCommandRequest,
@@ -981,17 +1006,50 @@ class PlayerService:
         overview = overview_state.overview
 
         char_name = str(request.parameters.get("char_name", "")).strip()
-        role = self._find_role(overview, char_name, self.aliases)
-        if role is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
-        if not role.unlocked or role.char_eid is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
-
         names: list[str] = []
         for key in ("weapon_name_1", "weapon_name_2"):
             value = request.parameters.get(key)
             if value is not None and str(value).strip():
                 names.append(str(value))
+        target = self._resolve_panel_target(
+            overview,
+            char_name,
+            self.aliases,
+            extra_weapon_names=tuple(names),
+        )
+        if target.kind == "weapon":
+            assert target.weapon is not None
+            detail = await self._fetch_weapon_panel_detail(
+                request,
+                target_user_id,
+                uid,
+                target.weapon,
+            )
+            if isinstance(detail, PlainTextResponse):
+                return detail
+            uid_hidden = await self.privacy.is_uid_hidden(
+                target_user_id,
+                group_id=request.actor.group_id,
+            )
+            return await self._render_weapon_detail(
+                detail,
+                overview,
+                request,
+                target_user_id,
+                uid,
+                uid_hidden,
+            )
+
+        role = (
+            target.role
+            if target.kind == "role"
+            else self._find_role(overview, char_name, self.aliases)
+        )
+        if role is None:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        if not role.unlocked or role.char_eid is None:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
+
         selected = self._select_weapons(overview, tuple(names))
         if isinstance(selected, PlainTextResponse):
             return selected

@@ -1,0 +1,29 @@
+{% macro weapon_section_styles() -%}
+<style>
+  .role-detail__weapon-section { position: relative; width: 1000px; height: 750px; }
+  .role-detail__weapon-section.modes-4 { height: 490px; }
+  .role-detail__weapon-title { position: absolute; top: 0; left: 50px; margin: 0; color: #eee8aa; font-size: 24px; font-weight: 400; line-height: 52px; }
+  .role-detail__weapon-line { position: absolute; top: 25px; right: 50px; border-top: 1px solid rgba(255,255,255,.27); }
+  .role-detail__weapon-info { position: absolute; top: 570px; left: 0; width: 1000px; height: 180px; }
+  .role-detail__weapon-section.modes-4 .role-detail__weapon-info { top: 310px; }
+  .role-detail__weapon-card { position: absolute; top: 0; left: 70px; width: 217px; height: 122px; overflow: hidden; background-position: center; background-repeat: no-repeat; background-size: 217px 122px; }
+  .role-detail__weapon-icon { position: absolute; top: -8px; left: -8px; width: 144px; height: 144px; object-fit: fill; }
+  .role-detail__weapon-name { position: absolute; top: 122px; left: 70px; margin: 0; font-size: 26px; font-weight: 400; line-height: 32px; }
+  .role-detail__weapon-name small { display: block; color: #eee8aa; font-size: 18px; line-height: 24px; }
+  .role-detail__weapon-level { position: absolute; top: 80px; left: 120px; width: 64px; height: 28px; border-radius: 6px; background: #b22222; font-size: 21px; line-height: 28px; text-align: center; }
+  .role-detail__weapon-attrs { position: absolute; top: 0; left: 290px; width: 641px; height: 160px; background-position: center; background-repeat: no-repeat; background-size: 641px 160px; }
+  .role-detail__weapon-attr { position: absolute; display: grid; grid-template-columns: 53px 1fr auto; align-items: center; width: 320px; height: 53px; }
+  .role-detail__weapon-attr:nth-child(odd) { left: 0; }.role-detail__weapon-attr:nth-child(even) { left: 320px; }
+  .role-detail__weapon-attr:nth-child(-n+2) { top: 0; }.role-detail__weapon-attr:nth-child(n+3):nth-child(-n+4) { top: 53px; }.role-detail__weapon-attr:nth-child(n+5) { top: 106px; }
+  .role-detail__weapon-attr img { width: 53px; height: 53px; object-fit: contain; }.role-detail__weapon-attr span, .role-detail__weapon-attr strong { font-size: 26px; font-weight: 400; }
+  .role-detail__weapon-modes { position: absolute; inset: 0; width: 1000px; height: 552px; }
+  .role-detail__mode { position: absolute; width: 250px; height: 242px; overflow: hidden; }.role-detail__mode-bg { position: absolute; inset: 0; width: 250px; height: 242px; }.role-detail__mode-content { position: absolute; inset: 0; }.role-detail__mode-icon { position: absolute; top: 15px; left: 35px; width: 180px; height: 180px; object-fit: fill; }.role-detail__mode h4 { position: absolute; top: 161px; left: 115px; margin: 0; color: #fff; font-size: 26px; font-weight: 400; line-height: 38px; white-space: nowrap; transform: translateX(-50%); }.role-detail__mode-level { position: absolute; top: 30px; left: 54px; width: 52px; height: 30px; border-radius: 10px; background: #ff4500; font-size: 26px; line-height: 30px; text-align: center; }
+  .role-detail__mode.mode-right h4 { left: 140px; }.role-detail__mode.mode-right .role-detail__mode-level { left: 134px; }
+  .role-detail__weapon-modes .role-detail__mode:nth-child(1) { left: 30px; top: 52px; }.role-detail__weapon-modes .role-detail__mode:nth-child(2) { left: 210px; top: 52px; }.role-detail__weapon-modes .role-detail__mode:nth-child(3) { left: 30px; top: 302px; }.role-detail__weapon-modes .role-detail__mode:nth-child(4) { left: 210px; top: 302px; }.role-detail__weapon-modes .role-detail__mode:nth-child(5) { left: 530px; top: 52px; }.role-detail__weapon-modes .role-detail__mode:nth-child(6) { left: 710px; top: 52px; }.role-detail__weapon-modes .role-detail__mode:nth-child(7) { left: 530px; top: 302px; }.role-detail__weapon-modes .role-detail__mode:nth-child(8) { left: 710px; top: 302px; }
+  .role-detail__weapon-section.modes-4 .role-detail__weapon-modes .role-detail__mode:nth-child(1) { left: 40px; top: 52px; }.role-detail__weapon-section.modes-4 .role-detail__weapon-modes .role-detail__mode:nth-child(2) { left: 260px; top: 52px; }.role-detail__weapon-section.modes-4 .role-detail__weapon-modes .role-detail__mode:nth-child(3) { left: 480px; top: 52px; }.role-detail__weapon-section.modes-4 .role-detail__weapon-modes .role-detail__mode:nth-child(4) { left: 700px; top: 52px; }
+</style>
+{%- endmacro %}
+
+{% macro weapon_section(weapon) -%}
+<section class="role-detail__weapon-section modes-{{ weapon.modes|length }}" data-weapon-section="shared"><h2 class="role-detail__weapon-title">{{ weapon.title }}</h2><div class="role-detail__weapon-line" style="left:{{ 70 + weapon.title|length * 24 }}px"></div><div class="role-detail__weapon-modes">{% for mode in weapon.modes %}<article class="role-detail__mode mode-{{ mode.side }}"><img class="role-detail__mode-bg" src="{{ mode.background }}" alt="" /><div class="role-detail__mode-content">{% if mode.icon %}<img class="role-detail__mode-icon" src="{{ mode.icon }}" alt="" />{% endif %}<h4>{{ mode.name }}</h4>{% if mode.level %}<span class="role-detail__mode-level">{{ mode.level }}</span>{% endif %}</div></article>{% endfor %}</div><div class="role-detail__weapon-info"><div class="role-detail__weapon-card" style="background-image:url('{{ weapon.weapon_background }}')"><img class="role-detail__weapon-icon" src="{{ weapon.icon }}" alt="" /><span class="role-detail__weapon-level">Lv.{{ weapon.level }}</span></div><h3 class="role-detail__weapon-name">{{ weapon.name }}<small>精炼等级 {{ weapon.skill_level }}</small></h3><div class="role-detail__weapon-attrs" style="background-image:url('{{ weapon.attribute_background }}')">{% for attr in weapon.attributes %}<div class="role-detail__weapon-attr"><img src="{{ attr.icon }}" alt="" /><span>{{ attr.label }}</span><strong>{{ attr.value }}</strong></div>{% endfor %}</div></div></section>
+{%- endmacro %}

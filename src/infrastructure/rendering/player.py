@@ -913,6 +913,69 @@ async def _draw_role_detail_card(
 draw_role_detail_card = _draw_role_detail_card
 
 
+async def _draw_weapon_detail_card(
+    ctx: EventContext,
+    role_show: RoleHeader,
+    weapon_detail: WeaponDetail,
+    *,
+    uid_hidden: bool = False,
+    image_loader: PlayerImageLoader | None = None,
+    static_asset_resolver: StaticAssetResolver | None = None,
+    static_records: list[dict[str, str]] | None = None,
+) -> tuple[bytes, dict[str, object]]:
+    """复用角色卡武器区块，生成独立武器卡。"""
+
+    weapon_coro = draw_weapon_detail_section(
+        weapon_detail,
+        "武器详情",
+        image_loader=image_loader,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
+    )
+    header_coro = build_profile_header(
+        ctx,
+        role_show.role_id,
+        role_show.role_name,
+        user_level=role_show.level,
+        stats=[
+            (item.param_key, str(item.param_value))
+            for item in role_show.params
+            if item.param_key in ("总活跃天数", "游戏时长")
+        ],
+        avatar_user_id=ctx.user_id,
+        uid_hidden=uid_hidden,
+        image_loader=image_loader,
+        static_asset_resolver=static_asset_resolver,
+        static_records=static_records,
+    )
+    weapon, header = await asyncio.gather(weapon_coro, header_coro)
+    card = await _RENDERER.render(
+        "cards/weapon_detail.html.j2",
+        {
+            "background": _static_image(
+                "texture.common.bg2",
+                "textures/common/bg2.jpg",
+                static_asset_resolver,
+                static_records,
+                label="武器卡",
+            ),
+            "font": _static_font(static_asset_resolver, static_records),
+            "footer_image": _static_image(
+                "texture.common.footer",
+                "textures/common/footer.png",
+                static_asset_resolver,
+                static_records,
+                label="武器卡",
+            ),
+            "header": header,
+            "weapon": weapon,
+            "width": 1000,
+        },
+        RenderSpec(width=1000, full_page=True, image_format="jpeg"),
+    )
+    return card, weapon
+
+
 async def render_role_card_image(
     role_detail: Any,
     weapons: list[tuple[str, Any]],
@@ -1446,6 +1509,101 @@ class PlayerRenderer:
             resources=resources,
             sections=sections,
             original_image_path=original_path,
+            resolved_assets=resolved_assets,
+        )
+
+    async def render_weapon_detail(
+        self,
+        detail: WeaponDetail,
+        *,
+        uid: str,
+        uid_hidden: bool = False,
+        overview: RoleOverview | None = None,
+        actor: EventActor | None = None,
+        target_user_id: str | None = None,
+    ) -> RenderedPlayerImage:
+        """生成独立武器面板。"""
+
+        role_show = (
+            RoleHeader(
+                role_id=overview.role_id,
+                role_name=overview.role_name,
+                level=overview.level,
+                params=list(overview.params),
+            )
+            if overview is not None
+            else RoleHeader(role_id=uid, role_name="", level=detail.level)
+        )
+        ctx = (
+            EventContext(
+                user_id=target_user_id or actor.user_id,
+                bot_id=actor.bot_id,
+                group_id=actor.group_id or "",
+                at=target_user_id or actor.user_id,
+                unified_msg_origin=actor.unified_msg_origin or "",
+            )
+            if actor is not None
+            else EventContext(user_id=target_user_id or uid)
+        )
+        asset_resolver = self.asset_resolver
+        image_loader = (
+            PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
+        )
+        static_records: list[dict[str, str]] = []
+        card_bytes, weapon = await _draw_weapon_detail_card(
+            ctx,
+            role_show,
+            detail,
+            uid_hidden=uid_hidden,
+            image_loader=image_loader,
+            static_asset_resolver=getattr(self, "static_asset_resolver", None),
+            static_records=static_records,
+        )
+        resolved_assets = (
+            image_loader.resolved_assets if image_loader is not None else ()
+        )
+        attributes = weapon["attributes"]
+        assert isinstance(attributes, list)
+        modes = weapon["modes"]
+        assert isinstance(modes, list)
+        lines = [
+            detail.name,
+            f"UID {'***' if uid_hidden else uid}",
+            f"等级: {detail.level}",
+            f"精炼等级: {detail.skill_level}",
+        ]
+        lines.extend(
+            f"{item['label']}: {item['value']}"
+            for item in attributes
+            if isinstance(item, dict)
+        )
+        lines.extend(
+            f"魔之楔: {item['name']}"
+            for item in modes
+            if isinstance(item, dict) and item.get("name")
+        )
+        resources = [self._font_resource()]
+        if isinstance(self.resources, ResourceMap) and self.asset_resolver is None:
+            resources.append(
+                {
+                    "kind": "weapon_icon",
+                    "key": str(detail.weapon_id),
+                    "status": "legacy_download",
+                    "source": f"images/weapon/{detail.weapon_id}.png",
+                }
+            )
+        resources.extend(self._asset_resource(asset) for asset in resolved_assets)
+        resources.extend(static_records)
+        return self._write(
+            card_bytes,
+            lines=lines,
+            resources=resources,
+            sections=[
+                {"name": "武器主视觉", "items": 1},
+                {"name": "武器属性", "items": len(attributes)},
+                {"name": "魔之楔", "items": len(detail.modes)},
+                {"name": "玩家信息", "items": 1},
+            ],
             resolved_assets=resolved_assets,
         )
 
