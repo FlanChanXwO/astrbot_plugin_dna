@@ -308,6 +308,16 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
             },
             "point": "data:image/png;base64,point",
             "profile_background": "data:image/png;base64,profile",
+            "refinement_badge": "data:image/png;base64,roman-5",
+            "refinement_grades": [
+                {
+                    "background": f"data:image/png;base64,grade-{index}",
+                    "icon": f"data:image/png;base64,roman-{index}",
+                    "index": index,
+                    "unlocked": True,
+                }
+                for index in range(1, 6)
+            ],
             "weapon": weapon,
             "width": 1000,
         },
@@ -323,6 +333,12 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert "weapon-detail__kicker" not in html
     assert "WEAPON /" not in html
     assert "weapon-detail__module-groups" in html
+    assert "weapon-detail__section-head" not in html
+    assert "魔之楔配置" not in html
+    assert "weapon-detail__refinement-orbs" in html
+    assert html.count('class="weapon-detail__refinement-orb is-unlocked"') == 5
+    assert "weapon-detail__refinement-badge" in html
+    assert html.index("data:image/png;base64,roman-5") < html.index("Lv.80")
     assert "weapon-detail__module-group--left" in html
     assert "weapon-detail__module-group--right" in html
     assert 'data-mode-side="left"' in html

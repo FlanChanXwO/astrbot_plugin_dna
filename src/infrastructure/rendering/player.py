@@ -950,6 +950,29 @@ async def _draw_weapon_detail_card(
             static_records=static_records,
         ),
     )
+    refinement_level = max(0, min(int(weapon.get("skill_level") or 0), 5))
+    refinement_grades = [
+        {
+            "background": _static_image(
+                f"texture.detail.grade_{1 if index <= refinement_level else 0}",
+                "textures/detail/"
+                + ("grade_1.png" if index <= refinement_level else "grade_0.png"),
+                static_asset_resolver,
+                static_records,
+                label="武器卡",
+            ),
+            "icon": _static_image(
+                f"texture.common.number.{index}",
+                f"textures/common/number/{index}.png",
+                static_asset_resolver,
+                static_records,
+                label="武器卡",
+            ),
+            "index": index,
+            "unlocked": index <= refinement_level,
+        }
+        for index in range(1, 6)
+    ]
     card = await _RENDERER.render(
         "cards/weapon_detail.html.j2",
         {
@@ -990,6 +1013,16 @@ async def _draw_weapon_detail_card(
                 static_records,
                 label="武器卡",
             ),
+            "refinement_badge": _static_image(
+                f"texture.common.number.{refinement_level}",
+                f"textures/common/number/{refinement_level}.png",
+                static_asset_resolver,
+                static_records,
+                label="武器卡",
+            )
+            if refinement_level
+            else None,
+            "refinement_grades": refinement_grades,
             "weapon": weapon,
             "width": 1000,
         },
