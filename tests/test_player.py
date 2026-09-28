@@ -2061,3 +2061,108 @@ async def test_clear_weapon_panel_cache_preserves_other_weapon_role_and_overview
     ).status == "fresh"
     assert transport.overview_calls == 0
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_all_weapon_cache_preserves_roles_and_overview(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """全量武器清理只按 identity + weapon 删除数据和卡片。"""
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    identity = cache.identity_tag("user-1", UID)
+    await cache.put_data(
+        cache.overview_data_key("user-1", UID),
+        _overview_fixture(),
+        tags=("player_data", "overview", identity),
+    )
+    entries = (
+        (
+            "player_data",
+            "weapon-201-data",
+            cache.weapon_data_tags("user-1", UID, 201, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-201-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 201, "detail-201", "resource"
+            ),
+        ),
+        (
+            "player_data",
+            "weapon-202-data",
+            cache.weapon_data_tags("user-1", UID, 202, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-202-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 202, "detail-202", "resource"
+            ),
+        ),
+        (
+            "player_data",
+            "role-data",
+            cache.detail_data_tags("user-1", UID, 101, "overview"),
+        ),
+        (
+            "player_card",
+            "role-card",
+            cache.detail_card_tags(
+                "user-1", UID, 101, "role-detail", "resource"
+            ),
+        ),
+    )
+    for cache_type, key, tags in entries:
+        await manager.put(cache_type, key, b"{}", tags=tags)
+    await manager.put(
+        "player_data",
+        "other-weapon-data",
+        b"{}",
+        tags=cache.weapon_data_tags("user-2", TARGET_UID, 201, "overview"),
+    )
+
+    async def reject_identity_invalidation(*_args, **_kwargs) -> int:
+        raise AssertionError("不得调用 invalidate_identity()")
+
+    monkeypatch.setattr(cache, "invalidate_identity", reject_identity_invalidation)
+    service = PlayerService(
+        database,
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        cache=cache,
+    )
+
+    response = await service.clear_all_weapon_cache(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        )
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    for cache_type, key in (
+        ("player_data", "weapon-201-data"),
+        ("player_card", "weapon-201-card"),
+        ("player_data", "weapon-202-data"),
+        ("player_card", "weapon-202-card"),
+    ):
+        assert (await manager.get(cache_type, key)).status == "miss"
+    for cache_type, key in (
+        ("player_data", "role-data"),
+        ("player_card", "role-card"),
+    ):
+        assert (await manager.get(cache_type, key)).status == "fresh"
+    assert (
+        await cache.get_data(cache.overview_data_key("user-1", UID))
+    ).status == "fresh"
+    assert (
+        await manager.get("player_data", "other-weapon-data")
+    ).status == "fresh"
+    await database.dispose()

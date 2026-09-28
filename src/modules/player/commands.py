@@ -25,6 +25,7 @@ REFRESH_ALL_ROLE_PATTERN = r"^刷新全部角色面板$"
 REFRESH_ALL_WEAPON_PATTERN = r"^刷新全部武器面板$"
 CLEAR_ROLE_PATTERN = rf"^清理(?P<char_name>{PATTERN})面板缓存$"
 CLEAR_ALL_ROLE_PATTERN = r"^清理全部角色缓存$"
+CLEAR_ALL_WEAPON_PATTERN = r"^清理全部武器缓存$"
 REFRESH_INFO_CARD_PATTERN = r"^刷新(?:基本信息)?卡片缓存$"
 CLEAR_INFO_CARD_PATTERN = r"^(?:清理|删除)(?:基本信息)?卡片缓存$"
 
@@ -177,6 +178,20 @@ async def player_clear_all_cache_use_case(
     return await operation(_player_request(request))
 
 
+async def player_clear_all_weapon_cache_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **_parameters: Any,
+):
+    service = _refresh_service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    operation = getattr(service, "clear_all_weapon_cache", None)
+    if not callable(operation):
+        return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+    return await operation(_player_request(request))
+
+
 async def player_clear_role_cache_use_case(
     request: CommandRequest,
     _registry: CommandRegistry,
@@ -274,6 +289,16 @@ COMMAND_SPECS = (
         use_case=cast(Any, player_clear_all_cache_use_case),
     ),
     CommandSpec(
+        id="clear_all_weapon_cache",
+        pattern=CLEAR_ALL_WEAPON_PATTERN,
+        group="角色信息",
+        name="清理全部武器缓存",
+        description="清理当前 UID 的全部武器数据和卡片缓存",
+        examples=("清理全部武器缓存",),
+        permission="user",
+        use_case=cast(Any, player_clear_all_weapon_cache_use_case),
+    ),
+    CommandSpec(
         id="role_detail_card",
         pattern=ROLE_DETAIL_PATTERN,
         group="角色信息",
@@ -289,6 +314,7 @@ COMMAND_SPECS = (
 
 __all__ = [
     "CLEAR_ALL_ROLE_PATTERN",
+    "CLEAR_ALL_WEAPON_PATTERN",
     "CLEAR_INFO_CARD_PATTERN",
     "CLEAR_ROLE_PATTERN",
     "COMMAND_SPECS",
@@ -299,6 +325,7 @@ __all__ = [
     "REFRESH_ROLE_PATTERN",
     "ROLE_DETAIL_PATTERN",
     "player_clear_all_cache_use_case",
+    "player_clear_all_weapon_cache_use_case",
     "player_clear_info_card_cache_use_case",
     "player_clear_role_cache_use_case",
     "player_refresh_all_roles_use_case",

@@ -66,6 +66,7 @@ def test_explicit_registry_loads_only_implemented_commands():
         "refresh_all_weapon_cards",
         "clear_role_cache",
         "clear_player_cache",
+        "clear_all_weapon_cache",
         "role_detail_card",
         "privacy_enable_peek_personal",
         "privacy_disable_peek_personal",
@@ -392,6 +393,7 @@ def test_commands_manifest_is_generated_from_registry():
         "refresh_all_weapon_cards",
         "clear_role_cache",
         "clear_player_cache",
+        "clear_all_weapon_cache",
         "role_detail_card",
         "privacy_enable_peek_personal",
         "privacy_disable_peek_personal",
@@ -666,3 +668,13 @@ def test_refresh_all_weapon_panels_uses_dedicated_command() -> None:
 
     assert matched is not None
     assert matched.command.id == "refresh_all_weapon_cards"
+
+
+def test_clear_all_weapon_cache_uses_dedicated_command() -> None:
+    """全量武器清理必须使用精确命令，不能落入角色清理。"""
+
+    registry = load_command_registry(prefix="dna")
+    matched = registry.match("dna清理全部武器缓存")
+
+    assert matched is not None
+    assert matched.command.id == "clear_all_weapon_cache"

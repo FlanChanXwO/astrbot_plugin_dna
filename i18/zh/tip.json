@@ -210,6 +210,7 @@
     "cache_cleared": "角色缓存已清理",
     "info_card_cache_cleared": "基本信息卡片缓存已清理",
     "all_role_cache_cleared": "当前 UID 的全部角色缓存已清理",
+    "all_weapon_cache_cleared": "当前 UID 的全部武器缓存已清理",
     "role_cache_cleared": "角色【{name}】缓存已清理",
     "role_refreshed": "角色【{name}】面板已刷新",
     "all_refreshed": "角色面板刷新完成：成功 {success} 个，失败 {failed} 个",

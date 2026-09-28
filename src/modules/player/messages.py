@@ -14,6 +14,7 @@ PLAYER_INFO_CARD_REFRESHED = get_tip("player.info_card_refreshed")
 PLAYER_INFO_CARD_CACHE_CLEARED = get_tip("player.info_card_cache_cleared")
 PLAYER_CACHE_CLEARED = get_tip("player.cache_cleared")
 PLAYER_ALL_ROLE_CACHE_CLEARED = get_tip("player.all_role_cache_cleared")
+PLAYER_ALL_WEAPON_CACHE_CLEARED = get_tip("player.all_weapon_cache_cleared")
 PLAYER_ROLE_CACHE_CLEARED = get_tip_template("player.role_cache_cleared")
 PLAYER_ROLE_REFRESHED = get_tip_template("player.role_refreshed")
 PLAYER_ALL_REFRESHED = get_tip_template("player.all_refreshed")
@@ -91,6 +92,7 @@ __all__ = [
     "PLAYER_ALL_REFRESHED",
     "PLAYER_ALL_WEAPONS_REFRESHED",
     "PLAYER_ALL_ROLE_CACHE_CLEARED",
+    "PLAYER_ALL_WEAPON_CACHE_CLEARED",
     "PLAYER_CACHE_CLEARED",
     "PLAYER_CACHE_REFRESHED",
     "PLAYER_CACHE_STALE",

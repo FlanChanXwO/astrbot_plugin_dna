@@ -1720,5 +1720,21 @@ class PlayerService:
         await self.cache.invalidate_identity(target_user_id, uid)
         return PlainTextResponse(messages.PLAYER_ALL_ROLE_CACHE_CLEARED)
 
+    async def clear_all_weapon_cache(
+        self, request: PlayerCommandRequest
+    ) -> PlainTextResponse:
+        """清理当前用户当前 UID 的全部武器数据和卡片缓存。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        if self.cache is None:
+            return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+        resolved = await self._resolve_uid(request, operation="clear_all_weapon_cache")
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        await self.cache.invalidate_all_weapons(target_user_id, uid)
+        return PlainTextResponse(messages.PLAYER_ALL_WEAPON_CACHE_CLEARED)
+
 
 __all__ = ["PlayerService"]

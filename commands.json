@@ -207,6 +207,18 @@
     "use_case": "src.modules.player.commands.player_clear_all_cache_use_case"
   },
   {
+    "id": "clear_all_weapon_cache",
+    "pattern": "^dna清理全部武器缓存$",
+    "group": "角色信息",
+    "name": "清理全部武器缓存",
+    "description": "清理当前 UID 的全部武器数据和卡片缓存",
+    "examples": [
+      "dna清理全部武器缓存"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_clear_all_weapon_cache_use_case"
+  },
+  {
     "id": "role_detail_card",
     "pattern": "^dna(?P<char_name>(?!(?:刷新|清理))[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)(?:面板|信息|详情|面包|🍞)(?:\\s*[+＋]\\s*(?P<weapon_name_1>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?(?:\\s*[+＋]\\s*(?P<weapon_name_2>[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+))?$",
     "group": "角色信息",

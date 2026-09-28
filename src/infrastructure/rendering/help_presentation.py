@@ -126,6 +126,9 @@ HELP_PRESENTATION: dict[str, HelpPresentationEntry] = {
     "clear_player_cache": HelpPresentationEntry(
         GROUP_ROLE_PANEL, "清理全部角色缓存", "角色面板.png"
     ),
+    "clear_all_weapon_cache": HelpPresentationEntry(
+        GROUP_ROLE_PANEL, "清理全部武器缓存", "角色面板.png"
+    ),
     # 日常查询
     "stamina": HelpPresentationEntry(GROUP_DAILY, "日常便签", "体力.png"),
     "weekly_report_current": HelpPresentationEntry(GROUP_DAILY, "本周周报", "日常.png"),
