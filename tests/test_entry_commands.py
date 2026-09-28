@@ -634,3 +634,23 @@ def test_help_presentation_covers_every_visible_command():
         assert removed not in admin_items
     for required in ("获取凭证", "检查凭证"):
         assert required in admin_items
+
+
+@pytest.mark.parametrize(
+    ("text", "command_id"),
+    [
+        ("dna刷新近战甲面板", "refresh_role_card"),
+        ("dna清理近战甲面板缓存", "clear_role_cache"),
+    ],
+)
+def test_existing_panel_cache_commands_accept_weapon_names(
+    text: str, command_id: str
+) -> None:
+    """单武器刷新/清理复用现有命令入口，不注册平行命令。"""
+
+    registry = load_command_registry(prefix="dna")
+    matched = registry.match(text)
+
+    assert matched is not None
+    assert matched.command.id == command_id
+    assert matched.parameters["char_name"] == "近战甲"

@@ -436,6 +436,24 @@ class PlayerCache:
             tags=(identity, role),
         )
 
+    async def invalidate_weapon_only(
+        self,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+    ) -> int:
+        """只失效一个身份的指定武器数据和卡片，不清理概览。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        weapon = f"weapon:{weapon_id}"
+        return await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, weapon),
+        ) + await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity, weapon),
+        )
+
     async def invalidate_identity(
         self,
         target_user_id: str,

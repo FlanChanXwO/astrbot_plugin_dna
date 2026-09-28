@@ -81,7 +81,8 @@ class _OverviewResult:
 class _RefreshOverviewState:
     overview: RoleOverview
     digest: str
-    role: RoleItem
+    role: RoleItem | None
+    weapon: WeaponItem | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1260,14 +1261,33 @@ class PlayerService:
             )
 
         char_name = str(request.parameters.get("char_name", "")).strip()
-        role = self._find_role(overview, char_name, self.aliases)
-        if role is None:
+        target = self._resolve_panel_target(overview, char_name, self.aliases)
+        weapon = target.weapon if target.kind == "weapon" else None
+        role = (
+            target.role
+            if target.kind == "role"
+            else self._find_role(overview, char_name, self.aliases)
+        )
+        if weapon is None and role is None:
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
-        if not role.unlocked or role.char_eid is None:
+        if weapon is not None and (
+            not weapon.unlocked or weapon.weapon_eid is None
+        ):
+            return PlainTextResponse(messages.PLAYER_WEAPON_NOT_UNLOCKED)
+        if role is not None and (not role.unlocked or role.char_eid is None):
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
 
         if self.cache is not None:
-            await self.cache.invalidate_role(target_user_id, refresh_uid, role.char_id)
+            if weapon is not None:
+                await self.cache.invalidate_overview(target_user_id, refresh_uid)
+                await self.cache.invalidate_weapon_only(
+                    target_user_id, refresh_uid, weapon.weapon_id
+                )
+            else:
+                assert role is not None
+                await self.cache.invalidate_role(
+                    target_user_id, refresh_uid, role.char_id
+                )
             overview_metadata = await self.cache.put_data(
                 self.cache.overview_data_key(target_user_id, refresh_uid),
                 overview,
@@ -1281,7 +1301,12 @@ class PlayerService:
             overview_digest = overview_metadata.content_sha256
         else:
             overview_digest = self._value_digest(overview)
-        return _RefreshOverviewState(overview, overview_digest, role)
+        return _RefreshOverviewState(
+            overview,
+            overview_digest,
+            role=role,
+            weapon=weapon,
+        )
 
     async def refresh_info_card(self, request: PlayerCommandRequest):
         """强制刷新当前用户当前 UID 的基本信息卡片，不请求角色详情。"""
@@ -1401,8 +1426,13 @@ class PlayerService:
         if isinstance(response, PlainTextResponse):
             return response
 
+        if refreshed.weapon is not None:
+            refreshed_name = refreshed.weapon.name
+        else:
+            assert refreshed.role is not None
+            refreshed_name = refreshed.role.name
         notice = PlainTextResponse(
-            messages.PLAYER_ROLE_REFRESHED.format(name=refreshed.role.name),
+            messages.PLAYER_ROLE_REFRESHED.format(name=refreshed_name),
         )
         if not self.refresh_send_role_panel:
             return notice
@@ -1537,7 +1567,23 @@ class PlayerService:
         )
         if isinstance(overview_state, PlainTextResponse):
             return overview_state
-        role = self._find_role(overview_state.overview, char_name, self.aliases)
+        target = self._resolve_panel_target(
+            overview_state.overview, char_name, self.aliases
+        )
+        if target.kind == "weapon":
+            assert target.weapon is not None
+            await self.cache.invalidate_weapon_only(
+                target_user_id, uid, target.weapon.weapon_id
+            )
+            return PlainTextResponse(
+                messages.PLAYER_ROLE_CACHE_CLEARED.format(name=char_name)
+            )
+
+        role = (
+            target.role
+            if target.kind == "role"
+            else self._find_role(overview_state.overview, char_name, self.aliases)
+        )
         if role is None:
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
         await self.cache.invalidate_role_only(target_user_id, uid, role.char_id)

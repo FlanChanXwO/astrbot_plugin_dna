@@ -1825,3 +1825,139 @@ async def test_weapon_panel_cache_tracks_detail_resource_and_incomplete_state(
     )
     assert (await cache.get_card(incomplete_key)).status == "miss"
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_weapon_panel_replaces_cached_detail_and_card(
+    tmp_path: Path,
+) -> None:
+    """刷新武器面板必须拉最新 overview、覆盖旧详情并生成新卡。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=cache,
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "近战甲"},
+    )
+
+    initial = await service.role_detail(request)
+    transport.weapon = transport.weapon.model_copy(update={"level": 81})
+    refreshed = await service.refresh_role(request)
+    cached = await service.role_detail(request)
+
+    assert isinstance(initial, ImageResponse)
+    assert isinstance(refreshed, ChainResponse)
+    assert isinstance(refreshed.components[0], PlainTextResponse)
+    assert isinstance(refreshed.components[1], ImageResponse)
+    assert isinstance(cached, ImageResponse)
+    assert transport.overview_calls == 2
+    assert transport.weapon_detail_calls == 2
+    assert renderer.weapon_render_calls == 2
+    artifact = read_rendered_artifact(Path(refreshed.components[1].image))
+    assert "等级: 81" in artifact.metadata["dna.text"]
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_weapon_panel_cache_preserves_other_weapon_role_and_overview(
+    tmp_path: Path,
+) -> None:
+    """单武器清缓存仅删除当前身份对应 weapon id 的数据和卡片。"""
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    identity = cache.identity_tag("user-1", UID)
+    await cache.put_data(
+        cache.overview_data_key("user-1", UID),
+        _overview_fixture(),
+        tags=("player_data", "overview", identity),
+    )
+    entries = (
+        (
+            "player_data",
+            "weapon-201-data",
+            cache.weapon_data_tags("user-1", UID, 201, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-201-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 201, "detail-201", "resource"
+            ),
+        ),
+        (
+            "player_data",
+            "weapon-202-data",
+            cache.weapon_data_tags("user-1", UID, 202, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-202-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 202, "detail-202", "resource"
+            ),
+        ),
+        (
+            "player_data",
+            "role-data",
+            cache.detail_data_tags("user-1", UID, 101, "overview"),
+        ),
+        (
+            "player_card",
+            "role-card",
+            cache.detail_card_tags(
+                "user-1", UID, 101, "role-detail", "resource"
+            ),
+        ),
+    )
+    for cache_type, key, tags in entries:
+        await manager.put(cache_type, key, b"{}", tags=tags)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        cache=cache,
+    )
+
+    response = await service.clear_role_cache(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters={"char_name": "近战甲"},
+        )
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert (await manager.get("player_data", "weapon-201-data")).status == "miss"
+    assert (await manager.get("player_card", "weapon-201-card")).status == "miss"
+    for cache_type, key in (
+        ("player_data", "weapon-202-data"),
+        ("player_card", "weapon-202-card"),
+        ("player_data", "role-data"),
+        ("player_card", "role-card"),
+    ):
+        assert (await manager.get(cache_type, key)).status == "fresh"
+    assert (
+        await cache.get_data(cache.overview_data_key("user-1", UID))
+    ).status == "fresh"
+    assert transport.overview_calls == 0
+    await database.dispose()
