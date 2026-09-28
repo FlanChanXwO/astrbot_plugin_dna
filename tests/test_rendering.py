@@ -348,6 +348,10 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert "weapon-detail__weapon-card" not in html
     assert "weapon-detail__hero-attributes" in html
     assert "weapon-detail__hero-attribute" in html
+    assert (
+        ".weapon-detail__weapon-icon { width: 570px; height: 570px;"
+    ) in html
+    assert ".weapon-detail__module.is-empty { opacity: .25; }" in html
     assert "weapon-detail__specs" not in html
     assert "dna-legacy-profile" in html
     assert "weapon-detail__profile" not in html
