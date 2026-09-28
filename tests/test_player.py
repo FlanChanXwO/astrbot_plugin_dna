@@ -2166,3 +2166,91 @@ async def test_clear_all_weapon_cache_preserves_roles_and_overview(
         await manager.get("player_data", "other-weapon-data")
     ).status == "fresh"
     await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_bulk_role_operations_preserve_weapon_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """新增武器缓存后，批量角色刷新/清理仍不能越界删除武器。"""
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    weapon_entries = (
+        (
+            "player_data",
+            "weapon-data",
+            cache.weapon_data_tags("user-1", UID, 201, "overview"),
+        ),
+        (
+            "player_card",
+            "weapon-card",
+            cache.weapon_card_tags(
+                "user-1", UID, 201, "detail", "resource"
+            ),
+        ),
+    )
+    for cache_type, key, tags in weapon_entries:
+        await manager.put(cache_type, key, b"{}", tags=tags)
+
+    async def reject_identity_invalidation(*_args, **_kwargs) -> int:
+        raise AssertionError("批量角色操作不得调用 invalidate_identity()")
+
+    class BatchRoleTransport(FixturePlayerTransport):
+        async def calculate_damage(
+            self,
+            actor: EventActor,
+            uid: str,
+            role_detail: RoleDetail,
+            con_weapon: WeaponDetail | None,
+            close_weapon: WeaponDetail | None,
+            ranged_weapon: WeaponDetail | None,
+            *,
+            credential_user_id: str,
+        ) -> DamageCalculation:
+            self.damage_calls += 1
+            assert actor.user_id == "user-1"
+            assert uid == self.expected_uid
+            assert credential_user_id == self.expected_user_id
+            assert role_detail.char_id == 101
+            assert con_weapon is not None
+            assert close_weapon is None
+            assert ranged_weapon is None
+            return DamageCalculation.success(_damage_fixture())
+
+    monkeypatch.setattr(cache, "invalidate_identity", reject_identity_invalidation)
+    overview = _overview_fixture()
+    service = PlayerService(
+        database,
+        BatchRoleTransport(overview, _detail_fixture(), _weapon_fixture()),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+        cache=cache,
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+    )
+
+    refreshed = await service.refresh_all_roles(request)
+    overview_digest = cache.content_digest(cache.encode_json(overview))
+    role_key = cache.detail_data_key(
+        "user-1", UID, 101, (), overview_digest
+    )
+
+    assert isinstance(refreshed, PlainTextResponse)
+    assert (await cache.get_data(role_key)).status == "fresh"
+    for cache_type, key, _tags in weapon_entries:
+        assert (await manager.get(cache_type, key)).status == "fresh"
+
+    cleared = await service.clear_all_role_cache(request)
+
+    assert isinstance(cleared, PlainTextResponse)
+    assert (await cache.get_data(role_key)).status == "miss"
+    assert (
+        await cache.get_data(cache.overview_data_key("user-1", UID))
+    ).status == "miss"
+    for cache_type, key, _tags in weapon_entries:
+        assert (await manager.get(cache_type, key)).status == "fresh"
+    await database.dispose()

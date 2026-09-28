@@ -470,6 +470,25 @@ class PlayerCache:
             tags=(identity, "weapon"),
         )
 
+    async def invalidate_all_roles(
+        self,
+        target_user_id: str,
+        uid: str,
+    ) -> int:
+        """失效一个身份的概览与全部角色缓存，保留武器缓存。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        removed = await self.invalidate_overview(target_user_id, uid)
+        removed += await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, "detail"),
+        )
+        removed += await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity, "detail"),
+        )
+        return removed
+
     async def invalidate_identity(
         self,
         target_user_id: str,

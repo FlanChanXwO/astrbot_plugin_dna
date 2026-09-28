@@ -1464,7 +1464,7 @@ class PlayerService:
                 )
 
             if self.cache is not None:
-                await self.cache.invalidate_identity(target_user_id, refresh_uid)
+                await self.cache.invalidate_all_roles(target_user_id, refresh_uid)
                 overview_metadata = await self.cache.put_data(
                     self.cache.overview_data_key(target_user_id, refresh_uid),
                     overview,
@@ -1717,7 +1717,7 @@ class PlayerService:
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
-        await self.cache.invalidate_identity(target_user_id, uid)
+        await self.cache.invalidate_all_roles(target_user_id, uid)
         return PlainTextResponse(messages.PLAYER_ALL_ROLE_CACHE_CLEARED)
 
     async def clear_all_weapon_cache(
