@@ -28,7 +28,7 @@ class HelpPresentationEntry:
 GROUP_INFO_QUERY = "信息查询"
 GROUP_ACCOUNT = "账号管理"
 GROUP_INFO_CARD = "基础卡片"
-GROUP_ROLE_PANEL = "角色面板"
+GROUP_ROLE_PANEL = "角色/武器面板"
 GROUP_DAILY = "日常查询"
 GROUP_ENCYCLOPEDIA = "图鉴攻略"
 GROUP_MH = "密函"
@@ -67,7 +67,7 @@ HELP_GROUP_DESCRIPTIONS: dict[str, str] = {
     GROUP_INFO_QUERY: "查看帮助信息",
     GROUP_ACCOUNT: "登录后才能查询；支持切换、删除 UID 与凭证管理",
     GROUP_INFO_CARD: "查看和刷新基本信息卡片",
-    GROUP_ROLE_PANEL: "查看角色详情，刷新和清理角色面板缓存",
+    GROUP_ROLE_PANEL: "查看角色/武器详情，刷新和清理角色/武器面板缓存",
     GROUP_DAILY: "日常状态、周报和日历",
     GROUP_ENCYCLOPEDIA: "图鉴、别名、角色攻略和兑换码",
     GROUP_MH: "查询、订阅和设置密函推送",
@@ -109,10 +109,10 @@ HELP_PRESENTATION: dict[str, HelpPresentationEntry] = {
     ),
     # 角色面板
     "role_detail_card": HelpPresentationEntry(
-        GROUP_ROLE_PANEL, "角色详情卡片", "角色面板.png"
+        GROUP_ROLE_PANEL, "角色/武器详情卡片", "角色面板.png"
     ),
     "refresh_role_card": HelpPresentationEntry(
-        GROUP_ROLE_PANEL, "刷新角色面板", "角色面板.png"
+        GROUP_ROLE_PANEL, "刷新角色/武器面板", "角色面板.png"
     ),
     "refresh_all_role_cards": HelpPresentationEntry(
         GROUP_ROLE_PANEL, "刷新全部角色面板", "角色面板.png"
@@ -121,7 +121,7 @@ HELP_PRESENTATION: dict[str, HelpPresentationEntry] = {
         GROUP_ROLE_PANEL, "刷新全部武器面板", "角色面板.png"
     ),
     "clear_role_cache": HelpPresentationEntry(
-        GROUP_ROLE_PANEL, "清理角色面板缓存", "角色面板.png"
+        GROUP_ROLE_PANEL, "清理角色/武器面板缓存", "角色面板.png"
     ),
     "clear_player_cache": HelpPresentationEntry(
         GROUP_ROLE_PANEL, "清理全部角色缓存", "角色面板.png"

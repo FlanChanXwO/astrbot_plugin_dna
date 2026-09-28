@@ -628,9 +628,9 @@ def test_help_presentation_covers_every_visible_command():
     assert len(admin_groups) == len(user_groups) + 3
     assert admin_groups[: len(user_groups)] == user_groups
 
-    # 基础卡片与角色面板必须分离展示，废弃命令不再出现。
+    # 基础卡片与角色/武器面板必须分离展示，废弃命令不再出现。
     assert "基础卡片" in user_groups
-    assert "角色面板" in user_groups
+    assert "角色/武器面板" in user_groups
     admin_items = {
         item["name"] for section in admin_sections for item in section["items"]
     }
@@ -638,6 +638,41 @@ def test_help_presentation_covers_every_visible_command():
         assert removed not in admin_items
     for required in ("获取凭证", "检查凭证"):
         assert required in admin_items
+
+
+def test_smart_panel_metadata_names_roles_and_weapons() -> None:
+    """智能分流命令的 registry 与帮助文案必须同时说明角色和武器。"""
+
+    from src.infrastructure.rendering.help_presentation import (
+        GROUP_ROLE_PANEL,
+        HELP_GROUP_DESCRIPTIONS,
+        HELP_PRESENTATION,
+    )
+
+    expected = {
+        "role_detail_card": (
+            "角色/武器详情卡片",
+            ("角色名面板", "武器名面板"),
+        ),
+        "refresh_role_card": (
+            "刷新角色/武器面板",
+            ("刷新角色名面板", "刷新武器名面板"),
+        ),
+        "clear_role_cache": (
+            "清理角色/武器面板缓存",
+            ("清理角色名面板缓存", "清理武器名面板缓存"),
+        ),
+    }
+    registry = load_command_registry(prefix="")
+
+    assert GROUP_ROLE_PANEL == "角色/武器面板"
+    assert "角色/武器" in HELP_GROUP_DESCRIPTIONS[GROUP_ROLE_PANEL]
+    for command_id, (name, examples) in expected.items():
+        spec = registry.get(command_id)
+        assert spec.name == name
+        assert "角色" in spec.description and "武器" in spec.description
+        assert spec.examples == examples
+        assert HELP_PRESENTATION[command_id].name == name
 
 
 @pytest.mark.parametrize(

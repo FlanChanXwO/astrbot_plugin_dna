@@ -574,6 +574,24 @@ def test_refresh_send_switches_are_independent_config_fields():
     assert settings.cache.refresh_send_role_panel is True
 
 
+def test_refresh_send_role_panel_metadata_includes_weapon_panels() -> None:
+    """保留配置 key，但公开描述必须包含单角色与单武器面板。"""
+
+    import json
+    from pathlib import Path
+
+    field = generate_typed_schema()["cache"]["items"]["refresh_send_role_panel"]
+    assert field["description"] == "刷新后发送角色/武器面板"
+    assert "角色或武器面板" in field["hint"]
+
+    disk_field = json.loads(
+        (Path(__file__).parents[1] / "_conf_schema.json").read_text(
+            encoding="utf-8"
+        )
+    )["cache"]["items"]["refresh_send_role_panel"]
+    assert disk_field == field
+
+
 def test_config_migration_rejects_malformed_known_sections():
     from src.infrastructure.config.settings import migrate_config_dict
 
