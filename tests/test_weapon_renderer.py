@@ -50,3 +50,59 @@ async def test_weapon_detail_displays_crit_rate_and_damage_with_correct_fields()
 
     assert attributes["暴击率"] == "12%"
     assert attributes["暴击伤害"] == "150%"
+    assert attributes["攻击速度"] == "1.0"
+    assert attributes["攻击速度"] != "100%"
+    assert attributes["触发率"] == "50%"
+    assert payload["skill_level"] == 1
+    assert [mode["side"] for mode in payload["modes"]] == [
+        "left",
+        "left",
+        "right",
+        "right",
+    ]
+    assert all(
+        mode["name"] == ""
+        and mode["icon"] is None
+        and mode["level"] is None
+        for mode in payload["modes"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_weapon_detail_preserves_four_mod_display_order() -> None:
+    """四个 Mod 按既有左右槽位顺序展示。"""
+
+    weapon = SimpleNamespace(
+        id=201,
+        icon="",
+        name="测试武器",
+        level=60,
+        skillLevel=1,
+        modes=[
+            SimpleNamespace(
+                id=index, quality=1, icon="", name=f"Mod {index}", level=index
+            )
+            for index in range(1, 5)
+        ],
+        elementName="单手剑",
+        attribute=SimpleNamespace(
+            atk=24,
+            cri=0.12,
+            crd=1.50,
+            speed=1.0,
+            trigger=0.5,
+        ),
+    )
+
+    payload = await draw_weapon_detail_section(
+        weapon,
+        "同律武器",
+        image_loader=_ImageLoader(),
+    )
+
+    assert [(mode["name"], mode["side"]) for mode in payload["modes"]] == [
+        ("Mod 1", "left"),
+        ("Mod 3", "left"),
+        ("Mod 4", "right"),
+        ("Mod 2", "right"),
+    ]
