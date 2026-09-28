@@ -952,6 +952,7 @@ async def _draw_weapon_detail_card(
             weapon_detail,
             "武器详情",
             image_loader=image_loader,
+            weapon_image_size=(570, 570),
             static_asset_resolver=static_asset_resolver,
             static_records=static_records,
         ),

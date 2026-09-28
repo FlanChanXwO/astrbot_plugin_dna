@@ -1125,6 +1125,7 @@ class PlayerService:
                 if cached is not None:
                     return cached
 
+            calculation_transport_failed = False
             try:
                 calculation = await self.transport.calculate_weapon(
                     request.actor,
@@ -1133,6 +1134,7 @@ class PlayerService:
                     credential_user_id=target_user_id,
                 )
             except PlayerTransportError as error:
+                calculation_transport_failed = True
                 await self._persist_credential_failure(
                     error,
                     user_id=target_user_id,
@@ -1160,7 +1162,7 @@ class PlayerService:
             if (
                 self.cache is not None
                 and card_key is not None
-                and calculation.data is not None
+                and not calculation_transport_failed
             ):
                 await self._store_card(
                     card_key,

@@ -15,8 +15,18 @@ from src.modules.player.contracts import WeaponCalculationSnapshot
 
 
 class _ImageLoader:
-    async def weapon(self, _weapon_id: str | int, _url: str | None) -> Image.Image:
-        return Image.new("RGBA", (16, 16), "white")
+    def __init__(self) -> None:
+        self.weapon_sizes: list[tuple[int, int]] = []
+
+    async def weapon(
+        self,
+        _weapon_id: str | int,
+        _url: str | None,
+        *,
+        size: tuple[int, int] = (256, 256),
+    ) -> Image.Image:
+        self.weapon_sizes.append(size)
+        return Image.new("RGBA", size, "white")
 
     async def mod(self, _mod_id: str | int, _url: str | None) -> Image.Image:
         return Image.new("RGBA", (16, 16), "white")
@@ -110,6 +120,30 @@ async def test_weapon_detail_preserves_four_mod_display_order() -> None:
         ("Mod 4", "right"),
         ("Mod 2", "right"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_weapon_detail_requests_explicit_hero_image_size() -> None:
+    weapon = SimpleNamespace(
+        id=201,
+        icon="",
+        name="测试武器",
+        level=60,
+        skillLevel=1,
+        modes=[],
+        elementName="单手剑",
+        attribute=SimpleNamespace(atk=24, cri=0.12, crd=1.5, speed=1.0, trigger=0.5),
+    )
+    loader = _ImageLoader()
+
+    await draw_weapon_detail_section(
+        weapon,
+        "武器详情",
+        image_loader=loader,
+        weapon_image_size=(570, 570),
+    )
+
+    assert loader.weapon_sizes == [(570, 570)]
 
 
 def test_weapon_calculation_formats_base_to_final_attributes() -> None:

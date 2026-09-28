@@ -21,7 +21,13 @@ from .static_assets import static_image_data_uri, static_record
 class WeaponImageLoader(Protocol):
     """武器区块所需的异步图片加载边界。"""
 
-    async def weapon(self, weapon_id: str | int, url: str | None) -> Image.Image:
+    async def weapon(
+        self,
+        weapon_id: str | int,
+        url: str | None,
+        *,
+        size: tuple[int, int] = (256, 256),
+    ) -> Image.Image:
         """读取武器图。"""
 
     async def mod(self, mod_id: str | int, url: str | None) -> Image.Image:
@@ -104,6 +110,7 @@ async def draw_weapon_detail_section(
     title: str,
     *,
     image_loader: WeaponImageLoader | None = None,
+    weapon_image_size: tuple[int, int] = (256, 256),
     static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
@@ -112,9 +119,13 @@ async def draw_weapon_detail_section(
     weapon_id = getattr(weapon_detail, "id", getattr(weapon_detail, "weapon_id", 0))
     weapon_icon = getattr(weapon_detail, "icon", "")
     weapon_image_coro = (
-        get_weapon_img(weapon_id, weapon_icon)
+        get_weapon_img(weapon_id, weapon_icon, size=weapon_image_size)
         if image_loader is None
-        else image_loader.weapon(weapon_id, weapon_icon)
+        else image_loader.weapon(
+            weapon_id,
+            weapon_icon,
+            size=weapon_image_size,
+        )
     )
     raw_modes = getattr(weapon_detail, "modes", [])
     mode_payloads_coro = asyncio.gather(

@@ -74,6 +74,30 @@ async def test_player_image_loader_uses_distinct_url_cache_targets(
 
 
 @pytest.mark.asyncio
+async def test_weapon_loader_preserves_default_and_requested_image_sizes(
+    tmp_path: Path,
+) -> None:
+    """缩略图保持 256px，独立面板可直接请求 570px。"""
+
+    snapshot_root = tmp_path / "generation"
+    weapon_path = snapshot_root / "images" / "weapon" / "201.png"
+    weapon_path.parent.mkdir(parents=True)
+    Image.new("RGBA", (1024, 1024), "white").save(weapon_path)
+    loader = PlayerImageLoader(
+        AssetResolver(
+            snapshot_root=snapshot_root,
+            dynamic_root=tmp_path / "cache" / "assets",
+        )
+    )
+
+    thumbnail = await loader.weapon(201, None)
+    hero = await loader.weapon(201, None, size=(570, 570))
+
+    assert thumbnail.size == (256, 256)
+    assert hero.size == (570, 570)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("download_closed", "source", "status", "incomplete"),
     [

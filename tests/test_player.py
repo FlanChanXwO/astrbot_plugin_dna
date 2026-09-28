@@ -100,6 +100,8 @@ class FixturePlayerTransport:
         expected_user_id: str = "user-1",
         expected_uid: str = UID,
         fail_con_weapon: bool = False,
+        weapon_calculation_result: WeaponCalculation | None = None,
+        weapon_calculation_transport_error: bool = False,
     ) -> None:
         self.overview = overview
         self.detail = detail
@@ -107,6 +109,8 @@ class FixturePlayerTransport:
         self.expected_user_id = expected_user_id
         self.expected_uid = expected_uid
         self.fail_con_weapon = fail_con_weapon
+        self.weapon_calculation_result = weapon_calculation_result
+        self.weapon_calculation_transport_error = weapon_calculation_transport_error
         self.damage_calls = 0
         self.weapon_calculation_calls = 0
         self.overview_calls = 0
@@ -179,6 +183,14 @@ class FixturePlayerTransport:
         assert uid == self.expected_uid
         assert weapon_detail.weapon_id == 201
         assert credential_user_id == self.expected_user_id
+        if self.weapon_calculation_transport_error:
+            raise PlayerTransportError(
+                PlayerFailureKind.SERVER,
+                resource="武器计算",
+                detail="fixture failure",
+            )
+        if self.weapon_calculation_result is not None:
+            return self.weapon_calculation_result
         return WeaponCalculation.success(
             WeaponCalculationSnapshot.model_validate(
                 {
@@ -1909,6 +1921,84 @@ async def test_weapon_panel_cache_tracks_detail_resource_and_incomplete_state(
         False,
     )
     assert (await cache.get_card(incomplete_key)).status == "miss"
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_weapon_panel_caches_complete_card_after_calculation_business_failure(
+    tmp_path: Path,
+) -> None:
+    """计算业务失败只隐藏增强区块，完整基础卡仍应命中缓存。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(),
+        _detail_fixture(),
+        _weapon_fixture(),
+        weapon_calculation_result=WeaponCalculation.failure("参数错误"),
+    )
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=PlayerCache(CacheManager(tmp_path / "cache"), tmp_path / "rendered"),
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "近战甲"},
+    )
+
+    first = await service.role_detail(request)
+    second = await service.role_detail(request)
+
+    assert isinstance(first, ImageResponse)
+    assert isinstance(second, ImageResponse)
+    assert transport.weapon_detail_calls == 1
+    assert transport.weapon_calculation_calls == 1
+    assert renderer.weapon_render_calls == 1
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_weapon_panel_does_not_cache_transport_failure_fallback(
+    tmp_path: Path,
+) -> None:
+    """计算 transport failure 的降级卡不应阻止下次重试。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(),
+        _detail_fixture(),
+        _weapon_fixture(),
+        weapon_calculation_transport_error=True,
+    )
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=PlayerCache(CacheManager(tmp_path / "cache"), tmp_path / "rendered"),
+    )
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "近战甲"},
+    )
+
+    first = await service.role_detail(request)
+    second = await service.role_detail(request)
+
+    assert isinstance(first, ImageResponse)
+    assert isinstance(second, ImageResponse)
+    assert transport.weapon_detail_calls == 1
+    assert transport.weapon_calculation_calls == 2
+    assert renderer.weapon_render_calls == 2
     await database.dispose()
 
 
