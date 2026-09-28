@@ -1489,6 +1489,47 @@ def test_resolve_panel_target_rejects_extra_weapons_for_weapon_object() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parameters", "expected"),
+    [
+        ({"char_name": "不存在的对象"}, "未找到角色或武器，请检查名称是否正确"),
+        ({"char_name": "甲"}, "名称同时匹配角色和武器，请使用更完整的名称"),
+        (
+            {"char_name": "近战甲", "weapon_name_1": "远程甲"},
+            "武器面板不支持附加武器参数",
+        ),
+    ],
+)
+async def test_panel_target_errors_use_specific_messages(
+    tmp_path: Path, parameters: dict[str, str], expected: str
+) -> None:
+    """智能分流的未找到、歧义和武器附加参数必须有独立文案。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        FixturePlayerTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service.role_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+            parameters=parameters,
+        )
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == expected
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_fetch_weapon_panel_detail_requests_owned_weapon(tmp_path: Path) -> None:
     """已拥有且有 weaponEid 时直接复用现有武器详情接口。"""
 
@@ -1863,6 +1904,7 @@ async def test_refresh_weapon_panel_replaces_cached_detail_and_card(
     assert isinstance(refreshed, ChainResponse)
     assert isinstance(refreshed.components[0], PlainTextResponse)
     assert isinstance(refreshed.components[1], ImageResponse)
+    assert refreshed.components[0].text == "武器【近战甲】面板已刷新"
     assert isinstance(cached, ImageResponse)
     assert transport.overview_calls == 2
     assert transport.weapon_detail_calls == 2
@@ -2047,6 +2089,7 @@ async def test_clear_weapon_panel_cache_preserves_other_weapon_role_and_overview
     )
 
     assert isinstance(response, PlainTextResponse)
+    assert response.text == "武器【近战甲】缓存已清理"
     assert (await manager.get("player_data", "weapon-201-data")).status == "miss"
     assert (await manager.get("player_card", "weapon-201-card")).status == "miss"
     for cache_type, key in (

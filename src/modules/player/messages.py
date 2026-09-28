@@ -16,11 +16,16 @@ PLAYER_CACHE_CLEARED = get_tip("player.cache_cleared")
 PLAYER_ALL_ROLE_CACHE_CLEARED = get_tip("player.all_role_cache_cleared")
 PLAYER_ALL_WEAPON_CACHE_CLEARED = get_tip("player.all_weapon_cache_cleared")
 PLAYER_ROLE_CACHE_CLEARED = get_tip_template("player.role_cache_cleared")
+PLAYER_WEAPON_CACHE_CLEARED = get_tip_template("player.weapon_cache_cleared")
 PLAYER_ROLE_REFRESHED = get_tip_template("player.role_refreshed")
+PLAYER_WEAPON_REFRESHED = get_tip_template("player.weapon_refreshed")
 PLAYER_ALL_REFRESHED = get_tip_template("player.all_refreshed")
 PLAYER_ALL_WEAPONS_REFRESHED = get_tip_template("player.all_weapons_refreshed")
 PLAYER_REFRESH_SELF_ONLY = get_tip("player.refresh_self_only")
 PLAYER_OVERVIEW_NOT_FOUND = get_tip("player.overview_not_found")
+PLAYER_PANEL_TARGET_NOT_FOUND = get_tip("player.panel_target_not_found")
+PLAYER_PANEL_TARGET_AMBIGUOUS = get_tip("player.panel_target_ambiguous")
+PLAYER_WEAPON_EXTRA_UNSUPPORTED = get_tip("player.weapon_extra_unsupported")
 PLAYER_ROLE_NOT_FOUND = get_tip("player.role_not_found")
 PLAYER_ROLE_NOT_UNLOCKED = get_tip("player.role_not_unlocked")
 PLAYER_WEAPON_NOT_FOUND = get_tip("player.weapon_not_found")
@@ -102,6 +107,8 @@ __all__ = [
     "PLAYER_INFO_CARD_CACHE_CLEARED",
     "PLAYER_INFO_CARD_REFRESHED",
     "PLAYER_OVERVIEW_NOT_FOUND",
+    "PLAYER_PANEL_TARGET_AMBIGUOUS",
+    "PLAYER_PANEL_TARGET_NOT_FOUND",
     "PLAYER_PEEK_BLOCKED",
     "PLAYER_REFRESH_SELF_ONLY",
     "PLAYER_ROLE_CACHE_CLEARED",
@@ -110,9 +117,12 @@ __all__ = [
     "PLAYER_ROLE_REFRESHED",
     "PLAYER_SERVICE_UNAVAILABLE",
     "PLAYER_WEAPON_CONFLICT",
+    "PLAYER_WEAPON_CACHE_CLEARED",
     "PLAYER_WEAPON_DETAIL_NOT_FOUND",
+    "PLAYER_WEAPON_EXTRA_UNSUPPORTED",
     "PLAYER_WEAPON_NOT_FOUND",
     "PLAYER_WEAPON_NOT_UNLOCKED",
+    "PLAYER_WEAPON_REFRESHED",
     "account_not_bound",
     "damage_config_missing",
     "damage_not_open",

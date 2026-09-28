@@ -648,6 +648,15 @@ class PlayerService:
             return _PanelTarget(kind="role", role=role)
         return _PanelTarget(kind="not_found")
 
+    @staticmethod
+    def _panel_target_error(target: _PanelTarget) -> PlainTextResponse | None:
+        message = {
+            "not_found": messages.PLAYER_PANEL_TARGET_NOT_FOUND,
+            "ambiguous": messages.PLAYER_PANEL_TARGET_AMBIGUOUS,
+            "rejected": messages.PLAYER_WEAPON_EXTRA_UNSUPPORTED,
+        }.get(target.kind)
+        return PlainTextResponse(message) if message is not None else None
+
     @classmethod
     def _select_weapons(
         cls,
@@ -1079,6 +1088,9 @@ class PlayerService:
             self.aliases,
             extra_weapon_names=tuple(names),
         )
+        target_error = self._panel_target_error(target)
+        if target_error is not None:
+            return target_error
         if target.kind == "weapon":
             assert target.weapon is not None
             detail_state = await self._load_weapon_detail(
@@ -1136,13 +1148,8 @@ class PlayerService:
                 )
             return response
 
-        role = (
-            target.role
-            if target.kind == "role"
-            else self._find_role(overview, char_name, self.aliases)
-        )
-        if role is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        role = target.role
+        assert role is not None
         if not role.unlocked or role.char_eid is None:
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
 
@@ -1262,14 +1269,11 @@ class PlayerService:
 
         char_name = str(request.parameters.get("char_name", "")).strip()
         target = self._resolve_panel_target(overview, char_name, self.aliases)
+        target_error = self._panel_target_error(target)
+        if target_error is not None:
+            return target_error
         weapon = target.weapon if target.kind == "weapon" else None
-        role = (
-            target.role
-            if target.kind == "role"
-            else self._find_role(overview, char_name, self.aliases)
-        )
-        if weapon is None and role is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        role = target.role if target.kind == "role" else None
         if weapon is not None and (
             not weapon.unlocked or weapon.weapon_eid is None
         ):
@@ -1431,9 +1435,12 @@ class PlayerService:
         else:
             assert refreshed.role is not None
             refreshed_name = refreshed.role.name
-        notice = PlainTextResponse(
-            messages.PLAYER_ROLE_REFRESHED.format(name=refreshed_name),
+        template = (
+            messages.PLAYER_WEAPON_REFRESHED
+            if refreshed.weapon is not None
+            else messages.PLAYER_ROLE_REFRESHED
         )
+        notice = PlainTextResponse(template.format(name=refreshed_name))
         if not self.refresh_send_role_panel:
             return notice
         return ChainResponse((notice, response))
@@ -1659,7 +1666,7 @@ class PlayerService:
             return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
         char_name = str(request.parameters.get("char_name", "")).strip()
         if not char_name:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+            return PlainTextResponse(messages.PLAYER_PANEL_TARGET_NOT_FOUND)
         resolved = await self._resolve_uid(request, operation="clear_role_cache")
         if isinstance(resolved, PlainTextResponse):
             return resolved
@@ -1675,22 +1682,20 @@ class PlayerService:
         target = self._resolve_panel_target(
             overview_state.overview, char_name, self.aliases
         )
+        target_error = self._panel_target_error(target)
+        if target_error is not None:
+            return target_error
         if target.kind == "weapon":
             assert target.weapon is not None
             await self.cache.invalidate_weapon_only(
                 target_user_id, uid, target.weapon.weapon_id
             )
             return PlainTextResponse(
-                messages.PLAYER_ROLE_CACHE_CLEARED.format(name=char_name)
+                messages.PLAYER_WEAPON_CACHE_CLEARED.format(name=target.weapon.name)
             )
 
-        role = (
-            target.role
-            if target.kind == "role"
-            else self._find_role(overview_state.overview, char_name, self.aliases)
-        )
-        if role is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        role = target.role
+        assert role is not None
         await self.cache.invalidate_role_only(target_user_id, uid, role.char_id)
         return PlainTextResponse(
             messages.PLAYER_ROLE_CACHE_CLEARED.format(name=char_name)
