@@ -319,6 +319,9 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert 'data-weapon-section="shared"' not in html
     assert "weapon-detail__visual" in html
     assert "weapon-detail__weapon-frame" not in html
+    assert "weapon-detail__identity-point" in html
+    assert "weapon-detail__kicker" not in html
+    assert "WEAPON /" not in html
     assert "weapon-detail__module-groups" in html
     assert "weapon-detail__module-group--left" in html
     assert "weapon-detail__module-group--right" in html
@@ -344,7 +347,7 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     for expected in (
         "近战甲",
         "Lv.80",
-        "精炼等级 5",
+        "精炼 5",
         "近战",
         "武器类型",
         "攻击",

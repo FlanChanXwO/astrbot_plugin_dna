@@ -12,12 +12,11 @@
   .weapon-detail__hero::before { content: ""; position: absolute; left: 52px; top: 42px; width: 560px; height: 560px; border: 1px solid rgba(238,232,170,.16); border-radius: 50%; box-shadow: inset 0 0 90px rgba(112,83,189,.2); }
   .weapon-detail__visual { position: absolute; left: 22px; top: 14px; width: 625px; height: 610px; display: flex; align-items: center; justify-content: center; }
   .weapon-detail__weapon-icon { width: 590px; height: 590px; object-fit: contain; filter: drop-shadow(0 28px 28px rgba(0,0,0,.74)); transform: rotate(-4deg); }
-  .weapon-detail__identity { position: absolute; right: 38px; top: 72px; width: 400px; }
-  .weapon-detail__kicker { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; color: #eee8aa; font-family: sans-serif; font-size: 15px; letter-spacing: 5px; }
-  .weapon-detail__kicker img { width: 24px; height: 24px; object-fit: contain; }
-  .weapon-detail__identity h1 { margin: 0; color: #fff7cf; font-size: 50px; font-weight: 400; line-height: 1.12; text-shadow: 0 4px 18px rgba(0,0,0,.72); }
-  .weapon-detail__levels { display: flex; gap: 10px; margin-top: 18px; }
-  .weapon-detail__badge { padding: 7px 13px; border: 1px solid rgba(238,232,170,.4); border-radius: 999px; background: rgba(6,8,14,.58); color: #eee8aa; font-size: 18px; }
+  .weapon-detail__identity { position: absolute; right: 38px; top: 72px; width: 400px; height: 540px; }
+  .weapon-detail__identity-point { position: absolute; top: 10px; left: 10px; width: 30px; height: 30px; object-fit: contain; }
+  .weapon-detail__identity h1 { position: absolute; top: 8px; left: 50px; margin: 0; color: #fff7cf; font-size: 30px; font-weight: 400; line-height: 38px; }
+  .weapon-detail__levels { position: absolute; top: 60px; left: 50px; display: flex; gap: 8px; align-items: center; height: 35px; }
+  .weapon-detail__badge { display: inline-flex; align-items: center; height: 35px; padding: 0 10px; border-radius: 7px; background: #b22222; color: #fff; font-size: 26px; line-height: 35px; }
   .weapon-detail__divider { display: block; width: 1046px; height: 53px; margin-left: -23px; object-fit: fill; }
   .weapon-detail__section { position: relative; padding: 0 44px 34px; background: rgba(5,6,11,.36); }
   .weapon-detail__section-head { position: relative; height: 58px; display: flex; align-items: center; }
@@ -36,7 +35,7 @@
   .weapon-detail__module-group--right .weapon-detail__module h3 { right: 18px; left: 30px; }
   .weapon-detail__module-group--left .weapon-detail__module h3 { right: 30px; left: 18px; }
   .weapon-detail__modules.modes-4 .weapon-detail__module-group { grid-template-rows: 218px; }
-  .weapon-detail__hero-attributes { width: 400px; margin-top: 24px; }
+  .weapon-detail__hero-attributes { position: absolute; top: 120px; left: 0; width: 400px; }
   .weapon-detail__hero-attribute { display: grid; grid-template-columns: 53px 1fr auto; align-items: center; width: 400px; height: 53px; padding-right: 28px; box-sizing: border-box; background-position: center; background-repeat: no-repeat; background-size: 400px 53px; }
   .weapon-detail__hero-attribute img { width: 53px; height: 53px; object-fit: contain; }
   .weapon-detail__hero-attribute span, .weapon-detail__hero-attribute strong { font-size: 24px; font-weight: 400; line-height: 53px; }
@@ -61,7 +60,7 @@
 <article data-weapon-card="archive">
   <section class="weapon-detail__hero">
     <div class="weapon-detail__visual"><img class="weapon-detail__weapon-icon" src="{{ weapon.icon }}" alt="" /></div>
-    <div class="weapon-detail__identity"><p class="weapon-detail__kicker"><img src="{{ point }}" alt="" />WEAPON / {{ weapon.attributes[0].value }}</p><h1>{{ weapon.name }}</h1><div class="weapon-detail__levels"><span class="weapon-detail__badge">Lv.{{ weapon.level }}</span><span class="weapon-detail__badge">精炼等级 {{ weapon.skill_level }}</span></div><div class="weapon-detail__hero-attributes">{% for attr in weapon.attributes %}<div class="weapon-detail__hero-attribute" style="background-image:url('{{ attr.background }}')"><img src="{{ attr.icon }}" alt="" /><span>{{ attr.label }}</span><strong>{{ attr.value }}</strong></div>{% endfor %}</div></div>
+    <div class="weapon-detail__identity"><img class="weapon-detail__identity-point" src="{{ point }}" alt="" /><h1>{{ weapon.name }}</h1><div class="weapon-detail__levels"><span class="weapon-detail__badge">Lv.{{ weapon.level }}</span><span class="weapon-detail__badge">精炼 {{ weapon.skill_level }}</span></div><div class="weapon-detail__hero-attributes">{% for attr in weapon.attributes %}<div class="weapon-detail__hero-attribute" style="background-image:url('{{ attr.background }}')"><img src="{{ attr.icon }}" alt="" /><span>{{ attr.label }}</span><strong>{{ attr.value }}</strong></div>{% endfor %}</div></div>
   </section>
   <img class="weapon-detail__divider" src="{{ divider }}" alt="" />
   <section class="weapon-detail__section weapon-detail__modules modes-{{ weapon.modes|length }}"><div class="weapon-detail__section-head"><img src="{{ point }}" alt="" /><h2>魔之楔配置</h2></div><div class="weapon-detail__module-groups">{{ module_group(left_modes, "left") }}{{ module_group(right_modes, "right") }}</div></section>
