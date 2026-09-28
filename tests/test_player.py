@@ -12,6 +12,7 @@ from PIL import Image, ImageFont
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from src.infrastructure.cache import CacheManager
+from src.infrastructure.http.player import DnaApiPlayerTransport
 from src.infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -106,6 +107,7 @@ class FixturePlayerTransport:
         self.damage_calls = 0
         self.overview_calls = 0
         self.role_detail_calls = 0
+        self.weapon_detail_calls = 0
 
     async def get_overview(
         self,
@@ -146,6 +148,7 @@ class FixturePlayerTransport:
         *,
         credential_user_id: str,
     ) -> WeaponDetail:
+        self.weapon_detail_calls += 1
         assert actor.user_id == "user-1"
         assert weapon_id in {201, 203}
         assert weapon_eid.startswith("weapon-eid-")
@@ -448,6 +451,15 @@ def _damage_fixture() -> DamageSnapshot:
         ),
         base_attribute=AttributeBag(atk=1234, hp=5678),
     )
+
+
+def test_weapon_detail_projection_marks_empty_payload_not_found() -> None:
+    """成功响应中的空 weaponDetail 应进入明确的详情未找到路径。"""
+
+    with pytest.raises(PlayerTransportError) as captured:
+        DnaApiPlayerTransport._weapon_detail({"weaponDetail": {}})
+
+    assert captured.value.kind is PlayerFailureKind.NOT_FOUND
 
 
 async def _database_with_binding(
@@ -1473,3 +1485,160 @@ def test_resolve_panel_target_rejects_extra_weapons_for_weapon_object() -> None:
         overview, "角色甲", extra_weapon_names=("近战甲",)
     )
     assert role.kind == "role"
+
+
+@pytest.mark.asyncio
+async def test_fetch_weapon_panel_detail_requests_owned_weapon(tmp_path: Path) -> None:
+    """已拥有且有 weaponEid 时直接复用现有武器详情接口。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    detail = await service._fetch_weapon_panel_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+        "user-1",
+        UID,
+        _overview_fixture().close_weapons[0],
+    )
+
+    assert detail == _weapon_fixture()
+    assert transport.weapon_detail_calls == 1
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "weapon",
+    [
+        _overview_fixture().close_weapons[0].model_copy(update={"unlocked": False}),
+        _overview_fixture().close_weapons[0].model_copy(update={"weapon_eid": None}),
+    ],
+)
+async def test_fetch_weapon_panel_detail_rejects_unowned_weapon(
+    tmp_path: Path, weapon: WeaponItem
+) -> None:
+    """未解锁或缺少 weaponEid 都按未拥有处理，且不请求详情。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service._fetch_weapon_panel_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+        "user-1",
+        UID,
+        weapon,
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.PLAYER_WEAPON_NOT_UNLOCKED
+    assert transport.weapon_detail_calls == 0
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_weapon_panel_detail_rejects_empty_detail(tmp_path: Path) -> None:
+    """上游未返回有效 WeaponDetail 时不得继续生成全零面板。"""
+
+    class EmptyWeaponTransport(FixturePlayerTransport):
+        async def get_weapon_detail(
+            self,
+            actor: EventActor,
+            uid: str,
+            weapon_id: int,
+            weapon_eid: str,
+            *,
+            credential_user_id: str,
+        ) -> WeaponDetail | None:
+            self.weapon_detail_calls += 1
+            return None
+
+    database = await _database_with_binding(tmp_path)
+    transport = EmptyWeaponTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service._fetch_weapon_panel_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+        "user-1",
+        UID,
+        _overview_fixture().close_weapons[0],
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.PLAYER_WEAPON_DETAIL_NOT_FOUND
+    assert transport.weapon_detail_calls == 1
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_weapon_panel_detail_maps_not_found_error(tmp_path: Path) -> None:
+    """transport 的武器详情未找到必须使用专用文案。"""
+
+    class MissingWeaponTransport(FixturePlayerTransport):
+        async def get_weapon_detail(
+            self,
+            actor: EventActor,
+            uid: str,
+            weapon_id: int,
+            weapon_eid: str,
+            *,
+            credential_user_id: str,
+        ) -> WeaponDetail:
+            raise PlayerTransportError(
+                PlayerFailureKind.NOT_FOUND, resource="武器详情"
+            )
+
+    database = await _database_with_binding(tmp_path)
+    service = PlayerService(
+        database,
+        MissingWeaponTransport(
+            _overview_fixture(), _detail_fixture(), _weapon_fixture()
+        ),
+        PrivacyService(database),
+        PlayerRenderer(tmp_path / "rendered", ResourceMap()),
+    )
+
+    response = await service._fetch_weapon_panel_detail(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        ),
+        "user-1",
+        UID,
+        _overview_fixture().close_weapons[0],
+    )
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.PLAYER_WEAPON_DETAIL_NOT_FOUND
+    await database.dispose()

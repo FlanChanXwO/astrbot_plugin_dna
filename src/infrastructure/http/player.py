@@ -121,7 +121,7 @@ class _RoleDetailResponse(_PlayerProjection):
 
 
 class _WeaponDetailResponse(_PlayerProjection):
-    weaponDetail: dict[str, Any]
+    weaponDetail: dict[str, Any] | None = None
 
 
 class DnaApiPlayerTransport:
@@ -226,6 +226,10 @@ class DnaApiPlayerTransport:
     @staticmethod
     def _weapon_detail(data: Any) -> WeaponDetail:
         payload = _WeaponDetailResponse.model_validate(data)
+        if not payload.weaponDetail:
+            raise PlayerTransportError(
+                PlayerFailureKind.NOT_FOUND, resource="武器详情"
+            )
         return WeaponDetail.model_validate(payload.weaponDetail)
 
     @gated_transport_method

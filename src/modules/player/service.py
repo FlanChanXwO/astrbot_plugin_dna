@@ -726,6 +726,38 @@ class PlayerService:
             damage=damage,
         )
 
+    async def _fetch_weapon_panel_detail(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        weapon: WeaponItem,
+    ) -> WeaponDetail | PlainTextResponse:
+        """读取独立武器面板详情；未拥有或空详情不进入渲染。"""
+
+        if not weapon.unlocked or weapon.weapon_eid is None:
+            return PlainTextResponse(messages.PLAYER_WEAPON_NOT_UNLOCKED)
+        try:
+            detail = await self.transport.get_weapon_detail(
+                request.actor,
+                uid,
+                weapon.weapon_id,
+                weapon.weapon_eid,
+                credential_user_id=target_user_id,
+            )
+        except PlayerTransportError as error:
+            if error.kind is PlayerFailureKind.NOT_FOUND:
+                return PlainTextResponse(messages.PLAYER_WEAPON_DETAIL_NOT_FOUND)
+            return await self._handle_transport_error(
+                error,
+                user_id=target_user_id,
+                uid=uid,
+                target=target_user_id != request.actor.user_id,
+            )
+        if not isinstance(detail, WeaponDetail):
+            return PlainTextResponse(messages.PLAYER_WEAPON_DETAIL_NOT_FOUND)
+        return detail
+
     async def _fetch_detail_bundle(
         self,
         request: PlayerCommandRequest,
