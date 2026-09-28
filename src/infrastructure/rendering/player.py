@@ -923,32 +923,33 @@ async def _draw_weapon_detail_card(
     static_asset_resolver: StaticAssetResolver | None = None,
     static_records: list[dict[str, str]] | None = None,
 ) -> tuple[bytes, dict[str, object]]:
-    """复用角色卡武器区块，生成独立武器卡。"""
+    """复用现有视觉素材生成独立武器卡。"""
 
-    weapon_coro = draw_weapon_detail_section(
-        weapon_detail,
-        "武器详情",
-        image_loader=image_loader,
-        static_asset_resolver=static_asset_resolver,
-        static_records=static_records,
+    header, weapon = await asyncio.gather(
+        build_profile_header(
+            ctx,
+            role_show.role_id,
+            role_show.role_name,
+            user_level=role_show.level,
+            stats=[
+                (item.param_key, item.param_value)
+                for item in role_show.params
+                if item.param_key in ("总活跃天数", "游戏时长")
+            ],
+            avatar_user_id=ctx.user_id,
+            uid_hidden=uid_hidden,
+            image_loader=image_loader,
+            static_asset_resolver=static_asset_resolver,
+            static_records=static_records,
+        ),
+        draw_weapon_detail_section(
+            weapon_detail,
+            "武器详情",
+            image_loader=image_loader,
+            static_asset_resolver=static_asset_resolver,
+            static_records=static_records,
+        ),
     )
-    header_coro = build_profile_header(
-        ctx,
-        role_show.role_id,
-        role_show.role_name,
-        user_level=role_show.level,
-        stats=[
-            (item.param_key, str(item.param_value))
-            for item in role_show.params
-            if item.param_key in ("总活跃天数", "游戏时长")
-        ],
-        avatar_user_id=ctx.user_id,
-        uid_hidden=uid_hidden,
-        image_loader=image_loader,
-        static_asset_resolver=static_asset_resolver,
-        static_records=static_records,
-    )
-    weapon, header = await asyncio.gather(weapon_coro, header_coro)
     card = await _RENDERER.render(
         "cards/weapon_detail.html.j2",
         {
@@ -968,6 +969,13 @@ async def _draw_weapon_detail_card(
                 label="武器卡",
             ),
             "header": header,
+            "profile_background": _static_image(
+                "texture.common.avatar_title_bg",
+                "textures/common/avatar_title_bg.png",
+                static_asset_resolver,
+                static_records,
+                label="武器卡",
+            ),
             "weapon": weapon,
             "width": 1000,
         },
@@ -1524,6 +1532,11 @@ class PlayerRenderer:
     ) -> RenderedPlayerImage:
         """生成独立武器面板。"""
 
+        asset_resolver = self.asset_resolver
+        image_loader = (
+            PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
+        )
+        static_records: list[dict[str, str]] = []
         role_show = (
             RoleHeader(
                 role_id=overview.role_id,
@@ -1532,7 +1545,7 @@ class PlayerRenderer:
                 params=list(overview.params),
             )
             if overview is not None
-            else RoleHeader(role_id=uid, role_name="", level=detail.level)
+            else RoleHeader(role_id=uid, role_name="玩家")
         )
         ctx = (
             EventContext(
@@ -1545,11 +1558,6 @@ class PlayerRenderer:
             if actor is not None
             else EventContext(user_id=target_user_id or uid)
         )
-        asset_resolver = self.asset_resolver
-        image_loader = (
-            PlayerImageLoader(asset_resolver) if asset_resolver is not None else None
-        )
-        static_records: list[dict[str, str]] = []
         card_bytes, weapon = await _draw_weapon_detail_card(
             ctx,
             role_show,
@@ -1568,9 +1576,10 @@ class PlayerRenderer:
         assert isinstance(modes, list)
         lines = [
             detail.name,
-            f"UID {'***' if uid_hidden else uid}",
             f"等级: {detail.level}",
             f"精炼等级: {detail.skill_level}",
+            role_show.role_name,
+            f"UID {'***' if uid_hidden else uid}",
         ]
         lines.extend(
             f"{item['label']}: {item['value']}"

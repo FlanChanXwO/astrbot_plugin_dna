@@ -247,8 +247,8 @@ def test_coerce_result_validates_container_without_pillow_decode(
 
 
 @pytest.mark.asyncio
-async def test_weapon_template_uses_shared_section_and_renders_all_fields() -> None:
-    """独立武器卡和角色卡共用同一段武器 HTML/CSS。"""
+async def test_weapon_template_uses_independent_archive_layout_and_all_fields() -> None:
+    """独立武器卡突出武器主视觉，不复用角色详情区块或账号资料。"""
 
     templates = Path(__file__).parents[1] / "src" / "templates"
     t2i = FakeT2I(_jpeg_bytes())
@@ -262,7 +262,7 @@ async def test_weapon_template_uses_shared_section_and_renders_all_fields() -> N
                 ("攻击", "777"),
                 ("暴击率", "150%"),
                 ("暴击伤害", "10%"),
-                ("攻击速度", "20%"),
+                ("攻击速度", "1.2"),
                 ("触发率", "30%"),
             )
         ],
@@ -270,8 +270,8 @@ async def test_weapon_template_uses_shared_section_and_renders_all_fields() -> N
         "level": 80,
         "modes": [
             {
-                "background": "",
-                "icon": "",
+                "background": "data:image/png;base64,mode-frame",
+                "icon": "data:image/png;base64,mode-icon",
                 "level": "+2",
                 "name": "武器楔",
                 "side": "left",
@@ -290,15 +290,15 @@ async def test_weapon_template_uses_shared_section_and_renders_all_fields() -> N
             "font": "",
             "footer_image": "",
             "header": {
-                "avatar": "",
-                "avatar_frame": None,
+                "avatar": "data:image/png;base64,avatar",
+                "avatar_frame": "data:image/png;base64,avatar-frame",
                 "level": 42,
-                "level_background": "",
+                "level_background": "data:image/png;base64,level",
                 "name": "测试玩家",
                 "stats": [],
                 "uid": "123456",
             },
-            "profile_background": "",
+            "profile_background": "data:image/png;base64,profile",
             "weapon": weapon,
             "width": 1000,
         },
@@ -306,7 +306,18 @@ async def test_weapon_template_uses_shared_section_and_renders_all_fields() -> N
     )
 
     html = str(t2i.calls[0]["tmpl_str"])
-    assert html.count('data-weapon-section="shared"') == 1
+    assert 'data-weapon-card="archive"' in html
+    assert 'data-weapon-section="shared"' not in html
+    assert "weapon-detail__visual" in html
+    assert "weapon-detail__specs" in html
+    assert "weapon-detail__modules" in html
+    assert "weapon-detail__profile" in html
+    assert "data:image/png;base64,attr" in html
+    assert "data:image/png;base64,mode-frame" in html
+    assert "data:image/png;base64,avatar-frame" in html
+    assert "data:image/png;base64,profile" in html
+    assert "测试玩家" in html
+    assert "UID 123456" in html
     for expected in (
         "近战甲",
         "Lv.80",
@@ -321,17 +332,12 @@ async def test_weapon_template_uses_shared_section_and_renders_all_fields() -> N
     ):
         assert expected in html
 
-    macro = (templates / "cards/macros/weapon_section.html.j2").read_text(
-        encoding="utf-8"
-    )
     role_template = (templates / "cards/role_detail.html.j2").read_text(
         encoding="utf-8"
     )
     weapon_template = (templates / "cards/weapon_detail.html.j2").read_text(
         encoding="utf-8"
     )
-    assert ".role-detail__weapon-section {" in macro
-    assert ".role-detail__weapon-section {" not in role_template
-    assert ".role-detail__weapon-section {" not in weapon_template
     assert "{{ weapon_section(weapon) }}" in role_template
-    assert "{{ weapon_section(weapon) }}" in weapon_template
+    assert "{{ weapon_section(weapon) }}" not in weapon_template
+    assert "weapon-detail__profile" in weapon_template

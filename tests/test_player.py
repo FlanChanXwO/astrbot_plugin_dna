@@ -1716,6 +1716,7 @@ async def test_weapon_name_panel_renders_independent_weapon_card(tmp_path: Path)
     assert isinstance(response.incomplete, bool)
     for expected in ("近战甲", "等级: 80", "精炼等级: 5", "武器楔"):
         assert expected in artifact.metadata["dna.text"]
+    assert "UID 1234567890123" in artifact.metadata["dna.text"]
     assert [section["name"] for section in artifact.metadata["dna.layout"]["sections"]] == [
         "武器主视觉",
         "武器属性",
