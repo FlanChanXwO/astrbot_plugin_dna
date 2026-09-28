@@ -27,9 +27,9 @@ class _RuntimeDownloader:
 
     async def fetch(self, url: str, target: Path, *, tag: str = "") -> Path:
         del tag
+        self.calls.append(url)
         if self.closed:
             raise ImageFetcherClosed(f"{self.color} downloader closed")
-        self.calls.append(url)
         target.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (24, 24), self.color).save(target)
         return target
@@ -71,6 +71,54 @@ async def test_player_image_loader_uses_distinct_url_cache_targets(
     cached_files = sorted((tmp_path / "assets" / "attr").glob("*.png"))
     assert len(cached_files) == 2
     assert downloader.calls == [url_v2, url_v3]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("download_closed", "source", "status", "incomplete"),
+    [
+        (False, "download", "provided", False),
+        (True, "none", "missing", True),
+    ],
+    ids=("api-download", "placeholder"),
+)
+async def test_weapon_image_loader_uses_api_fallback_after_generation_miss(
+    tmp_path: Path,
+    download_closed: bool,
+    source: str,
+    status: str,
+    incomplete: bool,
+) -> None:
+    """武器图本地 miss 后下载 API icon，最终失败才返回透明占位。"""
+
+    downloader = _RuntimeDownloader("blue")
+    downloader.closed = download_closed
+    dynamic_root = tmp_path / "cache" / "assets"
+    loader = PlayerImageLoader(
+        AssetResolver(
+            snapshot_root=tmp_path / "generation",
+            dynamic_root=dynamic_root,
+            downloader=downloader,
+        )
+    )
+
+    image = await loader.weapon(201, "https://cdn.example.test/weapon.png")
+    asset = loader.resolved_assets[0]
+
+    assert (asset.source, asset.status, asset.incomplete) == (
+        source,
+        status,
+        incomplete,
+    )
+    assert (image.getbbox() is None) is download_closed
+    assert (dynamic_root / "weapon" / "weapon_201.png").is_file() is (
+        not download_closed
+    )
+    assert downloader.calls == ["https://cdn.example.test/weapon.png"]
+    if not download_closed:
+        await loader.weapon(201, "https://cdn.example.test/weapon.png")
+        assert loader.resolved_assets[0].source == "dynamic_cache"
+        assert downloader.calls == ["https://cdn.example.test/weapon.png"]
 
 
 @pytest.mark.asyncio
