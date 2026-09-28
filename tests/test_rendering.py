@@ -320,13 +320,14 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert 'data-mode-side="left"' in html
     assert 'data-mode-side="right"' in html
     assert html.index("left-1") < html.index("left-2") < html.index("right-1") < html.index("right-2")
-    assert "weapon-detail__weapon-card" in html
-    assert "weapon-detail__attribute-panel" in html
-    assert "weapon-detail__attribute" in html
+    assert "weapon-detail__attributes" not in html
+    assert "weapon-detail__weapon-card" not in html
+    assert "weapon-detail__attribute-panel" not in html
+    assert "weapon-detail__attribute" not in html
     assert "weapon-detail__specs" not in html
     assert "weapon-detail__profile" in html
-    assert "data:image/png;base64,weapon-frame" in html
-    assert "data:image/png;base64,attr" in html
+    assert "data:image/png;base64,weapon-frame" not in html
+    assert "data:image/png;base64,attr" not in html
     assert "data:image/png;base64,mode-left-1" in html
     assert "data:image/png;base64,mode-right-1" in html
     assert "data:image/png;base64,divider" in html
@@ -339,12 +340,7 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
         "近战甲",
         "Lv.80",
         "精炼等级 5",
-        "武器类型",
-        "攻击",
-        "暴击率",
-        "暴击伤害",
-        "攻击速度",
-        "触发率",
+        "近战",
         "left-1",
         "right-1",
     ):

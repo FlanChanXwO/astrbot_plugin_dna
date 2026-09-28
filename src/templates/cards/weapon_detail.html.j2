@@ -36,18 +36,6 @@
   .weapon-detail__module-group--right .weapon-detail__module h3 { right: 18px; left: 30px; }
   .weapon-detail__module-group--left .weapon-detail__module h3 { right: 30px; left: 18px; }
   .weapon-detail__modules.modes-4 .weapon-detail__module-group { grid-template-rows: 218px; }
-  .weapon-detail__info { position: relative; height: 218px; }
-  .weapon-detail__weapon-card { position: absolute; top: 10px; left: 20px; width: 217px; height: 122px; overflow: hidden; background-position: center; background-repeat: no-repeat; background-size: 217px 122px; }
-  .weapon-detail__weapon-card img { position: absolute; top: -8px; left: -8px; width: 144px; height: 144px; object-fit: contain; }
-  .weapon-detail__weapon-level { position: absolute; top: 80px; left: 120px; width: 64px; height: 28px; border-radius: 6px; background: #b22222; font-size: 21px; line-height: 28px; text-align: center; }
-  .weapon-detail__weapon-name { position: absolute; top: 132px; left: 20px; width: 250px; margin: 0; font-size: 25px; font-weight: 400; line-height: 31px; }
-  .weapon-detail__weapon-name small { display: block; color: #eee8aa; font-size: 18px; line-height: 24px; }
-  .weapon-detail__attribute-panel { position: absolute; top: 10px; left: 270px; width: 641px; height: 160px; background-position: center; background-repeat: no-repeat; background-size: 641px 160px; }
-  .weapon-detail__attribute { position: absolute; display: grid; grid-template-columns: 53px 1fr auto; align-items: center; width: 320px; height: 53px; }
-  .weapon-detail__attribute:nth-child(odd) { left: 0; }.weapon-detail__attribute:nth-child(even) { left: 320px; }
-  .weapon-detail__attribute:nth-child(-n+2) { top: 0; }.weapon-detail__attribute:nth-child(n+3):nth-child(-n+4) { top: 53px; }.weapon-detail__attribute:nth-child(n+5) { top: 106px; }
-  .weapon-detail__attribute img { width: 53px; height: 53px; object-fit: contain; }
-  .weapon-detail__attribute span, .weapon-detail__attribute strong { font-size: 25px; font-weight: 400; }
   .weapon-detail__profile { position: relative; width: 1000px; height: 190px; overflow: hidden; background: rgba(5,6,10,.92); }
   .weapon-detail__profile-bg { position: absolute; inset: 0; width: 100%; height: 190px; object-fit: fill; }
   .weapon-detail__avatar { position: absolute; left: 42px; top: 18px; width: 150px; height: 150px; border-radius: 50%; object-fit: cover; }
@@ -73,8 +61,6 @@
   </section>
   <img class="weapon-detail__divider" src="{{ divider }}" alt="" />
   <section class="weapon-detail__section weapon-detail__modules modes-{{ weapon.modes|length }}"><div class="weapon-detail__section-head"><img src="{{ point }}" alt="" /><h2>魔之楔配置</h2></div><div class="weapon-detail__module-groups">{{ module_group(left_modes, "left") }}{{ module_group(right_modes, "right") }}</div></section>
-  <img class="weapon-detail__divider" src="{{ divider }}" alt="" />
-  <section class="weapon-detail__section weapon-detail__attributes"><div class="weapon-detail__section-head"><img src="{{ point }}" alt="" /><h2>武器属性</h2></div><div class="weapon-detail__info"><div class="weapon-detail__weapon-card" style="background-image:url('{{ weapon.weapon_background }}')"><img src="{{ weapon.icon }}" alt="" /><span class="weapon-detail__weapon-level">Lv.{{ weapon.level }}</span></div><h3 class="weapon-detail__weapon-name">{{ weapon.name }}<small>精炼等级 {{ weapon.skill_level }}</small></h3><div class="weapon-detail__attribute-panel" style="background-image:url('{{ weapon.attribute_background }}')">{% for attr in weapon.attributes %}<div class="weapon-detail__attribute"><img src="{{ attr.icon }}" alt="" /><span>{{ attr.label }}</span><strong>{{ attr.value }}</strong></div>{% endfor %}</div></div></section>
   <section class="weapon-detail__profile"><img class="weapon-detail__profile-bg" src="{{ profile_background }}" alt="" /><img class="weapon-detail__avatar" src="{{ header.avatar }}" alt="" />{% if header.avatar_frame %}<img class="weapon-detail__avatar-frame" src="{{ header.avatar_frame }}" alt="" />{% endif %}<div class="weapon-detail__profile-main"><h2>{{ header.name }}</h2>{% if header.uid %}<p class="weapon-detail__uid">UID {{ header.uid }}</p>{% endif %}</div>{% if header.level is not none %}<div class="weapon-detail__player-level"><img src="{{ header.level_background }}" alt="" /><span>Lv.{{ header.level }}</span></div>{% endif %}{% if header.stats %}<dl class="weapon-detail__stats">{% for stat in header.stats[:2] %}<div style="background-image:url('{{ header.stats_background }}')"><dt>{{ stat.value }}</dt><dd>{{ stat.label }}</dd></div>{% endfor %}</dl>{% endif %}</section>
 </article>
 <footer class="weapon-detail__footer"><img src="{{ footer_image }}" alt="" /></footer>
