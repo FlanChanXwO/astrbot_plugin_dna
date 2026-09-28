@@ -364,6 +364,11 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert "计算属性" in html
     assert "777 → 999" in html
     assert "12% → 24%" in html
+    assert (
+        html.index('<section class="weapon-detail__section weapon-detail__modules')
+        < html.index('<section class="weapon-detail__calculation">')
+        < html.index('<header class="dna-legacy-profile">')
+    )
     assert "dna-legacy-profile" in html
     assert "weapon-detail__profile" not in html
     assert "data:image/png;base64,weapon-frame" not in html

@@ -1681,12 +1681,12 @@ class PlayerRenderer:
             sections=[
                 {"name": "武器主视觉", "items": 1},
                 {"name": "武器属性", "items": len(attributes)},
+                {"name": "魔之楔", "items": len(detail.modes)},
                 *(
                     [{"name": "计算属性", "items": len(calculation_payload["attributes"])}]
                     if calculation_payload is not None
                     else []
                 ),
-                {"name": "魔之楔", "items": len(detail.modes)},
                 {"name": "玩家信息", "items": 1},
             ],
             resolved_assets=resolved_assets,

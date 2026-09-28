@@ -69,9 +69,9 @@
     <div class="weapon-detail__refinement-orbs">{% for grade in refinement_grades %}<div class="weapon-detail__refinement-orb{% if grade.unlocked %} is-unlocked{% endif %}" style="background-image:url('{{ grade.background }}')"><img src="{{ grade.icon }}" alt="{{ grade.index }}" /></div>{% endfor %}</div>
   </section>
   <img class="weapon-detail__divider" src="{{ divider }}" alt="" />
-  {% if calculation and calculation.attributes %}<section class="weapon-detail__calculation"><header class="weapon-detail__calculation-head"><h2>计算属性</h2></header><dl class="weapon-detail__calculation-grid">{% for item in calculation.attributes %}<div><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>{% endfor %}</dl></section>
-  <img class="weapon-detail__divider" src="{{ divider }}" alt="" />{% endif %}
   <section class="weapon-detail__section weapon-detail__modules modes-{{ weapon.modes|length }}"><div class="weapon-detail__module-groups">{{ module_group(left_modes, "left") }}{{ module_group(right_modes, "right") }}</div></section>
+  {% if calculation and calculation.attributes %}<img class="weapon-detail__divider" src="{{ divider }}" alt="" />
+  <section class="weapon-detail__calculation"><header class="weapon-detail__calculation-head"><h2>计算属性</h2></header><dl class="weapon-detail__calculation-grid">{% for item in calculation.attributes %}<div><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>{% endfor %}</dl></section>{% endif %}
   {{ legacy_profile_header(header, profile_background) }}
 </article>
 <footer class="weapon-detail__footer"><img src="{{ footer_image }}" alt="" /></footer>

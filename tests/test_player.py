@@ -1758,8 +1758,8 @@ async def test_weapon_name_panel_renders_independent_weapon_card(tmp_path: Path)
     assert [section["name"] for section in artifact.metadata["dna.layout"]["sections"]] == [
         "武器主视觉",
         "武器属性",
-        "计算属性",
         "魔之楔",
+        "计算属性",
         "玩家信息",
     ]
     await database.dispose()
