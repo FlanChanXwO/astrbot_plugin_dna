@@ -349,7 +349,8 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert "weapon-detail__hero-attributes" in html
     assert "weapon-detail__hero-attribute" in html
     assert "weapon-detail__specs" not in html
-    assert "weapon-detail__profile" in html
+    assert "dna-legacy-profile" in html
+    assert "weapon-detail__profile" not in html
     assert "data:image/png;base64,weapon-frame" not in html
     assert "data:image/png;base64,attr-0" in html
     assert "data:image/png;base64,mode-left-1" in html
@@ -384,4 +385,5 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     )
     assert "{{ weapon_section(weapon) }}" in role_template
     assert "{{ weapon_section(weapon) }}" not in weapon_template
-    assert "weapon-detail__profile" in weapon_template
+    assert "{{ legacy_profile_header(header, profile_background) }}" in weapon_template
+    assert "weapon-detail__profile" not in weapon_template
