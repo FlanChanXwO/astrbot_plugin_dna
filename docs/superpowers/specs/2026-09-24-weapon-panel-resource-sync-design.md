@@ -15,7 +15,7 @@
 
 - API 返回的正式角色/武器名称是事实源，资源库 alias 仅作为输入便利层。
 - 复用现有 PlayerService、PlayerTransport、PlayerRenderer、PlayerCache 和 ResourceSnapshotCoordinator，不新增平行体系。
-- 复用现有武器详情 payload、图片解析链路与视觉素材；独立武器卡不复用角色详情整体排版，并保留玩家头像资料栏。
+- 复用现有武器详情 payload、图片解析链路与视觉素材；独立武器卡按魔之楔 side 左右分组，将武器框用于下方紧凑信息卡，并沿用纵向属性底板与玩家资料栏，不复用角色详情整体区块。
 - 新资源只有在完整校验和发布后才被新请求看到；已有已发布 generation 在普通校验期间继续服务。
 - 不为假设需求增加兼容层、额外状态机、额外缓存、Wiki 在线抓取或新的资源同步机制。
 

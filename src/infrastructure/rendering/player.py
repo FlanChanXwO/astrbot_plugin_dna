@@ -960,6 +960,13 @@ async def _draw_weapon_detail_card(
                 static_records,
                 label="武器卡",
             ),
+            "divider": _static_image(
+                "texture.common.div",
+                "textures/common/div.png",
+                static_asset_resolver,
+                static_records,
+                label="武器卡",
+            ),
             "font": _static_font(static_asset_resolver, static_records),
             "footer_image": _static_image(
                 "texture.common.footer",
@@ -969,6 +976,13 @@ async def _draw_weapon_detail_card(
                 label="武器卡",
             ),
             "header": header,
+            "point": _static_image(
+                "texture.detail.point",
+                "textures/detail/point.png",
+                static_asset_resolver,
+                static_records,
+                label="武器卡",
+            ),
             "profile_background": _static_image(
                 "texture.common.avatar_title_bg",
                 "textures/common/avatar_title_bg.png",

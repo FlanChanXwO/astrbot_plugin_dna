@@ -248,7 +248,7 @@ def test_coerce_result_validates_container_without_pillow_decode(
 
 @pytest.mark.asyncio
 async def test_weapon_template_uses_independent_archive_layout_and_all_fields() -> None:
-    """独立武器卡突出武器主视觉，不复用角色详情区块或账号资料。"""
+    """独立武器卡复用现有素材，但不复用角色详情整体区块。"""
 
     templates = Path(__file__).parents[1] / "src" / "templates"
     t2i = FakeT2I(_jpeg_bytes())
@@ -270,23 +270,26 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
         "level": 80,
         "modes": [
             {
-                "background": "data:image/png;base64,mode-frame",
-                "icon": "data:image/png;base64,mode-icon",
-                "level": "+2",
-                "name": "武器楔",
-                "side": "left",
+                "background": f"data:image/png;base64,mode-{side}-{index}",
+                "icon": f"data:image/png;base64,icon-{side}-{index}",
+                "level": f"+{index}",
+                "name": f"{side}-{index}",
+                "side": side,
             }
+            for side in ("left", "right")
+            for index in (1, 2)
         ],
         "name": "近战甲",
         "skill_level": 5,
         "title": "武器详情",
-        "weapon_background": "",
+        "weapon_background": "data:image/png;base64,weapon-frame",
     }
 
     await renderer.render(
         "cards/weapon_detail.html.j2",
         {
             "background": "",
+            "divider": "data:image/png;base64,divider",
             "font": "",
             "footer_image": "",
             "header": {
@@ -298,6 +301,7 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
                 "stats": [],
                 "uid": "123456",
             },
+            "point": "data:image/png;base64,point",
             "profile_background": "data:image/png;base64,profile",
             "weapon": weapon,
             "width": 1000,
@@ -309,11 +313,24 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert 'data-weapon-card="archive"' in html
     assert 'data-weapon-section="shared"' not in html
     assert "weapon-detail__visual" in html
-    assert "weapon-detail__specs" in html
-    assert "weapon-detail__modules" in html
+    assert "weapon-detail__weapon-frame" not in html
+    assert "weapon-detail__module-groups" in html
+    assert "weapon-detail__module-group--left" in html
+    assert "weapon-detail__module-group--right" in html
+    assert 'data-mode-side="left"' in html
+    assert 'data-mode-side="right"' in html
+    assert html.index("left-1") < html.index("left-2") < html.index("right-1") < html.index("right-2")
+    assert "weapon-detail__weapon-card" in html
+    assert "weapon-detail__attribute-panel" in html
+    assert "weapon-detail__attribute" in html
+    assert "weapon-detail__specs" not in html
     assert "weapon-detail__profile" in html
+    assert "data:image/png;base64,weapon-frame" in html
     assert "data:image/png;base64,attr" in html
-    assert "data:image/png;base64,mode-frame" in html
+    assert "data:image/png;base64,mode-left-1" in html
+    assert "data:image/png;base64,mode-right-1" in html
+    assert "data:image/png;base64,divider" in html
+    assert "data:image/png;base64,point" in html
     assert "data:image/png;base64,avatar-frame" in html
     assert "data:image/png;base64,profile" in html
     assert "测试玩家" in html
@@ -328,7 +345,8 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
         "暴击伤害",
         "攻击速度",
         "触发率",
-        "武器楔",
+        "left-1",
+        "right-1",
     ):
         assert expected in html
 

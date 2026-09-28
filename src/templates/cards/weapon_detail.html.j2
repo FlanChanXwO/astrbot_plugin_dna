@@ -1,35 +1,53 @@
 {% from "cards/macros/layout.html.j2" import card_shell %}
+{% macro module_group(modes, side) -%}
+<div class="weapon-detail__module-group weapon-detail__module-group--{{ side }}" data-mode-side="{{ side }}">
+  {% for mode in modes %}<article class="weapon-detail__module{% if not mode.icon %} is-empty{% endif %}"><img class="weapon-detail__module-frame" src="{{ mode.background }}" alt="" />{% if mode.icon %}<img class="weapon-detail__module-icon" src="{{ mode.icon }}" alt="" />{% endif %}{% if mode.name %}<h3>{{ mode.name }}</h3>{% endif %}{% if mode.level %}<span class="weapon-detail__module-level">{{ mode.level }}</span>{% endif %}</article>{% endfor %}
+</div>
+{%- endmacro %}
 {% call card_shell(width, background=background, class_name="weapon-detail") %}
 <style>
   @font-face { font-family: "DNAFont"; src: url("{{ font }}") format("woff2"); }
   .weapon-detail { width: 1000px; color: #fff; font-family: "DNAFont", sans-serif; overflow: hidden; background: #080a12; }
-  .weapon-detail__hero { position: relative; min-height: 700px; overflow: hidden; border-bottom: 1px solid rgba(238,232,170,.28); background: linear-gradient(112deg, rgba(7,9,16,.12) 0 58%, rgba(7,9,16,.82) 58% 100%); }
-  .weapon-detail__hero::before { content: ""; position: absolute; left: 48px; top: 50px; width: 560px; height: 560px; border: 1px solid rgba(238,232,170,.18); border-radius: 50%; box-shadow: inset 0 0 90px rgba(112,83,189,.22), 0 0 90px rgba(59,38,105,.18); }
-  .weapon-detail__hero::after { content: "WEAPON ARCHIVE"; position: absolute; left: 60px; bottom: 34px; color: rgba(255,255,255,.18); font-family: sans-serif; font-size: 18px; letter-spacing: 8px; }
-  .weapon-detail__visual { position: absolute; left: 26px; top: 26px; width: 600px; height: 610px; display: flex; align-items: center; justify-content: center; }
-  .weapon-detail__weapon-frame { position: absolute; width: 570px; height: 570px; object-fit: contain; opacity: .7; }
-  .weapon-detail__weapon-icon { position: relative; width: 540px; height: 540px; object-fit: contain; filter: drop-shadow(0 30px 30px rgba(0,0,0,.72)); transform: rotate(-4deg); }
-  .weapon-detail__identity { position: absolute; right: 42px; top: 58px; width: 366px; }
-  .weapon-detail__kicker { margin: 0 0 14px; color: #eee8aa; font-family: sans-serif; font-size: 15px; letter-spacing: 5px; }
-  .weapon-detail__identity h1 { margin: 0; color: #fff7cf; font-size: 52px; font-weight: 400; line-height: 1.12; text-shadow: 0 4px 18px rgba(0,0,0,.72); }
-  .weapon-detail__levels { display: flex; gap: 10px; margin: 18px 0 22px; }
+  .weapon-detail__hero { position: relative; height: 650px; overflow: hidden; background: linear-gradient(110deg, rgba(7,9,16,.08) 0 61%, rgba(7,9,16,.82) 61% 100%); }
+  .weapon-detail__hero::before { content: ""; position: absolute; left: 52px; top: 42px; width: 560px; height: 560px; border: 1px solid rgba(238,232,170,.16); border-radius: 50%; box-shadow: inset 0 0 90px rgba(112,83,189,.2); }
+  .weapon-detail__visual { position: absolute; left: 22px; top: 14px; width: 625px; height: 610px; display: flex; align-items: center; justify-content: center; }
+  .weapon-detail__weapon-icon { width: 590px; height: 590px; object-fit: contain; filter: drop-shadow(0 28px 28px rgba(0,0,0,.74)); transform: rotate(-4deg); }
+  .weapon-detail__identity { position: absolute; right: 48px; top: 142px; width: 370px; }
+  .weapon-detail__kicker { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; color: #eee8aa; font-family: sans-serif; font-size: 15px; letter-spacing: 5px; }
+  .weapon-detail__kicker img { width: 24px; height: 24px; object-fit: contain; }
+  .weapon-detail__identity h1 { margin: 0; color: #fff7cf; font-size: 54px; font-weight: 400; line-height: 1.12; text-shadow: 0 4px 18px rgba(0,0,0,.72); }
+  .weapon-detail__levels { display: flex; gap: 10px; margin-top: 22px; }
   .weapon-detail__badge { padding: 7px 13px; border: 1px solid rgba(238,232,170,.4); border-radius: 999px; background: rgba(6,8,14,.58); color: #eee8aa; font-size: 18px; }
-  .weapon-detail__specs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; padding: 18px 16px; background-position: center; background-size: 100% 100%; }
-  .weapon-detail__spec { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: 20px 26px; min-height: 58px; padding: 8px 10px; background: rgba(5,7,12,.34); }
-  .weapon-detail__spec img { grid-row: 1 / 3; width: 34px; height: 34px; align-self: center; object-fit: contain; }
-  .weapon-detail__spec span { color: rgba(255,255,255,.62); font-size: 14px; line-height: 20px; }
-  .weapon-detail__spec strong { color: #fff; font-size: 21px; font-weight: 400; line-height: 26px; }
-  .weapon-detail__modules { padding: 38px 44px 44px; background: linear-gradient(180deg, rgba(9,10,18,.58), rgba(5,6,11,.88)); }
-  .weapon-detail__section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; }
-  .weapon-detail__section-head h2 { margin: 0; color: #fff7cf; font-size: 30px; font-weight: 400; }
-  .weapon-detail__section-head span { color: rgba(255,255,255,.42); font-family: sans-serif; font-size: 14px; letter-spacing: 4px; }
-  .weapon-detail__module-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-  .weapon-detail__module { position: relative; min-width: 0; height: 224px; overflow: hidden; }
-  .weapon-detail__module-frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+  .weapon-detail__divider { display: block; width: 1046px; height: 53px; margin-left: -23px; object-fit: fill; }
+  .weapon-detail__section { position: relative; padding: 0 44px 34px; background: rgba(5,6,11,.36); }
+  .weapon-detail__section-head { position: relative; height: 58px; display: flex; align-items: center; }
+  .weapon-detail__section-head img { width: 24px; height: 24px; margin-right: 12px; object-fit: contain; }
+  .weapon-detail__section-head h2 { margin: 0; color: #fff7cf; font-size: 28px; font-weight: 400; }
+  .weapon-detail__section-head::after { content: ""; flex: 1; margin-left: 20px; border-top: 1px solid rgba(255,255,255,.27); }
+  .weapon-detail__module-groups { display: flex; justify-content: space-between; gap: 68px; }
+  .weapon-detail__module-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 4px; width: 422px; }
+  .weapon-detail__module { position: relative; width: 209px; height: 218px; overflow: hidden; }
+  .weapon-detail__module-frame { position: absolute; inset: 0; width: 209px; height: 218px; object-fit: fill; }
   .weapon-detail__module.is-empty { opacity: .42; }
-  .weapon-detail__module-icon { position: relative; display: block; width: 154px; height: 154px; margin: 12px auto 0; object-fit: contain; filter: drop-shadow(0 10px 12px rgba(0,0,0,.55)); }
-  .weapon-detail__module h3 { position: absolute; right: 24px; bottom: 26px; left: 24px; margin: 0; overflow: hidden; color: #fff; font-size: 17px; font-weight: 400; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-  .weapon-detail__module-level { position: absolute; top: 12px; right: 12px; min-width: 40px; padding: 4px 8px; border-radius: 999px; background: #d94b2b; font-size: 18px; text-align: center; }
+  .weapon-detail__module-icon { position: absolute; top: 12px; left: 29px; width: 150px; height: 150px; object-fit: contain; filter: drop-shadow(0 8px 10px rgba(0,0,0,.5)); }
+  .weapon-detail__module h3 { position: absolute; right: 24px; bottom: 25px; left: 24px; margin: 0; overflow: hidden; color: #fff; font-size: 17px; font-weight: 400; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+  .weapon-detail__module-level { position: absolute; top: 14px; left: 42px; min-width: 42px; height: 28px; border-radius: 9px; background: #ff4500; font-size: 20px; line-height: 28px; text-align: center; }
+  .weapon-detail__module-group--right .weapon-detail__module-level { right: 36px; left: auto; }
+  .weapon-detail__module-group--right .weapon-detail__module h3 { right: 18px; left: 30px; }
+  .weapon-detail__module-group--left .weapon-detail__module h3 { right: 30px; left: 18px; }
+  .weapon-detail__modules.modes-4 .weapon-detail__module-group { grid-template-rows: 218px; }
+  .weapon-detail__info { position: relative; height: 218px; }
+  .weapon-detail__weapon-card { position: absolute; top: 10px; left: 20px; width: 217px; height: 122px; overflow: hidden; background-position: center; background-repeat: no-repeat; background-size: 217px 122px; }
+  .weapon-detail__weapon-card img { position: absolute; top: -8px; left: -8px; width: 144px; height: 144px; object-fit: contain; }
+  .weapon-detail__weapon-level { position: absolute; top: 80px; left: 120px; width: 64px; height: 28px; border-radius: 6px; background: #b22222; font-size: 21px; line-height: 28px; text-align: center; }
+  .weapon-detail__weapon-name { position: absolute; top: 132px; left: 20px; width: 250px; margin: 0; font-size: 25px; font-weight: 400; line-height: 31px; }
+  .weapon-detail__weapon-name small { display: block; color: #eee8aa; font-size: 18px; line-height: 24px; }
+  .weapon-detail__attribute-panel { position: absolute; top: 10px; left: 270px; width: 641px; height: 160px; background-position: center; background-repeat: no-repeat; background-size: 641px 160px; }
+  .weapon-detail__attribute { position: absolute; display: grid; grid-template-columns: 53px 1fr auto; align-items: center; width: 320px; height: 53px; }
+  .weapon-detail__attribute:nth-child(odd) { left: 0; }.weapon-detail__attribute:nth-child(even) { left: 320px; }
+  .weapon-detail__attribute:nth-child(-n+2) { top: 0; }.weapon-detail__attribute:nth-child(n+3):nth-child(-n+4) { top: 53px; }.weapon-detail__attribute:nth-child(n+5) { top: 106px; }
+  .weapon-detail__attribute img { width: 53px; height: 53px; object-fit: contain; }
+  .weapon-detail__attribute span, .weapon-detail__attribute strong { font-size: 25px; font-weight: 400; }
   .weapon-detail__profile { position: relative; width: 1000px; height: 190px; overflow: hidden; background: rgba(5,6,10,.92); }
   .weapon-detail__profile-bg { position: absolute; inset: 0; width: 100%; height: 190px; object-fit: fill; }
   .weapon-detail__avatar { position: absolute; left: 42px; top: 18px; width: 150px; height: 150px; border-radius: 50%; object-fit: cover; }
@@ -42,33 +60,22 @@
   .weapon-detail__player-level span { position: relative; color: #fff; font-size: 23px; line-height: 48px; }
   .weapon-detail__stats { position: absolute; right: 48px; top: 52px; display: flex; gap: 18px; margin: 0; }
   .weapon-detail__stats div { min-width: 150px; padding: 14px 20px; text-align: center; background-position: center; background-size: 100% 100%; }
-  .weapon-detail__stats dt { color: #fff7cf; font-size: 24px; }
-  .weapon-detail__stats dd { margin: 4px 0 0; color: rgba(255,255,255,.62); font-size: 15px; }
+  .weapon-detail__stats dt { color: #fff7cf; font-size: 24px; }.weapon-detail__stats dd { margin: 4px 0 0; color: rgba(255,255,255,.62); font-size: 15px; }
   .weapon-detail__footer { position: relative; width: 1000px; height: 72px; background: rgba(4,5,9,.92); }
   .weapon-detail__footer img { position: absolute; right: 200px; bottom: 18px; width: 600px; height: 23px; object-fit: fill; opacity: .76; }
 </style>
+{% set left_modes = weapon.modes|selectattr("side", "equalto", "left")|list %}
+{% set right_modes = weapon.modes|selectattr("side", "equalto", "right")|list %}
 <article data-weapon-card="archive">
   <section class="weapon-detail__hero">
-    <div class="weapon-detail__visual">{% if weapon.weapon_background %}<img class="weapon-detail__weapon-frame" src="{{ weapon.weapon_background }}" alt="" />{% endif %}<img class="weapon-detail__weapon-icon" src="{{ weapon.icon }}" alt="" /></div>
-    <div class="weapon-detail__identity">
-      <p class="weapon-detail__kicker">WEAPON / {{ weapon.attributes[0].value }}</p>
-      <h1>{{ weapon.name }}</h1>
-      <div class="weapon-detail__levels"><span class="weapon-detail__badge">Lv.{{ weapon.level }}</span><span class="weapon-detail__badge">精炼等级 {{ weapon.skill_level }}</span></div>
-      <div class="weapon-detail__specs" style="background-image:url('{{ weapon.attribute_background }}')">{% for attr in weapon.attributes %}<div class="weapon-detail__spec"><img src="{{ attr.icon }}" alt="" /><span>{{ attr.label }}</span><strong>{{ attr.value }}</strong></div>{% endfor %}</div>
-    </div>
+    <div class="weapon-detail__visual"><img class="weapon-detail__weapon-icon" src="{{ weapon.icon }}" alt="" /></div>
+    <div class="weapon-detail__identity"><p class="weapon-detail__kicker"><img src="{{ point }}" alt="" />WEAPON / {{ weapon.attributes[0].value }}</p><h1>{{ weapon.name }}</h1><div class="weapon-detail__levels"><span class="weapon-detail__badge">Lv.{{ weapon.level }}</span><span class="weapon-detail__badge">精炼等级 {{ weapon.skill_level }}</span></div></div>
   </section>
-  <section class="weapon-detail__modules modules-{{ weapon.modes|length }}">
-    <div class="weapon-detail__section-head"><h2>魔之楔配置</h2><span>MODULE MATRIX</span></div>
-    <div class="weapon-detail__module-grid">{% for mode in weapon.modes %}<article class="weapon-detail__module{% if not mode.icon %} is-empty{% endif %}"><img class="weapon-detail__module-frame" src="{{ mode.background }}" alt="" />{% if mode.icon %}<img class="weapon-detail__module-icon" src="{{ mode.icon }}" alt="" />{% endif %}{% if mode.name %}<h3>{{ mode.name }}</h3>{% endif %}{% if mode.level %}<span class="weapon-detail__module-level">{{ mode.level }}</span>{% endif %}</article>{% endfor %}</div>
-  </section>
-  <section class="weapon-detail__profile">
-    <img class="weapon-detail__profile-bg" src="{{ profile_background }}" alt="" />
-    <img class="weapon-detail__avatar" src="{{ header.avatar }}" alt="" />
-    {% if header.avatar_frame %}<img class="weapon-detail__avatar-frame" src="{{ header.avatar_frame }}" alt="" />{% endif %}
-    <div class="weapon-detail__profile-main"><h2>{{ header.name }}</h2>{% if header.uid %}<p class="weapon-detail__uid">UID {{ header.uid }}</p>{% endif %}</div>
-    {% if header.level is not none %}<div class="weapon-detail__player-level"><img src="{{ header.level_background }}" alt="" /><span>Lv.{{ header.level }}</span></div>{% endif %}
-    {% if header.stats %}<dl class="weapon-detail__stats">{% for stat in header.stats[:2] %}<div style="background-image:url('{{ header.stats_background }}')"><dt>{{ stat.value }}</dt><dd>{{ stat.label }}</dd></div>{% endfor %}</dl>{% endif %}
-  </section>
+  <img class="weapon-detail__divider" src="{{ divider }}" alt="" />
+  <section class="weapon-detail__section weapon-detail__modules modes-{{ weapon.modes|length }}"><div class="weapon-detail__section-head"><img src="{{ point }}" alt="" /><h2>魔之楔配置</h2></div><div class="weapon-detail__module-groups">{{ module_group(left_modes, "left") }}{{ module_group(right_modes, "right") }}</div></section>
+  <img class="weapon-detail__divider" src="{{ divider }}" alt="" />
+  <section class="weapon-detail__section weapon-detail__attributes"><div class="weapon-detail__section-head"><img src="{{ point }}" alt="" /><h2>武器属性</h2></div><div class="weapon-detail__info"><div class="weapon-detail__weapon-card" style="background-image:url('{{ weapon.weapon_background }}')"><img src="{{ weapon.icon }}" alt="" /><span class="weapon-detail__weapon-level">Lv.{{ weapon.level }}</span></div><h3 class="weapon-detail__weapon-name">{{ weapon.name }}<small>精炼等级 {{ weapon.skill_level }}</small></h3><div class="weapon-detail__attribute-panel" style="background-image:url('{{ weapon.attribute_background }}')">{% for attr in weapon.attributes %}<div class="weapon-detail__attribute"><img src="{{ attr.icon }}" alt="" /><span>{{ attr.label }}</span><strong>{{ attr.value }}</strong></div>{% endfor %}</div></div></section>
+  <section class="weapon-detail__profile"><img class="weapon-detail__profile-bg" src="{{ profile_background }}" alt="" /><img class="weapon-detail__avatar" src="{{ header.avatar }}" alt="" />{% if header.avatar_frame %}<img class="weapon-detail__avatar-frame" src="{{ header.avatar_frame }}" alt="" />{% endif %}<div class="weapon-detail__profile-main"><h2>{{ header.name }}</h2>{% if header.uid %}<p class="weapon-detail__uid">UID {{ header.uid }}</p>{% endif %}</div>{% if header.level is not none %}<div class="weapon-detail__player-level"><img src="{{ header.level_background }}" alt="" /><span>Lv.{{ header.level }}</span></div>{% endif %}{% if header.stats %}<dl class="weapon-detail__stats">{% for stat in header.stats[:2] %}<div style="background-image:url('{{ header.stats_background }}')"><dt>{{ stat.value }}</dt><dd>{{ stat.label }}</dd></div>{% endfor %}</dl>{% endif %}</section>
 </article>
 <footer class="weapon-detail__footer"><img src="{{ footer_image }}" alt="" /></footer>
 {% endcall %}
