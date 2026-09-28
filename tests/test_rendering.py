@@ -359,6 +359,11 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     assert "data:image/png;base64,point" in html
     assert "data:image/png;base64,avatar-frame" in html
     assert "data:image/png;base64,profile" in html
+    assert "background: rgba(4,5,9,.92)" not in html
+    assert (
+        ".weapon-detail__footer { position: relative; width: 1000px; "
+        "height: 52px; background: transparent; }"
+    ) in html
     assert "测试玩家" in html
     assert "UID 123456" in html
     for expected in (
