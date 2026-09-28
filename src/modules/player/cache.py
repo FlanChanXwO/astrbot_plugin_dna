@@ -114,6 +114,22 @@ class PlayerCache:
         )
 
     @classmethod
+    def weapon_data_key(
+        cls,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+        overview_digest: str,
+    ) -> str:
+        return cls._key(
+            "weapon-data",
+            target_user_id,
+            uid,
+            weapon_id,
+            overview_digest,
+        )
+
+    @classmethod
     def overview_card_key(
         cls,
         target_user_id: str,
@@ -158,6 +174,28 @@ class PlayerCache:
         )
 
     @classmethod
+    def weapon_card_key(
+        cls,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+        overview_digest: str,
+        detail_digest: str,
+        resource_version: str | None,
+        uid_hidden: bool,
+    ) -> str:
+        return cls._key(
+            "weapon-card",
+            target_user_id,
+            uid,
+            weapon_id,
+            overview_digest,
+            detail_digest,
+            cls._version(resource_version),
+            uid_hidden,
+        )
+
+    @classmethod
     def overview_card_tags(
         cls,
         target_user_id: str,
@@ -190,6 +228,22 @@ class PlayerCache:
         )
 
     @classmethod
+    def weapon_data_tags(
+        cls,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+        overview_digest: str,
+    ) -> tuple[str, ...]:
+        return (
+            "player_data",
+            "weapon",
+            cls.identity_tag(target_user_id, uid),
+            f"weapon:{weapon_id}",
+            cls.data_tag(overview_digest),
+        )
+
+    @classmethod
     def detail_card_tags(
         cls,
         target_user_id: str,
@@ -204,6 +258,24 @@ class PlayerCache:
             cls.identity_tag(target_user_id, uid),
             f"role:{char_id}",
             f"panel:{char_id}",
+            cls.data_tag(data_digest),
+            cls.resource_tag(resource_version),
+        )
+
+    @classmethod
+    def weapon_card_tags(
+        cls,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+        data_digest: str,
+        resource_version: str | None,
+    ) -> tuple[str, ...]:
+        return (
+            "player_card",
+            "weapon",
+            cls.identity_tag(target_user_id, uid),
+            f"weapon:{weapon_id}",
             cls.data_tag(data_digest),
             cls.resource_tag(resource_version),
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 
@@ -1680,4 +1681,147 @@ async def test_weapon_name_panel_renders_independent_weapon_card(tmp_path: Path)
         "魔之楔",
         "玩家信息",
     ]
+    await database.dispose()
+
+
+class _CountingWeaponRenderer(PlayerRenderer):
+    def __init__(self, output_dir: Path) -> None:
+        super().__init__(output_dir, ResourceMap())
+        self.weapon_render_calls = 0
+        self.force_incomplete = False
+
+    async def render_weapon_detail(self, *args, **kwargs):
+        self.weapon_render_calls += 1
+        rendered = await super().render_weapon_detail(*args, **kwargs)
+        return replace(rendered, incomplete=self.force_incomplete)
+
+
+def test_weapon_cache_keys_and_tags_include_all_invalidation_dimensions(
+    tmp_path: Path,
+) -> None:
+    """武器数据/卡片 key 与 tag 必须覆盖身份、数据、资源和隐私维度。"""
+
+    cache = PlayerCache(CacheManager(tmp_path / "cache"), tmp_path / "rendered")
+
+    assert cache.weapon_data_key("user-1", UID, 201, "overview-digest").split(
+        "\x1f"
+    ) == [
+        "weapon-data",
+        "user-1",
+        UID,
+        "201",
+        "overview-digest",
+    ]
+    assert cache.weapon_card_key(
+        "user-1",
+        UID,
+        201,
+        "overview-digest",
+        "detail-digest",
+        "resource-v1",
+        True,
+    ).split("\x1f") == [
+        "weapon-card",
+        "user-1",
+        UID,
+        "201",
+        "overview-digest",
+        "detail-digest",
+        "resource-v1",
+        "True",
+    ]
+    identity = cache.identity_tag("user-1", UID)
+    assert cache.weapon_data_tags(
+        "user-1", UID, 201, "overview-digest"
+    ) == (
+        "player_data",
+        "weapon",
+        identity,
+        "weapon:201",
+        cache.data_tag("overview-digest"),
+    )
+    assert cache.weapon_card_tags(
+        "user-1", UID, 201, "detail-digest", "resource-v1"
+    ) == (
+        "player_card",
+        "weapon",
+        identity,
+        "weapon:201",
+        cache.data_tag("detail-digest"),
+        cache.resource_tag("resource-v1"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_weapon_panel_cache_tracks_detail_resource_and_incomplete_state(
+    tmp_path: Path,
+) -> None:
+    """同内容命中缓存，详情/资源变化重渲染，incomplete 卡不得落缓存。"""
+
+    _preseed_legacy_assets()
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    transport = FixturePlayerTransport(
+        _overview_fixture(), _detail_fixture(), _weapon_fixture()
+    )
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=cache,
+    )
+    resource_version = {"value": "resource-v1"}
+    service._resource_version = lambda: resource_version["value"]
+    request = PlayerCommandRequest(
+        actor=EventActor("user-1", "bot-1", "group-1"),
+        target_user_id=None,
+        parameters={"char_name": "近战甲"},
+    )
+
+    first = await service.role_detail(request)
+    second = await service.role_detail(request)
+
+    assert isinstance(first, ImageResponse)
+    assert isinstance(second, ImageResponse)
+    assert transport.weapon_detail_calls == 1
+    assert renderer.weapon_render_calls == 1
+
+    resource_version["value"] = "resource-v2"
+    await service.role_detail(request)
+    assert transport.weapon_detail_calls == 1
+    assert renderer.weapon_render_calls == 2
+
+    await manager.invalidate(
+        "player_data",
+        tags=(cache.identity_tag("user-1", UID), "weapon:201"),
+    )
+    transport.weapon = transport.weapon.model_copy(update={"level": 81})
+    await service.role_detail(request)
+    assert transport.weapon_detail_calls == 2
+    assert renderer.weapon_render_calls == 3
+
+    renderer.force_incomplete = True
+    resource_version["value"] = "resource-v3"
+    incomplete = await service.role_detail(request)
+    repeated = await service.role_detail(request)
+
+    assert incomplete.incomplete is True
+    assert repeated.incomplete is True
+    assert transport.weapon_detail_calls == 2
+    assert renderer.weapon_render_calls == 5
+    overview_digest = cache.content_digest(cache.encode_json(_overview_fixture()))
+    detail_digest = cache.content_digest(cache.encode_json(transport.weapon))
+    incomplete_key = cache.weapon_card_key(
+        "user-1",
+        UID,
+        201,
+        overview_digest,
+        detail_digest,
+        "resource-v3",
+        False,
+    )
+    assert (await cache.get_card(incomplete_key)).status == "miss"
     await database.dispose()

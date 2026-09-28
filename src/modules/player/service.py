@@ -113,6 +113,12 @@ class _DetailState:
     digest: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class _WeaponDetailState:
+    detail: WeaponDetail
+    digest: str
+
+
 class PlayerService:
     """玩家读取的事务/隐私/transport/渲染协调器。"""
 
@@ -758,6 +764,61 @@ class PlayerService:
             return PlainTextResponse(messages.PLAYER_WEAPON_DETAIL_NOT_FOUND)
         return detail
 
+    async def _load_weapon_detail(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        weapon: WeaponItem,
+        overview_digest: str,
+        *,
+        now: datetime,
+    ) -> _WeaponDetailState | PlainTextResponse:
+        if self.cache is None:
+            detail = await self._fetch_weapon_panel_detail(
+                request, target_user_id, uid, weapon
+            )
+            if isinstance(detail, PlainTextResponse):
+                return detail
+            return _WeaponDetailState(detail, self._value_digest(detail))
+
+        key = self.cache.weapon_data_key(
+            target_user_id,
+            uid,
+            weapon.weapon_id,
+            overview_digest,
+        )
+        lookup = await self.cache.get_data(key, now=now)
+        if lookup.entry is not None and lookup.status == "fresh":
+            try:
+                detail = WeaponDetail.model_validate(
+                    self.cache.decode_json(lookup.entry.content)
+                )
+            except (KeyError, TypeError, ValueError):
+                pass
+            else:
+                return _WeaponDetailState(
+                    detail, lookup.entry.metadata.content_sha256
+                )
+
+        detail = await self._fetch_weapon_panel_detail(
+            request, target_user_id, uid, weapon
+        )
+        if isinstance(detail, PlainTextResponse):
+            return detail
+        metadata = await self.cache.put_data(
+            key,
+            detail,
+            tags=self.cache.weapon_data_tags(
+                target_user_id,
+                uid,
+                weapon.weapon_id,
+                overview_digest,
+            ),
+            now=now,
+        )
+        return _WeaponDetailState(detail, metadata.content_sha256)
+
     async def _fetch_detail_bundle(
         self,
         request: PlayerCommandRequest,
@@ -1019,26 +1080,60 @@ class PlayerService:
         )
         if target.kind == "weapon":
             assert target.weapon is not None
-            detail = await self._fetch_weapon_panel_detail(
+            detail_state = await self._load_weapon_detail(
                 request,
                 target_user_id,
                 uid,
                 target.weapon,
+                overview_state.digest,
+                now=now,
             )
-            if isinstance(detail, PlainTextResponse):
-                return detail
+            if isinstance(detail_state, PlainTextResponse):
+                return detail_state
             uid_hidden = await self.privacy.is_uid_hidden(
                 target_user_id,
                 group_id=request.actor.group_id,
             )
-            return await self._render_weapon_detail(
-                detail,
+            resource_version = self._resource_version()
+            card_key: str | None = None
+            if self.cache is not None:
+                card_key = self.cache.weapon_card_key(
+                    target_user_id,
+                    uid,
+                    target.weapon.weapon_id,
+                    overview_state.digest,
+                    detail_state.digest,
+                    resource_version,
+                    uid_hidden,
+                )
+                cached = await self._cached_card(card_key, now=now)
+                if cached is not None:
+                    return cached
+
+            response = await self._render_weapon_detail(
+                detail_state.detail,
                 overview,
                 request,
                 target_user_id,
                 uid,
                 uid_hidden,
             )
+            if self.cache is not None:
+                assert card_key is not None
+                await self._store_card(
+                    card_key,
+                    response,
+                    tags=self.cache.weapon_card_tags(
+                        target_user_id,
+                        uid,
+                        target.weapon.weapon_id,
+                        detail_state.digest,
+                        resource_version,
+                    ),
+                    resource_version=resource_version,
+                    now=now,
+                )
+            return response
 
         role = (
             target.role
