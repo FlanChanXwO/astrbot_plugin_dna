@@ -1545,6 +1545,111 @@ class PlayerService:
             )
         return response
 
+    async def refresh_all_weapons(self, request: PlayerCommandRequest):
+        """刷新当前 UID 的概览和全部已拥有武器详情，只返回汇总。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        resolved = await self._resolve_uid(request, operation="refresh_all_weapons")
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, refresh_uid = resolved
+        now = self._now()
+        async with self._overview_lock(target_user_id, refresh_uid):
+            try:
+                overview = await self._fetch_overview(
+                    request,
+                    target_user_id,
+                    refresh_uid,
+                )
+            except PlayerTransportError as error:
+                return await self._handle_transport_error(
+                    error,
+                    user_id=target_user_id,
+                    uid=refresh_uid,
+                    target=target_user_id != request.actor.user_id,
+                )
+
+            if self.cache is not None:
+                overview_metadata = await self.cache.put_data(
+                    self.cache.overview_data_key(target_user_id, refresh_uid),
+                    overview,
+                    tags=(
+                        "player_data",
+                        "overview",
+                        self.cache.identity_tag(target_user_id, refresh_uid),
+                    ),
+                    now=now,
+                )
+                overview_digest = overview_metadata.content_sha256
+            else:
+                overview_digest = self._value_digest(overview)
+
+            succeeded = 0
+            failed_names: list[str] = []
+            for weapon in (*overview.close_weapons, *overview.ranged_weapons):
+                if not weapon.unlocked or weapon.weapon_eid is None:
+                    continue
+                try:
+                    detail = await self.transport.get_weapon_detail(
+                        request.actor,
+                        refresh_uid,
+                        weapon.weapon_id,
+                        weapon.weapon_eid,
+                        credential_user_id=target_user_id,
+                    )
+                    if self.cache is not None:
+                        await self.cache.put_data(
+                            self.cache.weapon_data_key(
+                                target_user_id,
+                                refresh_uid,
+                                weapon.weapon_id,
+                                overview_digest,
+                            ),
+                            detail,
+                            tags=self.cache.weapon_data_tags(
+                                target_user_id,
+                                refresh_uid,
+                                weapon.weapon_id,
+                                overview_digest,
+                            ),
+                            now=now,
+                        )
+                    succeeded += 1
+                except PlayerTransportError as error:
+                    await self._persist_credential_failure(
+                        error,
+                        user_id=target_user_id,
+                        uid=refresh_uid,
+                    )
+                    failed_names.append(weapon.name)
+                    logger.warning(
+                        "武器批量刷新失败 kind=%s resource=%s detail=%s weapon=%s",
+                        error.kind.value,
+                        error.resource,
+                        error.detail or "-",
+                        weapon.name,
+                    )
+                except Exception as error:  # noqa: BLE001 - 每把武器必须隔离未预期异常
+                    failed_names.append(weapon.name)
+                    logger.exception(
+                        "武器批量刷新出现未预期异常 kind=%s weapon=%s",
+                        type(error).__name__,
+                        weapon.name,
+                    )
+
+        response = PlainTextResponse(
+            messages.PLAYER_ALL_WEAPONS_REFRESHED.format(
+                success=succeeded,
+                failed=len(failed_names),
+            ),
+        )
+        if failed_names:
+            response = PlainTextResponse(
+                response.text + "\n失败武器：" + "、".join(failed_names),
+            )
+        return response
+
     async def clear_role_cache(self, request: PlayerCommandRequest):
         """清理当前 UID 指定角色的详情数据和卡片，保留概览缓存。"""
 

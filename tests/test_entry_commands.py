@@ -63,6 +63,7 @@ def test_explicit_registry_loads_only_implemented_commands():
         "clear_info_card_cache",
         "refresh_role_card",
         "refresh_all_role_cards",
+        "refresh_all_weapon_cards",
         "clear_role_cache",
         "clear_player_cache",
         "role_detail_card",
@@ -388,6 +389,7 @@ def test_commands_manifest_is_generated_from_registry():
         "clear_info_card_cache",
         "refresh_role_card",
         "refresh_all_role_cards",
+        "refresh_all_weapon_cards",
         "clear_role_cache",
         "clear_player_cache",
         "role_detail_card",
@@ -654,3 +656,13 @@ def test_existing_panel_cache_commands_accept_weapon_names(
     assert matched is not None
     assert matched.command.id == command_id
     assert matched.parameters["char_name"] == "近战甲"
+
+
+def test_refresh_all_weapon_panels_uses_dedicated_command() -> None:
+    """批量武器刷新不能落入单角色/武器刷新入口。"""
+
+    registry = load_command_registry(prefix="dna")
+    matched = registry.match("dna刷新全部武器面板")
+
+    assert matched is not None
+    assert matched.command.id == "refresh_all_weapon_cards"

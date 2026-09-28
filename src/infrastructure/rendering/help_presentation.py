@@ -117,6 +117,9 @@ HELP_PRESENTATION: dict[str, HelpPresentationEntry] = {
     "refresh_all_role_cards": HelpPresentationEntry(
         GROUP_ROLE_PANEL, "刷新全部角色面板", "角色面板.png"
     ),
+    "refresh_all_weapon_cards": HelpPresentationEntry(
+        GROUP_ROLE_PANEL, "刷新全部武器面板", "角色面板.png"
+    ),
     "clear_role_cache": HelpPresentationEntry(
         GROUP_ROLE_PANEL, "清理角色面板缓存", "角色面板.png"
     ),

@@ -1873,6 +1873,106 @@ async def test_refresh_weapon_panel_replaces_cached_detail_and_card(
 
 
 @pytest.mark.asyncio
+async def test_refresh_all_weapons_only_caches_owned_details_and_isolates_failures(
+    tmp_path: Path,
+) -> None:
+    """批量刷新只写 owned 武器数据，单把失败不影响其它武器。"""
+
+    overview = _overview_fixture().model_copy(
+        update={
+            "close_weapons": [
+                *_overview_fixture().close_weapons,
+                WeaponItem(
+                    element_icon="weapon-element://close",
+                    icon="weapon://203",
+                    level=0,
+                    name="未拥有武器",
+                    unlocked=False,
+                    weapon_eid=None,
+                    weapon_id=203,
+                    skill_level=0,
+                ),
+            ],
+        }
+    )
+
+    class BatchWeaponTransport(FixturePlayerTransport):
+        def __init__(self) -> None:
+            super().__init__(overview, _detail_fixture(), _weapon_fixture())
+            self.requested_weapon_ids: list[int] = []
+
+        async def get_weapon_detail(
+            self,
+            actor: EventActor,
+            uid: str,
+            weapon_id: int,
+            weapon_eid: str,
+            *,
+            credential_user_id: str,
+        ) -> WeaponDetail:
+            self.weapon_detail_calls += 1
+            self.requested_weapon_ids.append(weapon_id)
+            assert actor.user_id == "user-1"
+            assert uid == self.expected_uid
+            assert credential_user_id == self.expected_user_id
+            assert weapon_eid == f"weapon-eid-{weapon_id}"
+            if weapon_id == 201:
+                raise PlayerTransportError(
+                    PlayerFailureKind.SERVER,
+                    resource="武器详情",
+                    detail="fixture failure",
+                )
+            return self.weapon.model_copy(update={"weapon_id": weapon_id})
+
+    database = await _database_with_binding(tmp_path)
+    manager = CacheManager(tmp_path / "cache")
+    cache = PlayerCache(manager, tmp_path / "rendered")
+    transport = BatchWeaponTransport()
+    renderer = _CountingWeaponRenderer(tmp_path / "rendered")
+    service = PlayerService(
+        database,
+        transport,
+        PrivacyService(database),
+        renderer,
+        cache=cache,
+    )
+
+    response = await service.refresh_all_weapons(
+        PlayerCommandRequest(
+            actor=EventActor("user-1", "bot-1", "group-1"),
+            target_user_id=None,
+        )
+    )
+
+    overview_digest = cache.content_digest(cache.encode_json(overview))
+    assert isinstance(response, PlainTextResponse)
+    assert "成功 1" in response.text
+    assert "失败 1" in response.text
+    assert "近战甲" in response.text
+    assert transport.overview_calls == 1
+    assert transport.requested_weapon_ids == [201, 202]
+    assert transport.role_detail_calls == 0
+    assert transport.damage_calls == 0
+    assert renderer.weapon_render_calls == 0
+    assert (
+        await cache.get_data(
+            cache.weapon_data_key("user-1", UID, 201, overview_digest)
+        )
+    ).status == "miss"
+    assert (
+        await cache.get_data(
+            cache.weapon_data_key("user-1", UID, 202, overview_digest)
+        )
+    ).status == "fresh"
+    assert (
+        await cache.get_data(
+            cache.weapon_data_key("user-1", UID, 203, overview_digest)
+        )
+    ).status == "miss"
+    await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_clear_weapon_panel_cache_preserves_other_weapon_role_and_overview(
     tmp_path: Path,
 ) -> None:

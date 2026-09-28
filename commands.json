@@ -148,7 +148,7 @@
   },
   {
     "id": "refresh_role_card",
-    "pattern": "^dna刷新(?P<char_name>(?!全部角色面板$|\\d+的)[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板$",
+    "pattern": "^dna刷新(?P<char_name>(?!全部(?:角色|武器)面板$|\\d+的)[\\u4e00-\\u9fa5a-zA-Z0-9\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF-—·()（）?？]+)面板$",
     "group": "角色信息",
     "name": "刷新角色面板",
     "description": "刷新自己的指定角色面板",
@@ -169,6 +169,18 @@
     ],
     "permission": "user",
     "use_case": "src.modules.player.commands.player_refresh_all_roles_use_case"
+  },
+  {
+    "id": "refresh_all_weapon_cards",
+    "pattern": "^dna刷新全部武器面板$",
+    "group": "角色信息",
+    "name": "刷新全部武器面板",
+    "description": "刷新当前 UID 的全部已拥有武器面板数据",
+    "examples": [
+      "dna刷新全部武器面板"
+    ],
+    "permission": "user",
+    "use_case": "src.modules.player.commands.player_refresh_all_weapons_use_case"
   },
   {
     "id": "clear_role_cache",

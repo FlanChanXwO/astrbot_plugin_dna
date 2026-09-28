@@ -17,6 +17,7 @@ PLAYER_ALL_ROLE_CACHE_CLEARED = get_tip("player.all_role_cache_cleared")
 PLAYER_ROLE_CACHE_CLEARED = get_tip_template("player.role_cache_cleared")
 PLAYER_ROLE_REFRESHED = get_tip_template("player.role_refreshed")
 PLAYER_ALL_REFRESHED = get_tip_template("player.all_refreshed")
+PLAYER_ALL_WEAPONS_REFRESHED = get_tip_template("player.all_weapons_refreshed")
 PLAYER_REFRESH_SELF_ONLY = get_tip("player.refresh_self_only")
 PLAYER_OVERVIEW_NOT_FOUND = get_tip("player.overview_not_found")
 PLAYER_ROLE_NOT_FOUND = get_tip("player.role_not_found")
@@ -88,6 +89,7 @@ def damage_weapon_level_unsupported(label: str, name: str, level: int) -> str:
 
 __all__ = [
     "PLAYER_ALL_REFRESHED",
+    "PLAYER_ALL_WEAPONS_REFRESHED",
     "PLAYER_ALL_ROLE_CACHE_CLEARED",
     "PLAYER_CACHE_CLEARED",
     "PLAYER_CACHE_REFRESHED",
