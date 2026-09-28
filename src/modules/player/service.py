@@ -8,14 +8,13 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from ...infrastructure.logger import logger
-
 from ...entry.response import (
     ChainResponse,
     CommandResponse,
     ImageResponse,
     PlainTextResponse,
 )
+from ...infrastructure.logger import logger
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -36,6 +35,7 @@ from .contracts import (
     RoleDetail,
     RoleItem,
     RoleOverview,
+    WeaponCalculation,
     WeaponDetail,
     WeaponItem,
 )
@@ -1041,6 +1041,7 @@ class PlayerService:
     async def _render_weapon_detail(
         self,
         detail: WeaponDetail,
+        calculation: WeaponCalculation,
         overview: RoleOverview,
         request: PlayerCommandRequest,
         target_user_id: str,
@@ -1050,6 +1051,7 @@ class PlayerService:
         with self._renderer_context() as renderer:
             rendered_res = renderer.render_weapon_detail(
                 detail,
+                calculation=calculation,
                 uid=uid,
                 uid_hidden=uid_hidden,
                 overview=overview,
@@ -1107,7 +1109,7 @@ class PlayerService:
                 target_user_id,
                 group_id=request.actor.group_id,
             )
-            resource_version = self._resource_version()
+            resource_version = f"{self._resource_version()}|weapon-calculation-v1"
             card_key: str | None = None
             if self.cache is not None:
                 card_key = self.cache.weapon_card_key(
@@ -1123,16 +1125,43 @@ class PlayerService:
                 if cached is not None:
                     return cached
 
+            try:
+                calculation = await self.transport.calculate_weapon(
+                    request.actor,
+                    uid,
+                    detail_state.detail,
+                    credential_user_id=target_user_id,
+                )
+            except PlayerTransportError as error:
+                await self._persist_credential_failure(
+                    error,
+                    user_id=target_user_id,
+                    uid=uid,
+                )
+                logger.warning(
+                    "玩家请求失败 kind=%s resource=%s detail=%s",
+                    error.kind.value,
+                    error.resource,
+                    error.detail or "-",
+                )
+                calculation = WeaponCalculation.failure(
+                    messages.PLAYER_DAMAGE_FAILED
+                )
+
             response = await self._render_weapon_detail(
                 detail_state.detail,
+                calculation,
                 overview,
                 request,
                 target_user_id,
                 uid,
                 uid_hidden,
             )
-            if self.cache is not None:
-                assert card_key is not None
+            if (
+                self.cache is not None
+                and card_key is not None
+                and calculation.data is not None
+            ):
                 await self._store_card(
                     card_key,
                     response,

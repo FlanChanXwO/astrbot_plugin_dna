@@ -50,6 +50,13 @@
   .weapon-detail .dna-legacy-profile__uid { top: 108px; left: 246px; width: 254px; height: 31px; padding: 0 8px; overflow: visible; font-size: 23px; line-height: 31px; white-space: nowrap; }
   .weapon-detail .dna-legacy-profile__level { top: 108px; left: 181px; width: 54px; height: 54px; }.weapon-detail .dna-legacy-profile__level img { width: 57px; height: 58px; }.weapon-detail .dna-legacy-profile__level span { width: 54px; height: 51px; font-size: 18px; line-height: 51px; }
   .weapon-detail .dna-legacy-profile dl { top: 69px; left: 523px; width: 378px; height: 69px; background-size: 378px 69px; }.weapon-detail .dna-legacy-profile dl div { width: 92px; height: 69px; transform: translateX(-46px); }.weapon-detail .dna-legacy-profile dl div:nth-child(1) { left: 115px !important; }.weapon-detail .dna-legacy-profile dl div:nth-child(2) { left: 269px !important; }.weapon-detail .dna-legacy-profile dt { height: 35px; font-size: 31px; line-height: 35px; }.weapon-detail .dna-legacy-profile dd { height: 26px; font-size: 15px; line-height: 26px; }
+  .weapon-detail__calculation { width: 900px; margin: 20px 50px; padding: 20px; border-radius: 10px; background: rgba(16,16,19,.77); }
+  .weapon-detail__calculation-head { display: flex; align-items: center; height: 64px; padding: 0 16px; background: rgba(55,55,58,.75); }
+  .weapon-detail__calculation-head h2 { margin: 0; padding-left: 10px; border-left: 4px solid #fff7cf; color: #fff7cf; font-size: 30px; font-weight: 400; }
+  .weapon-detail__calculation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 6px 0 0; }
+  .weapon-detail__calculation-grid div { display: flex; justify-content: space-between; min-height: 48px; padding: 10px 18px; background: rgba(9,9,10,.3); }
+  .weapon-detail__calculation-grid dt { color: #f4d58d; }
+  .weapon-detail__calculation-grid dd { margin: 0; }
   .weapon-detail__footer { position: relative; width: 1000px; height: 52px; background: transparent; }
   .weapon-detail__footer img { position: absolute; right: 200px; bottom: 14px; width: 600px; height: 23px; object-fit: fill; opacity: .76; }
 </style>
@@ -62,6 +69,8 @@
     <div class="weapon-detail__refinement-orbs">{% for grade in refinement_grades %}<div class="weapon-detail__refinement-orb{% if grade.unlocked %} is-unlocked{% endif %}" style="background-image:url('{{ grade.background }}')"><img src="{{ grade.icon }}" alt="{{ grade.index }}" /></div>{% endfor %}</div>
   </section>
   <img class="weapon-detail__divider" src="{{ divider }}" alt="" />
+  {% if calculation and calculation.attributes %}<section class="weapon-detail__calculation"><header class="weapon-detail__calculation-head"><h2>计算属性</h2></header><dl class="weapon-detail__calculation-grid">{% for item in calculation.attributes %}<div><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>{% endfor %}</dl></section>
+  <img class="weapon-detail__divider" src="{{ divider }}" alt="" />{% endif %}
   <section class="weapon-detail__section weapon-detail__modules modes-{{ weapon.modes|length }}"><div class="weapon-detail__module-groups">{{ module_group(left_modes, "left") }}{{ module_group(right_modes, "right") }}</div></section>
   {{ legacy_profile_header(header, profile_background) }}
 </article>

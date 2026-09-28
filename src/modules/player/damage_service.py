@@ -13,6 +13,7 @@ from ...utils.api.damage_model import (
     ModeSelection,
     RestraintType,
     SkillSelection,
+    WeaponCalculateData,
     WeaponCalculateRequest,
 )
 from ...utils.api.model import Mode, RoleDetail, WeaponDetail
@@ -217,6 +218,25 @@ def build_role_damage_request(
         restraintType=build.restraint_type,
         enemyConfigId=build.enemy_config_id,
     )
+
+
+async def calculate_weapon_attributes(
+    dna_user: DNAUser,
+    weapon_detail: WeaponDetail,
+) -> DNAApiResp[WeaponCalculateData]:
+    """调用官方计算器汇总武器基础与魔之楔后的最终属性。"""
+
+    if weapon_detail.level not in _OFFICIAL_WEAPON_LEVELS:
+        return DNAApiResp[WeaponCalculateData].err(
+            messages.damage_weapon_level_unsupported(
+                "武器", weapon_detail.name, weapon_detail.level
+            )
+        )
+    try:
+        request = _build_weapon_request(weapon_detail)
+    except ValueError as error:
+        return DNAApiResp[WeaponCalculateData].err(str(error))
+    return await dna_api.calculate_weapon(dna_user, request)
 
 
 async def calculate_role_damage(

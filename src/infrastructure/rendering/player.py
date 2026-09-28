@@ -20,6 +20,8 @@ from ...modules.player.contracts import (
     RoleDetail,
     RoleHeader,
     RoleOverview,
+    WeaponCalculation,
+    WeaponCalculationSnapshot,
     WeaponDetail,
 )
 from ...modules.player.damage_service import (
@@ -52,7 +54,10 @@ from ..resources.resolver import AssetResolver, ResolvedAsset
 from .artifact import RenderedArtifact
 from .artifact_store import write_rendered_artifact
 from .assets import image_data_uri, pil_image_data_uri
-from .damage_renderer import draw_role_damage_section
+from .damage_renderer import (
+    draw_role_damage_section,
+    draw_weapon_calculation_section,
+)
 from .fonts import load_runtime_font
 from .image_inspector import inspect_image
 from .payloads import build_profile_header
@@ -918,6 +923,7 @@ async def _draw_weapon_detail_card(
     role_show: RoleHeader,
     weapon_detail: WeaponDetail,
     *,
+    calculation: WeaponCalculationSnapshot | None = None,
     uid_hidden: bool = False,
     image_loader: PlayerImageLoader | None = None,
     static_asset_resolver: StaticAssetResolver | None = None,
@@ -982,6 +988,11 @@ async def _draw_weapon_detail_card(
                 static_asset_resolver,
                 static_records,
                 label="武器卡",
+            ),
+            "calculation": (
+                None
+                if calculation is None
+                else draw_weapon_calculation_section(calculation)
             ),
             "divider": _static_image(
                 "texture.common.div",
@@ -1571,6 +1582,7 @@ class PlayerRenderer:
         self,
         detail: WeaponDetail,
         *,
+        calculation: WeaponCalculation | None = None,
         uid: str,
         uid_hidden: bool = False,
         overview: RoleOverview | None = None,
@@ -1609,6 +1621,7 @@ class PlayerRenderer:
             ctx,
             role_show,
             detail,
+            calculation=None if calculation is None else calculation.data,
             uid_hidden=uid_hidden,
             image_loader=image_loader,
             static_asset_resolver=getattr(self, "static_asset_resolver", None),
@@ -1621,6 +1634,11 @@ class PlayerRenderer:
         assert isinstance(attributes, list)
         modes = weapon["modes"]
         assert isinstance(modes, list)
+        calculation_payload = (
+            None
+            if calculation is None or calculation.data is None
+            else draw_weapon_calculation_section(calculation.data)
+        )
         lines = [
             detail.name,
             f"等级: {detail.level}",
@@ -1633,6 +1651,12 @@ class PlayerRenderer:
             for item in attributes
             if isinstance(item, dict)
         )
+        if calculation_payload is not None:
+            lines.extend(
+                f"计算属性 {item['label']}: {item['value']}"
+                for item in calculation_payload["attributes"]
+                if isinstance(item, dict)
+            )
         lines.extend(
             f"魔之楔: {item['name']}"
             for item in modes
@@ -1657,6 +1681,11 @@ class PlayerRenderer:
             sections=[
                 {"name": "武器主视觉", "items": 1},
                 {"name": "武器属性", "items": len(attributes)},
+                *(
+                    [{"name": "计算属性", "items": len(calculation_payload["attributes"])}]
+                    if calculation_payload is not None
+                    else []
+                ),
                 {"name": "魔之楔", "items": len(detail.modes)},
                 {"name": "玩家信息", "items": 1},
             ],

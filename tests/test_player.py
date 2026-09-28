@@ -42,6 +42,8 @@ from src.modules.player.contracts import (
     RoleSkill,
     RoleTrace,
     WeaponAttribute,
+    WeaponCalculation,
+    WeaponCalculationSnapshot,
     WeaponDetail,
     WeaponItem,
 )
@@ -106,6 +108,7 @@ class FixturePlayerTransport:
         self.expected_uid = expected_uid
         self.fail_con_weapon = fail_con_weapon
         self.damage_calls = 0
+        self.weapon_calculation_calls = 0
         self.overview_calls = 0
         self.role_detail_calls = 0
         self.weapon_detail_calls = 0
@@ -162,6 +165,40 @@ class FixturePlayerTransport:
                 detail="fixture failure",
             )
         return self.weapon
+
+    async def calculate_weapon(
+        self,
+        actor: EventActor,
+        uid: str,
+        weapon_detail: WeaponDetail,
+        *,
+        credential_user_id: str,
+    ) -> WeaponCalculation:
+        self.weapon_calculation_calls += 1
+        assert actor.user_id == "user-1"
+        assert uid == self.expected_uid
+        assert weapon_detail.weapon_id == 201
+        assert credential_user_id == self.expected_user_id
+        return WeaponCalculation.success(
+            WeaponCalculationSnapshot.model_validate(
+                {
+                    "baseWeaponAttribute": {
+                        "atk": 777,
+                        "cri": 12,
+                        "crd": 150,
+                        "speed": 1.0,
+                        "trigger": 30,
+                    },
+                    "finalWeaponAttribute": {
+                        "atk": 999,
+                        "cri": 24,
+                        "crd": 180,
+                        "speed": 1.2,
+                        "trigger": 50,
+                    },
+                }
+            )
+        )
 
     async def calculate_damage(
         self,
@@ -1710,6 +1747,7 @@ async def test_weapon_name_panel_renders_independent_weapon_card(tmp_path: Path)
     )
 
     assert isinstance(response, ImageResponse)
+    assert service.transport.weapon_calculation_calls == 1
     artifact = read_rendered_artifact(Path(response.image))
     assert artifact.width == 1000
     assert artifact.height > 0
@@ -1720,6 +1758,7 @@ async def test_weapon_name_panel_renders_independent_weapon_card(tmp_path: Path)
     assert [section["name"] for section in artifact.metadata["dna.layout"]["sections"]] == [
         "武器主视觉",
         "武器属性",
+        "计算属性",
         "魔之楔",
         "玩家信息",
     ]
@@ -1829,11 +1868,13 @@ async def test_weapon_panel_cache_tracks_detail_resource_and_incomplete_state(
     assert isinstance(first, ImageResponse)
     assert isinstance(second, ImageResponse)
     assert transport.weapon_detail_calls == 1
+    assert transport.weapon_calculation_calls == 1
     assert renderer.weapon_render_calls == 1
 
     resource_version["value"] = "resource-v2"
     await service.role_detail(request)
     assert transport.weapon_detail_calls == 1
+    assert transport.weapon_calculation_calls == 2
     assert renderer.weapon_render_calls == 2
 
     await manager.invalidate(
@@ -1843,6 +1884,7 @@ async def test_weapon_panel_cache_tracks_detail_resource_and_incomplete_state(
     transport.weapon = transport.weapon.model_copy(update={"level": 81})
     await service.role_detail(request)
     assert transport.weapon_detail_calls == 2
+    assert transport.weapon_calculation_calls == 3
     assert renderer.weapon_render_calls == 3
 
     renderer.force_incomplete = True
@@ -1853,6 +1895,7 @@ async def test_weapon_panel_cache_tracks_detail_resource_and_incomplete_state(
     assert incomplete.incomplete is True
     assert repeated.incomplete is True
     assert transport.weapon_detail_calls == 2
+    assert transport.weapon_calculation_calls == 5
     assert renderer.weapon_render_calls == 5
     overview_digest = cache.content_digest(cache.encode_json(_overview_fixture()))
     detail_digest = cache.content_digest(cache.encode_json(transport.weapon))
@@ -1862,7 +1905,7 @@ async def test_weapon_panel_cache_tracks_detail_resource_and_incomplete_state(
         201,
         overview_digest,
         detail_digest,
-        "resource-v3",
+        "resource-v3|weapon-calculation-v1",
         False,
     )
     assert (await cache.get_card(incomplete_key)).status == "miss"

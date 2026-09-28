@@ -7,7 +7,11 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
+from src.infrastructure.rendering.damage_renderer import (
+    draw_weapon_calculation_section,
+)
 from src.infrastructure.rendering.weapon_renderer import draw_weapon_detail_section
+from src.modules.player.contracts import WeaponCalculationSnapshot
 
 
 class _ImageLoader:
@@ -105,4 +109,35 @@ async def test_weapon_detail_preserves_four_mod_display_order() -> None:
         ("Mod 3", "left"),
         ("Mod 4", "right"),
         ("Mod 2", "right"),
+    ]
+
+
+def test_weapon_calculation_formats_base_to_final_attributes() -> None:
+    payload = draw_weapon_calculation_section(
+        WeaponCalculationSnapshot.model_validate(
+            {
+                "baseWeaponAttribute": {
+                    "atk": 777,
+                    "cri": 12,
+                    "crd": 150,
+                    "speed": 1.0,
+                    "trigger": 30,
+                },
+                "finalWeaponAttribute": {
+                    "atk": 999,
+                    "cri": 24,
+                    "crd": 180,
+                    "speed": 1.2,
+                    "trigger": 50,
+                },
+            }
+        )
+    )
+
+    assert payload["attributes"] == [
+        {"label": "攻击", "value": "777 → 999"},
+        {"label": "暴击率", "value": "12% → 24%"},
+        {"label": "暴击伤害", "value": "150% → 180%"},
+        {"label": "攻击速度", "value": "1 → 1.2"},
+        {"label": "触发率", "value": "30% → 50%"},
     ]

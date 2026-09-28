@@ -294,6 +294,12 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
         "cards/weapon_detail.html.j2",
         {
             "background": "",
+            "calculation": {
+                "attributes": [
+                    {"label": "攻击", "value": "777 → 999"},
+                    {"label": "暴击率", "value": "12% → 24%"},
+                ],
+            },
             "divider": "data:image/png;base64,divider",
             "font": "",
             "footer_image": "",
@@ -353,6 +359,11 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     ) in html
     assert ".weapon-detail__module.is-empty { opacity: .25; }" in html
     assert "weapon-detail__specs" not in html
+    assert "weapon-detail__calculation" in html
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in html
+    assert "计算属性" in html
+    assert "777 → 999" in html
+    assert "12% → 24%" in html
     assert "dna-legacy-profile" in html
     assert "weapon-detail__profile" not in html
     assert "data:image/png;base64,weapon-frame" not in html

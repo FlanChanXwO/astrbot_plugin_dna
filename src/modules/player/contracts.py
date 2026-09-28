@@ -461,6 +461,41 @@ class DamageSnapshot(_PlayerModel):
     )
 
 
+class WeaponCalculationSnapshot(_PlayerModel):
+    """武器计算接口返回的基础与最终属性。"""
+
+    base_weapon_attribute: AttributeBag = Field(
+        validation_alias="baseWeaponAttribute",
+        serialization_alias="baseWeaponAttribute",
+    )
+    final_weapon_attribute: AttributeBag = Field(
+        validation_alias="finalWeaponAttribute",
+        serialization_alias="finalWeaponAttribute",
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class WeaponCalculation:
+    """武器属性计算的成功或可隐藏失败结果。"""
+
+    data: WeaponCalculationSnapshot | None = None
+    message: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.data is None and not self.message:
+            raise ValueError("武器计算失败结果必须包含 message")
+        if self.data is not None and self.message is not None:
+            raise ValueError("武器计算成功结果不得同时包含 message")
+
+    @classmethod
+    def success(cls, data: WeaponCalculationSnapshot) -> WeaponCalculation:
+        return cls(data=data)
+
+    @classmethod
+    def failure(cls, message: str) -> WeaponCalculation:
+        return cls(message=message)
+
+
 @dataclass(frozen=True, slots=True)
 class DamageCalculation:
     """伤害计算的成功或可渲染失败结果。"""
@@ -530,6 +565,17 @@ class PlayerTransport(Protocol):
         """读取一个已拥有武器的详情。"""
         ...
 
+    async def calculate_weapon(
+        self,
+        actor: EventActor,
+        uid: str,
+        weapon_detail: WeaponDetail,
+        *,
+        credential_user_id: str,
+    ) -> WeaponCalculation:
+        """计算当前武器安装魔之楔后的最终属性。"""
+        ...
+
     async def calculate_damage(
         self,
         actor: EventActor,
@@ -565,6 +611,8 @@ __all__ = [
     "RoleTrace",
     "SkillAttribute",
     "WeaponAttribute",
+    "WeaponCalculation",
+    "WeaponCalculationSnapshot",
     "WeaponDetail",
     "WeaponItem",
 ]
