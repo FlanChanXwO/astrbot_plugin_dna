@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## v0.6.1 — 2026-10-06
+
+### 修复
+
+- 修复全新安装后数据库 schema 从未初始化的问题：生产启动路径此前只创建 SQLAlchemy engine，没有执行 Alembic migration，导致 `账号与预览` 查询 `account_bindings` 时抛出 `no such table` 并返回 HTTP 500，验证码登录在保存 UID 与 App 凭据时失败并被改写为「登录服务请求失败，请稍后再试！」，自动签到和密函也无法读取账号凭据。现在插件启动时先执行 `alembic upgrade head`，全新安装无需任何手动数据库命令，已有安装会自动升级到当前 head 并保留账号、凭据、设置与签到数据。（[#96](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/96)）
+
+### 维护
+
+- 数据库 schema 统一以 Alembic 为唯一事实来源：缺少 `alembic.ini`、`alembic/env.py` 或 `alembic/versions/` 时插件显式启动失败，不再回退 `create_all()`，避免发布打包错误被静默隐藏；生产源码中的 `metadata.create_all()` 仅保留给明确命名的测试 helper。（[#96](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/96)）
+- 修正插件生命周期 hook 索引错位：`start_hooks` 与 `stop_hooks` 现在逐索引一一对应，一次性初始化阶段使用显式 no-op，`PluginLifecycle` 在构造期校验长度一致；避免启动中途失败时执行错误的清理 hook、遗漏 LoginFlow 监听或遗留 scheduler。（[#96](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/96)）
+
+### 升级注意
+
+- 数据库迁移失败时插件会显式启动失败，管理员看到的是「数据库迁移失败」，而不是运行数分钟后才出现的账号页面 500、登录失败、签到/密函失败。没有 schema 变更，本次发布不包含新的 Alembic revision，`0001`–`0005` 保持不变。（[#96](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/96)）
+
+**完整变更**：[`v0.6.0...v0.6.1`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.6.0...v0.6.1)
+
 ## v0.6.0 — 2026-09-28
 
 ### 新增
