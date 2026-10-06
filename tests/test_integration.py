@@ -72,9 +72,7 @@ async def test_default_runtime_login_handler_returns_live_local_url(tmp_path) ->
     """默认 local runtime 的 dna登录 必须立即返回可打开的登录链接。"""
 
     runtime_data_layout = RuntimeDataLayout(tmp_path)
-    runtime_data_layout.db_dir.mkdir(parents=True)
-    database = AsyncDatabase(runtime_data_layout.database_path)
-    await database.create_schema_for_tests()
+    database = AsyncDatabase.from_data_dir(runtime_data_layout.data_dir)
     runtime = build_runtime(
         _Context(),
         {"login": {"transport": "local", "port": 0}},

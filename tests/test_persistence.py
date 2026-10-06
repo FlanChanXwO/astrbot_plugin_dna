@@ -2,6 +2,7 @@
 
 import ast
 import asyncio
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,28 @@ from src.infrastructure.persistence import (
     Base,
     CredentialRecord,
     CredentialRepository,
+    DatabaseMigration,
 )
+
+
+async def _seeded_migration(tmp_path: Path) -> tuple[AsyncDatabase, DatabaseMigration]:
+    """为用例准备一个指向隔离 SQLite 的生产 migration runner。"""
+
+    database = AsyncDatabase(tmp_path / "db" / "dna.sqlite3")
+    database.path.parent.mkdir(parents=True, exist_ok=True)
+    return database, DatabaseMigration(
+        database,
+        plugin_root=Path(__file__).resolve().parents[1],
+    )
+
+
+def _alembic_revision(database_path: Path) -> str:
+    """读取数据库当前 revision，不经过 SQLAlchemy。"""
+
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+    assert row is not None
+    return str(row[0])
 
 
 @pytest.mark.asyncio
@@ -243,3 +265,151 @@ async def test_alembic_upgrade_and_downgrade_when_dependency_is_available(
         await engine.dispose()
 
     await asyncio.to_thread(command.downgrade, config, "base")
+
+
+@pytest.mark.asyncio
+async def test_fresh_database_migration_creates_every_metadata_table(tmp_path: Path):
+    """全新安装不需要任何手动数据库命令即可得到完整 schema。"""
+
+    database, migration = await _seeded_migration(tmp_path)
+    try:
+        await migration.initialize()
+
+        assert database.path.is_file()
+        with sqlite3.connect(database.path) as connection:
+            table_names = {
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+        assert set(Base.metadata.tables).issubset(table_names)
+        assert _alembic_revision(database.path) == migration.current_head()
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_database_migration_is_idempotent_across_instances(tmp_path: Path):
+    """重复调用与插件重载都不会重复破坏数据库或丢失数据。"""
+
+    database, migration = await _seeded_migration(tmp_path)
+    try:
+        await migration.initialize()
+        async with database.transaction() as session:
+            await AccountBindingRepository.add(
+                session,
+                user_id="user-1",
+                uid="1001",
+                group_id="group-1",
+            )
+
+        await migration.initialize()
+        reloaded_migration = DatabaseMigration(
+            database,
+            plugin_root=Path(__file__).resolve().parents[1],
+        )
+        await reloaded_migration.initialize()
+
+        assert _alembic_revision(database.path) == reloaded_migration.current_head()
+        async with database.session() as session:
+            stored = await AccountBindingRepository.get(
+                session,
+                user_id="user-1",
+                uid="1001",
+            )
+        assert stored is not None
+        assert stored.group_id == "group-1"
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_database_migration_upgrades_older_revision_and_keeps_data(
+    tmp_path: Path,
+):
+    """已有安装升级插件时保留账号数据，并补齐新 revision 的字段。"""
+
+    command = pytest.importorskip("alembic.command")
+    from alembic.config import Config
+
+    database, migration = await _seeded_migration(tmp_path)
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.set_main_option(
+        "script_location",
+        str(Path(__file__).resolve().parents[1] / "alembic"),
+    )
+    config.set_main_option("sqlalchemy.url", database.url)
+    try:
+        await asyncio.to_thread(command.upgrade, config, "0004_app_credentials_only")
+        assert _alembic_revision(database.path) == "0004_app_credentials_only"
+        with sqlite3.connect(database.path) as connection:
+            connection.execute(
+                "INSERT INTO account_bindings "
+                "(user_id, uid, group_id, is_active) VALUES (?, ?, ?, 1)",
+                ("user-1", "1001", "group-1"),
+            )
+            connection.commit()
+
+        await migration.initialize()
+
+        assert _alembic_revision(database.path) == migration.current_head()
+        with sqlite3.connect(database.path) as connection:
+            rows = connection.execute(
+                "SELECT user_id, uid, group_id, auto_sign_enabled "
+                "FROM account_bindings"
+            ).fetchall()
+        assert rows == [("user-1", "1001", "group-1", 1)]
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_database_migration_fails_loudly_without_alembic_assets(tmp_path: Path):
+    """发布包缺少 alembic 资产时必须显式失败，而不是回退到 create_all。"""
+
+    database, _ignored = await _seeded_migration(tmp_path)
+    bare_root = tmp_path / "plugin-root"
+    bare_root.mkdir()
+    migration = DatabaseMigration(database, plugin_root=bare_root)
+    try:
+        with pytest.raises(FileNotFoundError):
+            await migration.initialize()
+        assert migration.initialized is False
+        assert not database.path.exists()
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_database_migration_retries_after_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """迁移失败后保持未初始化，并允许插件重新加载时重试。"""
+
+    database, migration = await _seeded_migration(tmp_path)
+    attempts: list[str] = []
+    from alembic import command
+
+    original_upgrade = command.upgrade
+
+    def failing_upgrade(config, revision):
+        attempts.append(revision)
+        if len(attempts) == 1:
+            raise RuntimeError("migration-fixture-failure")
+        return original_upgrade(config, revision)
+
+    monkeypatch.setattr(command, "upgrade", failing_upgrade)
+    try:
+        with pytest.raises(RuntimeError, match="migration-fixture-failure"):
+            await migration.initialize()
+        assert migration.initialized is False
+
+        await migration.initialize()
+
+        assert migration.initialized is True
+        assert attempts == ["head", "head"]
+        assert _alembic_revision(database.path) == migration.current_head()
+    finally:
+        await database.dispose()

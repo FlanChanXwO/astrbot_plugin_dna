@@ -48,7 +48,8 @@ from .infrastructure.http import (
 from .infrastructure.i18n import validate_tip_catalog
 from .infrastructure.logger import logger
 from .infrastructure.notices_scheduler import NoticesScheduler
-from .infrastructure.persistence import AsyncDatabase
+from .infrastructure.persistence import AsyncDatabase, DatabaseMigration
+from .infrastructure.persistence.migrations import default_plugin_root
 from .infrastructure.rendering import (
     DEFAULT_RENDERED_RETENTION_SECONDS,
     CheckinRenderer,
@@ -219,6 +220,16 @@ def build_runtime(
         runtime_database = AsyncDatabase.from_data_dir(runtime_data_layout.data_dir)
     if runtime_data_layout is None:
         raise RuntimeError("运行期数据布局尚未解析")
+    # schema 必须早于任何数据库消费者创建；Alembic 是生产 schema 的唯一事实来源。
+    database_migration = DatabaseMigration(
+        runtime_database,
+        plugin_root=default_plugin_root(),
+    )
+    if services is not None and "database_migration" in services:
+        database_migration = cast(
+            DatabaseMigration,
+            services["database_migration"],
+        )
     resolved_account_transport = account_transport or DnaApiAccountTransport()
     account_service = AccountService(
         runtime_database,
@@ -761,6 +772,7 @@ def build_runtime(
     )
     resolved_services: dict[str, object] = {
         "database": runtime_database,
+        "database_migration": database_migration,
         "account_service": account_service,
         "login_flow": login_flow,
         "privacy_service": privacy_service,
@@ -848,6 +860,12 @@ def build_runtime(
     async def _stop_resource_views() -> None:
         """资源校验不持有后台任务，但需要与启动 hook 保持索引对齐。"""
 
+    async def _stop_database_migration() -> None:
+        """schema 迁移不持有运行期资源；此 hook 只保持生命周期索引对齐。"""
+
+    async def _stop_client_update_service() -> None:
+        """客户端更新初始化没有停止动作；此 hook 只保持生命周期索引对齐。"""
+
     async def _stop_image_fetcher() -> None:
         """下载器在 finalizer 阶段关闭；此 hook 只保持生命周期索引对齐。"""
 
@@ -883,6 +901,8 @@ def build_runtime(
     )
     lifecycle = PluginLifecycle(
         start_hooks=(
+            # 数据库迁移必须是第一个阶段；失败时生命周期会中止后续启动。
+            database_migration.initialize,
             image_fetcher.start,
             _initialize_resource_views,
             login_flow.start,
@@ -894,12 +914,15 @@ def build_runtime(
             client_updates_scheduler.start,
             agent_tools_lifecycle.start,
         ),
+        # 与 start_hooks 逐索引一一对应；没有停止动作的阶段使用显式 no-op。
         # PluginLifecycle 会逆序执行，先取消 scheduler/监听任务，
         # 再运行 transport 和数据库 finalizer。
         stop_hooks=(
+            _stop_database_migration,
             _stop_image_fetcher,
             _stop_resource_views,
             login_flow.stop,
+            _stop_client_update_service,
             web.stop,
             cache_maintenance.stop,
             sign_scheduler.stop,
