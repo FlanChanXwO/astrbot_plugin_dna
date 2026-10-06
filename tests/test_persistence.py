@@ -3,6 +3,9 @@
 import ast
 import asyncio
 import sqlite3
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -236,6 +239,96 @@ def test_alembic_is_declared_without_hardcoded_runtime_database_path():
     assert "sqlalchemy.url =" in alembic_config
     assert "dna.db" not in alembic_config
     assert "dna.sqlite3" not in alembic_config
+
+
+def test_alembic_prepends_the_plugin_root_not_the_working_directory():
+    """``env.py`` 导入 ``src`` 不能在真实部署中依赖 CWD。
+
+    AstrBot 的工作目录是宿主根（如 ``/AstrBot``），而不是插件目录。若
+    ``prepend_sys_path`` 写成 ``.``，``alembic/env.py`` 的 ``import src`` 只会在
+    恰好从插件目录启动（例如 CI loader 检查）时成功，生产中必然
+    ``ModuleNotFoundError`` 并导致插件拒绝启动。
+    """
+
+    alembic_config = Path("alembic.ini").read_text(encoding="utf-8")
+    prepend_lines = [
+        line.strip()
+        for line in alembic_config.splitlines()
+        if line.strip().startswith("prepend_sys_path")
+    ]
+    assert prepend_lines == ["prepend_sys_path = %(here)s"], prepend_lines
+    assert "prepend_sys_path = ." not in alembic_config
+
+
+def test_alembic_upgrade_succeeds_from_a_foreign_working_directory(tmp_path: Path):
+    """在非插件目录的 CWD 下执行 ``upgrade head`` 必须成功。
+
+    这是 Issue #95 修补在上线时暴露的回归：``alembic/env.py`` 需要 ``import src``，
+    而 AstrBot 的工作目录是宿主根（如 ``/AstrBot``）。若 ``prepend_sys_path``
+    依赖 CWD，只有从插件目录启动时才会成功，真实部署必然
+    ``ModuleNotFoundError``。子进程保证 ``sys.path[0]`` 就是外来 CWD。
+    """
+
+    plugin_root = Path(__file__).resolve().parents[1]
+    database_path = tmp_path / "db" / "dna.sqlite3"
+    database_path.parent.mkdir(parents=True)
+    # 模拟 AstrBot 宿主根：这里没有 src/ 包。
+    foreign_cwd = tmp_path / "astrbot-host"
+    foreign_cwd.mkdir()
+    assert not (foreign_cwd / "src").exists()
+
+    script = textwrap.dedent(
+        """
+        import asyncio
+        import sqlite3
+        import sys
+        from pathlib import Path
+
+        from alembic import command
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+
+        plugin_root = Path(sys.argv[1])
+        database_path = Path(sys.argv[2])
+        config = Config(str(plugin_root / "alembic.ini"))
+        config.set_main_option("script_location", str(plugin_root / "alembic"))
+        config.set_main_option("sqlalchemy.url", f"sqlite+aiosqlite:///{database_path}")
+        asyncio.run(asyncio.to_thread(command.upgrade, config, "head"))
+
+        head = ScriptDirectory.from_config(config).get_current_head()
+        with sqlite3.connect(database_path) as connection:
+            revision = connection.execute(
+                "SELECT version_num FROM alembic_version"
+            ).fetchone()[0]
+        tables = sorted(
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        )
+        print(f"HEAD={head}")
+        print(f"REVISION={revision}")
+        print("TABLES=" + ",".join(tables))
+        """,
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(plugin_root), str(database_path)],
+        cwd=foreign_cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "从外来 CWD 执行 alembic upgrade 失败（生产部署形态）:\n"
+        + result.stderr[-2000:]
+    )
+    output = dict(
+        line.split("=", 1) for line in result.stdout.splitlines() if "=" in line
+    )
+    assert output["HEAD"] == output["REVISION"]
+    assert set(Base.metadata.tables).issubset(set(output["TABLES"].split(",")))
 
 
 @pytest.mark.asyncio
