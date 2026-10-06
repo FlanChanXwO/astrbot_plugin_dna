@@ -290,7 +290,10 @@ async def test_build_runtime_uses_cache_scopes_for_rendered_and_typed_cache(
         assert asset_resolver.downloader is image_fetcher
         assert image_utils.get_default_image_fetcher() is default_fetcher
         assert image_fetcher is not default_fetcher
-        assert runtime.lifecycle._start_hooks[0].__self__ is image_fetcher
+        assert runtime.lifecycle._start_hooks[0].__self__ is runtime.services[
+            "database_migration"
+        ]
+        assert runtime.lifecycle._start_hooks[1].__self__ is image_fetcher
         assert runtime.lifecycle._finalizer_hooks[0].__self__ is image_fetcher
 
         subscriptions = runtime.services["subscriptions"]

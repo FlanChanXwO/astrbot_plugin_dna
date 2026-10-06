@@ -9,6 +9,7 @@
 - 客户端更新 Target / Source 变化：先核对 `src/modules/client_updates/registry.py` 中的稳定协议参数，再运行 `python3 scripts/smoke_client_update_sources.py`；随后重新生成命令和配置投影。
 - 登录、Dashboard、Agent Tools、公共资源等行为变化：只更新对应的 `docs/usage/` 主题，不在多个文档重复完整清单。
 - 数据库 schema 变化：使用 Alembic revision，更新持久化测试；只有用户/部署者需要采取动作时才补充文档。
+- 数据库初始化：Alembic 是生产 schema 的唯一事实来源，启动期 `DatabaseMigration` 自动执行 `upgrade head`；不要在生产路径引入 `Base.metadata.create_all()`，也不要为缺失的 alembic 资产添加回退 schema 路径。迁移失败会让插件启动失败，这是预期行为。
 - 发布历史：写入根目录 `CHANGELOG.md`，不要在 `docs/` 保存阶段报告、迁移日志或某次生产环境快照。
 
 ## 用户文案

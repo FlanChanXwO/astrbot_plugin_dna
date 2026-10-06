@@ -39,6 +39,12 @@ class PluginLifecycle:
         self._start_hooks = tuple(start_hooks)
         self._stop_hooks = tuple(stop_hooks)
         self._finalizer_hooks = tuple(finalizer_hooks)
+        # 回滚按索引前缀释放已进入的阶段；长度不一致会让某些阶段永远不会被清理。
+        if len(self._start_hooks) != len(self._stop_hooks):
+            raise ValueError(
+                "start_hooks 与 stop_hooks 必须一一对应"
+                f"（{len(self._start_hooks)} != {len(self._stop_hooks)}）"
+            )
         self._started = False
         self._fully_started = False
         self._completed_start_count = 0

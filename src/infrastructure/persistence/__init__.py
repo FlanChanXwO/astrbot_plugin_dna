@@ -1,6 +1,7 @@
 """新 rewrite 持久化层公共接口。"""
 
 from .database import AsyncDatabase
+from .migrations import DatabaseMigration
 from .models import (
     AccountBinding,
     Base,
@@ -24,6 +25,7 @@ __all__ = [
     "Base",
     "CredentialRecord",
     "CredentialRepository",
+    "DatabaseMigration",
     "GroupPrivacySetting",
     "GroupPrivacySettingRepository",
     "PrivacySetting",
