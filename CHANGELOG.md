@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## v0.6.3 — 2026-10-06
+
+### 修复
+
+- 修复数据库表已存在但缺少 `alembic_version` 时插件永远无法启动的问题：这类库由绕过迁移直接建表的工具产生（例如 `scripts/test_live_all_commands.py` 对真实数据目录建表），此时 `alembic upgrade head` 会因 `table account_bindings already exists` 失败，且用户没有自助恢复路径。现在启动阶段会逐项比对表结构：与当前 head 完全一致才接管为 head（`stamp`），不一致则显式失败，不猜测、不修改 schema；额外无关表不会阻止接管。（[#98](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/98)）
+- `scripts/test_live_all_commands.py` 改为使用生产 Alembic 迁移，不再对真实数据目录调用 `create_schema_for_tests`，从源头消除“有表无版本记录”的状态。（[#98](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/98)）
+
+### 维护
+
+- 修正 `DatabaseMigration.current_head()` 的返回类型：Alembic 的 `get_current_head()` 实际可能返回 `None`，现在缺失 revision 时显式报错而不是返回 `None`。（[#98](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/98)）
+
+**完整变更**：[`v0.6.0...v0.6.3`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.6.0...v0.6.3)
+
 ## v0.6.2 — 2026-10-06
 
 ### 修复
