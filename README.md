@@ -12,6 +12,7 @@
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.26.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Resource](https://img.shields.io/badge/Resource-dna--resource-orange.svg)](https://github.com/FlanChanXwO/dna-resource)
+[![QQ Group](https://img.shields.io/badge/QQ%20Group-1027839334-blue.svg)](https://qm.qq.com/q/8UCCt2QjiE)
 
 角色面板 · 图鉴攻略 · 签到服务 · 密函公告
 
