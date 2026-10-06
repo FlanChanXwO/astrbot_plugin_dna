@@ -293,16 +293,22 @@ class PlayerImageLoader:
         )
         return _normalize_paint_img(image)
 
-    async def weapon(self, weapon_id: str | int, url: str | None) -> Image.Image:
+    async def weapon(
+        self,
+        weapon_id: str | int,
+        url: str | None,
+        *,
+        size: tuple[int, int] = (256, 256),
+    ) -> Image.Image:
         if self.asset_resolver is None:
-            return await get_weapon_img(weapon_id, url)
+            return await get_weapon_img(weapon_id, url, size=size)
         image = await self._resolved_image(
             "weapon",
             weapon_id,
             url,
-            (256, 256),
+            size,
         )
-        return image.resize((256, 256))
+        return image.resize(size)
 
     async def mod(self, mod_id: str | int, url: str | None) -> Image.Image:
         if self.asset_resolver is None:

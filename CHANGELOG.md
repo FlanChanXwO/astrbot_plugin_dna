@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## v0.6.0 — 2026-09-28
+
+### 新增
+
+- 新增独立武器面板：`dna<名称>面板` 会在当前账号已拥有的角色与武器之间智能分流，支持正式名与资源别名，武器面板展示等级、精炼、基础属性、左右魔之楔、玩家资料，以及上游可用时的官方计算属性；未拥有或详情缺失的武器不会伪造面板。（[#92](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/92)）
+- 新增武器专属缓存维护：单个“刷新/清理面板缓存”命令同步支持武器，并增加 `dna刷新全部武器面板` 与 `dna清理全部武器缓存`；批量武器操作与角色缓存边界保持独立。（[#92](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/92)）
+
+### 改进
+
+- 独立武器面板直接使用现有高清 generation 武器图生成 570×570 主视觉，角色面板中的武器缩略图仍保持 256×256；官方武器计算发生稳定业务失败时仅隐藏计算区块并缓存完整基础卡，transport failure 则保持可重试。（[#92](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/92)）
+
+### 修复
+
+- 公共资源 generation 在显式校验期间继续提供已经发布的当前快照，只有真实校验失败后才进入既有 repair 流程，避免同步/校验窗口中的正常图片渲染短暂退化为 placeholder。（[#92](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/92)）
+
+**完整变更**：[`v0.5.6...v0.6.0`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.5.6...v0.6.0)
+
 ## v0.5.6 — 2026-09-17
 
 ### 修复

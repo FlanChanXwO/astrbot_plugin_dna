@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...modules.player.contracts import WeaponCalculationSnapshot
 from ...modules.player.damage_service import (
     RoleDamageBuild,
     get_calculation_skill_levels,
@@ -65,6 +66,32 @@ def _build_attribute_metrics(
         if value is not None:
             metrics.append({"label": label, "value": value})
     return metrics
+
+
+def draw_weapon_calculation_section(
+    calculation: WeaponCalculationSnapshot,
+) -> dict[str, object]:
+    """生成与角色计算区块一致的武器属性对比数据。"""
+
+    base = calculation.base_weapon_attribute
+    final = calculation.final_weapon_attribute
+    specs = (
+        ("攻击", "atk", False),
+        ("暴击率", "cri", True),
+        ("暴击伤害", "crd", True),
+        ("攻击速度", "speed", False),
+        ("触发率", "trigger", True),
+    )
+    attributes: list[dict[str, str]] = []
+    for label, key, percent in specs:
+        value = _format_metric(
+            getattr(base, key, None),
+            getattr(final, key, None),
+            percent=percent,
+        )
+        if value is not None:
+            attributes.append({"label": label, "value": value})
+    return {"attributes": attributes}
 
 
 def _format_skill_value(value: object | None, environment_value: object | None) -> str:

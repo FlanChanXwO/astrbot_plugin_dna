@@ -244,3 +244,171 @@ def test_coerce_result_validates_container_without_pillow_decode(
         )
         == payload
     )
+
+
+@pytest.mark.asyncio
+async def test_weapon_template_uses_independent_archive_layout_and_all_fields() -> None:
+    """独立武器卡复用现有素材，但不复用角色详情整体区块。"""
+
+    templates = Path(__file__).parents[1] / "src" / "templates"
+    t2i = FakeT2I(_jpeg_bytes())
+    renderer = HtmlRenderer(templates, t2i=t2i)
+    weapon = {
+        "attribute_background": "data:image/png;base64,attr",
+        "attributes": [
+            {
+                "background": f"data:image/png;base64,attr-{index}",
+                "icon": "",
+                "label": label,
+                "value": value,
+            }
+            for index, (label, value) in enumerate((
+                ("武器类型", "近战"),
+                ("攻击", "777"),
+                ("暴击率", "150%"),
+                ("暴击伤害", "10%"),
+                ("攻击速度", "1.2"),
+                ("触发率", "30%"),
+            ))
+        ],
+        "icon": "data:image/png;base64,weapon",
+        "level": 80,
+        "modes": [
+            {
+                "background": f"data:image/png;base64,mode-{side}-{index}",
+                "icon": f"data:image/png;base64,icon-{side}-{index}",
+                "level": f"+{index}",
+                "name": f"{side}-{index}",
+                "side": side,
+            }
+            for side in ("left", "right")
+            for index in (1, 2)
+        ],
+        "name": "近战甲",
+        "skill_level": 5,
+        "title": "武器详情",
+        "weapon_background": "data:image/png;base64,weapon-frame",
+    }
+
+    await renderer.render(
+        "cards/weapon_detail.html.j2",
+        {
+            "background": "",
+            "calculation": {
+                "attributes": [
+                    {"label": "攻击", "value": "777 → 999"},
+                    {"label": "暴击率", "value": "12% → 24%"},
+                ],
+            },
+            "divider": "data:image/png;base64,divider",
+            "font": "",
+            "footer_image": "",
+            "header": {
+                "avatar": "data:image/png;base64,avatar",
+                "avatar_frame": "data:image/png;base64,avatar-frame",
+                "level": 42,
+                "level_background": "data:image/png;base64,level",
+                "name": "测试玩家",
+                "stats": [],
+                "uid": "123456",
+            },
+            "point": "data:image/png;base64,point",
+            "profile_background": "data:image/png;base64,profile",
+            "refinement_badge": "data:image/png;base64,roman-5",
+            "refinement_grades": [
+                {
+                    "background": f"data:image/png;base64,grade-{index}",
+                    "icon": f"data:image/png;base64,roman-{index}",
+                    "index": index,
+                    "unlocked": True,
+                }
+                for index in range(1, 6)
+            ],
+            "weapon": weapon,
+            "width": 1000,
+        },
+        RenderSpec(width=1000, full_page=True, image_format="jpeg"),
+    )
+
+    html = str(t2i.calls[0]["tmpl_str"])
+    assert 'data-weapon-card="archive"' in html
+    assert 'data-weapon-section="shared"' not in html
+    assert "weapon-detail__visual" in html
+    assert "weapon-detail__weapon-frame" not in html
+    assert "weapon-detail__identity-point" in html
+    assert "weapon-detail__kicker" not in html
+    assert "WEAPON /" not in html
+    assert "weapon-detail__module-groups" in html
+    assert "weapon-detail__section-head" not in html
+    assert "魔之楔配置" not in html
+    assert "weapon-detail__refinement-orbs" in html
+    assert html.count('class="weapon-detail__refinement-orb is-unlocked"') == 5
+    assert "weapon-detail__refinement-badge" in html
+    assert html.index("data:image/png;base64,roman-5") < html.index("Lv.80")
+    assert "weapon-detail__module-group--left" in html
+    assert "weapon-detail__module-group--right" in html
+    assert 'data-mode-side="left"' in html
+    assert 'data-mode-side="right"' in html
+    assert html.index("left-1") < html.index("left-2") < html.index("right-1") < html.index("right-2")
+    assert "weapon-detail__attributes" not in html
+    assert "weapon-detail__weapon-card" not in html
+    assert "weapon-detail__hero-attributes" in html
+    assert "weapon-detail__hero-attribute" in html
+    assert (
+        ".weapon-detail__weapon-icon { width: 570px; height: 570px;"
+    ) in html
+    assert ".weapon-detail__module.is-empty { opacity: .25; }" in html
+    assert "weapon-detail__specs" not in html
+    assert "weapon-detail__calculation" in html
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in html
+    assert "计算属性" in html
+    assert "777 → 999" in html
+    assert "12% → 24%" in html
+    assert (
+        html.index('<section class="weapon-detail__section weapon-detail__modules')
+        < html.index('<section class="weapon-detail__calculation">')
+        < html.index('<header class="dna-legacy-profile">')
+    )
+    assert "dna-legacy-profile" in html
+    assert "weapon-detail__profile" not in html
+    assert "data:image/png;base64,weapon-frame" not in html
+    assert "data:image/png;base64,attr-0" in html
+    assert "data:image/png;base64,mode-left-1" in html
+    assert "data:image/png;base64,mode-right-1" in html
+    assert "data:image/png;base64,divider" in html
+    assert "data:image/png;base64,point" in html
+    assert "data:image/png;base64,avatar-frame" in html
+    assert "data:image/png;base64,profile" in html
+    assert "background: rgba(4,5,9,.92)" not in html
+    assert (
+        ".weapon-detail__footer { position: relative; width: 1000px; "
+        "height: 52px; background: transparent; }"
+    ) in html
+    assert "测试玩家" in html
+    assert "UID 123456" in html
+    for expected in (
+        "近战甲",
+        "Lv.80",
+        "精炼 5",
+        "近战",
+        "武器类型",
+        "攻击",
+        "暴击率",
+        "暴击伤害",
+        "攻击速度",
+        "触发率",
+        "left-1",
+        "right-1",
+    ):
+        assert expected in html
+
+    role_template = (templates / "cards/role_detail.html.j2").read_text(
+        encoding="utf-8"
+    )
+    weapon_template = (templates / "cards/weapon_detail.html.j2").read_text(
+        encoding="utf-8"
+    )
+    assert "{{ weapon_section(weapon) }}" in role_template
+    assert "{{ weapon_section(weapon) }}" not in weapon_template
+    assert "{{ legacy_profile_header(header, profile_background) }}" in weapon_template
+    assert "weapon-detail__profile" not in weapon_template

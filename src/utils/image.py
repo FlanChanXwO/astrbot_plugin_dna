@@ -4,10 +4,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
-from ..infrastructure.logger import logger
 from PIL import Image, ImageDraw
 
 from ..infrastructure.data_layout import default_runtime_data_layout
+from ..infrastructure.logger import logger
 from . import image_utils
 from .image_utils import (
     ImageFetchError,
@@ -189,7 +189,10 @@ async def get_avatar_img(
 
 
 async def get_weapon_img(
-    weapon_id: str | int, pic_url: str | None = None
+    weapon_id: str | int,
+    pic_url: str | None = None,
+    *,
+    size: tuple[int, int] = (256, 256),
 ) -> Image.Image:
     weapon_dir = default_runtime_data_layout().cache_weapon_dir
     weapon_dir.mkdir(parents=True, exist_ok=True)
@@ -197,12 +200,12 @@ async def get_weapon_img(
     name = f"weapon_{weapon_id}.png"
     weapon_path = weapon_dir / name
     if pic_url and not await _download_optional_image(weapon_dir, name, pic_url):
-        return Image.new("RGBA", (256, 256))
+        return Image.new("RGBA", size)
     image = _load_cached_image(weapon_path)
     if image is None:
-        return Image.new("RGBA", (256, 256))
+        return Image.new("RGBA", size)
 
-    return image.resize((256, 256))
+    return image.resize(size)
 
 
 async def get_attr_img(

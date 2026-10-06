@@ -8,14 +8,13 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from ...infrastructure.logger import logger
-
 from ...entry.response import (
     ChainResponse,
     CommandResponse,
     ImageResponse,
     PlainTextResponse,
 )
+from ...infrastructure.logger import logger
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,
@@ -36,6 +35,7 @@ from .contracts import (
     RoleDetail,
     RoleItem,
     RoleOverview,
+    WeaponCalculation,
     WeaponDetail,
     WeaponItem,
 )
@@ -81,7 +81,18 @@ class _OverviewResult:
 class _RefreshOverviewState:
     overview: RoleOverview
     digest: str
-    role: RoleItem
+    role: RoleItem | None
+    weapon: WeaponItem | None
+
+
+@dataclass(frozen=True, slots=True)
+class _PanelTarget:
+    """面板查询对象的解析结果：role / weapon / ambiguous / not_found / rejected。"""
+
+    kind: str
+    role: RoleItem | None = None
+    weapon: WeaponItem | None = None
+    slot: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +112,12 @@ class _RoleDetailBundle:
 class _DetailState:
     bundle: _RoleDetailBundle
     digest: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class _WeaponDetailState:
+    detail: WeaponDetail
+    digest: str
 
 
 class PlayerService:
@@ -573,18 +590,72 @@ class PlayerService:
         close_weapons: Iterable[WeaponItem],
         ranged_weapons: Iterable[WeaponItem],
         input_name: str,
+        aliases: AliasCatalog | None = None,
     ) -> tuple[str, WeaponItem] | None:
         normalized = input_name.strip()
+        if not normalized:
+            return None
+        # 正式名优先；alias 命中后回查展柜列表，展柜里没有仍视为未命中。
+        names = [normalized]
+        if aliases is not None:
+            canonical = aliases.resolve_weapon(normalized)
+            if canonical is not None:
+                names.append(canonical)
+                names.extend(aliases.weapon_aliases.get(canonical, ()))
         for slot, weapons in (
             ("近战武器", close_weapons),
             ("远程武器", ranged_weapons),
         ):
             for weapon in weapons:
-                if normalized == weapon.name or (
-                    normalized and normalized in weapon.name
-                ):
+                if weapon.name in names or normalized in weapon.name:
                     return slot, weapon
         return None
+
+    @staticmethod
+    def _resolve_panel_target(
+        overview: RoleOverview,
+        query: str,
+        aliases: AliasCatalog | None = None,
+        *,
+        extra_weapon_names: tuple[str, ...] = (),
+    ) -> _PanelTarget:
+        """把面板查询对象解析为角色/武器四态，供智能分流复用。
+
+        正式名优先，alias 仅作补充输入；角色与武器同时命中时不猜优先级，
+        交给调用方提示用户换更完整的名称。
+        """
+
+        normalized = query.strip()
+        if not normalized:
+            return _PanelTarget(kind="not_found")
+        role = PlayerService._find_role(overview, normalized, aliases)
+        found = PlayerService._find_weapon(
+            overview.close_weapons,
+            overview.ranged_weapons,
+            normalized,
+            aliases,
+        )
+        weapon = None if found is None else found[1]
+        if role is not None and weapon is not None:
+            return _PanelTarget(kind="ambiguous", role=role, weapon=weapon)
+        if weapon is not None:
+            # 主对象已是武器，再追加武器参数没有语义，直接拒绝。
+            if extra_weapon_names:
+                return _PanelTarget(kind="rejected", weapon=weapon)
+            assert found is not None
+            return _PanelTarget(kind="weapon", weapon=weapon, slot=found[0])
+        if role is not None:
+            return _PanelTarget(kind="role", role=role)
+        return _PanelTarget(kind="not_found")
+
+    @staticmethod
+    def _panel_target_error(target: _PanelTarget) -> PlainTextResponse | None:
+        message = {
+            "not_found": messages.PLAYER_PANEL_TARGET_NOT_FOUND,
+            "ambiguous": messages.PLAYER_PANEL_TARGET_AMBIGUOUS,
+            "rejected": messages.PLAYER_WEAPON_EXTRA_UNSUPPORTED,
+        }.get(target.kind)
+        return PlainTextResponse(message) if message is not None else None
 
     @classmethod
     def _select_weapons(
@@ -670,6 +741,93 @@ class PlayerService:
             weapon_sections=tuple(sections),
             damage=damage,
         )
+
+    async def _fetch_weapon_panel_detail(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        weapon: WeaponItem,
+    ) -> WeaponDetail | PlainTextResponse:
+        """读取独立武器面板详情；未拥有或空详情不进入渲染。"""
+
+        if not weapon.unlocked or weapon.weapon_eid is None:
+            return PlainTextResponse(messages.PLAYER_WEAPON_NOT_UNLOCKED)
+        try:
+            detail = await self.transport.get_weapon_detail(
+                request.actor,
+                uid,
+                weapon.weapon_id,
+                weapon.weapon_eid,
+                credential_user_id=target_user_id,
+            )
+        except PlayerTransportError as error:
+            if error.kind is PlayerFailureKind.NOT_FOUND:
+                return PlainTextResponse(messages.PLAYER_WEAPON_DETAIL_NOT_FOUND)
+            return await self._handle_transport_error(
+                error,
+                user_id=target_user_id,
+                uid=uid,
+                target=target_user_id != request.actor.user_id,
+            )
+        if not isinstance(detail, WeaponDetail):
+            return PlainTextResponse(messages.PLAYER_WEAPON_DETAIL_NOT_FOUND)
+        return detail
+
+    async def _load_weapon_detail(
+        self,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        weapon: WeaponItem,
+        overview_digest: str,
+        *,
+        now: datetime,
+    ) -> _WeaponDetailState | PlainTextResponse:
+        if self.cache is None:
+            detail = await self._fetch_weapon_panel_detail(
+                request, target_user_id, uid, weapon
+            )
+            if isinstance(detail, PlainTextResponse):
+                return detail
+            return _WeaponDetailState(detail, self._value_digest(detail))
+
+        key = self.cache.weapon_data_key(
+            target_user_id,
+            uid,
+            weapon.weapon_id,
+            overview_digest,
+        )
+        lookup = await self.cache.get_data(key, now=now)
+        if lookup.entry is not None and lookup.status == "fresh":
+            try:
+                detail = WeaponDetail.model_validate(
+                    self.cache.decode_json(lookup.entry.content)
+                )
+            except (KeyError, TypeError, ValueError):
+                pass
+            else:
+                return _WeaponDetailState(
+                    detail, lookup.entry.metadata.content_sha256
+                )
+
+        detail = await self._fetch_weapon_panel_detail(
+            request, target_user_id, uid, weapon
+        )
+        if isinstance(detail, PlainTextResponse):
+            return detail
+        metadata = await self.cache.put_data(
+            key,
+            detail,
+            tags=self.cache.weapon_data_tags(
+                target_user_id,
+                uid,
+                weapon.weapon_id,
+                overview_digest,
+            ),
+            now=now,
+        )
+        return _WeaponDetailState(detail, metadata.content_sha256)
 
     async def _fetch_detail_bundle(
         self,
@@ -880,6 +1038,33 @@ class PlayerService:
             )
         return self._response_from_rendered(rendered)
 
+    async def _render_weapon_detail(
+        self,
+        detail: WeaponDetail,
+        calculation: WeaponCalculation,
+        overview: RoleOverview,
+        request: PlayerCommandRequest,
+        target_user_id: str,
+        uid: str,
+        uid_hidden: bool,
+    ) -> ImageResponse:
+        with self._renderer_context() as renderer:
+            rendered_res = renderer.render_weapon_detail(
+                detail,
+                calculation=calculation,
+                uid=uid,
+                uid_hidden=uid_hidden,
+                overview=overview,
+                actor=request.actor,
+                target_user_id=target_user_id,
+            )
+            rendered = (
+                await rendered_res
+                if asyncio.iscoroutine(rendered_res)
+                else rendered_res
+            )
+        return self._response_from_rendered(rendered)
+
     async def _role_detail_from_overview(
         self,
         request: PlayerCommandRequest,
@@ -894,17 +1079,111 @@ class PlayerService:
         overview = overview_state.overview
 
         char_name = str(request.parameters.get("char_name", "")).strip()
-        role = self._find_role(overview, char_name, self.aliases)
-        if role is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
-        if not role.unlocked or role.char_eid is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
-
         names: list[str] = []
         for key in ("weapon_name_1", "weapon_name_2"):
             value = request.parameters.get(key)
             if value is not None and str(value).strip():
                 names.append(str(value))
+        target = self._resolve_panel_target(
+            overview,
+            char_name,
+            self.aliases,
+            extra_weapon_names=tuple(names),
+        )
+        target_error = self._panel_target_error(target)
+        if target_error is not None:
+            return target_error
+        if target.kind == "weapon":
+            assert target.weapon is not None
+            detail_state = await self._load_weapon_detail(
+                request,
+                target_user_id,
+                uid,
+                target.weapon,
+                overview_state.digest,
+                now=now,
+            )
+            if isinstance(detail_state, PlainTextResponse):
+                return detail_state
+            uid_hidden = await self.privacy.is_uid_hidden(
+                target_user_id,
+                group_id=request.actor.group_id,
+            )
+            resource_version = f"{self._resource_version()}|weapon-calculation-v1"
+            card_key: str | None = None
+            if self.cache is not None:
+                card_key = self.cache.weapon_card_key(
+                    target_user_id,
+                    uid,
+                    target.weapon.weapon_id,
+                    overview_state.digest,
+                    detail_state.digest,
+                    resource_version,
+                    uid_hidden,
+                )
+                cached = await self._cached_card(card_key, now=now)
+                if cached is not None:
+                    return cached
+
+            calculation_transport_failed = False
+            try:
+                calculation = await self.transport.calculate_weapon(
+                    request.actor,
+                    uid,
+                    detail_state.detail,
+                    credential_user_id=target_user_id,
+                )
+            except PlayerTransportError as error:
+                calculation_transport_failed = True
+                await self._persist_credential_failure(
+                    error,
+                    user_id=target_user_id,
+                    uid=uid,
+                )
+                logger.warning(
+                    "玩家请求失败 kind=%s resource=%s detail=%s",
+                    error.kind.value,
+                    error.resource,
+                    error.detail or "-",
+                )
+                calculation = WeaponCalculation.failure(
+                    messages.PLAYER_DAMAGE_FAILED
+                )
+
+            response = await self._render_weapon_detail(
+                detail_state.detail,
+                calculation,
+                overview,
+                request,
+                target_user_id,
+                uid,
+                uid_hidden,
+            )
+            if (
+                self.cache is not None
+                and card_key is not None
+                and not calculation_transport_failed
+            ):
+                await self._store_card(
+                    card_key,
+                    response,
+                    tags=self.cache.weapon_card_tags(
+                        target_user_id,
+                        uid,
+                        target.weapon.weapon_id,
+                        detail_state.digest,
+                        resource_version,
+                    ),
+                    resource_version=resource_version,
+                    now=now,
+                )
+            return response
+
+        role = target.role
+        assert role is not None
+        if not role.unlocked or role.char_eid is None:
+            return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
+
         selected = self._select_weapons(overview, tuple(names))
         if isinstance(selected, PlainTextResponse):
             return selected
@@ -1020,14 +1299,30 @@ class PlayerService:
             )
 
         char_name = str(request.parameters.get("char_name", "")).strip()
-        role = self._find_role(overview, char_name, self.aliases)
-        if role is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
-        if not role.unlocked or role.char_eid is None:
+        target = self._resolve_panel_target(overview, char_name, self.aliases)
+        target_error = self._panel_target_error(target)
+        if target_error is not None:
+            return target_error
+        weapon = target.weapon if target.kind == "weapon" else None
+        role = target.role if target.kind == "role" else None
+        if weapon is not None and (
+            not weapon.unlocked or weapon.weapon_eid is None
+        ):
+            return PlainTextResponse(messages.PLAYER_WEAPON_NOT_UNLOCKED)
+        if role is not None and (not role.unlocked or role.char_eid is None):
             return PlainTextResponse(messages.PLAYER_ROLE_NOT_UNLOCKED)
 
         if self.cache is not None:
-            await self.cache.invalidate_role(target_user_id, refresh_uid, role.char_id)
+            if weapon is not None:
+                await self.cache.invalidate_overview(target_user_id, refresh_uid)
+                await self.cache.invalidate_weapon_only(
+                    target_user_id, refresh_uid, weapon.weapon_id
+                )
+            else:
+                assert role is not None
+                await self.cache.invalidate_role(
+                    target_user_id, refresh_uid, role.char_id
+                )
             overview_metadata = await self.cache.put_data(
                 self.cache.overview_data_key(target_user_id, refresh_uid),
                 overview,
@@ -1041,7 +1336,12 @@ class PlayerService:
             overview_digest = overview_metadata.content_sha256
         else:
             overview_digest = self._value_digest(overview)
-        return _RefreshOverviewState(overview, overview_digest, role)
+        return _RefreshOverviewState(
+            overview,
+            overview_digest,
+            role=role,
+            weapon=weapon,
+        )
 
     async def refresh_info_card(self, request: PlayerCommandRequest):
         """强制刷新当前用户当前 UID 的基本信息卡片，不请求角色详情。"""
@@ -1161,9 +1461,17 @@ class PlayerService:
         if isinstance(response, PlainTextResponse):
             return response
 
-        notice = PlainTextResponse(
-            messages.PLAYER_ROLE_REFRESHED.format(name=refreshed.role.name),
+        if refreshed.weapon is not None:
+            refreshed_name = refreshed.weapon.name
+        else:
+            assert refreshed.role is not None
+            refreshed_name = refreshed.role.name
+        template = (
+            messages.PLAYER_WEAPON_REFRESHED
+            if refreshed.weapon is not None
+            else messages.PLAYER_ROLE_REFRESHED
         )
+        notice = PlainTextResponse(template.format(name=refreshed_name))
         if not self.refresh_send_role_panel:
             return notice
         return ChainResponse((notice, response))
@@ -1194,7 +1502,7 @@ class PlayerService:
                 )
 
             if self.cache is not None:
-                await self.cache.invalidate_identity(target_user_id, refresh_uid)
+                await self.cache.invalidate_all_roles(target_user_id, refresh_uid)
                 overview_metadata = await self.cache.put_data(
                     self.cache.overview_data_key(target_user_id, refresh_uid),
                     overview,
@@ -1275,6 +1583,111 @@ class PlayerService:
             )
         return response
 
+    async def refresh_all_weapons(self, request: PlayerCommandRequest):
+        """刷新当前 UID 的概览和全部已拥有武器详情，只返回汇总。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        resolved = await self._resolve_uid(request, operation="refresh_all_weapons")
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, refresh_uid = resolved
+        now = self._now()
+        async with self._overview_lock(target_user_id, refresh_uid):
+            try:
+                overview = await self._fetch_overview(
+                    request,
+                    target_user_id,
+                    refresh_uid,
+                )
+            except PlayerTransportError as error:
+                return await self._handle_transport_error(
+                    error,
+                    user_id=target_user_id,
+                    uid=refresh_uid,
+                    target=target_user_id != request.actor.user_id,
+                )
+
+            if self.cache is not None:
+                overview_metadata = await self.cache.put_data(
+                    self.cache.overview_data_key(target_user_id, refresh_uid),
+                    overview,
+                    tags=(
+                        "player_data",
+                        "overview",
+                        self.cache.identity_tag(target_user_id, refresh_uid),
+                    ),
+                    now=now,
+                )
+                overview_digest = overview_metadata.content_sha256
+            else:
+                overview_digest = self._value_digest(overview)
+
+            succeeded = 0
+            failed_names: list[str] = []
+            for weapon in (*overview.close_weapons, *overview.ranged_weapons):
+                if not weapon.unlocked or weapon.weapon_eid is None:
+                    continue
+                try:
+                    detail = await self.transport.get_weapon_detail(
+                        request.actor,
+                        refresh_uid,
+                        weapon.weapon_id,
+                        weapon.weapon_eid,
+                        credential_user_id=target_user_id,
+                    )
+                    if self.cache is not None:
+                        await self.cache.put_data(
+                            self.cache.weapon_data_key(
+                                target_user_id,
+                                refresh_uid,
+                                weapon.weapon_id,
+                                overview_digest,
+                            ),
+                            detail,
+                            tags=self.cache.weapon_data_tags(
+                                target_user_id,
+                                refresh_uid,
+                                weapon.weapon_id,
+                                overview_digest,
+                            ),
+                            now=now,
+                        )
+                    succeeded += 1
+                except PlayerTransportError as error:
+                    await self._persist_credential_failure(
+                        error,
+                        user_id=target_user_id,
+                        uid=refresh_uid,
+                    )
+                    failed_names.append(weapon.name)
+                    logger.warning(
+                        "武器批量刷新失败 kind=%s resource=%s detail=%s weapon=%s",
+                        error.kind.value,
+                        error.resource,
+                        error.detail or "-",
+                        weapon.name,
+                    )
+                except Exception as error:  # noqa: BLE001 - 每把武器必须隔离未预期异常
+                    failed_names.append(weapon.name)
+                    logger.exception(
+                        "武器批量刷新出现未预期异常 kind=%s weapon=%s",
+                        type(error).__name__,
+                        weapon.name,
+                    )
+
+        response = PlainTextResponse(
+            messages.PLAYER_ALL_WEAPONS_REFRESHED.format(
+                success=succeeded,
+                failed=len(failed_names),
+            ),
+        )
+        if failed_names:
+            response = PlainTextResponse(
+                response.text + "\n失败武器：" + "、".join(failed_names),
+            )
+        return response
+
     async def clear_role_cache(self, request: PlayerCommandRequest):
         """清理当前 UID 指定角色的详情数据和卡片，保留概览缓存。"""
 
@@ -1284,7 +1697,7 @@ class PlayerService:
             return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
         char_name = str(request.parameters.get("char_name", "")).strip()
         if not char_name:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+            return PlainTextResponse(messages.PLAYER_PANEL_TARGET_NOT_FOUND)
         resolved = await self._resolve_uid(request, operation="clear_role_cache")
         if isinstance(resolved, PlainTextResponse):
             return resolved
@@ -1297,9 +1710,23 @@ class PlayerService:
         )
         if isinstance(overview_state, PlainTextResponse):
             return overview_state
-        role = self._find_role(overview_state.overview, char_name, self.aliases)
-        if role is None:
-            return PlainTextResponse(messages.PLAYER_ROLE_NOT_FOUND)
+        target = self._resolve_panel_target(
+            overview_state.overview, char_name, self.aliases
+        )
+        target_error = self._panel_target_error(target)
+        if target_error is not None:
+            return target_error
+        if target.kind == "weapon":
+            assert target.weapon is not None
+            await self.cache.invalidate_weapon_only(
+                target_user_id, uid, target.weapon.weapon_id
+            )
+            return PlainTextResponse(
+                messages.PLAYER_WEAPON_CACHE_CLEARED.format(name=target.weapon.name)
+            )
+
+        role = target.role
+        assert role is not None
         await self.cache.invalidate_role_only(target_user_id, uid, role.char_id)
         return PlainTextResponse(
             messages.PLAYER_ROLE_CACHE_CLEARED.format(name=char_name)
@@ -1326,8 +1753,24 @@ class PlayerService:
         if isinstance(resolved, PlainTextResponse):
             return resolved
         target_user_id, uid = resolved
-        await self.cache.invalidate_identity(target_user_id, uid)
+        await self.cache.invalidate_all_roles(target_user_id, uid)
         return PlainTextResponse(messages.PLAYER_ALL_ROLE_CACHE_CLEARED)
+
+    async def clear_all_weapon_cache(
+        self, request: PlayerCommandRequest
+    ) -> PlainTextResponse:
+        """清理当前用户当前 UID 的全部武器数据和卡片缓存。"""
+
+        if request.target_user_id not in (None, request.actor.user_id):
+            return PlainTextResponse(messages.PLAYER_REFRESH_SELF_ONLY)
+        if self.cache is None:
+            return PlainTextResponse(messages.PLAYER_SERVICE_UNAVAILABLE)
+        resolved = await self._resolve_uid(request, operation="clear_all_weapon_cache")
+        if isinstance(resolved, PlainTextResponse):
+            return resolved
+        target_user_id, uid = resolved
+        await self.cache.invalidate_all_weapons(target_user_id, uid)
+        return PlainTextResponse(messages.PLAYER_ALL_WEAPON_CACHE_CLEARED)
 
 
 __all__ = ["PlayerService"]

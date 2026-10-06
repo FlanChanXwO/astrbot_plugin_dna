@@ -26,6 +26,8 @@ from ...modules.player.contracts import (
     RoleHeader,
     RoleItem,
     RoleOverview,
+    WeaponCalculation,
+    WeaponCalculationSnapshot,
     WeaponDetail,
     WeaponItem,
 )
@@ -121,7 +123,7 @@ class _RoleDetailResponse(_PlayerProjection):
 
 
 class _WeaponDetailResponse(_PlayerProjection):
-    weaponDetail: dict[str, Any]
+    weaponDetail: dict[str, Any] | None = None
 
 
 class DnaApiPlayerTransport:
@@ -226,6 +228,10 @@ class DnaApiPlayerTransport:
     @staticmethod
     def _weapon_detail(data: Any) -> WeaponDetail:
         payload = _WeaponDetailResponse.model_validate(data)
+        if not payload.weaponDetail:
+            raise PlayerTransportError(
+                PlayerFailureKind.NOT_FOUND, resource="武器详情"
+            )
         return WeaponDetail.model_validate(payload.weaponDetail)
 
     @gated_transport_method
@@ -312,6 +318,54 @@ class DnaApiPlayerTransport:
         except (AttributeError, KeyError, TypeError, ValueError):
             raise PlayerTransportError(
                 PlayerFailureKind.SERVER, resource="武器详情"
+            ) from None
+
+    @gated_transport_method
+    async def calculate_weapon(
+        self,
+        actor: EventActor,
+        uid: str,
+        weapon_detail: WeaponDetail,
+        *,
+        credential_user_id: str,
+    ) -> WeaponCalculation:
+        try:
+            from ...modules.player.damage_service import calculate_weapon_attributes
+            from ...utils.api.model import WeaponDetail as LegacyWeaponDetail
+
+            response = await calculate_weapon_attributes(
+                await self._legacy_user(actor, uid, credential_user_id),
+                LegacyWeaponDetail.model_validate(
+                    weapon_detail.model_dump(by_alias=True)
+                ),
+            )
+            if not response.is_success:
+                if is_credential_failure(response):
+                    raise PlayerTransportError(
+                        PlayerFailureKind.CREDENTIAL,
+                        resource="武器属性计算",
+                        detail=(
+                            "api response "
+                            f"code={getattr(response, 'code', None)!r}"
+                        ),
+                    )
+                return WeaponCalculation.failure(messages.PLAYER_DAMAGE_FAILED)
+            if response.data is None:
+                return WeaponCalculation.failure(messages.PLAYER_DAMAGE_FAILED)
+            return WeaponCalculation.success(
+                WeaponCalculationSnapshot.model_validate(
+                    response.data.model_dump(by_alias=True)
+                )
+            )
+        except PlayerTransportError:
+            raise
+        except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
+            raise PlayerTransportError(
+                PlayerFailureKind.NETWORK, resource="武器属性计算"
+            ) from None
+        except (AttributeError, KeyError, TypeError, ValueError):
+            raise PlayerTransportError(
+                PlayerFailureKind.SERVER, resource="武器属性计算"
             ) from None
 
     @gated_transport_method

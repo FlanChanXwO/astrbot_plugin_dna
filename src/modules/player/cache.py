@@ -114,6 +114,22 @@ class PlayerCache:
         )
 
     @classmethod
+    def weapon_data_key(
+        cls,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+        overview_digest: str,
+    ) -> str:
+        return cls._key(
+            "weapon-data",
+            target_user_id,
+            uid,
+            weapon_id,
+            overview_digest,
+        )
+
+    @classmethod
     def overview_card_key(
         cls,
         target_user_id: str,
@@ -158,6 +174,28 @@ class PlayerCache:
         )
 
     @classmethod
+    def weapon_card_key(
+        cls,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+        overview_digest: str,
+        detail_digest: str,
+        resource_version: str | None,
+        uid_hidden: bool,
+    ) -> str:
+        return cls._key(
+            "weapon-card",
+            target_user_id,
+            uid,
+            weapon_id,
+            overview_digest,
+            detail_digest,
+            cls._version(resource_version),
+            uid_hidden,
+        )
+
+    @classmethod
     def overview_card_tags(
         cls,
         target_user_id: str,
@@ -190,6 +228,22 @@ class PlayerCache:
         )
 
     @classmethod
+    def weapon_data_tags(
+        cls,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+        overview_digest: str,
+    ) -> tuple[str, ...]:
+        return (
+            "player_data",
+            "weapon",
+            cls.identity_tag(target_user_id, uid),
+            f"weapon:{weapon_id}",
+            cls.data_tag(overview_digest),
+        )
+
+    @classmethod
     def detail_card_tags(
         cls,
         target_user_id: str,
@@ -204,6 +258,24 @@ class PlayerCache:
             cls.identity_tag(target_user_id, uid),
             f"role:{char_id}",
             f"panel:{char_id}",
+            cls.data_tag(data_digest),
+            cls.resource_tag(resource_version),
+        )
+
+    @classmethod
+    def weapon_card_tags(
+        cls,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+        data_digest: str,
+        resource_version: str | None,
+    ) -> tuple[str, ...]:
+        return (
+            "player_card",
+            "weapon",
+            cls.identity_tag(target_user_id, uid),
+            f"weapon:{weapon_id}",
             cls.data_tag(data_digest),
             cls.resource_tag(resource_version),
         )
@@ -363,6 +435,59 @@ class PlayerCache:
             PLAYER_CARD_CACHE_TYPE,
             tags=(identity, role),
         )
+
+    async def invalidate_weapon_only(
+        self,
+        target_user_id: str,
+        uid: str,
+        weapon_id: int,
+    ) -> int:
+        """只失效一个身份的指定武器数据和卡片，不清理概览。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        weapon = f"weapon:{weapon_id}"
+        return await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, weapon),
+        ) + await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity, weapon),
+        )
+
+    async def invalidate_all_weapons(
+        self,
+        target_user_id: str,
+        uid: str,
+    ) -> int:
+        """只失效一个身份的全部武器数据和卡片，不清理概览或角色。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        return await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, "weapon"),
+        ) + await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity, "weapon"),
+        )
+
+    async def invalidate_all_roles(
+        self,
+        target_user_id: str,
+        uid: str,
+    ) -> int:
+        """失效一个身份的概览与全部角色缓存，保留武器缓存。"""
+
+        identity = self.identity_tag(target_user_id, uid)
+        removed = await self.invalidate_overview(target_user_id, uid)
+        removed += await self.manager.invalidate(
+            PLAYER_DATA_CACHE_TYPE,
+            tags=(identity, "detail"),
+        )
+        removed += await self.manager.invalidate(
+            PLAYER_CARD_CACHE_TYPE,
+            tags=(identity, "detail"),
+        )
+        return removed
 
     async def invalidate_identity(
         self,

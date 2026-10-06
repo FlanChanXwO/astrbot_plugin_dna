@@ -63,8 +63,10 @@ def test_explicit_registry_loads_only_implemented_commands():
         "clear_info_card_cache",
         "refresh_role_card",
         "refresh_all_role_cards",
+        "refresh_all_weapon_cards",
         "clear_role_cache",
         "clear_player_cache",
+        "clear_all_weapon_cache",
         "role_detail_card",
         "privacy_enable_peek_personal",
         "privacy_disable_peek_personal",
@@ -388,8 +390,10 @@ def test_commands_manifest_is_generated_from_registry():
         "clear_info_card_cache",
         "refresh_role_card",
         "refresh_all_role_cards",
+        "refresh_all_weapon_cards",
         "clear_role_cache",
         "clear_player_cache",
+        "clear_all_weapon_cache",
         "role_detail_card",
         "privacy_enable_peek_personal",
         "privacy_disable_peek_personal",
@@ -624,9 +628,9 @@ def test_help_presentation_covers_every_visible_command():
     assert len(admin_groups) == len(user_groups) + 3
     assert admin_groups[: len(user_groups)] == user_groups
 
-    # 基础卡片与角色面板必须分离展示，废弃命令不再出现。
+    # 基础卡片与角色/武器面板必须分离展示，废弃命令不再出现。
     assert "基础卡片" in user_groups
-    assert "角色面板" in user_groups
+    assert "角色/武器面板" in user_groups
     admin_items = {
         item["name"] for section in admin_sections for item in section["items"]
     }
@@ -634,3 +638,78 @@ def test_help_presentation_covers_every_visible_command():
         assert removed not in admin_items
     for required in ("获取凭证", "检查凭证"):
         assert required in admin_items
+
+
+def test_smart_panel_metadata_names_roles_and_weapons() -> None:
+    """智能分流命令的 registry 与帮助文案必须同时说明角色和武器。"""
+
+    from src.infrastructure.rendering.help_presentation import (
+        GROUP_ROLE_PANEL,
+        HELP_GROUP_DESCRIPTIONS,
+        HELP_PRESENTATION,
+    )
+
+    expected = {
+        "role_detail_card": (
+            "角色/武器详情卡片",
+            ("角色名面板", "武器名面板"),
+        ),
+        "refresh_role_card": (
+            "刷新角色/武器面板",
+            ("刷新角色名面板", "刷新武器名面板"),
+        ),
+        "clear_role_cache": (
+            "清理角色/武器面板缓存",
+            ("清理角色名面板缓存", "清理武器名面板缓存"),
+        ),
+    }
+    registry = load_command_registry(prefix="")
+
+    assert GROUP_ROLE_PANEL == "角色/武器面板"
+    assert "角色/武器" in HELP_GROUP_DESCRIPTIONS[GROUP_ROLE_PANEL]
+    for command_id, (name, examples) in expected.items():
+        spec = registry.get(command_id)
+        assert spec.name == name
+        assert "角色" in spec.description and "武器" in spec.description
+        assert spec.examples == examples
+        assert HELP_PRESENTATION[command_id].name == name
+
+
+@pytest.mark.parametrize(
+    ("text", "command_id"),
+    [
+        ("dna刷新近战甲面板", "refresh_role_card"),
+        ("dna清理近战甲面板缓存", "clear_role_cache"),
+    ],
+)
+def test_existing_panel_cache_commands_accept_weapon_names(
+    text: str, command_id: str
+) -> None:
+    """单武器刷新/清理复用现有命令入口，不注册平行命令。"""
+
+    registry = load_command_registry(prefix="dna")
+    matched = registry.match(text)
+
+    assert matched is not None
+    assert matched.command.id == command_id
+    assert matched.parameters["char_name"] == "近战甲"
+
+
+def test_refresh_all_weapon_panels_uses_dedicated_command() -> None:
+    """批量武器刷新不能落入单角色/武器刷新入口。"""
+
+    registry = load_command_registry(prefix="dna")
+    matched = registry.match("dna刷新全部武器面板")
+
+    assert matched is not None
+    assert matched.command.id == "refresh_all_weapon_cards"
+
+
+def test_clear_all_weapon_cache_uses_dedicated_command() -> None:
+    """全量武器清理必须使用精确命令，不能落入角色清理。"""
+
+    registry = load_command_registry(prefix="dna")
+    matched = registry.match("dna清理全部武器缓存")
+
+    assert matched is not None
+    assert matched.command.id == "clear_all_weapon_cache"
