@@ -24,6 +24,10 @@ from src.entry.commands import (
 from src.entry.event import EventActor
 from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
 from src.infrastructure.persistence.database import AsyncDatabase
+from src.infrastructure.persistence.migrations import (
+    DatabaseMigration,
+    default_plugin_root,
+)
 
 
 class MockContext:
@@ -191,7 +195,9 @@ async def run() -> None:
     data_dir = Path(StarTools.get_data_dir("astrbot_plugin_dna"))
 
     db = AsyncDatabase.from_data_dir(data_dir)
-    await db.create_schema_for_tests()
+    # 这个脚本对整个 data 目录运行；必须走生产 Alembic 迁移，不能用
+    # create_schema_for_tests 建表，否则会留下“有表但无 alembic_version”的状态。
+    await DatabaseMigration(db, plugin_root=default_plugin_root()).initialize()
     print(f"Database: {db.path}")
 
     registry = load_command_registry()
