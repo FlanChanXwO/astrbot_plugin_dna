@@ -2,7 +2,22 @@
 
 ## [Unreleased]
 
+## v0.6.2 — 2026-10-06
+
+### 修复
+
+- 修复 v0.6.1 在真实部署中无法加载、插件拒绝启动的问题：`alembic.ini` 的 `prepend_sys_path` 原本是工作目录相对路径 `.`，而 AstrBot 的工作目录是宿主根（如 `/AstrBot`）而不是插件目录，导致 `alembic/env.py` 的 `import src` 在生产必然抛出 `ModuleNotFoundError`。现在改为 `%(here)s`（配置文件所在目录，即插件根），与既有的 `script_location = %(here)s/alembic` 约定一致。**v0.6.1 请勿使用，请直接升级到 v0.6.2。**（[#97](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/97)）
+
+### 维护
+
+- 补充部署形态回归测试：一个静态断言只允许 `prepend_sys_path = %(here)s`，另一个在模拟宿主根（不含 `src/`）的子进程中真实执行 `alembic upgrade head` 并校验 revision 与表结构，避免再次只从插件目录验证而漏掉真实部署路径。（[#97](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/97)）
+
+**完整变更**：[`v0.6.0...v0.6.2`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.6.0...v0.6.2)
+
 ## v0.6.1 — 2026-10-06
+
+> ⚠️ **此版本存在部署问题，请勿使用，直接升级到 v0.6.2。**
+> `alembic.ini` 的 `prepend_sys_path` 使用了工作目录相对路径，导致插件在真实 AstrBot 部署中加载失败（`ModuleNotFoundError: No module named 'src'`）。修复见 v0.6.2。
 
 ### 修复
 
