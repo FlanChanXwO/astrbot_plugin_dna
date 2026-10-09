@@ -247,6 +247,12 @@ HELP_PRESENTATION: dict[str, HelpPresentationEntry] = {
     "download_resource": HelpPresentationEntry(
         GROUP_ADMIN_RESOURCE, "同步资源", "同步资源.png"
     ),
+    "clear_mh_cache": HelpPresentationEntry(
+        GROUP_ADMIN_RESOURCE, "删除密函缓存", "删除密函缓存.png"
+    ),
+    "refresh_mh_cache": HelpPresentationEntry(
+        GROUP_ADMIN_RESOURCE, "刷新密函缓存", "刷新密函缓存.png"
+    ),
 }
 
 # 展示顺序以 presentation 声明顺序为准，与业务模块的声明顺序解耦。

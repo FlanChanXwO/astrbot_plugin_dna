@@ -718,6 +718,30 @@
     "use_case": "src.modules.notices.commands.notices_mh_text_use_case"
   },
   {
+    "id": "clear_mh_cache",
+    "pattern": "^dna(?:清理|删除)密函缓存$",
+    "group": "密函管理",
+    "name": "删除密函缓存",
+    "description": "删除全部密函缓存，下次查询重新获取",
+    "examples": [
+      "dna删除密函缓存"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.notices.commands.notices_clear_mh_cache_use_case"
+  },
+  {
+    "id": "refresh_mh_cache",
+    "pattern": "^dna刷新密函缓存$",
+    "group": "密函管理",
+    "name": "刷新密函缓存",
+    "description": "强制重新获取当前小时段密函数据",
+    "examples": [
+      "dna刷新密函缓存"
+    ],
+    "permission": "admin",
+    "use_case": "src.modules.notices.commands.notices_refresh_mh_cache_use_case"
+  },
+  {
     "id": "ann_sub",
     "pattern": "^dna订阅公告$",
     "group": "公告管理",

@@ -31,7 +31,7 @@
 - `notifications.*`：公告和密函检查/推送行为。
 - `client_updates.*`：客户端更新检查周期、Target 与消息行为。
 - `resources.*`：公共资源同步传输设置。见 [公共资源](resources.md)。
-- `cache.*`：玩家、公告等内容缓存和主动刷新行为。基础卡片与角色/武器面板的「刷新后是否发送图片」由 `cache.refresh_send_info_card` 与 `cache.refresh_send_role_panel` 两个独立开关控制，互不影响；旧配置 `refresh_send_card` 只会迁移到角色/武器面板开关。
+- `cache.*`：玩家、公告等内容缓存和主动刷新行为。`cache.refresh_send_images` 是一个多选下拉，控制主动刷新后发送图片的类型（`info_card` 基础卡片 / `role_panel` 角色·武器面板 / `mh` 密函），未勾选的刷新类型只回复文本。旧配置 `refresh_send_card`、`refresh_send_info_card`、`refresh_send_role_panel` 会被合并迁移进该列表；其中 `refresh_send_card` 只映射到 `role_panel`（保持其对外语义）。注意迁移是单向的：回滚到旧版本后三个旧开关会回到各自默认值（开启）。
 
 ## 客户端更新 Target
 

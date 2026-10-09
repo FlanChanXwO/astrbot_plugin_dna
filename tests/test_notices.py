@@ -9,7 +9,8 @@ import pytest
 from PIL import Image
 
 from src.entry.event import EventActor
-from src.entry.response import ImageResponse, PlainTextResponse
+from src.entry.response import ChainResponse, ImageResponse, PlainTextResponse
+from src.infrastructure.cache import CacheManager
 from src.infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from src.infrastructure.rendering import NoticesRenderer
 from src.infrastructure.rendering.artifact_store import read_rendered_artifact
@@ -182,6 +183,8 @@ def _service(
     allow_mention_query: bool = True,
     secret_simple_image: bool = False,
     subscriptions=None,
+    cache_manager: CacheManager | None = None,
+    refresh_send_images: tuple[str, ...] = (),
 ) -> NoticesService:
     return NoticesService(
         database,
@@ -194,6 +197,8 @@ def _service(
         ),
         subscriptions,
         secret_simple_image=secret_simple_image,
+        cache_manager=cache_manager,
+        refresh_send_images=refresh_send_images,
     )
 
 
@@ -457,4 +462,155 @@ async def test_mh_subscribe_success_does_not_request_self_mention(
 
     assert isinstance(response, PlainTextResponse)
     assert response.need_at is False
+    await database.dispose()
+
+
+async def _cached_service(
+    tmp_path: Path,
+    *,
+    refresh_send_images: tuple[str, ...] = (),
+) -> tuple[NoticesService, FakeNoticesTransport, CacheManager]:
+    """构造带真实 CacheManager 的 service，用于观察缓存命中/失效。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeNoticesTransport()
+    manager = CacheManager(tmp_path / "cache")
+    service = _service(
+        database,
+        transport,
+        cache_manager=manager,
+        refresh_send_images=refresh_send_images,
+    )
+    return service, transport, manager
+
+
+@pytest.mark.asyncio
+async def test_clear_mh_cache_forces_refetch_on_next_query(tmp_path: Path) -> None:
+    """删除密函缓存后，下次查询必须重新调用 transport。"""
+
+    service, transport, _manager = await _cached_service(tmp_path)
+
+    await service.mh(_request())
+    assert transport.calls == ["get_mh_any"]
+
+    cleared = await service.clear_mh_cache(_request())
+
+    assert isinstance(cleared, PlainTextResponse)
+    assert transport.calls == ["get_mh_any"]
+
+    await service.mh(_request())
+    assert transport.calls == ["get_mh_any", "get_mh_any"]
+    await service.database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_mh_cache_reports_removed_count(tmp_path: Path) -> None:
+    """删除命令返回实际删除条数，而非承诺清空全部。"""
+
+    service, _transport, _manager = await _cached_service(tmp_path)
+    await service.mh(_request())
+
+    cleared = await service.clear_mh_cache(_request())
+
+    assert isinstance(cleared, PlainTextResponse)
+    assert cleared.text == messages.mh_cache_cleared(1)
+    await service.database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_clear_mh_cache_without_cache_returns_service_unavailable(
+    tmp_path: Path,
+) -> None:
+    """未启用统一缓存时返回既有服务不可用文案，不抛异常。"""
+
+    database = await _database_with_binding(tmp_path)
+    service = _service(database, FakeNoticesTransport())
+
+    cleared = await service.clear_mh_cache(_request())
+
+    assert isinstance(cleared, PlainTextResponse)
+    assert cleared.text == messages.NOTICES_SERVICE_UNAVAILABLE
+    await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_mh_cache_refetches_even_when_cache_is_fresh(
+    tmp_path: Path,
+) -> None:
+    """刷新命令必须绕过新鲜缓存，强制重新拉取并覆盖。"""
+
+    service, transport, _manager = await _cached_service(tmp_path)
+    await service.mh(_request())
+    assert transport.calls == ["get_mh_any"]
+
+    refreshed = await service.refresh_mh_cache(_request())
+
+    assert isinstance(refreshed, PlainTextResponse)
+    assert transport.calls == ["get_mh_any", "get_mh_any"]
+
+    # 覆盖后的缓存仍是命中状态，不会因刷新再拉一次。
+    await service.mh(_request())
+    assert transport.calls == ["get_mh_any", "get_mh_any"]
+    await service.database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_mh_cache_sends_image_when_mh_selected(tmp_path: Path) -> None:
+    """选中 mh 时刷新返回文本 + 图片链。"""
+
+    service, _transport, _manager = await _cached_service(
+        tmp_path, refresh_send_images=("mh",)
+    )
+
+    response = await service.refresh_mh_cache(_request())
+
+    assert isinstance(response, ChainResponse)
+    assert isinstance(response.components[0], PlainTextResponse)
+    assert response.components[0].text == messages.MH_CACHE_REFRESHED
+    assert isinstance(response.components[1], ImageResponse)
+    await service.database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_mh_cache_returns_text_only_when_mh_not_selected(
+    tmp_path: Path,
+) -> None:
+    """未选中 mh 时刷新只回文本，不发送图片。"""
+
+    service, _transport, _manager = await _cached_service(
+        tmp_path, refresh_send_images=("info_card", "role_panel")
+    )
+
+    response = await service.refresh_mh_cache(_request())
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.MH_CACHE_REFRESHED
+    await service.database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_mh_cache_credential_failure_is_redacted(tmp_path: Path) -> None:
+    """凭据不可用时复用公共文案，不回显 detail，也不误报未登录。"""
+
+    database = await _database_with_binding(tmp_path)
+    transport = FakeNoticesTransport(
+        fail=NoticesTransportError(
+            NoticesFailureKind.CREDENTIAL,
+            resource="密函",
+            detail="cookie=secret-refresh",
+        )
+    )
+    service = _service(
+        database,
+        transport,
+        cache_manager=CacheManager(tmp_path / "cache"),
+        refresh_send_images=("mh",),
+    )
+
+    response = await service.refresh_mh_cache(_request())
+
+    assert isinstance(response, PlainTextResponse)
+    assert response.text == messages.MH_PUBLIC_CREDENTIAL_UNAVAILABLE
+    assert "secret-refresh" not in response.text
+    assert "当前未绑定账号" not in response.text
     await database.dispose()

@@ -134,8 +134,11 @@ class PlayerService:
         show_unowned_roles: bool = True,
         resource_snapshots: ResourceSnapshotCoordinator | None = None,
         cache: PlayerCache | None = None,
-        refresh_send_info_card: bool = True,
-        refresh_send_role_panel: bool = True,
+        refresh_send_images: tuple[str, ...] = (
+            "info_card",
+            "role_panel",
+            "mh",
+        ),
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.database = database
@@ -146,9 +149,8 @@ class PlayerService:
         self.show_unowned_roles = show_unowned_roles
         self.resource_snapshots = resource_snapshots
         self.cache = cache
-        # 基础卡片与角色面板是两条独立功能线，发送开关互不读取。
-        self.refresh_send_info_card = refresh_send_info_card
-        self.refresh_send_role_panel = refresh_send_role_panel
+        # 刷新后是否发图由统一的多选列表决定，基础卡片与角色面板互不读取。
+        self.refresh_send_images = tuple(refresh_send_images)
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._overview_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
@@ -1393,7 +1395,7 @@ class PlayerService:
                 allow_cached=False,
             )
             notice = PlainTextResponse(messages.PLAYER_INFO_CARD_REFRESHED)
-            if not self.refresh_send_info_card:
+            if "info_card" not in self.refresh_send_images:
                 return notice
             return ChainResponse((notice, response))
 
@@ -1472,7 +1474,7 @@ class PlayerService:
             else messages.PLAYER_ROLE_REFRESHED
         )
         notice = PlainTextResponse(template.format(name=refreshed_name))
-        if not self.refresh_send_role_panel:
+        if "role_panel" not in self.refresh_send_images:
             return notice
         return ChainResponse((notice, response))
 

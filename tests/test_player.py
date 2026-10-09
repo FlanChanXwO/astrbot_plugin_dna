@@ -798,7 +798,7 @@ async def test_refresh_info_card_only_fetches_overview(tmp_path: Path) -> None:
 async def test_refresh_send_switches_are_independent_info_off_panel_on(
     tmp_path: Path,
 ) -> None:
-    """info=false 只抑制基础卡片图片，panel=true 的角色面板不受影响。"""
+    """只选中角色面板时，刷新基础卡片不发图，角色面板发图。"""
 
     _preseed_legacy_assets()
     database = await _database_with_binding(tmp_path)
@@ -810,8 +810,7 @@ async def test_refresh_send_switches_are_independent_info_off_panel_on(
         transport,
         PrivacyService(database),
         PlayerRenderer(tmp_path / "rendered", ResourceMap()),
-        refresh_send_info_card=False,
-        refresh_send_role_panel=True,
+        refresh_send_images=("role_panel",),
     )
     request = PlayerCommandRequest(
         actor=EventActor("user-1", "bot-1", "group-1"),
@@ -837,7 +836,7 @@ async def test_refresh_send_switches_are_independent_info_off_panel_on(
 async def test_refresh_send_switches_are_independent_info_on_panel_off(
     tmp_path: Path,
 ) -> None:
-    """panel=false 只抑制角色面板图片，info=true 仍发送基础卡片。"""
+    """只选中基础卡片时，刷新基础卡片发图，角色面板不发图。"""
 
     _preseed_legacy_assets()
     database = await _database_with_binding(tmp_path)
@@ -849,8 +848,7 @@ async def test_refresh_send_switches_are_independent_info_on_panel_off(
         transport,
         PrivacyService(database),
         PlayerRenderer(tmp_path / "rendered", ResourceMap()),
-        refresh_send_info_card=True,
-        refresh_send_role_panel=False,
+        refresh_send_images=("info_card",),
     )
     request = PlayerCommandRequest(
         actor=EventActor("user-1", "bot-1", "group-1"),

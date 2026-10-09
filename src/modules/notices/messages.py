@@ -85,6 +85,10 @@ def mh_text_title() -> str:
     return get_tip("notices.mh_text_title")
 
 
+def mh_cache_cleared(count: int) -> str:
+    return get_tip("notices.mh_cache_cleared", count=count)
+
+
 COMMAND_PREFIX = "dna"
 MH_ALL_FORBIDDEN = mh_all_forbidden(COMMAND_PREFIX)
 MH_SUBSCRIBED_TEMPLATE = get_tip_template("notices.mh_subscribed")
@@ -94,6 +98,7 @@ MH_UNSUBSCRIBED_ALL = get_tip("notices.mh_unsubscribed_all")
 MH_NOT_SUBSCRIBED = get_tip("notices.mh_not_subscribed")
 MH_SUBSCRIBE_EMPTY = get_tip("notices.mh_subscribe_empty")
 MH_CURRENT = get_tip_template("notices.mh_current")
+MH_CACHE_REFRESHED = get_tip("notices.mh_cache_refreshed")
 MH_PUSH_TIME_UNLIMITED = get_tip("notices.mh_push_time_unlimited")
 MH_PUSH_TIME_SET = get_tip_template("notices.mh_push_time_set")
 MH_PUSH_TIME_FORMAT = mh_push_time_format(COMMAND_PREFIX)
@@ -126,6 +131,7 @@ __all__ = [
     "ANN_UNSUBSCRIBED",
     "COMMAND_PREFIX",
     "MH_ALL_FORBIDDEN",
+    "MH_CACHE_REFRESHED",
     "MH_CURRENT",
     "MH_DUPLICATE",
     "MH_NOT_FOUND",
@@ -153,6 +159,7 @@ __all__ = [
     "NOTICES_UID_INVALID",
     "account_not_bound",
     "mh_all_forbidden",
+    "mh_cache_cleared",
     "mh_list_item",
     "mh_push_time_format",
     "mh_push_time_hint",
