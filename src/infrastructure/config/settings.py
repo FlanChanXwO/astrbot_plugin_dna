@@ -449,11 +449,11 @@ class NotificationSettings(_SettingsModel):
         json_schema_extra={"hint": "是否使用简单密函图片"},
     )
     secret_push_minute: int = Field(
-        default=0,
+        default=1,
         ge=0,
         le=59,
         description="密函推送分钟",
-        json_schema_extra={"hint": "每小时在该分钟推送密函，默认整点"},
+        json_schema_extra={"hint": "每小时在该分钟推送密函，默认第 1 分钟"},
     )
     secret_retry_interval_seconds: float = Field(
         default=1,
