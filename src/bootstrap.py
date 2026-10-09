@@ -406,8 +406,7 @@ def build_runtime(
         show_unowned_roles=settings.display.show_unowned_roles,
         resource_snapshots=resource_snapshots,
         cache=player_cache,
-        refresh_send_info_card=settings.cache.refresh_send_info_card,
-        refresh_send_role_panel=settings.cache.refresh_send_role_panel,
+        refresh_send_images=settings.cache.refresh_send_images,
     )
     encyclopedia_service = EncyclopediaService(
         runtime_database,
@@ -598,6 +597,7 @@ def build_runtime(
         request_gate=request_gate,
         announcement_targets=announcement_targets,
         secret_retry_interval_seconds=settings.notifications.secret_retry_interval_seconds,
+        refresh_send_images=settings.cache.refresh_send_images,
     )
     notices_scheduler = NoticesScheduler(
         notices_service,

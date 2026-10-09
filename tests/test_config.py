@@ -549,47 +549,68 @@ def test_legacy_refresh_send_card_migrates_to_role_panel_only():
 
     legacy = {"cache": {"refresh_send_card": False}}
     migrated = migrate_config_dict(legacy)
-    assert migrated["cache"]["refresh_send_role_panel"] is False
+    assert migrated["cache"]["refresh_send_images"] == []
     assert "refresh_send_card" not in migrated["cache"]
     assert "refresh_send_info_card" not in migrated["cache"]
+    assert "refresh_send_role_panel" not in migrated["cache"]
 
     settings = DNASettings.from_config(legacy)
-    assert settings.cache.refresh_send_role_panel is False
-    assert settings.cache.refresh_send_info_card is True
+    assert settings.cache.refresh_send_images == []
 
 
-def test_refresh_send_switches_are_independent_config_fields():
-    """基础卡片与角色面板的发送开关是两个互不影响的字段。"""
+def test_legacy_refresh_send_card_true_selects_role_panel_only():
+    """旧 refresh_send_card=true 表示发送角色面板，不牵连基础卡片。"""
     from src.infrastructure.config.settings import DNASettings
 
-    settings = DNASettings.from_config(
-        {
-            "cache": {
-                "refresh_send_info_card": False,
-                "refresh_send_role_panel": True,
-            }
+    settings = DNASettings.from_config({"cache": {"refresh_send_card": True}})
+    assert settings.cache.refresh_send_images == ["role_panel"]
+
+
+def test_legacy_refresh_send_switches_merge_into_selection():
+    """两个旧开关被读取并合并进单选列表，旧键不残留。"""
+    from src.infrastructure.config.settings import DNASettings, migrate_config_dict
+
+    legacy = {
+        "cache": {
+            "refresh_send_info_card": False,
+            "refresh_send_role_panel": True,
         }
-    )
-    assert settings.cache.refresh_send_info_card is False
-    assert settings.cache.refresh_send_role_panel is True
+    }
+    migrated = migrate_config_dict(legacy)
+    assert migrated["cache"]["refresh_send_images"] == ["role_panel"]
+    assert "refresh_send_info_card" not in migrated["cache"]
+    assert "refresh_send_role_panel" not in migrated["cache"]
+
+    settings = DNASettings.from_config(legacy)
+    assert settings.cache.refresh_send_images == ["role_panel"]
 
 
-def test_refresh_send_role_panel_metadata_includes_weapon_panels() -> None:
-    """保留配置 key，但公开描述必须包含单角色与单武器面板。"""
+def test_refresh_send_images_defaults_to_all_when_no_legacy_keys():
+    """未出现任何旧键时取默认全选，保持原有行为。"""
+    from src.infrastructure.config.settings import DNASettings
+
+    settings = DNASettings.from_config({})
+    assert settings.cache.refresh_send_images == ["info_card", "role_panel", "mh"]
+
+
+def test_refresh_send_images_metadata_is_multi_select_list() -> None:
+    """新字段必须是带三项 options 的多选下拉，且磁盘投影与源一致。"""
 
     import json
     from pathlib import Path
 
-    field = generate_typed_schema()["cache"]["items"]["refresh_send_role_panel"]
-    assert field["description"] == "刷新后发送角色/武器面板"
-    assert "角色或武器面板" in field["hint"]
+    field = generate_typed_schema()["cache"]["items"]["refresh_send_images"]
+    assert field["type"] == "list"
+    assert field["options"] == ["info_card", "role_panel", "mh"]
+    assert field["hint"]
+    assert not field["description"].endswith("。")
 
-    disk_field = json.loads(
-        (Path(__file__).parents[1] / "_conf_schema.json").read_text(
-            encoding="utf-8"
-        )
-    )["cache"]["items"]["refresh_send_role_panel"]
-    assert disk_field == field
+    disk_cache = json.loads(
+        (Path(__file__).parents[1] / "_conf_schema.json").read_text(encoding="utf-8")
+    )["cache"]["items"]
+    assert disk_cache["refresh_send_images"] == field
+    assert "refresh_send_info_card" not in disk_cache
+    assert "refresh_send_role_panel" not in disk_cache
 
 
 def test_config_migration_rejects_malformed_known_sections():

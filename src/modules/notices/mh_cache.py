@@ -228,6 +228,15 @@ class MhSnapshotCache:
             now=envelope.fetched_at,
         )
 
+    async def invalidate_all(self) -> int:
+        """删除全部无租约的密函缓存条目，返回实际删除数。
+
+        只作用于 ``mh`` 缓存类型，不影响玩家卡、公告等其它缓存；
+        有活动租约或 sidecar 损坏的条目会被 manager 保留。
+        """
+
+        return await self.manager.invalidate(MH_CACHE_TYPE)
+
 
 __all__ = [
     "MH_CACHE_TYPE",

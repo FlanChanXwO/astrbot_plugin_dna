@@ -166,7 +166,9 @@
     "mh_text_section": "\n-- {type_name} --",
     "mh_text_item": "{index}. {name}",
     "mh_refresh_title": "当前订阅密函已刷新:",
-    "mh_text_title": "【密函已刷新】"
+    "mh_text_title": "【密函已刷新】",
+    "mh_cache_cleared": "已删除密函缓存 {count} 项，下次查询将重新获取",
+    "mh_cache_refreshed": "密函缓存已刷新"
   },
   "operations": {
     "context_unavailable": "运维命令上下文不可用",

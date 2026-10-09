@@ -14,7 +14,12 @@ import httpx
 from ...infrastructure.logger import logger
 
 from ...entry.event import EventActor
-from ...entry.response import ImageResponse, MultiImageResponse, PlainTextResponse
+from ...entry.response import (
+    ChainResponse,
+    ImageResponse,
+    MultiImageResponse,
+    PlainTextResponse,
+)
 from ...infrastructure.cache import CacheManager
 from ...infrastructure.http.concurrency import RequestConcurrencyGate
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
@@ -81,6 +86,7 @@ class NoticesService:
         request_gate: RequestConcurrencyGate | None = None,
         announcement_targets: AnnouncementTargetService | None = None,
         secret_retry_interval_seconds: float = 1.0,
+        refresh_send_images: tuple[str, ...] = (),
         sleep: SleepCallable = asyncio.sleep,
     ) -> None:
         self.database = database
@@ -96,6 +102,7 @@ class NoticesService:
         )
         self.push = push
         self.secret_simple_image = secret_simple_image
+        self.refresh_send_images = tuple(refresh_send_images)
         self.resource_snapshots = resource_snapshots
         self.mh_cache = (
             MhSnapshotCache(cache_manager) if cache_manager is not None else None
@@ -124,11 +131,16 @@ class NoticesService:
         self,
         now: datetime,
         fetch: Callable[[], Awaitable[Any]],
+        *,
+        force: bool = False,
     ) -> MhSnapshot:
-        """读取或写入当前小时的已验证密函快照。"""
+        """读取或写入当前小时的已验证密函快照。
+
+        ``force`` 为真时跳过缓存读取，重新拉取并覆盖写入。
+        """
 
         window_start = MhSnapshotCache.window_start(now)
-        if self.mh_cache is not None:
+        if self.mh_cache is not None and not force:
             cached = await self.mh_cache.get(window_start, now=now)
             if cached is not None:
                 return cached.snapshot
@@ -242,6 +254,64 @@ class NoticesService:
             manifest=getattr(rendered, "manifest", None),
             incomplete=getattr(rendered, "incomplete", False),
         )
+
+    async def clear_mh_cache(self, _request: NoticeRequest) -> PlainTextResponse:
+        """删除全部无租约的密函缓存条目。
+
+        未启用统一缓存时返回服务不可用；返回的是实际删除条数，
+        有活动租约的条目由后续失效调用处理。
+        """
+
+        del _request
+        if self.mh_cache is None:
+            return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
+        removed = await self.mh_cache.invalidate_all()
+        return PlainTextResponse(messages.mh_cache_cleared(removed))
+
+    async def refresh_mh_cache(self, request: NoticeRequest):
+        """强制重新拉取当前小时段密函快照并覆盖缓存。
+
+        成功后根据 ``refresh_send_images`` 是否含 ``mh`` 决定是否附带
+        图片；失败时复用 ``mh`` 命令的既有公开文案。
+        """
+
+        del request
+        try:
+            now = self._now()
+            snapshot = await self._verified_mh_snapshot(
+                now,
+                self.transport.get_mh_any,
+                force=True,
+            )
+        except NoticesTransportError as error:
+            logger.warning(
+                "通知请求失败 operation=%s kind=%s resource=%s",
+                "refresh_mh_cache",
+                error.kind.value,
+                error.resource,
+            )
+            if error.kind is NoticesFailureKind.CREDENTIAL:
+                return PlainTextResponse(messages.MH_PUBLIC_CREDENTIAL_UNAVAILABLE)
+            return PlainTextResponse(messages.MH_NOT_FOUND)
+        except ValueError:
+            logger.warning("通知数据解析失败 operation=%s", "refresh_mh_cache")
+            return PlainTextResponse(messages.MH_NOT_FOUND)
+        text = PlainTextResponse(messages.MH_CACHE_REFRESHED)
+        if "mh" not in self.refresh_send_images:
+            return text
+        with self._renderer_context() as renderer:
+            rendered = await renderer.render_mh(
+                snapshot,
+                simple_image=self.secret_simple_image,
+            )
+        image = ImageResponse(
+            str(rendered.path),
+            temporary=True,
+            sidecar=getattr(rendered, "sidecar", None),
+            manifest=getattr(rendered, "manifest", None),
+            incomplete=getattr(rendered, "incomplete", False),
+        )
+        return ChainResponse((text, image))
 
     async def mh_list(self, _request: NoticeRequest):
         """返回全部密函委托名称。"""

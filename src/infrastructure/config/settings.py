@@ -51,6 +51,15 @@ _REMOVED_CACHE_FIELDS = frozenset(
     )
 )
 
+# 旧的三个“刷新后是否发图”开关，统一迁移进 cache.refresh_send_images 多选列表。
+# 旧 refresh_send_card 对用户公开的语义是“刷新后发送角色面板”，历史实现误同时
+# 控制基础卡片，该 bug 不固化为兼容行为，因此只映射到 role_panel。
+_LEGACY_REFRESH_SEND_FIELDS = {
+    "refresh_send_card": "role_panel",
+    "refresh_send_info_card": "info_card",
+    "refresh_send_role_panel": "role_panel",
+}
+
 
 class _SettingsModel(BaseModel):
     """所有配置分组共用的校验策略。"""
@@ -281,15 +290,12 @@ class CacheSettings(_SettingsModel):
             "hint": "-1 表示永久缓存；0 表示禁用持久缓存；正整数表示缓存有效小时数"
         },
     )
-    refresh_send_info_card: bool = Field(
-        default=True,
-        description="刷新后发送基础卡片",
-        json_schema_extra={"hint": "主动刷新基础信息卡片后是否发送新的基础卡片图片"},
-    )
-    refresh_send_role_panel: bool = Field(
-        default=True,
-        description="刷新后发送角色/武器面板",
-        json_schema_extra={"hint": "主动刷新单个角色或武器面板后是否发送新的面板图片"},
+    refresh_send_images: list[Literal["info_card", "role_panel", "mh"]] = Field(
+        default_factory=lambda: ["info_card", "role_panel", "mh"],
+        description="刷新后发送图片",
+        json_schema_extra={
+            "hint": "主动刷新后发送图片的类型；未勾选的刷新类型只回复文本"
+        },
     )
 
 
@@ -590,6 +596,8 @@ def _consume_typed_group(
     group_name: str,
     group_data: Mapping[str, Any],
 ) -> None:
+    legacy_refresh_send: set[str] = set()
+    legacy_refresh_send_seen = False
     for field, value in group_data.items():
         source = f"{group_name}.{field}"
         if group_name == "display":
@@ -679,20 +687,25 @@ def _consume_typed_group(
             if field in _REMOVED_CACHE_FIELDS:
                 _discard_migrated_field(group_name, field, source)
                 continue
-            if field == "refresh_send_card":
-                # 旧 refresh_send_card 对用户公开的语义是“刷新后发送角色面板”；
-                # 历史实现误同时控制基础卡片，该 bug 不固化为兼容行为，
-                # 因此旧值只迁移到角色面板开关，基础卡片开关保持默认。
-                _record_assignment(
-                    result,
-                    assignments,
-                    "cache",
-                    "refresh_send_role_panel",
-                    value,
-                    f"{source}（旧 refresh_send_card）",
-                )
+            if field in _LEGACY_REFRESH_SEND_FIELDS:
+                # 三个旧开关累积为一个多选列表；值为 False 表达为“不入列”，
+                # 任一旧键出现即视为用户显式配置，直接覆盖默认全选。
+                if value:
+                    legacy_refresh_send.add(_LEGACY_REFRESH_SEND_FIELDS[field])
+                legacy_refresh_send_seen = True
                 continue
         _record_assignment(result, assignments, group_name, field, value, source)
+
+    if legacy_refresh_send_seen:
+        # 累积完整个 cache 分组后一次性落盘，避免多次记录触发冲突检测。
+        _record_assignment(
+            result,
+            assignments,
+            "cache",
+            "refresh_send_images",
+            sorted(legacy_refresh_send),
+            "cache（旧刷新发送开关）",
+        )
 
 
 def _resolve_legacy_proxy(

@@ -29,6 +29,8 @@ def _service(request: CommandRequest) -> NoticesService | PlainTextResponse:
             "toggle_mh_text",
             "subscribe_ann",
             "unsubscribe_ann",
+            "clear_mh_cache",
+            "refresh_mh_cache",
         )
     ):
         return PlainTextResponse(messages.NOTICES_SERVICE_UNAVAILABLE)
@@ -159,6 +161,28 @@ async def notices_ann_unsub_use_case(
     return await service.unsubscribe_ann(_notice_request(request))
 
 
+async def notices_clear_mh_cache_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **_parameters: Any,
+):
+    service = _service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.clear_mh_cache(_notice_request(request))
+
+
+async def notices_refresh_mh_cache_use_case(
+    request: CommandRequest,
+    _registry: CommandRegistry,
+    **_parameters: Any,
+):
+    service = _service(request)
+    if isinstance(service, PlainTextResponse):
+        return service
+    return await service.refresh_mh_cache(_notice_request(request))
+
+
 COMMAND_SPECS = (
     CommandSpec(
         id="mh",
@@ -248,6 +272,26 @@ COMMAND_SPECS = (
         use_case=cast(Any, notices_mh_text_use_case),
     ),
     CommandSpec(
+        id="clear_mh_cache",
+        pattern=r"^(?:清理|删除)密函缓存$",
+        group="密函管理",
+        name="删除密函缓存",
+        description="删除全部密函缓存，下次查询重新获取",
+        examples=("删除密函缓存",),
+        permission="admin",
+        use_case=cast(Any, notices_clear_mh_cache_use_case),
+    ),
+    CommandSpec(
+        id="refresh_mh_cache",
+        pattern=r"^刷新密函缓存$",
+        group="密函管理",
+        name="刷新密函缓存",
+        description="强制重新获取当前小时段密函数据",
+        examples=("刷新密函缓存",),
+        permission="admin",
+        use_case=cast(Any, notices_refresh_mh_cache_use_case),
+    ),
+    CommandSpec(
         id="ann_sub",
         pattern=r"^订阅公告$",
         group="公告管理",
@@ -275,6 +319,7 @@ __all__ = [
     "notices_ann_sub_use_case",
     "notices_ann_unsub_use_case",
     "notices_ann_use_case",
+    "notices_clear_mh_cache_use_case",
     "notices_mh_list_use_case",
     "notices_mh_pic_use_case",
     "notices_mh_push_time_use_case",
@@ -282,4 +327,5 @@ __all__ = [
     "notices_mh_subscriptions_use_case",
     "notices_mh_text_use_case",
     "notices_mh_use_case",
+    "notices_refresh_mh_cache_use_case",
 ]
