@@ -198,8 +198,8 @@
       "secret_push_minute": {
         "type": "int",
         "description": "密函推送分钟",
-        "hint": "每小时在该分钟推送密函，默认整点",
-        "default": 0
+        "hint": "每小时在该分钟推送密函，默认第 1 分钟",
+        "default": 1
       },
       "secret_retry_interval_seconds": {
         "type": "float",
