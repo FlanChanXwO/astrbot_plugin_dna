@@ -2,16 +2,24 @@
 
 ## [Unreleased]
 
+## v0.7.0 — 2026-10-09
+
 ### 新增
 
-- 新增管理员命令 `dna删除密函缓存`（同时接受 `dna清理密函缓存`）：删除全部无租约密函缓存并返回实际删除条数，下次查询重新获取。
-- 新增管理员命令 `dna刷新密函缓存`：强制绕过新鲜缓存重新拉取当前小时段密函数据并覆盖缓存；成功后按 `cache.refresh_send_images` 决定是否附带图片。
-- 新增多选配置 `cache.refresh_send_images`，统一控制主动刷新后发送图片的类型（`info_card` 基础卡片 / `role_panel` 角色·武器面板 / `mh` 密函）。
+- 新增管理员命令 `dna删除密函缓存`（同时接受 `dna清理密函缓存`）：删除全部无租约密函缓存并返回实际删除条数，下次查询重新获取。（[#102](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/102)）
+- 新增管理员命令 `dna刷新密函缓存`：强制绕过新鲜缓存重新拉取当前小时段密函数据并覆盖缓存；成功后按 `cache.refresh_send_images` 决定是否附带图片。（[#102](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/102)）
+- 新增多选配置 `cache.refresh_send_images`，统一控制主动刷新后发送图片的类型（`info_card` 基础卡片 / `role_panel` 角色·武器面板 / `mh` 密函）。（[#102](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/102)）
 
 ### 变更
 
-- `cache.refresh_send_info_card` 与 `cache.refresh_send_role_panel` 两个独立开关合并进 `cache.refresh_send_images` 多选列表；旧 `cache.refresh_send_card` 一并迁移，三个旧键的值都会被读取并合并（`refresh_send_card` 仍只映射到 `role_panel`，保持其对外语义），迁移后旧键不再出现在配置中。
-- **迁移是单向的**：回滚到旧版本后 `refresh_send_images` 不被识别，三个旧开关会回到各自默认值（`true`），需要重新配置发送图片行为。
+- `cache.refresh_send_info_card` 与 `cache.refresh_send_role_panel` 两个独立开关合并进 `cache.refresh_send_images` 多选列表；旧 `cache.refresh_send_card` 一并迁移，三个旧键的值都会被读取并合并（`refresh_send_card` 仍只映射到 `role_panel`，保持其对外语义），迁移后旧键不再出现在配置中。（[#102](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/102)）
+- **迁移是单向的**：回滚到旧版本后 `refresh_send_images` 不被识别，三个旧开关会回到各自默认值（`true`），需要重新配置发送图片行为。（[#102](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/102)）
+
+### 升级注意
+
+- 本次新增的两个帮助图标由 `dna-resource` 提供（[FlanChanXwO/dna-resource#47](https://github.com/FlanChanXwO/dna-resource/pull/47)，`version` 13 → 14）。升级后需确保消费到包含这两个图标的资源 generation，必要时执行一次 `dna同步资源`；否则帮助卡对这两个命令降级为 placeholder（标记为不完整），命令本身与其它功能不受影响。
+
+**完整变更**：[`v0.6.3...v0.7.0`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.6.3...v0.7.0)
 
 ## v0.6.3 — 2026-10-06
 
