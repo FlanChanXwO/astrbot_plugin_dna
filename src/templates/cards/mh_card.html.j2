@@ -1,3 +1,5 @@
+{% from "cards/macros/images.html.j2" import image_variables, image_reference %}
+{% set shared_sources = [card_background]|select|unique(case_sensitive=true)|list %}
 {% from "cards/macros/layout.html.j2" import card_shell %}
 {% call card_shell(width, height, background=background, class_name="mh-card") %}
 <style>
@@ -5,7 +7,7 @@
     font-family: "DNAFont";
     src: url("{{ font }}") format("woff2");
   }
-  .mh-card {
+  .mh-card { {{ image_variables(shared_sources) }}
     box-sizing: border-box;
   }
   .mh-card .dna-card__content {
@@ -25,7 +27,7 @@
   .mh-card__entry:nth-of-type(1) { left: 100px; }
   .mh-card__entry:nth-of-type(2) { left: 600px; }
   .mh-card__entry:nth-of-type(3) { left: 1100px; }
-  .mh-card__entry-bg {
+  .mh-card__entry-bg { background: {{ image_reference(card_background, shared_sources) }} center/100% 100% no-repeat;
     position: absolute;
     top: 0;
     left: 0;
@@ -136,7 +138,7 @@
     object-fit: fill;
   }
 </style>
-{% for card in cards %}<article class="mh-card__entry"><img class="mh-card__entry-bg" src="{{ card_background }}" alt="" />{% if card.icon %}<img class="mh-card__icon" src="{{ card.icon }}" alt="" />{% endif %}<h1 class="mh-card__type">{{ card.type_name }}</h1><p class="mh-card__state">当前开放</p><ul class="mh-card__instance-wrap">{% for instance in card.instances %}<li class="mh-card__instance{% if instance.subscribed %} subscribed{% endif %}">{{ instance.name }}</li>{% endfor %}</ul></article>{% endfor %}
+{% for card in cards %}<article class="mh-card__entry"><span class="mh-card__entry-bg" aria-hidden="true"></span>{% if card.icon %}<img class="mh-card__icon" src="{{ card.icon }}" alt="" />{% endif %}<h1 class="mh-card__type">{{ card.type_name }}</h1><p class="mh-card__state">当前开放</p><ul class="mh-card__instance-wrap">{% for instance in card.instances %}<li class="mh-card__instance{% if instance.subscribed %} subscribed{% endif %}">{{ instance.name }}</li>{% endfor %}</ul></article>{% endfor %}
 <img class="mh-card__title" src="{{ title }}" alt="" />
 <img class="mh-card__footer" src="{{ footer }}" alt="" />
 <p class="mh-card__refresh">{{ refresh_text }}</p>

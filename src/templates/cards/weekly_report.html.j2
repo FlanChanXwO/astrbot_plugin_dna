@@ -1,9 +1,11 @@
+{% from "cards/macros/images.html.j2" import image_variables, image_reference %}
+{% set shared_sources = categories|map(attribute="items")|sum(start=[])|map(attribute="quality")|select|unique(case_sensitive=true)|list %}
 {% from "cards/macros/layout.html.j2" import card_shell %}
 {% from "cards/macros/components.html.j2" import legacy_profile_header %}
 {% call card_shell(width, height, background=background, class_name="weekly-report") %}
 <style>
   @font-face { font-family: "DNAUnicode"; src: url("{{ font }}") format("woff2"); }
-  .weekly-report { position: relative; width: 1200px; height: {{ height }}px; color: #fff; font-family: "DNAUnicode", sans-serif; overflow: hidden; }
+  .weekly-report { {{ image_variables(shared_sources) }} position: relative; width: 1200px; height: {{ height }}px; color: #fff; font-family: "DNAUnicode", sans-serif; overflow: hidden; }
   .weekly-report .dna-legacy-profile { position: absolute; top: 30px; left: -50px; z-index: 2; margin: 0; }
   .weekly-report__banner { position: absolute; top: 270px; left: 70px; width: 1060px; height: 110px; text-align: center; }
   .weekly-report__banner h2 { position: absolute; top: 27px; left: 0; width: 100%; margin: 0; color: #eee8aa; font-size: 36px; font-weight: 400; line-height: 50px; }
@@ -17,7 +19,7 @@
   .weekly-report__category h2::after { position: absolute; right: 0; bottom: 10px; left: 17px; height: 2px; background: rgba(255,255,255,.45); content: ""; }
   .weekly-report__items { display: grid; grid-template-columns: repeat(5, 212px); grid-auto-rows: 230px; gap: 0; margin: 0 0 0 20px; padding: 0; }
   .weekly-report__item { position: relative; width: 212px; height: 230px; text-align: center; }
-  .weekly-report__quality { position: absolute; top: 0; left: 36px; width: 140px; height: 140px; object-fit: contain; }
+  .weekly-report__quality { background-position: center; background-repeat: no-repeat; background-size: contain; position: absolute; top: 0; left: 36px; width: 140px; height: 140px; object-fit: contain; }
   .weekly-report__icon { position: absolute; top: 22px; left: 53px; width: 105px; height: 105px; object-fit: contain; }
   .weekly-report__item h3 { position: absolute; top: 148px; left: 0; width: 212px; height: 38px; margin: 0; font-size: 28px; font-weight: 400; line-height: 38px; overflow-wrap: anywhere; }
   .weekly-report__item p { position: absolute; top: 190px; left: 0; width: 212px; height: 38px; margin: 0; color: #eee8aa; font-size: 30px; font-weight: 400; line-height: 38px; }
@@ -26,6 +28,6 @@
 </style>
 {{ legacy_profile_header(header, header_background) }}
 <header class="weekly-report__banner"><span class="rule rule--left"></span><span class="rule rule--right"></span><h2>{{ week_label }}</h2><p>{{ period }}</p></header>
-{% set ns = namespace(top=400) %}{% for category in categories %}{% set rows = [1, ((category["items"]|length + 4) // 5)]|max %}<section class="weekly-report__category" style="top:{{ ns.top }}px;height:{{ 70 + rows * 230 + 20 }}px"><h2>{{ category.name }}</h2>{% if category["items"] %}<div class="weekly-report__items">{% for item in category["items"] %}<article class="weekly-report__item">{% if item.quality %}<img class="weekly-report__quality" src="{{ item.quality }}" alt="" />{% endif %}{% if item.icon %}<img class="weekly-report__icon" src="{{ item.icon }}" alt="" />{% endif %}<h3>{{ item.name }}</h3><p>× {{ item.total }}</p></article>{% endfor %}</div>{% else %}<p class="weekly-report__empty">本周暂无相关资源获取</p>{% endif %}</section>{% set ns.top = ns.top + 70 + rows * 230 + 20 %}{% endfor %}
+{% set ns = namespace(top=400) %}{% for category in categories %}{% set rows = [1, ((category["items"]|length + 4) // 5)]|max %}<section class="weekly-report__category" style="top:{{ ns.top }}px;height:{{ 70 + rows * 230 + 20 }}px"><h2>{{ category.name }}</h2>{% if category["items"] %}<div class="weekly-report__items">{% for item in category["items"] %}<article class="weekly-report__item">{% if item.quality %}<span class="weekly-report__quality" style="background-image:{{ image_reference(item.quality, shared_sources) }}" aria-hidden="true"></span>{% endif %}{% if item.icon %}<img class="weekly-report__icon" src="{{ item.icon }}" alt="" />{% endif %}<h3>{{ item.name }}</h3><p>× {{ item.total }}</p></article>{% endfor %}</div>{% else %}<p class="weekly-report__empty">本周暂无相关资源获取</p>{% endif %}</section>{% set ns.top = ns.top + 70 + rows * 230 + 20 %}{% endfor %}
 <img class="weekly-report__footer" src="{{ footer_image }}" alt="" />
 {% endcall %}
