@@ -21,9 +21,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
-from ..infrastructure.logger import logger
 from PIL import Image
 
+from ..infrastructure.logger import logger
 from .session import EventContext
 
 if TYPE_CHECKING:

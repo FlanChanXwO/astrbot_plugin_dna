@@ -14,9 +14,8 @@ from datetime import datetime, timedelta
 from typing import Protocol, cast
 from zoneinfo import ZoneInfo
 
-from .logger import logger
-
 from ..modules.client_updates.contracts import ClientUpdateChange
+from .logger import logger
 from .scheduler_state import (
     SchedulerRegistry,
     SchedulerTaskDefinition,

@@ -269,13 +269,16 @@ def _response(
                 typed_result.data,
                 include_credentials=include_credentials,
             )
-            if error is not None and error.code is AdminErrorCode.PARTIAL:
-                if isinstance(serialized_data, Mapping):
-                    serialized_data = dict(serialized_data)
-                    serialized_data["operation_error"] = {
-                        "code": error.code.value,
-                        "message": _public_error_message(error),
-                    }
+            if (
+                error is not None
+                and error.code is AdminErrorCode.PARTIAL
+                and isinstance(serialized_data, Mapping)
+            ):
+                serialized_data = dict(serialized_data)
+                serialized_data["operation_error"] = {
+                    "code": error.code.value,
+                    "message": _public_error_message(error),
+                }
             body["data"] = serialized_data
         if error is not None:
             body["error"] = {

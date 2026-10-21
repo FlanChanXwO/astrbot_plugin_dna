@@ -517,9 +517,11 @@ async def test_alicap_route_round_trips_raw_path_and_query() -> None:
             f"{flow.public_url}/alicap/{auth}"
             f"/captcha.alicaptcha.com/{sub_path}?{raw_query}"
         )
-        async with aiohttp.ClientSession() as session:
-            async with session.get(yarl.URL(target, encoded=True)) as response:
-                assert response.status == 200
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(yarl.URL(target, encoded=True)) as response,
+        ):
+            assert response.status == 200
 
     assert captured["path"] == sub_path
     assert captured["query"] == raw_query
@@ -555,10 +557,12 @@ async def test_alicap_route_preserves_raw_bytes_on_real_outbound_request(
             f"{flow.public_url}/alicap/{auth}"
             f"/captcha.alicaptcha.com/{sub_path}?{raw_query}"
         )
-        async with aiohttp.ClientSession() as session:
-            async with session.get(yarl.URL(target, encoded=True)) as response:
-                assert response.status == 200
-                assert await response.text() == "ok"
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(yarl.URL(target, encoded=True)) as response,
+        ):
+            assert response.status == 200
+            assert await response.text() == "ok"
 
     assert seen["raw_path"] == (f"/{sub_path}?{raw_query}".encode("ascii"))
 
@@ -625,13 +629,15 @@ async def test_local_server_serves_service_worker() -> None:
     import aiohttp
 
     async with _started_flow() as flow:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{flow.public_url}/sw.js") as response:
-                assert response.status == 200
-                assert "javascript" in response.headers["Content-Type"]
-                assert response.headers.get("Cache-Control") == "no-cache"
-                assert "Service-Worker-Allowed" in response.headers
-                script = await response.text()
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(f"{flow.public_url}/sw.js") as response,
+        ):
+            assert response.status == 200
+            assert "javascript" in response.headers["Content-Type"]
+            assert response.headers.get("Cache-Control") == "no-cache"
+            assert "Service-Worker-Allowed" in response.headers
+            script = await response.text()
         assert "alicaptcha.com" in script
         # Service Worker 必须从受控登录页 URL 解析当前会话 auth，再写入反代地址。
         assert "clients.get" in script
@@ -648,10 +654,12 @@ async def test_login_page_installs_hook_before_captcha_sdk_and_uses_explicit_hos
 
     async with _started_flow() as flow:
         auth = await _open_session(flow)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{flow.public_url}/dna/i/{auth}") as page_response:
-                assert page_response.status == 200
-                page = await page_response.text()
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(f"{flow.public_url}/dna/i/{auth}") as page_response,
+        ):
+            assert page_response.status == 200
+            page = await page_response.text()
 
     assert "serviceWorker" in page
     assert "ALICAP_HOSTS" in page

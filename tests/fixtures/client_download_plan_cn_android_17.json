@@ -1,0 +1,892 @@
+{
+  "version_list": {
+    "versionList": {
+      "1510205": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 205,
+        "patchKey": 1,
+        "patchVersion": 1510205,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1510206": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 206,
+        "patchKey": 1,
+        "patchVersion": 1510206,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1510207": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 207,
+        "patchKey": 1,
+        "patchVersion": 1510207,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1510208": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 208,
+        "patchKey": 1,
+        "patchVersion": 1510208,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1510209": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 209,
+        "patchKey": 1,
+        "patchVersion": 1510209,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1510210": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 210,
+        "patchKey": 1,
+        "patchVersion": 1510210,
+        "bOptional": false,
+        "bRestart": true
+      }
+    }
+  },
+  "patches": {
+    "1510205": {
+      "pak": {
+        "pakFilesMap": {
+          "Android_ASTC": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.205.1_Default_Android_ASTC_1510205_P.pak",
+                "hash": "75e3704f30b2d54001e659d3806bc9ac",
+                "pakOptionalSign": "",
+                "fileSize": 1712533989,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Default_Android_ASTC_1510205_P.sig",
+                "hash": "ee71c98c44e92d6f6eb671deb613c6cf",
+                "pakOptionalSign": "",
+                "fileSize": 105056,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Audio_Android_ASTC_1510205_P.pak",
+                "hash": "4e2f93e5871d4a7e4fc41e71fb5498e1",
+                "pakOptionalSign": "",
+                "fileSize": 1279574453,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Audio_Android_ASTC_1510205_P.sig",
+                "hash": "c283489c57e2017bacc43b7a5a9b035e",
+                "pakOptionalSign": "",
+                "fileSize": 78628,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Cine_Android_ASTC_1510205_P.pak",
+                "hash": "c9131401375637b062c33f6d2b27199a",
+                "pakOptionalSign": "",
+                "fileSize": 894554953,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Cine_Android_ASTC_1510205_P.sig",
+                "hash": "10a2aec4948d448d134e75013f10bbed",
+                "pakOptionalSign": "",
+                "fileSize": 55128,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_UIVideo_Android_ASTC_1510205_P.pak",
+                "hash": "b60c83f6ea246534882b2a0d5baeef0a",
+                "pakOptionalSign": "",
+                "fileSize": 139698,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_UIVideo_Android_ASTC_1510205_P.sig",
+                "hash": "f9da4519adbdd6cfe18ce63398a06e73",
+                "pakOptionalSign": "",
+                "fileSize": 540,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_SceneBHC_Android_ASTC_1510205_P.pak",
+                "hash": "a036eeedce2b4166f883a85772f80868",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 1051880282,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_SceneBHC_Android_ASTC_1510205_P.sig",
+                "hash": "c98a0fa43006d902937f75d24662fd37",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 64732,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_SceneHuaXu_Android_ASTC_1510205_P.pak",
+                "hash": "b6d00e2a7f616e001dcd0f8607f99af2",
+                "pakOptionalSign": "Patch_East",
+                "fileSize": 664500671,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_SceneHuaXu_Android_ASTC_1510205_P.sig",
+                "hash": "849ec5ce7028fcbe9ba3ab05ac15c89f",
+                "pakOptionalSign": "Patch_East",
+                "fileSize": 41088,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Scene_Android_ASTC_1510205_P.pak",
+                "hash": "30fefee8c05ddec5f6fe2b5f00558e33",
+                "pakOptionalSign": "",
+                "fileSize": 449178933,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Scene_Android_ASTC_1510205_P.sig",
+                "hash": "e9ef0b35073b8da463affba15e805f6a",
+                "pakOptionalSign": "",
+                "fileSize": 27944,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Char_Android_ASTC_1510205_P.pak",
+                "hash": "aa990b77c80b03f877329c3a4e0f5ae8",
+                "pakOptionalSign": "",
+                "fileSize": 4504572449,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Char_Android_ASTC_1510205_P.sig",
+                "hash": "30e90374f1599f075b698e77e29c0eeb",
+                "pakOptionalSign": "",
+                "fileSize": 275468,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_CharBHC_Android_ASTC_1510205_P.pak",
+                "hash": "afcf781e6f2dc0060e803536cf9496c2",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 334160267,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_CharBHC_Android_ASTC_1510205_P.sig",
+                "hash": "199a633396be4022a888724d9c9022b4",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 20924,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_MapsBHC_Android_ASTC_1510205_P.pak",
+                "hash": "8defdc6debd934f4488ce3610e009ae0",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 2747221399,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_MapsBHC_Android_ASTC_1510205_P.sig",
+                "hash": "7575510cc2ad597aaf3ddf7c47c6910e",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 168208,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_MapsHuaxu_Android_ASTC_1510205_P.pak",
+                "hash": "eb587fadb0f3f9a6973d97a76bcad3c1",
+                "pakOptionalSign": "Patch_East",
+                "fileSize": 955493042,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_MapsHuaxu_Android_ASTC_1510205_P.sig",
+                "hash": "bac162fe8111d3a2ddad61a67a1ab1e7",
+                "pakOptionalSign": "Patch_East",
+                "fileSize": 58848,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Map_Android_ASTC_1510205_P.pak",
+                "hash": "08e731fb3e1475f3ba0077438595053e",
+                "pakOptionalSign": "",
+                "fileSize": 170140758,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Map_Android_ASTC_1510205_P.sig",
+                "hash": "b09f6a3d488f6c50b1282cf9c5543b90",
+                "pakOptionalSign": "",
+                "fileSize": 10916,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.205.1_Media_Android_ASTC_1510205_P.pak",
+                "hash": "d6af76fd870af7ee3fecfd5393b6cba9",
+                "pakOptionalSign": "",
+                "fileSize": 1355626827,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_Media_Android_ASTC_1510205_P.sig",
+                "hash": "3fbe1eba572f6c8ab07b42698ae0bb63",
+                "pakOptionalSign": "",
+                "fileSize": 83272,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_VoiceCN_Android_ASTC_1510205_P.pak",
+                "hash": "a9035f5e1e03f26389b4345682c17f45",
+                "pakOptionalSign": "VoiceCN",
+                "fileSize": 1166385524,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_VoiceCN_Android_ASTC_1510205_P.sig",
+                "hash": "d806e57eef23055893acd70846bab9d5",
+                "pakOptionalSign": "VoiceCN",
+                "fileSize": 71720,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_VoiceEN_Android_ASTC_1510205_P.pak",
+                "hash": "e80bed8eb34375b625cf459c23ae3fd3",
+                "pakOptionalSign": "VoiceEN",
+                "fileSize": 1102741666,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_VoiceEN_Android_ASTC_1510205_P.sig",
+                "hash": "3956b7046ef4ade0cc80f005b2f1f06c",
+                "pakOptionalSign": "VoiceEN",
+                "fileSize": 67836,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_VoiceJP_Android_ASTC_1510205_P.pak",
+                "hash": "bd5afb5ebe4a81fdd780799a8018f598",
+                "pakOptionalSign": "VoiceJP",
+                "fileSize": 1161498189,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_VoiceJP_Android_ASTC_1510205_P.sig",
+                "hash": "f5670f0bf907f0baa4db5a8cc258bf39",
+                "pakOptionalSign": "VoiceJP",
+                "fileSize": 71424,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_VoiceKR_Android_ASTC_1510205_P.pak",
+                "hash": "151e7807193c0c600e85135de231f288",
+                "pakOptionalSign": "VoiceKR",
+                "fileSize": 1143166134,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.205.1_VoiceKR_Android_ASTC_1510205_P.sig",
+                "hash": "1327eaa4fec47c387ab351cd036e0f2a",
+                "pakOptionalSign": "VoiceKR",
+                "fileSize": 70304,
+                "bExamineIgnore": true
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1510206": {
+      "pak": {
+        "pakFilesMap": {
+          "Android_ASTC": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.206.1_Default_Android_ASTC_1510206_P.pak",
+                "hash": "7a80a74286f8bf7f6aec773e3685155a",
+                "pakOptionalSign": "",
+                "fileSize": 11132535,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_Default_Android_ASTC_1510206_P.sig",
+                "hash": "08a085a15a2e234bd8e5af6cfe7c59ca",
+                "pakOptionalSign": "",
+                "fileSize": 1208,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_Script_Android_ASTC_1510206_P.pak",
+                "hash": "268a1ec1c4895fa4a744e7815c4079f8",
+                "pakOptionalSign": "",
+                "fileSize": 2393777,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_Script_Android_ASTC_1510206_P.sig",
+                "hash": "46e95696ec7022ca9f4ee02283f6a81f",
+                "pakOptionalSign": "",
+                "fileSize": 676,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_UIVideo_Android_ASTC_1510206_P.pak",
+                "hash": "76d9deb2284afc1390a282bf6d0ba49f",
+                "pakOptionalSign": "",
+                "fileSize": 1457,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_UIVideo_Android_ASTC_1510206_P.sig",
+                "hash": "8cdb054f828051e1d6553c4abeafb1b7",
+                "pakOptionalSign": "",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_SceneBHC_Android_ASTC_1510206_P.pak",
+                "hash": "fb603bae2757c2ed1dd9f034e42cba87",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 155737,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_SceneBHC_Android_ASTC_1510206_P.sig",
+                "hash": "ff56965b2815c0b6e838106da3dc8bc3",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 540,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_Scene_Android_ASTC_1510206_P.pak",
+                "hash": "33fb538cb80d45ae563cc252c8c20b39",
+                "pakOptionalSign": "",
+                "fileSize": 275522,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_Scene_Android_ASTC_1510206_P.sig",
+                "hash": "3cf0a06705869e3825cc5bf291d81a7c",
+                "pakOptionalSign": "",
+                "fileSize": 548,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_Char_Android_ASTC_1510206_P.pak",
+                "hash": "cc5cefd5e6443646206662c4fdc36b1d",
+                "pakOptionalSign": "",
+                "fileSize": 12717219,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_Char_Android_ASTC_1510206_P.sig",
+                "hash": "6db42b7543d761d74d30a13f2cba82be",
+                "pakOptionalSign": "",
+                "fileSize": 1308,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_MapsBHC_Android_ASTC_1510206_P.pak",
+                "hash": "3e09f1bc211b15e49e3045052a338db6",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 443876,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_MapsBHC_Android_ASTC_1510206_P.sig",
+                "hash": "6ce7deab0fd034343687b3965f687457",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 556,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.206.1_Media_Android_ASTC_1510206_P.pak",
+                "hash": "84dd810193b52b35c69a13e51d579e26",
+                "pakOptionalSign": "",
+                "fileSize": 12638094,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.206.1_Media_Android_ASTC_1510206_P.sig",
+                "hash": "4818037b87f7c9380b5a4eb33cdc6e76",
+                "pakOptionalSign": "",
+                "fileSize": 1300,
+                "bExamineIgnore": true
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1510207": {
+      "pak": {
+        "pakFilesMap": {
+          "Android_ASTC": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.207.1_Default_Android_ASTC_1510207_P.pak",
+                "hash": "115834f8ef566c4a84f0995c1b1d720b",
+                "pakOptionalSign": "",
+                "fileSize": 15101198,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_Default_Android_ASTC_1510207_P.sig",
+                "hash": "91c26107bf4d0e767e9d9d3b862b29c7",
+                "pakOptionalSign": "",
+                "fileSize": 1452,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_Script_Android_ASTC_1510207_P.pak",
+                "hash": "8c1947f412be6de9cf5e131bb88e459b",
+                "pakOptionalSign": "",
+                "fileSize": 57880111,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_Script_Android_ASTC_1510207_P.sig",
+                "hash": "6aadce6c14ee27eac6a7a05b8236f2a7",
+                "pakOptionalSign": "",
+                "fileSize": 4064,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_PipelineCaches_Android_ASTC_1510207_P.pak",
+                "hash": "169b265a05ec6ac4120b7e31d6a9f0e4",
+                "pakOptionalSign": "",
+                "fileSize": 707701,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_PipelineCaches_Android_ASTC_1510207_P.sig",
+                "hash": "9e905df3052b3624a091354d41810fe0",
+                "pakOptionalSign": "",
+                "fileSize": 572,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_Char_Android_ASTC_1510207_P.pak",
+                "hash": "dcfa9e7d2e374dee36f2948b53aa1aba",
+                "pakOptionalSign": "",
+                "fileSize": 695117,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_Char_Android_ASTC_1510207_P.sig",
+                "hash": "a6da9ce470fdaa4ed1c6abf3643f28ad",
+                "pakOptionalSign": "",
+                "fileSize": 572,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_CharBHC_Android_ASTC_1510207_P.pak",
+                "hash": "a151002cb3b8e8a90a9140c53a15507f",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 3004,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.207.1_CharBHC_Android_ASTC_1510207_P.sig",
+                "hash": "698bdb50df68f538b457652a6ddf2790",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1510208": {
+      "pak": {
+        "pakFilesMap": {
+          "Android_ASTC": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.208.1_Default_Android_ASTC_1510208_P.pak",
+                "hash": "55119d6bcca95b0605143b093b1645ac",
+                "pakOptionalSign": "",
+                "fileSize": 22016411,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Default_Android_ASTC_1510208_P.sig",
+                "hash": "4255e39a02d019a66dec3b026769feb3",
+                "pakOptionalSign": "",
+                "fileSize": 1872,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Script_Android_ASTC_1510208_P.pak",
+                "hash": "afc6bcf1b2aff3489100cf6d33b7a570",
+                "pakOptionalSign": "",
+                "fileSize": 62141500,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Script_Android_ASTC_1510208_P.sig",
+                "hash": "2c50e88e2c5b24b031e1f648d492c4b4",
+                "pakOptionalSign": "",
+                "fileSize": 4324,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Audio_Android_ASTC_1510208_P.pak",
+                "hash": "cc882bd32dbd0128371089a98389c2fa",
+                "pakOptionalSign": "",
+                "fileSize": 60312435,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Audio_Android_ASTC_1510208_P.sig",
+                "hash": "1d3a3af73421a5effcc57ccd863f9c67",
+                "pakOptionalSign": "",
+                "fileSize": 4212,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Cine_Android_ASTC_1510208_P.pak",
+                "hash": "fea12787077bde2604ef918e0019f3f0",
+                "pakOptionalSign": "",
+                "fileSize": 6353223,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Cine_Android_ASTC_1510208_P.sig",
+                "hash": "1fb5b50d0b4d573896450da7f83460d2",
+                "pakOptionalSign": "",
+                "fileSize": 916,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_UIVideo_Android_ASTC_1510208_P.pak",
+                "hash": "4634ef9aefa77e612d98f4811d7961e6",
+                "pakOptionalSign": "",
+                "fileSize": 5574,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_UIVideo_Android_ASTC_1510208_P.sig",
+                "hash": "21bcbffe959829a061444485acbdb0ee",
+                "pakOptionalSign": "",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Char_Android_ASTC_1510208_P.pak",
+                "hash": "c1dbacc2b49685efaf8680627f1e6981",
+                "pakOptionalSign": "",
+                "fileSize": 1565896,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Char_Android_ASTC_1510208_P.sig",
+                "hash": "b04333b968a494e7550088b55b92b053",
+                "pakOptionalSign": "",
+                "fileSize": 624,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_MapsBHC_Android_ASTC_1510208_P.pak",
+                "hash": "adb0ec73e6ee21c89510803423d01d09",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 25374676,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_MapsBHC_Android_ASTC_1510208_P.sig",
+                "hash": "8e781d6d9d9c5ae14dd170beb1ad63af",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 2080,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_MapsHuaxu_Android_ASTC_1510208_P.pak",
+                "hash": "8f79885c5744ef6aaad85791d19cc36e",
+                "pakOptionalSign": "Patch_East",
+                "fileSize": 2982,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_MapsHuaxu_Android_ASTC_1510208_P.sig",
+                "hash": "eee1b48f165a76ccc3874b7c781c8b0f",
+                "pakOptionalSign": "Patch_East",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.208.1_Media_Android_ASTC_1510208_P.pak",
+                "hash": "13457501b841c0677b3db307d72b9274",
+                "pakOptionalSign": "",
+                "fileSize": 32110988,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.208.1_Media_Android_ASTC_1510208_P.sig",
+                "hash": "b39298a4cb2cbcfcb3750223c191506c",
+                "pakOptionalSign": "",
+                "fileSize": 2488,
+                "bExamineIgnore": true
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1510209": {
+      "pak": {
+        "pakFilesMap": {
+          "Android_ASTC": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.209.1_Default_Android_ASTC_1510209_P.pak",
+                "hash": "24a669786e8a0811a300e8653b7473f8",
+                "pakOptionalSign": "",
+                "fileSize": 11735922,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Default_Android_ASTC_1510209_P.sig",
+                "hash": "bc4f94195e36d852e2b04b69ab116e08",
+                "pakOptionalSign": "",
+                "fileSize": 1248,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Script_Android_ASTC_1510209_P.pak",
+                "hash": "7705ec6f507f90fb72ff77ba0e62a8fc",
+                "pakOptionalSign": "",
+                "fileSize": 35908446,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Script_Android_ASTC_1510209_P.sig",
+                "hash": "adeb8071ba5f447a0fa95141ada51e37",
+                "pakOptionalSign": "",
+                "fileSize": 2720,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Oodle_Android_ASTC_1510209_P.pak",
+                "hash": "3048b29ca9a9832ab8bd9f2bb7c208b3",
+                "pakOptionalSign": "",
+                "fileSize": 62545046,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Oodle_Android_ASTC_1510209_P.sig",
+                "hash": "89cdc1a3a4efa1227d6f965745159464",
+                "pakOptionalSign": "",
+                "fileSize": 4348,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Audio_Android_ASTC_1510209_P.pak",
+                "hash": "f6cc47e2d59899c1f7f750f54d5a0438",
+                "pakOptionalSign": "",
+                "fileSize": 40947393,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Audio_Android_ASTC_1510209_P.sig",
+                "hash": "82f1062b3a28d473c98d889cab05a82e",
+                "pakOptionalSign": "",
+                "fileSize": 3028,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_UIVideo_Android_ASTC_1510209_P.pak",
+                "hash": "ea6fbd2af4a532c632abcb7ab07d2cbf",
+                "pakOptionalSign": "",
+                "fileSize": 4689,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_UIVideo_Android_ASTC_1510209_P.sig",
+                "hash": "75b8e40e58971ff402bbf19b44daaf50",
+                "pakOptionalSign": "",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Char_Android_ASTC_1510209_P.pak",
+                "hash": "d5699ee211085788fa04d303628d47bb",
+                "pakOptionalSign": "",
+                "fileSize": 1404640,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Char_Android_ASTC_1510209_P.sig",
+                "hash": "0848fc6763a63d484be80a3a795b5e58",
+                "pakOptionalSign": "",
+                "fileSize": 616,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_CharBHC_Android_ASTC_1510209_P.pak",
+                "hash": "885ebaa87a8b3160a25ef8c292cad4da",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 943740,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_CharBHC_Android_ASTC_1510209_P.sig",
+                "hash": "503f9d62daeca1a47e08077cb0f0c6c9",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 588,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_MapsBHC_Android_ASTC_1510209_P.pak",
+                "hash": "1d482111eabc25013e0168274b58611e",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 5829305,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_MapsBHC_Android_ASTC_1510209_P.sig",
+                "hash": "f29a34c66a8354623c15af5204fbcdfe",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 884,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.209.1_Media_Android_ASTC_1510209_P.pak",
+                "hash": "14b95ee4c9e3ab1a4839a1a28853de95",
+                "pakOptionalSign": "",
+                "fileSize": 33151618,
+                "bExamineIgnore": true
+              },
+              {
+                "fileName": "1.7.209.1_Media_Android_ASTC_1510209_P.sig",
+                "hash": "49231e8c478111f2c1619edfaa98e483",
+                "pakOptionalSign": "",
+                "fileSize": 2552,
+                "bExamineIgnore": true
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1510210": {
+      "pak": {
+        "pakFilesMap": {
+          "Android_ASTC": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.210.1_Default_Android_ASTC_1510210_P.pak",
+                "hash": "c95500aabd0ed9d72ad70442cbaed6ed",
+                "pakOptionalSign": "",
+                "fileSize": 594642,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.210.1_Default_Android_ASTC_1510210_P.sig",
+                "hash": "cf4ca4c60410ae4ec0b1bcce690ff2a1",
+                "pakOptionalSign": "",
+                "fileSize": 568,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.210.1_Script_Android_ASTC_1510210_P.pak",
+                "hash": "9ed379aa722f0a48a780bc6b2df06221",
+                "pakOptionalSign": "",
+                "fileSize": 7025,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.210.1_Script_Android_ASTC_1510210_P.sig",
+                "hash": "c74fda3b71f456713b0ee2b09d567daf",
+                "pakOptionalSign": "",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.210.1_Char_Android_ASTC_1510210_P.pak",
+                "hash": "f03517d401926910469cb0b5db3a67d9",
+                "pakOptionalSign": "",
+                "fileSize": 1989773,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.210.1_Char_Android_ASTC_1510210_P.sig",
+                "hash": "dc2e4cc130f4a553cb02bc73c12c174b",
+                "pakOptionalSign": "",
+                "fileSize": 652,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.210.1_MapsBHC_Android_ASTC_1510210_P.pak",
+                "hash": "a9967332ae0d835e925723dca6a026df",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 4122302,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.210.1_MapsBHC_Android_ASTC_1510210_P.sig",
+                "hash": "1af763ba15c203b5deb5eca3fbfcc5bc",
+                "pakOptionalSign": "Patch_Icelake",
+                "fileSize": 780,
+                "bExamineIgnore": false
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    }
+  }
+}

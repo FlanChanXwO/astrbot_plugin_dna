@@ -19,7 +19,6 @@ from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.astr_agent_context import AstrAgentContext
 
 from ...infrastructure.logger import logger
-
 from ...modules.agent_tools.contracts import AgentQueryPresentation, AgentQueryResult
 from ...modules.agent_tools.queries import AgentQueryCatalog, build_query_catalog
 from ..response import (

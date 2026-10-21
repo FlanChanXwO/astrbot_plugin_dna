@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from .contracts import ClientPlatform, ClientSourceVersion, ClientUpdateChange
+from .contracts import (
+    ClientPlatform,
+    ClientSourceVersion,
+    ClientUpdateChange,
+    ManifestCdnVersionMetadata,
+)
 from .registry import resolve_client_update_target
 
 CLIENT_UPDATE_CONTEXT_UNAVAILABLE = "客户端更新查询上下文不可用"
@@ -80,16 +85,72 @@ def format_change(
             for target_id in change.target_ids
         )
     )
-    added_size = (
-        format_size(change.added_size_bytes)
-        if change.history_complete and change.added_size_bytes is not None
-        else "大小未知（历史窗口已变化）"
-    )
+    plan = change.download_plan
+    if plan is not None:
+        label = (
+            "热更下载（不含安装包和选配资源）"
+            if plan.basis == "android_resources"
+            else "下载量（不含选配资源）"
+        )
+        size_line = f"{label}：{format_size(plan.required_size_bytes)}"
+        if plan.basis == "hdiff_and_patch":
+            size_line += (
+                f"\n基础包：{plan.package_from} → {plan.package_to}（已计入差分下载）"
+            )
+        if plan.basis == "apk_and_patch":
+            size_line = f"安装包＋共用资源：{format_size(plan.required_size_bytes)}"
+            size_line += (
+                f"\n官网 APK 直更：versionCode {plan.package_to}（已计入整包下载）"
+            )
+            groups = dict(plan.optional_sizes)
+            regions = ("Patch_East", "Patch_Icelake")
+            for tag, language in (
+                ("VoiceCN", "中文"),
+                ("VoiceEN", "英语"),
+                ("VoiceJP", "日语"),
+                ("VoiceKR", "韩语"),
+            ):
+                if tag in groups:
+                    size_line += f"\n{language}基础档：{format_size(plan.required_size_bytes + groups[tag])}"
+            if "VoiceCN" in groups and all(tag in groups for tag in regions):
+                size_line += "\n中文完整档：" + format_size(
+                    plan.required_size_bytes
+                    + groups["VoiceCN"]
+                    + sum(groups[tag] for tag in regions)
+                )
+            if all(tag in groups for tag in regions):
+                size_line += (
+                    f"\n基础档可追加：华胥 {format_size(groups['Patch_East'])}；"
+                    f"冰湖城 {format_size(groups['Patch_Icelake'])}"
+                )
+            size_line += "\n基础档含单种语音。"
+            if "VoiceCN" in groups and all(tag in groups for tag in regions):
+                size_line += "中文完整档另含上述两地资源。"
+        elif plan.optional_sizes:
+            labels = {
+                "VoiceCN": "中文语音",
+                "VoiceEN": "英语语音",
+                "VoiceJP": "日语语音",
+                "VoiceKR": "韩语语音",
+                "Patch_East": "华胥资源",
+                "Patch_Icelake": "冰湖城资源",
+            }
+            size_line += "\n选配资源另加：" + "；".join(
+                f"{labels.get(name, name)} {format_size(size)}"
+                for name, size in plan.optional_sizes
+            )
+        size_line += "\n按完整旧版本、无预下载计算；不是设备剩余下载量。"
+    elif isinstance(change.current.provider_metadata, ManifestCdnVersionMetadata):
+        size_line = "下载量：旧记录未保存下载计划"
+        if change.added_size_bytes is not None:
+            size_line += f"\n补丁清单统计：{format_size(change.added_size_bytes)}"
+    else:
+        size_line = "下载量：该渠道未公开可计算的升级下载计划"
     return (
         f"{_DETECTED_PREFIX}更新\n"
         f"目标：{_format_target_names(names)}\n"
         f"版本：{_change_version_line(change)}\n"
-        f"新增更新：{added_size}"
+        f"{size_line}"
     )
 
 

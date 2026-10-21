@@ -10,8 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
+from ...infrastructure.logger import logger
 from .contracts import (
     AppStoreVersionMetadata,
+    ClientDownloadPlan,
     ClientSourceProviderMetadata,
     ClientSourceVersion,
     ClientUpdateChange,
@@ -22,9 +24,8 @@ from .registry import (
     ClientUpdateProviderKind,
     ClientUpdateRegistry,
 )
-from ...infrastructure.logger import logger
 
-STATE_VERSION = 4
+STATE_VERSION = 5
 _IGNORED_STATE_VERSIONS = frozenset((1, 2, 3))
 _PENDING_STATUSES = frozenset(("pending", "delivered"))
 
@@ -437,8 +438,24 @@ class ClientUpdateStateStore:
                 self._pending_events = {}
                 self._loaded = True
                 return
-            if schema_version != STATE_VERSION:
+            if schema_version not in (4, STATE_VERSION):
                 raise ValueError("unsupported state schema version")
+
+            if schema_version == 4:
+                # 旧字段只是补丁统计，不能升级解释成实际下载量。
+                legacy_baselines = _require_mapping(
+                    root.get("baselines"), "state.baselines"
+                )
+                for baseline in legacy_baselines.values():
+                    if isinstance(baseline, dict) and isinstance(
+                        baseline.get("last_change"), dict
+                    ):
+                        baseline["last_change"]["download_plan"] = None
+                for event in cast(list[object], root.get("pending_events", [])):
+                    if isinstance(event, dict) and isinstance(
+                        event.get("change"), dict
+                    ):
+                        event["change"]["download_plan"] = None
 
             raw_baselines = _require_mapping(
                 _required(root, "baselines", "state"), "state.baselines"
@@ -599,6 +616,7 @@ def _provider_metadata_to_json(
             "version_key": metadata.version_key,
             "patch_version": metadata.patch_version,
             "resource_version_dir": metadata.resource_version_dir,
+            "package_version": metadata.package_version,
         }
     if isinstance(metadata, AppStoreVersionMetadata):
         return {
@@ -617,6 +635,19 @@ def _change_to_json(change: ClientUpdateChange) -> dict[str, Any]:
         "history_complete": change.history_complete,
         "added_size_bytes": change.added_size_bytes,
         "target_ids": list(change.target_ids),
+        "download_plan": (
+            {
+                "required_size_bytes": change.download_plan.required_size_bytes,
+                "optional_sizes": [
+                    list(item) for item in change.download_plan.optional_sizes
+                ],
+                "basis": change.download_plan.basis,
+                "package_from": change.download_plan.package_from,
+                "package_to": change.download_plan.package_to,
+            }
+            if change.download_plan is not None
+            else None
+        ),
     }
 
 
@@ -723,6 +754,7 @@ def _parse_provider_metadata(
             resource_version_dir=cast(
                 str | None, _required(entry, "resource_version_dir", context)
             ),
+            package_version=cast(int | None, entry.get("package_version")),
         )
     return AppStoreVersionMetadata(
         track_id=cast(int, _required(entry, "track_id", context)),
@@ -758,8 +790,29 @@ def _parse_change(
             _required(entry, "target_ids", context),
             registry,
         ),
+        download_plan=_parse_download_plan(
+            _required(entry, "download_plan", context), context
+        ),
     )
     return canonicalize_client_update_change(change, registry=registry)
+
+
+def _parse_download_plan(value: object, context: str) -> ClientDownloadPlan | None:
+    if value is None:
+        return None
+    entry = _require_mapping(value, context)
+    groups = _required(entry, "optional_sizes", context)
+    if not isinstance(groups, list) or any(
+        not isinstance(item, list) or len(item) != 2 for item in groups
+    ):
+        raise ValueError("optional_sizes must contain name/size pairs")
+    return ClientDownloadPlan(
+        required_size_bytes=cast(int, _required(entry, "required_size_bytes", context)),
+        optional_sizes=tuple(tuple(item) for item in groups),
+        basis=cast(str, _required(entry, "basis", context)),
+        package_from=cast(int | None, _required(entry, "package_from", context)),
+        package_to=cast(int | None, _required(entry, "package_to", context)),
+    )
 
 
 def _parse_pending_events(

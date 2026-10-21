@@ -22,6 +22,57 @@ from src.entry.commands import (
     manifest_records,
 )
 from src.entry.response import PlainTextResponse, ResponseFactory
+from src.infrastructure.resources.encyclopedia import (
+    AliasCatalog,
+    EncyclopediaResourceStore,
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "prefixes,prefix",
+    [
+        (["dna"], "dna"),
+        (["kk"], "kk"),
+        (["kk", "dna"], "dna"),
+        (["kk", "dna"], "kk"),
+        ([""], ""),
+    ],
+)
+@pytest.mark.parametrize(
+    "kind,expected,excluded",
+    [("武器", "武器甲", "角色甲"), ("角色", "角色甲", "武器甲")],
+)
+async def test_entity_lists_select_catalog_independently_of_prefix(
+    prefixes, prefix, kind, expected, excluded
+):
+    class Event:
+        def get_message_str(self):
+            return f"{prefix}{kind}列表"
+
+        def get_sender_id(self):
+            return "10001"
+
+        def get_self_id(self):
+            return "20002"
+
+        def plain_result(self, text):
+            return ("plain", text)
+
+    plugin = DNAPlugin(SimpleNamespace(), {"display": {"command_prefixes": prefixes}})
+    service = plugin._runtime.services["encyclopedia_service"]
+    service.resource_snapshots = None
+    service.resources = EncyclopediaResourceStore(
+        aliases=AliasCatalog(
+            char_aliases={"角色甲": ("角色甲",)},
+            weapon_aliases={"武器甲": ("武器甲",)},
+        )
+    )
+    results = [item async for item in plugin.handle_alias_all_list(Event())]
+    assert len(results) == 1
+    assert kind in results[0][1]
+    assert expected in results[0][1]
+    assert excluded not in results[0][1]
 
 
 async def _noop_use_case(_request: CommandRequest, _registry, **_parameters):
@@ -614,6 +665,7 @@ def test_help_presentation_covers_every_visible_command():
         HELP_GROUP_ORDER,
         HELP_PRESENTATION,
     )
+
     generic_icon = "通用.png"
     for spec in COMMAND_REGISTRY:
         entry = HELP_PRESENTATION.get(spec.id)

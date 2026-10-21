@@ -73,6 +73,7 @@ class _Transport:
         source_id: str,
         *,
         baseline: ClientSourceVersion | None = None,
+        capture_package_version: bool = False,
     ) -> ClientSourceObservation:
         self.calls.append((source_id, baseline))
         result = self.observations[source_id]
@@ -265,7 +266,7 @@ async def test_query_reports_history_gap_without_advancing_baseline() -> None:
 
     assert state.writes == 0
     assert "version-100 → version-103" in response.text
-    assert "大小未知（历史窗口已变化）" in response.text
+    assert "未公开可计算的升级下载计划" in response.text
 
 
 @pytest.mark.asyncio
@@ -488,6 +489,7 @@ async def test_concurrent_polls_are_serialized_before_reading_source_baseline(
             _source_id: str,
             *,
             baseline: ClientSourceVersion | None = None,
+            capture_package_version: bool = False,
         ) -> ClientSourceObservation:
             assert baseline is not None
             self.baselines.append(baseline.revision_id)
@@ -553,6 +555,7 @@ async def test_subscribe_waits_for_poll_initial_baseline_and_rechecks_after_lock
             requested_source_id: str,
             *,
             baseline: ClientSourceVersion | None = None,
+            capture_package_version: bool = False,
         ) -> ClientSourceObservation:
             self.calls.append((requested_source_id, baseline))
             if len(self.calls) == 1:
@@ -613,6 +616,7 @@ async def test_poll_waits_for_subscribe_initial_baseline_and_reuses_it(
             requested_source_id: str,
             *,
             baseline: ClientSourceVersion | None = None,
+            capture_package_version: bool = False,
         ) -> ClientSourceObservation:
             self.calls.append((requested_source_id, baseline))
             if len(self.calls) == 1:
@@ -687,6 +691,7 @@ async def test_subscribe_does_not_receive_change_already_in_flight_before_subscr
             source_id: str,
             *,
             baseline: ClientSourceVersion | None = None,
+            capture_package_version: bool = False,
         ) -> ClientSourceObservation:
             self.calls.append((source_id, baseline))
             if source_id == pc_source and baseline == pc_previous:

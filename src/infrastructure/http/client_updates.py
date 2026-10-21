@@ -11,11 +11,14 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import struct
+import zipfile
+import zlib
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import replace
 from typing import Any, Self, cast
 
 import httpx
-from ..logger import logger
 
 from ...modules.client_updates.contracts import (
     AppStoreVersionMetadata,
@@ -32,6 +35,10 @@ from ...modules.client_updates.contracts import (
     parse_version_list_entries,
     sum_manifest_patch_file_sizes,
 )
+from ...modules.client_updates.downloads import (
+    hdiff_download_size,
+    manifest_download_plan,
+)
 from ...modules.client_updates.registry import (
     CLIENT_UPDATE_REGISTRY,
     AppStoreProviderConfig,
@@ -42,6 +49,8 @@ from ...modules.client_updates.registry import (
     HykbProviderConfig,
     ManifestCdnProviderConfig,
 )
+from ..logger import logger
+from .android_package import read_official_android_package
 from .concurrency import RequestConcurrencyGate
 
 try:
@@ -56,12 +65,18 @@ class _HttpxResponse:
     def __init__(self, response: httpx.Response) -> None:
         self.status = response.status_code
         self._response = response
+        self.headers = response.headers
 
     async def json(self, **_kwargs: object) -> object:
+        await self._response.aread()
         return self._response.json()
 
     async def text(self, **_kwargs: object) -> str:
+        await self._response.aread()
         return self._response.text
+
+    async def read(self) -> bytes:
+        return await self._response.aread()
 
 
 class _HttpxRequestContext:
@@ -71,10 +86,11 @@ class _HttpxRequestContext:
         self._response_awaitable = response
 
     async def __aenter__(self) -> _HttpxResponse:
-        return _HttpxResponse(await self._response_awaitable)
+        self._response = await self._response_awaitable
+        return _HttpxResponse(self._response)
 
     async def __aexit__(self, _exc_type, _exc_value, _traceback) -> None:
-        return None
+        await self._response.aclose()
 
 
 class _HttpxSession:
@@ -90,7 +106,11 @@ class _HttpxSession:
         await self._client.aclose()
 
     def get(self, url: str, **kwargs: Any) -> _HttpxRequestContext:
-        return _HttpxRequestContext(self._client.get(url, **kwargs))
+        return _HttpxRequestContext(
+            self._client.send(
+                self._client.build_request("GET", url, **kwargs), stream=True
+            )
+        )
 
 
 class _AiohttpCompat:
@@ -156,6 +176,7 @@ class ClientUpdateTransport:
         source_id: str,
         *,
         baseline: ClientSourceVersion | None = None,
+        capture_package_version: bool = False,
     ) -> ClientSourceObservation:
         """读取一个已登记 Source；baseline 缺口通过 observation 显式表达。"""
 
@@ -166,12 +187,16 @@ class ClientUpdateTransport:
                 config = source.provider_config
                 if not isinstance(config, ManifestCdnProviderConfig):
                     raise _server_error("Source", "manifest provider config mismatch")
-                return await self._get_manifest_observation(
-                    session,
-                    source,
-                    config,
-                    baseline,
-                )
+                try:
+                    return await self._get_manifest_observation(
+                        session,
+                        source,
+                        config,
+                        baseline,
+                        capture_package_version=capture_package_version,
+                    )
+                except ClientUpdateStructureError as error:
+                    raise _contract_error("下载计划", type(error).__name__) from None
 
             if source.provider_kind is ClientUpdateProviderKind.APP_STORE:
                 config = source.provider_config
@@ -206,6 +231,8 @@ class ClientUpdateTransport:
         source: ClientUpdateSource,
         config: ManifestCdnProviderConfig,
         baseline: ClientSourceVersion | None,
+        *,
+        capture_package_version: bool = False,
     ) -> ClientSourceObservation:
         version_payload, version_url = await self._get_json_with_fallback(
             session,
@@ -224,8 +251,66 @@ class ClientUpdateTransport:
             and version_url == _version_url(config.fallback_base_url, config.branch)
             else config.primary_base_url
         )
+        alternate_base_url = (
+            config.fallback_base_url
+            if version_base_url == config.primary_base_url
+            else config.primary_base_url
+        )
         versions = _parse_manifest_versions(version_payload, source)
         current = versions[-1]
+        if baseline is None and not capture_package_version:
+            return ClientSourceObservation(
+                current=current,
+                observed_versions=versions,
+                history_complete=True,
+                added_size_bytes=None,
+            )
+        package_release: tuple[int, str, int] | None = None
+        if config.package_branch is not None:
+            package_info, _ = await self._get_json_with_fallback(
+                session,
+                primary_url=f"{version_base_url}/{config.package_branch}/VersionManifest.json",
+                fallback_url=(
+                    f"{alternate_base_url}/{config.package_branch}/VersionManifest.json"
+                    if alternate_base_url is not None
+                    else None
+                ),
+                user_agent=config.user_agent,
+                resource="VersionManifest",
+            )
+            try:
+                if not isinstance(package_info, Mapping):
+                    raise TypeError("invalid package manifest")
+                for key in ("latest_version", "min_supported_version"):
+                    if not isinstance(package_info[key], str) or not re.fullmatch(
+                        r"[1-9][0-9]*", package_info[key]
+                    ):
+                        raise ValueError("invalid package version")
+                package_version = int(package_info["latest_version"])
+                package_series = package_info["latest_version_number"]
+                minimum = int(package_info["min_supported_version"])
+                if (
+                    not isinstance(package_series, str)
+                    or not re.fullmatch(r"\d+\.\d+", package_series)
+                    or package_series
+                    != ".".join(cast(str, current.version_text).split(".")[:2])
+                    or not 0 < minimum <= package_version
+                ):
+                    raise ValueError("inconsistent base package version")
+                current = replace(
+                    current,
+                    provider_metadata=replace(
+                        cast(ManifestCdnVersionMetadata, current.provider_metadata),
+                        package_version=package_version,
+                    ),
+                )
+                versions = (*versions[:-1], current)
+                package_release = (package_version, package_series, minimum)
+            except (KeyError, TypeError, ValueError):
+                raise _contract_error(
+                    "VersionManifest", "invalid package version"
+                ) from None
+
         if baseline is None:
             return ClientSourceObservation(
                 current=current,
@@ -233,34 +318,329 @@ class ClientUpdateTransport:
                 history_complete=True,
                 added_size_bytes=None,
             )
-
         baseline_index = _find_revision_index(versions, baseline.revision_id)
-        if baseline_index is None:
+        new_versions = (
+            versions if baseline_index is None else versions[baseline_index + 1 :]
+        )
+        plan_versions = new_versions
+        manifests = []
+        for version in new_versions:
+            manifests.append(
+                await self._get_manifest_patch_manifests(
+                    session,
+                    source,
+                    config,
+                    version,
+                    base_url=version_base_url,
+                )
+            )
+        added_size_bytes = (
+            sum(
+                sum_manifest_patch_file_sizes(
+                    config.pak_manifest_key, config.res_manifest_key, pak, res
+                )
+                for pak, res in manifests
+            )
+            if baseline_index is not None
+            else None
+        )
+        android_base_change = (
+            source.source_id == "cn-official-android-astc-manifest"
+            and baseline.version_text is not None
+            and baseline.version_text.startswith("1.6.")
+            and cast(str, current.version_text).startswith("1.7.")
+        )
+        if android_base_change:
+            # shortcut: 只核验过官服 APK 19 的内置边界；新基包需先核验再扩展。
+            selected = tuple(
+                v for v in versions if cast(str, v.version_text).startswith("1.7.")
+            )
+            old_metadata = baseline.provider_metadata
+            if (
+                not isinstance(old_metadata, ManifestCdnVersionMetadata)
+                or not 1_400_000 <= old_metadata.patch_version < 1_500_000
+                or selected[0].revision_id != "1510205:1510205"
+            ):
+                raise _contract_error("下载计划", "unverified Android base boundary")
+            jumps, _ = await self._get_json_with_fallback(
+                session,
+                primary_url=f"{version_base_url}/PakJumpUrl/PakJumpUrl.json",
+                fallback_url=f"{alternate_base_url}/PakJumpUrl/PakJumpUrl.json"
+                if alternate_base_url
+                else None,
+                user_agent=config.user_agent,
+                resource="PakJumpUrl",
+                accept_nonstandard_json_content_type=True,
+            )
+            if not isinstance(jumps, Mapping) or not isinstance(
+                jumps.get("2.0"), Mapping
+            ):
+                raise _contract_error("PakJumpUrl", "missing official APK")
+            jump = jumps["2.0"]
+            apk_url = "https://cdn-dna.yingxiong.com/dna/Android_dna.apk"
+            if jump.get("ChannelId") != 18 or jump.get("JumpUrl") != apk_url:
+                raise _contract_error("PakJumpUrl", "unverified official APK source")
+            apk_name, apk_code, apk_size = await self._get_android_package(
+                session, apk_url, config.user_agent
+            )
+            if (apk_name, apk_code) != ("1.7.204.1", 19):
+                raise _contract_error(
+                    "Android APK", "unverified embedded resource boundary"
+                )
+            examine, _ = await self._get_json_with_fallback(
+                session,
+                primary_url=f"{version_base_url}/{config.branch}/ExamineFile.json",
+                fallback_url=f"{alternate_base_url}/{config.branch}/ExamineFile.json"
+                if alternate_base_url
+                else None,
+                user_agent=config.user_agent,
+                resource="ExamineFile",
+            )
+            if examine != [{}]:
+                raise _contract_error("ExamineFile", "unverified cross-path file reuse")
+            cached = {
+                v.revision_id: pair
+                for v, pair in zip(new_versions, manifests, strict=True)
+            }
+            files = []
+            resource_tags: set[str] = set()
+            for version in selected:
+                metadata = cast(ManifestCdnVersionMetadata, version.provider_metadata)
+                row = cast(dict[str, Any], version_payload)["versionList"][
+                    str(metadata.version_key)
+                ]
+                if (
+                    not 1_500_000 <= metadata.patch_version < 1_600_000
+                    or row.get("patchKey") != 1
+                    or row.get("bOptional") is not False
+                ):
+                    raise _contract_error(
+                        "下载计划", "mixed or optional Android base patches"
+                    )
+                pak, res = (
+                    cached[version.revision_id]
+                    if version.revision_id in cached
+                    else await self._get_manifest_patch_manifests(
+                        session, source, config, version, base_url=version_base_url
+                    )
+                )
+                for payload, key in (
+                    (pak, config.pak_manifest_key),
+                    (res, config.res_manifest_key),
+                ):
+                    for file in cast(dict[str, Any], payload)["pakFilesMap"][key][
+                        "pakFileInfos"
+                    ]:
+                        tag = file.get("pakOptionalSign", "")
+                        if not isinstance(tag, str):
+                            raise _contract_error(
+                                "下载计划", "invalid Android resource option"
+                            )
+                        resource_tags.add(tag)
+                        if not re.fullmatch(
+                            r"1\.7\.[0-9]+\.1_.+_Android_ASTC_"
+                            + str(metadata.patch_version)
+                            + r"_P\.(pak|sig)",
+                            file["fileName"],
+                        ) or not re.fullmatch(
+                            r"[0-9a-fA-F]{32}", str(file.get("hash", ""))
+                        ):
+                            raise _contract_error(
+                                "下载计划", "unverified Android file identity"
+                            )
+                files.append((_manifest_directory(source, metadata), pak, res))
+            if resource_tags != {
+                "",
+                "Patch_East",
+                "Patch_Icelake",
+                "VoiceCN",
+                "VoiceEN",
+                "VoiceJP",
+                "VoiceKR",
+            }:
+                raise _contract_error(
+                    "下载计划", "incomplete or unknown Android resource options"
+                )
+            # APK 19 不内置这些独立 pak/sig；原生按目录路径匹配，旧 14 目录不能命中新 15 路径。
+            plan = manifest_download_plan(
+                files,
+                config.pak_manifest_key,
+                config.res_manifest_key,
+                basis="apk_and_patch",
+                package_size=apk_size,
+                package_to=apk_code,
+            )
             return ClientSourceObservation(
                 current=current,
                 observed_versions=versions,
-                history_complete=False,
-                added_size_bytes=None,
+                history_complete=baseline_index is not None,
+                added_size_bytes=added_size_bytes,
+                download_plan=plan,
             )
 
-        new_versions = versions[baseline_index + 1 :]
-        added_size_bytes = 0
-        for version in new_versions:
-            added_size_bytes += await self._get_manifest_patch_size(
-                session,
-                source,
-                config,
-                version,
-                base_url=version_base_url,
+        package_size = 0
+        package_from = None
+        package_to = None
+        basis = (
+            "android_resources"
+            if source.platform is ClientPlatform.ANDROID
+            else "patch_manifest"
+        )
+        if package_release is not None and current.revision_id != baseline.revision_id:
+            package_to, package_series, minimum = package_release
+            baseline_metadata = baseline.provider_metadata
+            if not isinstance(baseline_metadata, ManifestCdnVersionMetadata):
+                raise _contract_error(
+                    "基础包版本", "baseline manifest metadata unavailable"
+                )
+            baseline_text = baseline.version_text
+            if baseline_text is None:
+                raise _contract_error("基础包版本", "baseline version unavailable")
+            package_from = baseline_metadata.package_version
+            # v4 的国服 PC 1.6 基线没有基础包字段；该发布基包已核验为 16001。
+            if package_from is None and baseline_text.startswith("1.6."):
+                package_from = 16001
+            if package_from is None:
+                raise _contract_error(
+                    "基础包版本", "baseline package version unavailable"
+                )
+            if package_from > package_to:
+                raise _contract_error("基础包版本", "package rollback")
+            if package_from != package_to:
+                if baseline_text.startswith(f"{package_series}."):
+                    raise _contract_error(
+                        "基础包版本", "same-series package patch boundary unavailable"
+                    )
+                directory = (
+                    f"full_{package_to}"
+                    if package_from < minimum
+                    else f"v{package_from}_to_v{package_to}"
+                )
+                relative = f"{config.package_branch}/{package_series}/{package_to}/{directory}/HPatchDiffMd5.json"
+                payload, _ = await self._get_json_with_fallback(
+                    session,
+                    primary_url=f"{version_base_url}/{relative}",
+                    fallback_url=(
+                        f"{alternate_base_url}/{relative}"
+                        if alternate_base_url is not None
+                        else None
+                    ),
+                    user_agent=config.user_agent,
+                    resource="HPatchDiffMd5",
+                )
+                package_size = hdiff_download_size(payload)
+                basis = "hdiff_and_patch"
+                # 新基包只应用当前发行系列的热更；旧系列文件已被基包替换。
+                cached = {
+                    version.revision_id: pair
+                    for version, pair in zip(new_versions, manifests, strict=True)
+                }
+                plan_versions = tuple(
+                    version
+                    for version in versions
+                    if cast(str, version.version_text).startswith(f"{package_series}.")
+                )
+                manifests = [
+                    cached[version.revision_id]
+                    if version.revision_id in cached
+                    else await self._get_manifest_patch_manifests(
+                        session, source, config, version, base_url=version_base_url
+                    )
+                    for version in plan_versions
+                ]
+        if baseline_index is None and basis != "hdiff_and_patch":
+            raise _contract_error(
+                "下载计划", "history gap without a verified base-package upgrade"
             )
+        plan = manifest_download_plan(
+            [
+                (
+                    _manifest_directory(
+                        source,
+                        cast(ManifestCdnVersionMetadata, version.provider_metadata),
+                    ),
+                    pak,
+                    res,
+                )
+                for version, (pak, res) in zip(plan_versions, manifests, strict=True)
+            ],
+            config.pak_manifest_key,
+            config.res_manifest_key,
+            basis=basis,
+            package_size=package_size,
+            package_from=package_from,
+            package_to=package_to,
+        )
         return ClientSourceObservation(
             current=current,
             observed_versions=versions,
-            history_complete=True,
+            history_complete=baseline_index is not None,
             added_size_bytes=added_size_bytes,
+            download_plan=plan,
         )
 
-    async def _get_manifest_patch_size(
+    async def _get_android_package(
+        self, session: Any, url: str, user_agent: str
+    ) -> tuple[str, int, int]:
+        etag: str | None = None
+
+        async def read_range(start: int, end: int | None) -> tuple[bytes, int]:
+            nonlocal etag
+            span = f"bytes={start}" if end is None else f"bytes={start}-{end}"
+
+            async def decode(response: Any) -> tuple[bytes, int]:
+                nonlocal etag
+                if response.status != 206:
+                    raise _contract_error("Android APK", "server did not honor Range")
+                match = re.fullmatch(
+                    r"bytes ([0-9]+)-([0-9]+)/([0-9]+)",
+                    response.headers.get("Content-Range", ""),
+                )
+                if match is None:
+                    raise _contract_error("Android APK", "invalid Content-Range")
+                first, last, total = map(int, match.groups())
+                expected_first = max(0, total + start) if start < 0 else start
+                expected_last = total - 1 if end is None else end
+                if (
+                    total <= 0
+                    or (first, last) != (expected_first, expected_last)
+                    or last >= total
+                ):
+                    raise _contract_error("Android APK", "unexpected APK range")
+                current_etag = response.headers.get("ETag")
+                if etag is not None and current_etag != etag:
+                    raise _contract_error(
+                        "Android APK", "APK changed during metadata read"
+                    )
+                etag = current_etag
+                body = await response.read()
+                if len(body) != last - first + 1:
+                    raise _contract_error("Android APK", "truncated APK range")
+                return body, total
+
+            result = await self._request(
+                session,
+                url,
+                user_agent,
+                "Android APK",
+                decode,
+                headers={"Range": span, **({"If-Match": etag} if etag else {})},
+            )
+            return cast(tuple[bytes, int], result)
+
+        try:
+            return await read_official_android_package(read_range)
+        except (
+            ValueError,
+            KeyError,
+            IndexError,
+            struct.error,
+            zlib.error,
+            zipfile.BadZipFile,
+        ):
+            raise _contract_error("Android APK", "invalid APK metadata") from None
+
+    async def _get_manifest_patch_manifests(
         self,
         session: Any,
         source: ClientUpdateSource,
@@ -268,7 +648,7 @@ class ClientUpdateTransport:
         version: ClientSourceVersion,
         *,
         base_url: str,
-    ) -> int:
+    ) -> tuple[object, object]:
         metadata = version.provider_metadata
         if not isinstance(metadata, ManifestCdnVersionMetadata):
             raise _server_error("VersionList", "manifest metadata mismatch")
@@ -317,12 +697,13 @@ class ClientUpdateTransport:
             ),
         )
         try:
-            return sum_manifest_patch_file_sizes(
+            sum_manifest_patch_file_sizes(
                 config.pak_manifest_key,
                 config.res_manifest_key,
                 pak_result[0],
                 res_result[0],
             )
+            return pak_result[0], res_result[0]
         except (ClientUpdateStructureError, TypeError, ValueError) as error:
             raise _contract_error("补丁清单", type(error).__name__) from None
 
@@ -383,6 +764,7 @@ class ClientUpdateTransport:
         fallback_url: str | None,
         user_agent: str,
         resource: str,
+        accept_nonstandard_json_content_type: bool = False,
     ) -> tuple[object, str]:
         try:
             return (
@@ -391,6 +773,7 @@ class ClientUpdateTransport:
                     primary_url,
                     user_agent=user_agent,
                     resource=resource,
+                    accept_nonstandard_json_content_type=accept_nonstandard_json_content_type,
                 ),
                 primary_url,
             )
@@ -411,6 +794,7 @@ class ClientUpdateTransport:
                     fallback_url,
                     user_agent=user_agent,
                     resource=resource,
+                    accept_nonstandard_json_content_type=accept_nonstandard_json_content_type,
                 )
             except ClientUpdateTransportError as fallback_error:
                 logger.warning(
@@ -435,8 +819,7 @@ class ClientUpdateTransport:
         async def decode(response: Any) -> object:
             try:
                 if accept_nonstandard_json_content_type:
-                    # Apple Lookup 当前合法 JSON 使用 text/javascript；只跳过
-                    # MIME 门禁，后续 typed contract 仍严格校验响应结构。
+                    # Apple Lookup / PakJumpUrl 使用非标准 MIME，正文仍按 JSON 校验。
                     return await response.json(content_type=None)
                 return await response.json()
             except (TypeError, ValueError, UnicodeError) as error:
@@ -471,12 +854,14 @@ class ClientUpdateTransport:
         user_agent: str,
         resource: str,
         decode: Callable[[Any], Awaitable[object]],
+        *,
+        headers: Mapping[str, str] | None = None,
     ) -> object:
         async def request() -> object:
             try:
                 async with session.get(
                     url,
-                    headers={"User-Agent": user_agent},
+                    headers={"User-Agent": user_agent, **(headers or {})},
                 ) as response:
                     status = getattr(response, "status", None)
                     if type(status) is not int:

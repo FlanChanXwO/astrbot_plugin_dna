@@ -14,7 +14,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from ...infrastructure.logger import logger
 from astrbot.api.web import request
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse, Response
@@ -28,6 +27,7 @@ from ...infrastructure.http.login_media import (
 )
 from ...infrastructure.http.login_server import LocalLoginServer, Route
 from ...infrastructure.http.login_templates import LOGIN_TEMPLATE_ROOT, LOGIN_TEMPLATES
+from ...infrastructure.logger import logger
 from ...infrastructure.rendering.qr import render_qr_code
 from ...infrastructure.rendering.static_assets import (
     StaticAssetResolver,

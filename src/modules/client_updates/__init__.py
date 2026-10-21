@@ -2,6 +2,7 @@
 
 from .contracts import (
     AppStoreVersionMetadata,
+    ClientDownloadPlan,
     ClientPlatform,
     ClientSourceObservation,
     ClientSourceProviderMetadata,
@@ -67,6 +68,7 @@ __all__ = [
     "AppStoreProviderConfig",
     "AppStoreVersionMetadata",
     "BilibiliGameCenterProviderConfig",
+    "ClientDownloadPlan",
     "ClientPlatform",
     "ClientSourceObservation",
     "ClientSourceProviderMetadata",

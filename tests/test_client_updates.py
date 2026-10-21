@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import io
+import json
+import struct
+import zipfile
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
@@ -45,7 +49,16 @@ from src.modules.client_updates import (
     resolve_client_update_target,
 )
 from src.modules.client_updates.commands import client_update_subscribe_use_case
-from src.modules.client_updates.contracts import ClientUpdateRequest
+from src.modules.client_updates.contracts import (
+    ClientDownloadPlan,
+    ClientUpdateChange,
+    ClientUpdateRequest,
+    ClientUpdateStructureError,
+)
+from src.modules.client_updates.downloads import (
+    hdiff_download_size,
+    manifest_download_plan,
+)
 
 
 def test_manifest_parser_rejects_unsupported_platform() -> None:
@@ -438,7 +451,21 @@ class _JavascriptJsonResponse(_FakeResponse):
 
 class _FakeSession:
     def __init__(self, routes: Mapping[str, _FakeResponse | BaseException]) -> None:
-        self.routes = routes
+        self.routes = dict(routes)
+        source = resolve_client_update_source("cn-official-pc-manifest")
+        config = source.provider_config
+        for base in (config.primary_base_url, config.fallback_base_url):
+            self.routes.setdefault(
+                f"{base}/{config.package_branch}/VersionManifest.json",
+                _FakeResponse(
+                    200,
+                    {
+                        "latest_version": "16001",
+                        "latest_version_number": "1.6",
+                        "min_supported_version": "15001",
+                    },
+                ),
+            )
         self.requests: list[_Request] = []
 
     async def __aenter__(self) -> Self:
@@ -496,6 +523,190 @@ def _manifest_source_version(source_id: str, version_key: str) -> ClientSourceVe
     )
 
 
+def _recorded_pc_17_session() -> _FakeSession:
+    fixture = json.loads(
+        (
+            Path(__file__).parent / "fixtures/client_download_plan_cn_pc_17.json"
+        ).read_text()
+    )
+    config = resolve_client_update_source("cn-official-pc-manifest").provider_config
+    root = config.primary_base_url
+    routes = {
+        f"{root}/{config.branch}/VersionList.json": _FakeResponse(
+            200, fixture["version_list"]
+        ),
+        f"{root}/{config.package_branch}/VersionManifest.json": _FakeResponse(
+            200, fixture["package_manifest"]
+        ),
+        f"{root}/{config.package_branch}/1.7/17002/v16001_to_v17002/HPatchDiffMd5.json": _FakeResponse(
+            200, fixture["hdiff_manifest"]
+        ),
+    }
+    for directory, pair in fixture["patches"].items():
+        routes[f"{root}/{config.branch}/{directory}/PakFilesInfo.json"] = _FakeResponse(
+            200, pair["pak"]
+        )
+        routes[f"{root}/{config.branch}/{directory}/ResDiscreteInfo.json"] = (
+            _FakeResponse(200, pair["res"])
+        )
+    return _FakeSession(routes)
+
+
+@pytest.mark.asyncio
+async def test_pc_17_upgrade_uses_hdiff_transfer_size_and_separates_optional_voice():
+    source_id = "cn-official-pc-manifest"
+    observation = await ClientUpdateTransport(
+        session_factory=_recorded_pc_17_session
+    ).get_observation(
+        source_id,
+        baseline=replace(
+            _manifest_source_version(source_id, "1510208"), version_text="1.6.208.1"
+        ),
+    )
+    assert observation.history_complete is False
+    assert observation.added_size_bytes is None
+    assert observation.current.provider_metadata.package_version == 17002
+    assert observation.download_plan == ClientDownloadPlan(
+        required_size_bytes=5_621_794_524,
+        optional_sizes=(
+            ("VoiceEN", 1_087_475_147),
+            ("VoiceJP", 1_142_887_889),
+            ("VoiceKR", 1_127_688_239),
+        ),
+        basis="hdiff_and_patch",
+        package_from=16001,
+        package_to=17002,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("filename", ["VersionManifest.json", "HPatchDiffMd5.json"])
+async def test_package_metadata_can_return_to_primary_after_version_list_fallback(
+    filename,
+):
+    session = _recorded_pc_17_session()
+    source_id = "cn-official-pc-manifest"
+    config = resolve_client_update_source(source_id).provider_config
+    primary, secondary = config.primary_base_url, config.fallback_base_url
+    original_routes = dict(session.routes)
+    for url, response in original_routes.items():
+        if url.startswith(primary + "/"):
+            session.routes[url.replace(primary, secondary, 1)] = response
+    session.routes[f"{primary}/{config.branch}/VersionList.json"] = _FakeResponse(
+        503, {}
+    )
+    for url in tuple(session.routes):
+        if url.startswith(secondary + "/") and url.endswith(filename):
+            session.routes[url] = _FakeResponse(503, {})
+    observation = await ClientUpdateTransport(
+        session_factory=lambda: session
+    ).get_observation(
+        source_id,
+        baseline=replace(
+            _manifest_source_version(source_id, "1510208"), version_text="1.6.208.1"
+        ),
+    )
+    assert observation.download_plan.required_size_bytes == 5_621_794_524
+    assert any(
+        request.url.startswith(primary + "/") and request.url.endswith(filename)
+        for request in session.requests
+    )
+
+
+@pytest.mark.asyncio
+async def test_package_upgrade_excludes_retained_old_series_patches():
+    session = _recorded_pc_17_session()
+    source_id = "cn-official-pc-manifest"
+    config = resolve_client_update_source(source_id).provider_config
+    url = f"{config.primary_base_url}/{config.branch}/VersionList.json"
+    session.routes[url].payload["versionList"]["1510208"] = _version_entry(1510208, 208)
+    observation = await ClientUpdateTransport(
+        session_factory=lambda: session
+    ).get_observation(
+        source_id, baseline=_manifest_source_version(source_id, "1510208")
+    )
+    assert observation.history_complete is True
+    assert observation.download_plan.required_size_bytes == 5_621_794_524
+    assert not any("/1510208/" in request.url for request in session.requests)
+
+
+@pytest.mark.asyncio
+async def test_new_report_baseline_records_package_version_without_downloading_patches():
+    session = _recorded_pc_17_session()
+    observation = await ClientUpdateTransport(
+        session_factory=lambda: session
+    ).get_observation("cn-official-pc-manifest", capture_package_version=True)
+    assert observation.current.provider_metadata.package_version == 17002
+    assert observation.download_plan is None
+    assert len(session.requests) == 2
+
+
+@pytest.mark.asyncio
+async def test_missing_hdiff_does_not_advance_report_baseline(tmp_path):
+    source_id = "cn-official-pc-manifest"
+    session = _recorded_pc_17_session()
+    for url in tuple(session.routes):
+        if url.endswith("HPatchDiffMd5.json"):
+            session.routes[url] = _FakeResponse(404, {})
+    # 两个已登记端点均失败，不能拿解压大小或热更总量替代差分大小。
+    config = resolve_client_update_source(source_id).provider_config
+    url = f"{config.fallback_base_url}/{config.package_branch}/1.7/17002/v16001_to_v17002/HPatchDiffMd5.json"
+    session.routes[url] = _FakeResponse(404, {})
+    baseline = ClientUpdateBaseline(
+        _manifest_source_version(source_id, "1510208"), datetime.now(UTC)
+    )
+    state = ClientUpdateStateStore(tmp_path / "state.json")
+    await state.save_baseline(baseline)
+    result = await ClientUpdateService(
+        state,
+        transport=ClientUpdateTransport(session_factory=lambda: session),
+        target_ids=("cn-official-pc",),
+    ).poll_now()
+    assert result == ()
+    assert await state.get_baseline(source_id) == baseline
+    assert await state.pending_events() == ()
+
+
+def test_download_files_are_deduplicated_without_treating_examine_ignore_as_embedded():
+    pak = _manifest("WindowsNoEditor", "same.pak", 10)
+    pak["pakFilesMap"]["WindowsNoEditor"]["pakFileInfos"][0].update(
+        hash="a", bExamineIgnore=True
+    )
+    res = _manifest("WindowsNoEditor", "voice.pak", 20)
+    res["pakFilesMap"]["WindowsNoEditor"]["pakFileInfos"][0].update(
+        hash="b", pakOptionalSign="VoiceJP"
+    )
+    plan = manifest_download_plan(
+        [("new", pak, res), ("new", pak, res)], "WindowsNoEditor", "WindowsNoEditor"
+    )
+    assert plan.required_size_bytes == 10
+    assert plan.optional_sizes == (("VoiceJP", 20),)
+    separate_paths = manifest_download_plan(
+        [("old", pak, res), ("new", pak, res)], "WindowsNoEditor", "WindowsNoEditor"
+    )
+    assert separate_paths.required_size_bytes == 20
+    assert separate_paths.optional_sizes == (("VoiceJP", 40),)
+    other = _manifest("WindowsNoEditor", "same.pak", 10)
+    other["pakFilesMap"]["WindowsNoEditor"]["pakFileInfos"][0]["hash"] = "different"
+    with pytest.raises(ClientUpdateStructureError):
+        manifest_download_plan(
+            [("new", pak, res), ("new", other, res)],
+            "WindowsNoEditor",
+            "WindowsNoEditor",
+        )
+
+
+@pytest.mark.parametrize("size", [None, True, -1, 1.5, "4923453874"])
+def test_hdiff_requires_transfer_bytes_instead_of_install_size(size):
+    with pytest.raises(ClientUpdateStructureError):
+        hdiff_download_size(
+            {
+                "hdiff_file": {"name": "upgrade.hdiff", "md5": "a" * 32, "size": size},
+                "new_size": 30_967_037_895,
+            }
+        )
+
+
 @pytest.mark.asyncio
 async def test_manifest_same_version_key_with_changed_patch_version_is_update(
     tmp_path,
@@ -525,6 +736,13 @@ async def test_manifest_same_version_key_with_changed_patch_version_is_update(
         200,
         _version_list({"1510203": _version_entry(1510999, 999)}),
     )
+    manifest_base = f"{config.primary_base_url}/{config.branch}/1510203"
+    session.routes[f"{manifest_base}/PakFilesInfo.json"] = _FakeResponse(
+        200, _manifest(config.pak_manifest_key, "new.pak", 10)
+    )
+    session.routes[f"{manifest_base}/ResDiscreteInfo.json"] = _FakeResponse(
+        200, _manifest(config.res_manifest_key, "new.sig", 1)
+    )
 
     changes = await ClientUpdateService(
         state,
@@ -532,14 +750,13 @@ async def test_manifest_same_version_key_with_changed_patch_version_is_update(
         target_ids=("cn-official-pc",),
     ).poll_now()
 
-    assert len(changes) == 1
-    change = changes[0]
-    assert change is not None
-    assert change.previous != change.current
-    assert change.current.revision_id == "1510203:1510999"
-    assert change.history_complete is False
-    assert change.added_size_bytes is None
-    assert [request.url for request in session.requests] == [version_url, version_url]
+    assert changes == ()
+    baseline = await state.get_baseline(source.source_id)
+    assert baseline.version == previous_observation.current
+    assert [request.url for request in session.requests][:2] == [
+        version_url,
+        version_url,
+    ]
 
 
 @pytest.mark.asyncio
@@ -647,17 +864,21 @@ async def test_manifest_transport_marks_baseline_outside_window_as_history_gap()
             )
         }
     )
+    for revision in (102, 103):
+        base = f"{config.primary_base_url}/{config.branch}/{revision}"
+        session.routes[f"{base}/PakFilesInfo.json"] = _FakeResponse(
+            200, _manifest(config.pak_manifest_key, f"{revision}.pak", 10)
+        )
+        session.routes[f"{base}/ResDiscreteInfo.json"] = _FakeResponse(
+            200, _manifest(config.res_manifest_key, f"{revision}.sig", 1)
+        )
 
-    observation = await ClientUpdateTransport(
-        session_factory=lambda: session
-    ).get_observation(
-        source.source_id, baseline=_manifest_source_version(source.source_id, "100")
-    )
-
-    assert observation.current.revision_id == "103:103"
-    assert observation.history_complete is False
-    assert observation.added_size_bytes is None
-    assert len(session.requests) == 1
+    with pytest.raises(ClientUpdateTransportError) as caught:
+        await ClientUpdateTransport(session_factory=lambda: session).get_observation(
+            source.source_id, baseline=_manifest_source_version(source.source_id, "100")
+        )
+    assert caught.value.kind is ClientUpdateFailureKind.CONTRACT
+    assert len(session.requests) == 6
 
 
 @pytest.mark.asyncio
@@ -703,7 +924,7 @@ async def test_manifest_transport_handles_large_sparse_revision_span() -> None:
 
     assert observation.current.revision_id == "1510198:2198"
     assert observation.added_size_bytes == 15
-    assert len(session.requests) == 3
+    assert len(session.requests) == 4
 
 
 @pytest.mark.asyncio
@@ -756,6 +977,265 @@ async def test_android_manifest_uses_version_key_directory_and_separate_keys() -
         f"{base}/PakFilesInfo.json",
         f"{base}/ResDiscreteInfo.json",
     }
+
+
+def _official_apk(*, version="1.7.204.1", code=19):
+    words = [
+        "manifest",
+        "package",
+        "versionName",
+        "versionCode",
+        "com.hero.dna.gf",
+        version,
+    ]
+    encoded = bytearray()
+    offsets = []
+    for word in words:
+        offsets.append(len(encoded))
+        encoded.extend(struct.pack("<H", len(word)) + word.encode("utf-16le") + b"\0\0")
+    pool_size = 28 + 4 * len(words) + len(encoded)
+    pool = struct.pack(
+        "<HH6I", 1, 28, pool_size, len(words), 0, 0, 28 + 4 * len(words), 0
+    )
+    pool += struct.pack("<" + "I" * len(words), *offsets) + encoded
+    attributes = b"".join(
+        struct.pack("<IIIHBBI", 0xFFFFFFFF, name, raw, 8, 0, kind, value)
+        for name, raw, kind, value in [
+            (1, 4, 3, 4),
+            (2, 5, 3, 5),
+            (3, 0xFFFFFFFF, 0x10, code),
+        ]
+    )
+    element = struct.pack("<HHIII", 0x102, 16, 36 + len(attributes), 1, 0xFFFFFFFF)
+    element += struct.pack("<II6H", 0xFFFFFFFF, 0, 20, 20, 3, 0, 0, 0) + attributes
+    xml = struct.pack("<HHI", 3, 8, 8 + len(pool) + len(element)) + pool + element
+    target = io.BytesIO()
+    with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        # 让尾部 Range 不覆盖整包，并保留非零 manifest offset 的检查。
+        archive.writestr("assets/padding", b"\0" * 65557, compress_type=zipfile.ZIP_STORED)
+        archive.writestr("AndroidManifest.xml", xml)
+    return target.getvalue()
+
+
+class _BinaryResponse(_FakeResponse):
+    def __init__(self, status, data, headers):
+        super().__init__(status, {})
+        self.data = data
+        self.headers = headers
+        self.was_read = False
+
+    async def read(self):
+        self.was_read = True
+        return self.data
+
+
+class _AndroidSession(_FakeSession):
+    def __init__(self, routes, apk):
+        super().__init__(routes)
+        self.apk = apk
+        self.range_responses = []
+        self.range_status = 206
+
+    def get(self, url, **kwargs):
+        if url != "https://cdn-dna.yingxiong.com/dna/Android_dna.apk":
+            return super().get(url, **kwargs)
+        headers = kwargs["headers"]
+        self.requests.append(_Request(url, headers))
+        span = headers["Range"].removeprefix("bytes=")
+        total = len(self.apk)
+        if span.startswith("-"):
+            start, end = max(0, total + int(span)), total - 1
+        else:
+            start, end = map(int, span.split("-"))
+        data = self.apk[start : end + 1]
+        response = _BinaryResponse(
+            self.range_status,
+            data,
+            {
+                "Content-Range": f"bytes {start}-{end}/{total}",
+                "ETag": '"official-apk-19"',
+            },
+        )
+        self.range_responses.append(response)
+        return response
+
+
+def _android_old_version():
+    return ClientSourceVersion(
+        source_id="cn-official-android-astc-manifest",
+        version_text="1.6.203.1",
+        revision_id="1410203:1410203",
+        order_key=(1410203, 1410203),
+        provider_metadata=ManifestCdnVersionMetadata(1410203, 1410203, "1410203"),
+    )
+
+
+def _recorded_android_17_session(*, apk_version="1.7.204.1", apk_code=19):
+    config = resolve_client_update_source(
+        "cn-official-android-astc-manifest"
+    ).provider_config
+    fixture = json.loads(
+        (
+            Path(__file__).parent / "fixtures/client_download_plan_cn_android_17.json"
+        ).read_text()
+    )
+    root = config.primary_base_url
+    routes = {
+        f"{root}/{config.branch}/VersionList.json": _FakeResponse(
+            200, fixture["version_list"]
+        ),
+        f"{root}/{config.branch}/ExamineFile.json": _FakeResponse(200, [{}]),
+        f"{root}/PakJumpUrl/PakJumpUrl.json": _JavascriptJsonResponse(
+            200,
+            {
+                "2.0": {
+                    "ChannelId": 18,
+                    "JumpUrl": "https://cdn-dna.yingxiong.com/dna/Android_dna.apk",
+                }
+            },
+        ),
+    }
+    for directory, pair in fixture["patches"].items():
+        for key, filename in (
+            ("pak", "PakFilesInfo.json"),
+            ("res", "ResDiscreteInfo.json"),
+        ):
+            routes[f"{root}/{config.branch}/{directory}/{filename}"] = _FakeResponse(
+                200, pair[key]
+            )
+    return _AndroidSession(
+        routes, _official_apk(version=apk_version, code=apk_code)
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "new_apk",
+        "range_ignored",
+        "reuse_map",
+        "missing_first",
+        "optional_patch",
+        "missing_manifest",
+        "bad_hash",
+        "truncated_apk",
+        "corrupt_manifest",
+        "unknown_option",
+        "missing_option",
+        "patch_key",
+    ],
+)
+async def test_android_unverified_plan_preserves_persisted_baseline(tmp_path, failure):
+    session = _recorded_android_17_session(
+        apk_code=20 if failure == "new_apk" else 19
+    )
+    source = resolve_client_update_source("cn-official-android-astc-manifest")
+    config = source.provider_config
+    root = config.primary_base_url
+    if failure == "truncated_apk":
+        session.apk = session.apk[:-22] + b"\0" * 22
+    elif failure == "corrupt_manifest":
+        with zipfile.ZipFile(io.BytesIO(session.apk)) as apk:
+            offset = (
+                apk.getinfo("AndroidManifest.xml").header_offset
+                + 30
+                + len("AndroidManifest.xml")
+            )
+        session.apk = session.apk[:offset] + b"\xff" * 8 + session.apk[offset + 8 :]
+    elif failure == "range_ignored":
+        session.range_status = 200
+    elif failure == "reuse_map":
+        session.routes[f"{root}/{config.branch}/ExamineFile.json"].payload = [
+            {"links": ["old", "new"]}
+        ]
+    elif failure in ("missing_first", "optional_patch", "patch_key"):
+        versions = session.routes[f"{root}/{config.branch}/VersionList.json"].payload[
+            "versionList"
+        ]
+        if failure == "missing_first":
+            del versions["1510205"]
+        elif failure == "optional_patch":
+            versions["1510205"]["bOptional"] = True
+        else:
+            versions["1510205"]["patchKey"] = 2
+    elif failure in ("unknown_option", "missing_option"):
+        payload = session.routes[
+            f"{root}/{config.branch}/1510205/PakFilesInfo.json"
+        ].payload
+        files = payload["pakFilesMap"]["Android_ASTC"]["pakFileInfos"]
+        for item in files:
+            if item.get("pakOptionalSign") == "VoiceKR":
+                item["pakOptionalSign"] = (
+                    "VoiceUnknown" if failure == "unknown_option" else ""
+                )
+    elif failure in ("missing_manifest", "bad_hash"):
+        url = f"{root}/{config.branch}/1510205/PakFilesInfo.json"
+        if failure == "bad_hash":
+            session.routes[url].payload["pakFilesMap"]["Android_ASTC"]["pakFileInfos"][
+                0
+            ]["hash"] = "unknown"
+        else:
+            session.routes[url] = _FakeResponse(404, {})
+            session.routes[url.replace(root, config.fallback_base_url)] = _FakeResponse(
+                404, {}
+            )
+    baseline = ClientUpdateBaseline(_android_old_version(), datetime.now(UTC))
+    state = ClientUpdateStateStore(tmp_path / "state.json")
+    await state.save_baseline(baseline)
+    service = ClientUpdateService(
+        state,
+        transport=ClientUpdateTransport(session_factory=lambda: session),
+        target_ids=("cn-official-android",),
+    )
+    assert await service.poll_now() == ()
+    assert (
+        await ClientUpdateStateStore(tmp_path / "state.json").get_baseline(
+            source.source_id
+        )
+        == baseline
+    )
+    if failure == "range_ignored":
+        assert session.range_responses and not any(
+            r.was_read for r in session.range_responses
+        )
+
+
+@pytest.mark.asyncio
+async def test_android_17_cross_base_upgrade_uses_apk_and_separate_resource_groups():
+    source_id = "cn-official-android-astc-manifest"
+    session = _recorded_android_17_session()
+    baseline = _android_old_version()
+    observation = await ClientUpdateTransport(
+        session_factory=lambda: session
+    ).get_observation(source_id, baseline=baseline)
+    assert observation.history_complete is False
+    assert observation.added_size_bytes is None
+    assert observation.download_plan == ClientDownloadPlan(
+        10_853_340_960 + len(session.apk),
+        (
+            ("Patch_East", 1_620_097_163),
+            ("Patch_Icelake", 4_170_394_412),
+            ("VoiceCN", 1_166_457_244),
+            ("VoiceEN", 1_102_809_502),
+            ("VoiceJP", 1_161_569_613),
+            ("VoiceKR", 1_143_236_438),
+        ),
+        "apk_and_patch",
+        package_to=19,
+    )
+    text = messages.format_change(
+        ClientUpdateChange(
+            previous=baseline,
+            current=observation.current,
+            target_ids=("cn-official-android",),
+            history_complete=False,
+            added_size_bytes=None,
+            download_plan=observation.download_plan,
+        )
+    )
+    assert "中文基础档" in text and "中文完整档" in text
+    assert "安装包" in text and "versionCode 19" in text
 
 
 def _app_store_version(source_id: str, version: str) -> ClientSourceVersion:
@@ -1372,3 +1852,53 @@ async def test_client_update_admin_guard_does_not_request_self_mention() -> None
     assert isinstance(response, PlainTextResponse)
     assert response.text == messages.CLIENT_UPDATE_ADMIN_ONLY
     assert response.need_at is False
+
+
+@pytest.mark.asyncio
+async def test_httpx_apk_range_rejection_does_not_read_full_response():
+    import httpx
+
+    from src.infrastructure.http.client_updates import _HttpxSession
+
+    class FullPackage(httpx.AsyncByteStream):
+        reads = 0
+
+        async def __aiter__(self):
+            self.reads += 1
+            yield b"unexpected full package body"
+
+    stream = FullPackage()
+    async with _HttpxSession() as session:
+        await session._client.aclose()
+        session._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, stream=stream)
+            )
+        )
+        with pytest.raises(ClientUpdateTransportError) as error:
+            await ClientUpdateTransport()._get_android_package(
+                session, "https://example.invalid/official.apk", "test"
+            )
+        assert error.value.kind is ClientUpdateFailureKind.CONTRACT
+    assert stream.reads == 0
+
+
+@pytest.mark.asyncio
+async def test_streaming_httpx_session_keeps_existing_json_version_query():
+    import httpx
+
+    from src.infrastructure.http.client_updates import _HttpxSession
+
+    session = _HttpxSession()
+    await session._client.aclose()
+    session._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, json=_version_list({"101": _version_entry(101, 101)})
+            )
+        )
+    )
+    observation = await ClientUpdateTransport(
+        session_factory=lambda: session
+    ).get_observation("cn-official-pc-manifest")
+    assert observation.current.version_text == "1.6.101.1"

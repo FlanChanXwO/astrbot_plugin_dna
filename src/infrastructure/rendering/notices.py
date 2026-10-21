@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote_plus
 
 import httpx
-from ..logger import logger
 from PIL import Image, ImageDraw, ImageOps
 
 from ...modules.notices.ann_utils import (
@@ -38,6 +37,7 @@ from ...utils.api.model import DNARoleForToolInstanceInfo
 from ...utils.image_utils import download
 from ..data_layout import RuntimeDataLayout, default_runtime_data_layout
 from ..http.concurrency import RequestConcurrencyGate
+from ..logger import logger
 from ..resources.encyclopedia import EncyclopediaResourceStore
 from ..resources.resolver import AssetDownloader
 from .artifact import RenderedArtifact

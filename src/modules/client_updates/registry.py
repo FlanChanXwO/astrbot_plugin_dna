@@ -43,6 +43,7 @@ class ManifestCdnProviderConfig:
     pak_manifest_key: str
     res_manifest_key: str
     user_agent: str
+    package_branch: str | None = None
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -63,6 +64,10 @@ class ManifestCdnProviderConfig:
                 raise ValueError("fallback_base_url 必须是非空字符串或 None")
             if self.fallback_base_url == self.primary_base_url:
                 raise ValueError("fallback_base_url 必须与 primary_base_url 不同")
+        if self.package_branch is not None and (
+            not isinstance(self.package_branch, str) or not self.package_branch.strip()
+        ):
+            raise ValueError("package_branch 必须是非空字符串或 None")
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,6 +330,7 @@ CLIENT_UPDATE_REGISTRY = ClientUpdateRegistry(
                 primary_base_url="http://pan01-1-eo.shyxhy.com",
                 fallback_base_url="http://pan01-1-hs.shyxhy.com",
                 branch=("Patches/FinalPatch/CN/Default/WindowsNoEditor/PC_OBT_CN_Pub"),
+                package_branch="Packages/CN/WindowsNoEditor/PC_OBT_CN_Pub",
                 pak_manifest_key="WindowsNoEditor",
                 res_manifest_key="WindowsNoEditor",
                 user_agent=(

@@ -241,8 +241,11 @@ def _validate_alias_file(path: Path) -> None:
             terms.append((alias, canonical))
     for index, (left, left_owner) in enumerate(terms):
         for right, right_owner in terms[index + 1 :]:
+            # 规范名由解析器优先精确匹配，允许“黎瑟 / 黎瑟·浴火”独立共存。
+            canonical_pair = left == left_owner and right == right_owner
             if left_owner != right_owner and (
-                left == right or left in right or right in left
+                left == right
+                or (not canonical_pair and (left in right or right in left))
             ):
                 raise ResourceGenerationError(f"资源候选别名存在歧义: {path.name}")
 

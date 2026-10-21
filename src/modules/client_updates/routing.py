@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from ...infrastructure.logger import logger
 from ...infrastructure.subscriptions import Subscription
 from .contracts import (
     ClientUpdateChange,
     is_valid_client_update_subscription_metadata,
 )
-from ...infrastructure.logger import logger
 from .state import ClientUpdatePendingTarget
 
 

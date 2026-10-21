@@ -81,6 +81,8 @@ def test_admin_pagination_validates_supported_page_sizes_and_serializes_empty_pa
         AdminPagination(page=0)
     with pytest.raises(ValueError):
         AdminPagination(page_size=15)
+    with pytest.raises(TypeError, match="search 必须是字符串"):
+        AdminPagination(search=None)  # type: ignore[arg-type]
 
     page = AdminPage.from_items((), AdminPagination(page=3, page_size=20))
     assert page.items == ()

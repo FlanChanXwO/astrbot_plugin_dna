@@ -1,0 +1,723 @@
+{
+  "version_list": {
+    "versionList": {
+      "1710212": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 212,
+        "patchKey": 1,
+        "patchVersion": 1710212,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1710213": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 213,
+        "patchKey": 1,
+        "patchVersion": 1710213,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1710214": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 214,
+        "patchKey": 1,
+        "patchVersion": 1710214,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1710215": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 215,
+        "patchKey": 1,
+        "patchVersion": 1710215,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1710216": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 216,
+        "patchKey": 1,
+        "patchVersion": 1710216,
+        "bOptional": false,
+        "bRestart": true
+      },
+      "1710217": {
+        "major": 1,
+        "minor": 7,
+        "revamp": 217,
+        "patchKey": 1,
+        "patchVersion": 1710217,
+        "bOptional": false,
+        "bRestart": true
+      }
+    }
+  },
+  "package_manifest": {
+    "latest_version": "17002",
+    "latest_version_number": "1.7",
+    "min_supported_version": "15001"
+  },
+  "hdiff_manifest": {
+    "hdiff_file": {
+      "name": "v16001_to_v17002.hdiff",
+      "md5": "522c723100f657578e1edc78ad360c23",
+      "size": 4923453874
+    },
+    "new_size": 30967037895
+  },
+  "patches": {
+    "1710212": {
+      "pak": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.212.1_Default_WindowsNoEditor_1710212_P.pak",
+                "hash": "ccd9cee16dfd6fdb96cbd512c4947bc1",
+                "pakOptionalSign": "",
+                "fileSize": 162281821,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Default_WindowsNoEditor_1710212_P.sig",
+                "hash": "9f38b6663dd3235b67511b717d02c386",
+                "pakOptionalSign": "",
+                "fileSize": 10436,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Cine_WindowsNoEditor_1710212_P.pak",
+                "hash": "e764cc57d4342fe590882b63e52304dc",
+                "pakOptionalSign": "",
+                "fileSize": 8513617,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Cine_WindowsNoEditor_1710212_P.sig",
+                "hash": "6e841b82c1b0bf4f5945c4cc68e8e7cc",
+                "pakOptionalSign": "",
+                "fileSize": 1048,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Char_WindowsNoEditor_1710212_P.pak",
+                "hash": "5500f5441408257a3cff62f87a3dbb27",
+                "pakOptionalSign": "",
+                "fileSize": 509850,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Char_WindowsNoEditor_1710212_P.sig",
+                "hash": "3518602ddab66681e33f701a85f9d0f6",
+                "pakOptionalSign": "",
+                "fileSize": 560,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Scene_WindowsNoEditor_1710212_P.pak",
+                "hash": "930e81e0f7e9814419f2e0e22ea56ad8",
+                "pakOptionalSign": "",
+                "fileSize": 1714470,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Scene_WindowsNoEditor_1710212_P.sig",
+                "hash": "98417317a7376ace824d6d12ec826c53",
+                "pakOptionalSign": "",
+                "fileSize": 636,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Map_WindowsNoEditor_1710212_P.pak",
+                "hash": "ff0dd393a1b89bc0e3b9a2fd88b99e8a",
+                "pakOptionalSign": "",
+                "fileSize": 4815275,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_Map_WindowsNoEditor_1710212_P.sig",
+                "hash": "2f58bb0672215903c7cea9219d98dff9",
+                "pakOptionalSign": "",
+                "fileSize": 824,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_VoiceEN_WindowsNoEditor_1710212_P.pak",
+                "hash": "cb8a8898eef3bf0a7ae879278b134049",
+                "pakOptionalSign": "VoiceEN",
+                "fileSize": 1087408247,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_VoiceEN_WindowsNoEditor_1710212_P.sig",
+                "hash": "2a3bdae7b5aa1b9d381c73a5014d4fba",
+                "pakOptionalSign": "VoiceEN",
+                "fileSize": 66900,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_VoiceJP_WindowsNoEditor_1710212_P.pak",
+                "hash": "912f0d7d40ee2f7bf60269a327033457",
+                "pakOptionalSign": "VoiceJP",
+                "fileSize": 1142817605,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_VoiceJP_WindowsNoEditor_1710212_P.sig",
+                "hash": "ea0553ef6825ac15e538a59c1f1ca561",
+                "pakOptionalSign": "VoiceJP",
+                "fileSize": 70284,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_VoiceKR_WindowsNoEditor_1710212_P.pak",
+                "hash": "0730f49ab265500e62e94d1d3874da27",
+                "pakOptionalSign": "VoiceKR",
+                "fileSize": 1127618883,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.212.1_VoiceKR_WindowsNoEditor_1710212_P.sig",
+                "hash": "c1a4d08d7b043fd28d734e0cc8c90d97",
+                "pakOptionalSign": "VoiceKR",
+                "fileSize": 69356,
+                "bExamineIgnore": false
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1710213": {
+      "pak": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.213.1_Default_WindowsNoEditor_1710213_P.pak",
+                "hash": "7e4ccdecf5d0cf22c6b00ceb0527e371",
+                "pakOptionalSign": "",
+                "fileSize": 7006771,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Default_WindowsNoEditor_1710213_P.sig",
+                "hash": "cd73d72f324fe34f69cc0c6ab5c8f70a",
+                "pakOptionalSign": "",
+                "fileSize": 956,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Script_WindowsNoEditor_1710213_P.pak",
+                "hash": "e87a4166035da8bd6ef7dc41f3ca4712",
+                "pakOptionalSign": "",
+                "fileSize": 2393772,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Script_WindowsNoEditor_1710213_P.sig",
+                "hash": "87346c1b944a1417ee664a57ee0fa950",
+                "pakOptionalSign": "",
+                "fileSize": 676,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_UIVideo_WindowsNoEditor_1710213_P.pak",
+                "hash": "f0d0f55ff30647d1837ea0e3d9031ca9",
+                "pakOptionalSign": "",
+                "fileSize": 1457,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_UIVideo_WindowsNoEditor_1710213_P.sig",
+                "hash": "df1b4a5147f5bd3126170a27c20b746b",
+                "pakOptionalSign": "",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Char_WindowsNoEditor_1710213_P.pak",
+                "hash": "aa94cdf36cdf69f0f56a777d548b0ccf",
+                "pakOptionalSign": "",
+                "fileSize": 13109320,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Char_WindowsNoEditor_1710213_P.sig",
+                "hash": "f8bd67e518af6ff75058253b455873a8",
+                "pakOptionalSign": "",
+                "fileSize": 1332,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Scene_WindowsNoEditor_1710213_P.pak",
+                "hash": "ad4170b5338bcfd64b008ee29993cecb",
+                "pakOptionalSign": "",
+                "fileSize": 717319,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Scene_WindowsNoEditor_1710213_P.sig",
+                "hash": "7f4cb94e738f06ac51b4e84e5ac27713",
+                "pakOptionalSign": "",
+                "fileSize": 572,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Map_WindowsNoEditor_1710213_P.pak",
+                "hash": "7f7f303eeccff6ad2c4ba6f1ce9abcd1",
+                "pakOptionalSign": "",
+                "fileSize": 1368439,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Map_WindowsNoEditor_1710213_P.sig",
+                "hash": "d66c624cddaaa2f3fd9aacd3a0472c68",
+                "pakOptionalSign": "",
+                "fileSize": 612,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Media_WindowsNoEditor_1710213_P.pak",
+                "hash": "9aa791bfa6d0adf9be5f9ef4d0845968",
+                "pakOptionalSign": "",
+                "fileSize": 12638094,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.213.1_Media_WindowsNoEditor_1710213_P.sig",
+                "hash": "d8d14a03778a5bfad32854b7b275163b",
+                "pakOptionalSign": "",
+                "fileSize": 1300,
+                "bExamineIgnore": false
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1710214": {
+      "pak": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.214.1_Default_WindowsNoEditor_1710214_P.pak",
+                "hash": "0ba02d7dcbec1f0fb71104318fe6b4e3",
+                "pakOptionalSign": "",
+                "fileSize": 12394272,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.214.1_Default_WindowsNoEditor_1710214_P.sig",
+                "hash": "eacd3ee2f89a45c9b7651a97c8f8da1e",
+                "pakOptionalSign": "",
+                "fileSize": 1288,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.214.1_Script_WindowsNoEditor_1710214_P.pak",
+                "hash": "be0d1b2b7900734ae13e0f444744cfba",
+                "pakOptionalSign": "",
+                "fileSize": 57880116,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.214.1_Script_WindowsNoEditor_1710214_P.sig",
+                "hash": "8288395109600fd1fb626f232a272a76",
+                "pakOptionalSign": "",
+                "fileSize": 4064,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.214.1_PipelineCaches_WindowsNoEditor_1710214_P.pak",
+                "hash": "01d19f11e7fb2162c732305a7b6a3cd1",
+                "pakOptionalSign": "",
+                "fileSize": 1548777,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.214.1_PipelineCaches_WindowsNoEditor_1710214_P.sig",
+                "hash": "f133055b6e9bdd8235c0128b964f4ced",
+                "pakOptionalSign": "",
+                "fileSize": 624,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.214.1_Char_WindowsNoEditor_1710214_P.pak",
+                "hash": "261b21bbe79da2b41eea1e1444205d49",
+                "pakOptionalSign": "",
+                "fileSize": 868821,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.214.1_Char_WindowsNoEditor_1710214_P.sig",
+                "hash": "65455695b0426246a13f9fff74b8688d",
+                "pakOptionalSign": "",
+                "fileSize": 584,
+                "bExamineIgnore": false
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1710215": {
+      "pak": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.215.1_Default_WindowsNoEditor_1710215_P.pak",
+                "hash": "b89a78b449b8432392ec7092b8450407",
+                "pakOptionalSign": "",
+                "fileSize": 23102755,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Default_WindowsNoEditor_1710215_P.sig",
+                "hash": "e91ceb85132bd469d6db0a9d4daba7b6",
+                "pakOptionalSign": "",
+                "fileSize": 1940,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Script_WindowsNoEditor_1710215_P.pak",
+                "hash": "b4df1ac85ce20b0e68513b7b3367e048",
+                "pakOptionalSign": "",
+                "fileSize": 62141492,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Script_WindowsNoEditor_1710215_P.sig",
+                "hash": "af785ed15573ad74dc0ccbacc32c1b9f",
+                "pakOptionalSign": "",
+                "fileSize": 4324,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Audio_WindowsNoEditor_1710215_P.pak",
+                "hash": "24af1a9a3e16a8298df13674a17e65e4",
+                "pakOptionalSign": "",
+                "fileSize": 59805522,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Audio_WindowsNoEditor_1710215_P.sig",
+                "hash": "bc2cb4484187e76c3c1c2128a484b68b",
+                "pakOptionalSign": "",
+                "fileSize": 4180,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Cine_WindowsNoEditor_1710215_P.pak",
+                "hash": "4472ed24049950038429299886ee9f28",
+                "pakOptionalSign": "",
+                "fileSize": 6000137,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Cine_WindowsNoEditor_1710215_P.sig",
+                "hash": "c6eb5aea6ada9e184004695fcb878336",
+                "pakOptionalSign": "",
+                "fileSize": 896,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_UIVideo_WindowsNoEditor_1710215_P.pak",
+                "hash": "54a4c129d372e764743ca65acb0c12c4",
+                "pakOptionalSign": "",
+                "fileSize": 5574,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_UIVideo_WindowsNoEditor_1710215_P.sig",
+                "hash": "499d0209b765f176012f6dd44f0e80b0",
+                "pakOptionalSign": "",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Char_WindowsNoEditor_1710215_P.pak",
+                "hash": "d49343136d9bf4b592d779d054a2683b",
+                "pakOptionalSign": "",
+                "fileSize": 1654713,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Char_WindowsNoEditor_1710215_P.sig",
+                "hash": "9ec68761544bc5c5fe95241437b60fc3",
+                "pakOptionalSign": "",
+                "fileSize": 632,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Map_WindowsNoEditor_1710215_P.pak",
+                "hash": "7c8d8e3ccfbb6c900a43d1ae076cdcc9",
+                "pakOptionalSign": "",
+                "fileSize": 27403328,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Map_WindowsNoEditor_1710215_P.sig",
+                "hash": "091abe6d6f51d660715946d06d4052a6",
+                "pakOptionalSign": "",
+                "fileSize": 2204,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Media_WindowsNoEditor_1710215_P.pak",
+                "hash": "b12027e8262d596690609afca825e070",
+                "pakOptionalSign": "",
+                "fileSize": 32110988,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.215.1_Media_WindowsNoEditor_1710215_P.sig",
+                "hash": "d6368f8e8033184f800d79060384d811",
+                "pakOptionalSign": "",
+                "fileSize": 2488,
+                "bExamineIgnore": false
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1710216": {
+      "pak": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.216.1_Default_WindowsNoEditor_1710216_P.pak",
+                "hash": "2737ac85727b199b074f02219e129e28",
+                "pakOptionalSign": "",
+                "fileSize": 9043702,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Default_WindowsNoEditor_1710216_P.sig",
+                "hash": "dd7b3e0eaf10da3d0d4d3d124c13e69c",
+                "pakOptionalSign": "",
+                "fileSize": 1080,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Script_WindowsNoEditor_1710216_P.pak",
+                "hash": "93c2f3662186ba108032df1b9ec4328e",
+                "pakOptionalSign": "",
+                "fileSize": 35908449,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Script_WindowsNoEditor_1710216_P.sig",
+                "hash": "b92de6c45d8f33366da5f7849bc7265a",
+                "pakOptionalSign": "",
+                "fileSize": 2720,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Oodle_WindowsNoEditor_1710216_P.pak",
+                "hash": "79aedd3931db08758db3d5f9329a80a2",
+                "pakOptionalSign": "",
+                "fileSize": 62545046,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Oodle_WindowsNoEditor_1710216_P.sig",
+                "hash": "83de7fac2580f18b362be3217c8a7a1d",
+                "pakOptionalSign": "",
+                "fileSize": 4348,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Audio_WindowsNoEditor_1710216_P.pak",
+                "hash": "8abbb91662758fd6c844d476bdfeea7d",
+                "pakOptionalSign": "",
+                "fileSize": 40941793,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Audio_WindowsNoEditor_1710216_P.sig",
+                "hash": "4c003d4e459364dc5b60251ad230a76d",
+                "pakOptionalSign": "",
+                "fileSize": 3028,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_UIVideo_WindowsNoEditor_1710216_P.pak",
+                "hash": "706574d351bdfbf67fb458b2d937f03d",
+                "pakOptionalSign": "",
+                "fileSize": 4689,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_UIVideo_WindowsNoEditor_1710216_P.sig",
+                "hash": "cdacef21a5176f706411dac82da78a52",
+                "pakOptionalSign": "",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Char_WindowsNoEditor_1710216_P.pak",
+                "hash": "231dab376638e3b62d066007d476ad70",
+                "pakOptionalSign": "",
+                "fileSize": 9450955,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Char_WindowsNoEditor_1710216_P.sig",
+                "hash": "4637293fcbd1f4058b3b674baf26187e",
+                "pakOptionalSign": "",
+                "fileSize": 1108,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Map_WindowsNoEditor_1710216_P.pak",
+                "hash": "934506def085a2902345251f12f4e4cf",
+                "pakOptionalSign": "",
+                "fileSize": 5088151,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Map_WindowsNoEditor_1710216_P.sig",
+                "hash": "95d52437ca4c827d41524e63e1b9ed52",
+                "pakOptionalSign": "",
+                "fileSize": 840,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Media_WindowsNoEditor_1710216_P.pak",
+                "hash": "970201c1c6b52efe93706bd209ad81a1",
+                "pakOptionalSign": "",
+                "fileSize": 29010866,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.216.1_Media_WindowsNoEditor_1710216_P.sig",
+                "hash": "cfe1afa1f69b8515f0d96868d0da5729",
+                "pakOptionalSign": "",
+                "fileSize": 2300,
+                "bExamineIgnore": false
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    },
+    "1710217": {
+      "pak": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": [
+              {
+                "fileName": "1.7.217.1_Default_WindowsNoEditor_1710217_P.pak",
+                "hash": "d56ba130fcf76e782d7fa7f669b8fcf8",
+                "pakOptionalSign": "",
+                "fileSize": 680435,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.217.1_Default_WindowsNoEditor_1710217_P.sig",
+                "hash": "259d40fdeac18346229ac13ebd35bf03",
+                "pakOptionalSign": "",
+                "fileSize": 572,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.217.1_Script_WindowsNoEditor_1710217_P.pak",
+                "hash": "d32c298d0dc60b62f79360ff67b8e4c2",
+                "pakOptionalSign": "",
+                "fileSize": 7025,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.217.1_Script_WindowsNoEditor_1710217_P.sig",
+                "hash": "461bb95ffcdb5fe60d6bdab1cdd6fea7",
+                "pakOptionalSign": "",
+                "fileSize": 532,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.217.1_Char_WindowsNoEditor_1710217_P.pak",
+                "hash": "c3bfac9351a3153ddef35144ce8740cf",
+                "pakOptionalSign": "",
+                "fileSize": 2192687,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.217.1_Char_WindowsNoEditor_1710217_P.sig",
+                "hash": "db3509fa75dd4dcc1b1c0b827bae6551",
+                "pakOptionalSign": "",
+                "fileSize": 664,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.217.1_Map_WindowsNoEditor_1710217_P.pak",
+                "hash": "89ed11f3e33e512996f5af27ee24636a",
+                "pakOptionalSign": "",
+                "fileSize": 3418448,
+                "bExamineIgnore": false
+              },
+              {
+                "fileName": "1.7.217.1_Map_WindowsNoEditor_1710217_P.sig",
+                "hash": "bb4b7bb01c49ef691668287511976082",
+                "pakOptionalSign": "",
+                "fileSize": 740,
+                "bExamineIgnore": false
+              }
+            ]
+          }
+        }
+      },
+      "res": {
+        "pakFilesMap": {
+          "WindowsNoEditor": {
+            "pakFileInfos": []
+          }
+        }
+      }
+    }
+  }
+}

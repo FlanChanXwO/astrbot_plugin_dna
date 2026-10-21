@@ -982,7 +982,9 @@ async def test_calendar_code_wiki_guide_and_alias_reads_keep_response_semantics(
         ),
     )
     all_alias = await service.alias_all_list(
-        EncyclopediaRequest(actor=actor, target_user_id=None, text="武器列表"),
+        EncyclopediaRequest(
+            actor=actor, target_user_id=None, parameters={"kind": "武器"}
+        ),
     )
 
     assert isinstance(calendar, ImageResponse)

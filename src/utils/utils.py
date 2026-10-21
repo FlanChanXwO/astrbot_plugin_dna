@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
-from ..infrastructure.logger import logger
 
+from ..infrastructure.logger import logger
 from .session import EventContext
 
 TZ = ZoneInfo("Asia/Shanghai")

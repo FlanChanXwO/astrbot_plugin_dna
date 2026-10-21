@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from ...infrastructure.logger import logger
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from . import messages
 from .contracts import ClientUpdateChange
@@ -22,7 +23,6 @@ from .state import (
     ClientUpdateStateStore,
     canonicalize_client_update_change,
 )
-from ...infrastructure.logger import logger
 
 _ONEBOT_PLATFORM_NAMES = frozenset(("aiocqhttp", "onebot"))
 

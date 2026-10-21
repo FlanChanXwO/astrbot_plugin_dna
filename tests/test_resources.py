@@ -17,8 +17,8 @@ from src.infrastructure.resources import (
     ResourceSnapshot,
     ResourceSnapshotCoordinator,
     ResourceSyncError,
-    ResourceSyncResult,
     ResourceSynchronizer,
+    ResourceSyncResult,
 )
 from src.infrastructure.resources.encyclopedia import EncyclopediaResourceStore
 from src.infrastructure.resources.manifest import (

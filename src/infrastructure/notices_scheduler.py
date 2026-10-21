@@ -15,7 +15,6 @@ from typing import Protocol, cast
 from zoneinfo import ZoneInfo
 
 from .logger import logger
-
 from .scheduler_state import (
     SchedulerRegistry,
     SchedulerTaskDefinition,
