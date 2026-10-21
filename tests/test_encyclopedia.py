@@ -389,7 +389,10 @@ def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(
     alias_root = root / "alias"
     alias_root.mkdir(parents=True)
     (alias_root / "char_alias.json").write_text(
-        json.dumps({"角色甲": ["小甲"]}, ensure_ascii=False),
+        json.dumps(
+            {"角色甲": ["小甲"], "角色甲·新形态": ["新甲"]},
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
     (alias_root / "weapon_alias.json").write_text(
@@ -399,7 +402,13 @@ def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(
     role_wiki = root / "wiki" / "role" / "角色甲.webp"
     weapon_wiki = root / "wiki" / "weapon" / "武器甲.webp"
     guide = root / "guide" / "攻略组" / "角色甲-build.png"
-    for path, color in ((role_wiki, "red"), (weapon_wiki, "blue"), (guide, "green")):
+    form_guide = root / "guide" / "攻略组" / "角色甲·新形态-build.png"
+    for path, color in (
+        (role_wiki, "red"),
+        (weapon_wiki, "blue"),
+        (guide, "green"),
+        (form_guide, "purple"),
+    ):
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (31, 37), color).save(path)
 
@@ -409,6 +418,9 @@ def test_resource_store_reads_runtime_alias_wiki_and_guide_assets(
     assert store.wiki_asset("大剑") == ("weapon", weapon_wiki)
     assert store.guides_for("小甲", ("攻略组",)) == (
         GuideAsset(provider="攻略组", path=guide),
+    )
+    assert store.guides_for("新甲", ("攻略组",)) == (
+        GuideAsset(provider="攻略组", path=form_guide),
     )
 
 

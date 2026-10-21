@@ -242,11 +242,13 @@ class EncyclopediaResourceStore:
                 if not path.is_file():
                     continue
                 filename = path.name.casefold()
-                for canonical in aliases.char_aliases:
+                # 完整形态名优先，避免新形态攻略同时归入旧角色。
+                for canonical in sorted(aliases.char_aliases, key=len, reverse=True):
                     if canonical.casefold() in filename:
                         guides.setdefault(canonical, []).append(
                             GuideAsset(provider, path)
                         )
+                        break
 
         return cls(
             aliases=aliases,
