@@ -626,6 +626,8 @@ class ImageFetcher:
                 if current_task is not None:
                     self._active_tasks.discard(current_task)
                 self._condition.notify_all()
+            # 避免异常 traceback 通过局部变量反向持有当前 Task 及解码缓冲。
+            current_task = None
 
     @staticmethod
     def _observe_task(task: asyncio.Task[bytes]) -> None:
@@ -655,7 +657,11 @@ class ImageFetcher:
                 self._active_tasks.add(task)
 
         # 单个调用方取消时不应连带取消仍被其他调用方使用的下载任务。
-        content = await asyncio.shield(task)
+        try:
+            content = await asyncio.shield(task)
+        finally:
+            # 失败 Task 保存的 traceback 包含此帧，必须断开反向引用。
+            task = None
         try:
             self._write_atomically(target, content)
         except (OSError, httpx.HTTPError) as exc:

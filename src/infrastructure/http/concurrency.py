@@ -85,7 +85,11 @@ class RequestConcurrencyGate:
                         self._remove_completed(key, completed)
                     )
                 )
-        return await asyncio.shield(cast(asyncio.Task[T], task))
+        try:
+            return await asyncio.shield(cast(asyncio.Task[T], task))
+        finally:
+            # 异常 traceback 包含等待帧，避免与失败 Task 形成引用环。
+            task = None
 
     async def _remove_completed(
         self, key: Hashable, completed: asyncio.Task[Any]
