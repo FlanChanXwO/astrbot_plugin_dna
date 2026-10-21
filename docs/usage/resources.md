@@ -46,6 +46,8 @@ manifest v2 将资源职责显式拆开：`required_dirs` 只描述必须存在�
 - 静态渲染素材：`fonts/`（正文字体与 Unicode fallback）、`textures/`（角色总览/详情、日常便签、周报、签到、密函、公告、帮助等卡片纹理）、`calendar/`（活动日历底图与装饰）；
 - 资料：`wiki/`、`guide/`、`weekly_item/`、`data/`、`alias/` 等图鉴与文本资源。
 
+攻略按文件名中的最长角色规范名归属，同名角色的不同形态不混用；已有带修订说明等后缀的文件名仍可识别。
+
 静态渲染素材由 `StaticAssetResolver`（`src/infrastructure/rendering/static_assets.py`）只从 verified generation 解析；帮助命令图标、登录标题图和通用装饰图同样由资源同步提供，不在插件源码中维护资源副本。同步资源缺失时渲染降级为可见 placeholder，并标记 `incomplete=True`，不会回退到源码目录中的同名文件。
 
 其他动态素材仍按需写入 `cache/assets/`。资源仓库的 `resource_manifest.json` 仍是资源布局、文件摘要与版本的事实源。
