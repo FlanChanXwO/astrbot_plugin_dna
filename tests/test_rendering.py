@@ -408,7 +408,7 @@ async def test_weapon_template_uses_independent_archive_layout_and_all_fields() 
     weapon_template = (templates / "cards/weapon_detail.html.j2").read_text(
         encoding="utf-8"
     )
-    assert "{{ weapon_section(weapon) }}" in role_template
-    assert "{{ weapon_section(weapon) }}" not in weapon_template
+    assert "{{ weapon_section(weapon, shared_sources) }}" in role_template
+    assert "{{ weapon_section(weapon, shared_sources) }}" not in weapon_template
     assert "{{ legacy_profile_header(header, profile_background) }}" in weapon_template
     assert "weapon-detail__profile" not in weapon_template

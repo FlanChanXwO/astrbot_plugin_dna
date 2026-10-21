@@ -1,10 +1,21 @@
+{% from "cards/macros/images.html.j2" import image_variables, image_reference %}
+{% set weapon_modes = weapon_sections|map(attribute="modes")|sum(start=[]) %}
+{% set shared_sources = (
+    [skill_background]
+    + (attributes|map(attribute="background")|list)
+    + (grades|map(attribute="background")|list)
+    + (role_modes|map(attribute="background")|list)
+    + (weapon_modes|map(attribute="background")|list)
+    + (weapon_sections|map(attribute="weapon_background")|list)
+    + (weapon_sections|map(attribute="attribute_background")|list)
+)|select|unique(case_sensitive=true)|list %}
 {% from "cards/macros/layout.html.j2" import card_shell %}
 {% from "cards/macros/components.html.j2" import legacy_profile_header %}
 {% from "cards/macros/weapon_section.html.j2" import weapon_section, weapon_section_styles %}
 {% call card_shell(width, background=background, class_name="role-detail") %}
 <style>
   @font-face { font-family: "DNAFont"; src: url("{{ font }}") format("woff2"); }
-  .role-detail { position: relative; width: 1000px; color: #fff; background: transparent; font-family: "DNAFont", sans-serif; overflow: hidden; }
+  .role-detail { {{ image_variables(shared_sources) }} position: relative; width: 1000px; color: #fff; background: transparent; font-family: "DNAFont", sans-serif; overflow: hidden; }
   .role-detail__hero { position: relative; width: 1000px; height: 850px; overflow: hidden; }
   .role-detail__hero-image { position: absolute; inset: 0; width: 1000px; height: 850px; object-fit: fill; }
   .role-detail__identity { position: absolute; top: 80px; left: 550px; width: 400px; height: 703px; }
@@ -23,7 +34,7 @@
   .role-detail__grade img { position: absolute; top: 19px; left: 17px; width: 31px; height: 23px; object-fit: fill; }
   .role-detail__divider { display: block; width: 1046px; height: 53px; margin-left: -23px; object-fit: fill; }
   .role-detail__skills { position: relative; width: 1000px; height: 160px; }
-  .role-detail__skill { position: absolute; top: 0; width: 300px; height: 160px; background: center/300px 160px no-repeat; }
+  .role-detail__skill { position: absolute; top: 0; width: 300px; height: 160px; background: {{ image_reference(skill_background, shared_sources) }} center/300px 160px no-repeat; }
   .role-detail__skill:nth-child(1) { left: 50px; }.role-detail__skill:nth-child(2) { left: 350px; }.role-detail__skill:nth-child(3) { left: 650px; }
   .role-detail__skill img { position: absolute; top: 30px; left: 20px; width: 100px; height: 100px; object-fit: fill; }
   .role-detail__skill h3 { position: absolute; top: 38px; left: 120px; width: 170px; margin: 0; color: #daa520; font-size: 24px; font-weight: 400; line-height: 30px; overflow-wrap: anywhere; }
@@ -44,12 +55,12 @@
   .role-detail__footer { position: relative; width: 1000px; height: 100px; }.role-detail__footer img { position: absolute; right: 200px; bottom: 20px; width: 600px; height: 23px; object-fit: fill; }
 </style>
 {{ weapon_section_styles() }}
-<section class="role-detail__hero"><img class="role-detail__hero-image" src="{{ hero.image }}" alt="" /><div class="role-detail__identity"><img class="point" src="{{ point }}" alt="" /><h1>{{ role.name }}</h1>{% if element_icon %}<img class="role-detail__element-icon" src="{{ element_icon }}" alt="" />{% endif %}<div class="role-detail__badges">{% if role.grade_icon %}<span class="role-detail__badge role-detail__grade-badge"><img src="{{ role.grade_icon }}" alt="" /></span>{% endif %}<span class="role-detail__badge">Lv.{{ role.level }}</span>{% if role.weapon_mastery %}<span class="role-detail__badge">{{ role.weapon_mastery }}</span>{% endif %}</div><div class="role-detail__attributes">{% for item in attributes %}<div class="role-detail__attribute" style="background-image:url('{{ item.background }}')"><img src="{{ item.icon }}" alt="" /><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div>{% endfor %}</div></div><div class="role-detail__grades">{% for grade in grades %}<div class="role-detail__grade" style="left:{{ grade.left }}px;background-image:url('{{ grade.background }}')"><img src="{{ grade.icon }}" alt="" /></div>{% endfor %}</div></section>
+<section class="role-detail__hero"><img class="role-detail__hero-image" src="{{ hero.image }}" alt="" /><div class="role-detail__identity"><img class="point" src="{{ point }}" alt="" /><h1>{{ role.name }}</h1>{% if element_icon %}<img class="role-detail__element-icon" src="{{ element_icon }}" alt="" />{% endif %}<div class="role-detail__badges">{% if role.grade_icon %}<span class="role-detail__badge role-detail__grade-badge"><img src="{{ role.grade_icon }}" alt="" /></span>{% endif %}<span class="role-detail__badge">Lv.{{ role.level }}</span>{% if role.weapon_mastery %}<span class="role-detail__badge">{{ role.weapon_mastery }}</span>{% endif %}</div><div class="role-detail__attributes">{% for item in attributes %}<div class="role-detail__attribute" style="background-image:{{ image_reference(item.background, shared_sources) }}"><img src="{{ item.icon }}" alt="" /><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div>{% endfor %}</div></div><div class="role-detail__grades">{% for grade in grades %}<div class="role-detail__grade" style="left:{{ grade.left }}px;background-image:{{ image_reference(grade.background, shared_sources) }}"><img src="{{ grade.icon }}" alt="" /></div>{% endfor %}</div></section>
 <img class="role-detail__divider" src="{{ divider }}" alt="" />
-<section class="role-detail__skills">{% for item in skills %}<article class="role-detail__skill" style="background-image:url('{{ skill_background }}')"><img src="{{ item.icon }}" alt="" /><h3>{{ item.name }}</h3><p>Lv.{{ item.level }}</p></article>{% endfor %}</section>
-{% for weapon in weapon_sections %}{{ weapon_section(weapon) }}{% endfor %}
+<section class="role-detail__skills">{% for item in skills %}<article class="role-detail__skill"><img src="{{ item.icon }}" alt="" /><h3>{{ item.name }}</h3><p>Lv.{{ item.level }}</p></article>{% endfor %}</section>
+{% for weapon in weapon_sections %}{{ weapon_section(weapon, shared_sources) }}{% endfor %}
 <img class="role-detail__divider" src="{{ divider }}" alt="" />
-<section class="role-detail__mods">{% for mode in role_modes %}<article class="role-detail__mode mode-{{ mode.position }}"><img class="role-detail__mode-bg" src="{{ mode.background }}" alt="" /><div class="role-detail__mode-content">{% if mode.icon %}<img class="role-detail__mode-icon" src="{{ mode.icon }}" alt="" />{% endif %}<h4>{{ mode.name }}</h4>{% if mode.level %}<span class="role-detail__mode-level">{{ mode.level }}</span>{% endif %}</div></article>{% endfor %}</section>
+<section class="role-detail__mods">{% for mode in role_modes %}<article class="role-detail__mode mode-{{ mode.position }}"><span class="role-detail__mode-bg" style="background-image:{{ image_reference(mode.background, shared_sources) }}" aria-hidden="true"></span><div class="role-detail__mode-content">{% if mode.icon %}<img class="role-detail__mode-icon" src="{{ mode.icon }}" alt="" />{% endif %}<h4>{{ mode.name }}</h4>{% if mode.level %}<span class="role-detail__mode-level">{{ mode.level }}</span>{% endif %}</div></article>{% endfor %}</section>
 {% if damage %}<section class="role-detail__damage{% if damage.error %} is-error{% endif %}"><header class="role-detail__damage-head"><h2>伤害计算</h2><div>{{ damage.enemy }}<br />{{ damage.restraint }}</div></header><div class="role-detail__lineup">{% for item in damage.lineup %}<div><span>{{ item.label }}</span><strong>{{ item.name }}</strong></div>{% endfor %}</div>{% if damage.error %}<h3 class="role-detail__status">计算状态</h3><p class="role-detail__error">{{ damage.error }}</p>{% else %}<section class="role-detail__damage-section"><h3>角色属性</h3><dl class="role-detail__damage-grid">{% for item in damage.attributes %}<div><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>{% endfor %}</dl>{% if damage.weapons %}<ul class="role-detail__damage-weapons">{% for item in damage.weapons %}<li><span>{{ item.label }}</span><strong>{{ item.name }}</strong><b>{{ item.value }}</b></li>{% endfor %}</ul>{% endif %}</section>{% for skill in damage.skills %}<article class="role-detail__damage-skill"><header><h3>{{ skill.name }}</h3><span>Lv.{{ skill.level }}</span></header><dl class="role-detail__damage-grid">{% for item in skill.metrics %}<div><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>{% endfor %}</dl>{% for child in skill.children %}<section class="role-detail__damage-child"><h4>{{ child.name }}</h4><dl class="role-detail__damage-grid">{% for item in child.metrics %}<div><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>{% endfor %}</dl></section>{% endfor %}</article>{% endfor %}{% endif %}</section>{% endif %}
 {{ legacy_profile_header(header, profile_background) }}
 <footer class="role-detail__footer"><img src="{{ footer_image }}" alt="" /></footer>

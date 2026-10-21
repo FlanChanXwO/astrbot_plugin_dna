@@ -1,8 +1,10 @@
+{% from "cards/macros/images.html.j2" import image_variables, image_reference %}
+{% set shared_sources = [cag_background]|select|unique(case_sensitive=true)|list %}
 {% from "cards/macros/layout.html.j2" import card_shell %}
 {% call card_shell(width, card_height, background=background, class_name="help-card") %}
 <style>
   @font-face { font-family: "DNAUnicode"; src: url("{{ font }}") format("woff2"); }
-  .help-card { position: relative; width: 2020px; font-family: "DNAUnicode", sans-serif; font-weight: 630; }
+  .help-card { {{ image_variables(shared_sources) }} position: relative; width: 2020px; font-family: "DNAUnicode", sans-serif; font-weight: 630; }
   .help-card__banner { position: absolute; top: 0; left: 0; width: 2020px; height: 784px; object-fit: fill; }
   .help-card__icon-frame { position: absolute; top: 507px; left: 116px; width: 175px; height: 175px; border: 8px solid rgba(255, 255, 255, .85); border-radius: 50%; overflow: hidden; box-sizing: border-box; }
   .help-card__icon { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -13,7 +15,7 @@
   .help-card__sections { position: relative; padding-top: 766px; }
   .help-card__sections--fallback { padding-top: 900px; }
   .help-card__section { position: relative; left: 0; width: 2020px; overflow: visible; }
-  .help-card__section-bar { position: absolute; top: 0; left: 0; width: 2020px; height: 130px; object-fit: fill; }
+  .help-card__section-bar { background: {{ image_reference(cag_background, shared_sources) }} center/100% 100% no-repeat; position: absolute; top: 0; left: 0; width: 2020px; height: 130px; object-fit: fill; }
   .help-card__section-heading { position: absolute; top: 65px; left: 178px; display: flex; align-items: center; height: 59px; transform: translateY(-50%); }
   .help-card__section-title { margin: 0; color: #fff; font-size: 59px; font-weight: 630; line-height: 59px; }
   .help-card__section-desc { position: relative; top: 7px; margin: 0 0 0 20px; color: #cecece; font-size: 39px; line-height: 39px; }
@@ -36,7 +38,7 @@
 <div class="help-card__sections{% if not sections %} help-card__sections--fallback{% endif %}">
 {% for section in sections %}
 <section class="help-card__section" style="height: {{ section["height"] }}px">
-  {% if cag_background %}<img class="help-card__section-bar" src="{{ cag_background }}" alt="" />{% endif %}
+  {% if cag_background %}<span class="help-card__section-bar" aria-hidden="true"></span>{% endif %}
   <div class="help-card__section-heading">
     <h2 class="help-card__section-title">{{ section.name }}</h2>
     <p class="help-card__section-desc">{{ section.description }}</p>

@@ -1,0 +1,8 @@
+{# 同一卡片内共享原始装饰图，不改变图片编码和显示尺寸。 #}
+{% macro image_variables(sources) -%}
+{% for source in sources %}--dna-image-{{ loop.index0 }}: url("{{ source }}");{% endfor %}
+{%- endmacro %}
+
+{% macro image_reference(source, sources) -%}
+{% if source %}var(--dna-image-{{ sources.index(source) }}){% else %}none{% endif %}
+{%- endmacro %}
