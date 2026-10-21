@@ -68,7 +68,7 @@ def _build_runtime(tmp_path, recorder: list[str], database: AsyncDatabase):
     layout = RuntimeDataLayout(tmp_path / "plugin-data")
     runtime = build_runtime(
         _Context(),
-        {},
+        {"login": {"port": 0}},
         database=database,
         runtime_data_layout=layout,
         services={
