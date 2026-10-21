@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import gc
+import weakref
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,7 @@ import httpx
 import pytest
 from PIL import Image
 
+from src.infrastructure.http.concurrency import RequestConcurrencyGate
 from src.utils.image_utils import ImageFetcher, ImageFetcherClosed, ImageFetchError
 
 
@@ -140,6 +143,56 @@ async def test_transport_errors_stop_after_configured_attempts(tmp_path: Path) -
 
     assert client.calls == [url, url]
     await fetcher.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("with_gate", [False, True])
+async def test_failed_download_releases_task_without_cyclic_gc(
+    tmp_path: Path, with_gate: bool
+) -> None:
+    """坏图异常处理完成后，无需循环 GC 就能释放共享任务及其解码缓冲。"""
+
+    url = "https://cdn.example.test/broken.jpg"
+    tasks = []
+    client = _FakeClient()
+
+    def broken_image(request_url: str) -> httpx.Response:
+        tasks.append(weakref.ref(asyncio.current_task()))
+        return _response(request_url, b"not-an-image")
+
+    client.handler = broken_image
+    fetcher = ImageFetcher(client_factory=_ClientFactory([client]), sleep=_no_sleep)
+
+    gate = RequestConcurrencyGate(1)
+
+    async def download() -> Path:
+        if with_gate:
+            tasks.append(weakref.ref(asyncio.current_task()))
+        return await fetcher.fetch(url, tmp_path / "broken.jpg")
+
+    async def fetch_failure() -> None:
+        try:
+            if with_gate:
+                await gate.run(download, key=url)
+            else:
+                await download()
+        except ImageFetchError as exc:
+            assert isinstance(exc.__cause__, OSError)
+        else:
+            pytest.fail("坏图必须保留原有异常")
+
+    gc_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        await fetch_failure()
+        await asyncio.sleep(0)
+        assert fetcher.inflight_count == 0
+        assert gate.in_flight_count == 0
+        assert all(task() is None for task in tasks)
+    finally:
+        if gc_enabled:
+            gc.enable()
+        await fetcher.close()
 
 
 @pytest.mark.asyncio
