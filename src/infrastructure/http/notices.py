@@ -13,7 +13,6 @@ import asyncio
 from typing import Any
 
 import aiohttp
-from ..logger import logger
 from pydantic import BaseModel, ConfigDict
 
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
@@ -34,6 +33,7 @@ from ...modules.notices.contracts import (
     NoticesTransportError,
     validate_mh_snapshot,
 )
+from ..logger import logger
 from .auth import is_credential_failure
 from .concurrency import RequestConcurrencyGate, gated_transport_method
 

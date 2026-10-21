@@ -11,7 +11,6 @@ from urllib.parse import unquote, urlsplit
 import websocket
 
 from ...infrastructure.logger import logger
-
 from .request_util import ios_base_header
 
 _configured_continue_seconds: int | None = None

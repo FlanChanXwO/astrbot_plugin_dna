@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from ...infrastructure.logger import logger
 
 from ...entry.event import EventActor
 from ...entry.response import (
@@ -22,6 +21,7 @@ from ...entry.response import (
 )
 from ...infrastructure.cache import CacheManager
 from ...infrastructure.http.concurrency import RequestConcurrencyGate
+from ...infrastructure.logger import logger
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import NoticesRenderer, RenderedNoticesImage
 from ...infrastructure.rendering.errors import HtmlRenderError

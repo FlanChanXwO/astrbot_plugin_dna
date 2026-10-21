@@ -1,4 +1,4 @@
-"""客户端更新 state v4 的 Source 基线与 pending 持久化测试。"""
+"""客户端更新 state v5 的 Source 基线与 pending 持久化测试。"""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import pytest
 from src.modules.client_updates import (
     STATE_VERSION,
     AppStoreVersionMetadata,
+    ClientDownloadPlan,
     ClientSourceVersion,
     ClientUpdateBaseline,
     ClientUpdateChange,
@@ -20,6 +21,53 @@ from src.modules.client_updates import (
     ClientUpdateStateStore,
     ManifestCdnVersionMetadata,
 )
+
+
+@pytest.mark.asyncio
+async def test_v4_upgrade_preserves_receipts_without_reinterpreting_size(tmp_path):
+    source = "cn-official-pc-manifest"
+    change = ClientUpdateChange(
+        previous=_version(source, "100", order=100),
+        current=_version(source, "102", order=102),
+        history_complete=True,
+        added_size_bytes=2048,
+        target_ids=("cn-official-pc",),
+        download_plan=ClientDownloadPlan(4096, (("VoiceJP", 512),), "patch_manifest"),
+    )
+    baseline = ClientUpdateBaseline(change.current, datetime.now(UTC), change)
+    path = tmp_path / "client_updates.json"
+    store = ClientUpdateStateStore(path)
+    event = await store.save_baseline_with_pending_event(
+        baseline,
+        change,
+        (
+            ClientUpdatePendingTarget("group:1", delivered=True),
+            ClientUpdatePendingTarget("group:2"),
+        ),
+    )
+    assert (
+        await ClientUpdateStateStore(path).get_baseline(source)
+    ).last_change.download_plan == change.download_plan
+    raw = json.loads(path.read_text())
+    raw["schema_version"] = 4
+    del raw["baselines"][source]["last_change"]["download_plan"]
+    del raw["pending_events"][0]["change"]["download_plan"]
+    before = json.dumps(raw)
+    path.write_text(before)
+    restored = ClientUpdateStateStore(path)
+    loaded = await restored.get_baseline(source)
+    assert path.read_text() == before
+    assert loaded.last_change.added_size_bytes == 2048
+    assert loaded.last_change.download_plan is None
+    pending = await restored.pending_events()
+    assert pending[0].event_key == event.event_key
+    assert [target.delivered for target in pending[0].targets] == [True, False]
+    await restored.save_baseline(loaded)
+    assert json.loads(path.read_text())["schema_version"] == 5
+    assert [
+        target.delivered
+        for target in (await ClientUpdateStateStore(path).pending_events())[0].targets
+    ] == [True, False]
 
 
 def _version(source_id: str, revision: str, *, order: int) -> ClientSourceVersion:
@@ -37,7 +85,7 @@ def _version(source_id: str, revision: str, *, order: int) -> ClientSourceVersio
 
 
 @pytest.mark.asyncio
-async def test_state_v4_round_trips_source_baseline_and_target_snapshot(
+async def test_state_v5_round_trips_source_baseline_and_target_snapshot(
     tmp_path,
 ) -> None:
     source_id = "cn-official-pc-manifest"
@@ -69,19 +117,19 @@ async def test_state_v4_round_trips_source_baseline_and_target_snapshot(
     )
     reloaded = ClientUpdateStateStore(path)
 
-    assert STATE_VERSION == 4
+    assert STATE_VERSION == 5
     assert stored is not None
     assert await reloaded.get_baseline(source_id) == baseline
     assert await reloaded.pending_events() == (stored,)
     assert stored.event_key == f"{source_id}:100:102"
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 4
+    assert payload["schema_version"] == 5
     assert tuple(payload["baselines"]) == (source_id,)
     assert payload["pending_events"][0]["change"]["target_ids"] == ["cn-official-pc"]
 
 
 @pytest.mark.asyncio
-async def test_state_v4_round_trips_app_store_provider_metadata(tmp_path) -> None:
+async def test_state_v5_round_trips_app_store_provider_metadata(tmp_path) -> None:
     source_id = "cn-official-ios-app-store"
     version = ClientSourceVersion(
         source_id=source_id,
@@ -134,7 +182,7 @@ async def test_legacy_state_is_warned_and_ignored_without_backup(
 
 
 @pytest.mark.asyncio
-async def test_first_write_after_ignored_legacy_state_creates_v4(tmp_path) -> None:
+async def test_first_write_after_ignored_legacy_state_creates_v5(tmp_path) -> None:
     path = tmp_path / "client_updates.json"
     path.write_text('{"schema_version": 3}', encoding="utf-8")
     store = ClientUpdateStateStore(path)
@@ -149,7 +197,7 @@ async def test_first_write_after_ignored_legacy_state_creates_v4(tmp_path) -> No
     )
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 4
+    assert payload["schema_version"] == 5
     assert tuple(payload["baselines"]) == ("cn-official-pc-manifest",)
     assert not tuple(tmp_path.glob("*.bak"))
 
@@ -231,7 +279,7 @@ async def test_save_without_delivery_targets_advances_only_source_baseline(
     "payload",
     [
         {"schema_version": 4, "baselines": [], "pending_events": []},
-        {"schema_version": 5, "baselines": {}, "pending_events": []},
+        {"schema_version": 6, "baselines": {}, "pending_events": []},
         {"schema_version": 4, "baselines": {}, "pending_events": {}},
     ],
 )

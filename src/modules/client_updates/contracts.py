@@ -193,6 +193,7 @@ class ManifestCdnVersionMetadata:
     version_key: int
     patch_version: int
     resource_version_dir: str | None
+    package_version: int | None = None
 
     def __post_init__(self) -> None:
         for field_name in ("version_key", "patch_version"):
@@ -204,6 +205,10 @@ class ManifestCdnVersionMetadata:
             or not self.resource_version_dir.strip()
         ):
             raise ValueError("resource_version_dir 必须是非空字符串或 None")
+        if self.package_version is not None and (
+            type(self.package_version) is not int or self.package_version <= 0
+        ):
+            raise ValueError("package_version 必须是正整数或 None")
 
 
 @dataclass(frozen=True, slots=True)
@@ -285,6 +290,44 @@ class ClientSourceVersion:
 
 
 @dataclass(frozen=True, slots=True)
+class ClientDownloadPlan:
+    """无预下载、文件完整时的基础下载及按标签选择的额外资源。"""
+
+    required_size_bytes: int
+    optional_sizes: tuple[tuple[str, int], ...]
+    basis: str
+    package_from: int | None = None
+    package_to: int | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.required_size_bytes) is not int or self.required_size_bytes < 0:
+            raise ValueError("required_size_bytes 必须是非负整数")
+        if self.basis not in {
+            "patch_manifest",
+            "hdiff_and_patch",
+            "android_resources",
+            "apk_and_patch",
+        }:
+            raise ValueError("下载计划依据无效")
+        seen: set[str] = set()
+        for name, size in self.optional_sizes:
+            if not isinstance(name, str) or not name or name in seen:
+                raise ValueError("可选资源标签必须非空且唯一")
+            if type(size) is not int or size < 0:
+                raise ValueError("可选资源大小必须为非负整数")
+            seen.add(name)
+        for value in (self.package_from, self.package_to):
+            if value is not None and (type(value) is not int or value <= 0):
+                raise ValueError("基础包版本必须为正整数或 None")
+        if self.basis == "hdiff_and_patch" and (
+            self.package_from is None or self.package_to is None
+        ):
+            raise ValueError("差分下载计划必须包含基础包两端版本")
+        if self.basis == "apk_and_patch" and self.package_to is None:
+            raise ValueError("APK 下载计划必须包含目标 versionCode")
+
+
+@dataclass(frozen=True, slots=True)
 class ClientSourceObservation:
     """一次 Source 读取结果及其可见历史完整性。"""
 
@@ -292,6 +335,7 @@ class ClientSourceObservation:
     observed_versions: tuple[ClientSourceVersion, ...]
     history_complete: bool
     added_size_bytes: int | None
+    download_plan: ClientDownloadPlan | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.current, ClientSourceVersion):
@@ -311,6 +355,10 @@ class ClientSourceObservation:
             type(self.added_size_bytes) is not int or self.added_size_bytes < 0
         ):
             raise ValueError("added_size_bytes 必须是非负整数或 None")
+        if self.download_plan is not None and not isinstance(
+            self.download_plan, ClientDownloadPlan
+        ):
+            raise TypeError("download_plan 必须是 ClientDownloadPlan 或 None")
         object.__setattr__(self, "observed_versions", versions)
 
 
@@ -322,6 +370,7 @@ class ClientUpdateTransport(Protocol):
         source_id: str,
         *,
         baseline: ClientSourceVersion | None = None,
+        capture_package_version: bool = False,
     ) -> ClientSourceObservation:
         """读取一个已登记 Source 的当前版本和可见历史。"""
         ...
@@ -336,6 +385,7 @@ class ClientUpdateChange:
     history_complete: bool
     added_size_bytes: int | None
     target_ids: tuple[str, ...]
+    download_plan: ClientDownloadPlan | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.previous, ClientSourceVersion):
@@ -352,6 +402,10 @@ class ClientUpdateChange:
             type(self.added_size_bytes) is not int or self.added_size_bytes < 0
         ):
             raise ValueError("added_size_bytes 必须是非负整数或 None")
+        if self.download_plan is not None and not isinstance(
+            self.download_plan, ClientDownloadPlan
+        ):
+            raise TypeError("download_plan 必须是 ClientDownloadPlan 或 None")
         normalized_target_ids = tuple(self.target_ids)
         if not normalized_target_ids or any(
             not isinstance(target_id, str) or not target_id.strip()
@@ -547,6 +601,7 @@ def _manifest_entries(
 
 __all__ = [
     "AppStoreVersionMetadata",
+    "ClientDownloadPlan",
     "ClientPlatform",
     "ClientSourceObservation",
     "ClientSourceProviderMetadata",

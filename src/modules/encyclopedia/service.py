@@ -7,14 +7,13 @@ from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
 
-from ...infrastructure.logger import logger
-
 from ...entry.response import (
     ChainResponse,
     ImageResponse,
     PlainTextResponse,
     write_temporary_image,
 )
+from ...infrastructure.logger import logger
 from ...infrastructure.persistence import AccountBindingRepository, AsyncDatabase
 from ...infrastructure.rendering import EncyclopediaRenderer
 from ...infrastructure.resources import (
@@ -340,7 +339,7 @@ class EncyclopediaService:
         """读取全部角色或武器 canonical name。"""
 
         with self._resource_context() as resources:
-            if request.text == "武器列表":
+            if request.parameters["kind"] == "武器":
                 return PlainTextResponse(
                     messages.alias_all_list(
                         "武器", "\n".join(resources.aliases.all_weapons())

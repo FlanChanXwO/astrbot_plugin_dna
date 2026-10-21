@@ -6,9 +6,8 @@ import asyncio
 from collections.abc import Callable
 from pathlib import Path
 
-from ...infrastructure.logger import logger
-
 from ...entry.response import PlainTextResponse
+from ...infrastructure.logger import logger
 from ...infrastructure.resources import (
     GitUnavailableError,
     ResourceLocalChangesError,

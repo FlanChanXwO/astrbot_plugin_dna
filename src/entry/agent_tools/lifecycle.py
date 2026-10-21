@@ -9,7 +9,6 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ...infrastructure.logger import logger
-
 from ...modules.agent_tools.queries import AgentQueryCatalog
 from .signin import AgentSignTool
 from .tools import AGENT_TOOL_NAMES, build_agent_tools

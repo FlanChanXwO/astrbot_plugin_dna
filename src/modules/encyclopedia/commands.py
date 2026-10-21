@@ -284,7 +284,7 @@ COMMAND_SPECS = (
     ),
     CommandSpec(
         id="alias_all_list",
-        pattern=r"^(?:角色列表|武器列表)$",
+        pattern=r"^(?P<kind>角色|武器)列表$",
         group="图鉴",
         name="角色/武器列表",
         description="查看全部角色或武器列表",

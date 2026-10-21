@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 import httpx
-from ...infrastructure.logger import logger
 from pydantic import BaseModel, ConfigDict, Field
 
+from ...infrastructure.logger import logger
 from .contracts import LoginChannel
 
 START_TIMEOUT_S = 10.0

@@ -9,9 +9,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from ...infrastructure.logger import logger
-
 from ...entry.response import LoginResponse, PlainTextResponse
+from ...infrastructure.logger import logger
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,

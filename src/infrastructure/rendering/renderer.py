@@ -8,9 +8,9 @@ from typing import Any, Protocol
 
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
+from ..logger import logger
 from .errors import RenderResultError, T2IRenderError, TemplateRenderError
 from .image_inspector import inspect_image
-from ..logger import logger
 from .spec import RenderSpec
 
 _WARN_BYTES = 1024 * 1024

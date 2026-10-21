@@ -73,12 +73,43 @@ JSON/manifest 结构，但 HTTP 本身不提供 TLS 的来源认证或链路完�
 官方客户端或一手公开资料提供证据，并完成隔离只读 smoke、primary/fallback
 一致性及契约测试后，才能提交端点变更。
 
-### state v4 与回滚
+### 下载计划与补丁统计
 
-`client_update_state.json` v4 以 Source 保存 baseline 和待投递事件。v1/v2/v3
-只会 warning 后按空状态启动，不迁移、不自动备份。回滚到旧插件版本前必须停止
-插件并移走 v4 state，或恢复部署者在升级前保存的旧 state；不要添加基于旧
-channel/platform 字段的猜测迁移层。
+`added_size_bytes` 始终表示新增补丁清单统计；历史窗口不完整时仍为空。独立的
+`download_plan` 保存必需传输字节、选配标签、计算依据及基础包路径，不受
+`history_complete` 单独决定。文件按官方版本目录和文件名去重，同一路径的内容
+标识冲突必须失败，不能静默选择较小值。
+
+官服 PC 通过 `Packages/.../VersionManifest.json` 和原生启动器路径规则选择
+`HPatchDiffMd5.json`，只采用 `hdiff_file.size`；`new_size` 是解压后的占用。
+换基础包时仅使用新发行系列的热更，不能把旧系列已被替换的文件重复计入。
+同系列基础包切换缺少已核验的热更边界时拒绝计算。协议依据见
+`DNA-security-analysis` 的 `game-client/api/update/game-update.md`。
+
+安卓跨基包计划复用 manifest transport 与文件归并，另读取 `PakJumpUrl.json` 的
+官网 APK 地址。只通过 HTTP Range 读取 ZIP 中央目录及 `AndroidManifest.xml`，
+核对包名、版本、`versionCode` 与完整包的传输长度，不下载 APK 正文或安装程序。
+服务端不支持 Range 时直接失败；httpx 兼容路径也使用流式响应，不能先缓冲整包。
+`PakJumpUrl` 的 JSON 当前使用 `application/octet-stream`，仅该调用跳过 MIME
+限制，仍执行 JSON 和渠道身份校验。
+
+基包内置边界必须先从官方包核验，再由运行期校验 APK 身份、完整起始补丁、文件
+目录/内容标识、选配标签及 `ExamineFile.json` 的跨路径复用信息。当前实现只接受
+已核验的基包转换；不能仅删除历史窗口检查、推测版本公式或对未知复用映射求和。
+`provider_metadata.package_version` 保存 PC 基础包 ID；安卓 APK 的
+`versionCode` 保存在 `apk_and_patch` 计划的 `package_to`，不混用两种版本身份。
+
+区域和语音分别保留标签，报告明确官网整包直更及资源档位，不套用应用商店差分。
+未知基包、补丁边界缺失或选项集合变化时，查询与定时轮询使用相同错误边界，保留
+baseline 和已有待投递事件，交给后续检查重试；新增基包需先扩展已核验边界。
+
+### state v5 与回滚
+
+`client_update.json` v5 以 Source 保存 baseline、下载计划和待投递事件。
+读取 v4 时保留基线、目标和投递标记，旧记录的下载计划为空，不重新解释旧统计，
+不自动重发历史事件。v1/v2/v3 仍只会 warning 后按空状态启动，不迁移、不自动
+备份。回滚到只支持 v4 的插件前必须停止插件并恢复升级前备份的状态；旧插件不
+识别 v5，不要直接降级后启动调度。
 
 ## 文档结构
 

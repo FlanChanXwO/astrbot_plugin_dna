@@ -13,7 +13,6 @@ from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.astr_agent_context import AstrAgentContext
 
 from ...infrastructure.logger import logger
-
 from ...modules.agent_tools.contracts import AgentQueryResult
 from ...modules.checkin.contracts import CheckinCommandRequest
 from .context import agent_request_from_context

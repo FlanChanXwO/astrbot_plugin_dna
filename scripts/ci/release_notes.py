@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable, Sequence
 
 _VERSION_RE = re.compile(r"v?\d+\.\d+\.\d+")
 _RELEASE_HEADING_RE = re.compile(

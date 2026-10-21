@@ -17,6 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 import httpx
+
 from ..logger import logger
 
 # 出站建连预算：TCP 建连到不可达主机时会一直等到操作系统默认超时（macOS 约

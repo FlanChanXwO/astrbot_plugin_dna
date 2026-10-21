@@ -9,13 +9,13 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import aiohttp
-from ...infrastructure.logger import logger
 
 from ...infrastructure.http.app import (
     AppTransport,
     AppTransportError,
     AppTransportFailureKind,
 )
+from ...infrastructure.logger import logger
 from ..constants.constants import DNA_GAME_ID
 from ..database.models import DNAUser
 from ..utils import timed_async_cache
@@ -683,8 +683,8 @@ class DNAApi:
             OSError,
             TypeError,
             ValueError,
-        ) as e:
-            logger.exception("get_task_process", e)
+        ):
+            logger.exception("get_task_process")
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
     @timed_async_cache(
@@ -725,8 +725,8 @@ class DNAApi:
             OSError,
             TypeError,
             ValueError,
-        ) as e:
-            logger.exception("get_post_list", e)
+        ):
+            logger.exception("get_post_list")
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
     async def get_post_detail(
@@ -759,8 +759,8 @@ class DNAApi:
             OSError,
             TypeError,
             ValueError,
-        ) as e:
-            logger.exception("get_post_detail", e)
+        ):
+            logger.exception("get_post_detail")
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
     async def do_like(
@@ -806,8 +806,8 @@ class DNAApi:
             OSError,
             TypeError,
             ValueError,
-        ) as e:
-            logger.exception("do_like", e)
+        ):
+            logger.exception("do_like")
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
     async def do_share(
@@ -834,8 +834,8 @@ class DNAApi:
             OSError,
             TypeError,
             ValueError,
-        ) as e:
-            logger.exception("do_share", e)
+        ):
+            logger.exception("do_share")
             return DNAApiResp[Any].err("请求皎皎角服务失败")
 
     async def do_reply(
@@ -924,8 +924,8 @@ class DNAApi:
             OSError,
             TypeError,
             ValueError,
-        ) as e:
-            logger.exception("get_wiki_home_list", e)
+        ):
+            logger.exception("get_wiki_home_list")
             return None
 
     async def get_wiki_list(
@@ -962,8 +962,8 @@ class DNAApi:
             OSError,
             TypeError,
             ValueError,
-        ) as e:
-            logger.exception("get_wiki_list", e)
+        ):
+            logger.exception("get_wiki_list")
             return DNAApiResp[Any].err("请求皎皎角Wiki服务失败")
 
     async def get_wiki_detail(self, wiki_id: str):
@@ -985,8 +985,8 @@ class DNAApi:
             OSError,
             TypeError,
             ValueError,
-        ) as e:
-            logger.exception("get_wiki_detail", e)
+        ):
+            logger.exception("get_wiki_detail")
             return DNAApiResp[Any].err("请求皎皎角Wiki详情失败")
 
     async def get_activity_info(self):

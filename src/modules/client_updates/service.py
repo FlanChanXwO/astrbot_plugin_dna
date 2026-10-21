@@ -7,9 +7,8 @@ from collections.abc import Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
 
-from ...infrastructure.logger import logger
-
 from ...entry.response import CommandResponse, MultiTextResponse, PlainTextResponse
+from ...infrastructure.logger import logger
 from ...infrastructure.subscriptions import Subscription, SubscriptionStore
 from . import messages
 from .contracts import (
@@ -119,6 +118,7 @@ class ClientUpdateService:
                 observation = await self.transport.get_observation(
                     source_id,
                     baseline=baseline.version if baseline is not None else None,
+                    capture_package_version=True,
                 )
                 _validate_observation(observation, source_id)
                 change = _change_from_observation(baseline, observation, target_ids)
@@ -321,7 +321,9 @@ class ClientUpdateService:
                 if await self.state.get_baseline(source_id) is not None:
                     continue
                 try:
-                    observation = await self.transport.get_observation(source_id)
+                    observation = await self.transport.get_observation(
+                        source_id, capture_package_version=True
+                    )
                     _validate_observation(observation, source_id)
                     await self.state.save_baseline(
                         ClientUpdateBaseline(
@@ -369,6 +371,7 @@ def _change_from_observation(
         history_complete=observation.history_complete,
         added_size_bytes=observation.added_size_bytes,
         target_ids=target_ids,
+        download_plan=observation.download_plan,
     )
 
 

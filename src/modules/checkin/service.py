@@ -15,10 +15,9 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from ...infrastructure.logger import logger
-
 from ...entry.event import SCHEDULED_ACTOR_BOT_ID, EventActor
 from ...entry.response import ImageResponse, PlainTextResponse
+from ...infrastructure.logger import logger
 from ...infrastructure.persistence import (
     AccountBindingRepository,
     AsyncDatabase,

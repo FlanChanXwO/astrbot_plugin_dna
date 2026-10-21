@@ -71,7 +71,7 @@ class AdminPagination:
         if self.page_size not in ADMIN_PAGE_SIZES:
             raise ValueError("page_size 只支持 10、20、50")
         if not isinstance(self.search, str):
-            raise ValueError("search 必须是字符串")
+            raise TypeError("search 必须是字符串")
         object.__setattr__(self, "search", " ".join(self.search.strip().split()))
 
 

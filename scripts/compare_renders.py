@@ -202,9 +202,9 @@ def _report(
     layout = metadata.get("dna.layout", {})
     resources = metadata.get("dna.resources", [])
     if not isinstance(layout, dict):
-        raise ValueError("rewrite artifact 的 dna.layout 无效")
+        raise TypeError("rewrite artifact 的 dna.layout 无效")
     if not isinstance(resources, list):
-        raise ValueError("rewrite artifact 的 dna.resources 无效")
+        raise TypeError("rewrite artifact 的 dna.resources 无效")
 
     lines = [
         "# 本地离线渲染对比：密函（legacy draw_mh_simple vs rewrite render_mh）",
