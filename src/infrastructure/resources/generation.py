@@ -10,7 +10,7 @@ import shutil
 import tarfile
 import threading
 from builtins import BaseExceptionGroup
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
 from copy import copy
 from dataclasses import dataclass, replace
@@ -401,7 +401,14 @@ def _validate_no_symlinks(root: Path) -> None:
             raise ResourceGenerationError("资源候选不允许符号链接")
 
 
-def _validate_asset_headers(root: Path) -> None:
+def _validate_asset_headers(
+    root: Path,
+    *,
+    file_hashes: Mapping[str, str] | None = None,
+    verified_file_hashes: Mapping[str, str] | None = None,
+) -> None:
+    file_hashes = file_hashes or {}
+    verified_file_hashes = verified_file_hashes or {}
     for relative in _ASSET_ROOTS:
         asset_root = root / relative
         for path in sorted(asset_root.rglob("*")):
@@ -410,6 +417,14 @@ def _validate_asset_headers(root: Path) -> None:
             if not path.is_file() or path.name == ".keep":
                 continue
             if path.suffix.lower() in _IMAGE_SUFFIXES:
+                key = path.relative_to(root).as_posix()
+                expected = file_hashes.get(key)
+                if (
+                    expected
+                    and expected.casefold()
+                    == verified_file_hashes.get(key, "").casefold()
+                ):
+                    continue
                 _validate_image_decodability(path)
     font_root = root / "fonts"
     for path in sorted(font_root.rglob("*")):
@@ -447,20 +462,41 @@ class ResourceGenerationValidator:
             else Path(custom_weapon_alias_path).expanduser().absolute()
         )
 
-    def validate(self, root: str | Path, commit_sha: str) -> ResourceSnapshot:
+    def validate(
+        self,
+        root: str | Path,
+        commit_sha: str,
+        *,
+        expected_content_sha256: str | None = None,
+        verified_file_hashes: Mapping[str, str] | None = None,
+    ) -> ResourceSnapshot:
+        """复用已通过完整校验的内容证据；不能传入未经验证的远端摘要。"""
+
         root_input = Path(root).expanduser()
+        content_sha256: str | None = None
         try:
             _validate_no_symlinks(root_input)
             root_path = root_input.resolve()
             manifest = ResourceManifest.load(
                 root_path / "resource_manifest.json"
             ).validate_root(root_path)
-            manifest.validate_file_hashes(root_path)
+            if expected_content_sha256 is not None:
+                content_sha256 = _content_sha256(root_path)
+                if content_sha256.casefold() != expected_content_sha256.casefold():
+                    raise ResourceGenerationError("当前资源 generation 内容哈希不匹配")
+            else:
+                manifest.validate_file_hashes(root_path)
             for filename in _ALIAS_FILES:
                 _validate_alias_file(root_path / "alias" / filename)
             _validate_redeem_file(root_path / "data" / "redeem_codes.json")
             _validate_schema_file(root_path / "schemas" / "redeem-codes.v1.schema.json")
-            _validate_asset_headers(root_path)
+            # 整体字节相同可复用全部素材校验；新 generation 只复用已核实的逐文件摘要。
+            if expected_content_sha256 is None:
+                _validate_asset_headers(
+                    root_path,
+                    file_hashes=manifest.file_hashes,
+                    verified_file_hashes=verified_file_hashes,
+                )
             from ..rendering.player import ResourceMap
 
             player_resources = ResourceMap.from_root(root_path)
@@ -469,7 +505,8 @@ class ResourceGenerationValidator:
                 custom_alias_path=self.custom_alias_path,
                 custom_weapon_alias_path=self.custom_weapon_alias_path,
             )
-            content_sha256 = _content_sha256(root_path)
+            if content_sha256 is None:
+                content_sha256 = _content_sha256(root_path)
         except ResourceGenerationError as exc:
             raise ResourceGenerationError(
                 f"资源候选 generation 校验失败：{exc}"
@@ -953,7 +990,7 @@ class ResourceSnapshotCoordinator:
         return snapshot
 
     def validate_current(self) -> ResourceSnapshot | None:
-        """对 current generation 执行完整校验；仅供显式资源同步流程调用。"""
+        """复核 current 全部内容与布局，复用相同字节的素材校验证据。"""
 
         with self._validation_lock:
             with self._state_lock:
@@ -970,14 +1007,12 @@ class ResourceSnapshotCoordinator:
                 return None
 
             try:
-                # 完整 validator、图片解码和 SHA-256 必须在 state lock 外执行。
-                validated = self._validator.validate(snapshot.root, snapshot.commit_sha)
-                if (
-                    expected_content_sha256 is not None
-                    and expected_content_sha256.casefold()
-                    != validated.content_sha256.casefold()
-                ):
-                    raise ResourceGenerationError("当前资源 generation 内容哈希不匹配")
+                # 内容摘要仍逐次核对；相同字节复用已验证素材，索引照常重建。
+                validated = self._validator.validate(
+                    snapshot.root,
+                    snapshot.commit_sha,
+                    expected_content_sha256=expected_content_sha256,
+                )
                 if expected_content_sha256 is None:
                     self._write_state(validated)
             except Exception as error:
@@ -1217,6 +1252,7 @@ class ResourceSnapshotCoordinator:
         commit_sha: str,
         *,
         replace_existing: bool = False,
+        verified_file_hashes: Mapping[str, str] | None = None,
     ) -> tuple[ResourceSnapshot, bool]:
         self._ensure_storage_roots()
         self.generations_root.mkdir(parents=True, exist_ok=True)
@@ -1233,7 +1269,9 @@ class ResourceSnapshotCoordinator:
             candidate.mkdir()
             synchronizer.archive_fetch_head(archive)
             _extract_archive(archive, candidate)
-            self._validator.validate(candidate, commit_sha)
+            verified_candidate = self._validator.validate(
+                candidate, commit_sha, verified_file_hashes=verified_file_hashes
+            )
             final = self._generation_path(commit_sha)
             if final.exists() or final.is_symlink():
                 if not final.is_dir() or final.is_symlink():
@@ -1241,7 +1279,11 @@ class ResourceSnapshotCoordinator:
                 should_replace = replace_existing
                 if not should_replace:
                     try:
-                        snapshot = self._validator.validate(final, commit_sha)
+                        snapshot = self._validator.validate(
+                            final,
+                            commit_sha,
+                            expected_content_sha256=verified_candidate.content_sha256,
+                        )
                     except ResourceGenerationError:
                         should_replace = True
                 if should_replace:
@@ -1255,12 +1297,20 @@ class ResourceSnapshotCoordinator:
                     candidate.rename(final)
                     created_final = True
                     # rename 后重新建立索引，避免 snapshot.root 仍指向 candidate。
-                    snapshot = self._validator.validate(final, commit_sha)
+                    snapshot = self._validator.validate(
+                        final,
+                        commit_sha,
+                        expected_content_sha256=verified_candidate.content_sha256,
+                    )
             else:
                 candidate.rename(final)
                 created_final = True
                 # 索引中的 Path 必须在 rename 后重新建立，不能继续指向已删除的 candidate。
-                snapshot = self._validator.validate(final, commit_sha)
+                snapshot = self._validator.validate(
+                    final,
+                    commit_sha,
+                    expected_content_sha256=verified_candidate.content_sha256,
+                )
         except BaseException as error:  # noqa: BLE001 - 清理边界必须保留原始失败。
             primary_error = error
 
@@ -1352,40 +1402,31 @@ class ResourceSnapshotCoordinator:
             known_validation_error = self._current_validation_error
         force_rebuild = known_validation_error is not None
 
-        if current is not None and current.commit_sha == commit_sha:
+        validated = None
+        if current is not None or known_validation_error is None:
             try:
                 validated = self.validate_current()
             except ResourceGenerationError:
-                validated = None
                 force_rebuild = True
-            if validated is not None:
-                return replace(
-                    result,
-                    action="unchanged",
-                    resource_version=validated.resource_version,
-                    commit_sha=commit_sha,
-                    generation_root=validated.root,
-                    content_sha256=validated.content_sha256,
-                )
-
-        if current is None and known_validation_error is None:
-            # 重载后的 light snapshot 也必须先完整验证；验证失败则继续走
-            # materialize，用同一个远端 commit 重建损坏的 generation。
-            try:
-                self.load_current()
-                validated = self.validate_current()
-            except ResourceGenerationError:
-                validated = None
-                force_rebuild = True
-            if validated is not None and validated.commit_sha == commit_sha:
-                return replace(
-                    result,
-                    action="unchanged",
-                    resource_version=validated.resource_version,
-                    commit_sha=commit_sha,
-                    generation_root=validated.root,
-                    content_sha256=validated.content_sha256,
-                )
+        if validated is not None and validated.commit_sha == commit_sha:
+            return replace(
+                result,
+                action="unchanged",
+                resource_version=validated.resource_version,
+                commit_sha=commit_sha,
+                generation_root=validated.root,
+                content_sha256=validated.content_sha256,
+            )
+        # 可选文件可能未在旧 generation 中实际存在，不能只凭 manifest 声明命中缓存。
+        verified_file_hashes = (
+            {
+                relative: digest
+                for relative, digest in validated.manifest.file_hashes.items()
+                if (validated.root / relative).is_file()
+            }
+            if validated is not None
+            else {}
+        )
 
         repair_generation = False
         if force_rebuild:
@@ -1396,14 +1437,12 @@ class ResourceSnapshotCoordinator:
                 # 先建立门禁再等待旧 lease；否则等待期间仍可能有新 lease 指向旧路径，
                 # 导致替换后继续读取到不稳定的物理目录。
                 self._begin_generation_repair(commit_sha)
-            if force_rebuild:
-                snapshot, created_final = self._materialize(
-                    synchronizer,
-                    commit_sha,
-                    replace_existing=True,
-                )
-            else:
-                snapshot, created_final = self._materialize(synchronizer, commit_sha)
+            snapshot, created_final = self._materialize(
+                synchronizer,
+                commit_sha,
+                replace_existing=force_rebuild,
+                verified_file_hashes=verified_file_hashes,
+            )
             try:
                 synchronizer.fast_forward_fetch_head()
                 synchronizer.validate()
@@ -1449,6 +1488,7 @@ class ResourceSnapshotCoordinator:
             raise
         self.record_sync_result(result)
         return result
+
 
 __all__ = [
     "ResourceGenerationError",

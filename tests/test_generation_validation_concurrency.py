@@ -1,6 +1,6 @@
-"""资源同步完整校验期间的已发布 generation 可见性回归。
+"""资源同步复核期间的已发布 generation 可见性回归。
 
-``validate_current()`` 只对当前已发布 generation 重新做完整校验。校验必须
+``validate_current()`` 复核内容摘要并复用已验证素材。校验必须
 在 state lock 之外执行，期间物理目录仍存在且此前已验证通过，因此新面板
 渲染必须继续取得该 generation；只有校验真正失败时才能撤下 current。
 """
@@ -25,7 +25,9 @@ COMMIT_SHA = "a" * 40
 CONTENT_SHA256 = "b" * 64
 
 
-def _published_coordinator(tmp_path: Path) -> tuple[ResourceSnapshotCoordinator, ResourceSnapshot]:
+def _published_coordinator(
+    tmp_path: Path,
+) -> tuple[ResourceSnapshotCoordinator, ResourceSnapshot]:
     """建立一个已原子发布 current 的 coordinator。"""
 
     coordinator = ResourceSnapshotCoordinator(
@@ -60,7 +62,10 @@ def test_validate_current_keeps_published_generation_serving(tmp_path: Path) -> 
     coordinator, snapshot = _published_coordinator(tmp_path)
     observed: list[object] = []
 
-    def validate(_root: Path, _commit_sha: str) -> ResourceSnapshot:
+    def validate(
+        _root: Path, _commit_sha: str, *, expected_content_sha256: str
+    ) -> ResourceSnapshot:
+        assert expected_content_sha256 == CONTENT_SHA256
         observed.append(coordinator.current_snapshot)
         with coordinator.acquire() as leased:
             observed.append(leased.commit_sha)
@@ -87,7 +92,10 @@ def test_validate_current_removes_current_only_after_validation_fails(
     coordinator, snapshot = _published_coordinator(tmp_path)
     observed: list[object] = []
 
-    def validate(_root: Path, _commit_sha: str) -> ResourceSnapshot:
+    def validate(
+        _root: Path, _commit_sha: str, *, expected_content_sha256: str
+    ) -> ResourceSnapshot:
+        assert expected_content_sha256 == CONTENT_SHA256
         observed.append(coordinator.current_snapshot)
         raise ResourceGenerationError("资源候选 generation 校验失败")
 
@@ -98,7 +106,9 @@ def test_validate_current_removes_current_only_after_validation_fails(
 
     assert observed[0] is snapshot, "校验尚未失败时 current 不应被撤下"
     assert coordinator.current_snapshot is None
-    with pytest.raises(ResourceGenerationError, match="没有可用的已验证资源 generation"):
+    with pytest.raises(
+        ResourceGenerationError, match="没有可用的已验证资源 generation"
+    ):
         coordinator.acquire()
 
 
@@ -107,7 +117,7 @@ def test_validate_current_keeps_held_lease_intact(tmp_path: Path) -> None:
 
     coordinator, snapshot = _published_coordinator(tmp_path)
     with coordinator.acquire() as leased:
-        _stub_validator(coordinator, lambda _root, _commit_sha: snapshot)
+        _stub_validator(coordinator, lambda _root, _commit_sha, **_kwargs: snapshot)
 
         coordinator.validate_current()
 
