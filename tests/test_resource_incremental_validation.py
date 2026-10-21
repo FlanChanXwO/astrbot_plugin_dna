@@ -59,7 +59,7 @@ def resources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         Image.new("RGB", (8, 8), "red").save(source / f"images/{name}.png")
     _commit(source)
 
-    def local_git(args, cwd=None):
+    def local_git(args: tuple[str, ...], cwd: Path | None = None):
         if args[0] in {"clone", "fetch"}:
             args = (
                 "-c",
