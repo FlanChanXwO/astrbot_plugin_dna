@@ -13,15 +13,15 @@
 - `dna资源状态`：查看当前资源/快照与最近同步结果；
 - `dna同步资源`：从规范资源仓库获取候选内容，校验后再切换为可用版本。
 
-精确命令匹配和权限以 [`commands.json`](../../commands.json) 为准。
+命令匹配规则和权限见 [`commands.json`](../../commands.json)。
 
 同步会先反馈开始，再发送最终结果。首次同步、缺少可信校验记录或修复损坏快照时，需要完整校验；后续每次仍读取全部文件核对内容摘要，字节完全相同的快照复用已验证结果。更新时，只有新增、内容变化或没有文件摘要的图片需要解码；仅更新兑换码等文本数据不会重解全部图片。重启后继续使用已发布的校验记录，自定义别名和运行期索引仍会重新读取。
 
 资源传输仍受网络影响，完整性检查也仍随文件总量增加；增量复用主要消除反复解码已有图片的 CPU 和内存开销。
 
-资源同步遵循“候选 → 校验 → 发布”的边界。manifest、路径、声明的摘要和需要解码的图片等校验未通过时，不应把候选版本发布为当前资源；已有可用快照会尽量继续保留。当前实现细节以 `src/infrastructure/resources/` 为准。
+资源同步遵循“候选 → 校验 → 发布”的边界。manifest、路径、声明的摘要和需要解码的图片等校验未通过时，不应把候选版本发布为当前资源；已有可用快照会尽量继续保留。
 
-manifest v2 将资源职责显式拆开：`required_dirs` 只描述必须存在的目录布局，`required_files` 描述缺失时必须阻断发布的文件，`file_hashes` 只负责完整性。未列入 `required_files` 的普通素材即使声明了摘要，缺失时也不会仅因摘要声明而被隐式视为必需资源；消费方按既有 placeholder、fallback 或功能降级处理。插件不再维护一份与资源仓库重复的固定目录清单，目录事实源以资源仓库 manifest 为准。
+manifest v2 将资源职责显式拆开：`required_dirs` 只描述必须存在的目录布局，`required_files` 描述缺失时必须阻断发布的文件，`file_hashes` 只负责完整性。未列入 `required_files` 的普通素材即使声明了摘要，缺失时也不会仅因摘要声明而被隐式视为必需资源；消费方按既有 placeholder、fallback 或功能降级处理。
 
 ## 现行运行期数据布局
 
@@ -50,17 +50,15 @@ manifest v2 将资源职责显式拆开：`required_dirs` 只描述必须存在�
 
 静态渲染素材由 `StaticAssetResolver`（`src/infrastructure/rendering/static_assets.py`）只从 verified generation 解析；帮助命令图标、登录标题图和通用装饰图同样由资源同步提供，不在插件源码中维护资源副本。同步资源缺失时渲染降级为可见 placeholder，并标记 `incomplete=True`，不会回退到源码目录中的同名文件。
 
-其他动态素材仍按需写入 `cache/assets/`。资源仓库的 `resource_manifest.json` 仍是资源布局、文件摘要与版本的事实源。
+其他动态素材仍按需写入 `cache/assets/`。
 
 ## manifest 与目录
 
-资源仓库自己的 `resource_manifest.json` 是资源布局与版本的事实源。本仓库文档不复制 `required_dirs`、文件哈希或某个 commit 的固定快照，避免资源仓库更新后出现两份不一致的清单。
-
-需要确认资源内容时，直接查看 `dna-resource` 当前 `main` 分支及 manifest。
+资源目录、文件摘要和版本见 [dna-resource 的 resource_manifest.json](https://github.com/FlanChanXwO/dna-resource/blob/main/resource_manifest.json)。
 
 ## GitHub 加速
 
-`resources.github_acceleration` 与相关自定义地址字段控制资源同步的传输路径。可选值和默认值以当前 [`_conf_schema.json`](../../_conf_schema.json) 为准。自定义地址不要包含凭据、查询参数或私密信息。
+`resources.github_acceleration` 与相关自定义地址字段控制资源同步的传输路径。可选值和默认值见 [`_conf_schema.json`](../../_conf_schema.json)。自定义地址不要包含凭据、查询参数或私密信息。
 
 传输加速只改变获取方式，不改变规范仓库或校验规则。
 

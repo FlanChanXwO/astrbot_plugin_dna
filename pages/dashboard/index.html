@@ -501,7 +501,7 @@
         <button class="text-button" type="button" aria-label="关闭提示" @click="closeToast">关闭</button>
       </div>
 
-      <div v-if="dialog.open" class="overlay" @click.self="closeDialog">
+      <div v-if="dialog.open" class="overlay overlay--dialog" @click.self="closeDialog">
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
           <div class="dialog-header">
             <div>
@@ -529,7 +529,7 @@
             </div>
             <button class="text-button" type="button" aria-label="关闭对话框" @click="closeModal">关闭</button>
           </div>
-          <p class="modal-description">{{ modal.description }}</p>
+          <p v-if="modal.description" class="modal-description">{{ modal.description }}</p>
 
           <template v-if="modal.kind === 'account-edit'">
             <form class="modal-form" @submit.prevent="confirmSaveAccount">

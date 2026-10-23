@@ -898,7 +898,6 @@ export function createDashboardStore({ api }) {
       this.openModal({
         kind: "alias-edit",
         title: `编辑角色别名 · ${role.canonical_name}`,
-        description: "完整别名在此查看；默认别名只读，自定义别名可追加、删除或恢复。",
       });
     },
 
@@ -943,7 +942,7 @@ export function createDashboardStore({ api }) {
       }
       this.openDialog({
         title: "确认删除自定义别名",
-        description: `将从角色「${roleName}」删除自定义别名「${alias}」。默认别名不会受影响。`,
+        description: `将从角色「${roleName}」删除自定义别名「${alias}」。`,
         confirmLabel: "删除别名",
         onConfirm: () => this.deleteAlias(roleName, alias),
       });
