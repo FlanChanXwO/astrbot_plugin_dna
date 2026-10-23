@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## v0.8.3 — 2026-10-23
+
+### 修复
+
+- 主动推送连续失败后核实机器人群成员状态，确认已离群时清理该群全部 DNA 订阅及公告、客户端更新待投递状态；支持 OneBot 与 Telegram，Telegram 话题按所属群统一处理。临时网络故障或无法核实时保留订阅并延后重试。（[#113](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/113)）
+- 修复 Dashboard 确认框被编辑弹窗遮挡，恢复别名删除等操作的确认与取消按钮。（[#114](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/114)）
+
+### 优化
+
+- 客户端更新统一显示“更新大小”，移除重复说明；精简 Dashboard 别名弹窗和使用文档，保留下载资源明细及必要的操作提示。（[#114](https://github.com/FlanChanXwO/astrbot_plugin_dna/pull/114)）
+
+### 升级注意
+
+- 更新后重新加载插件或重启 AstrBot。被确认离群后自动清理的订阅，需要在机器人重新入群后重新订阅。
+
+**完整变更**：[`v0.8.2...v0.8.3`](https://github.com/FlanChanXwO/astrbot_plugin_dna/compare/v0.8.2...v0.8.3)
+
 ## v0.8.2 — 2026-10-21
 
 ### 修复
