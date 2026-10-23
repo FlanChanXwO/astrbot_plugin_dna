@@ -73,6 +73,7 @@ from .infrastructure.resources.paths import PLUGIN_NAME
 from .infrastructure.scheduler import SignPushPayload, SignScheduler
 from .infrastructure.scheduler_state import SchedulerRegistry
 from .infrastructure.subscriptions import SubscriptionStore
+from .infrastructure.subscriptions.group_probe import probe_group_membership
 from .modules.account import AccountService
 from .modules.account.contracts import AccountTransport
 from .modules.account.login_flow import LoginFlowCoordinator
@@ -97,6 +98,7 @@ from .modules.client_updates.service import ClientUpdateService
 from .modules.client_updates.state import ClientUpdateStateStore
 from .modules.encyclopedia.contracts import EncyclopediaTransport
 from .modules.encyclopedia.service import EncyclopediaService
+from .modules.group_subscription_health import GroupSubscriptionHealth
 from .modules.notices.ann_delivery_state import AnnDeliveryStateStore
 from .modules.notices.ann_state import AnnStateStore
 from .modules.notices.contracts import NoticesTransport
@@ -429,6 +431,25 @@ def build_runtime(
         rendered_root=rendered_root,
     )
     subscriptions = SubscriptionStore(runtime_data_layout.subscriptions_path)
+    ann_state = AnnStateStore(runtime_data_layout.ann_state_path)
+    ann_delivery_state = AnnDeliveryStateStore(
+        runtime_data_layout.ann_delivery_state_path,
+    )
+    client_update_state = ClientUpdateStateStore(
+        runtime_data_layout.client_update_state_path,
+    )
+    if services is not None and "client_update_state" in services:
+        client_update_state = cast(
+            ClientUpdateStateStore, services["client_update_state"]
+        )
+    group_subscription_health = GroupSubscriptionHealth(
+        subscriptions,
+        ann_delivery_state,
+        client_update_state,
+        probe=lambda platform_id, group_id: probe_group_membership(
+            context, platform_id, group_id
+        ),
+    )
     deletion_coordinator = AccountDeletionCoordinator(runtime_database, subscriptions)
     membership_probe = AiocqhttpMembershipProbe(context=context)
     membership_service = MembershipService(
@@ -460,6 +481,8 @@ def build_runtime(
     )
 
     async def _push_sign(origin: str, payload: SignPushPayload) -> None:
+        if group_subscription_health.should_skip(origin):
+            return
         chain: list[Any] = []
         if payload.image_bytes is not None:
             chain.append(AstrImage.fromBytes(payload.image_bytes))
@@ -476,13 +499,15 @@ def build_runtime(
         try:
             res = context.send_message(origin, msg)
             if inspect.isawaitable(res):
-                await res
+                res = await res
+            await group_subscription_health.record(origin, res is not False)
         except Exception as error:  # noqa: BLE001
             logger.warning(
                 "签到推送失败 origin=%s error=%s",
                 origin,
                 error,
             )
+            await group_subscription_health.record(origin, False)
 
     sign_scheduler = SignScheduler(
         checkin_service,
@@ -516,6 +541,8 @@ def build_runtime(
         payload: str | Path | tuple[Path, ...],
         at_user_id: str | list[str] | None = None,
     ) -> bool:
+        if group_subscription_health.should_skip(origin):
+            return False
         chain: list[Any] = []
         user_ids: list[str] = []
         if at_user_id:
@@ -552,22 +579,20 @@ def build_runtime(
             res = context.send_message(origin, msg)
             if inspect.isawaitable(res):
                 res = await res
-            return res is not False
+            succeeded = res is not False
         except Exception as error:  # noqa: BLE001
             logger.warning(
                 "公告推送失败 origin=%s error_type=%s",
                 origin,
                 type(error).__name__,
             )
-            return False
+            succeeded = False
+        await group_subscription_health.record(origin, succeeded)
+        return succeeded
 
     resolved_notices_transport = notices_transport or DnaApiNoticesTransport(
         runtime_database,
         request_gate=request_gate,
-    )
-    ann_state = AnnStateStore(runtime_data_layout.ann_state_path)
-    ann_delivery_state = AnnDeliveryStateStore(
-        runtime_data_layout.ann_delivery_state_path,
     )
 
     class _AnnouncementListSource:
@@ -610,17 +635,21 @@ def build_runtime(
     async def _send_client_update_text(origin: str, text: str) -> bool:
         """把客户端更新普通文本交给 AstrBot 主动消息接口。"""
 
+        if group_subscription_health.should_skip(origin):
+            return False
         try:
             result = context.send_message(origin, MessageChain(chain=[Plain(text)]))
             if inspect.isawaitable(result):
                 result = await result
-            return result is not False
+            succeeded = result is not False
         except Exception as error:  # noqa: BLE001
             logger.warning(
                 "客户端更新普通消息推送失败 error_type=%s",
                 type(error).__name__,
             )
-            return False
+            succeeded = False
+        await group_subscription_health.record(origin, succeeded)
+        return succeeded
 
     async def _send_client_update_forward(
         origin: str,
@@ -628,6 +657,8 @@ def build_runtime(
     ) -> bool:
         """使用 AstrBot 原生 Nodes 组件尝试 OneBot 合并转发。"""
 
+        if group_subscription_health.should_skip(origin):
+            return False
         nodes = [Node(content=[Plain(text)], name="DNA", uin="0") for text in texts]
         try:
             result = context.send_message(
@@ -636,13 +667,15 @@ def build_runtime(
             )
             if inspect.isawaitable(result):
                 result = await result
-            return result is not False
+            succeeded = result is not False
         except Exception as error:  # noqa: BLE001
             logger.warning(
                 "客户端更新合并转发推送失败 error_type=%s",
                 type(error).__name__,
             )
-            return False
+            succeeded = False
+        await group_subscription_health.record(origin, succeeded)
+        return succeeded
 
     resolved_client_updates_transport = (
         client_updates_transport
@@ -654,14 +687,6 @@ def build_runtime(
         resolved_client_updates_transport = cast(
             ClientUpdateTransport,
             services["client_updates_transport"],
-        )
-    client_update_state = ClientUpdateStateStore(
-        runtime_data_layout.client_update_state_path,
-    )
-    if services is not None and "client_update_state" in services:
-        client_update_state = cast(
-            ClientUpdateStateStore,
-            services["client_update_state"],
         )
     client_update_service = ClientUpdateService(
         client_update_state,
@@ -789,6 +814,7 @@ def build_runtime(
         "encyclopedia_resources": encyclopedia_resources,
         "checkin_service": checkin_service,
         "subscriptions": subscriptions,
+        "group_subscription_health": group_subscription_health,
         "membership_probe": membership_probe,
         "membership_service": membership_service,
         "deletion_coordinator": deletion_coordinator,
