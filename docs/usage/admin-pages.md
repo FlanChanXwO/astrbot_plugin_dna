@@ -12,8 +12,6 @@
 
 页面不创建新的任务类型或账号。插件版本显示来自根目录的 `metadata.yaml`。页面左上角和移动端顶部使用 `pages/dashboard/logo.png`。
 
-具体页面和接口以 `pages/dashboard/`、`src/entry/admin_web.py`、`src/entry/web.py` 为准，本页不复制路由清单。
-
 ## 表格与分页
 
 任务仍一次性展示全部内置任务；投递目标、账号、角色别名和成员探测结果使用服务端分页。分页 DTO 统一返回 `items`、`page`、`page_size`、`total` 和 `total_pages`，页码从 1 开始，页大小只接受 10、20、50，默认每页 20 行。空结果的 `total_pages` 为 0。
@@ -53,5 +51,3 @@
 ## 数据与安全
 
 管理 API 返回 `Cache-Control: no-store`。管理页不会把账号数据或凭据写入浏览器存储。插件运行期数据位于 `StarTools.get_data_dir("astrbot_plugin_dna")`。执行账号删除、任务删除或别名清理前，建议先备份插件数据目录；备份应限制访问，不要提交到 Git 或上传到公开位置。
-
-若页面行为与本文不一致，以当前代码和返回结果为准，并同步修正文档。

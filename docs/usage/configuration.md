@@ -19,7 +19,7 @@
 - `resources`：公共资源同步与 GitHub 加速；
 - `cache`：数据/卡片缓存策略。
 
-字段类型、默认值、选项和 Dashboard 提示请直接查看当前 `_conf_schema.json`，避免依赖文档中的重复表格。
+字段类型、默认值、选项和 Dashboard 提示见 [`_conf_schema.json`](../../_conf_schema.json)。
 
 ## 常用设置
 
@@ -69,15 +69,4 @@ Dashboard 中显式启用。例如只玩 B服，就只选择 B服 Target，官�
 
 代理、外置登录地址和共享密钥只应通过受控的 Dashboard 配置保存。不要把 Cookie、token、共享密钥或带凭据的 URL 写进仓库、Issue、PR 或文档示例。
 
-`network.proxy_url`、`network.api_base_url` 等字段的确切作用域以 typed settings、transport 实现和 schema 描述为准；排障时先确认当前配置，再看 AstrBot 日志中的脱敏错误。
-
-## 对贡献者
-
-修改配置模型后运行：
-
-```bash
-python3 scripts/generate_config_schema.py
-python3 -m pytest tests/test_config.py
-```
-
-提交代码时同时提交 `_conf_schema.json` 的生成差异。不要手工维护另一份完整字段/默认值清单。
+网络字段说明见 [`_conf_schema.json`](../../_conf_schema.json)。排障时先确认当前配置，再看 AstrBot 日志中的脱敏错误。

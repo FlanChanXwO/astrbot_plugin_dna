@@ -8,7 +8,6 @@ from .contracts import (
     ClientPlatform,
     ClientSourceVersion,
     ClientUpdateChange,
-    ManifestCdnVersionMetadata,
 )
 from .registry import resolve_client_update_target
 
@@ -53,7 +52,7 @@ def format_current(
         f"{_DETECTED_PREFIX}\n"
         f"目标：{_format_target_names(target_names)}\n"
         f"当前版本：{_version_text_label(version.version_text)}\n"
-        "上次版本：暂无；新增更新：暂无可比较大小"
+        "上次版本：暂无；更新大小：未知"
     )
 
 
@@ -67,7 +66,7 @@ def format_no_change(
         f"{_DETECTED_PREFIX}\n"
         f"目标：{_format_target_names(target_names)}\n"
         f"当前版本：{_version_text_label(version.version_text)}\n"
-        "新增更新：暂无"
+        "更新大小：暂无"
     )
 
 
@@ -87,21 +86,11 @@ def format_change(
     )
     plan = change.download_plan
     if plan is not None:
-        label = (
-            "热更下载（不含安装包和选配资源）"
-            if plan.basis == "android_resources"
-            else "下载量（不含选配资源）"
-        )
-        size_line = f"{label}：{format_size(plan.required_size_bytes)}"
+        size_line = f"更新大小：{format_size(plan.required_size_bytes)}"
         if plan.basis == "hdiff_and_patch":
-            size_line += (
-                f"\n基础包：{plan.package_from} → {plan.package_to}（已计入差分下载）"
-            )
+            size_line += f"\n基础包：{plan.package_from} → {plan.package_to}"
         if plan.basis == "apk_and_patch":
-            size_line = f"安装包＋共用资源：{format_size(plan.required_size_bytes)}"
-            size_line += (
-                f"\n官网 APK 直更：versionCode {plan.package_to}（已计入整包下载）"
-            )
+            size_line += f"\n官网 APK 安装包：versionCode {plan.package_to}"
             groups = dict(plan.optional_sizes)
             regions = ("Patch_East", "Patch_Icelake")
             for tag, language in (
@@ -139,13 +128,8 @@ def format_change(
                 f"{labels.get(name, name)} {format_size(size)}"
                 for name, size in plan.optional_sizes
             )
-        size_line += "\n按完整旧版本、无预下载计算；不是设备剩余下载量。"
-    elif isinstance(change.current.provider_metadata, ManifestCdnVersionMetadata):
-        size_line = "下载量：旧记录未保存下载计划"
-        if change.added_size_bytes is not None:
-            size_line += f"\n补丁清单统计：{format_size(change.added_size_bytes)}"
     else:
-        size_line = "下载量：该渠道未公开可计算的升级下载计划"
+        size_line = "更新大小：未知"
     return (
         f"{_DETECTED_PREFIX}更新\n"
         f"目标：{_format_target_names(names)}\n"
@@ -159,7 +143,7 @@ def _version_text_label(version_text: str | None) -> str:
 
     if version_text is not None:
         return version_text
-    return "暂无公开版本号（按发行包标识跟踪）"
+    return "暂无公开版本号"
 
 
 def _change_version_line(change: ClientUpdateChange) -> str:
@@ -167,7 +151,7 @@ def _change_version_line(change: ClientUpdateChange) -> str:
     current = change.current.version_text
     if previous is not None and current is not None:
         return f"{previous} → {current}"
-    return "发行包已更新（该渠道不提供公开版本号）"
+    return "发行包已更新"
 
 
 def format_size(size_bytes: int) -> str:

@@ -266,7 +266,7 @@ async def test_query_reports_history_gap_without_advancing_baseline() -> None:
 
     assert state.writes == 0
     assert "version-100 → version-103" in response.text
-    assert "未公开可计算的升级下载计划" in response.text
+    assert "更新大小：未知" in response.text
 
 
 @pytest.mark.asyncio
